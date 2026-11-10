@@ -16,6 +16,7 @@ import {
     type ImportInput,
     type ImportReport,
     INPUT_ISSUE,
+    parseTextCell,
     registry,
 } from "@graphty/graph-io";
 import { isStyleSlotColumn } from "@graphty/graph-io/styles";
@@ -303,10 +304,13 @@ export interface ImportedRecords {
  *
  * The element keeps the first record of a repeated node id and skips the rest; graph-io merges a
  * repeated node row into the node it already read, the later values winning. A cell written once
- * is therefore not written again. A repeated row can still fill a cell the first row left empty.
+ * is therefore not written again, unless the write spells the same value as text: an importer
+ * restoring a number as the file wrote it (`+15550142`), once its column turns out to be text. A
+ * repeated row can still fill a cell the first row left empty.
  */
 class FirstValueBuilder extends GraphBuilder {
-    private readonly written = new Map<number, Set<number>>();
+    /** By column, the first value each row was given. */
+    private readonly written = new Map<number, Map<number, unknown>>();
     /** How many times a node was added: a node table's rows read so far. */
     added = 0;
 
@@ -317,7 +321,8 @@ class FirstValueBuilder extends GraphBuilder {
 
     override setNodeValue(column: ColumnHandle | string, index: number, value: unknown): void {
         const handle = typeof column === "string" ? this.nodeColumn(column) : column;
-        if (this.written.get(handle)?.has(index) === true) {
+        const cells = this.written.get(handle);
+        if (cells?.has(index) === true && !(typeof value === "string" && parseTextCell(value) === cells.get(index))) {
             return;
         }
 
@@ -325,11 +330,13 @@ class FirstValueBuilder extends GraphBuilder {
         const declared = typeof column === "string" ? this.nodeColumn(column) : column;
         let rows = this.written.get(declared);
         if (rows === undefined) {
-            rows = new Set();
+            rows = new Map();
             this.written.set(declared, rows);
         }
 
-        rows.add(index);
+        if (!rows.has(index)) {
+            rows.set(index, value);
+        }
     }
 }
 

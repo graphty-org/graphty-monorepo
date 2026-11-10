@@ -3142,7 +3142,8 @@ export interface JoinsDraft {
     preview(options?: { readonly step?: string; readonly before?: boolean }): JoinPreview;
     /**
      * Join every step that can run, in order, as one undoable step. Each becomes a join
-     * `data.joins()` lists and the project saves.
+     * `data.joins()` lists and the project saves; a step that changes nothing (its key matches no
+     * row) is left out, so it adds no source.
      * @returns Settles once the step is recorded.
      */
     commit(): Promise<void>;

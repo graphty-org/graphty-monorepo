@@ -165,7 +165,7 @@ async function pickByKeys(scope: HTMLElement, label: string, option: string): Pr
 async function switchView(mode: "2D" | "3D"): Promise<void> {
     const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
     await userEvent.click(within(toolbar).getByRole("button", { name: /^Mode, / }));
-    const menu = await screen.findByRole("menu", { name: "Mode" });
+    const menu = await screen.findByRole("menu", { name: /^Mode/ });
     await userEvent.click(within(menu).getByRole("menuitemradio", { name: new RegExp(`^${mode}`) }));
 }
 
@@ -502,7 +502,7 @@ describe("the location map", () => {
 
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
         await userEvent.click(within(toolbar).getByRole("button", { name: "Mode, 3D" }));
-        const menu = await screen.findByRole("menu", { name: "Mode" });
+        const menu = await screen.findByRole("menu", { name: /^Mode/ });
         await userEvent.click(within(menu).getByRole("menuitemradio", { name: /^2D/ }));
         await waitFor(() => {
             assert.strictEqual(element.session.layout.dimension, "2d");

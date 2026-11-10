@@ -311,7 +311,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.isNull(document.querySelector("graphty-element .xr-button-container, .xr-button-container"));
 
         await userEvent.click(view);
-        const menu = await screen.findByRole("menu", { name: "Mode" });
+        const menu = await screen.findByRole("menu", { name: /^Mode/ });
         const twoD = within(menu).getByRole("menuitemradio", { name: /^2D/ });
         const threeD = within(menu).getByRole("menuitemradio", { name: /^3D/ });
         assert.equal(threeD.getAttribute("aria-checked"), "true");
@@ -344,7 +344,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
         assert.equal(view.getAttribute("aria-label"), "Mode, 2D");
         await userEvent.click(view);
-        const flat = await screen.findByRole("menu", { name: "Mode" });
+        const flat = await screen.findByRole("menu", { name: /^Mode/ });
         assert.include(within(flat).getByRole("menuitemradio", { name: /^3D/ }).textContent, "5");
     });
 
@@ -360,7 +360,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
         const open = async (): Promise<HTMLElement> => {
             await userEvent.click(camera);
-            return screen.findByRole("menu", { name: "Camera" });
+            return screen.findByRole("menu", { name: /^Camera/ });
         };
 
         let menu = await open();
@@ -418,7 +418,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
         const frameRow = async (): Promise<HTMLElement> => {
             await userEvent.click(view);
-            const menu = await screen.findByRole("menu", { name: "Camera" });
+            const menu = await screen.findByRole("menu", { name: /^Camera/ });
             return within(menu).getByRole("menuitem", { name: /^Frame selection/ });
         };
 

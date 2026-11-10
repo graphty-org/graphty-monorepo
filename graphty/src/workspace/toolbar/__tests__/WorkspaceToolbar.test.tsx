@@ -125,7 +125,7 @@ describe("the canvas toolbar", () => {
         });
         assert.equal(legend.getAttribute("aria-pressed"), "true", "pressed over nothing once the reader asked");
 
-        const menu = await screen.findByRole("menu", { name: "Mode" });
+        const menu = await screen.findByRole("menu", { name: /^Mode/ });
         assert.notInclude(menu.textContent, "Legend");
         assert.notInclude(menu.textContent, "Table");
     });

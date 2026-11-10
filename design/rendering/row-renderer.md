@@ -1516,14 +1516,14 @@ built, counted where both build sites (an edge whose ends are stored, and a pend
 changes no behavior on either path; under `"objects"` and, until the next pull request, under `"batched"` it equals the
 edges stored, and `test/managers/DataManager.test.ts` pins that. The proving test the row names reads it at 0.
 
-Correction from stage 27's third pull request: the walk left after the first one was not the engine's full walk but
-`UpdateManager.placedEdgesAtRows`, which runs on every frame the row table moves while some row has no `Node` (every
-layout frame of a batched load, since its rows have none) and asked every edge of the engine's list `isPulled`. It now
-walks a list of the placed edges, built again only when the layout engine, the store's edges, the engine's array of
-them or some edge's pulled line (`pulledLines.version` in `Edge.ts`) changed. `test/browser/pulled-edges-on-graph.test.ts`
-counts it: a moving layout asks each pulled line a fixed number of times, not once a frame. The engine's full walk
-(`placeEdges` over every edge, reading `followsRows`) is unchanged; it runs when edges are added or removed, at a
-forced walk, or when most nodes with a `Node` move.
+Stage 27's third pull request: on a small batched graph under a moving layout, the per-frame edge walk is not the
+engine's full walk but `UpdateManager.placedEdgesAtRows`. It runs on every frame the row table moves while some row
+has no `Node`, and asked every edge of the engine's list `isPulled`. It now walks a list of the placed edges, built
+again only when one of these changes: the layout engine, the store's edges, the engine's array of them, or some
+edge's pulled line (`pulledLines.version` in `Edge.ts`). `test/browser/pulled-edges-on-graph.test.ts` counts it: a
+moving layout asks each pulled line a fixed number of times, not once a frame. The engine's full walk (`placeEdges`
+over every edge, reading `followsRows`) is unchanged. Whether the 59 ms the first pull request left at 100k + 1M was
+this walk or the full one is for the harness profile to say.
 
 | #   | Stage                               | Issues                          | What it changes                                                                                                                                                                                                                                                                                         | Depends on                                                                                                                                       | R   | Target                                                                                                                                                                                               | Proving test                                                                                                                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

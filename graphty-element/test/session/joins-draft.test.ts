@@ -253,6 +253,14 @@ describe("data.prepareJoins", () => {
         await recipe.commit();
         assert.strictEqual(session.data.node("P002")?.badged, true);
         assert.strictEqual(session.data.nodes().filter((node) => node.kind === "tag").length, 5);
+        // The split join read the four people who have tags, of the six: every edge has a new end.
+        const tagged = session.data.joins().find((join) => join.choices.split !== undefined);
+        assert.deepInclude(tagged, { rows: 6, joinedRows: 4 });
+        assert.strictEqual(
+            session.data.joins().find((join) => join.choices.flag !== undefined)?.joinedRows,
+            1,
+            "a values join counts the rows that matched",
+        );
     });
 
     it("estimates a step without adding it", async () => {

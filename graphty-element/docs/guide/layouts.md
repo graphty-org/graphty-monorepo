@@ -653,6 +653,27 @@ The same scope is the `layoutScope` property and the `layout-scope` attribute (J
 - Held nodes still push and pull on the members, so a scoped layout costs the same per step as a
   whole-graph one, and a small scope is spread over the whole layout's extent.
 
+## Laying out only what the filter shows
+
+By default a layout runs over the whole graph, nodes the [visibility filter](./filter-conditions)
+hides included, so the shown nodes keep the places the whole graph gave them. Set
+`layout.visibleOnly` in the layout behaviour to lay out only what the filter shows:
+
+```typescript
+element.layoutBehavior = { layout: { visibleOnly: true } };
+
+// Show two communities: the layout runs again over just their nodes
+await element.session.visibility.set({ kind: "member", of: { nodes: ["a", "b", "c", "d"] } });
+```
+
+- **A hidden node takes no part.** It pushes and pulls nothing, its edges pull nothing, and a
+  circle, a grid or any other layout gives it no slot. Every layout honours it, your own included.
+- **The layout runs again when the filter changes**, and when `visibleOnly` is switched on or off.
+- **A hidden node stays where it was**, so taking the filter away shows it where it last was
+  drawn; the layout then runs again over everything shown.
+- **It combines with a scope.** A scoped layout still holds the nodes outside its scope, and
+  those still push and pull on its members unless the filter hides them.
+
 ## Performance Tips
 
 1. **Large graphs**: Use Barnes-Hut approximation (ngraph with default theta)

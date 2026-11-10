@@ -62,7 +62,7 @@ import { GraphtyError } from "../errors";
 import type { DataManager } from "../managers/DataManager";
 import type { Node } from "../Node";
 import type { DrawnTarget } from "../render/RowTable";
-import { readCommunities, sameCommunities } from "./clusterForce";
+import { readCommunities, readRowCommunities, sameCommunities } from "./clusterForce";
 import { type EdgePosition, LayoutEngine, type Position } from "./LayoutEngine";
 
 /**
@@ -416,6 +416,14 @@ interface DrawnRun {
     skip: Uint32Array;
     /** As the target said at the last publish: no copy while a transition draws the rows. */
     suspended: boolean;
+    /**
+     * Rows the table told the ring, each with the batches submitted by then. The ring writes a told
+     * row into every slot at once, so a batch already in flight lands holding the told row while its
+     * readback moves the row on the CPU: its copy must not stand for those rows.
+     */
+    readonly told: Map<number, number>;
+    /** The mirror this run gave the table, which only this run takes back. */
+    readonly mirror: (row: number, x: number, y: number, z: number, w: number) => void;
 }
 
 /**
@@ -531,8 +539,15 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     #nodeMass: F32 | null = null;
 
-    /** The last read of `clusterBy`. */
-    #communities: ReadonlyMap<Node, number> = new Map();
+    /**
+     * The stored record of a row with no `Node`, which the layout manager fills in; read for `clusterBy` under
+     * renderPath "batched".
+     * @internal
+     */
+    rowRecord: ((row: number) => unknown) | null = null;
+
+    /** The last read of `clusterBy`: by `Node` under renderPath "objects", by row under "batched". */
+    #communities: ReadonlyMap<Node | number, number> = new Map();
 
     /** One radius per row in scene units, gap included, while `nodeGap` is set; see `#collisionRadii`. */
     #radii: F32 | null = null;
@@ -1328,13 +1343,16 @@ export class SimulationLayoutEngine extends LayoutEngine {
             n: nodeCount,
             skip: new Uint32Array(Math.ceil(nodeCount / 32)),
             suspended: false,
+            told: new Map(),
+            mirror: (row, x, y, z, w): void => {
+                if (this.#drawn === run && row < nodeCount) {
+                    drawn.writeDrawn(row, x, y, z, w);
+                    run.told.set(row, this.#landed + this.#inFlight);
+                }
+            },
         };
         this.#drawn = run;
-        target.table.drawnMirror = (row, x, y, z, w): void => {
-            if (this.#drawn === run && row < nodeCount) {
-                drawn.writeDrawn(row, x, y, z, w);
-            }
-        };
+        target.table.drawnMirror = run.mirror;
         this.#sendDrawnTransform(run);
     }
 
@@ -1346,7 +1364,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return;
         }
 
-        if (run.target.table.drawnMirror !== null) {
+        // Only its own: a layout set over this one attaches its ring before this engine is disposed,
+        // and clearing the table's mirror then left the new ring told of no write the table made.
+        if (run.target.table.drawnMirror === run.mirror) {
             run.target.table.drawnMirror = null;
         }
 
@@ -1394,12 +1414,29 @@ export class SimulationLayoutEngine extends LayoutEngine {
                 run.target.table.dropCopy();
             } else {
                 run.target.table.copyLanded(run.target.device, landed, run.n);
+                this.#resendTold(run);
             }
 
             this.#sendDrawnTransform(run);
         } catch (error) {
             if (simulation !== null) {
                 this.#onError(error, simulation);
+            }
+        }
+    }
+
+    /**
+     * After a copy of the newest landing: sends the rows told to the ring while that batch was in
+     * flight, whose copied rows are the told ones and not what the publish wrote, and forgets the
+     * rows told before it was submitted, which every later landing holds.
+     * @param run - The run.
+     */
+    #resendTold(run: DrawnRun): void {
+        for (const [row, submitted] of run.told) {
+            if (submitted >= this.#landed) {
+                run.target.table.resend(row);
+            } else {
+                run.told.delete(row);
             }
         }
     }
@@ -1691,19 +1728,27 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * Reads `clusterBy` over the loaded snapshot.
      * @returns Each member's community.
      */
-    #readCommunities(): ReadonlyMap<Node, number> {
+    #readCommunities(): ReadonlyMap<Node | number, number> {
         const { clusterBy } = this.#options;
         if (clusterBy === undefined || clusterBy === null || this.#snapshot === null) {
             return new Map();
         }
 
-        return readCommunities(
-            clusterBy,
-            this.nodes,
-            this.clusterColumn,
-            (row) => !this.#hasRow(row) || this.isFollower(row),
-            this.#snapshot,
-        );
+        const skip = (row: number): boolean => !this.#hasRow(row) || this.isFollower(row);
+        if (this.#dataManager.renderLimits?.batched() ?? false) {
+            // Under renderPath "batched" by row, so a row with no Node is read without building one.
+            const manager = this.#dataManager;
+            return readRowCommunities(
+                clusterBy,
+                this.#snapshot.nodeCount,
+                (row) => manager.nodesByIndex[row]?.data ?? this.rowRecord?.(row),
+                this.clusterColumn,
+                skip,
+                this.#snapshot,
+            );
+        }
+
+        return readCommunities(clusterBy, this.nodes, this.clusterColumn, skip, this.#snapshot);
     }
 
     /**
@@ -1720,8 +1765,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         const communities = new Uint32Array(nodeCount).fill(NO_CLUSTER);
-        for (const [node, community] of this.#communities) {
-            communities[node.index] = community;
+        for (const [member, community] of this.#communities) {
+            communities[typeof member === "number" ? member : member.index] = community;
         }
 
         simulation.setClusters?.({ communities, strength: this.#options.clusterStrength });
@@ -1953,7 +1998,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @returns The graph to load, and the `weight` option, undefined when the model reads none.
      */
     #loadable(snapshot: GraphSnapshot): { graph: GraphSnapshot; weight: boolean | string | undefined } {
-        const graph = this.#dataManager.undirected(snapshot).snapshot;
+        const undirected = this.#dataManager.undirected(snapshot).snapshot;
+        // An edge the filter hides between two shown nodes pulls nothing (see `LayoutEngine.setLeftOut`).
+        const keptEdges = this.keptEdges(undirected);
+        const graph = keptEdges === null ? undirected : undirected.filterEdges(keptEdges).snapshot;
         if ((this.#options.model as { weight?: unknown }).weight !== true) {
             return { graph, weight: undefined };
         }

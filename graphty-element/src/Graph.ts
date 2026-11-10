@@ -898,12 +898,14 @@ export class Graph implements GraphContext {
     private readonly drawsOnDemand = (): boolean =>
         this.viewSettings.behavior.rendering?.onDemand ?? onDemandWhenUnset();
     /**
-     * Whether the render loop flushes after each frame's fence: only under renderPath "batched",
-     * whose frames are short enough that waiting for the browser's own flush set their floor.
-     * Asked each frame, so a live path change takes effect on the next one.
+     * Whether the render loop flushes after each frame's WebGL fence, and keeps one WebGPU frame in
+     * flight: only under renderPath "batched". Its frames are short enough that waiting for the
+     * browser's own flush set their floor, and its million-row frames are long enough on the GPU
+     * that unpaced WebGPU frames queued minutes of work ahead of every readback. Asked each frame,
+     * so a live path change takes effect on the next one.
      * @returns True under renderPath "batched".
      */
-    readonly #flushesFrameFence = (): boolean => this.#renderPath === "batched";
+    readonly #batchedFrames = (): boolean => this.#renderPath === "batched";
     /**
      * Whether the picture the model describes is on screen and final, and no headset is showing
      * it -- a VR or AR view moves with the reader's head, which the loop cannot see. Asked only
@@ -1019,7 +1021,8 @@ export class Graph implements GraphContext {
             pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
-            flushesFrameFence: this.#flushesFrameFence,
+            flushesFrameFence: this.#batchedFrames,
+            pacesWebGpuFrames: this.#batchedFrames,
             antialias: this.antialias,
         });
 
@@ -1188,7 +1191,7 @@ export class Graph implements GraphContext {
                 !dispatcher.graphWritesWaiting
             ) {
                 this.#placementOwed = false;
-                await this.layoutManager.updatePositions([...this.dataManager.nodes.values()]);
+                await this.layoutManager.updatePositions([...dataManagerInternals.builtNodes(this.dataManager)]);
             }
 
             await this.paintGraphPass(target.styles, dirty, cause);
@@ -1268,7 +1271,7 @@ export class Graph implements GraphContext {
             }
 
             if (changed("selectionStyle") || changed("startingRows")) {
-                for (const node of this.dataManager.nodes.values()) {
+                for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
                     node.refreshSelectionOverlay();
                 }
             }
@@ -1419,8 +1422,8 @@ export class Graph implements GraphContext {
         this.eventManager.onGraphEvent.add((event) => {
             if (event.type === "snapshot-replaced") {
                 this.#resident = event.next;
-                this.#rowTable?.replaced(event.report.nodeRemap, this.dataManager.nodes.values());
-                this.#nodeBatches?.rowsMoved();
+                this.#rowTable?.replaced(event.report.nodeRemap, dataManagerInternals.builtNodes(this.dataManager));
+                this.#nodeBatches?.rowsMoved(event.report.nodeRemap);
                 // The derived inputs of scoped runs are over the snapshot that has gone: released
                 // now unless a run still holds one, and then when it lets go.
                 peekDerivedInputs(this)?.freeze();
@@ -1663,6 +1666,7 @@ export class Graph implements GraphContext {
             nodeValues: (graph, path) => columns.read(graph, path, "node", String)?.values ?? null,
             canonical: (input) => resolver.canonical(input),
             members: (scope) => resolver.nodeIdsOf(scope),
+            visibleEdges: () => this.session.visibility.edges,
             detached: (scope) => {
                 try {
                     const { freshness } = this.session.sets.status(scope);
@@ -1680,6 +1684,14 @@ export class Graph implements GraphContext {
         this.session.on("set:changed", (change) => {
             if (change.change === "removed") {
                 this.layoutManager.releaseDetachedScope();
+            }
+        });
+
+        // Under `layout.visibleOnly` the layout runs over what the filter shows, so it runs again
+        // when that changes. A restore or a rollback brings back an arrangement of its own.
+        this.session.on("visibility:changed", ({ cause }) => {
+            if (cause !== "restore" && cause !== "rollback") {
+                this.layoutManager.relayoutForVisibility();
             }
         });
 
@@ -2220,7 +2232,8 @@ export class Graph implements GraphContext {
             pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
-            flushesFrameFence: this.#flushesFrameFence,
+            flushesFrameFence: this.#batchedFrames,
+            pacesWebGpuFrames: this.#batchedFrames,
         });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
@@ -2851,6 +2864,8 @@ export class Graph implements GraphContext {
         NodeEffects.setOutlineWidth(this.scene, parsed.node.outlineWidth);
         // A label declutter switched on or off changes the picture without moving anything.
         this.renderManager.requestFrame();
+        // `layout.visibleOnly` switched lays the graph out again over what it now covers.
+        this.layoutManager.relayoutForVisibility();
 
         // New fit insets frame the graph again inside what they leave.
         if (JSON.stringify(this.styles.config.behavior.camera.fitInsets) !== insetsBefore) {
@@ -4125,11 +4140,13 @@ export class Graph implements GraphContext {
      * @param edgeIds - The edges removed.
      */
     private selectRemoval(nodeIds: readonly (string | number)[], edgeIds: readonly string[]): void {
+        // By id, building no `Node`: a row drawn with none is given none only to be removed, and
+        // one with none cannot be in the selection's `Node`s.
         const doomed = new Set<string | number>();
         for (const id of nodeIds) {
-            const node = this.dataManager.getNode(id);
-            if (node) {
-                doomed.add(node.id);
+            const known = dataManagerInternals.storedIdOf(this.dataManager, id);
+            if (known !== undefined) {
+                doomed.add(known);
             }
         }
 
@@ -4138,16 +4155,13 @@ export class Graph implements GraphContext {
         // could be selected: a run of removals stays linear either way.
         if (doomed.size > 0 && !this.session.selection.edgeRemovalChangesNothing()) {
             for (const id of doomed) {
-                const node = this.dataManager.getNode(id);
-                if (node) {
-                    doomedEdges.push(...this.dataManager.incidentEdgeIds(node));
-                }
+                doomedEdges.push(...dataManagerInternals.incidentEdgeIds(this.dataManager, id));
             }
         }
 
         this.selectionManager.onEdgesRemoved(doomedEdges);
         for (const id of doomed) {
-            const node = this.dataManager.getNode(id);
+            const node = dataManagerInternals.builtNode(this.dataManager, id);
             if (node) {
                 this.selectionManager.onNodeRemoved(node);
             }
@@ -4735,6 +4749,11 @@ export class Graph implements GraphContext {
             }
         }
 
+        if (path === "objects") {
+            // Every row stored with no `Node` gets one: only a batch draws it otherwise.
+            dataManagerInternals.buildAll(this.dataManager);
+        }
+
         this.#renderPath = path;
         this.#limits.honor(path === "batched");
         if (path === "objects") {
@@ -4837,7 +4856,7 @@ export class Graph implements GraphContext {
                     view: () => ({
                         flatOutline: this.getViewMode() !== "2d" && sceneLighting(this.scene) === "flat",
                     }),
-                    nodes: () => this.dataManager.nodes.values(),
+                    nodes: () => dataManagerInternals.builtNodes(this.dataManager),
                     sourceOf: ({ meshKey, style }) =>
                         NodeMesh.source(
                             this.dataManager.meshCache,
@@ -4916,7 +4935,7 @@ export class Graph implements GraphContext {
     openRowTable(): RowTable {
         if (this.#rowTable === null) {
             this.#rowTable = new RowTable(this.scene, () => this.dataManager[WRITABLE_LANE]);
-            this.#rowTable.replaced(null, this.dataManager.nodes.values());
+            this.#rowTable.replaced(null, dataManagerInternals.builtNodes(this.dataManager));
             openRowScan(
                 this.scene,
                 this.#rowTable,
@@ -5506,7 +5525,7 @@ export class Graph implements GraphContext {
         // Glyphs are shared by style through the mesh cache: forget them once, and each node builds its own again.
         forgetGlyphs(this.dataManager.meshCache, families);
         let rebuilt = this.#annotations?.refreshFonts(families) === true;
-        for (const node of this.dataManager.nodes.values()) {
+        for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
             rebuilt = node.refreshFonts(families) || rebuilt;
         }
 
@@ -5640,7 +5659,7 @@ export class Graph implements GraphContext {
         this.#edgeBandMeshes.clear();
         this.#nodeMeshes.clear();
         if (mapped) {
-            for (const node of this.dataManager.nodes.values()) {
+            for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
                 this.#nodeMeshes.add(node.drawnSourceMesh);
             }
         }

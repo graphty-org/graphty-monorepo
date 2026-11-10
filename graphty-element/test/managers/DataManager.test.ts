@@ -403,9 +403,10 @@ describe("DataManager", () => {
             dataManager.addEdge({ src: "a", dst: "b" });
             assert.equal(dataManager.edges.size, 1);
             // Master read each end twice: once to check it exists and once more for the edge. Now the check
-            // asks only whether the id is stored, and the one read left is the line's pull check (an end
-            // drawn behind edges, a group or a 2D node below z-index 0, keeps its line off the pull).
-            assert.equal(reads.mock.calls.length, 2, "each end is read once, by the line's pull check");
+            // asks only whether the id is stored, and the line's pull check (an end drawn behind edges, a
+            // group or a 2D node below z-index 0, keeps its line off the pull) reads an end stored with
+            // no Node from its row, which is never behind edges before it is painted: no end is read.
+            assert.equal(reads.mock.calls.length, 0, "no end's Node is read to build the edge");
 
             const [edge] = dataManager.edges.values();
             assert.strictEqual(edge.srcNode, dataManager.getNode("a"));

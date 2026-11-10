@@ -253,6 +253,12 @@ export interface WorkspaceState {
      */
     readonly labelsAvoid: boolean;
     /**
+     * The layout form's "Shown nodes only": a layout runs over only what the filter shows, and runs
+     * again when the filter changes (graphty-element's `layout.visibleOnly`). On by default, so a
+     * filtered graph fills the space; off, the shown nodes keep the places the whole graph gave them.
+     */
+    readonly layoutShownOnly: boolean;
+    /**
      * Graph settings, Same size at any depth: null follows whether a node size is bound to data;
      * true or false is the reader's own choice.
      */
@@ -378,6 +384,7 @@ const INITIAL: WorkspaceState = {
     textNext: null,
     shaderNext: null,
     labelsAvoid: true,
+    layoutShownOnly: true,
     sameSizeAtAnyDepth: null,
     lighting: "studio",
     outlineWidth: null,

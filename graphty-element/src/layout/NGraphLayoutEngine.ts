@@ -1,5 +1,5 @@
 import { detCos, detSin, INVALID_INDEX, type NodeMask } from "@graphty/graph-format";
-import ngraphCreateLayout, { Body, Layout as NGraphLayout } from "ngraph.forcelayout";
+import ngraphCreateLayout, { Body, Layout as NGraphLayout, Spring } from "ngraph.forcelayout";
 import createGraph, { Graph as NGraph, Link as NGraphLink, Node as NGraphNode } from "ngraph.graph";
 import random from "ngraph.random";
 import { z } from "zod";
@@ -759,7 +759,12 @@ export class NGraphEngine extends LayoutEngine {
         const ngraphNode: NGraphNode = this.ngraph.addNode(n.id, { parentNode: n });
         this.nodeMapping.set(n, ngraphNode);
         this.clustersStale = true;
-        this.place(n.id);
+        // A row's `Node` built late takes over the row's body, where it already is: the
+        // simulation is unchanged, so a settled one stays settled.
+        const tookOver = this.rowNodes.delete(n.id);
+        if (!tookOver) {
+            this.place(n.id);
+        }
 
         // A node that arrived after a scoped layout started is not one of its members.
         if (this.isHeld(n.index)) {
@@ -767,9 +772,11 @@ export class NGraphEngine extends LayoutEngine {
             this.weigh(n.index, n.id);
         }
 
-        this._settled = false;
-        this._stepCount = 0;
-        this._lastMoves = [];
+        if (!tookOver) {
+            this._settled = false;
+            this._stepCount = 0;
+            this._lastMoves = [];
+        }
     }
 
     /**
@@ -814,6 +821,7 @@ export class NGraphEngine extends LayoutEngine {
 
         pairOf(link).edges.add(e);
         this.edgeMapping.set(e, link);
+        this.slacken(link);
         this._settled = false;
         this._stepCount = 0;
         this._lastMoves = [];
@@ -832,6 +840,24 @@ export class NGraphEngine extends LayoutEngine {
         // which is the object ngraph itself mutates -- see setNodePosition, which writes straight
         // into it.
         return this.publishOnRead(n, pos.x, pos.y, pos.z ?? 0) ?? pos;
+    }
+
+    /**
+     * Take the position array as this engine's own: each `Node`'s body, and each row's with no
+     * `Node`, which a `Node` built later takes where it is.
+     */
+    override loadArrangement(): void {
+        super.loadArrangement();
+        const snapshot = this.rowNodes.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const at = { x: 0, y: 0, z: 0 };
+        for (const id of snapshot === undefined ? [] : this.rowNodes.keys()) {
+            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at)) {
+                const pos = this.ngraphLayout.getNodePosition(id);
+                pos.x = at.x;
+                pos.y = at.y;
+                pos.z = at.z;
+            }
+        }
     }
 
     /**
@@ -939,6 +965,34 @@ export class NGraphEngine extends LayoutEngine {
         }
 
         this.holdRowBodies();
+        for (const link of new Set(this.edgeMapping.values())) {
+            this.slacken(link);
+        }
+    }
+
+    /**
+     * Give a link to a node the layout leaves out (see `LayoutEngine.setLeftOut`) a spring too weak
+     * to pull, and a link that no longer touches one ngraph's own spring back. Zero would not do:
+     * ngraph reads a coefficient of 0 as "use the default".
+     * @param link - The link.
+     */
+    private slacken(link: NGraphLink): void {
+        const spring = this.ngraphLayout.getSpring(link) as Spring | undefined;
+        if (spring === undefined) {
+            return;
+        }
+
+        const leftOut =
+            [link.fromId, link.toId].some((id) => {
+                const node = (this.ngraph.getNode(id)?.data as { parentNode?: Node } | undefined)?.parentNode;
+                return node !== undefined && this.isLeftOut(node.index);
+            }) ||
+            (pairOf(link).edges.size > 0 && [...pairOf(link).edges].every((edge) => this.isEdgeLeftOut(edge)));
+        if (leftOut) {
+            spring.coefficient = FOLLOWER_MASS;
+        } else if (spring.coefficient === FOLLOWER_MASS) {
+            spring.coefficient = 0;
+        }
     }
 
     /**
@@ -955,6 +1009,31 @@ export class NGraphEngine extends LayoutEngine {
             return;
         }
 
+        this.dropBody(ngraphNode);
+        this.nodeMapping.delete(n);
+    }
+
+    /**
+     * Under renderPath "batched", take out the bodies of rows that leave the graph with no `Node`;
+     * otherwise each would stay in the simulation and keep pushing the others.
+     * @param ids - The rows' node ids; an id with no row body is skipped.
+     * @internal
+     */
+    removeRows(ids: Iterable<NodeIdType>): void {
+        for (const id of ids) {
+            const ngraphNode = this.rowNodes.get(id);
+            if (ngraphNode !== undefined) {
+                this.rowNodes.delete(id);
+                this.dropBody(ngraphNode);
+            }
+        }
+    }
+
+    /**
+     * Take a body and its links out of ngraph.
+     * @param ngraphNode - The body.
+     */
+    private dropBody(ngraphNode: NGraphNode): void {
         this.clustersStale = true;
 
         // The node's own links, not every link: each carries the edges between its pair.
@@ -968,7 +1047,6 @@ export class NGraphEngine extends LayoutEngine {
         }
 
         this.ngraph.removeNode(ngraphNode.id);
-        this.nodeMapping.delete(n);
         this._settled = false;
     }
 

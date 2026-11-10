@@ -267,6 +267,29 @@ try {
     log("memory", { ...(await page.evaluate(() => B.mem())), gpuMBDelta: gpuMB() - gpu0, rssMB: rssMB() });
     // Hover before the layout: a run of the layout moves cosmos.gl's points off the screen, which is
     // why its 10,000-node hover used to find no target. Both libraries hover the same still scene.
+    await hoverStage(page, "hover");
+    if (lib === "graphty") log("lasso", await page.evaluate(() => B.lasso(20)));
+    if (!skip) {
+        log("layoutFps", await page.evaluate(() => B.layoutFps(200, 30000)));
+        // The layout is still running: a hover reads the node under the pointer back from the GPU,
+        // which waits behind every frame queued ahead of it.
+        await hoverStage(page, "hoverLayout");
+        log("layoutSteps", await page.evaluate(() => B.layoutSteps()));
+    }
+} catch (e) {
+    log("failure", String(e?.message ?? e).slice(0, 500));
+} finally {
+    save();
+    await ctx.close();
+    rmSync(UDD, { recursive: true, force: true });
+}
+
+/**
+ * Hovers ten nodes and logs how long each took to answer, under a stage name.
+ * @param {import("playwright").Page} page - The page.
+ * @param {string} stage - The row's field.
+ */
+async function hoverStage(page, stage) {
     const K = 10;
     const targets = await page.evaluate((k) => B.hoverTargets(k), K);
     const lats = [];
@@ -289,16 +312,5 @@ try {
         lats.push(+r.hit.lat.toFixed(1));
     }
     await page.mouse.move(1260, 980);
-    log("hover", { targets: targets.length, latMs: lats });
-    if (lib === "graphty") log("lasso", await page.evaluate(() => B.lasso(20)));
-    if (!skip) {
-        log("layoutFps", await page.evaluate(() => B.layoutFps(200, 30000)));
-        log("layoutSteps", await page.evaluate(() => B.layoutSteps()));
-    }
-} catch (e) {
-    log("failure", String(e?.message ?? e).slice(0, 500));
-} finally {
-    save();
-    await ctx.close();
-    rmSync(UDD, { recursive: true, force: true });
+    log(stage, { targets: targets.length, latMs: lats });
 }

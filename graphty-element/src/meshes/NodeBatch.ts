@@ -6,6 +6,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import type { Rgba } from "../catalog/types";
 import { batchableOf, type BatchView, type NodePaint } from "../managers/StylePainter";
 import type { Node } from "../Node";
+import type { RowMeasure } from "../render/RowTable";
 import { batchUploadFrames } from "./FrameRoster";
 import { handOverTogether } from "./handOverTogether";
 import type { MeshCache } from "./MeshCache";
@@ -419,12 +420,15 @@ function drawSpan(first: Mesh, sources: Mesh[]): [Mesh, Mesh] {
     return [low, high];
 }
 
+/** The shapes a row can be round from every side as, as `Node` keeps them. */
+const ROUND_TYPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
+
 /**
  * A row with no `Node`, drawn from its paint alone: the look, color and size the style stack
  * resolved for it, and the source mesh that look draws from. It has no mesh, anchor, label or
  * overlay of its own, so it never needs a frame's visit (design/rendering/row-renderer.md 4.6).
  */
-export class ColumnRow {
+export class ColumnRow implements RowMeasure {
     /** A row's paint draws at its source's size: only a `Node` scales with the view. */
     readonly wholeScale = 1;
     /** Nothing hangs from the row, so a frame's walk never visits it. */
@@ -480,6 +484,66 @@ export class ColumnRow {
         return ColumnRow.drawable(this.paint, view);
     }
 
+    /**
+     * The row's own scale: its source mesh is built at the size its paint gives it.
+     * @returns 1.
+     */
+    get drawnScale(): number {
+        return 1;
+    }
+
+    /**
+     * Its source's box half-width when the shape is round from every side, as `Node.roundRadius` measures it.
+     * @returns The radius, or null when the row is not round.
+     */
+    get roundRadius(): number | null {
+        if (!ROUND_TYPES.has(this.paint.style.shape?.type ?? "")) {
+            return null;
+        }
+
+        const { extendSize, center } = this.paintedSourceMesh.getBoundingInfo().boundingBox;
+        const radius = extendSize.x;
+        const tolerance = radius * 0.01;
+        const off = (a: number, b: number): boolean => Math.abs(a - b) > tolerance;
+        return radius <= 0 || off(extendSize.y, radius) || off(extendSize.z, radius) || center.length() > tolerance
+            ? null
+            : radius;
+    }
+
+    /**
+     * A drawable paint has no border.
+     * @returns 0.
+     */
+    get borderReach(): number {
+        return 0;
+    }
+
+    /**
+     * Its source mesh's box half-size, as `Node.drawnHalfExtents` measures an unscaled node.
+     * @returns The half-extents.
+     */
+    get drawnHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
+        const { x, y, z } = this.paintedSourceMesh.getBoundingInfo().boundingBox.extendSize;
+        return { x, y, z };
+    }
+
+    /**
+     * With no border, its outline is its drawn surface.
+     * @returns The half-extents.
+     */
+    get outlineHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
+        return this.drawnHalfExtents;
+    }
+
+    /**
+     * The radius around its place that holds its source mesh, as `Node.drawnBoundingRadius` measures it.
+     * @returns The radius.
+     */
+    get drawnBoundingRadius(): number {
+        const { boundingSphere } = this.paintedSourceMesh.getBoundingInfo();
+        return boundingSphere.center.length() + boundingSphere.radius;
+    }
+
     /** The row has no mesh to give up or take back. */
     drawInBatch(): void {
         // Nothing to hand over: the batch is all that draws the row.
@@ -516,7 +580,7 @@ interface RowGroup {
 /** What {@link NodeBatches} needs of the graph. */
 export interface NodeBatchHost {
     readonly cache: MeshCache;
-    readonly places: RowPlaces & { readonly rows: number };
+    readonly places: RowPlaces & { readonly rows: number; measure(row: RowMeasure): void };
     /** The transform node every row is drawn inside. */
     root(): TransformNode | null;
     /** The scene state paint does not hold. */
@@ -736,6 +800,8 @@ export class NodeBatches {
 
         const row = new ColumnRow(index, paint, this.host.sourceOf(paint));
         this.columnRows.set(index, row);
+        // what a fit, an edge's trim and a layout's gap read of the row, which no `Node` measures
+        this.host.places.measure(row);
         this.sync(row);
         return true;
     }

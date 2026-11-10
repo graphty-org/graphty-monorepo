@@ -1552,6 +1552,7 @@ export class LayoutManager implements Manager {
                 engine,
                 this.dataManager,
                 () => this.dataManager.renderLimits?.batched() ?? false,
+                () => this.graphContext,
             );
         }
 

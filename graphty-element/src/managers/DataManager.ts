@@ -2212,7 +2212,9 @@ export class DataManager implements Manager {
 
         this.unbuilt.delete(index);
         this.graphContext?.getNodeBatches?.()?.unpaintRow(index);
-        return this.buildNode(id, row.record, index, false);
+        const node = this.buildNode(id, row.record, index, false);
+        this.graphContext?.getUpdateManager?.().adoptViewMasks(node);
+        return node;
     }
 
     /**

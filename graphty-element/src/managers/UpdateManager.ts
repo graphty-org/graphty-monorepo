@@ -1171,6 +1171,23 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Bring a `Node` built for a row that was drawn with no `Node` into line with the masks already
+     * applied to that row: the masks are applied as deltas, so a later one would not reach it.
+     * @param node - The new `Node`.
+     */
+    adoptViewMasks(node: Node): void {
+        const masks = this.viewMasks ?? EMPTY_MASKS;
+        const visibility = masks.visibility?.nodes() ?? null;
+        const selection = masks.selection?.nodes() ?? null;
+        const hiddenState: NodeRenderState = (masks.showContext?.() ?? false) ? "context" : "hidden";
+        node.setRenderState(visibility === null || visibility.has(node.index) ? "visible" : hiddenState);
+        if (selection?.has(node.index) === true) {
+            node.setSelected(true);
+            this.drawnSelectedNodes.add(node);
+        }
+    }
+
+    /**
      * Show, hide, select and deselect every node to match the masks.
      * @param nodeVisibility - The visible nodes, or null when nothing hides.
      * @param nodeSelection - The selected nodes, or null when nothing is selected.

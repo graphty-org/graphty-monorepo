@@ -105,3 +105,72 @@ no end Node. With it, a run of the nine failing story files went from 11 to 5 fa
 OpenAlexCiting, ThreePaths, AuraOverTheCap, AuraAndSatellites passed), but stories/LayoutLocationMap
 FlatMapIn2DView hangs with it (reproduced alone; passes at HEAD and with only interceptPointsOfRows disabled).
 The hang mechanism is not found yet.
+
+## Pull request 11, third session (2026-11-10)
+
+Cause of the FlatMapIn2DView hang with the parked edge-trim patch: the location-map layout read node data only
+from built Nodes (LocationMapLayout #dataColumns walked _nodes). On the batched path no row had a Node, so init()
+refused with layout.needs-location and the basemap never reached "ready"; the story's mapReady waited forever. At
+HEAD the same refusal happened, but edge trimming then built every end Node, and a later run found the locations.
+The patch only removed that accidental Node building.
+
+Change (batched path only in effect; on objects every row has a Node, so the records are the same):
+- SnapshotLayoutEngine.rowRecords(n): each row's data from its Node, else from the host's rowData (the stored
+  record of a row with no Node). LocationMapLayout #dataColumns now reads it.
+- Proving test, test/browser/node-batch.test.ts "find a location map's locations in rows with no Node": failed
+  before the change (GraphtyError layout.needs-location), passes after.
+
+Checks (graphty-element, through tools/low-priority.sh):
+- tsc --noEmit clean; eslint clean on the three changed files.
+- node-batch.test.ts (browser): 47 passed. location-map-layout + the-basemap-is-in-the-stable-frame (browser):
+  10 passed. location-map-drawing-options + place-names (default): 11 passed.
+- render-parity VITE_PARITY_STORIES=LayoutLocationMap at this commit: 4 passed.
+- Full render-parity WITH the parked patch applied (parity8.log): 11 failed, 314 passed. Fixed by the patch:
+  Bidirectional, OpenAlexCiting, ThreePaths, AuraOverTheCap, AuraAndSatellites. Broken by the patch:
+  ThreeDAllArrows (26951 px), TwoDAllArrows (28104), SelectedEdge (19292), Mandala (7717) -- the row trim or
+  arrow-cap scale differs from the Node's -- and two more Node-only readers exposed: Sets FilterToASet (filter
+  shows every node) and extending/SimpleLayout RowsByTier (defineLayout publishes only built Nodes' positions,
+  b..i left at the origin). Still failing as before: ClusterBy, CytoscapeSession, ForceAtlas2Weighted, Gexf,
+  LouvainMoreCommunitiesThanColours. The patch stays parked (tmp/stage-26/edge-row-trim.patch).
+- Full render-parity at this exact commit (without the patch): NOT run. sonar-gate: NOT run.
+
+## Pull request 11, fourth session (2026-11-10): two Node-only readers the parked edge-trim patch exposed
+
+Both changes act only on the batched path: a static engine lays out by row only while `byRow` (renderPath
+"batched") answers true, and a Node is built for a row with no Node only on that path.
+
+1. defineLayout layouts placed only rows with a built Node (extending/SimpleLayout RowsByTier with the patch).
+   An id-keyed static engine (one that fills `positions`, as every defineLayout engine does) never loaded the
+   element's graph, so `#publishRows` fell back to walking `_nodes`; and `defineLayout`'s `place` found its graph
+   only through `_nodes[0].parentGraph`, so with no Node at all it placed nothing.
+   Change: `StaticLayoutEngine` publishes an id-keyed answer row by row from the element's snapshot ids
+   (`#publishIdKeyedRows`); `attachRows` takes the element's graph as an optional fourth argument and
+   `simpleLayoutInternals.hostGraph` answers it when no Node exists; defineLayout reads its graph from there.
+   The graph is loaded for an id-keyed engine only once it has an answer: loading it on every publish (tried
+   first) changed ThreePaths by 325 px with the patch applied. Mechanism of that side effect not traced.
+   Proving test: node-batch.test.ts "place every row with no Node by a defineLayout layout" -- failed before
+   ("row 0 is placed: expected false to be true"), passes after; asserts 0 Nodes built.
+2. A Node built later for a filtered row came up visible (Sets FilterToASet with the patch): masks are applied as
+   deltas, and a lazily built Node was never told. Change: `UpdateManager.adoptViewMasks(node)`, called from
+   `DataManager.buildRow`, sets the new Node's render state and selection from the current masks.
+   Proving test: node-batch.test.ts "keep a filtered row hidden when its Node is built later" -- failed with the
+   call disabled ("the filtered row's new Node is hidden: expected true to be false"), passes with it; also
+   asserts the same picture before and after the Nodes are built.
+
+Checks (graphty-element, through tools/low-priority.sh):
+- tsc --noEmit -p graphty-element: clean. eslint on the six changed files: clean (after --fix of import order).
+- node-batch.test.ts, render-parity project: 49 passed. define-layout + define-layout-defaults (browser): 24 passed.
+- node tools/sonar-gate.mjs: no new issue or hotspot on the changed lines.
+- Full render-parity WITH the parked patch (parity11.log, before the load-deferral fix): 10 failed, 315 passed.
+  RowsByTier and FilterToASet now pass. Still failing: ThreeDAllArrows, TwoDAllArrows, SelectedEdge, Mandala
+  (the patch's arrow regressions), ClusterBy, CytoscapeSession, ForceAtlas2Weighted, Gexf,
+  LouvainMoreCommunitiesThanColours, and ThreePaths (fixed by deferring the load: NodeDrawing|SimpleLayout with
+  the patch then 2 passed).
+- Full render-parity WITHOUT the patch at this change (parity12.log): 9 failed, 365 passed: Bidirectional,
+  CytoscapeSession, Gexf, ForceAtlas2Weighted, ClusterBy, LouvainMoreCommunitiesThanColours, ThreePaths (68 px),
+  Mandala (7717), Sticker (7717).
+- ORDER-DEPENDENT RESULTS, mechanism not found: VITE_PARITY_STORIES="PatternsAndSprites|NodeDrawing" at HEAD
+  (a051523d91, my source changes removed) fails ThreePaths (325), Mandala and Sticker (7717 each); with my
+  changes the same pair fails only ThreePaths (325); NodeDrawing alone with the patch passes. So whether
+  ThreePaths, Mandala and Sticker pass depends on which stories ran before them in the same page. That is a
+  state leak between stories on the batched path, present at HEAD; it must be found before parity is clean.

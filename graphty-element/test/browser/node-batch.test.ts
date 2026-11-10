@@ -27,6 +27,7 @@ import { PulledLineBatch } from "../../src/meshes/PulledLineBatch";
 import { isRowBatch } from "../../src/meshes/RowPullPlugin";
 import { rowScanOf } from "../../src/render/PickService";
 import { RowTable } from "../../src/render/RowTable";
+import { defineLayout } from "../../src/simple/defineLayout";
 import { drag, hover, nextFrame, wheel } from "../helpers/real-input";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas as readFrame } from "../helpers/whole-canvas";
 import { nextModelEvent } from "./models/helpers";
@@ -1010,6 +1011,65 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         await operationQueueOf(graph).waitForCompletion();
         assert.deepEqual(errors, [], "the layout found the latitude and longitude columns");
         assert.equal(graph.getLayoutManager().layoutEngine?.type, "location-map");
+    });
+
+    it("place every row with no Node by a defineLayout layout", async () => {
+        defineLayout({
+            id: "test-row-by-id",
+            dimensions: 2,
+            place(view) {
+                const out = new Map<string | number, [number, number]>();
+                for (const node of view.nodes()) {
+                    out.set(node.id, [Number(node.id) * 2, 1]);
+                }
+
+                return out;
+            },
+        });
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await element.session.data.addNodes(NODES);
+        await operationQueueOf(graph).waitForCompletion();
+        const manager = graph.getDataManager();
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "loaded with no Node");
+
+        await graph.setLayout("test-row-by-id");
+        await operationQueueOf(graph).waitForCompletion();
+        const engine = graph.getLayoutManager().layoutEngine;
+        assert.exists(engine);
+        if (!engine) {
+            return;
+        }
+
+        const positions = layoutEngineInternals.positions(engine);
+        const at = { x: 0, y: 0, z: 0 };
+        NODES.forEach((node, row) => {
+            assert.isTrue(positions.isPlaced(row), `row ${row} is placed`);
+            positions.read(row, at);
+            assert.equal(at.x, node.id * 2, `row ${row} is where place() put it`);
+        });
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "laid out with no Node");
+    });
+
+    it("keep a filtered row hidden when its Node is built later", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await loaded(element, "3d");
+        const manager = graph.getDataManager();
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "no Node built at load");
+        const { sets, visibility } = element.session;
+        const kept = sets.create({ kind: "fixed", nodes: [0, 1, 2], reading: "induced" }, { name: "Kept" });
+        await visibility.set({ kind: "member", of: { set: kept } });
+        const filtered = await frameOn(graph, "batched");
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "filtered with no Node");
+
+        const hidden = graph.getNode(5);
+        const shown = graph.getNode(1);
+        assert.isFalse(hidden?.drawnAnchor.isEnabled(), "the filtered row's new Node is hidden");
+        assert.isTrue(shown?.drawnAnchor.isEnabled(), "the kept row's new Node is shown");
+        assert.equal(overBar(filtered, await readFrame(graph)), 0, "the same picture with the Nodes built");
     });
 
     it("publish a simulation's rows with no Node by their rows", async () => {

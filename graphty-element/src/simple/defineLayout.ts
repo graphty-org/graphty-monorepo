@@ -34,7 +34,7 @@ import { mulberry32 } from "@graphty/algorithms";
 import type { RegisterOptions } from "../catalog/pluginRegistry";
 import type { AuthoredLayoutDescriptor, LayoutDescriptor, OptionDescriptor } from "../catalog/types";
 import { GraphtyError } from "../errors";
-import { LayoutEngine, type SimpleLayoutOpts, StaticLayoutEngine } from "../layout/LayoutEngine";
+import { LayoutEngine, simpleLayoutInternals, type SimpleLayoutOpts, StaticLayoutEngine } from "../layout/LayoutEngine";
 import { GraphtyLogger } from "../logging/GraphtyLogger.js";
 import type { Node } from "../Node";
 import {
@@ -384,7 +384,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
                     this.stale = true;
                     // The element's own restart, so the next frame draws it; a reader's pause still
                     // refuses it.
-                    const graph = this._nodes[0]?.parentGraph;
+                    const graph = simpleLayoutInternals.hostGraph(this);
                     if (graph) {
                         graph.getLayoutManager().running = true;
                     }
@@ -397,7 +397,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
                     this.#pending = null;
                     const thrown = error instanceof Error ? error : new Error(String(error));
                     logger.error(`${id}: the layout could not be recomputed`, thrown, { layout: id });
-                    const graph = this._nodes[0]?.parentGraph;
+                    const graph = simpleLayoutInternals.hostGraph(this);
                     graph?.getEventManager?.()?.emitGraphError(graph, thrown, "layout", { layoutType: id });
                 },
             );
@@ -412,7 +412,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             const run = new AbortController();
             this.#run = run;
 
-            const graph = this._nodes[0]?.parentGraph;
+            const graph = simpleLayoutInternals.hostGraph(this);
             // Only the element's own Graph has a session; a bare GraphContext (a test harness) does not.
             const session = graph?.getSession?.();
             if (graph === undefined || session === undefined) {

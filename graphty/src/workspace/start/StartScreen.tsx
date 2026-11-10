@@ -301,7 +301,12 @@ function SampleLibrary(): React.JSX.Element {
     // The first paint does not wait for the site's configuration.
     const timeline = useSyncExternalStore(onSiteConfig, siteTimeline);
     const library = offeredTiles(timeline);
-    const offered = [...library, ...NETWORK_TILES];
+    // In the order the sections are drawn: samples, network data, then generated.
+    const offered = [
+        ...library.filter((tile) => tile.field !== GENERATED),
+        ...NETWORK_TILES,
+        ...library.filter((tile) => tile.field === GENERATED),
+    ];
     const fields = [...new Set(offered.map((tile) => tile.field))];
     const datasetCount = library.filter((tile) => tile.field !== GENERATED).length;
     const shown = <T extends LibraryTile | NetworkTile>(each: readonly T[]): T[] =>

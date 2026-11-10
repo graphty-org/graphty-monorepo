@@ -137,13 +137,13 @@ describe("project.assetChoices", () => {
 
     it("embeds a URL an opened file kept by URL, on a save with no choice, with node-models off", async () => {
         stubSite({ [BALL]: sphereGlb(8, 4) });
-        const session = await baseSession();
+        const session = await baseSession([]);
         await layer(session, "ball", { "node.model": BALL });
         await session.assets.ready(BALL);
         const saved = await session.project.save({ assets: { [BALL]: "url" } });
         assert.strictEqual(entriesOf(saved.text)[0].stored, "url");
 
-        const opened = sessionWithRuns();
+        const opened = sessionWithRuns([]);
         await opened.project.open(saved.text);
         assert.strictEqual((await opened.assets.ready(BALL)).state, "accepted");
         assert.strictEqual(opened.project.assetChoices()[0].storage, "embed");

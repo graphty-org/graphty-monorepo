@@ -81,7 +81,7 @@ function standInExecutor(session: () => GraphSession): (context: RunExecutionCon
             ]
         )
             .filter((field) => field.kind === "node" && field.name in (nodes[0]?.values ?? {}))
-            .map((field) => ({ ...field, path: field.path.replace("$", context.runId) }));
+            .map((field) => ({ ...field, path: field.path.replaceAll("$", context.runId) }));
         return {
             result: createRunResult({
                 runId: context.runId,

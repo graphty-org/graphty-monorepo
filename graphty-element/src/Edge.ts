@@ -608,8 +608,60 @@ export class Edge {
             edge.shaderDataChanged();
         };
     }
-    dstNode: Node;
-    srcNode: Node;
+    #dstNode: Node | undefined;
+    #srcNode: Node | undefined;
+
+    /**
+     * The edge's source `Node`. On the `"batched"` render path it is looked up on first read, not
+     * when the edge is built, so an edge needs no `Node` for an end nothing asks about (the lazy-node
+     * stage of design/rendering/row-renderer.md); on `"objects"` it is resolved as the edge is built.
+     * @returns The source node.
+     */
+    get srcNode(): Node {
+        this.#srcNode ??= this.endNode(this.srcId);
+        return this.#srcNode;
+    }
+
+    /**
+     * Point this edge's source end at a `Node`, as the plain field this used to be allowed.
+     * @param node - The source node.
+     */
+    set srcNode(node: Node) {
+        this.#srcNode = node;
+    }
+
+    /**
+     * The edge's destination `Node`, looked up as {@link Edge.srcNode} is.
+     * @returns The destination node.
+     */
+    get dstNode(): Node {
+        this.#dstNode ??= this.endNode(this.dstId);
+        return this.#dstNode;
+    }
+
+    /**
+     * Point this edge's destination end at a `Node`, as the plain field this used to be allowed.
+     * @param node - The destination node.
+     */
+    set dstNode(node: Node) {
+        this.#dstNode = node;
+    }
+
+    /**
+     * The graph's `Node` for one of this edge's ends.
+     * @param id - The end's node id.
+     * @returns The node.
+     */
+    private endNode(id: NodeIdType): Node {
+        const node = this.context.getDataManager().nodeCache.get(id);
+        if (!node) {
+            throw new Error(
+                `Attempting to create edge '${this.srcId}->${this.dstId}', Node '${id}' hasn't been created yet.`,
+            );
+        }
+
+        return node;
+    }
     /**
      * The record this edge carries, as the graph holds it: deep-frozen, so a write to it throws. A
      * change goes through the graph (`updateNodes`, `session.data.updateNodes`, ...), which is what undo sees.
@@ -1193,30 +1245,29 @@ export class Edge {
         this.opts = opts;
         this.#record = frozenRecord(data);
 
-        // make sure both srcNode and dstNode already exist
-        const srcNode = this.context.getDataManager().nodeCache.get(srcNodeId);
-        if (!srcNode) {
-            throw new Error(
-                `Attempting to create edge '${srcNodeId}->${dstNodeId}', Node '${srcNodeId}' hasn't been created yet.`,
-            );
+        // Make sure both ends already exist. On "objects" both `Node`s are resolved here, as they
+        // always were; on "batched" the store's word is enough, and each is looked up on first read.
+        const dataManager = this.context.getDataManager();
+        if (dataManager.renderLimits?.batched() === true) {
+            for (const id of [srcNodeId, dstNodeId]) {
+                if (!dataManager.nodeCache.has(id)) {
+                    this.endNode(id);
+                }
+            }
+        } else {
+            this.#srcNode = this.endNode(srcNodeId);
+            this.#dstNode = this.endNode(dstNodeId);
         }
-
-        const dstNode = this.context.getDataManager().nodeCache.get(dstNodeId);
-        if (!dstNode) {
-            throw new Error(
-                `Attempting to create edge '${srcNodeId}->${dstNodeId}', Node '${dstNodeId}' hasn't been created yet.`,
-            );
-        }
-
-        this.srcNode = srcNode;
-        this.dstNode = dstNode;
 
         // The ray the intercept search aims and casts; its own vectors, never a mesh's, because
-        // the search writes into them.
-        this.ray = new Ray(
-            this.srcNode.drawnPosition.clone(),
-            this.dstNode.drawnPosition.subtract(this.srcNode.drawnPosition),
-        );
+        // the search writes into them. Aimed from end to end where the ends are already resolved;
+        // on "batched" it starts unaimed, since every cast sets its origin and direction first.
+        const src = this.#srcNode?.drawnPosition;
+        const dst = this.#dstNode?.drawnPosition;
+        this.ray =
+            src !== undefined && dst !== undefined
+                ? new Ray(src.clone(), dst.subtract(src))
+                : new Ray(Vector3.Zero(), Vector3.Zero());
 
         this.meshKey = paint.meshKey;
 

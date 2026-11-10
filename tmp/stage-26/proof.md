@@ -374,3 +374,34 @@ nodes; on objects (and on both paths at the merge base) only the arrow heads are
 stories (fixed layout, edges added after the nodes), and whether it does depends on which story ran before in the
 file. Next: find what draws those lines on batched (an `Edge` built late with a fresh line, or the edge row table)
 and why master leaves them out, and compare with the late-built `Node`s of the first story in the file.
+
+## Pull request 11, eleventh session (2026-11-10): Mandala and Sticker fixed; ThreePaths has a lead
+
+Cause of the 7717 px Mandala/Sticker difference (dumped each edge's line slot before the read): on objects a
+pattern node's mesh reaches 1.8 along the edge (its plane), so the line runs from -4.2 to -4.3 and draws nothing
+but the arrow head. On batched the edges were first placed while their end rows had no `Node`, against the row's
+reach (1.2, so a visible line from -4.8 to -3.7). The row's `Node` was built later (for its paint, or by a reader
+through `Edge.endNode`) on a frame where neither end moved, so the edge's position cache kept the row's ends.
+Which story drew the line depended on whether the paint landed before or after the first edge walk.
+
+Fix (UpdateManager, batched only: `adoptBuiltNode` is reached only from `DataManager.buildRow`):
+- `adoptViewMasks` is now `adoptBuiltNode`: besides the masks, it invalidates the built `Node`'s edges' position
+  caches and forces an edge walk (only when the load does not hold the draw; then the end-of-repaint walk places
+  them, as a resize's edges wait).
+- `edgesByNode` is keyed by node id instead of `Node`, so building it no longer builds a `Node` for every edge end
+  (it read `edge.srcNode`/`dstNode`). On objects every row has a `Node` with that id, so the lookup finds the same
+  edges.
+
+Checks: tsc --noEmit clean; eslint on the two files clean. render-parity, PatternsAndSprites alone: 6 passed.
+Narrowed render-parity + node-batch.test.ts (parity20.log, load 1.95): 6 failed, 95 passed. Mandala and Sticker
+pass. Still failing: Gexf 1488 (fails at the merge base too), ThreePaths 68, and four 1 px differences
+(Bidirectional, CytoscapeSession, ForceAtlas2Weighted, LouvainMoreCommunitiesThanColours).
+
+ThreePaths lead (not fixed): every mesh's bounding box is the same on both paths at read time, and the `star`
+node (shader:replace:demo/star-3d) has a box extent of 0.5. On objects its edges end 0.75 from it (box-star ends at
+2.75, star-plain starts at 4.75), the reach of the impostor sphere it is drawn as before the replace shader lands.
+On batched they end 0.5 from it (3.0 and 4.5), its final shape. So on objects (and on master) the edges are measured
+before the star shape replaces the impostor and are never measured again; on batched the `Node` is built later,
+after it. Matching objects means finding when the replace lands relative to the edge walk on each path. One run
+with an id-keyed map but an unconditional edge walk gave 325 px instead of 68.
+Build, npm run lint, sonar gate and the load-peak gate were not run this session.

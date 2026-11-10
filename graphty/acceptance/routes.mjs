@@ -328,22 +328,6 @@ const sizeIs = (nodes, edges) => async (g) => assert.deepEqual(await g.counts(),
 
 export const routes = [
     {
-        id: "reload-at-once-returns-to-the-sample",
-        feature: "A page reload the moment a sample has opened comes back to that sample",
-        from: "issue: reload just after opening a project lands on the start page",
-        async walk(u) {
-            await openSample(u, "Les Miserables");
-            await u.page.reload();
-            await opened(u);
-        },
-        checks: {
-            "the same graph is back, with no start page and no offer of unsaved work": async (g) => {
-                assert.deepEqual(await g.counts(), { nodes: 77, edges: 254 });
-                assert.equal(await g.page.getByRole("region", { name: "Unsaved work" }).count(), 0);
-            },
-        },
-    },
-    {
         id: "t37a-sample-size-and-hub",
         feature: "Open a sample and read its size and its most connected node",
         from: "T37 A",

@@ -21,3 +21,21 @@ Proving test: test/browser/node-batch.test.ts, "load a graph under batched build
 
 Checks run: tsc --noEmit clean; eslint clean on the touched files (DataManager, UpdateManager, LayoutManager,
 SnapshotLayoutEngine). No other test file run yet.
+
+## Session 2026-11-09 (later)
+
+- NodeBatches.paintRow now writes the row table extent of a row drawn with no Node (RowTable.measure takes a
+  RowMeasure; ColumnRow measures its source mesh). Proving test "load a graph under batched building no Node,
+  drawing the picture its Nodes drew": PASSES (run12.log, 376 ms).
+- node-batch.test.ts whole file (46 tests): all pass (parity4.log, render-parity project).
+- render-parity, first run (parity1.log): 139 failed, every one on the batched path; no story was unstable
+  between two objects loads. Two causes found and fixed:
+  1. A Node built late for a batched row (graph.getNodes() in the stories' checks) kept the bootstrap paint and
+     no place until the next frame: now painted at once from the row's resolved paint, after the layout engine
+     has it (DataManager.paintBuiltRow).
+  2. Such a Node got a second d3 / ngraph body at a fresh place ("Node not found in NGraphEngine" when painted
+     first): it now takes over the row's body (D3GraphEngine.addNode, NGraphEngine.addNode).
+- render-parity after the fixes (parity4.log): 65 failed, 306 passed, again all on the batched path and 0
+  unstable objects loads. The failing stories are listed in parity-batched-failures.txt (algorithm style stories,
+  Data/FileStyles Xgmml, network sources, Traversal BFS/DFS, ...). Not yet diagnosed.
+- tsc --noEmit and eslint clean on every touched file. sonar-gate not run yet.

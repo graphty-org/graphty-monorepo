@@ -1,0 +1,60 @@
+AssertionError: algorithms/Centrality/Centrality.stories.ts Betweenness differs on the batched p
+AssertionError: algorithms/Centrality/Centrality.stories.ts Closeness differs on the batched pat
+AssertionError: algorithms/Centrality/Centrality.stories.ts Degree differs on the batched path: 
+AssertionError: algorithms/Centrality/Centrality.stories.ts Eigenvector differs on the batched p
+AssertionError: algorithms/Centrality/Centrality.stories.ts HITS differs on the batched path: 
+AssertionError: algorithms/Centrality/Centrality.stories.ts Katz differs on the batched path: 
+AssertionError: algorithms/Centrality/Centrality.stories.ts PageRank differs on the batched path
+AssertionError: algorithms/Combined/Combined.stories.ts CentralityVsCommunity differs on the bat
+AssertionError: algorithms/Combined/Combined.stories.ts CombinedEdgeFlow differs on the batched 
+AssertionError: algorithms/Combined/Combined.stories.ts CommunityStructureWithPath differs on th
+AssertionError: algorithms/Combined/Combined.stories.ts DegreeAndPageRank differs on the batched
+AssertionError: algorithms/Combined/Combined.stories.ts LinkPrediction differs on the batched pa
+AssertionError: algorithms/Combined/Combined.stories.ts RouteOverRanking differs on the batched 
+AssertionError: algorithms/Combined/Combined.stories.ts RouteOverUnranked differs on the batched
+AssertionError: algorithms/Community/Community.stories.ts GirvanNewman differs on the batched pa
+AssertionError: algorithms/Community/Community.stories.ts LabelPropagation differs on the batche
+AssertionError: algorithms/Community/Community.stories.ts Leiden differs on the batched path: 
+AssertionError: algorithms/Community/Community.stories.ts Louvain differs on the batched path: 
+AssertionError: algorithms/Community/Community.stories.ts LouvainMoreCommunitiesThanColours diff
+AssertionError: algorithms/Component/Component.stories.ts SCC differs on the batched path: 
+AssertionError: algorithms/Flow/Flow.stories.ts MinCut differs on the batched path: 
+AssertionError: algorithms/ShortestPath/ShortestPath.stories.ts BellmanFord differs on the batch
+AssertionError: algorithms/ShortestPath/ShortestPath.stories.ts Dijkstra differs on the batched 
+AssertionError: algorithms/ShortestPath/ShortestPath.stories.ts FloydWarshall differs on the bat
+AssertionError: algorithms/SpanningTree/SpanningTree.stories.ts Kruskal differs on the batched p
+AssertionError: algorithms/SpanningTree/SpanningTree.stories.ts Prim differs on the batched path
+AssertionError: algorithms/Traversal/Traversal.stories.ts BFS differs on the batched path: 
+AssertionError: algorithms/Traversal/Traversal.stories.ts DFS differs on the batched path: 
+AssertionError: AllNodeShapes.stories.ts AllNodeShapes differs on the batched path: 
+AssertionError: BidirectionalArrows.stories.ts Bidirectional differs on the batched path: 
+AssertionError: Data.stories.ts Cx2 differs on the batched path: 
+AssertionError: Data.stories.ts Cx differs on the batched path: 
+AssertionError: Data.stories.ts Json differs on the batched path: 
+AssertionError: Data.stories.ts JsonOntology differs on the batched path: 
+AssertionError: Data.stories.ts ModifiedJson differs on the batched path: 
+AssertionError: Data.stories.ts Obo differs on the batched path: 
+AssertionError: Data.stories.ts Xgmml differs on the batched path: 
+AssertionError: FilePositions.stories.ts CytoscapeSession differs on the batched path: 
+AssertionError: FileStyles.stories.ts Cx2 differs on the batched path: 
+AssertionError: FileStyles.stories.ts Cx differs on the batched path: 
+AssertionError: FileStyles.stories.ts CytoscapeJs differs on the batched path: 
+AssertionError: FileStyles.stories.ts CytoscapeJson differs on the batched path: 
+AssertionError: FileStyles.stories.ts Gexf differs on the batched path: 
+AssertionError: FileStyles.stories.ts GmlYed differs on the batched path: 
+AssertionError: FileStyles.stories.ts GraphmlYed differs on the batched path: 
+AssertionError: FileStyles.stories.ts Xgmml differs on the batched path: 
+AssertionError: GraphStyles.stories.ts BackgroundColor differs on the batched path: 
+AssertionError: GraphStyles.stories.ts Default differs on the batched path: 
+AssertionError: GraphStyles.stories.ts Layers differs on the batched path: 
+AssertionError: LayeredStyles.stories.ts ColorAlpha differs on the batched path: 
+AssertionError: Layout.stories.ts D3 differs on the batched path: 
+AssertionError: Layout.stories.ts ForceAtlas2Weighted differs on the batched path: 
+AssertionError: Layout.stories.ts ngraph differs on the batched path: 
+AssertionError: network-sources/Sources.stories.ts NdexWp5483 differs on the batched path: 
+AssertionError: network-sources/Sources.stories.ts OpenAlexCiting differs on the batched path: 
+AssertionError: NodeStyles.stories.ts Color differs on the batched path: 
+AssertionError: NodeStyles.stories.ts Default differs on the batched path: 
+AssertionError: NodeStyles.stories.ts Label differs on the batched path: 
+AssertionError: NodeStyles.stories.ts Opacity differs on the batched path: 
+AssertionError: NodeStyles.stories.ts Shape differs on the batched path: 

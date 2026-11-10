@@ -1666,6 +1666,7 @@ export class Graph implements GraphContext {
             nodeValues: (graph, path) => columns.read(graph, path, "node", String)?.values ?? null,
             canonical: (input) => resolver.canonical(input),
             members: (scope) => resolver.nodeIdsOf(scope),
+            visibleEdges: () => this.session.visibility.edges,
             detached: (scope) => {
                 try {
                     const { freshness } = this.session.sets.status(scope);
@@ -1683,6 +1684,14 @@ export class Graph implements GraphContext {
         this.session.on("set:changed", (change) => {
             if (change.change === "removed") {
                 this.layoutManager.releaseDetachedScope();
+            }
+        });
+
+        // Under `layout.visibleOnly` the layout runs over what the filter shows, so it runs again
+        // when that changes. A restore or a rollback brings back an arrangement of its own.
+        this.session.on("visibility:changed", ({ cause }) => {
+            if (cause !== "restore" && cause !== "rollback") {
+                this.layoutManager.relayoutForVisibility();
             }
         });
 
@@ -2855,6 +2864,8 @@ export class Graph implements GraphContext {
         NodeEffects.setOutlineWidth(this.scene, parsed.node.outlineWidth);
         // A label declutter switched on or off changes the picture without moving anything.
         this.renderManager.requestFrame();
+        // `layout.visibleOnly` switched lays the graph out again over what it now covers.
+        this.layoutManager.relayoutForVisibility();
 
         // New fit insets frame the graph again inside what they leave.
         if (JSON.stringify(this.styles.config.behavior.camera.fitInsets) !== insetsBefore) {

@@ -1,4 +1,14 @@
-import { type F32, type GraphSnapshot, makeMask, maskSet, maskTest, type NodeMask } from "@graphty/graph-format";
+import {
+    type EdgeMask,
+    type F32,
+    type GraphSnapshot,
+    INVALID_INDEX,
+    makeMask,
+    maskSet,
+    maskTest,
+    type NodeMask,
+    type U32,
+} from "@graphty/graph-format";
 import type { LayoutResult } from "@graphty/layout";
 
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
@@ -209,6 +219,12 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
     #ready: { readonly stored: GraphSnapshot; readonly positions: F32 } | null = null;
     /** Whether an answer has been published. */
     #published = false;
+    /**
+     * The part of the graph the run in progress arranges when the layout leaves rows out (see
+     * `LayoutEngine.setLeftOut`): `graph`, `sourceGraph` and `followerGroups` answer in its rows
+     * from the moment `compute` is called until the next run starts.
+     */
+    #part: KeptPart | null = null;
 
     /** How many coordinates a row has, in the input and in the answer. */
     protected abstract readonly dimensions: 2 | 3;
@@ -234,6 +250,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
     /** Run the layout, or publish the asynchronous answer that has arrived for this graph. */
     doLayout(): void {
         this.stale = false;
+        this.#part = null;
         const { graph } = this;
         const stored = this.sourceGraph;
 
@@ -247,7 +264,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
 
         this.#abort();
         const controller = new AbortController();
-        const answer = this.compute(this.#input(graph, stored, controller));
+        const answer = this.#computeKept(this.#input(graph, stored, controller));
         if (!(answer instanceof Promise)) {
             this.result = this.#resultOf(answer, graph);
             this.#published = true;
@@ -283,6 +300,111 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
                 this.#host?.fail(error);
             },
         );
+    }
+
+    /**
+     * The graph being arranged; while a run that leaves rows out is computing, only the rows it lays out.
+     * @returns the undirected graph
+     */
+    protected override get graph(): GraphSnapshot {
+        return this.#part?.input.graph ?? super.graph;
+    }
+
+    /**
+     * The graph being arranged as it is stored; see {@link SnapshotLayoutEngine.graph}.
+     * @returns the stored graph
+     */
+    protected override get sourceGraph(): GraphSnapshot {
+        return this.#part?.input.stored ?? super.sourceGraph;
+    }
+
+    /**
+     * The groups following their members, in the rows of the graph being arranged: a group or a
+     * member the layout leaves out is not in it.
+     * @returns the groups by row
+     */
+    protected override get followerGroups(): ReadonlyMap<number, readonly number[]> {
+        const groups = super.followerGroups;
+        const part = this.#part;
+        if (part === null) {
+            return groups;
+        }
+
+        const out = new Map<number, readonly number[]>();
+        for (const [row, members] of groups) {
+            const at = part.remap[row];
+            if (at !== INVALID_INDEX) {
+                out.set(
+                    at,
+                    members.map((member) => part.remap[member]).filter((member) => member !== INVALID_INDEX),
+                );
+            }
+        }
+
+        return out;
+    }
+
+    /**
+     * Compute the answer, over only the rows the layout keeps when it leaves any out: those rows
+     * are handed to the layout as a graph of their own, so a left-out node takes no slot and pulls
+     * on nothing, and the answer is spread back to the element's rows with the left-out rows NaN,
+     * which leaves them where they are.
+     * @param input - the input over every row
+     * @returns the answer over every row
+     */
+    #computeKept(input: SnapshotLayoutInput): SnapshotLayoutAnswer {
+        const part = this.#keptPartOf(input);
+        if (part === null) {
+            return this.compute(input);
+        }
+
+        this.#part = part;
+        const answer = this.compute(part.input);
+        const spread = (positions: F32): F32 => spreadRows(positions, part.origin, input);
+        return answer instanceof Promise ? answer.then(spread) : spread(answer);
+    }
+
+    /**
+     * The part of an input the layout keeps, when it leaves rows or edges out.
+     * @param input - the input over every row
+     * @returns the part, or null when it keeps everything
+     */
+    #keptPartOf(input: SnapshotLayoutInput): KeptPart | null {
+        const rows = this.keptRows(input.graph.nodeCount);
+        const edges = this.keptEdges(input.graph);
+        if (rows === null && edges === null) {
+            return null;
+        }
+
+        return keptPart(input, rows ?? makeMask(input.graph.nodeCount, true), {
+            graph: edges,
+            stored: edges === null ? null : this.keptEdges(input.stored),
+        });
+    }
+
+    /**
+     * Read something about the graph being arranged in the part the layout keeps, outside a run:
+     * what a run would have arranged had it run now (see `LayoutEngine.setLeftOut`). Inside a run,
+     * or when the layout keeps everything, `graph` already answers that.
+     * @param read - what to read, through `graph`, `sourceGraph` and `_nodes`
+     * @returns what it read
+     */
+    protected inKeptPart<T>(read: () => T): T {
+        if (this.#part !== null) {
+            return read();
+        }
+
+        const part = this.#keptPartOf(this.#input(this.graph, this.sourceGraph, new AbortController()));
+        if (part === null) {
+            return read();
+        }
+
+        this.#part = part;
+        try {
+            return read();
+        } finally {
+            this.#part = null;
+        }
     }
 
     /** An emptied graph has nothing to arrange, so an answer still being computed for it is called off. */
@@ -536,6 +658,105 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
 
         return out;
     }
+}
+
+/** The rows a run that leaves rows out arranges, as their own input. */
+interface KeptPart {
+    /** The input over the kept rows only. */
+    readonly input: SnapshotLayoutInput;
+    /** Each kept row's row in the whole graph. */
+    readonly origin: U32;
+    /** Each row of the whole graph's kept row, or `INVALID_INDEX` for a row left out. */
+    readonly remap: U32;
+}
+
+/**
+ * The input over only the kept rows and edges: the induced subgraph of the kept rows less the
+ * edges left out, and every per-row array and mask gathered to its rows.
+ * @param input - the input over every row
+ * @param kept - the rows to keep
+ * @param edges - the edges to keep, of `input.graph` and of `input.stored`; null keeps every edge
+ * @param edges.graph - those of `input.graph`
+ * @param edges.stored - those of `input.stored`
+ * @returns the part
+ */
+function keptPart(
+    input: SnapshotLayoutInput,
+    kept: NodeMask,
+    edges: { readonly graph: EdgeMask | null; readonly stored: EdgeMask | null },
+): KeptPart {
+    const withEdges = (graph: GraphSnapshot, mask: EdgeMask | null): GraphSnapshot =>
+        mask === null ? graph : graph.filterEdges(mask).snapshot;
+    const derived = withEdges(input.graph, edges.graph).inducedSubgraph({ mask: kept });
+    const n = input.graph.nodeCount;
+    const origin = derived.nodeOrigin ?? Uint32Array.from({ length: n }, (_, row) => row);
+    const remap = derived.nodeRemap ?? origin;
+
+    const m = origin.length;
+    const dim = input.dimensions;
+    const rows = (all: F32, per: number): F32 => {
+        const out = new Float32Array(per * m);
+        origin.forEach((from, row) => {
+            out.set(all.subarray(per * from, per * from + per), per * row);
+        });
+        return out;
+    };
+    const mask = (all: NodeMask): NodeMask => {
+        const out = makeMask(m);
+        origin.forEach((from, row) => {
+            maskSet(out, row, maskTest(all, from));
+        });
+        return out;
+    };
+    // The left-out rows were the only rows outside the scope when every kept row is in it.
+    const scope = input.scope === null ? null : mask(input.scope);
+    const whole = scope !== null && origin.every((_from, row) => maskTest(scope, row));
+
+    return {
+        origin,
+        remap,
+        input: {
+            ...input,
+            graph: derived.snapshot,
+            stored: withEdges(input.stored, edges.stored).inducedSubgraph({ mask: kept }).snapshot,
+            scope: whole ? null : scope,
+            fixed: { rows: mask(input.fixed.rows), positions: rows(input.fixed.positions, dim) },
+            initial: rows(input.initial, dim),
+            added: input.added === null ? null : mask(input.added),
+            column: (optionName) => {
+                const all = input.column(optionName);
+                return all === null ? null : Array.from(origin, (from) => all[from]);
+            },
+            dataPositions: () => rows(input.dataPositions(), dim),
+            ...(input.nodeSizes === undefined
+                ? {}
+                : { nodeSizes: () => rows(input.nodeSizes?.() ?? new Float32Array(0), 1) }),
+            ...(input.nodeExtents === undefined
+                ? {}
+                : { nodeExtents: () => rows(input.nodeExtents?.() ?? new Float32Array(0), 2) }),
+        },
+    };
+}
+
+/**
+ * Spread an answer over the kept rows back to every row: a left-out row is NaN, which places nothing.
+ * @param positions - the answer, `input.dimensions` per kept row
+ * @param origin - each kept row's row in the whole graph
+ * @param input - the input over every row
+ * @returns the answer over every row; `positions` itself when it is not the kept rows' length,
+ *     so the length check refuses it as it would any malformed answer
+ */
+function spreadRows(positions: F32, origin: U32, input: SnapshotLayoutInput): F32 {
+    const dim = input.dimensions;
+    if (!(positions instanceof Float32Array) || positions.length !== dim * origin.length) {
+        return positions;
+    }
+
+    const out = new Float32Array(dim * input.graph.nodeCount).fill(Number.NaN);
+    origin.forEach((to, row) => {
+        out.set(positions.subarray(dim * row, dim * row + dim), dim * to);
+    });
+    return out;
 }
 
 /**

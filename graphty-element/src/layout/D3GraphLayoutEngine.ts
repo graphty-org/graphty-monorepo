@@ -118,6 +118,8 @@ const MAX_FINAL_SWEEPS = 256;
 
 /** d3's own many-body strength, which every node that is not a following group keeps. */
 const DEFAULT_CHARGE = -30;
+/** How hard a link pulls its two ends together. */
+const LINK_STRENGTH = 0.9;
 
 /** The share of the way to its centroid a node's velocity takes per tick at strength 1, d3's own `forceX` default. */
 const CLUSTER_RATE = 0.1;
@@ -258,7 +260,7 @@ export class D3GraphEngine extends LayoutEngine {
 
         // https://github.com/vasturiano/d3-force-3d?tab=readme-ov-file#links
         this.linkForce = forceLink()
-            .strength(0.9)
+            .strength(LINK_STRENGTH)
             .id((d) => (d as D3InputNode).id);
         this.d3ForceLayout = forceSimulation()
             .numDimensions(this.dim)
@@ -783,6 +785,31 @@ export class D3GraphEngine extends LayoutEngine {
         this.holdRowBodies(followers);
 
         this.chargeForce.strength((d) => (followers.has((d as D3InputNode).id) ? 0 : DEFAULT_CHARGE));
+        // A link to a node the layout leaves out, or one the filter hides, pulls nothing (see
+        // `LayoutEngine.setLeftOut`).
+        const leftOut = new Set<NodeIdType>();
+        for (const node of this.nodeMapping.keys()) {
+            if (this.isLeftOut(node.index)) {
+                leftOut.add(node.id);
+            }
+        }
+
+        const hiddenLinks = new Set<unknown>();
+        for (const [edge, link] of [...this.edgeMapping, ...this.newEdgeMap]) {
+            if (this.isEdgeLeftOut(edge)) {
+                hiddenLinks.add(link);
+            }
+        }
+
+        const endId = (end: unknown): unknown =>
+            typeof end === "object" && end !== null ? (end as D3InputNode).id : end;
+        this.linkForce.strength((l) =>
+            hiddenLinks.has(l) ||
+            leftOut.has(endId(l.source) as NodeIdType) ||
+            leftOut.has(endId(l.target) as NodeIdType)
+                ? 0
+                : LINK_STRENGTH,
+        );
         for (const [node, d3node] of this.nodeMapping) {
             if (this.isHeld(node.index)) {
                 fixAt(d3node);

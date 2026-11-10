@@ -393,6 +393,24 @@ export class RowTable {
     }
 
     /**
+     * Where the coordinate lane puts a row, as the repack draws it: flat in 2D.
+     * @param row - The row.
+     * @param out - Written with the place.
+     * @param out.x - X.
+     * @param out.y - Y.
+     * @param out.z - Z.
+     * @returns False when the lane places the row nowhere.
+     */
+    laneOf(row: number, out: { x: number; y: number; z: number }): boolean {
+        this.lane().read(row, out);
+        if (this.twoD) {
+            out.z = 0;
+        }
+
+        return Number.isFinite(out.x);
+    }
+
+    /**
      * Say a node's mesh was put at a point: the mesh funnel's write.
      * @param row - The node's row.
      * @param x - Drawn x.

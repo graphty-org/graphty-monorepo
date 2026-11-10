@@ -1088,8 +1088,8 @@ export class Edge {
     get drawnPattern(): readonly ArrowCap[];
     // (undocumented)
     readonly dstId: NodeIdType;
-    // (undocumented)
-    dstNode: Node_2;
+    get dstNode(): Node_2;
+    set dstNode(node: Node_2);
     getInterceptPoints(): InterceptPoint;
     readonly id: string;
     get index(): number;
@@ -1120,8 +1120,8 @@ export class Edge {
     shaderDataChanged(): void;
     // (undocumented)
     readonly srcId: NodeIdType;
-    // (undocumented)
-    srcNode: Node_2;
+    get srcNode(): Node_2;
+    set srcNode(node: Node_2);
     // @internal
     supportEdge(centerOf?: (node: Node_2) => Readonly<Vector3>): SupportEdge | null;
     // @internal
@@ -1311,6 +1311,7 @@ export const EdgeStyle: z.ZodObject<{
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+            keepBlankLines: z.ZodOptional<z.ZodBoolean>;
             runAlign: z.ZodOptional<z.ZodEnum<{
                 baseline: "baseline";
                 hanging: "hanging";
@@ -1586,6 +1587,7 @@ export const EdgeStyle: z.ZodObject<{
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+            keepBlankLines: z.ZodOptional<z.ZodBoolean>;
             runAlign: z.ZodOptional<z.ZodEnum<{
                 baseline: "baseline";
                 hanging: "hanging";
@@ -2012,6 +2014,7 @@ export const EdgeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
             hanging: "hanging";
@@ -2234,6 +2237,7 @@ export const EdgeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
             hanging: "hanging";
@@ -6011,6 +6015,7 @@ export const NodeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
             hanging: "hanging";
@@ -6233,6 +6238,7 @@ export const NodeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
             hanging: "hanging";
@@ -6455,6 +6461,7 @@ export const NodeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
             hanging: "hanging";
@@ -7244,6 +7251,7 @@ export const RichTextStyle: z.ZodObject<{
     wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
     wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
     wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+    keepBlankLines: z.ZodOptional<z.ZodBoolean>;
     runAlign: z.ZodOptional<z.ZodEnum<{
         baseline: "baseline";
         hanging: "hanging";

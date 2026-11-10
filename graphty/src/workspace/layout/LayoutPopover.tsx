@@ -10,7 +10,8 @@ import { LAYOUT_SECTIONS, type LayoutChoice, layoutChoices, sectionOf, useLayout
 /**
  * Keeps a row centered in the box that scrolls it until the reader scrolls, clicks or types there.
  * The popover settles its height and its rows after the row is focused (the size middleware, the
- * focus trap's own focus), so centering once left the list wherever the last of those landed.
+ * focus trap's own focus, the web font that rewraps the rows), so centering once left the list
+ * wherever the last of those landed.
  * @param row - the row.
  * @returns stops keeping it centered.
  */
@@ -30,7 +31,11 @@ function keepCentered(row: HTMLElement): () => void {
     };
     const observer = new ResizeObserver(center);
     observer.observe(scroller);
-    observer.observe(row.closest('[role="listbox"]') ?? row);
+    // The scroll box keeps its size when a row in it grows (it is capped), so its sections are
+    // watched too: a row that wraps again once the web font arrives moves the row off center.
+    for (const section of scroller.children) {
+        observer.observe(section);
+    }
     const stop = (): void => {
         observer.disconnect();
         for (const type of READER_INPUT) {

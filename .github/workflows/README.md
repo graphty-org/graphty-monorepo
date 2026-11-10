@@ -141,11 +141,21 @@ versions npm only had not listed yet closes itself, `tools/publish-hold.mjs`). T
 ### Versions and npm
 
 `nx release` bumps each package from the conventional commits since its last `{projectName}@{version}` tag. A
-commit with `!` or a `BREAKING CHANGE:` footer always means a major bump for the package in its scope, and
-nothing lowers it afterwards, so decide a package's next major before its first breaking commit lands (see
-"Breaking changes and major releases"). Check a release change with
+commit with `!` or a `BREAKING CHANGE:` footer means a major bump for the package in its scope, so decide a
+package's next major before its first breaking commit lands (see "Breaking changes and major releases"). Check a
+release change with
 `pnpm exec nx release --dry-run --skip-publish`. Changelogs are rendered by `tools/changelog-renderer.cjs`, which
 lists a commit under a package's "Breaking Changes" only when its scope names that package (or it has none).
+
+Only the owner can lower an already-pushed breaking commit, and history is never rewritten to do it: his ruling is
+an entry in `release-not-breaking.json` on master, one per commit, with the full commit id, the nx project, his
+reason and the date:
+`{ "notBreaking": [{ "commit": "<40-character id>", "project": "graphty-element", "reason": "owner 2026-11-09: ...", "since": "2026-11-09" }] }`.
+A listed commit is versioned by its type alone (`feat` a minor, `fix` a patch) and loses its changelog "Breaking
+Changes" entry (nx reads the list through `patches/nx@22.7.12.patch`), and `Lint PR Title`, PR Integrity and
+`tools/pr-open.sh` stop holding a pull request for it. Each reads master's list, never the branch's, so a pull
+request cannot clear its own commit; the file is in `pr-open.sh`'s `GUARD_PATHS`, so a change to it waits for the
+owner. `pnpm run check:release-hold` validates it (`tools/release-not-breaking.mjs`).
 
 To hold one package back from npm, add it to `release-hold.json` with a reason and the date:
 `{ "hold": [{ "project": "graphty-element", "reason": "...", "since": "2026-10-03" }] }` (the nx project name).

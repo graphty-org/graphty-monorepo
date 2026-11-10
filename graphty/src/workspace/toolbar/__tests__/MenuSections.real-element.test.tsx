@@ -152,4 +152,28 @@ describe("menu sections in the Layout and Analyze lists", () => {
             "still one Tab stop, on the focused row",
         );
     });
+
+    it("keeps the checked Layout row centered when a row above it changes height after the list opens", async () => {
+        const session = await openGraph();
+        await session.layout.set("circular");
+        await userEvent.click(tool("Layout"));
+        const list = await screen.findByRole("listbox", { name: "Layouts" });
+        const checked = within(list).getByRole("option", { name: /^Circle\b/, selected: true });
+        const offCenter = (): number => {
+            const row = checked.getBoundingClientRect();
+            const view = list.getBoundingClientRect();
+            return row.top + row.height / 2 - (view.top + list.clientTop + list.clientHeight / 2);
+        };
+        await waitFor(() => {
+            assert.isAtMost(Math.abs(offCenter()), 1, "the checked row opens centered");
+        });
+        // A row between the list's top edge and the checked one wraps to one more line, as when the
+        // web font arrives after the list opened (#6431): the list's own box keeps its size.
+        const options = within(list).getAllByRole("option");
+        const above = options[options.indexOf(checked) - 1];
+        above.style.paddingBottom = "14px";
+        await waitFor(() => {
+            assert.isAtMost(Math.abs(offCenter()), 1, "the checked row is centered again");
+        });
+    });
 });

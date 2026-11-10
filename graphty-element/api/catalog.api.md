@@ -1751,6 +1751,7 @@ export interface LabelStyle {
     icon?: string;
     iconPosition?: LabelIconPosition;
     italic?: boolean;
+    keepBlankLines?: boolean;
     keepInView?: boolean;
     letterSize?: number;
     lineHeight?: number;

@@ -16,7 +16,9 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { type Graph, operationQueueOf } from "../../src/Graph";
+import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
+import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import { nodeFramingBox } from "../../src/managers/UpdateManager";
@@ -1022,5 +1024,107 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             positions.read(row, at);
             assert.notEqual(at.x, 999, `row ${row} is published with no Node`);
         });
+    });
+
+    it("move a row with no Node through a layout transition by its row", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph, session } = element;
+        await frameOn(graph, "batched");
+        const manager = graph.getDataManager();
+        const built = dataManagerInternals.nodesBuilt(manager);
+        const batches = graph.getNodeBatches();
+        const table = graph.getRowTable();
+        const node = manager.nodes.get(4);
+        const paint = graph.getStylePainter().nodePaint(4);
+        assert.isNotNull(batches);
+        assert.isNotNull(table);
+        assert.isDefined(node);
+        assert.isNotNull(paint);
+        if (batches === null || table === null || node === undefined || paint === null) {
+            return;
+        }
+
+        // Row 4 is drawn with no Node, and no walk of the layout's nodes reaches it, as none reaches an unbuilt row.
+        batches.leave(node);
+        node.drawInBatch(node.paintedSourceMesh);
+        assert.isTrue(batches.paintRow(4, paint));
+        const layouts = graph.getLayoutManager();
+        const walked = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(layouts), "nodes")?.get;
+        Object.defineProperty(layouts, "nodes", {
+            configurable: true,
+            get: () => [...(walked?.call(layouts) as Iterable<typeof node>)].filter((other) => other !== node),
+        });
+        cleanups.push(() => Reflect.deleteProperty(layouts, "nodes"));
+
+        const from = table.centerOf(4);
+        await session.config.set({ layoutTransition: { transition: "glide", seconds: 0.4, hold: 0.5 } });
+        await graph.setLayout("circular", { dim: 3 });
+        await element.waitForStableFrame();
+        const engine = layouts.layoutEngine;
+        assert.isDefined(engine);
+        if (engine === undefined) {
+            return;
+        }
+
+        const lane = { x: 0, y: 0, z: 0 };
+        layoutEngineInternals.positions(engine).read(4, lane);
+        const to = new Vector3(lane.x, lane.y, lane.z);
+        assert.isAbove(Vector3.Distance(from, to), 0.5, "the new layout moves row 4");
+        const held = table.centerOf(4);
+        assert.isAbove(Vector3.Distance(held, from), 0.1, "row 4 left where it was");
+        assert.isAbove(Vector3.Distance(held, to), 0.1, "and is drawn on its way, held halfway");
+
+        await session.config.set({ layoutTransition: { transition: "glide", seconds: 0.4 } });
+        await element.waitForStableFrame();
+        assert.isAtMost(Vector3.Distance(table.centerOf(4), to), 1e-4, "row 4 lands where the layout puts it");
+        assert.isFalse(table.isHeld(4), "and is drawn from the lane again");
+        assert.equal(dataManagerInternals.nodesBuilt(manager), built, "no Node was built for it");
+    });
+
+    it.each([
+        ["d3", D3GraphEngine],
+        ["ngraph", NGraphEngine],
+    ] as const)("simulate a row with no Node in %s by its row", async (layout, Engine) => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d");
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        const manager = graph.getDataManager();
+        const built = dataManagerInternals.nodesBuilt(manager);
+        const batches = graph.getNodeBatches();
+        const node = manager.nodes.get(4);
+        const paint = graph.getStylePainter().nodePaint(4);
+        assert.isNotNull(batches);
+        assert.isDefined(node);
+        assert.isNotNull(paint);
+        if (batches === null || node === undefined || paint === null) {
+            return;
+        }
+
+        // Row 4 is drawn with no Node: the layout swap hands the engine its row, never its Node.
+        batches.leave(node);
+        node.drawInBatch(node.paintedSourceMesh);
+        assert.isTrue(batches.paintRow(4, paint));
+        await graph.setLayout(layout, { dim: 3 });
+        await operationQueueOf(graph).waitForCompletion();
+
+        const engine = graph.getLayoutManager().layoutEngine;
+        assert.isTrue(engine instanceof Engine, `the engine is ${layout}'s`);
+        if (!(engine instanceof Engine)) {
+            return;
+        }
+
+        assert.notInclude([...engine.nodes], node, "a third party reading the engine's nodes sees only Nodes");
+        const positions = layoutEngineInternals.positions(engine);
+        positions.write(4, 999, 999, 999);
+        engine.step();
+        const at = { x: 0, y: 0, z: 0 };
+        positions.read(4, at);
+        for (const axis of ["x", "y", "z"] as const) {
+            assert.isTrue(Number.isFinite(at[axis]) && at[axis] !== 999, `row 4's ${axis} is the simulation's`);
+        }
+
+        assert.equal(dataManagerInternals.nodesBuilt(manager), built, "no Node was built for it");
     });
 });

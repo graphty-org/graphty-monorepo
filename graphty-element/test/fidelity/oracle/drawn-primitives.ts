@@ -44,18 +44,51 @@ const SHAPES: Partial<Record<ShapeClass, PShape>> = {
     octagon: "octagon",
 };
 
+/**
+ * The part of a label's words box its inked lines fill: a blank line before or after the words is room in the plane
+ * and not words, as an SVG text's box holds only its letters (yEd's "\nCS" in graphml-stm32-func draws "CS" on the
+ * second of two lines). The text holds one line per laid-out line (wrapped lines too), and `tall` says which of them
+ * were drawn a line tall; a label turned other than a quarter turn at a time is left as it is.
+ * @param d - the drawn label
+ * @param box - its words box on screen
+ * @returns the box of its inked lines
+ */
+export function inkedLines(d: DrawnLabel, box: PBox): PBox {
+    // only the lines drawn a line tall share the box: a blank line with no height is in the text and not the box
+    const lines = d.text.split("\n").filter((_, i) => d.tall?.[i] !== false);
+    const inked = lines.flatMap((l, i) => (l.trim() === "" ? [] : [i]));
+    const quarter = (((Math.round(d.rotation / 90) % 4) + 4) % 4) as 0 | 1 | 2 | 3;
+    if (inked.length === 0 || Math.abs(d.rotation - 90 * Math.round(d.rotation / 90)) > 1e-6) {
+        return box;
+    }
+    const [from, to] = [inked[0] / lines.length, (inked[inked.length - 1] + 1) / lines.length];
+    if (from === 0 && to === 1) {
+        return box;
+    }
+    // the lines step down the plane's y axis, which is drawn turned clockwise by the label's rotation
+    const across = (a0: number, a1: number, back: boolean): [number, number] =>
+        back ? [a1 - to * (a1 - a0), a1 - from * (a1 - a0)] : [a0 + from * (a1 - a0), a0 + to * (a1 - a0)];
+    if (quarter === 0 || quarter === 2) {
+        const [y0, y1] = across(box.y0, box.y1, quarter === 2);
+        return { ...box, y0, y1 };
+    }
+    const [x0, x1] = across(box.x0, box.x1, quarter === 1);
+    return { ...box, x0, x1 };
+}
+
 function textOf(d: DrawnLabel): PText {
     // the words' own box, as an SVG text's box is its letters', not the plane they are drawn on with its margins
     const b = d.textBox ?? d.box;
     const box = { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 };
     const n = Math.max(1, d.lineCount);
-    const lineH = (box.y1 - box.y0) / n;
     const bg = d.background;
+    const words = inkedLines(d, box);
+    const lineH = (words.y1 - words.y0) / n;
     return {
         content: d.text,
-        x: (box.x0 + box.x1) / 2,
-        y: (box.y0 + box.y1) / 2,
-        box,
+        x: (words.x0 + words.x1) / 2,
+        y: (words.y0 + words.y1) / 2,
+        box: words,
         sizePx: d.fontPx,
         family: d.family,
         weight: d.weight,
@@ -65,7 +98,11 @@ function textOf(d: DrawnLabel): PText {
         color: d.color,
         opacity: d.opacity,
         // graphty draws its lines in one plane: their count is read, their alignment declared
-        lines: Array.from({ length: n }, (_, i) => ({ ...box, y0: box.y0 + i * lineH, y1: box.y0 + (i + 1) * lineH })),
+        lines: Array.from({ length: n }, (_, i) => ({
+            ...words,
+            y0: words.y0 + i * lineH,
+            y1: words.y0 + (i + 1) * lineH,
+        })),
         align: d.align,
         outline: d.outline,
         background:

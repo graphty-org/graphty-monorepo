@@ -50,11 +50,11 @@ describe("ruledNotBreaking", () => {
             git("init", "-q", "-b", "master");
             writeFileSync(join(dir, "a.txt"), "a\n");
             git("add", ".");
-            git("commit", "-q", "--no-gpg-sign", "-m", "chore: start");
+            git("commit", "-q", "-m", "chore: start");
             assert.deepEqual([...ruledNotBreaking("master", dir)], []);
             writeFileSync(join(dir, "release-not-breaking.json"), JSON.stringify({ notBreaking: [entry()] }));
             git("add", ".");
-            git("commit", "-q", "--no-gpg-sign", "-m", "chore: rule");
+            git("commit", "-q", "-m", "chore: rule");
             assert.deepEqual([...ruledNotBreaking("master", dir)], [SHA]);
             assert.deepEqual([...ruledNotBreaking("master~1", dir)], []);
         } finally {

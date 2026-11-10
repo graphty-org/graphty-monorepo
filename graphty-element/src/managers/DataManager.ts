@@ -1687,7 +1687,7 @@ export class DataManager implements Manager {
                 this.eventManager.emitDataAdded("nodes", count, true, true, this.cause);
             },
             edgesArrived: (count) => {
-                if (this.graphContext) {
+                if (this.graphContext && (this.graphContext.getNodeBatches?.() ?? null) !== null) {
                     clearPoolReserve(this.graphContext.getScene(), ["caps"]);
                 }
 

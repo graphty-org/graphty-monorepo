@@ -5,12 +5,13 @@
  */
 
 import type { AutosaveEntry } from "@graphty/graphty-element";
+import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import { type GraphSession, listAutosaves, removeAutosave } from "@graphty/graphty-element/session";
 
 import type { CommandContext } from "../commands/registry";
 import { baseName } from "../data-page/words";
 import { focusMainHeading } from "../frame/focus";
-import { keptPlace, newProjectId, startOpening, type WorkspaceStore } from "../state/store";
+import { keptName, keptPlace, newProjectId, startOpening, stashedPlace, type WorkspaceStore } from "../state/store";
 import { reopenedSentence, reopenedTabSentence } from "./words";
 
 /** The key graphty-element keeps the workspace's work under. */
@@ -20,17 +21,22 @@ export const WORKSPACE_AUTOSAVE_KEY = "app.graphty.workspace";
  * The element's autosave options: ask the browser to keep the site's storage, and reopen nothing
  * by itself, because the start screen asks the reader first.
  */
-export const WORKSPACE_AUTOSAVE_OPTIONS = { persist: true, restore: "manual" } as const;
+export const WORKSPACE_AUTOSAVE_OPTIONS = { persist: true, restore: "manual", keepCamera: true } as const;
+
+/** The workspace's facts about opening and reopening projects: ids and counts, never data. */
+const logger = GraphtyLogger.getLogger(["graphty", "workspace"]);
 
 /** What graphty-element keeps for the workspace, as the start of a visit needs it. */
 interface KeptWork {
     /** This tab's own entry (a reload, or a tab the browser discarded and loaded again), or null. */
     readonly own: AutosaveEntry | null;
     /**
-     * The work to offer on the start screen: the newest entry that holds changes never saved to a
-     * file, that no tab is writing and that was not replaced by another project; or null.
+     * The work to offer on the start screen: the newest entry no tab is writing and no project
+     * replaced that holds changes never saved to a file; or null.
      */
     readonly recovered: AutosaveEntry | null;
+    /** Every kept entry's id. */
+    readonly ids: readonly string[];
 }
 
 /**
@@ -42,9 +48,9 @@ interface KeptWork {
 export async function findKept(): Promise<KeptWork> {
     const entries = await listAutosaves(WORKSPACE_AUTOSAVE_KEY);
     const own = entries.find((entry) => entry.own === true && entry.ended === undefined) ?? null;
-    const recovered =
-        [...entries].reverse().find((entry) => entry.dirty && !entry.live && entry.ended === undefined) ?? null;
-    return { own, recovered };
+    // The newest work holding changes: a newer visit that changed nothing does not hide it.
+    const newest = [...entries].reverse().find((entry) => !entry.live && entry.ended === undefined && entry.dirty);
+    return { own, recovered: newest ?? null, ids: entries.map((entry) => entry.id) };
 }
 
 /**
@@ -53,11 +59,18 @@ export async function findKept(): Promise<KeptWork> {
  * @param entry - the entry.
  * @param after - what to do once it is open, with the project's name.
  * @param focus - where focus goes once it is open; the opened graph's heading by default.
+ * @param shown - the name this tab's header showed for it, for this tab's own work.
  */
-function reopen(store: WorkspaceStore, entry: AutosaveEntry, after: (name: string) => void, focus?: () => void): void {
+function reopen(
+    store: WorkspaceStore,
+    entry: AutosaveEntry,
+    after: (name: string, place: ReturnType<typeof stashedPlace>) => void,
+    focus?: () => void,
+    shown?: string,
+): void {
     // An entry the reader never renamed has no name of its own: until the restore says what the
     // data is, the header keeps the new-project name.
-    const name = entry.name === "" ? "Untitled" : entry.name;
+    const name = entry.name === "" ? (shown ?? "Untitled") : entry.name;
     store.set((state) => ({
         recovered: null,
         project: { name, id: newProjectId(state) },
@@ -69,9 +82,12 @@ function reopen(store: WorkspaceStore, entry: AutosaveEntry, after: (name: strin
             name,
             load: async (session, element) => {
                 const report = await element.autosaver.restore(entry.id, { discard: true });
-                const opened = report.name ?? dataName(session) ?? name;
+                // Read before the store changes again, which stashes the place shown now.
+                const place = stashedPlace(element);
+                // This tab's own work keeps the name its header showed; other work is named by its data.
+                const opened = report.name ?? (shown === undefined ? dataName(session) : null) ?? name;
                 store.set((now) => ({ project: now.project && { ...now.project, name: opened } }));
-                after(opened);
+                after(opened, place);
             },
             ...(focus === undefined ? {} : { focus }),
         }),
@@ -84,8 +100,9 @@ function reopen(store: WorkspaceStore, entry: AutosaveEntry, after: (name: strin
  * @param entry - the entry.
  */
 export function restoreRecovered(store: WorkspaceStore, entry: AutosaveEntry): void {
-    reopen(store, entry, () => {
-        store.set({ notice: { message: reopenedSentence(entry) } });
+    logger.info("restore pressed", { entry: entry.id, nodes: entry.nodes, edges: entry.edges });
+    reopen(store, entry, (_name, place) => {
+        store.set({ ...place, notice: { message: reopenedSentence(entry) } });
     });
 }
 
@@ -113,6 +130,7 @@ export function reopenOwn(store: WorkspaceStore, entry: AutosaveEntry): void {
             });
         },
         focusMainHeading,
+        keptName() ?? undefined,
     );
     // The page, place and tabs need no data: they are back at once, so the frame never shows the
     // Graph place first and a place the reader left open (the Assistant) is open from the start,

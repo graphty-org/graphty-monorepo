@@ -13,7 +13,7 @@ import { CanvasOverlays } from "../canvas/CanvasOverlays";
 import { useCanvasDrop } from "../canvas/useCanvasDrop";
 import { DataPage } from "../data-page/DataPage";
 import { DataPlace } from "../data-place/DataPlace";
-import { networkOn, selectionWorkspaceOn } from "../features";
+import { selectionWorkspaceOn } from "../features";
 import { GraphPlace } from "../graph-place/GraphPlace";
 import { DATA_PLACE_KINDS } from "../inspector/inspected";
 import { Inspector } from "../inspector/Inspector";
@@ -206,7 +206,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         </section>
                     ) : null}
                     <JoinScreen />
-                    {networkOn(session) ? <NodeMenu /> : null}
+                    <NodeMenu />
                 </main>
                 {/* Every pop-out opened in the inspector opens flush with its edge, level with
                     the row that opened it (Figma's right panel). */}

@@ -2658,7 +2658,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         return askedOn.includes(id);
     };
     const timelineOn = (): boolean => featureOn("timeline");
-    const networkOn = (): boolean => featureOn("network-data");
     const fileStylesOn = (): boolean =>
         (settledFeatures ?? resolveFeatures(requested())).enabled.includes("file-styles");
     const runsOptions = options.runs ?? {};
@@ -2681,7 +2680,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const readProject = projectConfigReader(dispatcher, resolveDataConfig(options.config?.data));
     dispatcher.services.config = readProject;
     dispatcher.services.timeline = timelineOn;
-    dispatcher.services.network = networkOn;
     dispatcher.services.fileStyles = fileStylesOn;
     const readData = (): SessionDataConfig => readProject().data;
     // A controller handed in is the authority on its own policy: the session does not own it, so
@@ -2776,6 +2774,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             },
             importer: () => dispatcher.capturedDispatch(),
             loadLine: loadLineOf(dispatcher),
+            ceilings,
             slice,
             measure: async (command, config) => {
                 const scratch = createGraphSession({ config: { data: config, acceleration: { policy: "off" } } });
@@ -2837,7 +2836,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // Read through calls: the timeline and the visibility are built below.
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
             timeline: () => timelineOn(),
-            network: () => networkOn(),
             fileStyles: () => fileStylesOn(),
             visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
         },

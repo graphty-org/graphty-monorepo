@@ -160,6 +160,18 @@ export const FieldEntries: Story = {
     },
 };
 
+/** A click on a source: what it was, when it was retrieved and simple statistics, in the right panel. */
+export const SourceDetails: Story = {
+    args: { initialState: OPEN },
+    play: async ({ canvasElement }) => {
+        await loadLog(canvasElement);
+        const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
+        const row = await place.findByRole("listitem", { name: "auth-log.csv" });
+        await userEvent.click(within(row).getAllByRole("button")[0]);
+        await within(canvasElement).findByRole("group", { name: "Retrieved" });
+    },
+};
+
 /** A source's menu: the registered row commands and Rename. */
 export const SourceMenu: Story = {
     args: { initialState: OPEN },

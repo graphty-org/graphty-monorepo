@@ -11,10 +11,27 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useSessionVersion } from "../toolbar/useSessionVersion";
 import { countWords, isLarge } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
-import { addGraph, addSource, datasetBase, type GraphLoad, type Incoming, openProject, openSeparate } from "./open";
+import {
+    addGraph,
+    addSource,
+    datasetBase,
+    type GraphLoad,
+    type Incoming,
+    openNetworkSample,
+    openProject,
+    openSeparate,
+} from "./open";
 import { SampleCard } from "./SampleCard";
-import { type LibraryTile, offeredTiles, type SampleCardData } from "./sampleLibrary";
-import { PROTOTYPE_SAMPLES, type PrototypeSample, sampleName, sampleUrl } from "./samples";
+import {
+    GENERATED,
+    type LibraryTile,
+    NETWORK,
+    NETWORK_TILES,
+    type NetworkTile,
+    offeredTiles,
+    type SampleCardData,
+} from "./sampleLibrary";
+import { JOIN_WALKS, PROTOTYPE_SAMPLES, type PrototypeSample, sampleName, sampleUrl } from "./samples";
 
 /** Where a picked sample goes: into this project (the {@link addSource} rule), or a new project. */
 type Target = "add" | "separate";
@@ -88,6 +105,24 @@ function bringDataset(ctx: CommandContext, dataset: DatasetMeta, target: Target)
 }
 
 /**
+ * A network sample to its target, read from its server by graphty-element: added by the
+ * {@link addGraph} rule, or read first and then opened as its own project, as the start page's tile
+ * opens it.
+ * @param ctx - the command context.
+ * @param tile - the network sample.
+ * @param target - where it goes.
+ */
+function bringNetwork(ctx: CommandContext, tile: NetworkTile, target: Target): void {
+    if (target === "add") {
+        addGraph(ctx, tile.name, (session, load) => session.data.loadExample(tile.source, tile.example, load));
+        return;
+    }
+    unlessUnsaved(ctx, () => {
+        void openNetworkSample(ctx.workspace, tile.name, tile.source, tile.example, new AbortController().signal);
+    });
+}
+
+/**
  * A fixture file's size: "60 nodes, 120 edges" where it draws them alone, else "120 rows".
  * @param sample - the fixture.
  * @returns the words.
@@ -114,7 +149,7 @@ function libraryEntry(ctx: CommandContext, tile: LibraryTile, { ask, configure }
     const open = (target: Target): void => {
         if (source.kind === "sample") {
             const { name, url } = source.sample;
-            bringFile(ctx, { name, source: { config: { url }, name } }, target);
+            bringFile(ctx, { name, source: { config: { url }, name }, origin: "sample" }, target);
         } else if (source.kind === "generator") {
             configure(source.generator, target);
         } else if (isLarge(source.dataset)) {
@@ -124,43 +159,67 @@ function libraryEntry(ctx: CommandContext, tile: LibraryTile, { ask, configure }
         }
     };
     // As the start page splits them: the samples, then the generators.
-    const group = source.kind === "generator" ? "Generated" : "Samples";
+    const group = source.kind === "generator" ? GENERATED : "Samples";
     return { key: tile.id, group, card: tile, words: tile.words, open };
 }
 
 /**
  * Every sample, once: the data prototype's fixture files by subject, then the start page's whole
- * library in its order (the app's own graphs, graph-samples' datasets the element opens, and its
- * generators). A network server's examples are not samples: they are offered only by the network
- * data form.
+ * library in its order (the app's own graphs and graph-samples' datasets the element opens, one
+ * network sample of each kind of network source, and graph-samples' generators).
  * @param ctx - the command context.
  * @param timeline - whether the timeline experiment is on.
  * @param asks - what the dialog asks first.
  * @returns the cards, in order.
  */
 function sampleEntries(ctx: CommandContext, timeline: boolean, asks: Asks): SampleEntry[] {
-    const files = PROTOTYPE_SAMPLES.map((sample): SampleEntry => {
+    const fileEntry = (sample: PrototypeSample, group: string, hook: string, field: string): SampleEntry => {
         const name = sampleName(sample);
-        const incoming = { name, source: { config: { url: sampleUrl(sample) }, name } };
+        const incoming: Incoming = { name, source: { config: { url: sampleUrl(sample) }, name }, origin: "sample" };
         return {
-            key: sample.path,
-            group: sample.group,
+            key: `${group}:${hook}:${sample.path}`,
+            group,
             card: {
                 name,
-                hook: name,
-                field: sample.group,
+                hook,
+                field,
                 size: fileSize(sample),
                 sentence: name,
                 picture: () => undefined,
                 note: undefined,
             },
-            words: `${name} ${sample.group}`.toLowerCase(),
+            words: `${name} ${group} ${hook}`.toLowerCase(),
             open: (target) => {
                 bringFile(ctx, incoming, target);
             },
         };
-    });
-    return [...files, ...offeredTiles(timeline).map((tile) => libraryEntry(ctx, tile, asks))];
+    };
+    const files = PROTOTYPE_SAMPLES.map((sample) => fileEntry(sample, sample.group, sampleName(sample), sample.group));
+    const joins = JOIN_WALKS.flatMap((walk) =>
+        walk.files.flatMap((path, at) => {
+            const sample = PROTOTYPE_SAMPLES.find((each) => each.path === path);
+            return sample === undefined
+                ? []
+                : [fileEntry(sample, "Join", `${walk.name} ${String(at + 1)} of ${String(walk.files.length)}`, "Join")];
+        }),
+    );
+    const library = offeredTiles(timeline).map((tile) => libraryEntry(ctx, tile, asks));
+    const network = NETWORK_TILES.map((tile): SampleEntry => ({
+        key: tile.id,
+        group: NETWORK,
+        card: tile,
+        words: tile.words,
+        open: (target) => {
+            bringNetwork(ctx, tile, target);
+        },
+    }));
+    return [
+        ...files,
+        ...joins,
+        ...library.filter((entry) => entry.group !== GENERATED),
+        ...network,
+        ...library.filter((entry) => entry.group === GENERATED),
+    ];
 }
 
 /**

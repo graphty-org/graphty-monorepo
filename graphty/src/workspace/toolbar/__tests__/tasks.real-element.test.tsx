@@ -579,14 +579,12 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
     });
 
-    it("opens Filters from the Graph place with the toolbar's Filters, its + list open", async () => {
+    it("opens Filters from the Graph place through Quick actions, its + list open", async () => {
         await openKarate();
         assert.isNull(screen.queryByRole("region", { name: "Data place" }));
-        const filters = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
-            name: "Filters",
-        });
-
-        await userEvent.click(filters);
+        await userEvent.keyboard("{Control>}k{/Control}");
+        await userEvent.keyboard("filter");
+        await userEvent.click(await screen.findByRole("option", { name: /^Filters/ }));
         await screen.findByRole("region", { name: "Data place" });
         await screen.findByRole("option", { name: "Largest component" });
     });

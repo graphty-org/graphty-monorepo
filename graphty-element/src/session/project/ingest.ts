@@ -46,7 +46,7 @@ import {
     SOURCES_VALUE,
 } from "../commands/data";
 import { ISSUES_VALUE, type IssueState, loadFactsOf, withLoadFacts } from "../issues";
-import { DEFAULT_LIMITS, type DefaultableLimits } from "../limits";
+import { DEFAULT_LIMITS, type DefaultableLimits, tooLargeError } from "../limits";
 import type { ProgressChange } from "../shared";
 import { type Provenance, PROVENANCE_VALUE, withSupplied } from "../sources/provenance";
 import { HELD_READERS, type ImportOutcome } from "../styles/fileStyles/apply";
@@ -217,7 +217,8 @@ export interface AddEdgesOptions {
     readonly target?: string;
     /**
      * What to do with a record naming an ordered pair the graph already holds, overriding
-     * `data.knownFields.repeatedEdges` for this call alone.
+     * `data.knownFields.repeatedEdges` for this call alone. With {@link AddEdgesOptions.repeatedScope}
+     * it covers only pairs held before this call.
      *
      * The expand-a-node path passes `"first"`, because "fetch the neighbourhood of this node" is a
      * request that legitimately re-supplies edges the graph already has, and the element knows
@@ -229,6 +230,8 @@ export interface AddEdgesOptions {
      * `value` fallback; null reads none.
      */
     readonly weight?: string | null;
+    /** `"held"`: `repeated` covers only pairs held before this call; its own repeats keep the configured rule. */
+    readonly repeatedScope?: "held";
 }
 
 /** An edge the graph already holds, as the host hands it back; the host may carry more. */
@@ -433,6 +436,10 @@ interface EdgeBatch {
     readonly endpoints: ResolvedEndpoints;
     /** The repeat policy for this call. */
     readonly policy: DuplicatePolicy;
+    /** The edges this load made, when {@link EdgeBatch.policy} covers only earlier ones. */
+    readonly ownEdges?: Set<number>;
+    /** What a repeat of one of this load's own edges does. */
+    readonly ownPolicy: DuplicatePolicy;
     /** Where a record's own id is read, or null when none is. */
     readonly recordIdPath: string | null;
     /** Where a record's weight is read, or null when none is. */
@@ -842,6 +849,7 @@ export class Ingest<K extends KnownEdge> {
             ...tableFacts(command),
             added,
             ...(leftOut === undefined ? {} : { leftOut }),
+            loadedAt: new Date().toISOString(),
             // What it supplied that the graph holds; `data.sources()` recounts it as the graph changes.
             counts: Object.freeze({ nodes: supplied.nodes.size, edges: supplied.edges.size }),
         });
@@ -1197,7 +1205,16 @@ export class Ingest<K extends KnownEdge> {
             this.ceilings().renderCeiling,
         );
 
-        const batch: EdgeBatch = { endpoints, policy, recordIdPath, weightPath, legacyFallback, tally };
+        const batch: EdgeBatch = {
+            endpoints,
+            policy,
+            recordIdPath,
+            weightPath,
+            legacyFallback,
+            tally,
+            ...(options?.repeatedScope === "held" ? { ownEdges: new Set<number>() } : {}),
+            ownPolicy: knownFields.repeatedEdges,
+        };
         if (this.loadTally === null) {
             // An earlier push that threw mid-batch was rolled back, and the endpoints it noted
             // with it: they are not this batch's to draw.
@@ -1308,6 +1325,7 @@ export class Ingest<K extends KnownEdge> {
             tally.edgesByPosition++;
         }
 
+        batch.ownEdges?.add(edgeIndex);
         tally.edgeIds.push(edgeIdOf(edgeId));
         this.noteSupplied(edgeIdOf(edgeId), srcNodeId, dstNodeId);
         this.host.edgeStored({ record, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId });
@@ -1341,7 +1359,8 @@ export class Ingest<K extends KnownEdge> {
         const known = this.knownEdgeFor(repeat.sourceId, repeat.targetId, recordId);
         if (known !== null) {
             tally.repeatedSeen++;
-            if (this.mergeRepeat(known, repeat, policy, tally, writer)) {
+            const own = batch.ownEdges?.has(known.edgeIndex) === true;
+            if (this.mergeRepeat(known, repeat, own ? batch.ownPolicy : policy, tally, writer)) {
                 // The edge it repeats is one this load supplied too.
                 this.noteSupplied(edgeIdOf(writer.store.edgeIdAt(known.edgeIndex)), repeat.sourceId, repeat.targetId);
                 tally.edgeIds.push(null);
@@ -2224,15 +2243,7 @@ export class Ingest<K extends KnownEdge> {
             return;
         }
 
-        throw new GraphtyError({
-            code: "E_TOO_LARGE",
-            source: "data",
-            message:
-                `Loading ${adding.toLocaleString("en-US")} more ${of} would take the graph to ` +
-                `${(held + adding).toLocaleString("en-US")}, past the ${limit.toLocaleString("en-US")} ` +
-                `this renderer can draw. Load a subset of the graph.`,
-            details: { limit, count: held + adding, of, graph: { nodes, edges } },
-        });
+        throw tooLargeError(of, held, adding, limit, { nodes, edges });
     }
 }
 
@@ -2282,6 +2293,7 @@ function endpointOverridesOf(type: string, opts: object, held: HeldRows | undefi
         ...(typeof target === "string" ? { target } : {}),
         ...(held?.weight === undefined ? {} : { weight: held.weight }),
         ...(held?.repeated === undefined ? {} : { repeated: held.repeated }),
+        ...(held?.repeatedScope === undefined ? {} : { repeatedScope: held.repeatedScope }),
     };
 }
 

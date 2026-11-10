@@ -469,6 +469,25 @@ describe("join cost", () => {
         }
     }
 
+    it("draft.joinReport on a key every element shares: no more than linear in the graph", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const session = createGraphSession();
+                await session.data.addNodes(Array.from({ length: size }, (_, at) => ({ id: at, zip: "same" })));
+                const draft = await session.data.prepare(
+                    { config: { data: "zip,score\nsame,1\n" }, name: "scores.csv" },
+                    { onto: "graph" },
+                );
+                const visits = await visitsDuring(() =>
+                    draft.joinReport({ shape: "node-values", keys: [{ file: "zip", graph: "data.zip" }] }),
+                );
+                session.dispose();
+                return visits;
+            },
+            { sizes: [200, 800], growth: "linear", counter: "elements visited by draft.joinReport" },
+        );
+    });
+
     it("SessionDataApi.editJoin: no more than linear in the graph", async () => {
         await assertScalesLinearly(
             async (size) => {
@@ -481,6 +500,165 @@ describe("join cost", () => {
             },
             { sizes: [200, 800], growth: "linear", counter: "elements visited by SessionDataApi.editJoin" },
         );
+    });
+});
+
+/**
+ * Prepare a table onto the graph.
+ * @param session - the session
+ * @param csv - the table
+ * @param name - its file name
+ * @returns the draft
+ */
+function tableDraft(session: GraphSession, csv: string, name: string): ReturnType<GraphSession["data"]["prepare"]> {
+    return session.data.prepare({ config: { file: new File([csv], name) }, name }, { onto: "graph" });
+}
+
+describe("removing what a join rests on", () => {
+    /**
+     * A graph with a value joined onto it.
+     * @returns the session, the base's key and the join's key
+     */
+    async function withValues(): Promise<{ session: GraphSession; base: string; join: string }> {
+        const session = await proteins();
+        const draft = await expression(session);
+        await draft.load({ join: { keys: [{ file: "symbol", graph: "id" }] } });
+        const [{ key: base }] = session.data.sources();
+        return { session, base, join: session.data.joins()[0].source };
+    }
+
+    it("takes a removed values join's values back, in one undo step", async () => {
+        const { session, join } = await withValues();
+        assert.isDefined(session.data.node("G02")?.log2fc);
+        await session.data.removeSource(join);
+        assert.isUndefined(session.data.node("G02")?.log2fc);
+        assert.strictEqual(session.data.sources().length, 1);
+        await session.undo();
+        assert.isDefined(session.data.node("G02")?.log2fc);
+        assert.strictEqual(session.data.sources().length, 2);
+    });
+
+    it("removes the file a values join was made onto, with the join, leaving nothing it never brought", async () => {
+        const { session, base, join } = await withValues();
+        const result = await session.data.removeSource(base);
+        assert.deepEqual(result.alsoRemoved, [join]);
+        assert.strictEqual(session.data.nodes().length, 0);
+        assert.deepEqual(session.data.sources(), []);
+    });
+
+    it("removes a join of edges with the node list it was made onto, and reopens listing what is left", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "csv", config: { data: "id,name\na,Ann\nb,Bo\nc,Cy" }, name: "n.csv" });
+        await session.data.import(
+            { type: "csv", config: { data: "id,rank\nd,1\ne,2" }, name: "m.csv" },
+            { mode: "merge" },
+        );
+        const draft = await tableDraft(session, "from,to,w\na,b,1\nb,c,2", "e.csv");
+        await draft.load({
+            join: {
+                shape: "edges",
+                keys: [
+                    { file: "from", graph: "id" },
+                    { file: "to", graph: "id" },
+                ],
+            },
+        });
+        const [first] = session.data.sources();
+        await session.data.removeSource(first.key);
+        assert.deepEqual(
+            session.data
+                .nodes()
+                .map((node) => node.id)
+                .sort(),
+            ["d", "e"],
+        );
+        assert.strictEqual(session.data.edges().length, 0);
+        const { text } = await session.project.save();
+        await session.project.open(text);
+        assert.deepEqual(
+            session.data.sources().map((each) => each.name),
+            ["m.csv"],
+        );
+    });
+
+    it("removes a join with the mapping table it went through, and puts both tables' values back", async () => {
+        const session = await proteins();
+        const map = await tableDraft(session, "symbol,ensembl\nTP53,E1\nG02,E2", "map.tsv");
+        await map.load({ join: { keys: [{ file: "symbol", graph: "id" }] } });
+        const via = session.data.joins()[0].source;
+        const values = await tableDraft(session, "ensembl,tpm\nE1,7\nE2,8", "tpm.tsv");
+        await values.load({ join: { keys: [{ file: "ensembl", graph: "id" }], via } });
+        assert.strictEqual(session.data.node("G02")?.tpm, 8);
+        const result = await session.data.removeSource(via);
+        assert.strictEqual(result.alsoRemoved.length, 1);
+        assert.isUndefined(session.data.node("G02")?.tpm);
+        assert.isUndefined(session.data.node("G02")?.ensembl);
+        assert.deepEqual(session.data.joins(), []);
+    });
+    it("removes a join keyed on a column the removed join wrote", async () => {
+        const session = await proteins();
+        const map = await tableDraft(session, "symbol,ensembl\nTP53,E1\nG02,E2", "map.tsv");
+        await map.load({ join: { keys: [{ file: "symbol", graph: "id" }] } });
+        const via = session.data.joins()[0].source;
+        const values = await tableDraft(session, "ensembl,tpm\nE1,7\nE2,8", "tpm.tsv");
+        await values.load({ join: { keys: [{ file: "ensembl", graph: "data.ensembl" }] } });
+        assert.strictEqual(session.data.node("G02")?.tpm, 8);
+        assert.strictEqual((await session.data.removeSource(via)).alsoRemoved.length, 1);
+        assert.isUndefined(session.data.node("G02")?.tpm);
+        assert.deepEqual(session.data.joins(), []);
+    });
+});
+
+describe("what a join says about its rows", () => {
+    it("names a new node under the file's own column when the graph's nodes clash", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "csv", config: { data: "id,name\ns1,Ana" }, name: "a.csv" });
+        const draft = await tableDraft(session, "id,name\ns1,Anna\ns9,Fjord Metals", "b.csv");
+        await draft.load({ join: { shape: "node-values", keys: [{ file: "id", graph: "id" }], unmatchedRows: "add" } });
+        assert.strictEqual(session.data.node("s9")?.name, "Fjord Metals");
+        assert.strictEqual(session.data.node("s1")?.name, "Ana", "the matched node keeps its own");
+        assert.strictEqual(session.data.node("s1")?.["name (b.csv)"], "Anna");
+    });
+
+    it("gives a new node a free id when its key value is another node's id", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "csv", config: { data: "id,zip\nn1,10\nn2,20" }, name: "a.csv" });
+        const draft = await tableDraft(session, "zip,score\nn1,5", "b.csv");
+        const choices = {
+            shape: "node-values",
+            keys: [{ file: "zip", graph: "data.zip" }],
+            unmatchedRows: "add",
+        } as const;
+        assert.strictEqual(draft.joinReport(choices).newNodes, 1);
+        await draft.load({ join: choices });
+        assert.strictEqual(session.data.nodes().length, 3);
+        assert.strictEqual(session.data.node("n1 (2)")?.score, 5);
+        assert.strictEqual(session.data.node("n1 (2)")?.zip, "n1");
+        assert.isUndefined(session.data.node("n1")?.score);
+    });
+
+    it("counts a line the reader could not read, and keeps the count for an edit", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "csv", config: { data: "id\na\nb\nc" }, name: "a.csv" });
+        const draft = await tableDraft(session, "id,score\na,1\nb,2,extra\nc,3", "b.csv");
+        const choices = { shape: "node-values", keys: [{ file: "id", graph: "id" }] } as const;
+        assert.strictEqual(draft.joinReport(choices).unreadRows, 1);
+        await draft.load({ join: choices });
+        const [record] = session.data.joins();
+        assert.strictEqual(record.table.unreadRows, 1);
+        assert.strictEqual(session.data.editJoinReport(record.source, choices).unreadRows, 1);
+        assert.isUndefined(session.data.node("b")?.score);
+    });
+
+    it("suggests keeping both when rows naming one pair say different things, and not for a plain repeat", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "csv", config: { data: "id\na\nb\nc" }, name: "a.csv" });
+        const events = await tableDraft(session, "from,to,time\na,b,1\na,b,2\nb,c,3", "events.csv");
+        assert.strictEqual(events.suggestJoin().repeated, "both");
+        const same = await tableDraft(session, "from,to,time\na,b,1\na,b,1\nb,c,3", "same.csv");
+        assert.isUndefined(same.suggestJoin().repeated);
+        events.dispose();
+        same.dispose();
     });
 });
 
@@ -516,3 +694,188 @@ async function assertRejects(promise: Promise<unknown>, code: string): Promise<v
 
     assert.fail(`expected a rejection with ${code}`);
 }
+
+describe("joining by an edge's two ends, new rows and a file's own kind", () => {
+    /**
+     * A session holding a table of edges.
+     * @param csv - the table
+     * @param directed - whether its edges are directed
+     * @returns the session
+     */
+    async function edgesOf(csv: string, directed = true): Promise<GraphSession> {
+        const session = createGraphSession();
+        await session.data.import(
+            { type: "csv", config: { file: new File([csv], "pairs.csv") }, name: "pairs.csv" },
+            { mapping: { rowsAre: "edges", source: { column: "from" }, target: { column: "to" } }, directed },
+        );
+        return session;
+    }
+
+    /**
+     * Prepare a table onto the graph.
+     * @param session - the session
+     * @param csv - the table
+     * @param name - its file name
+     * @returns the draft
+     */
+    function draftOf(session: GraphSession, csv: string, name: string): ReturnType<GraphSession["data"]["prepare"]> {
+        return session.data.prepare({ config: { file: new File([csv], name) }, name }, { onto: "graph" });
+    }
+
+    const PAIRS = "from,to,km\na,b,1\nb,c,2\nc,d,3\nd,e,4\ne,a,5";
+
+    it("reads a table naming the graph's edges as values on them, and writes them", async () => {
+        const session = await edgesOf(PAIRS);
+        const draft = await draftOf(session, "from,to,price\na,b,10\nb,c,20\nc,d,30\nd,e,40\na,e,99", "prices.csv");
+        const suggestion = draft.suggestJoin();
+        assert.deepEqual(suggestion, {
+            shape: "edge-values",
+            keys: [
+                { file: "from", graph: "source" },
+                { file: "to", graph: "target" },
+            ],
+            confident: true,
+        });
+        const report = draft.joinReport({ keys: suggestion.keys, shape: suggestion.shape });
+        assert.strictEqual(report.matched, 4, "a,e is not e,a on a directed graph");
+        assert.strictEqual(report.notInGraph, 1);
+        await draft.load({ join: { keys: suggestion.keys, shape: suggestion.shape } });
+        const prices = session.data.edges().map((edge) => (edge as { price?: number }).price);
+        assert.deepEqual(prices.sort(), [10, 20, 30, 40, undefined]);
+    });
+
+    it("matches a reversed pair on an undirected graph", async () => {
+        const session = await edgesOf(PAIRS, false);
+        const draft = await draftOf(session, "from,to,price\nb,a,10\nc,b,20\nd,c,30\ne,d,40\na,e,99", "prices.csv");
+        const { keys, shape } = draft.suggestJoin();
+        assert.strictEqual(shape, "edge-values");
+        assert.strictEqual(draft.joinReport({ keys, shape }).matched, 5);
+    });
+
+    it("reads a table as new edges when fewer than 80% of its rows name one the graph holds", async () => {
+        const session = await edgesOf(PAIRS);
+        const draft = await draftOf(session, "from,to,price\na,b,10\nb,c,20\na,c,30\na,d,40\nb,e,50", "prices.csv");
+        assert.strictEqual(draft.suggestJoin().shape, "edges");
+    });
+
+    it("keeps a table's own column order for the ends it reads as edges", async () => {
+        const session = createGraphSession();
+        await session.data.import({
+            type: "csv",
+            config: { file: new File(["id\np1\np2\nb1\nb2"], "held.csv") },
+            name: "held.csv",
+        });
+        // person_id matches less well than building_id, which used to make it the target.
+        const draft = await draftOf(session, "person_id,building_id\np1,b1\np2,b2\np9,b1", "doors.csv");
+        assert.deepEqual(
+            draft.suggestJoin().keys.map((key) => key.file),
+            ["person_id", "building_id"],
+        );
+    });
+
+    /**
+     * A session with three suppliers, and a draft of a list with one shared and two new rows.
+     * @returns the session, the draft and its choices
+     */
+    async function twoLists(): Promise<{
+        session: GraphSession;
+        draft: Awaited<ReturnType<GraphSession["data"]["prepare"]>>;
+        choices: Parameters<Awaited<ReturnType<GraphSession["data"]["prepare"]>>["joinReport"]>[0];
+    }> {
+        const session = createGraphSession();
+        await session.data.import({
+            type: "csv",
+            config: { file: new File(["id,name\ns1,Ana\ns2,Bo\ns3,Cy"], "first.csv") },
+            name: "first.csv",
+        });
+        const draft = await draftOf(session, "id,rating\ns1,5\ns9,4\ns8,3\ns8,1", "second.csv");
+        return {
+            session,
+            draft,
+            choices: { shape: "node-values", keys: [{ file: "id", graph: "id" }], unmatchedRows: "add" },
+        };
+    }
+
+    it("adds a row matching no node as a new node with unmatchedRows, and reports it", async () => {
+        const { session, draft, choices } = await twoLists();
+        const report = draft.joinReport(choices);
+        assert.strictEqual(report.newNodes, 2);
+        assert.deepEqual(report.rowFates, ["joined", "new-end", "new-end", "repeat"]);
+        await draft.load({ join: choices });
+        assert.strictEqual(session.data.nodes().length, 5);
+        assert.strictEqual(session.data.node("s9")?.rating, 4);
+        assert.strictEqual(session.data.node("s1")?.rating, 5);
+        const joined = session.data.sources().find((each) => each.kind === "join");
+        assert.deepEqual(joined?.added, { nodes: 2, edges: 0 });
+        assert.strictEqual(joined?.counts.nodes, 3);
+    });
+
+    it("takes the new nodes back with Undo and Edit join, and leaves rows out by default", async () => {
+        const { session, draft, choices } = await twoLists();
+        assert.strictEqual(draft.joinReport({ ...choices, unmatchedRows: undefined }).newNodes, 0);
+        await draft.load({ join: choices });
+        assert.strictEqual(session.data.nodes().length, 5);
+        await session.undo();
+        assert.strictEqual(session.data.nodes().length, 3);
+        await session.redo();
+        const [record] = session.data.joins();
+        await session.data.editJoin(record.source, { ...record.choices, unmatchedRows: "leave-out" });
+        assert.strictEqual(session.data.nodes().length, 3);
+        assert.isUndefined(session.data.node("s9"));
+        assert.strictEqual(session.data.node("s1")?.rating, 5, "the matched row stays");
+    });
+
+    it("gives every row of a node file the file's own kind", async () => {
+        const session = createGraphSession();
+        await session.data.import(
+            { type: "csv", config: { file: new File(["id,name\np1,Ana\np2,Bo"], "people.csv") }, name: "people.csv" },
+            { mapping: { rowsAre: "nodes", key: "id", kindName: "people" } },
+        );
+        assert.strictEqual(session.data.node("p1")?.kind, "people");
+        assert.strictEqual(session.data.node("p2")?.kind, "people");
+    });
+
+    it("reads a file added as rows the same way when a kind is laid over it", async () => {
+        const session = createGraphSession();
+        await session.data.import(
+            { type: "csv", config: { file: new File(["id,name\np1,Ana"], "people.csv") }, name: "people.csv" },
+            { mapping: { rowsAre: "nodes", key: "id" } },
+        );
+        const draft = await session.data.prepare(
+            {
+                config: { file: new File(["building_id,address\nb1,Harbor\nb2,Canal"], "buildings.csv") },
+                name: "buildings.csv",
+            },
+            { onto: "graph", guess: "values" },
+        );
+        await draft.load({ mode: "merge" });
+        const { key } = session.data.sources()[1];
+        await session.data.reloadSource(key, { mapping: { kindName: "buildings" } });
+        assert.strictEqual(session.data.node("b1")?.kind, "buildings");
+        assert.strictEqual(session.data.node("b2")?.kind, "buildings");
+        assert.isUndefined(session.data.node("p1")?.kind);
+    });
+
+    it("keeps every row when different kinds of node split an id across a reload", async () => {
+        const session = createGraphSession();
+        const rows = [
+            "user,host",
+            ...Array.from({ length: 20 }, () => "admin,web1"),
+            ...Array.from({ length: 20 }, () => "ana,admin"),
+            ...Array.from({ length: 10 }, () => "ana,web1"),
+        ];
+        await session.data.import(
+            { type: "csv", config: { file: new File([rows.join("\n")], "log.csv") }, name: "log.csv" },
+            { mapping: { rowsAre: "edges", source: { column: "user" }, target: { column: "host" } } },
+        );
+        assert.strictEqual(session.data.edges().length, 50);
+        const [{ key }] = session.data.sources();
+        await session.data.reloadSource(key, {
+            mapping: { sourceKind: "user", targetKind: "host" },
+            kindIds: "scoped",
+        });
+        assert.strictEqual(session.data.edges().length, 50, "the repeats of a new pair stay");
+        assert.isDefined(session.data.node("user:admin"));
+        assert.isDefined(session.data.node("host:admin"));
+    });
+});

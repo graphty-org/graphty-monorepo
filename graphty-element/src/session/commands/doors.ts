@@ -396,6 +396,12 @@ const REMOVE_SOURCE_STEPS: readonly SessionCommand[] = [
     { op: "data.setSource", source: { type: "json", config: {} }, sources: [], provenance: {} },
 ];
 
+/**
+ * What a row writes for a load's `loadedAt`: the wall-clock time a load is stamped with cannot be
+ * pinned, so the door harness writes this in its place before it compares.
+ */
+export const DOOR_LOADED_AT = "(loaded at)";
+
 /** The roles the `replaceSource` and `reloadSource` doors read their edge table with. */
 const DOOR_SHIPS_MAPPING = {
     tables: {
@@ -447,6 +453,7 @@ const REPLACE_SOURCE_STEPS: readonly SessionCommand[] = [
             target: "target",
             weight: null,
             repeated: "first",
+            repeatedScope: "held",
         },
         mapping: DOOR_SHIPS_MAPPING,
         input: "i2",
@@ -487,6 +494,7 @@ const RELOAD_SOURCE_STEPS: readonly SessionCommand[] = [
             target: "target",
             weight: null,
             repeated: "first",
+            repeatedScope: "held",
         },
         mapping: DOOR_SHIPS_MAPPING,
         input: "i2",
@@ -566,6 +574,7 @@ const EDIT_JOIN_STEPS: readonly SessionCommand[] = [
                 tables: ["door-join.csv"],
                 tableRows: ["nodes"],
                 added: { nodes: 0, edges: 0 },
+                loadedAt: DOOR_LOADED_AT,
                 counts: { nodes: 1, edges: 0 },
             },
         ],
@@ -2718,6 +2727,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                                 input: "i1",
                                 tables: [],
                                 added: { nodes: 2, edges: 1 },
+                                loadedAt: DOOR_LOADED_AT,
                                 counts: { nodes: 2, edges: 1 },
                                 name: "Door source",
                             },
@@ -2803,9 +2813,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             testSource: READ,
             listSource: READ,
             previewSource: READ,
+            readExample: READ,
             checkSource: READ,
             refresh: SOURCE_REFRESH,
             loads: READ,
+            sourceSettings: READ,
             nodeSource: READ,
             pendingSourceLoads: READ,
             expand: SOURCE_EXPANSION,

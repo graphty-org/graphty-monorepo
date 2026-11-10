@@ -12,12 +12,8 @@ import { afterEach, assert, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { defineSource, registerSource } from "../../session";
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { loadLineOf } from "../../src/session/loadLine";
-
-// Loads from a registered source sit behind the network-data experiment.
-setDefaultFeatures(["network-data"]);
 
 /** Lets the held source's read go on; set by each read. */
 let openHeldRead = (): void => undefined;

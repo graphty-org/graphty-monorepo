@@ -1413,6 +1413,10 @@ export class Graphty extends LitElement {
             options: this.#autosaveOptionsValue,
             restore: this.#autosaveRestoreValue,
             pageConfig,
+            camera: {
+                get: () => this.#graph.getCameraState(),
+                set: (state) => this.#graph.setCameraState(state, { animate: false }),
+            },
             reloadPage: async () => {
                 if (pristine !== undefined) {
                     await session.project.open(pristine, { discard: true });

@@ -1317,7 +1317,7 @@ export function AddCondition({
     extra?: readonly ExtraItem[];
     /** Draws the opener as a "+" icon button with this name and tooltip, not "Add a condition". */
     plus?: string;
-    /** Opens the list from outside (the toolbar's Filters). */
+    /** Opens the list from outside (the Filters command). */
     opened?: boolean;
     /** Told when the list closes, so `opened` can be put back. */
     onOpened?: (opened: boolean) => void;
@@ -1425,7 +1425,7 @@ export function AddCondition({
             store.set({ announcement: spoken });
         }
     }, [nothing, spoken, store]);
-    // Opened from outside (the toolbar's Filters): the list opens, its search focused.
+    // Opened from outside (the Filters command): the list opens, its search focused.
     const { openDropdown, focusSearchInput } = combobox;
     useEffect(() => {
         if (opened === true) {

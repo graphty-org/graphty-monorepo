@@ -1,4 +1,5 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
+import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { VisuallyHidden } from "@mantine/core";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -20,18 +21,28 @@ import { notReadWords } from "./project/words";
 import { REGISTRATIONS } from "./registrations";
 import { cardPalette } from "./selection/cardPalette";
 import { SettingsDialog } from "./settings/SettingsDialog";
-import { useDropToOpen } from "./start/open";
+import { NetworkDataDialog } from "./start/NetworkDataDialog";
+import { openAgain, useDropToOpen } from "./start/open";
 import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
 import {
     createWorkspaceStore,
     keepPlace,
+    keptBlank,
+    keptEntry,
+    keptOpener,
+    keptPlace,
+    newProjectId,
+    stashPlace,
     useStoreValue,
     type WorkspaceState,
     type WorkspaceStore,
 } from "./state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "./state/WorkspaceContext";
 import { ShaderEditorHost } from "./style/ShaderEditorHost";
+
+/** The workspace's facts about opening and reopening projects: ids and booleans, never data. */
+const logger = GraphtyLogger.getLogger(["graphty", "workspace"]);
 
 /** The look a new project gives a pinned node: a thin gray ring. */
 const PINNED_LOOK = { color: "#868e96", scale: 1.3, opacity: 1 } as const;
@@ -167,6 +178,8 @@ export function Workspace({
     // This tab's own work (a reload, or a tab the browser discarded and loaded again) reopens
     // straight into the workspace; other work graphty-element kept is offered on the start screen.
     // Asked once per load; the start screen waits for the answer, so it never flashes before a reopen.
+    // A tab that had a project open is never offered another project's work in its place; an
+    // empty project, which writes nothing, comes back empty.
     const [checking, setChecking] = useState(() => store.get().autosave && store.get().project === null);
     // In the commit itself, so the loading screen hears it before it would go at the first commit.
     useLayoutEffect(() => {
@@ -180,7 +193,7 @@ export function Workspace({
         }
         let live = true;
         findKept()
-            .then(({ own, recovered }) => {
+            .then(({ own, recovered, ids }) => {
                 if (!live) {
                     return;
                 }
@@ -188,11 +201,37 @@ export function Workspace({
                     bootSignal({ done: true });
                     return;
                 }
-                bootSignal({ line: `kept work checked: landing on ${keptLanding(own, recovered)}` });
-                if (own === null) {
-                    store.set({ recovered });
-                } else {
+                // Opened again only when its work was never written: work another tab (a duplicate
+                // of this one) is writing is not opened twice.
+                const written = keptEntry();
+                const opened = written !== null && ids.includes(written) ? null : keptOpener();
+                const hadProject = Object.keys(keptPlace()).length > 0;
+                bootSignal({
+                    line: `kept work checked: landing on ${keptLanding(own ?? opened ?? (keptBlank() ? true : null), hadProject ? null : recovered)}`,
+                });
+                if (own !== null) {
+                    logger.info("decision", { decision: "reopen", entry: own.id, reason: "own-entry" });
                     reopenOwn(store, own);
+                } else if (opened !== null) {
+                    // Reloaded before the project's first write landed: open it again as it was opened.
+                    logger.info("decision", { decision: "open-again", entry: null, reason: "kept-opener-no-entry" });
+                    openAgain(store, opened);
+                } else if (keptBlank()) {
+                    logger.info("decision", { decision: "blank", entry: null, reason: "kept-empty-project" });
+                    store.set((state) => ({
+                        project: { name: "Untitled", id: newProjectId(state), blank: true },
+                        ...keptPlace(),
+                    }));
+                } else if (hadProject) {
+                    // This tab had a project and its entry cannot be found: not someone else's work.
+                    logger.info("decision", { decision: "landing", entry: null, reason: "kept-project-no-entry" });
+                } else {
+                    logger.info("decision", {
+                        decision: recovered === null ? "landing" : "offer",
+                        entry: recovered?.id ?? null,
+                        reason: recovered === null ? "nothing-kept" : "other-work",
+                    });
+                    store.set({ recovered });
                 }
             })
             .catch((error: unknown) => {
@@ -209,7 +248,49 @@ export function Workspace({
     }, [store, checking]);
     // The reader's place is kept for a reload of this tab while autosave keeps the work.
     useEffect(() => (store.get().autosave ? keepPlace(store) : undefined), [store]);
-    const projectOpen = useStoreValue(store, (state) => state.project !== null);
+    // The entry the project's work is written to, so a reload can tell work never written.
+    useEffect(() => {
+        const host = element.element;
+        if (host === null) {
+            return undefined;
+        }
+        const note = (): void => {
+            const { entry } = host.autosaver.status;
+            const { project } = store.get();
+            if (entry !== null && project !== null && project.entry !== entry) {
+                store.set({ project: { ...project, entry } });
+            }
+        };
+        host.addEventListener("graphty-autosave-status", note);
+        return () => {
+            host.removeEventListener("graphty-autosave-status", note);
+        };
+    }, [store, element.element]);
+    // The reader's place goes with the work, for a Restore in another tab.
+    useEffect(
+        () => (element.element !== null && store.get().autosave ? stashPlace(store, element.element) : undefined),
+        [store, element.element],
+    );
+    // A project that opened empty is no longer empty once data is loaded into it: a reload that
+    // cannot find its work must not bring it back empty.
+    useEffect(
+        () =>
+            element.session?.on("project:changed", ({ slices }) => {
+                const { project } = store.get();
+                if (project?.blank === true && slices.includes("graph")) {
+                    const { blank: _blank, ...rest } = project;
+                    store.set({ project: rest });
+                }
+            }),
+        [store, element.session],
+    );
+    const projectId = useStoreValue(store, (state) => state.project?.id ?? null);
+    useEffect(() => {
+        if (projectId !== null) {
+            logger.info("project opened", { how: store.get().project?.blank === true ? "blank" : "data" });
+        }
+    }, [store, projectId]);
+    const projectOpen = projectId !== null;
     useEffect(() => {
         if (!checking && !projectOpen) {
             bootSignal({ done: true });
@@ -309,6 +390,7 @@ export function Workspace({
                 <span key={announced}>{announcement}</span>
             </VisuallyHidden>
             <SamplesDialog />
+            <NetworkDataDialog />
         </WorkspaceContext.Provider>
     );
 }

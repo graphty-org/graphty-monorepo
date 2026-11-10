@@ -24,7 +24,7 @@ export const registration = defineRegistration({
             run: (ctx) => {
                 unlessUnsaved(ctx, () => {
                     ctx.workspace.set((state) => ({
-                        project: { name: "Untitled", id: newProjectId(state) },
+                        project: { name: "Untitled", id: newProjectId(state), blank: true },
                         page: "panels",
                         place: "graph",
                         inspected: null,

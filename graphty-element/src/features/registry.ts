@@ -16,7 +16,6 @@ export type FeatureId =
     | "location-map"
     | "selection-workspace"
     | "cosmograph"
-    | "network-data"
     | "file-styles";
 
 /** One experiment this build can switch on. */
@@ -40,13 +39,10 @@ export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
     // The graphty app's use of batched drawing and the long-edge fade and blending options;
     // graphty-element's `renderPath`, edge styles and layout options are not gated.
     { id: "cosmograph", plainName: "Cosmograph-inspired rendering", issue: 3247, since: "2026-11-06" },
-    // Loading graphs from servers (NDEx, Cypher databases, SPARQL, REST): every network-source
-    // verb of `session.data` refuses with E_FEATURE_OFF while it is off.
-    { id: "network-data", plainName: "Network data", issue: 6211, since: "2026-11-07" },
     // Reading and writing the styles other programs write into graph files, and every style channel
     // and value added to draw them.
     { id: "file-styles", plainName: "File styles", issue: 706, since: "2026-11-06" },
 ]);
 
 /** Ids of experiments that have shipped: accepted silently, and they change nothing. */
-export const GRADUATED_FEATURES: readonly string[] = Object.freeze([]);
+export const GRADUATED_FEATURES: readonly string[] = Object.freeze(["network-data"]);

@@ -168,12 +168,16 @@ async function renameThenLeave(): Promise<string> {
 
 /**
  * Makes a kept entry another tab's: gives it a new id, as a tab that wrote it and was closed
- * leaves it. This page's own record still names the old id, which no longer exists.
+ * leaves it, and this tab a new visit's empty session storage unless the tab is kept.
  * @param id - the entry.
+ * @param keepTab - leave this tab's session storage, for a tab that still names a project it had.
  * @returns the entry's new id.
  */
-async function fromAnotherTab(id: string): Promise<string> {
+async function fromAnotherTab(id: string, keepTab = false): Promise<string> {
     const other = crypto.randomUUID();
+    if (!keepTab) {
+        sessionStorage.clear();
+    }
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
         const request = indexedDB.open(DATABASE);
         request.onsuccess = () => {
@@ -567,6 +571,64 @@ describe("Workspace autosave with the real graphty-element", () => {
         // This tab writes the restored work from here on.
         await waitFor(() => {
             assert.strictEqual(reopened.element.autosaver.status.entry, entry);
+        });
+        second.view.unmount();
+    });
+
+    it("offers the newest work with changes, though a newer visit opened a project and changed nothing", async () => {
+        // Older work with a change never saved to a file.
+        const dirty = mountWorkspace();
+        await openBy(dirty.store, () => pickSample(FLORENTINE.name));
+        const before = openedElement();
+        await before.session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
+        await fromAnotherTab(await leave(before.element, dirty.view));
+
+        // Then a sample opened untouched, and a new visit.
+        const clean = mountWorkspace();
+        await openBy(clean.store, () => pickSample(LES_MIS.name));
+        await fromAnotherTab(await leave(openedElement().element, clean.view));
+
+        const visit = mountWorkspace();
+        const region = await offer();
+        assert.include(region.textContent, FLORENTINE.name);
+        visit.view.unmount();
+    });
+
+    it("opens a tab's sample again when its work cannot be found, and offers no other project's work", async () => {
+        // Dirty work this tab had open, whose record is lost (as a reload before the first write).
+        const older = mountWorkspace();
+        await openBy(older.store, () => pickSample(FLORENTINE.name));
+        const before = openedElement();
+        await before.session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
+        await fromAnotherTab(await leave(before.element, older.view), true);
+
+        const reload = mountWorkspace();
+        await waitFor(() => {
+            assert.strictEqual(openedElement().session.data.snapshot().nodeCount, FLORENTINE.nodes);
+        });
+        assert.strictEqual(reload.store.get().project?.name, FLORENTINE.name);
+        assert.isNull(reload.store.get().recovered);
+        assert.isNull(screen.queryByRole("region", { name: "Unsaved work" }));
+        reload.view.unmount();
+    });
+
+    it("brings back the same style layers, and the tab the reader had open, when the offered work is restored", async () => {
+        const first = mountWorkspace();
+        await openBy(first.store, () => pickSample(FLORENTINE.name));
+        const { element, session } = openedElement();
+        const inspector = (): ReturnType<typeof within> =>
+            within(screen.getByRole("complementary", { name: "Inspector" }));
+        await userEvent.click(inspector().getByRole("tab", { name: "Style" }));
+        await session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
+        const layers = JSON.stringify(session.styles.list());
+        await fromAnotherTab(await leave(element, first.view));
+
+        const second = mountWorkspace();
+        await offer();
+        await openBy(second.store, () => userEvent.click(screen.getByRole("button", { name: "Restore" })));
+        assert.strictEqual(JSON.stringify(openedElement().session.styles.list()), layers);
+        await waitFor(() => {
+            assert.strictEqual(inspector().getByRole("tab", { selected: true }).textContent, "Style");
         });
         second.view.unmount();
     });

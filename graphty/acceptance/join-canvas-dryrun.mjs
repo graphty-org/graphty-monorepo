@@ -12,6 +12,10 @@
  *     --data <dir>         the join data sets (default: the main checkout's tmp/join-builds/datasets)
  *     --out <dir>          screenshots and report.json (default: tmp/join-canvas-dryrun)
  *
+ * Serve a build made with VITE_LOCAL_SAMPLE_DATA=true (`vite preview` then answers for the sample
+ * datasets and their pictures from this machine): a plain build reads them from graphty.app, whose
+ * copy can lag the build's catalog, and a missing picture there fails "every request answered".
+ *
  * Each scenario starts on the start page and loads its files through the app's own file inputs
  * (Open a file, Add source, Table). Checks read the element's public session API for the graph
  * and the preview's graph, and the page for everything else. Exit 0 when every check passed, 1 when

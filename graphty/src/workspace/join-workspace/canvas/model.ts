@@ -16,9 +16,31 @@ export const ROW = 22;
 // field to the box when real sources pass it.
 export const MAX_COLUMNS = 24;
 
+/** The smallest scale the canvas fits the model at: below it, a box's text is no longer readable. */
+export const MIN_SCALE = 0.8;
+/** The space kept around the model when it is fitted, in CSS pixels. */
+const FIT_MARGIN = 16;
+
+/**
+ * The scale that fits the whole model into the canvas's visible area, never above 1 and never
+ * below {@link MIN_SCALE} (the canvas scrolls past that).
+ * @param extent - the model's right and bottom edges.
+ * @param view - the canvas's visible width and height; 0 before it is measured.
+ * @param view.width - its width.
+ * @param view.height - its height.
+ * @returns the scale.
+ */
+export function fitScale(extent: Point, view: { readonly width: number; readonly height: number }): number {
+    if (view.width <= 0 || view.height <= 0) {
+        return 1;
+    }
+    const fit = Math.min(view.width / (extent.x + FIT_MARGIN), view.height / (extent.y + FIT_MARGIN));
+    return Math.max(MIN_SCALE, Math.min(1, fit));
+}
+
 /** Half a pill's width and height, with room for a compare pill's Venn, in CSS pixels. */
 export const PILL_HALF_W = 64;
-const PILL_HALF_H = 12;
+export const PILL_HALF_H = 12;
 /** The space kept between a pill and a box. */
 const PILL_GAP = 8;
 

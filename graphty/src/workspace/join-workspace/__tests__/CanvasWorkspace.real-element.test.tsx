@@ -237,4 +237,66 @@ describe("the model canvas join workspace", () => {
             assert.isNull(screen.queryByRole("dialog", { name: "Join" }));
         });
     });
+    it("names a join that reads a listed source after its tab, so the Data panel shows no name twice", async () => {
+        await page.viewport(1440, 1000);
+        const store = createWorkspaceStore({ project: { name: "Tags", id: 1 }, place: "data" });
+        render(<Workspace store={store} registrations={REGISTRATIONS} />);
+        const session = await waitFor(() => {
+            const found = document.querySelector("graphty-element")?.session;
+            assert.isDefined(found);
+            return found;
+        });
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        const tagged = ["id,tags", "P1,red;blue", "P2,blue", "P3,red;green", "P4,green"].join("\n");
+        const people = await session.data.prepare({ type: "csv", config: { data: tagged }, name: "people.csv" });
+        await people.load({ mapping: { rowsAre: "nodes", key: "id" } });
+        const buildings = await session.data.prepare({
+            type: "csv",
+            config: { data: BUILDINGS },
+            name: "buildings.csv",
+        });
+        await buildings.load({ mode: "merge", mapping: { rowsAre: "nodes", key: "id" } });
+        const place = await screen.findByRole("region", { name: "Data place" });
+        await userEvent.click(await within(place).findByRole("button", { name: "Join" }));
+        const dialog = await screen.findByRole("dialog", { name: "Join" });
+        const box = await within(dialog).findByRole("group", { name: "people.csv" });
+        await userEvent.click(await within(box).findByRole("button", { name: "Split tags" }));
+        await within(dialog).findByRole("tab", { name: /Split people/ });
+        await userEvent.keyboard("{Control>}{Enter}{/Control}");
+        await waitFor(() => {
+            assert.lengthOf(session.data.joins(), 1);
+        });
+        assert.deepEqual(
+            session.data.joins().map((join) => join.table.name),
+            ["Split people"],
+        );
+        const list = within(place).getByRole("list", { name: "Data sources" });
+        await within(list).findByRole("listitem", { name: "Split people" });
+        assert.lengthOf(within(list).getAllByRole("listitem", { name: "people.csv" }), 1);
+    });
+    it("fits the whole model into the canvas above the bar at 1280 by 720", async () => {
+        await open();
+        await page.viewport(1280, 720);
+        const wide = [
+            ["badge", "building", ...Array.from({ length: 10 }, (_, at) => `note${String(at)}`)].join(","),
+            ["B-1", "b1", ...Array.from({ length: 10 }, () => "x")].join(","),
+            ["B-2", "b2", ...Array.from({ length: 10 }, () => "y")].join(","),
+        ].join("\n");
+        const dialog = await workspaceWithEntries(wide);
+        await connect(dialog, ["entries.csv", "badge"], ["people.csv", "badge"]);
+        await userEvent.keyboard("2");
+        await within(dialog).findByRole("tab", { name: /Edges entries/ });
+        // The canvas was measured when the workspace opened; the new join's drawing is fitted with it.
+        const canvas = within(dialog).getByTestId("join-canvas");
+        const view = canvas.getBoundingClientRect();
+        const drawn = [...canvas.querySelectorAll<HTMLElement>(".jwc-box, .jwc-pill")];
+        assert.lengthOf(drawn, 4, "three boxes and a pill");
+        for (const each of drawn) {
+            const rect = each.getBoundingClientRect();
+            assert.isAtMost(rect.bottom, view.bottom, `${each.textContent ?? ""} is under the bar`);
+            assert.isAtMost(rect.right, view.right, `${each.textContent ?? ""} is past the canvas's right`);
+        }
+    });
 });

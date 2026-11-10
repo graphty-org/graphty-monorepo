@@ -28,7 +28,12 @@
         radial-gradient(color-mix(in srgb, var(--cm-border) 90%, transparent) 1px, transparent 1px) 0 0 / 16px 16px;
 }
 
+.jwc-fit {
+    overflow: hidden;
+}
+
 .jwc-world {
+    transform-origin: 0 0;
     position: relative;
     min-width: 100%;
     min-height: 100%;

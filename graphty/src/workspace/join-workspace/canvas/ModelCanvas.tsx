@@ -1,6 +1,6 @@
 import type { JoinRegion, JoinStepEntry, JoinStepOutcome } from "@graphty/graphty-element/session";
 import { Text } from "@mantine/core";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { GLYPHS } from "../../glyphs";
 import { formatNumber } from "../../inspector/words";
@@ -9,7 +9,10 @@ import {
     boxHeight,
     type CanvasBox,
     clearOfBoxes,
+    fitScale,
     MAX_COLUMNS,
+    PILL_HALF_H,
+    PILL_HALF_W,
     placeBoxes,
     type Point,
     portOf,
@@ -74,11 +77,12 @@ type Drag =
  * @param event - the pointer event.
  * @param event.clientX - its x in the viewport.
  * @param event.clientY - its y in the viewport.
+ * @param scale - the scale the world is drawn at.
  * @returns the point.
  */
-function worldPoint(world: HTMLElement | null, event: { clientX: number; clientY: number }): Point {
+function worldPoint(world: HTMLElement | null, event: { clientX: number; clientY: number }, scale: number): Point {
     const rect = world?.getBoundingClientRect();
-    return { x: event.clientX - (rect?.left ?? 0), y: event.clientY - (rect?.top ?? 0) };
+    return { x: (event.clientX - (rect?.left ?? 0)) / scale, y: (event.clientY - (rect?.top ?? 0)) / scale };
 }
 
 /**
@@ -167,110 +171,163 @@ export function ModelCanvas(props: ModelCanvasProps): React.JSX.Element {
         return [{ step, index, middle, paths, ends, ontoName }];
     });
     const bound = new Set(wires.flatMap(({ ends }) => ends.map(({ end }) => `${end.box}\u0000${end.column}`)));
+    // The whole model is fitted into the canvas's visible area, as far as it stays readable; the
+    // scale holds while a box is moved, so the box stays under the pointer.
+    const canvas = useRef<HTMLDivElement>(null);
+    const [view, setView] = useState({ width: 0, height: 0 });
+    useEffect(() => {
+        const element = canvas.current;
+        const observer = new ResizeObserver(() => {
+            if (element !== null) {
+                setView({ width: element.clientWidth, height: element.clientHeight });
+            }
+        });
+        if (element !== null) {
+            observer.observe(element);
+        }
+        return () => {
+            observer.disconnect();
+        };
+    }, []);
+    const extent = {
+        x: Math.max(...rects.map((rect) => rect.x + BOX_W), ...wires.map(({ middle }) => middle.x + PILL_HALF_W), 0),
+        y: Math.max(
+            ...rects.map((rect) => rect.y + rect.height),
+            ...wires.map(({ middle }) => middle.y + PILL_HALF_H),
+            0,
+        ),
+    };
+    const fitted = fitScale(extent, view);
+    const [held, setHeld] = useState<number | null>(null);
+    const scale = held ?? fitted;
+    const shown = {
+        width: Math.max(size.width, view.width / scale),
+        height: Math.max(size.height, view.height / scale),
+    };
+    // Past the smallest scale, the shown join's pill is scrolled into view.
+    useEffect(() => {
+        canvas.current
+            ?.querySelector(`.jwc-pill[data-step="${selected ?? ""}"]`)
+            ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }, [selected, scale]);
 
     return (
-        <div className="jwc-canvas" data-testid="join-canvas">
-            <div
-                ref={world}
-                className="jwc-world"
-                style={{ width: size.width, height: size.height }}
-                onPointerMove={(event) => {
-                    if (drag?.type === "wire") {
-                        const over = dropTarget(event);
-                        setDrag({
-                            ...drag,
-                            at: worldPoint(world.current, event),
-                            over: over === null ? undefined : `${over.box}\u0000${over.column ?? ""}`,
-                        });
-                    } else if (drag?.type === "box") {
-                        const point = worldPoint(world.current, event);
-                        setPlaced(
-                            new Map(at).set(drag.box, {
-                                x: Math.max(0, point.x - drag.grab.x),
-                                y: Math.max(0, point.y - drag.grab.y),
-                            }),
-                        );
-                    }
-                }}
-                onPointerUp={(event) => {
-                    if (drag?.type === "wire") {
-                        const to = dropTarget(event);
-                        props.onDrop({
-                            from: { box: drag.box, column: drag.column },
-                            to,
-                            client: { x: event.clientX, y: event.clientY },
-                        });
-                    }
-                    setDrag(null);
-                }}
-                onPointerCancel={() => {
-                    setDrag(null);
-                }}
-            >
-                <svg className="jwc-wires" width={size.width} height={size.height} aria-hidden>
-                    {wires.map(({ step, index, paths }) =>
-                        paths.map((d, at) => (
-                            <path
-                                key={`${step.id}:${String(at)}`}
-                                d={d}
-                                fill="none"
-                                stroke={stepColor(index)}
-                                strokeWidth={step.id === selected ? 2.5 : 1.5}
-                                strokeOpacity={selected === undefined || step.id === selected ? 1 : 0.45}
-                            />
-                        )),
-                    )}
-                    {drag?.type === "wire" ? <TempWire drag={drag} boxes={boxes} at={at} /> : null}
-                </svg>
-                {boxes.map((box) => (
-                    <Box
-                        key={box.key}
-                        box={box}
-                        at={at.get(box.key) ?? { x: 0, y: 0 }}
-                        bound={bound}
-                        over={drag?.type === "wire" ? drag.over : undefined}
-                        dragging={drag?.type === "wire" ? drag.box : undefined}
-                        onWireStart={(column, event) => {
-                            event.preventDefault();
-                            world.current?.setPointerCapture(event.pointerId);
-                            setDrag({ type: "wire", box: box.key, column, at: worldPoint(world.current, event) });
-                        }}
-                        onMoveStart={(event) => {
-                            event.preventDefault();
-                            world.current?.setPointerCapture(event.pointerId);
-                            const point = worldPoint(world.current, event);
-                            const corner = at.get(box.key) ?? { x: 0, y: 0 };
+        <div ref={canvas} className="jwc-canvas" data-testid="join-canvas">
+            <div className="jwc-fit" style={{ width: shown.width * scale, height: shown.height * scale }}>
+                <div
+                    ref={world}
+                    className="jwc-world"
+                    style={{
+                        width: shown.width,
+                        height: shown.height,
+                        ...(scale === 1 ? {} : { transform: `scale(${String(scale)})` }),
+                    }}
+                    onPointerMove={(event) => {
+                        if (drag?.type === "wire") {
+                            const over = dropTarget(event);
                             setDrag({
-                                type: "box",
-                                box: box.key,
-                                grab: { x: point.x - corner.x, y: point.y - corner.y },
+                                ...drag,
+                                at: worldPoint(world.current, event, scale),
+                                over: over === null ? undefined : `${over.box}\u0000${over.column ?? ""}`,
                             });
-                        }}
-                        onSplit={(column) => {
-                            props.onSplit(box.key, column);
-                        }}
-                    />
-                ))}
-                {wires.map(({ step, index, middle, ontoName }) => (
-                    <Pill
-                        key={step.id}
-                        step={step}
-                        index={index}
-                        at={middle}
-                        outcome={outcomes.get(step.id)}
-                        selected={step.id === selected}
-                        dimmed={selected !== undefined && step.id !== selected}
-                        focus={step.id === selected ? focus : null}
-                        boxes={boxes}
-                        ontoName={ontoName}
-                        onSelect={() => {
-                            props.onSelect(step.id);
-                        }}
-                        onFocus={(next) => {
-                            props.onFocus(step.id, next);
-                        }}
-                    />
-                ))}
+                        } else if (drag?.type === "box") {
+                            const point = worldPoint(world.current, event, scale);
+                            setPlaced(
+                                new Map(at).set(drag.box, {
+                                    x: Math.max(0, point.x - drag.grab.x),
+                                    y: Math.max(0, point.y - drag.grab.y),
+                                }),
+                            );
+                        }
+                    }}
+                    onPointerUp={(event) => {
+                        if (drag?.type === "wire") {
+                            const to = dropTarget(event);
+                            props.onDrop({
+                                from: { box: drag.box, column: drag.column },
+                                to,
+                                client: { x: event.clientX, y: event.clientY },
+                            });
+                        }
+                        setDrag(null);
+                        setHeld(null);
+                    }}
+                    onPointerCancel={() => {
+                        setDrag(null);
+                        setHeld(null);
+                    }}
+                >
+                    <svg className="jwc-wires" width={size.width} height={size.height} aria-hidden>
+                        {wires.map(({ step, index, paths }) =>
+                            paths.map((d, at) => (
+                                <path
+                                    key={`${step.id}:${String(at)}`}
+                                    d={d}
+                                    fill="none"
+                                    stroke={stepColor(index)}
+                                    strokeWidth={step.id === selected ? 2.5 : 1.5}
+                                    strokeOpacity={selected === undefined || step.id === selected ? 1 : 0.45}
+                                />
+                            )),
+                        )}
+                        {drag?.type === "wire" ? <TempWire drag={drag} boxes={boxes} at={at} /> : null}
+                    </svg>
+                    {boxes.map((box) => (
+                        <Box
+                            key={box.key}
+                            box={box}
+                            at={at.get(box.key) ?? { x: 0, y: 0 }}
+                            bound={bound}
+                            over={drag?.type === "wire" ? drag.over : undefined}
+                            dragging={drag?.type === "wire" ? drag.box : undefined}
+                            onWireStart={(column, event) => {
+                                event.preventDefault();
+                                world.current?.setPointerCapture(event.pointerId);
+                                setDrag({
+                                    type: "wire",
+                                    box: box.key,
+                                    column,
+                                    at: worldPoint(world.current, event, scale),
+                                });
+                            }}
+                            onMoveStart={(event) => {
+                                event.preventDefault();
+                                world.current?.setPointerCapture(event.pointerId);
+                                const point = worldPoint(world.current, event, scale);
+                                const corner = at.get(box.key) ?? { x: 0, y: 0 };
+                                setHeld(scale);
+                                setDrag({
+                                    type: "box",
+                                    box: box.key,
+                                    grab: { x: point.x - corner.x, y: point.y - corner.y },
+                                });
+                            }}
+                            onSplit={(column) => {
+                                props.onSplit(box.key, column);
+                            }}
+                        />
+                    ))}
+                    {wires.map(({ step, index, middle, ontoName }) => (
+                        <Pill
+                            key={step.id}
+                            step={step}
+                            index={index}
+                            at={middle}
+                            outcome={outcomes.get(step.id)}
+                            selected={step.id === selected}
+                            dimmed={selected !== undefined && step.id !== selected}
+                            focus={step.id === selected ? focus : null}
+                            boxes={boxes}
+                            ontoName={ontoName}
+                            onSelect={() => {
+                                props.onSelect(step.id);
+                            }}
+                            onFocus={(next) => {
+                                props.onFocus(step.id, next);
+                            }}
+                        />
+                    ))}
+                </div>
             </div>
         </div>
     );

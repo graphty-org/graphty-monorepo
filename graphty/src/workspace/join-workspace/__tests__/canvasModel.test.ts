@@ -5,7 +5,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { BOX_W, clearOfBoxes, PILL_HALF_W } from "../canvas/model";
+import { BOX_W, clearOfBoxes, fitScale, MIN_SCALE, PILL_HALF_W } from "../canvas/model";
 
 /** Two boxes side by side, 100 pixels apart, each 200 high. */
 const BOXES = [
@@ -47,5 +47,16 @@ describe("a pill's place", () => {
     it("moves a point out of the gap between two boxes when the pill does not fit in it", () => {
         const between = clearOfBoxes({ x: 24 + BOX_W + 50, y: 100 }, BOXES);
         assert.isFalse(covers(between));
+    });
+});
+
+describe("the canvas's fit", () => {
+    it("draws a model that fits at full size, and shrinks one that does not, down to the smallest readable scale", () => {
+        assert.strictEqual(fitScale({ x: 400, y: 300 }, { width: 800, height: 600 }), 1);
+        const shrunk = fitScale({ x: 400, y: 584 }, { width: 800, height: 540 });
+        assert.isBelow(shrunk, 1);
+        assert.isAtMost((584 + 16) * shrunk, 540);
+        assert.strictEqual(fitScale({ x: 400, y: 3000 }, { width: 800, height: 540 }), MIN_SCALE);
+        assert.strictEqual(fitScale({ x: 400, y: 3000 }, { width: 0, height: 0 }), 1, "before it is measured");
     });
 });

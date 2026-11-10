@@ -6,13 +6,38 @@ import { Button, SegmentedControl, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { sourceName } from "../data-place/words";
 import { joinWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { ariaKey, formatKey, isTypingTarget, matchesKey } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { JoinBody } from "./Body";
+import { boxesOf, stepName } from "./canvas/model";
+import { OP_WORDS } from "./canvas/ops";
 import { type JoinSide, type JoinWorkspaceApi, JoinWorkspaceContext } from "./context";
 import { JOIN_KEYS } from "./words";
+
+/**
+ * Names each step whose input's name another listed source or step already goes by after its tab
+ * ("Split people"), so the Data panel never lists two sources under one name.
+ * @param session - the element's session.
+ * @param draft - the recipe, about to be committed.
+ */
+function nameSteps(session: GraphSession, draft: JoinsDraft): void {
+    const boxes = boxesOf(draft.inputs, draft.steps);
+    const inputName = (from: string): string => boxes.find((box) => box.key === from)?.name ?? from;
+    const taken = session.data.sources().map((each) => sourceName(each));
+    const names = draft.steps.map((each) => inputName(each.from));
+    draft.steps.forEach((each, at) => {
+        const name = names[at];
+        if (taken.includes(name) || names.indexOf(name) !== at) {
+            const tab = stepName(each, boxes, OP_WORDS);
+            const unique = names.includes(tab) || taken.includes(tab) ? `${tab} ${String(at + 1)}` : tab;
+            names[at] = unique;
+            draft.change(each.id, { from: each.from, choices: each.choices, name: unique });
+        }
+    });
+}
 
 /** Where a key belongs to an open list or menu, which closes itself on Escape. */
 const SELF_CLOSING = '[role="menu"], [role="listbox"], [role="dialog"]:not(.jw-modal), [data-expanded]';
@@ -113,9 +138,10 @@ function JoinModal({ session, held, onClose }: JoinModalProps): React.JSX.Elemen
     useEffect(() => {
         if (closing === "done" && !committed.current) {
             committed.current = true;
+            nameSteps(session, draft);
             void draft.commit().finally(onClose);
         }
-    }, [closing, draft, onClose]);
+    }, [closing, draft, onClose, session]);
     const closeRef = useRef(close);
     closeRef.current = close;
     const editRef = useRef(api.edit);

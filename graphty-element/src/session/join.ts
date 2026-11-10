@@ -897,15 +897,151 @@ function looseOf(choices: JoinChoices, more: Partial<Loose> = {}): Loose {
 }
 
 /**
- * Count what a join would do.
+ * The table with its `split` columns split at their separators: for `"edges"`, one row per part;
+ * otherwise each cell's parts as a list.
  * @param table - The incoming table.
+ * @param choices - The join.
+ * @param shape - The join's shape.
+ * @returns The table, the same one when nothing is split.
+ */
+function splitTable(table: JoinTable, choices: JoinChoices, shape: JoinShape): JoinTable {
+    const split = Object.entries(choices.split ?? {}).filter(([column]) => table.columns.includes(column));
+    if (split.length === 0) {
+        return table;
+    }
+
+    const partsOf = (value: unknown, separator: string): unknown[] => {
+        if (Array.isArray(value)) {
+            return value;
+        }
+
+        if (typeof value !== "string") {
+            return absent(value) ? [] : [value];
+        }
+
+        return value
+            .split(separator)
+            .map((part) => part.trim())
+            .filter((part) => part !== "");
+    };
+    let rows: Readonly<Record<string, unknown>>[] = [...table.rows];
+    for (const [column, separator] of split) {
+        rows =
+            shape === "edges"
+                ? rows.flatMap((row) => {
+                      const parts = partsOf(row[column], separator);
+                      return parts.length === 0 ? [row] : parts.map((part) => ({ ...row, [column]: part }));
+                  })
+                : rows.map((row) => {
+                      const parts = partsOf(row[column], separator);
+                      return parts.length === 0 ? row : { ...row, [column]: parts };
+                  });
+    }
+
+    return { ...table, rows };
+}
+
+/**
+ * Each matched element's rows, in table order.
+ * @param table - The incoming table.
+ * @param matching - Each row's matches.
+ * @returns The rows by element id.
+ */
+function rowsByElement(
+    table: JoinTable,
+    matching: Matching,
+): Map<NodeId | EdgeId, Readonly<Record<string, unknown>>[]> {
+    const rowsOf = new Map<NodeId | EdgeId, Readonly<Record<string, unknown>>[]>();
+    matching.rowIds.forEach((ids, at) => {
+        for (const id of ids) {
+            rowsOf.set(id, [...(rowsOf.get(id) ?? []), table.rows[at]]);
+        }
+    });
+    return rowsOf;
+}
+
+/** One clash: an element's own value of a column and the different value a row brings. */
+export interface ClashPair {
+    readonly id: NodeId | EdgeId;
+    readonly graph: unknown;
+    readonly incoming: unknown;
+}
+
+/**
+ * The clashes of each clashing column: the matched elements whose own value is set and differs
+ * from the incoming one.
+ * @param table - The incoming table.
+ * @param elements - The nodes or edges.
+ * @param matching - Each row's matches.
+ * @param columns - The incoming columns brought.
+ * @param choices - The join.
+ * @returns The clashes by column.
+ */
+function clashPairs(
+    table: JoinTable,
+    elements: readonly JoinElement[],
+    matching: Matching,
+    columns: readonly string[],
+    choices: JoinChoices,
+): Map<string, ClashPair[]> {
+    const clashing = clashesOf(elements, columns);
+    const out = new Map<string, ClashPair[]>(clashing.map((column) => [column, []]));
+    if (clashing.length === 0) {
+        return out;
+    }
+
+    const byId = new Map(elements.map((element) => [element.id, element]));
+    const plain: JoinChoices = { ...choices, aggregate: undefined };
+    for (const [id, rows] of rowsByElement(table, matching)) {
+        const held = byId.get(id)?.data ?? {};
+        for (const { column, value } of groupValues(rows, clashing, plain, (each) => each)) {
+            if (!absent(held[column]) && JSON.stringify(held[column]) !== JSON.stringify(value)) {
+                out.get(column)?.push(Object.freeze({ id, graph: held[column], incoming: value }));
+            }
+        }
+    }
+
+    return out;
+}
+
+/**
+ * The clashes of one column a join of values (or a merge) meets: what a conflicts review lists.
+ * @param table - The incoming table.
+ * @param graph - The graph.
+ * @param choices - The join.
+ * @param shape - The shape when the choices give none.
+ * @param column - The incoming column.
+ * @returns The clashes, in table order; empty for any other shape.
+ */
+export function joinClashes(
+    table: JoinTable,
+    graph: JoinGraph,
+    choices: JoinChoices,
+    shape: JoinShape,
+    column: string,
+): readonly ClashPair[] {
+    const chosen = checked(table, choices, shape);
+    if (chosen !== "node-values" && chosen !== "edge-values" && chosen !== "merge") {
+        return [];
+    }
+
+    const split = splitTable(table, choices, chosen);
+    const elements = chosen === "edge-values" ? graph.edges : graph.nodes;
+    const matching = matchValues(split, elements, choices, looseOf(choices), viaOf(graph, choices));
+    return clashPairs(split, elements, matching, columnsOf(split, choices), choices).get(column) ?? [];
+}
+
+/**
+ * Count what a join would do.
+ * @param given - The incoming table.
  * @param graph - The graph.
  * @param choices - The join.
  * @param shape - The shape when the choices give none.
  * @returns The counts.
  */
-export function joinReport(table: JoinTable, graph: JoinGraph, choices: JoinChoices, shape: JoinShape): JoinReport {
-    const chosen = checked(table, choices, shape);
+export function joinReport(given: JoinTable, graph: JoinGraph, choices: JoinChoices, shape: JoinShape): JoinReport {
+    const chosen = checked(given, choices, shape);
+    const table = splitTable(given, choices, chosen);
     const columns = columnsOf(table, choices);
     const report = (counts: Partial<JoinReport>, elements: readonly JoinElement[]): JoinReport =>
         Object.freeze({
@@ -1187,19 +1323,20 @@ function bothColumn(column: string, table: JoinTable, choices: JoinChoices): str
 
 /**
  * Plan a join: what it writes.
- * @param table - The incoming table.
+ * @param given - The incoming table.
  * @param graph - The graph.
  * @param choices - The join.
  * @param shape - The shape when the choices give none.
  * @returns The plan and its shape.
  */
 export function planJoin(
-    table: JoinTable,
+    given: JoinTable,
     graph: JoinGraph,
     choices: JoinChoices,
     shape: JoinShape,
 ): { readonly shape: JoinShape; readonly plan: JoinPlan; readonly matched: number } {
-    const chosen = checked(table, choices, shape);
+    const chosen = checked(given, choices, shape);
+    const table = splitTable(given, choices, chosen);
     const columns = columnsOf(table, choices);
     if (chosen === "rows" || chosen === "replace") {
         return { shape: chosen, plan: { kind: "rows" }, matched: 0 };
@@ -1260,34 +1397,45 @@ function valuesOf(
 } {
     const byId = new Map(elements.map((element) => [element.id, element]));
     const clashing = new Set(clashesOf(elements, columns));
+    const fuseOf = (column: string): JoinReduce | undefined =>
+        clashing.has(column) ? choices.fuse?.[column] : undefined;
     const ruleOf = (column: string): "keep" | "overwrite" | "both" =>
-        clashing.has(column) ? (choices.clash?.[column] ?? "both") : "overwrite";
+        clashing.has(column) && fuseOf(column) === undefined ? (choices.clash?.[column] ?? "both") : "overwrite";
     const nameOf = (column: string): string =>
         ruleOf(column) === "both" ? bothColumn(column, table, choices) : column;
-    // Each element's rows, in table order.
-    const rowsOf = new Map<NodeId | EdgeId, Readonly<Record<string, unknown>>[]>();
-    matching.rowIds.forEach((ids, at) => {
-        for (const id of ids) {
-            rowsOf.set(id, [...(rowsOf.get(id) ?? []), table.rows[at]]);
-        }
-    });
-
     const written = new Set<string>();
     const before: Record<string, Record<string, unknown>> = {};
     const rows: RowUpdate<NodeId | EdgeId>[] = [];
-    for (const [id, matchedRows] of rowsOf) {
+    for (const [id, matchedRows] of rowsByElement(table, matching)) {
         const held = byId.get(id)?.data ?? {};
         const values: Record<string, unknown> = {};
-        for (const { column, name, value } of groupValues(matchedRows, columns, choices, nameOf)) {
-            if (ruleOf(column) === "keep" && !absent(held[name])) {
-                continue;
-            }
-
+        const write = (name: string, value: unknown): void => {
             values[name] = value;
             written.add(name);
             const rowKey = String(id);
             before[rowKey] ??= {};
             before[rowKey][name] = held[name] ?? null;
+        };
+        for (const { column, name, value } of groupValues(matchedRows, columns, choices, nameOf)) {
+            if (ruleOf(column) === "keep" && !absent(held[name])) {
+                continue;
+            }
+
+            const fuse = fuseOf(column);
+            const result =
+                fuse === undefined
+                    ? value
+                    : reduce(
+                          fuse,
+                          [held[name], value].flat().filter((each) => !absent(each)),
+                      );
+            if (result !== undefined) {
+                write(name, result);
+            }
+        }
+
+        if (choices.flag !== undefined && held[choices.flag] !== true) {
+            write(choices.flag, true);
         }
 
         if (Object.keys(values).length > 0) {

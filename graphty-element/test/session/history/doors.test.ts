@@ -56,6 +56,13 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     SessionGraphStore: (session) => session.data.store,
     RunsApi: (session) => session.runs,
     LoadDraft: (session) => session.data.prepare({ type: "json", config: { data: TINY_JSON } }),
+    JoinsDraft: async (session) => {
+        await session.data.addNodes([{ id: "j1" }]);
+        const recipe = session.data.prepareJoins();
+        const table = recipe.hold({ name: "door-recipe.csv", rows: [{ name: "j1", score: 5 }] });
+        recipe.add({ from: table, choices: { keys: [{ file: "name", graph: "id" }], shape: "node-values" } });
+        return recipe;
+    },
     // Cancelled, so `rerun` has something to run again.
     Run: (session) => {
         const run = session.runs.start("degree");

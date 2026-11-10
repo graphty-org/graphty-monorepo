@@ -12,6 +12,7 @@ import type { Channel } from "@graphty/graphty-element/schema";
 import type {
     DataSourceInput,
     GraphSession,
+    JoinLookup,
     LoadDraft,
     NoteTargetInput,
     SourceKey,
@@ -147,6 +148,11 @@ export interface WorkspaceState {
         /** What the draft was read from, for Replace data and Open as a separate graph. */
         readonly source?: DataSourceInput;
     } | null;
+    /**
+     * The join workspace, open (the `join-workspace` experiment): the tables it opened holding
+     * (a file the join screen sent to it), or null while it is shut.
+     */
+    readonly joinWorkspace: { readonly held: readonly JoinLookup[] } | null;
     /** A joined table whose join the join screen is editing (its row's Edit join), or null. */
     readonly editingJoin: SourceKey | null;
     /**
@@ -305,6 +311,7 @@ const INITIAL: WorkspaceState = {
     fieldsEntry: null,
     dockMaximized: false,
     joining: null,
+    joinWorkspace: null,
     editingJoin: null,
     ends: null,
     pickedSource: null,

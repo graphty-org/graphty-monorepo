@@ -112,6 +112,7 @@ import {
     NO_ISSUE_STATE,
 } from "./issues";
 import { frozen, type JoinGraph, type JoinPlan, joinReport, type JoinTable, planJoin } from "./join";
+import { createJoinsDraft } from "./joinsDraft";
 import type { RenderLimits } from "./limits";
 import { historyMark, type LoadLine, type LoadTurn, supersededError } from "./loadLine";
 import type { SessionCommand } from "./planning";
@@ -181,6 +182,7 @@ import type {
     JoinChoices,
     JoinRecord,
     JoinReport,
+    JoinsDraft,
     JoinShape,
     LoadChoices,
     LoadedSource,
@@ -252,6 +254,11 @@ interface DataWrites {
     send?(command: SessionCommand): Promise<unknown>;
     /** Publish a session event: the network-source expansions publish theirs. */
     emit?<K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]): void;
+    /**
+     * Run `fn` as one undoable step: every command it sends through its `send` joins the step,
+     * and later sends read the graph the earlier ones wrote.
+     */
+    transaction?<T>(label: string, fn: (send: (command: SessionCommand) => Promise<unknown>) => Promise<T>): Promise<T>;
     /** The style stack and the finished runs now: what reads a column. */
     readers(): {
         readonly styles: readonly CompiledLayer[];
@@ -3313,6 +3320,76 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Open a join recipe over the graph as it is now.
+     * @returns the draft
+     */
+    prepareJoins(): JoinsDraft {
+        this.requireLive("prepareJoins");
+        const provenance = this.provenance();
+        return createJoinsDraft({
+            graph: () => ({
+                nodes: this.joinRows("node").map((row) => ({ id: row.id, data: row.data })),
+                edges: this.edges().map(({ id, source, target, ...data }) => ({
+                    id,
+                    source,
+                    target,
+                    data,
+                })),
+            }),
+            sources: () =>
+                this.storedSources()
+                    .filter((each) => each.kind !== "join")
+                    .map((each) => ({
+                        key: each.key,
+                        name: each.name ?? each.key,
+                        nodes: provenance?.[each.key]?.nodes ?? [],
+                        edges: provenance?.[each.key]?.edges ?? [],
+                        asEdges: each.tableRows?.includes("edges") === true && !each.tableRows.includes("nodes"),
+                    })),
+            joinedTable: (key) => this.storedSources().find((each) => each.key === key)?.join?.table,
+            commit: (steps) =>
+                this.afterLoads(
+                    () => this.commitJoins(steps),
+                    () => undefined,
+                ),
+        });
+    }
+
+    /**
+     * A join recipe's steps joined in order, as one undoable step.
+     * @param steps - each step's table and choices
+     * @returns settles once the step is recorded
+     */
+    private async commitJoins(
+        steps: readonly { readonly table: JoinTable; readonly choices: JoinChoices }[],
+    ): Promise<void> {
+        this.requireLive("commit");
+        const transaction = this.writes.transaction?.bind(this.writes);
+        if (transaction === undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "This session cannot dispatch commands, so it cannot join.",
+                source: "data",
+            });
+        }
+
+        await transaction(`Joined ${String(steps.length)} tables`, async (send) => {
+            for (const step of steps) {
+                // A held table is loaded from its rows; `config` says the load reads a table.
+                const source = { type: "csv", name: step.table.name, config: {} };
+                await this.applyJoin(
+                    send,
+                    { ...step.table, source },
+                    step.choices,
+                    step.choices.shape ?? "node-values",
+                    undefined,
+                    true,
+                );
+            }
+        });
+    }
+
+    /**
      * Join a joined table again with other choices, as one undoable step.
      * @param source - the joined table's load
      * @param choices - the join
@@ -3551,6 +3628,7 @@ export class SessionData implements SessionDataApi {
      * @param choices - the join
      * @param shape - the shape when the choices give none
      * @param previous - the joined table's load, when the join is being edited
+     * @param again - a recipe's step: a table already joined may be joined again
      * @returns settles once the step is recorded
      */
     private async applyJoin(
@@ -3559,6 +3637,7 @@ export class SessionData implements SessionDataApi {
         choices: JoinChoices,
         shape: JoinShape,
         previous?: LoadedSource,
+        again = false,
     ): Promise<void> {
         const undo = previous === undefined ? undefined : this.unjoin(previous);
         const graph = this.joinGraph(undo?.restored, undo?.gone);
@@ -3574,7 +3653,7 @@ export class SessionData implements SessionDataApi {
         }
 
         const stored = this.storedSources();
-        if (previous === undefined) {
+        if (previous === undefined && !again) {
             refuseJoinedAlready(stored, table);
         }
 

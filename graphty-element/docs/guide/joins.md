@@ -196,6 +196,31 @@ instead; it is read as its rows. A join takes one or the other: both together is
 `mapping.columns` names its two columns (by default, the ones whose values meet the table's keys
 and the graph's most). The report counts `unmapped` and `mappedToMany` keys.
 
+## Several joins at once: a recipe
+
+`prepareJoins()` holds an ordered list of joins and runs them on a copy of the graph, so every
+step's counts, each row's fate and the graph they leave can be shown before anything changes. A
+step reads a loaded source (by its `sources()` key) or a table the recipe holds, and matches the
+graph the steps before it leave. `commit()` joins them all as one undo step.
+
+```ts
+const recipe = data.prepareJoins();
+const read = await data.prepare({ config: { file: doorEntries } });
+const entries = recipe.hold(read.lookup()); // held apart from the graph
+read.dispose();
+
+const step = recipe.add({ from: entries, choices: recipe.suggest(entries) });
+recipe.outcome(step).report; // { matched: 240, newNodes: 12, ... }
+recipe.rows(step, { offset: 0, limit: 50 }); // the rows, each with its fate
+recipe.preview().nodes; // the graph the recipe leaves, each element's fate: "added", "updated", ...
+recipe.undo(); // the recipe keeps its own history
+await recipe.commit(); // or recipe.discard()
+```
+
+`fuse` combines a clashing column's two values (`{ rating: "max" }`), `flag` marks what a
+reference list names (`{ columns: [], flag: "watchlisted" }`), and `split` reads a cell holding
+several values (`{ tags: ";" }`). `recipe.clashes(step, column)` lists the clashes of a column.
+
 ## Naming what a join writes
 
 A join derives some names: a reduction's `<column> (<reduction>)`, a clashing column's

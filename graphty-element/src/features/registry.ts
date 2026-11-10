@@ -16,7 +16,8 @@ export type FeatureId =
     | "selection-workspace"
     | "cosmograph"
     | "network-data"
-    | "file-styles";
+    | "file-styles"
+    | "join-workspace";
 
 /** One experiment this build can switch on. */
 export interface FeatureDescriptor {
@@ -44,6 +45,8 @@ export const FEATURES: readonly FeatureDescriptor[] = Object.freeze([
     // Reading and writing the styles other programs write into graph files, and every style channel
     // and value added to draw them.
     { id: "file-styles", plainName: "File styles", issue: 706, since: "2026-11-06" },
+    // The graphty app's full-screen join workspace; graphty-element's join API is not gated.
+    { id: "join-workspace", plainName: "Join workspace", issue: 6477, since: "2026-11-10" },
 ]);
 
 /** Ids of experiments that have shipped: accepted silently, and they change nothing. */

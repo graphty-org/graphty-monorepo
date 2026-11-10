@@ -51,3 +51,13 @@ export function fileStylesOn(session: GraphSession | null | undefined): boolean 
     const features = new Set<string>(session?.features.enabled ?? []);
     return features.has("file-styles");
 }
+
+/**
+ * Whether the full-screen join workspace is on (issue #6477). Off, the Sources tab draws no Join +
+ * row, the join screen offers no way into it, and nothing of the experiment is drawn.
+ * @param session - the element's session, or null before it comes up.
+ * @returns true when the element switched the experiment on.
+ */
+export function joinWorkspaceOn(session: GraphSession | null | undefined): boolean {
+    return (session?.features.enabled ?? []).includes("join-workspace");
+}

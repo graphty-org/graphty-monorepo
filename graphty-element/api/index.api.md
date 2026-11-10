@@ -2581,7 +2581,7 @@ export type ExportScope = RuleTree | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "network-data" | "file-styles";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "network-data" | "file-styles" | "join-workspace";
 
 // @public
 export interface FindAtLeastRow {

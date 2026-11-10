@@ -60,6 +60,7 @@ import type {
     LayoutTransitionConfig,
 } from "../config/GraphStyle";
 import type { LoadReport } from "../data/report";
+import type { GraphtyErrorCode } from "../errors/codes";
 import type { GraphtyError } from "../errors/GraphtyError";
 import type { EnabledFeatures } from "../features/resolve";
 import type { AssetId, AssetsApi } from "./assets/AssetsApi";
@@ -1801,6 +1802,27 @@ export interface SessionDataApi {
      */
     joins(): readonly JoinRecord[];
     /**
+     * Open a join recipe: an ordered list of joins over the loaded sources and the tables the
+     * draft holds, run on a copy of the graph so each step's counts, row fates and the resulting
+     * graph can be shown before anything changes. `commit()` joins every step as one undoable
+     * step; `discard()` lets it go, changing nothing.
+     *
+     * ```ts
+     * const recipe = session.data.prepareJoins();
+     * const entries = await session.data.prepare({ config: { file } });
+     * const table = recipe.hold(entries.lookup()); // a table held apart from the graph
+     * entries.dispose();
+     * const step = recipe.add({ from: table, choices: recipe.suggest(table) });
+     * recipe.outcome(step).report; // { matched: 52, newEdges: 40, ... }
+     * recipe.preview().nodes; // the graph as the recipe leaves it, each element's fate
+     * await recipe.commit(); // one undo step
+     * ```
+     * @returns The draft.
+     * @since 3.37.0
+     * @beta
+     */
+    prepareJoins(): JoinsDraft;
+    /**
      * Join a joined table again with other choices, as one undoable step: the values or edges the
      * join made are taken back, the values it wrote over put back, and the table joined anew
      * onto the graph as it is now. With the record's own choices, this applies a join again after
@@ -2643,6 +2665,28 @@ export interface JoinChoices {
      * @since 3.37.0
      */
     readonly names?: Readonly<Record<string, string>>;
+    /**
+     * For values and `"merge"`: per column the graph already has, combine the graph's value and
+     * the incoming one with a reduction, written under the column's own name: `"mean"`, `"sum"`,
+     * `"min"`, `"max"`, `"list"` (both values, the graph's first), `"first"` (the graph's),
+     * `"last"` (the incoming one), `"count"`. Takes the place of `clash` for the columns it names.
+     * @since 3.37.0
+     */
+    readonly fuse?: Readonly<Record<string, JoinReduce>>;
+    /**
+     * For values: a column written `true` on every element a row matches, so a reference list (a
+     * watchlist) marks what it names. Brought columns are written as well; pass `columns: []` to
+     * write only the flag.
+     * @since 3.37.0
+     */
+    readonly flag?: string;
+    /**
+     * Columns of the table holding several values in one cell, split at the separator given:
+     * `{ tags: ";" }`. An `"edges"` join reads each part as a row of its own (one edge per part);
+     * any other join writes the parts as a list.
+     * @since 3.37.0
+     */
+    readonly split?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -2778,6 +2822,267 @@ export interface JoinRecord {
      * it did not have, so editing the join can put them back.
      */
     readonly before?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+}
+
+/**
+ * What a recipe step did to one node or edge ({@link JoinsDraft.preview}): `"matched"` a row
+ * names it, `"updated"` a value of it changed, `"added"` the step made it, `"merged"` rows were
+ * merged into it. OPEN UNION: fates may be added in a minor release.
+ * @since 3.37.0
+ * @beta
+ */
+export type JoinElementFate = "matched" | "updated" | "added" | "merged";
+
+/**
+ * One input a join recipe reads ({@link JoinsDraft.inputs}): a loaded source, read as its
+ * records, or a table the draft holds.
+ * @since 3.37.0
+ * @beta
+ */
+export interface JoinInput {
+    /** Its key: the load's (`data.sources()`), or the held table's (`JoinsDraft.hold`). */
+    readonly key: string;
+    /** Its name: the load's or the table's. */
+    readonly name: string;
+    /** Whether the draft holds it apart from the graph. */
+    readonly held: boolean;
+    /** Its columns, as a step reads them. */
+    readonly columns: readonly string[];
+    /** How many rows a step reads from it. */
+    readonly rows: number;
+}
+
+/**
+ * One step of a join recipe: the input whose rows it reads, and the join.
+ * @since 3.37.0
+ * @beta
+ */
+export interface JoinStep {
+    /** A {@link JoinInput.key}. */
+    readonly from: string;
+    /**
+     * The join, as `draft.load({ join })` takes it; its `via` may also name a held table. The
+     * keys match the graph as the steps before this one leave it.
+     */
+    readonly choices: JoinChoices;
+}
+
+/**
+ * A step of a join recipe as the draft holds it.
+ * @since 3.37.0
+ * @beta
+ */
+export interface JoinStepEntry extends JoinStep {
+    /** Its id in the draft. */
+    readonly id: string;
+}
+
+/**
+ * What one step of a join recipe does, counted against the graph the steps before it leave: its
+ * report, or why it cannot run (it then changes nothing and `commit` leaves it out).
+ * @since 3.37.0
+ * @beta
+ */
+export interface JoinStepOutcome {
+    /** The step's id. */
+    readonly id: string;
+    /** The counts; absent when the step cannot run. */
+    readonly report?: JoinReport;
+    /** The refusal: its code and details, as a `GraphtyError` carries them. */
+    readonly error?: { readonly code: GraphtyErrorCode; readonly details: Readonly<Record<string, unknown>> };
+}
+
+/**
+ * A node of a join recipe's preview.
+ * @since 3.37.0
+ * @beta
+ */
+export interface JoinPreviewNode {
+    readonly id: NodeId;
+    readonly data: Readonly<Record<string, unknown>>;
+    /** What the previewed step did to it; absent when it did nothing. */
+    readonly fate?: JoinElementFate;
+}
+
+/**
+ * An edge of a join recipe's preview. An edge a step adds has an id the draft makes; the commit
+ * gives it the graph's own.
+ * @since 3.37.0
+ * @beta
+ */
+export interface JoinPreviewEdge {
+    readonly id: EdgeId;
+    readonly source: NodeId;
+    readonly target: NodeId;
+    readonly data: Readonly<Record<string, unknown>>;
+    /** What the previewed step did to it; absent when it did nothing. */
+    readonly fate?: JoinElementFate;
+}
+
+/**
+ * The graph as a join recipe leaves it, or as it stands before one of its steps.
+ * @since 3.37.0
+ * @beta
+ */
+export interface JoinPreview {
+    readonly nodes: readonly JoinPreviewNode[];
+    readonly edges: readonly JoinPreviewEdge[];
+}
+
+/**
+ * One row a recipe step reads, with what the step does with it.
+ * @since 3.37.0
+ * @beta
+ */
+export interface JoinPreviewRow {
+    /** Its position in the table the step reads (after a `split` of an edges join, a part's row). */
+    readonly index: number;
+    /** Its values, by column. */
+    readonly values: Readonly<Record<string, unknown>>;
+    /** What the step does with it; absent when the step cannot run. */
+    readonly fate?: JoinRowFate;
+    /** The nodes (or edges) it matches, as {@link JoinReport.rowMatches}. */
+    readonly matches: readonly (NodeId | EdgeId)[];
+}
+
+/**
+ * One clash a recipe step meets: an element's own value of a column and the different value a
+ * row brings.
+ * @since 3.37.0
+ * @beta
+ */
+export interface JoinClash {
+    readonly id: NodeId | EdgeId;
+    /** The element's own value. */
+    readonly graph: unknown;
+    /** The value the row brings. */
+    readonly incoming: unknown;
+}
+
+/**
+ * A page of a list a join recipe reads out.
+ * @since 3.37.0
+ * @beta
+ */
+export interface JoinPage<T> {
+    readonly items: readonly T[];
+    /** The position of `items[0]` in the whole list. */
+    readonly offset: number;
+    /** How many the whole list holds. */
+    readonly total: number;
+}
+
+/**
+ * Which part of a list {@link JoinsDraft.rows} and {@link JoinsDraft.clashes} read.
+ * @since 3.37.0
+ * @beta
+ */
+export interface JoinPageOptions {
+    /** The first position. Default 0. */
+    readonly offset?: number;
+    /** The most items. Default 100. */
+    readonly limit?: number;
+}
+
+/**
+ * A join recipe held as a draft: `session.data.prepareJoins()`. Its steps run in order on a copy
+ * of the graph, each matching the graph the steps before it leave, so nothing changes until
+ * `commit()`. The draft keeps its own history: `undo()` and `redo()` step through its edits.
+ * Every call after `commit()` or `discard()` throws `E_DISPOSED`.
+ * @since 3.37.0
+ * @beta
+ */
+export interface JoinsDraft {
+    /** Every input a step can read: each load but the joins, then each held table. */
+    readonly inputs: readonly JoinInput[];
+    /**
+     * Hold a table apart from the graph for steps to read: `LoadDraft.lookup()` of any file, or
+     * rows of your own. Its rows never become nodes or edges until a step joins them.
+     * @param table - The table.
+     * @returns Its key, for {@link JoinStep.from} or a step's `via`.
+     */
+    hold(table: JoinLookup): string;
+    /** The steps, in order. */
+    readonly steps: readonly JoinStepEntry[];
+    /**
+     * Add a step.
+     * @param step - The step.
+     * @param at - Its position; the end when absent.
+     * @returns Its id.
+     * @throws `E_SOURCE_UNKNOWN` for a `from` no input has.
+     */
+    add(step: JoinStep, at?: number): string;
+    /**
+     * Replace a step's input and join.
+     * @param id - The step.
+     * @param step - The step now.
+     */
+    change(id: string, step: JoinStep): void;
+    /**
+     * Remove a step.
+     * @param id - The step.
+     */
+    remove(id: string): void;
+    /**
+     * Move a step.
+     * @param id - The step.
+     * @param to - Its new position.
+     */
+    move(id: string, to: number): void;
+    /** Whether `undo()` has an edit to take back. */
+    readonly canUndo: boolean;
+    /** Whether `redo()` has an edit to make again. */
+    readonly canRedo: boolean;
+    /** Take back the last edit to the steps. */
+    undo(): void;
+    /** Make the last edit taken back again. */
+    redo(): void;
+    /**
+     * How an input most likely joins: `draft.suggestJoin()` for it, against the graph the recipe
+     * leaves (or the graph before a step).
+     * @param from - The input's key.
+     * @param before - A step: suggest against the graph before it.
+     * @returns The suggestion.
+     */
+    suggest(from: string, before?: string): JoinSuggestion;
+    /**
+     * What a step does: its report, or why it cannot run.
+     * @param id - The step.
+     * @returns The outcome.
+     */
+    outcome(id: string): JoinStepOutcome;
+    /**
+     * The rows a step reads, a page at a time, each with its fate.
+     * @param id - The step.
+     * @param options - The page, and `fate` to read only the rows of one fate.
+     * @returns The page.
+     */
+    rows(id: string, options?: JoinPageOptions & { readonly fate?: JoinRowFate }): JoinPage<JoinPreviewRow>;
+    /**
+     * The clashes of one column a step meets, a page at a time: what its `clashes` count.
+     * @param id - The step.
+     * @param column - An incoming column the report lists in `clashes`.
+     * @param options - The page.
+     * @returns The page.
+     */
+    clashes(id: string, column: string, options?: JoinPageOptions): JoinPage<JoinClash>;
+    /**
+     * The graph as the recipe leaves it, or as one step leaves it, each element with what that
+     * step did to it.
+     * @param options - Which graph.
+     * @param options.step - The step; the last when absent.
+     * @param options.before - The graph before the step, not the one it leaves.
+     * @returns The graph.
+     */
+    preview(options?: { readonly step?: string; readonly before?: boolean }): JoinPreview;
+    /**
+     * Join every step that can run, in order, as one undoable step. Each becomes a join
+     * `data.joins()` lists and the project saves.
+     * @returns Settles once the step is recorded.
+     */
+    commit(): Promise<void>;
+    /** Let the draft go, changing nothing. */
+    discard(): void;
 }
 
 /**

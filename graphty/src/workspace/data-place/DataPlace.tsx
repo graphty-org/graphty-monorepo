@@ -7,6 +7,7 @@ import React from "react";
 import { selectionWorkspaceOn } from "../features";
 import { SOURCE_GLYPHS } from "../glyphs";
 import { useSessionVersion } from "../inspector/hooks";
+import { JoinRow } from "../join-workspace/JoinRow";
 import { ServerPlace } from "../server/ServerForm";
 import { useNumberFormats } from "../settings/numberFormat";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -67,6 +68,7 @@ export function DataPlace(): React.JSX.Element {
             <section className="dp" aria-label="Data place">
                 <h2 className="dp-title">{graphName}</h2>
                 {sourcesSection}
+                <JoinRow sources={sources} />
                 <ServerPlace />
                 <Fields sources={sources} selected={selected} />
                 <FiltersSection />
@@ -94,6 +96,8 @@ export function DataPlace(): React.JSX.Element {
                 </Tabs.List>
                 <Tabs.Panel value="loaded" className="dp-tab-body">
                     {sourcesSection}
+                    {/* Join + sits above the per-source sections (the join-workspace experiment). */}
+                    <JoinRow sources={sources} />
                     {/* Each load's filters sit in its own section; with no load, or several, the
                         filters of every load sit here, under Data sources. */}
                     {sources.length === 1 ? null : <FiltersSection unscoped={sources.length > 1} />}

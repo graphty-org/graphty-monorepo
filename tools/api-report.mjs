@@ -131,6 +131,10 @@ const SESSION_ROOT = "GraphSession";
 export const PLAIN_STRING_ALLOWLIST = new Set([
     // identifiers and keys
     "id",
+    // the key of the input a join recipe's step reads (JoinStep.from): a load's or a held table's
+    "from",
+    // the column a join writes `true` to (JoinChoices.flag): a name the consumer gives
+    "flag",
     // the consumer's own name for how a step's test is edited (UnionStep.mode): written and read
     // only by the consumer, never words graphty-element shows
     "mode",

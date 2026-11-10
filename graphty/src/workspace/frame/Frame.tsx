@@ -16,6 +16,7 @@ import { GraphPlace } from "../graph-place/GraphPlace";
 import { DATA_PLACE_KINDS } from "../inspector/inspected";
 import { Inspector } from "../inspector/Inspector";
 import { JoinScreen } from "../join/JoinScreen";
+import { JoinWorkspace } from "../join-workspace/JoinWorkspace";
 import { NotesPlace } from "../notes/NotesPlace";
 import { PrivacyChip } from "../privacy/PrivacyChip";
 import { NodeMenu } from "../server/NodeMenu";
@@ -66,7 +67,8 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     // The selection workspace covers one side panel (spec 3.0): it takes no focus under it.
     const covered = useWorkspaceState((state) => state.selectionWorkspace?.host ?? null);
     // The full-screen selection workspace (an experiment) covers both side panels.
-    const modalCover = covered !== null && selectionWorkspaceOn(session);
+    const joinOpen = useWorkspaceState((state) => state.joinWorkspace !== null);
+    const modalCover = (covered !== null && selectionWorkspaceOn(session)) || joinOpen;
     const panels = page === "panels";
     // Leaving the Data page (Load, Cancel, Esc) takes away the control that had focus; focus goes
     // to the graph's heading, or the open place's list while the inspector shows something else
@@ -190,6 +192,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         </section>
                     ) : null}
                     <JoinScreen />
+                    <JoinWorkspace />
                     {networkOn(session) ? <NodeMenu /> : null}
                 </main>
                 {/* Every pop-out opened in the inspector opens flush with its edge, level with

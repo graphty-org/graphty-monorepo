@@ -1,0 +1,45 @@
+/* The join workspace: the selection workspace's modal frame (selection.css), its body a left column
+   the build fills and, on the right, the preview drawing over the paged rows. */
+.jw-body {
+    display: grid;
+    grid-template-columns: minmax(320px, 34%) minmax(0, 1fr);
+    min-height: 0;
+}
+
+.jw-left {
+    min-height: 0;
+    overflow: hidden auto;
+    padding: 12px;
+    background: var(--cm-bg-subtle, var(--mantine-color-default-hover));
+    border-inline-end: 1px solid var(--cm-border);
+}
+
+.jw-right {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) 40%;
+    min-width: 0;
+    min-height: 0;
+}
+
+.jw-preview {
+    position: relative;
+    min-height: 0;
+    border-bottom: 1px solid var(--cm-border);
+}
+
+.jw-rows {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 28px minmax(0, 1fr);
+    min-width: 0;
+    min-height: 0;
+}
+
+.jw-rows-bar {
+    padding-inline: 8px;
+}
+
+.jw-row {
+    padding: 4px 8px;
+}

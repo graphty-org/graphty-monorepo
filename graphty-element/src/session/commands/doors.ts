@@ -521,6 +521,50 @@ const REPLACE_SOURCE_EXPECT: readonly unknown[] = [
     ...REPLACE_SOURCE_STEPS,
 ];
 
+/** The join a recipe's commit makes: the doors test's table naming node j1, joined as values. */
+const RECIPE_TABLE = { name: "door-recipe.csv", columns: ["name", "score"], rows: [{ name: "j1", score: 5 }] } as const;
+
+/** What `JoinsDraft.commit` dispatches: its one step as a batch, then the batch's members. */
+const RECIPE_JOIN = {
+    label: "Joined door-recipe.csv",
+    fact: { code: "data.join", params: { key: "s1", name: "door-recipe.csv", shape: "node-values", matched: 1 } },
+    steps: [
+        {
+            op: "data.apply",
+            mutation: { kind: "update-rows", target: "node", rows: [{ id: "j1", values: { score: 5 } }] },
+        },
+        {
+            op: "data.setSource",
+            source: { type: "csv", name: "door-recipe.csv", config: {} },
+            sources: [
+                {
+                    type: "csv",
+                    name: "door-recipe.csv",
+                    config: {},
+                    key: "s1",
+                    kind: "join",
+                    join: {
+                        source: "s1",
+                        onto: null,
+                        shape: "node-values",
+                        choices: { keys: [{ file: "name", graph: "id" }], shape: "node-values" },
+                        rows: 1,
+                        matched: 1,
+                        columns: ["score"],
+                        table: RECIPE_TABLE,
+                        before: { j1: { score: null } },
+                    },
+                    tables: ["door-recipe.csv"],
+                    tableRows: ["nodes"],
+                    added: { nodes: 0, edges: 0 },
+                    counts: { nodes: 1, edges: 0 },
+                },
+            ],
+            provenance: { s1: { nodes: ["j1"], edges: [] } },
+        },
+    ] as unknown as readonly SessionCommand[],
+} as const;
+
 /** The table the `editJoin` door joins onto one node. */
 const DOOR_JOIN_CSV = "name,score\ndoor-j1,5\n";
 
@@ -2662,6 +2706,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             },
             // Reads and holds a source; the draft it returns loads through data.import.
             prepare: READ,
+            // Opens a recipe held apart from the graph; its commit dispatches.
+            prepareJoins: READ,
             joins: READ,
             editJoinReport: READ,
             matchesSource: READ,
@@ -3054,6 +3100,33 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // nodes named by the file's label column, as `data.import` names them.
             load: calls([], [{ op: "batch", steps: [DRAFT_LABEL, DRAFT_LOAD] }, DRAFT_LABEL, DRAFT_LOAD]),
             dispose: exempt("Lets go of the rows a draft holds; nothing a project saves changes."),
+        },
+    },
+    {
+        // The doors test holds a table naming node j1 and adds one values step from it.
+        name: "JoinsDraft",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            inputs: READ,
+            steps: READ,
+            canUndo: READ,
+            canRedo: READ,
+            // Edits to a recipe held apart from the graph: nothing a project saves changes.
+            hold: READ,
+            add: READ,
+            change: READ,
+            remove: READ,
+            move: READ,
+            undo: READ,
+            redo: READ,
+            suggest: READ,
+            outcome: READ,
+            rows: READ,
+            clashes: READ,
+            preview: READ,
+            commit: calls([], [{ op: "batch", ...RECIPE_JOIN }, ...RECIPE_JOIN.steps]),
+            discard: exempt("Lets go of a recipe held apart from the graph; nothing a project saves changes."),
         },
     },
     {
@@ -3939,6 +4012,7 @@ export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear">> = {
     "SessionDataApi.replaceSource": "edit",
     "SessionDataApi.reloadSource": "edit",
     "SessionDataApi.editJoin": "edit",
+    "JoinsDraft.commit": "edit",
     "SessionDataApi.setType": "edit",
     "SessionDataApi.renameColumn": "edit",
     "SessionDataApi.import": "load",

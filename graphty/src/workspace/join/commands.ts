@@ -17,11 +17,12 @@ import type {
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
 import { sourceName } from "../data-place/words";
+import { joinWorkspaceOn } from "../features";
 import { replaceWith } from "../replace/commands";
 import { openSeparate } from "../start/open";
 
-/** What the Join button does: the dropdown's four choices. */
-export type JoinHow = "join" | "rows" | "replace" | "separate";
+/** What the Join button does: the dropdown's choices. */
+export type JoinHow = "join" | "rows" | "replace" | "separate" | "workspace";
 
 /** The Join button's words for each choice. */
 export const HOW_WORDS: Readonly<Record<JoinHow, string>> = {
@@ -29,6 +30,7 @@ export const HOW_WORDS: Readonly<Record<JoinHow, string>> = {
     rows: "Add as rows",
     replace: "Replace data",
     separate: "Open as a separate graph",
+    workspace: "Join workspace",
 };
 
 /** A table the join screen joins: a file just read, or a table already joined (Edit join). */
@@ -168,6 +170,9 @@ export function howChoices(ctx: CommandContext, subject: JoinSubject): JoinHow[]
     if (subject.source !== undefined) {
         hows.push("separate");
     }
+    if (joinWorkspaceOn(ctx.session)) {
+        hows.push("workspace");
+    }
     return hows;
 }
 
@@ -252,6 +257,12 @@ export async function finishJoin(
     } else if (how === "separate" && source !== undefined) {
         draft?.dispose();
         openSeparate(workspace, { name: subject.name, source });
+    } else if (how === "workspace" && draft !== undefined) {
+        // The file is held apart from the graph, for the join workspace's steps to read.
+        const held = draft.lookup();
+        draft.dispose();
+        workspace.set({ joining: null, editingJoin: null, joinWorkspace: { held: [held] } });
+        return;
     }
     workspace.set({ joining: null, editingJoin: null });
 }

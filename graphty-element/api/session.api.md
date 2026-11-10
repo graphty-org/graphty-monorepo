@@ -1030,7 +1030,7 @@ export const EXPORT_STYLE_LOSS_CODES: readonly ["W_STYLE_NOT_WRITTEN", "W_STYLE_
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "network-data" | "file-styles";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "network-data" | "file-styles" | "join-workspace";
 
 // @public
 export interface FieldBand {
@@ -2749,6 +2749,8 @@ export interface JoinChoices {
         readonly source?: string;
         readonly target?: string;
     };
+    readonly flag?: string;
+    readonly fuse?: Readonly<Record<string, JoinReduce>>;
     readonly ignore?: readonly JoinWarning[];
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
@@ -2761,9 +2763,30 @@ export interface JoinChoices {
     readonly names?: Readonly<Record<string, string>>;
     readonly repeated?: "first" | "last" | "both";
     readonly shape?: JoinShape;
+    readonly split?: Readonly<Record<string, string>>;
     readonly unknownEnds?: "add" | "leave-out";
     readonly unmatchedFrom?: "keep" | "drop";
     readonly via?: SourceKey;
+}
+
+// @beta
+export interface JoinClash {
+    readonly graph: unknown;
+    // (undocumented)
+    readonly id: NodeId_2 | EdgeId;
+    readonly incoming: unknown;
+}
+
+// @beta
+export type JoinElementFate = "matched" | "updated" | "added" | "merged";
+
+// @beta
+export interface JoinInput {
+    readonly columns: readonly string[];
+    readonly held: boolean;
+    readonly key: string;
+    readonly name: string;
+    readonly rows: number;
 }
 
 // @public
@@ -2792,6 +2815,58 @@ export interface JoinLookup {
 export interface JoinMapping {
     readonly columns?: readonly [from: string, to: string];
     readonly many?: "first" | "list";
+}
+
+// @beta
+export interface JoinPage<T> {
+    // (undocumented)
+    readonly items: readonly T[];
+    readonly offset: number;
+    readonly total: number;
+}
+
+// @beta
+export interface JoinPageOptions {
+    readonly limit?: number;
+    readonly offset?: number;
+}
+
+// @beta
+export interface JoinPreview {
+    // (undocumented)
+    readonly edges: readonly JoinPreviewEdge[];
+    // (undocumented)
+    readonly nodes: readonly JoinPreviewNode[];
+}
+
+// @beta
+export interface JoinPreviewEdge {
+    // (undocumented)
+    readonly data: Readonly<Record<string, unknown>>;
+    readonly fate?: JoinElementFate;
+    // (undocumented)
+    readonly id: EdgeId;
+    // (undocumented)
+    readonly source: NodeId_2;
+    // (undocumented)
+    readonly target: NodeId_2;
+}
+
+// @beta
+export interface JoinPreviewNode {
+    // (undocumented)
+    readonly data: Readonly<Record<string, unknown>>;
+    readonly fate?: JoinElementFate;
+    // (undocumented)
+    readonly id: NodeId_2;
+}
+
+// @beta
+export interface JoinPreviewRow {
+    readonly fate?: JoinRowFate;
+    readonly index: number;
+    readonly matches: readonly (NodeId_2 | EdgeId)[];
+    readonly values: Readonly<Record<string, unknown>>;
 }
 
 // @public
@@ -2853,8 +2928,56 @@ export interface JoinReport {
 // @public
 export type JoinRowFate = "joined" | "new-end" | "repeat" | "left-out" | "merged" | "linked" | "over-cap";
 
+// @beta
+export interface JoinsDraft {
+    add(step: JoinStep, at?: number): string;
+    readonly canRedo: boolean;
+    readonly canUndo: boolean;
+    change(id: string, step: JoinStep): void;
+    clashes(id: string, column: string, options?: JoinPageOptions): JoinPage<JoinClash>;
+    commit(): Promise<void>;
+    discard(): void;
+    hold(table: JoinLookup): string;
+    readonly inputs: readonly JoinInput[];
+    move(id: string, to: number): void;
+    outcome(id: string): JoinStepOutcome;
+    preview(options?: {
+        readonly step?: string;
+        readonly before?: boolean;
+    }): JoinPreview;
+    redo(): void;
+    remove(id: string): void;
+    rows(id: string, options?: JoinPageOptions & {
+        readonly fate?: JoinRowFate;
+    }): JoinPage<JoinPreviewRow>;
+    readonly steps: readonly JoinStepEntry[];
+    suggest(from: string, before?: string): JoinSuggestion;
+    undo(): void;
+}
+
 // @public
 export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace" | "merge" | "link";
+
+// @beta
+export interface JoinStep {
+    readonly choices: JoinChoices;
+    readonly from: string;
+}
+
+// @beta
+export interface JoinStepEntry extends JoinStep {
+    readonly id: string;
+}
+
+// @beta
+export interface JoinStepOutcome {
+    readonly error?: {
+        readonly code: GraphtyErrorCode;
+        readonly details: Readonly<Record<string, unknown>>;
+    };
+    readonly id: string;
+    readonly report?: JoinReport;
+}
 
 // @public
 export interface JoinSuggestion {
@@ -5537,6 +5660,8 @@ export interface SessionDataApi {
         readonly onto?: "graph";
         readonly guess?: "names" | "values";
     }): Promise<LoadDraft>;
+    // @beta
+    prepareJoins(): JoinsDraft;
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
     previewType(column: ColumnRef, type: ValueType): TypeChangePreview;
     readableValues(): readonly ReadableValue[];

@@ -2778,6 +2778,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 publish(watchers, "progress:changed", change);
             },
             send: (command) => dispatcher.dispatch(command),
+            transaction: (label, fn) =>
+                dispatcher.transaction(label, (scope) => fn((command) => scope.dispatch(command))),
             emit: (event, detail) => {
                 publish(watchers, event, detail);
             },

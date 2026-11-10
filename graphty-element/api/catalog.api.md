@@ -563,7 +563,7 @@ export interface FeatureDescriptor {
 }
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "network-data" | "file-styles";
+export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "network-data" | "file-styles" | "join-workspace";
 
 // @public
 export const FEATURES: readonly FeatureDescriptor[];

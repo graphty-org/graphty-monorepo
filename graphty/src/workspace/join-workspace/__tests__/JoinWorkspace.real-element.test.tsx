@@ -71,6 +71,26 @@ describe("the join workspace shell", () => {
         await joinButton();
     });
 
+    it("keeps Join + with one load and a join, so the joins can be edited again", async () => {
+        const { session } = await open(false);
+        const place = await screen.findByRole("region", { name: "Data place" });
+        await within(place).findByRole("list", { name: "Data sources" });
+        const recipe = session.data.prepareJoins();
+        const table = recipe.hold({ name: "teams.csv", rows: [{ id: session.data.nodes()[0].id, rank: 1 }] });
+        recipe.add({ from: table, choices: { shape: "node-values", keys: [{ file: "id", graph: "id" }] } });
+        await recipe.commit();
+        assert.deepEqual(
+            session.data.sources().map((source) => source.kind === "join"),
+            [false, true],
+        );
+        const list = await within(place).findByRole("list", { name: "Data sources" });
+        await waitFor(() => {
+            assert.lengthOf(within(list).getAllByRole("listitem"), 2);
+        });
+        // Join + draws in the same render as the list.
+        assert.isNotNull(within(place).queryByRole("button", { name: "Join" }));
+    });
+
     it("opens an empty workspace drawing the graph, whose Escape cancels with nothing changed", async () => {
         const { session } = await open(true);
         const nodes = session.data.nodes().length;

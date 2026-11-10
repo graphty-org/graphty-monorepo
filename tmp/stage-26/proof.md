@@ -405,3 +405,27 @@ before the star shape replaces the impostor and are never measured again; on bat
 after it. Matching objects means finding when the replace lands relative to the edge walk on each path. One run
 with an id-keyed map but an unconditional edge walk gave 325 px instead of 68.
 Build, npm run lint, sonar gate and the load-peak gate were not run this session.
+
+## Pull request 11, twelfth session (2026-11-10): two leads closed, nothing fixed
+
+No code change this session; the branch's code is as at 72039da50c.
+
+1. ThreePaths: tried treating a change of shader path as a geometry change in `Node.paintFrom` (add
+   `shaderPartOf(meshKey) !== shaderPartOf(this.meshKey)` to `geometryChanged`), so the star's edges measure
+   again when its `replace` shader lands, on both paths. Narrowed render parity with it (parity21.log, load 4.9,
+   filter adds NodeShapes|Shader|Edge): 8 failed, 72 passed -- ThreePaths 325 (was 68), Mandala and Sticker back
+   to 7717, the four 1 px stories and Gexf unchanged. It also changes what the objects path draws compared with
+   master. Rejected and reverted. So matching objects is not "measure again after the replace" on both paths;
+   the 325 px picture is the one both this and an unconditional batched edge walk give, which suggests a third
+   state (edges measured against the replace's pick-proxy sphere) rather than the final star.
+2. Bidirectional (1 px): a probe in stories.test.ts (removed) dumped, after each load's canvas read, every row's
+   row-table extent and every edge's cached end positions (`_lastSrcPos`, `_lastDstPos`). Objects has no row
+   table; the 29 edges' cached ends are identical on both paths (dbg-ext1.log, compared with cmp-ext.py). So the
+   differing pixel (a blue arrow cap's partial coverage at (537, 245)) is not a line-end difference. Remaining
+   suspects: the arrow cap instance itself, or draw order / blending -- a late-built `Node` taking a different
+   instance slot (order within the instanced draw) than at the merge base, where Bidirectional passes.
+   Next: dump the arrow caps' instance matrices and the node batch's per-row slot order on both paths, and the
+   same at the merge base (pr10 worktree).
+
+Still to run before ready: npm run build, npm run lint, node tools/sonar-gate.mjs, the load-peak gate (met in
+session 7, not re-measured since), and the pinned default-project tests.

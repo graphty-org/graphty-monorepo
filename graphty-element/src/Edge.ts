@@ -724,7 +724,11 @@ export class Edge {
      */
     private endRow(end: "source" | "target"): number {
         const row = this.columnEnd(end)?.index ?? this.unbuiltEnd(end);
-        return row === INVALID_INDEX ? (end === "source" ? this.srcNode : this.dstNode).index : row;
+        if (row !== INVALID_INDEX) {
+            return row;
+        }
+
+        return (end === "source" ? this.srcNode : this.dstNode).index;
     }
 
     /**

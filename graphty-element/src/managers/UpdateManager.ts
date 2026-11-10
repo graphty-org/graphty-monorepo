@@ -151,10 +151,21 @@ function* framedBoxes(
         yield extent === "centers" ? centerOf(node) : node.framingBounds();
     }
 
-    if (columns === undefined) {
-        return;
+    if (columns !== undefined) {
+        yield* columnBoxes(columns, extent);
     }
+}
 
+/**
+ * The world box of every visible row drawn with no `Node`, as {@link framedBoxes} frames them.
+ * @param columns - The rows, the table they are drawn from and the transform they are drawn in.
+ * @param extent - What each counts as.
+ * @yields Each box.
+ */
+function* columnBoxes(
+    columns: ColumnFraming,
+    extent: GraphFraming["extent"],
+): Iterable<{ min: Vector3; max: Vector3 }> {
     const { rows, table, root } = columns;
     const world = root?.computeWorldMatrix(true);
     const scale = root?.absoluteScaling;

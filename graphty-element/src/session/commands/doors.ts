@@ -3124,6 +3124,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             redo: READ,
             suggest: READ,
             outcome: READ,
+            // What a step would do, worked out without adding it.
+            estimate: READ,
             rows: READ,
             clashes: READ,
             preview: READ,

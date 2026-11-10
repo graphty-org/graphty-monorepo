@@ -843,29 +843,60 @@ function groupValues(
     const keys = new Set(choices.keys.map((key) => key.file));
     for (const column of columns) {
         const given = rows.map((row) => row[column]).filter((value) => !absent(value));
-        if (choices.aggregate !== undefined) {
-            const rules = choices.aggregate[column] ?? "first";
-            // A key column's reduction never takes the key's own name, which holds the match.
-            const plain = typeof rules === "string" && !keys.has(column);
-            for (const rule of typeof rules === "string" ? [rules] : rules) {
-                const name = plain ? nameOf(column) : named(choices, `${nameOf(column)} (${rule})`);
-                const value = reduce(rule, given);
-                if (value !== undefined) {
-                    out.push({ column, name, value });
-                }
-            }
-            continue;
-        }
-
-        const distinct = [...new Set(given)];
-        const one = choices.repeated === "last" ? given.at(-1) : given[0];
-        const value = choices.repeated === "both" && distinct.length > 1 ? distinct : one;
-        if (value !== undefined) {
-            out.push({ column, name: nameOf(column), value });
+        const values =
+            choices.aggregate === undefined
+                ? keptValue(given, choices)
+                : reducedValues(column, given, choices.aggregate[column] ?? "first", keys.has(column), choices, nameOf);
+        for (const { name, value } of values) {
+            out.push({ column, name: name ?? nameOf(column), value });
         }
     }
 
     return out;
+}
+
+/**
+ * A column's values with `aggregate`: each reduction, written under the column's name when it is
+ * the only one and the column is not a key column (whose own name holds the match).
+ * @param column - The incoming column.
+ * @param given - Its values, blanks dropped.
+ * @param rules - Its reductions.
+ * @param isKey - Whether it is a key column.
+ * @param choices - The join, for its names.
+ * @param nameOf - The name a column is written under.
+ * @returns The values, each with its name.
+ */
+function reducedValues(
+    column: string,
+    given: readonly unknown[],
+    rules: JoinReduce | readonly JoinReduce[],
+    isKey: boolean,
+    choices: JoinChoices,
+    nameOf: (column: string) => string,
+): { readonly name: string; readonly value: unknown }[] {
+    const plain = typeof rules === "string" && !isKey;
+    return (typeof rules === "string" ? [rules] : rules).flatMap((rule) => {
+        const value = reduce(rule, given);
+        const name = plain ? nameOf(column) : named(choices, `${nameOf(column)} (${rule})`);
+        return value === undefined ? [] : [{ name, value }];
+    });
+}
+
+/**
+ * A column's value without `aggregate`: the first, the last with `repeated: "last"`, or every
+ * distinct value with `repeated: "both"`.
+ * @param given - Its values, blanks dropped.
+ * @param choices - The join.
+ * @returns The value under the column's own name, or none.
+ */
+function keptValue(
+    given: readonly unknown[],
+    choices: JoinChoices,
+): { readonly name?: string; readonly value: unknown }[] {
+    const distinct = [...new Set(given)];
+    const one = choices.repeated === "last" ? given.at(-1) : given[0];
+    const value = choices.repeated === "both" && distinct.length > 1 ? distinct : one;
+    return value === undefined ? [] : [{ value }];
 }
 
 /**

@@ -1110,6 +1110,17 @@ what the upload path sends, within 1e-6, and a click while the layout copies sel
   frame was already about 1.4 s (under G6's 2.0 s target) and the cache does not move it; what it removes is heap,
   about 58 MB at 100k rows (195 to 137 MB used, RTX, 2026-11-10). The color still reaches the batch buffer through one
   small `Rgba` per row rather than straight from the color column.
+- **A uniform mesh-key fill (cosmos-gap.md G6, second pull request).** Under `"batched"` the element hands the repaint
+  `uniformFill` (`RepaintSources`, from `SessionInternals.batched`, not from the ingest host's `batched` flag as
+  cosmos-gap.md section 3.3 item 3 says: the repaint is built by the session, which never sees the ingest host).
+  When every mesh-keying channel is absent or one value over a pass's dirty set, the pass interns one sequence and
+  only moves each row's retain count; a data-driven size or shape keeps the per-row path, and the keys come out the
+  same either way. The color is still not written straight from the color column; the 2.0 s first-frame target was
+  met without it, so it is not built.
+- **A view switch builds every row's `Node`.** `Graph.enterDimension` reads `getNodes()`, which builds a `Node`
+  (and its transform node) for every row stored without one, so a 2D/3D switch after a batched load gives up the
+  lean rows: at 10k rows, 10,000 transform nodes. A load made after the switch stays lean. The scene-object guard in
+  `test/browser/node-batch.test.ts` enters the view before the load for that reason. Not fixed yet.
 - **The typed door**, the advanced path; `addNodes` and `addEdges` stay the simple one. `session.data.importColumns({ sources, targets,
 nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attributes` are optional. Same ceilings, report and undo step,
   with one range entry in the op log, the only bulk history entry (cosmos-gap.md G4 reuses it). Rows are placed by the element's `layout`, as

@@ -18,7 +18,13 @@ import {
     type SessionStylesApi,
     type StyleChange,
 } from "../../../src/session/styles/index";
-import { channelRole, createStyleInterner, meshChannelsFor, type StyleRole } from "../../../src/session/styles/intern";
+import {
+    channelRole,
+    createStyleInterner,
+    internCounters,
+    meshChannelsFor,
+    type StyleRole,
+} from "../../../src/session/styles/intern";
 import type { SelectorSource } from "../../../src/session/styles/predicate";
 import {
     createLayerRepaint,
@@ -538,6 +544,81 @@ describe("style identity", () => {
 
         assert.notInclude([...meshChannelsFor("node")], "node.color");
         assert.notInclude([...meshChannelsFor("edge")], "edge.color");
+    });
+});
+
+describe("a uniform mesh-key fill (cosmos-gap G6)", () => {
+    /**
+     * Paint every node one shape under the fill switch, and count the interner's comparisons.
+     * @param fill - What `uniformFill` reads.
+     * @param rows - The node columns.
+     * @returns The harness and the comparisons the last edit cost.
+     */
+    async function paintShapes(
+        fill: boolean,
+        rows: readonly Row[] = NODES,
+    ): Promise<{ h: Harness; compared: number; id: string }> {
+        const h = makeHarness(rows, { uniformFill: () => fill });
+
+        await h.paintAll();
+        const before = internCounters.comparisons;
+        const layer = await h.styles.add({
+            name: "Boxes",
+            selector: { match: "everything" },
+            set: { "node.shape": "box" },
+        });
+
+        return { h, compared: internCounters.comparisons - before, id: layer.id };
+    }
+
+    it("interns one sequence when every mesh channel is constant", async () => {
+        const rows: Row[] = Array.from({ length: 40 }, () => ({ "data.kind": "host" }));
+        const off = await paintShapes(false, rows);
+        const on = await paintShapes(true, rows);
+
+        // Per row, every row after the first looks its sequence up and compares it once.
+        assert.isAtLeast(off.compared, 39);
+        assert.isAtMost(on.compared, 1);
+
+        for (const { h } of [off, on]) {
+            const key = h.engine.meshKeyOf("node", 0);
+
+            assert.deepStrictEqual(h.engine.meshStyleOf("node", key), { "node.shape": "box" });
+            assert.isTrue(rows.every((_, index) => h.engine.meshKeyOf("node", index) === key));
+            assert.strictEqual(h.engine.meshCount("node"), 2);
+        }
+    });
+
+    it("keeps the per-row path for a shape that follows the data", async () => {
+        const h = makeHarness(NODES, { uniformFill: () => true });
+
+        await h.paintAll();
+        await h.styles.add({
+            name: "Hosts",
+            selector: { match: "expression", where: 'data.kind == `"host"`' },
+            set: { "node.shape": "box" },
+        });
+        await h.styles.add({
+            name: "Switches",
+            selector: { match: "expression", where: 'data.kind == `"switch"`' },
+            set: { "node.shape": "cylinder" },
+        });
+
+        assert.strictEqual(h.engine.meshCount("node"), 3);
+        assert.strictEqual(h.engine.meshKeyOf("node", 0), h.engine.meshKeyOf("node", 1));
+        assert.notStrictEqual(h.engine.meshKeyOf("node", 0), h.engine.meshKeyOf("node", 2));
+        assert.deepStrictEqual(h.engine.meshStyleOf("node", h.engine.meshKeyOf("node", 2)), {
+            "node.shape": "cylinder",
+        });
+    });
+
+    it("moves every row back to the default mesh when the shape is taken away", async () => {
+        const { h, id } = await paintShapes(true);
+
+        await h.styles.remove(id);
+
+        assert.isTrue(NODES.every((_, index) => h.engine.meshKeyOf("node", index) === 0));
+        assert.strictEqual(h.engine.meshCount("node"), 1);
     });
 });
 

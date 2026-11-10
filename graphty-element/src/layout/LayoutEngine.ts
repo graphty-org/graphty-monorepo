@@ -814,11 +814,12 @@ export abstract class LayoutEngine {
      * @returns True for a left-out edge.
      */
     protected isEdgeLeftOut(edge: Edge): boolean {
-        return (
-            this.leftOutEdges?.has(edge) === true ||
-            this.isLeftOut(edge.srcNode.index) ||
-            this.isLeftOut(edge.dstNode.index)
-        );
+        if (this.leftOutEdges?.has(edge) === true) {
+            return true;
+        }
+
+        // With no row left out, an end is never read: a row drawn with no `Node` must not be asked for one.
+        return this.leftOut !== null && (this.isLeftOut(edge.srcNode.index) || this.isLeftOut(edge.dstNode.index));
     }
 
     /**

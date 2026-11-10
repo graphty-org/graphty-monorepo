@@ -213,6 +213,8 @@ export const EXPECTED_COMMAND_IDS: Readonly<Record<string, readonly string[]>> =
     privacy: ["settings.privacy", "help.report"],
     toolbar: [
         "view.open",
+        "view.camera",
+        "view.auto-rotate",
         "view.legend",
         "view.fit",
         "view.frame-selection",

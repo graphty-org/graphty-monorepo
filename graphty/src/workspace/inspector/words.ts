@@ -883,7 +883,7 @@ export function xrReasonWords(reason: XrUnavailableReason, mode: XrRowMode): str
 }
 
 /**
- * The XR rows the View menu draws: one "VR / AR" row when neither mode can be entered for the
+ * The XR rows the Mode menu draws: one "VR / AR" row when neither mode can be entered for the
  * same reason, otherwise one row per mode, each with its reason or null.
  * @param xr - the element's XR facts.
  * @returns the rows, top to bottom.

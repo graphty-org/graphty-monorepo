@@ -27,7 +27,7 @@
         "check:figma-lock": "node tools/check-figma-lock.mjs",
         "check:special-layers": "node tools/check-special-layers.mjs --self-test && node tools/check-special-layers.mjs",
         "check:features": "node tools/check-features.mjs",
-        "check:release-hold": "node tools/release-hold.test.mjs && node tools/release-hold.mjs check && node tools/release-approvals.test.mjs && node tools/release-approvals.mjs check",
+        "check:release-hold": "node tools/release-hold.test.mjs && node tools/release-hold.mjs check && node tools/release-approvals.test.mjs && node tools/release-approvals.mjs check && node tools/release-not-breaking.test.mjs && node tools/release-not-breaking.mjs check",
         "test:sonar-gate": "node tools/sonar/sonar-gate.test.mjs && node tools/sonar/sonar-baseline.test.mjs && node tools/push-base.test.mjs",
         "test:ci-workflows": "node tools/run-ci-workflow-tests.mjs",
         "typecheck": "pnpm exec nx run-many --target=typecheck",

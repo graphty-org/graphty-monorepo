@@ -1084,6 +1084,45 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         }
     });
 
+    it("move the arrow-capped edges of rows with no Node when a layout moves the rows", async () => {
+        defineLayout({
+            id: "test-row-moved",
+            dimensions: 2,
+            place(view) {
+                const out = new Map<string | number, [number, number]>();
+                for (const node of view.nodes()) {
+                    const k = Number(node.id);
+                    out.set(node.id, [(k % 3) * 1.5 - 1.5, Math.floor(k / 3) * 1.2 - 2]);
+                }
+
+                return out;
+            },
+        });
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await element.setViewMode("2d");
+        await element.session.data.addNodes(NODES);
+        // An arrowhead keeps the line off the pulled batch, so it is placed by the edge pass.
+        await element.session.data.addEdges(NODES.slice(1).map((node) => ({ source: node.id - 1, target: node.id })));
+        await element.session.styles.add({
+            name: "arrowheads",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "normal" },
+        } as never);
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+
+        await graph.setLayout("test-row-moved");
+        await operationQueueOf(graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.equal(dataManagerInternals.nodesBuilt(graph.getDataManager()), 0, "laid out with no Node");
+        const batched = await readFrame(graph);
+
+        assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
+    });
+
     it("place every row with no Node by a defineLayout layout", async () => {
         defineLayout({
             id: "test-row-by-id",

@@ -3025,12 +3025,36 @@ export class UpdateManager implements Manager {
             for (const edge of this.edgesToPlace) {
                 edge.update();
             }
+            this.placedEdgesAtRows();
         }
 
+        this.unbuiltRowsMoved = false;
         this.edgesToPlace = [];
         this.settleEnds();
 
         this.statsManager.edgeUpdate.endMonitoring();
+    }
+
+    /** Whether the row table moved a row since the last edge walk while some row has no Node. */
+    private unbuiltRowsMoved = false;
+
+    /**
+     * Update the placed edges -- every edge whose line is not pulled from the row table -- after the table moved its
+     * rows while some row has no Node: such a row is in no walk of the nodes, so its edges are found by asking every
+     * placed edge, and one whose ends stayed exits at once. A pulled line follows its rows in its shader.
+     * ponytail: a walk of every edge on each table move; a list of the rows the lane moved, if a running layout over
+     * a million rows with no Node and placed edges needs the frame back.
+     */
+    private placedEdgesAtRows(): void {
+        if (!this.unbuiltRowsMoved) {
+            return;
+        }
+
+        for (const edge of this.layoutManager.edges) {
+            if (!edge.isPulled) {
+                edge.update();
+            }
+        }
     }
 
     /** Edges a move left with an end on its node's bounding radius, see {@link endsByRadius}. */
@@ -3140,7 +3164,7 @@ export class UpdateManager implements Manager {
 
         const moved = this.nodesMoved();
 
-        if (moved !== false) {
+        if (moved !== false || this.unbuiltRowsMoved) {
             this.sceneChanged = true;
         }
 
@@ -3161,7 +3185,7 @@ export class UpdateManager implements Manager {
         let unseen = false;
         let nodeCount = 0;
         let highest = -1;
-        const { walked, rowsStill, total } = this.movedWalk();
+        const { walked, rowsStill, total, rowsMoved } = this.movedWalk();
 
         for (const node of walked) {
             const { index } = node;
@@ -3185,6 +3209,9 @@ export class UpdateManager implements Manager {
             }
         }
 
+        // A row with no Node is in no walk, so a move of the table's rows says only that an edge at
+        // such a row may have moved (see placedEdgesAtRows).
+        this.unbuiltRowsMoved = rowsMoved && total === undefined && nodeCount < this.dataManager.nodes.size;
         nodeCount = total ?? nodeCount;
         if (unseen) {
             this.noteEveryNode(highest);
@@ -3203,16 +3230,22 @@ export class UpdateManager implements Manager {
      * while the table moved no row, no batched row moved: under `"batched"` only the roster is
      * walked then (`NodeBatches.roster`).
      * @returns The nodes; whether the table moved no row; and the graph's node count when the walk
-     *     is not every node, else undefined.
+     *     is not every node, else undefined; and whether the table moved a row since the last walk.
      */
-    private movedWalk(): { walked: Iterable<Node>; rowsStill: boolean; total: number | undefined } {
+    private movedWalk(): {
+        walked: Iterable<Node>;
+        rowsStill: boolean;
+        total: number | undefined;
+        rowsMoved: boolean;
+    } {
         const moves = this.graphContext.getRowTable?.()?.moves ?? -1;
         const rowsStill = moves !== -1 && moves === this.lastRowMoves;
+        const rowsMoved = moves !== -1 && !rowsStill;
         this.lastRowMoves = moves;
         const roster = rowsStill ? this.roster() : null;
         return roster === null
-            ? { walked: this.layoutManager.nodes, rowsStill, total: undefined }
-            : { walked: roster, rowsStill, total: this.dataManager.nodes.size };
+            ? { walked: this.layoutManager.nodes, rowsStill, total: undefined, rowsMoved }
+            : { walked: roster, rowsStill, total: this.dataManager.nodes.size, rowsMoved };
     }
 
     /**

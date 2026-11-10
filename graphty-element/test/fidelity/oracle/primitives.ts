@@ -537,6 +537,11 @@ export interface PGroup {
     label: PText | null;
     /** Node ids drawn inside it. */
     members: string[];
+    /**
+     * The oracle's side only: the pieces of a fill drawn in pieces (Graphviz's striped cluster), as `PNode.faces`.
+     * Absent for a fill in one piece.
+     */
+    faces?: { box: PBox; color: string }[];
 }
 
 /** An unassociated primitive, a finding of its own (an annotation, a stray shape). */
@@ -1415,6 +1420,66 @@ export function taperPaintedAsFill(points: readonly Pt[]): PaintedBand | null {
         ends: [base, corners[tip]],
         across: width,
     };
+}
+
+/** How narrow, as a share of its widest, a tapered line's end must be to be read as its point. */
+const TAPER_POINT = 0.25;
+
+/**
+ * Whether a filled outline is an edge's line drawn as Graphviz's `style=tapered` draws it (lib/common/taper.c): one
+ * polygon that runs along one side of the line and back along the other, each point on the way out across from one on
+ * the way back, as wide as the pen at its widest and narrowing to a point at one end, or at both (`dir=both`). The
+ * axis runs through the middle of each pair, so a curved route keeps its curve.
+ * @param points - the outline's points, in drawing order; repeats of the first at the end (closings) are dropped
+ * @returns the band, its width the widest pair's and its route the axis; null when the outline is no such line
+ */
+export function taperedOutline(points: readonly Pt[]): PaintedBand | null {
+    const first = points[0];
+    const v = [...points];
+    while (v.length > 1 && first !== undefined && samePoint(v[v.length - 1], first)) {
+        v.pop();
+    }
+    const n = v.length;
+    if (n < 8) {
+        return null;
+    }
+    // each point on the way out and the one across from it on the way back: with a point at the start (dir=both) the
+    // way back ends on the start, which the closings took, and the start is its own partner
+    const odd = n % 2 === 1;
+    const pairs = Array.from({ length: odd ? (n + 1) / 2 : n / 2 }, (_, i): [Pt, Pt] => [
+        v[i],
+        v[odd ? (n - i) % n : n - 1 - i],
+    ]);
+    const route = pairs.map(([a, b]): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]);
+    const widths = pairs.map(([a, b]) => Math.hypot(b[0] - a[0], b[1] - a[1]));
+    const width = Math.max(...widths);
+    let length = 0;
+    for (let i = 1; i < route.length; i++) {
+        length += Math.hypot(route[i][0] - route[i - 1][0], route[i][1] - route[i - 1][1]);
+    }
+    const pointed = Math.min(widths[0], widths[widths.length - 1]) <= TAPER_POINT * width;
+    if (!(width > 0) || !pointed || length < TAPER_ASPECT * width) {
+        return null;
+    }
+    return {
+        width,
+        dashClass: "tapered",
+        patterned: false,
+        box: boxOfPoints(v),
+        ends: [route[0], route[route.length - 1]],
+        across: width,
+        route,
+    };
+}
+
+/**
+ * Whether two points are the same, to a coordinate's rounding.
+ * @param a - one point
+ * @param b - the other
+ * @returns true when they coincide
+ */
+function samePoint(a: Pt, b: Pt): boolean {
+    return Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-6;
 }
 
 /** The sharpest corner, in degrees, a band's end is read as a cap of two corners at; a sharper one is an arrow's tip. */

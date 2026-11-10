@@ -217,6 +217,7 @@
             "labelPosition": "center",
             "labelPadding": 2,
             "labelLineHeight": 1,
+            "labelKeepBlankLines": true,
             "borderPosition": "center"
         },
         "edge": {
@@ -228,6 +229,7 @@
             "labelColor": "#000000",
             "labelFont": "DejaVu Sans, sans-serif",
             "labelSize": 12,
+            "labelKeepBlankLines": true,
             "fanned": false
         },
         "graph": {

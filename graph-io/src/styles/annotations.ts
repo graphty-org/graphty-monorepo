@@ -95,6 +95,28 @@ export interface TextAnnotation extends AnnotationBase, RotatedAnnotation {
     readonly color: StyleColor;
     /** The text's opacity, 0..1. */
     readonly opacity: number;
+    /**
+     * Set when the file places the text against a side of the drawn graph rather than at a point (a DOT graph's own
+     * label in a graph that is not laid out yet). The text then sits in a region `width` by `height` just outside the
+     * box the drawn graph covers, against its `side`, at its left end, its middle or its right end as `align` says;
+     * `at` is measured from that region's center. Absent: `at` is a point in the position convention.
+     */
+    readonly beside?: AnnotationBeside;
+}
+
+/**
+ * Where a text placed against a side of the drawn graph goes (`TextAnnotation.beside`).
+ * @category Styles
+ */
+export interface AnnotationBeside {
+    /** Which side of the graph's box the region is against. */
+    readonly side: "top" | "bottom";
+    /** Where along that side the region is. */
+    readonly align: "left" | "center" | "right";
+    /** The region's width, in the file's units. */
+    readonly width: number;
+    /** The region's height, in the file's units. */
+    readonly height: number;
 }
 
 /**

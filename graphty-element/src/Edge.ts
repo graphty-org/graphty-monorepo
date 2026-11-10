@@ -1978,8 +1978,9 @@ export class Edge {
             !asSurface;
         // A line moves between a pulled piece and a placed slot when the render path changes.
         // a pulled line that becomes a curve, or stops being one, moves between batches (`EdgeMesh.pullsCurve`)
+        const pulls = this.wantsPull(style);
         const samePull =
-            this.wantsPull(style) === (this.pulled !== null) &&
+            pulls === (this.pulled !== null) &&
             (this.pulled === null || (this.pulled.run !== null) === this.pullsCurve(style));
         const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh && samePull;
         // A surface or a taper keys no source mesh either (`content` channels), but it is drawn
@@ -2024,7 +2025,7 @@ export class Edge {
 
         // recreate edge line mesh; the next update places it, because the endpoint cache was
         // invalidated above
-        this.mesh = this.createLine(meshKey, style);
+        this.mesh = this.createLine(meshKey, style, pulls);
 
         // Nothing is parented to graph-root here. Every line, pattern element and cap is a slot in
         // a batch, and a batch parents its one mesh when it is built, which puts every edge in it
@@ -2599,9 +2600,14 @@ export class Edge {
      * {@link Edge.mesh} points at either way: the batch's mesh, or the pattern's own wrapper.
      * @param meshKey - Which appearance this edge is drawn with.
      * @param style - The resolved style to draw from.
+     * @param pulls - Whether the line is pulled ({@link Edge.wantsPull}), when the caller has asked already.
      * @returns What the line is drawn by.
      */
-    private createLine(meshKey: string, style: EdgeStyleConfig): AbstractMesh | PatternedLineMesh {
+    private createLine(
+        meshKey: string,
+        style: EdgeStyleConfig,
+        pulls = this.wantsPull(style),
+    ): AbstractMesh | PatternedLineMesh {
         const options = {
             styleId: meshKey,
             width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
@@ -2616,7 +2622,7 @@ export class Edge {
             options.width > 0 ? style : { ...style, line: { ...style.line, type: "solid" as const, bezier: false } };
 
         this.lineWanted = flavorOf(style);
-        const pulled = this.wantsPull(style) ? this.pullLine(options, style) : null;
+        const pulled = pulls ? this.pullLine(options, style) : null;
         if (pulled) {
             this.lineBatch = null;
             this.lineSlots = [];
@@ -2812,6 +2818,8 @@ export class Edge {
             look,
         };
         this.pullRows();
+        // the walk leaves a straight pulled line alone ({@link Edge.followsRows}), so what it last placed is stale
+        this.invalidatePositionCache();
         return batch.mesh;
     }
 
@@ -2975,6 +2983,26 @@ export class Edge {
      */
     get isPulled(): boolean {
         return this.pulled !== null;
+    }
+
+    /**
+     * Whether this edge's line is a straight pulled one, which the shader draws from its nodes' rows wherever they
+     * are, so the frame's walk has nothing to place for it: only a renumbering freeze changes it
+     * ({@link Edge.followRenumberedRows}). A pulled curve writes its span at each placement, and a line the
+     * layout's map would arc is moved to the curve batch by its next placement, so neither follows rows alone.
+     * @returns True when the walk may leave this edge alone.
+     * @internal
+     */
+    get followsRows(): boolean {
+        return this.pulled !== null && this.pulled.run === null && this.route === "straight";
+    }
+
+    /**
+     * Write this edge's pulled rows again after a freeze renumbered them.
+     * @internal
+     */
+    followRenumberedRows(): void {
+        this.pullRows();
     }
 
     /**

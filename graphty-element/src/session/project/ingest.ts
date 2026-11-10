@@ -282,6 +282,8 @@ export interface IngestHost<K extends KnownEdge> {
     nodeStored(id: NodeIdType, record: Record<string | number, unknown>, index: number): void;
     /** An edge the store has just taken. */
     edgeStored(edge: StoredEdge): void;
+    /** A batch of this many edge records is about to be stored, so whatever draws them can make room once. */
+    edgesArriving?(count: number): void;
     /** Rows have been removed from the store; whatever draws them goes. */
     rowsRemoved(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void;
     /** The graph has been emptied. */
@@ -1221,6 +1223,7 @@ export class Ingest<K extends KnownEdge> {
             this.loadMadeEndpoints.clear();
         }
 
+        this.host.edgesArriving?.(edges.length);
         for (const edge of edges) {
             if (this.addEdgeRecord(edge, batch, writer)) {
                 legacyWeights++;

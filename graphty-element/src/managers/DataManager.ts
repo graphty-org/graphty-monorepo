@@ -24,6 +24,7 @@ import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import { isEdgeLineBatchMesh } from "../meshes/EdgeLineBatch";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
+import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
 import { SupportPoints } from "../meshes/supportPoints";
 import { adoptNodeRecord, Node, NodeIdType, nodeRebuildsFor, placeNodeRow, releaseNodeMesh } from "../Node";
 import { inputCountersOf } from "../session/attributes";
@@ -1664,6 +1665,12 @@ export class DataManager implements Manager {
                 this.layOutArrivedRows();
                 this.buildEdge(edge);
             },
+            // On the "batched" path a batch's caps, built with its edges, make room once (`poolReserve.ts`).
+            edgesArriving: (count) => {
+                if (this.graphContext && (this.graphContext.getNodeBatches?.() ?? null) !== null) {
+                    armPoolReserve(this.graphContext.getScene(), count, ["caps"]);
+                }
+            },
             ceilings: () => this.renderLimits?.ceilings(),
             batched: () => this.renderLimits?.batched() ?? false,
             nodesArrived: (count) => {
@@ -1680,6 +1687,10 @@ export class DataManager implements Manager {
                 this.eventManager.emitDataAdded("nodes", count, true, true, this.cause);
             },
             edgesArrived: (count) => {
+                if (this.graphContext && (this.graphContext.getNodeBatches?.() ?? null) !== null) {
+                    clearPoolReserve(this.graphContext.getScene(), ["caps"]);
+                }
+
                 this.shouldStartLayout = true;
                 this.eventManager.emitDataAdded("edges", count, true, false, this.cause);
             },

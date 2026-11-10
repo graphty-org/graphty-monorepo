@@ -334,3 +334,43 @@ STILL OPEN, not fixed this session:
   test/browser/extensions/layout-extension.test.ts (forced-batched) "is told which rows are new after an add" --
   "the run was told it follows an add: expected null to not equal null". The pin-state one runs in the default
   project, so it may be an objects-path change; it must be traced before this pull request opens.
+
+## Pull request 11, tenth session (2026-11-10): the five regressed tests fixed; render parity still open
+
+Fixed (commit 2386c700ef), all run through tools/low-priority.sh:
+1. pin-state.test.ts:656 (default project). The snapshot-layout host's `positionScale` answered 1 when the layout
+   manager had no graph context (the unit harness never attaches one), which hid the node's own graph's scale. It
+   now answers undefined then, so the node's graph is read as on master. In a real element the context is always
+   attached, so the objects path draws as before. pin-state.test.ts: 18 passed.
+2. layout-extension.test.ts "is told which rows are new after an add" (forced-batched). Under batched an add builds
+   no `Node`, so nothing read the stale static layout in the add's pass, and the test (and a reader) saw the layout
+   settled before it ran. `StaticLayoutEngine.updatePositions` now runs a stale layout first while it lays out by
+   row (batched only; objects unchanged). 51 passed.
+3. layout-scaling.test.ts, three linearity cases (forced-batched):
+   - setLayoutScope: `LayoutManager.holdMaskOf` iterated `nodes.values()`, building a `Node` for every row while
+     ngraph held none of them ("Node not found in NGraphEngine"). Under batched it now builds the mask by row from
+     the snapshot.
+   - SessionPositions.set: building a `Node` late for a row marked the static layout stale, so the next read re-ran
+     `random` and moved the placed row (32.1 instead of 3). `StaticLayoutEngine.addNode` no longer marks the layout
+     stale while it lays out by row: the row's freeze already did.
+   - loadArrangement: the check counted `Node`s in the engine; it now counts ngraph bodies, which is the same number
+     on objects and the right one on batched. 17 passed.
+4. view-masks.test.ts (default project, 10 cases, regressed by an earlier commit of this pull request): the fake
+   DataManager lacked the `nodeMap.built()` the mask walk now reads. Fake fixed. 10 passed.
+
+Checks at 2386c700ef: tsc --noEmit clean; eslint on changed files clean; `npm run lint` exit 0; `npm run build`
+exit 0; default project test/layout + test/managers 605 passed; browser + forced-batched layout-scaling,
+layout-extension, define-layout 136 passed; node-batch.test.ts (render-parity) 55 passed; sonar gate: no new issue.
+No API report change.
+
+STILL OPEN: narrowed render parity (parity18.log, load 1.7; VITE_PARITY_STORIES="BidirectionalArrows|FilePositions|
+FileStyles|Layout\.stories|Community\.stories|NodeDrawing|PatternsAndSprites"): 7 failed, 39 passed. Merge base
+(pr10 worktree, same filter, parity18-base.log): 1 failed (Gexf 1488, known). New: Bidirectional, CytoscapeSession,
+ForceAtlas2Weighted, LouvainMoreCommunitiesThanColours (1 px each), ThreePaths (68), Mandala (7717). Sticker passes
+now, but the 7717 moves: running PatternsAndSprites alone, Sticker fails with 7717 and Mandala passes; running
+Mandala alone, 0. Dumped frames show the cause: on the branch's batched path the edge LINES are drawn between the
+nodes; on objects (and on both paths at the merge base) only the arrow heads are drawn, no line. Same samples
+(gray 169 vs background 245) in ThreePaths. So the batched path draws edge lines that master never draws in these
+stories (fixed layout, edges added after the nodes), and whether it does depends on which story ran before in the
+file. Next: find what draws those lines on batched (an `Edge` built late with a fresh line, or the edge row table)
+and why master leaves them out, and compare with the late-built `Node`s of the first story in the file.

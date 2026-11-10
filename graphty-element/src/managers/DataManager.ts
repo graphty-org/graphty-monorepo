@@ -2245,7 +2245,7 @@ export class DataManager implements Manager {
         this.unbuilt.delete(index);
         this.graphContext?.getNodeBatches?.()?.unpaintRow(index);
         const node = this.buildNode(id, row.record, index, false);
-        this.graphContext?.getUpdateManager?.().adoptViewMasks(node);
+        this.graphContext?.getUpdateManager?.().adoptBuiltNode(node);
         return node;
     }
 

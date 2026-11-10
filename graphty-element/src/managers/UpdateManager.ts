@@ -1171,12 +1171,23 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Bring a `Node` built for a row that was drawn with no `Node` into line with the masks already
-     * applied to that row: the masks are applied as deltas, so a later one would not reach it.
+     * Bring a `Node` built for a row that was drawn with no `Node` into line with what was already
+     * applied to that row. The masks are applied as deltas, so a later one would not reach it. Its
+     * edges were measured against the row's reach and now end at the `Node`'s shape, which can be
+     * larger (a pattern's plane), on a frame where neither end moves, so they measure again.
      * @param node - The new `Node`.
      * @internal
      */
-    adoptViewMasks(node: Node): void {
+    adoptBuiltNode(node: Node): void {
+        for (const edge of this.edgesByNode().get(node.id) ?? []) {
+            edge.invalidatePositionCache();
+        }
+
+        // While a load holds the draw they wait for the walk that ends the repaint, as a resize's do.
+        if (!this.dataManager.drawHeld) {
+            this.forceEdgeWalk();
+        }
+
         const masks = this.viewMasks ?? EMPTY_MASKS;
         const visibility = masks.visibility?.nodes() ?? null;
         const selection = masks.selection?.nodes() ?? null;
@@ -1472,7 +1483,7 @@ export class UpdateManager implements Manager {
     /** What a repaint looks up on each of its frames, kept until it ends; a version says when it went stale. */
     private paintIndex: {
         rows: { version: number; map: Map<number, Node> } | null;
-        incident: { version: number; map: Map<Node, Edge[]> } | null;
+        incident: { version: number; map: Map<NodeIdType, Edge[]> } | null;
     } = { rows: null, incident: null };
 
     /** Release the token held while a repaint's batches remain, when one is held. */
@@ -1667,7 +1678,7 @@ export class UpdateManager implements Manager {
         const place = !this.dataManager.drawHeld;
 
         for (const node of resized) {
-            for (const edge of incident.get(node) ?? []) {
+            for (const edge of incident.get(node.id) ?? []) {
                 edge.invalidatePositionCache();
                 if (place) {
                     this.edgesToPlace.push(edge);
@@ -1699,14 +1710,14 @@ export class UpdateManager implements Manager {
 
     /**
      * Each node's edges, built once for a repaint rather than on each frame that resizes a node.
-     * @returns The edges at each node.
+     * @returns The edges at each node, by its id.
      */
-    private edgesByNode(): ReadonlyMap<Node, Edge[]> {
+    private edgesByNode(): ReadonlyMap<NodeIdType, Edge[]> {
         const { edgeVersion } = this.dataManager;
 
         if (this.paintIndex.incident?.version !== edgeVersion) {
-            const map = new Map<Node, Edge[]>();
-            const add = (node: Node, edge: Edge): void => {
+            const map = new Map<NodeIdType, Edge[]>();
+            const add = (node: NodeIdType, edge: Edge): void => {
                 const edges = map.get(node);
 
                 if (edges === undefined) {
@@ -1717,8 +1728,9 @@ export class UpdateManager implements Manager {
             };
 
             for (const edge of this.dataManager.edges.values()) {
-                add(edge.srcNode, edge);
-                add(edge.dstNode, edge);
+                // By id: reading an end's `Node` would build one for a row drawn with none.
+                add(edge.srcId, edge);
+                add(edge.dstId, edge);
             }
 
             this.paintIndex.incident = { version: edgeVersion, map };

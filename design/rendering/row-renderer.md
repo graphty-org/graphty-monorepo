@@ -1081,6 +1081,12 @@ leaves the texture differing from the CPU copy (worst relative difference about 
 agree. The mechanism is not yet explained (a batch of the replaced simulation, or its draw transform, landing after
 the swap is the likely one). `shared-device-drawn-moves.test.ts` compares at the second copy and points here; until
 this is fixed the texture can hold the wrong rows for one landing after a layout is replaced. Issue #6422.
+Explained and fixed (cosmos-gap stage 113): the layout manager disposes the replaced engine after the new one's `init()`
+has attached its ring, and the replaced engine's detach set the table's `drawnMirror` to null, the new engine's
+mirror included. Every row the table wrote after the swap (the move's end putting rows back on the lane, a w change)
+then reached neither the new ring nor its told-row resend, so a copied landing held stale values for those rows.
+With WebGPU frames paced the second copy was wrong too (worst relative difference 1.39). A detach now clears only
+its own mirror, and the test compares at the first copy.
 
 As built (stage 25, fifth pull request): a correction to "a settling batch repacks from the lane, so the rest
 picture matches the upload path". It did not always. `RowTable` remembers a copied landing with one flag until

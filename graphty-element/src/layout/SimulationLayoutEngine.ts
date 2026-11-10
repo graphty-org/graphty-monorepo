@@ -422,6 +422,8 @@ interface DrawnRun {
      * readback moves the row on the CPU: its copy must not stand for those rows.
      */
     readonly told: Map<number, number>;
+    /** The mirror this run gave the table, which only this run takes back. */
+    readonly mirror: (row: number, x: number, y: number, z: number, w: number) => void;
 }
 
 /**
@@ -1335,14 +1337,15 @@ export class SimulationLayoutEngine extends LayoutEngine {
             skip: new Uint32Array(Math.ceil(nodeCount / 32)),
             suspended: false,
             told: new Map(),
+            mirror: (row, x, y, z, w): void => {
+                if (this.#drawn === run && row < nodeCount) {
+                    drawn.writeDrawn(row, x, y, z, w);
+                    run.told.set(row, this.#landed + this.#inFlight);
+                }
+            },
         };
         this.#drawn = run;
-        target.table.drawnMirror = (row, x, y, z, w): void => {
-            if (this.#drawn === run && row < nodeCount) {
-                drawn.writeDrawn(row, x, y, z, w);
-                run.told.set(row, this.#landed + this.#inFlight);
-            }
-        };
+        target.table.drawnMirror = run.mirror;
         this.#sendDrawnTransform(run);
     }
 
@@ -1354,7 +1357,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return;
         }
 
-        if (run.target.table.drawnMirror !== null) {
+        // Only its own: a layout set over this one attaches its ring before this engine is disposed,
+        // and clearing the table's mirror then left the new ring told of no write the table made.
+        if (run.target.table.drawnMirror === run.mirror) {
             run.target.table.drawnMirror = null;
         }
 

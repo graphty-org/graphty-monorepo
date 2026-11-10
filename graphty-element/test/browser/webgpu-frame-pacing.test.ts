@@ -25,6 +25,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import { Graph } from "../../src/Graph";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import type { RenderManager } from "../../src/managers/RenderManager";
+import type { Node } from "../../src/Node";
 import { hover, nextFrame } from "../helpers/real-input";
 
 /** Which Chromium flag set the run asked for; empty when it asked for none. */
@@ -311,25 +312,65 @@ describe.skipIf(ADAPTER === "")(`WebGPU frame pacing (${ADAPTER})`, () => {
 });
 
 /**
- * Points a real mouse at node n0, following it while a layout moves it, and waits for the graph to
- * name it hovered within {@link HOVER_FRAMES} frames drawn.
+ * The node standing furthest on screen from every other node, within the canvas.
+ *
+ * Hover answers the node drawn in front at the pointer, so a node a nearer one covers is never the
+ * answer at its own center: in a 4000-node cloud a dozen nodes stand within 6 px of any one, some
+ * nearer the camera, and pointing at a fixed node (n0) hovered the node covering it (issue #6548).
+ * The node with the most room around it is covered by none, and keeps that room while a layout
+ * moves the scene for the few frames the hover takes.
+ * @param graph - The graph.
+ * @param container - The graph's container.
+ * @returns The node.
+ */
+function clearestNode(graph: Graph, container: HTMLElement): Node {
+    const { width, height } = container.getBoundingClientRect();
+    const margin = 20;
+    const nodes = graph.getNodes();
+    const screens = nodes.map((node) => graph.worldToScreen(node.drawnWorldPosition));
+    let best: Node | undefined;
+    let room = -1;
+    screens.forEach((a, i) => {
+        if (a.x < margin || a.y < margin || a.x > width - margin || a.y > height - margin) {
+            return;
+        }
+
+        let nearest = Infinity;
+        for (const [j, b] of screens.entries()) {
+            if (j !== i) {
+                nearest = Math.min(nearest, Math.hypot(a.x - b.x, a.y - b.y));
+            }
+        }
+
+        if (nearest > room) {
+            room = nearest;
+            best = nodes[i];
+        }
+    });
+    assert.isDefined(best, "a node is drawn inside the canvas");
+    return best;
+}
+
+/**
+ * Points a real mouse at the node with the most room around it ({@link clearestNode}), following
+ * it while a layout moves it, and waits for the graph to name it hovered within
+ * {@link HOVER_FRAMES} frames drawn.
  * @param graph - The graph.
  */
 async function hoverAndAnswer(graph: Graph): Promise<void> {
     const { container } = mounted.find((entry) => entry.graph === graph) ?? {};
     assert.isDefined(container);
-    const node = graph.getNode("n0");
-    assert.isDefined(node);
+    const node = clearestNode(graph, container);
     const scaling = graph.scene.getEngine().getHardwareScalingLevel();
     const { ticks } = renderManagerOf(graph);
     const before = ticks.drawn;
     const { selection } = graph.getSession();
     // Bounded by frames drawn, so an unpaced loop fails here rather than hanging.
-    while (selection.hovered !== "n0" && ticks.drawn - before <= HOVER_FRAMES) {
+    while (selection.hovered !== node.id && ticks.drawn - before <= HOVER_FRAMES) {
         const screen = graph.worldToScreen(node.drawnWorldPosition);
         await hover(container, { x: screen.x * scaling, y: screen.y * scaling });
         await nextFrame();
     }
 
-    assert.strictEqual(selection.hovered, "n0", "hover answered within a few frames drawn");
+    assert.strictEqual(selection.hovered, node.id, "hover answered within a few frames drawn");
 }

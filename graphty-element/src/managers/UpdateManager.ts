@@ -3064,7 +3064,14 @@ export class UpdateManager implements Manager {
         if (everyEdge || bowed) {
             // Each edge aims its own ray, inside the branch that fires it, so an edge that has not
             // moved costs nothing here. A pass over the whole graph used to aim all of them first.
-            UpdateManager.placeEdges(this.layoutManager.edges);
+            // Under "batched" the list of edges to place is kept between walks; "objects" walks every edge as before.
+            if (this.dataManager.renderLimits?.batched() === true) {
+                for (const edge of this.placedEdges()) {
+                    edge.update();
+                }
+            } else {
+                UpdateManager.placeEdges(this.layoutManager.edges);
+            }
         } else {
             this.updateEdgesOf(walk === false ? [] : walk);
             UpdateManager.placeEdges(this.edgesToPlace);
@@ -3112,9 +3119,10 @@ export class UpdateManager implements Manager {
     private unbuiltRowsMoved = false;
 
     /**
-     * Update the placed edges -- every edge whose line is not pulled from the row table -- after the table moved its
-     * rows while some row has no Node: such a row is in no walk of the nodes, so its edges are found by asking every
-     * placed edge, and one whose ends stayed exits at once. A pulled line follows its rows in its shader.
+     * Update the placed edges -- every edge whose line does not follow its rows ({@link Edge.followsRows}) -- after
+     * the table moved its rows while some row has no Node: such a row is in no walk of the nodes, so its edges are
+     * found by asking every placed edge, and one whose ends stayed exits at once. A straight pulled line follows its
+     * rows in its shader.
      * ponytail: every placed edge on each table move; a list of the rows the lane moved, if a running layout over
      * a million rows with no Node and many placed edges needs the frame back.
      */
@@ -3128,44 +3136,51 @@ export class UpdateManager implements Manager {
         }
     }
 
-    /** The engine's edges whose line is not pulled, and what they were listed from; see {@link placedEdges}. */
+    /** The engine's edges whose line does not follow its rows, and what they were listed from; see {@link placedEdges}. */
     private placedList: {
         edges: readonly Edge[];
         engine: unknown;
         count: number;
         edgeVersion: number;
         pulledVersion: number;
+        flat: boolean;
+        geoFrame: unknown;
     } | null = null;
 
     /**
-     * The layout engine's edges whose line is not pulled from the row table, listed again only when the engine, the
-     * store's edges, the engine's array of them or some edge's pulled line changed: a walk of a million edges asking
-     * each was most of a layout frame. An engine that hands back an iterator holds every edge the moment it is told,
-     * which bumps the store's version (see {@link edgesNeedWalking}).
+     * The layout engine's edges whose line does not follow its rows ({@link Edge.followsRows}), listed again only
+     * when the engine, the store's edges, the engine's array of them, some edge's pulled line, the view or the
+     * engine's map frame changed (the last two pick a pulled line's route): a walk of a million edges asking each was
+     * most of a layout frame. An engine that hands back an iterator holds every edge the moment it is told, which
+     * bumps the store's version (see {@link edgesNeedWalking}).
      * @returns The placed edges.
      */
     private placedEdges(): readonly Edge[] {
         const { edges: from, layoutEngine: engine } = this.layoutManager;
         const count = Array.isArray(from) ? from.length : -1;
         const { edgeVersion } = this.dataManager;
+        const flat = this.graphContext.is2D();
+        const geoFrame = (engine as { geoFrame?: unknown } | undefined)?.geoFrame;
         const known = this.placedList;
         if (
             known !== null &&
             known.engine === engine &&
             known.count === count &&
             known.edgeVersion === edgeVersion &&
-            known.pulledVersion === pulledLines.version
+            known.pulledVersion === pulledLines.version &&
+            known.flat === flat &&
+            known.geoFrame === geoFrame
         ) {
             return known.edges;
         }
 
         const edges: Edge[] = [];
         for (const edge of from) {
-            if (!edge.isPulled) {
+            if (!edge.followsRows) {
                 edges.push(edge);
             }
         }
-        this.placedList = { edges, engine, count, edgeVersion, pulledVersion: pulledLines.version };
+        this.placedList = { edges, engine, count, edgeVersion, pulledVersion: pulledLines.version, flat, geoFrame };
         return edges;
     }
 

@@ -2618,11 +2618,11 @@ export class SessionData implements SessionDataApi {
                 const kind = (each as Partial<LoadedSource>).kind ?? "file";
                 // An opened project's network load keeps its entry's key; one loaded here is found by its rows.
                 // The rows say which load they are now (after an edit, a newer record than the entry's key).
-                const found =
-                    kind === "server"
-                        ? (this.networkLoadOf(supplied?.nodes ?? [], [...records.keys()], taken) ??
-                          (records.has(key) && !taken.has(key) ? key : undefined))
-                        : undefined;
+                let found: string | undefined;
+                if (kind === "server") {
+                    found = this.networkLoadOf(supplied?.nodes ?? [], [...records.keys()], taken);
+                    found ??= records.has(key) && !taken.has(key) ? key : undefined;
+                }
                 const loadKey = kind === "server" && found !== undefined && records.has(found) ? found : undefined;
                 if (loadKey !== undefined) {
                     taken.add(loadKey);

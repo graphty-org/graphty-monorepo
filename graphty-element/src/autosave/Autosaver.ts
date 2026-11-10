@@ -410,6 +410,8 @@ export class Autosaver {
     #endings: Ending[] = [];
     /** Committed project changes seen so far: the revision a write built now contains. */
     #changes = 0;
+    /** {@link unsavedChanges} as the status listeners were last told it. */
+    #toldUnsaved = false;
     #saved: { at: string; revision: number } | null = null;
     #problem: CodedFact<AutosaveCode> | null = null;
     /** What the write in flight carries, so a boundary rewrites it too. */
@@ -578,6 +580,15 @@ export class Autosaver {
      */
     get started(): boolean {
         return this.#entry.started;
+    }
+
+    /**
+     * Whether a change counted in the revision (one the reader or a load made) is not yet
+     * committed; a write of layout positions alone holds none.
+     * @returns True while one is outstanding.
+     */
+    get unsavedChanges(): boolean {
+        return this.#changes > (this.#saved?.revision ?? 0) || this.#heldReaderWork();
     }
 
     /**
@@ -2168,8 +2179,12 @@ export class Autosaver {
     #tell(): void {
         const { status } = this;
         const told = JSON.stringify(status);
-        if (told !== this.#told) {
+        // A change made while a write of positions alone is pending leaves the status as it was,
+        // and still arms the element's unload guard.
+        const unsaved = this.unsavedChanges;
+        if (told !== this.#told || unsaved !== this.#toldUnsaved) {
             this.#told = told;
+            this.#toldUnsaved = unsaved;
             for (const listener of this.#listeners) {
                 listener(status);
             }

@@ -147,6 +147,7 @@ import {
     redactUrl,
     type SourcesRead,
     type SourcesWrite,
+    withKeptSecrets,
     writeSourcesMember,
 } from "./sources/member";
 import { pendingSourceLoads, targetOf } from "./sources/pending";
@@ -741,6 +742,25 @@ function typedFields(each: AttributeDescriptor, type: ValueType): Partial<Attrib
         type: attributeType,
         ...(each.measurement === undefined ? {} : { measurement, measurementSource: "inferred" as const }),
     };
+}
+
+/**
+ * A query source's params with the `mode` it read in, when they leave it out: graph-io's Cypher and
+ * SPARQL sources read the query when one is given and everything otherwise.
+ * @param source - The source id.
+ * @param config - The params.
+ * @returns The params, with `mode` when the source declares one.
+ */
+function withStartMode(source: string, config: Record<string, unknown>): Record<string, unknown> {
+    const declared = sourceDescriptors()
+        .find((entry) => entry.id === source)
+        ?.descriptor.params.find((param) => param.name === "mode");
+    if (declared === undefined || typeof config.mode === "string") {
+        return config;
+    }
+
+    const asked = typeof config.query === "string" && config.query.trim() !== "" ? "query" : "all";
+    return declared.values?.some((each) => each.value === asked) === true ? { ...config, mode: asked } : config;
 }
 
 /**
@@ -1505,7 +1525,7 @@ export class SessionData implements SessionDataApi {
         return frozen({
             source: record.source,
             endpoint: targetOf(record),
-            config: redactedParams(record.config),
+            config: withStartMode(record.source, redactedParams(record.config)),
             ...(record.expand === undefined ? {} : { expand: record.expand }),
             ...(limits === undefined ? {} : { limits }),
         });
@@ -2588,6 +2608,8 @@ export class SessionData implements SessionDataApi {
         const catalog = new Map(sourceDescriptors().map((entry) => [entry.id, entry.features]));
 
         const space = edgeSpaceOf(snapshot);
+        // Each load belongs to one entry: a node two loads share names both, or only the first.
+        const taken = new Set<string>();
         // An entry saved before loads had keys gets one by its place in the list.
         const result = Object.freeze(
             stored.map((each, at) => {
@@ -2596,8 +2618,15 @@ export class SessionData implements SessionDataApi {
                 const kind = (each as Partial<LoadedSource>).kind ?? "file";
                 // An opened project's network load keeps its entry's key; one loaded here is found by its rows.
                 // The rows say which load they are now (after an edit, a newer record than the entry's key).
-                const found = this.networkLoadOf(supplied?.nodes ?? []) ?? (records.has(key) ? key : undefined);
+                const found =
+                    kind === "server"
+                        ? (this.networkLoadOf(supplied?.nodes ?? [], [...records.keys()], taken) ??
+                          (records.has(key) && !taken.has(key) ? key : undefined))
+                        : undefined;
                 const loadKey = kind === "server" && found !== undefined && records.has(found) ? found : undefined;
+                if (loadKey !== undefined) {
+                    taken.add(loadKey);
+                }
                 const { input, ...entry } = each as LoadedSource & { readonly input?: string };
                 return Object.freeze({
                     ...entry,
@@ -3215,12 +3244,22 @@ export class SessionData implements SessionDataApi {
     ): Promise<ReplaceReport> {
         const send = this.sender("replace a load");
         const old = this.sources().find((each) => each.key === key)?.loadKey;
-        const mode = this.ledger.loads().find((each) => each.key === old)?.options.mode as
-            SourceLoadOptions["mode"] | undefined;
+        const record = this.ledger.loads().find((each) => each.key === old);
+        const mode = record?.options.mode as SourceLoadOptions["mode"] | undefined;
+        // The settings were shown redacted (sourceSettings): a key the load was read with stays.
+        const config =
+            record?.source === source.source
+                ? (withKeptSecrets(source.config, record.config) as Record<string, unknown>)
+                : source.config;
         const { networkDraft } = await import("./sources/load");
         const draft = await networkDraft(
             this.sourceHost(),
-            { ...source, ...(entry.name === undefined ? {} : { name: entry.name }) },
+            // A name the caller gives is the edited load's own (its read changed); else it keeps its name.
+            {
+                ...source,
+                config,
+                ...(source.name === undefined && entry.name !== undefined ? { name: entry.name } : {}),
+            },
             choices,
             key,
             mode ?? "merge",
@@ -3409,24 +3448,45 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * The network load a load's nodes came from: the first load key a node it supplied carries.
+     * The network load a load's nodes came from: of the loads no earlier entry took, the one most
+     * of the nodes it supplied carry, the newest of those on a tie. A node two loads share can
+     * carry the older load alone, so the first key a node carries can be another entry's.
      * @param nodes - The nodes the load supplied.
+     * @param order - Every load's key, oldest first.
+     * @param taken - The loads earlier entries took.
      * @returns The key in `loads()`, or undefined when none of them is in the graph.
      */
-    private networkLoadOf(nodes: readonly NodeId[]): string | undefined {
+    private networkLoadOf(
+        nodes: readonly NodeId[],
+        order: readonly string[],
+        taken: ReadonlySet<string>,
+    ): string | undefined {
         const snapshot = this.current();
+        const counts = new Map<string, number>();
         for (const id of nodes) {
             const index = snapshot.ids.indexOf(id);
             if (index !== INVALID_INDEX) {
                 // An expansion's key is `<load>/x<n>`: the load is the part before the slash.
-                const [first] = sourceLoadsOf(this.records?.nodeAttributes(index, id));
-                if (first !== undefined) {
-                    return first.split("/")[0];
-                }
+                const loads = new Set(
+                    sourceLoadsOf(this.records?.nodeAttributes(index, id)).map((k) => k.split("/")[0]),
+                );
+                loads.forEach((load) => {
+                    if (!taken.has(load)) {
+                        counts.set(load, (counts.get(load) ?? 0) + 1);
+                    }
+                });
             }
         }
 
-        return undefined;
+        let best: string | undefined;
+        for (const [load, count] of counts) {
+            const most = best === undefined ? -1 : (counts.get(best) ?? 0);
+            if (count > most || (count === most && order.indexOf(load) > order.indexOf(best ?? ""))) {
+                best = load;
+            }
+        }
+
+        return best;
     }
 
     /**

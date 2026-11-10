@@ -624,6 +624,8 @@ export class ElementAutosave {
             }),
         );
         this.#listen();
+        // From here a hidden or closed page writes what is outstanding; before, nothing can be written.
+        logger.info("listening", { entry: saver.entryId, restored: restored !== null, started: saver.started });
         this.#updateGuard(saver.status);
         if (restored !== null) {
             this.#placeCamera(restored.entry.id);
@@ -1000,7 +1002,8 @@ export class ElementAutosave {
         const mode = this.#options.unloadGuard ?? "pending";
         let wanted = false;
         if (mode === "pending") {
-            wanted = status.state === "pending" || status.state === "failing";
+            // A pending write of layout positions only (the layout came to rest) holds no change.
+            wanted = status.state === "failing" || (status.state === "pending" && this.#saver?.unsavedChanges === true);
         } else if (mode === "unexported") {
             wanted = status.unexported;
         }

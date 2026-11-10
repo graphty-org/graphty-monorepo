@@ -1787,7 +1787,8 @@ export interface SessionDataApi {
     /**
      * What a network source connects to and fetches, for showing it or filling a form to edit it:
      * its source id, address, params, limits and expand behavior. The params are redacted as a
-     * saved file has them and no credential is in it, so it is safe to display. Experimental.
+     * saved file has them and no credential is in it, so it is safe to display; a query source's
+     * params say the `mode` it read in. Experimental.
      * @param key - The entry's key, from {@link SessionDataApi.sources}.
      * @returns The settings, or undefined for a source that is not a network load, or with the
      *     network-data feature off.

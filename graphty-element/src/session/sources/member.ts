@@ -362,15 +362,18 @@ function withoutSecretNames(value: unknown, dropped: Set<string>): unknown {
 }
 
 /**
- * A network load's params as an entry writes them: a REST mapping without a key written into its
- * endpoint, a request's query or the top level of its body, and every URL redacted
- * (sources.md, "Network loads" rule 3).
+ * A network load's params as an entry writes them: without a param whose name marks a
+ * credential, a REST mapping without a key written into its endpoint, a request's query or the
+ * top level of its body, and every URL redacted (sources.md, "Network loads" rule 3).
  * @param config - The params.
  * @param dropped - Collects the names left out.
  * @returns The params.
  */
 function paramsOf(config: Readonly<Record<string, unknown>>, dropped: Set<string>): Record<string, unknown> {
-    const params = withoutSecretUrls(jsonOf(config) ?? {}, dropped) as Record<string, unknown>;
+    const params = withoutSecretNames(withoutSecretUrls(jsonOf(config) ?? {}, dropped), dropped) as Record<
+        string,
+        unknown
+    >;
     const { mapping } = params;
     if (!isObject(mapping) || !isObject(mapping.requests)) {
         return params;
@@ -400,6 +403,91 @@ function paramsOf(config: Readonly<Record<string, unknown>>, dropped: Set<string
  */
 export function redactedParams(config: Readonly<Record<string, unknown>>): Record<string, unknown> {
     return paramsOf(config, new Set());
+}
+
+/**
+ * Params shown redacted ({@link redactedParams}) and sent back to read a load again, with the
+ * secrets the redaction left out put back from the params the load was read with: a value the
+ * reader left as it was shown is the original, and a URL to the same address keeps the keys its
+ * query held. The reader's own changes win.
+ * @param next - The params sent back.
+ * @param raw - The params the load was read with.
+ * @returns The params to read with.
+ */
+export function withKeptSecrets(next: unknown, raw: unknown): unknown {
+    if (JSON.stringify(jsonOf(next)) === JSON.stringify(redactedValue(raw))) {
+        return raw;
+    }
+
+    if (typeof next === "string" && typeof raw === "string") {
+        return withKeptQueryKeys(next, raw);
+    }
+
+    if (Array.isArray(next) && Array.isArray(raw)) {
+        return next.map((each, at) => withKeptSecrets(each, raw[at]));
+    }
+
+    if (!isObject(next) || !isObject(raw)) {
+        return next;
+    }
+
+    const kept = Object.entries(raw).filter(([name]) => isSecretParam(name) && !(name in next));
+    return {
+        ...Object.fromEntries(kept),
+        ...Object.fromEntries(Object.entries(next).map(([name, each]) => [name, withKeptSecrets(each, raw[name])])),
+    };
+}
+
+/**
+ * A value as {@link paramsOf} writes it, wherever in the params it sits.
+ * @param value - The value.
+ * @returns The redacted copy.
+ */
+function redactedValue(value: unknown): unknown {
+    return isObject(value) ? paramsOf(value, new Set()) : withoutSecretUrls(jsonOf(value) ?? null, new Set());
+}
+
+/**
+ * A URL sent back with the keys the original's query held, when it names the same address.
+ * @param next - The URL sent back.
+ * @param raw - The URL the load was read with.
+ * @returns The URL to read.
+ */
+function withKeptQueryKeys(next: string, raw: string): string {
+    // A mapping request's path is relative: read both against one stand-in origin.
+    const base = "https://relative.invalid/";
+    const absolute = (text: string): boolean => /^([a-z][a-z\d+.-]*:|\/\/)/i.test(text);
+    if (absolute(next) !== absolute(raw)) {
+        return next;
+    }
+
+    let before: URL;
+    let after: URL;
+    try {
+        before = new URL(raw, base);
+        after = new URL(next, base);
+    } catch {
+        return next;
+    }
+
+    if (before.origin !== after.origin || before.pathname !== after.pathname) {
+        return next;
+    }
+
+    for (const [name, value] of before.searchParams) {
+        if (isSecretParam(name) && !after.searchParams.has(name)) {
+            after.searchParams.append(name, value);
+        }
+    }
+
+    if (absolute(next)) {
+        after.username ||= before.username;
+        after.password ||= before.password;
+        return after.toString();
+    }
+
+    const text = after.toString();
+    return next.startsWith("/") ? text.slice(base.length - 1) : text.slice(base.length);
 }
 
 /**

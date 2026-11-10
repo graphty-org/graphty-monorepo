@@ -12,6 +12,9 @@ import { createGraphSession, credentials, defineSource, type GraphSession, regis
 /** The query each read of the source was given, in order. */
 const asked: string[] = [];
 
+/** The whole params each read was given, in order. */
+const seen: Record<string, unknown>[] = [];
+
 /** The node ids each query answers with: the source's whole content. */
 const CONTENT: Readonly<Record<string, readonly string[]>> = { first: ["a", "b", "c"], second: ["b", "c", "d"] };
 
@@ -26,6 +29,7 @@ registerSource(
         records: (params: Record<string, unknown>) => {
             const query = String(params.query);
             asked.push(query);
+            seen.push(params);
             const ids = CONTENT[query] ?? [];
             return Promise.resolve({
                 nodes: ids.map((id) => ({ id })),
@@ -39,6 +43,7 @@ const sessions: GraphSession[] = [];
 
 afterEach(() => {
     asked.length = 0;
+    seen.length = 0;
     for (const session of sessions.splice(0)) {
         session.dispose();
     }
@@ -166,5 +171,102 @@ describe("data.replaceSource with a network source", () => {
         assert.isTrue(failed);
         assert.deepEqual(ids(session), ["a", "b", "c"]);
         assert.lengthOf(session.data.loads(), records);
+    });
+});
+
+describe("two network loads that share nodes", () => {
+    it("each shows and edits its own settings, and an edit leaves the other whole", async () => {
+        const { session } = await loaded();
+        await session.data.import(
+            { source: "edit-people", config: { query: "second" }, name: "More people" },
+            { mode: "merge" },
+        );
+        const [one, two] = session.data.sources();
+        assert.notStrictEqual(one.loadKey, two.loadKey);
+        assert.deepEqual(session.data.sourceSettings(one.key)?.config, { query: "first" });
+        assert.deepEqual(session.data.sourceSettings(two.key)?.config, { query: "second" });
+
+        await session.data.replaceSource(two.key, { source: "edit-people", config: { query: "first" } });
+        const after = session.data.sources();
+        assert.isDefined(after[0].loadKey, "the first load is still a network load");
+        assert.deepEqual(session.data.sourceSettings(after[0].key)?.config, { query: "first" });
+    });
+});
+
+describe("secrets in an edited load's params", () => {
+    it("are never shown, and a load read again with what was shown keeps them", async () => {
+        const session = createGraphSession({ features: ["network-data"] });
+        sessions.push(session);
+        await session.data.import({
+            source: "edit-people",
+            config: { query: "first", api_key: "top-secret", link: "https://x.test/a?api_key=url-secret&page=1" },
+        });
+        const [{ key }] = session.data.sources();
+        const shown = session.data.sourceSettings(key)?.config ?? {};
+        assert.notInclude(JSON.stringify(shown), "secret");
+
+        await session.data.replaceSource(key, { source: "edit-people", config: { ...shown, query: "second" } });
+        const sent = seen.at(-1) ?? {};
+        assert.strictEqual(sent.query, "second");
+        assert.strictEqual(sent.api_key, "top-secret");
+        assert.strictEqual(sent.link, "https://x.test/a?api_key=url-secret&page=1");
+        assert.notInclude(JSON.stringify(session.data.sourceSettings(key)?.config), "secret");
+
+        await session.data.replaceSource(key, {
+            source: "edit-people",
+            config: { ...shown, query: "first", link: "https://x.test/a?page=2" },
+        });
+        assert.strictEqual(seen.at(-1)?.link, "https://x.test/a?page=2&api_key=url-secret");
+    });
+});
+
+registerSource(
+    defineSource({
+        id: "mode-people",
+        descriptor: {
+            plainName: "Moded people",
+            defaultEndpoint: "https://moded.example.test/",
+            params: [
+                { name: "query", plainName: "Query", type: "query" },
+                {
+                    name: "mode",
+                    plainName: "Mode",
+                    type: "enum",
+                    values: [
+                        { value: "query", label: "Query" },
+                        { value: "all", label: "Everything" },
+                        { value: "neighborhood", label: "Seed nodes" },
+                    ],
+                },
+                { name: "ids", plainName: "Seed ids", type: "node-id" },
+            ],
+        },
+        records: (params: Record<string, unknown>) =>
+            Promise.resolve({ nodes: [{ id: params.query === undefined ? "a" : "q" }], edges: [] }),
+    }),
+);
+
+describe("a query source's settings", () => {
+    it("say the mode it read in when its params leave it out", async () => {
+        const session = createGraphSession({ features: ["network-data"] });
+        sessions.push(session);
+        await session.data.import({ source: "mode-people", config: { ids: ["a"] } });
+        await session.data.import(
+            { source: "mode-people", config: { query: "MATCH (n) RETURN n" } },
+            { mode: "merge" },
+        );
+        const [seeds, query] = session.data.sources();
+        assert.strictEqual(session.data.sourceSettings(seeds.key)?.config.mode, "all");
+        assert.strictEqual(session.data.sourceSettings(query.key)?.config.mode, "query");
+    });
+});
+
+describe("an edit that names the load", () => {
+    it("renames it; one that does not keeps its name", async () => {
+        const { session, key } = await loaded();
+        await session.data.replaceSource(key, { source: "edit-people", config: { query: "first" } });
+        assert.strictEqual(session.data.sources()[0].name, "My people");
+        await session.data.replaceSource(key, { source: "edit-people", config: { query: "second" }, name: "Others" });
+        assert.strictEqual(session.data.sources()[0].name, "Others");
     });
 });

@@ -1,4 +1,4 @@
-import { ModalFooter, PanelField, PanelLabelsProvider } from "@graphty/compact-mantine";
+import { ModalFooter, PanelField, PanelLabelsProvider, usePopoutManager } from "@graphty/compact-mantine";
 import {
     formatShaderDraft,
     minSizeApplies,
@@ -17,7 +17,9 @@ import type { GraphSession, ShaderAddResult } from "@graphty/graphty-element/ses
 import { Anchor, Button, Group, Modal, Stack, Text, Textarea, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { ariaKey, formatKey, isMac } from "../keys/keys";
 import { useWorkspace } from "../state/WorkspaceContext";
+import type { ShaderCodeEditor, ShaderCodeEditorHandle, ShaderCodeMark } from "./ShaderCodeEditor";
 import { PlaceDiagram } from "./ShaderGallery";
 import { GEAR_FIELDS, NumberTextField, ShaderParamRows } from "./ShaderParamRows";
 import {
@@ -41,6 +43,57 @@ const SHADER_GUIDE_URL = "https://graphty.app/docs/graphty-element/guide/shaders
 
 /** How long typing pauses before the text is checked. */
 const CHECK_PAUSE_MS = 300;
+
+/** The key that switches what Tab does in the code box, as the editor binds it. */
+const TAB_TOGGLE_KEY = isMac() ? "Shift+Alt+M" : "Ctrl+M";
+
+/** The Modal's close button, which the tooltip showing its key points at. */
+const CLOSE_BUTTON_ID = "ws-shader-editor-close";
+
+/** The code editor's chunk once it has loaded; a failed load stays null, so a later opening retries. */
+let loadedEditor: typeof ShaderCodeEditor | null = null;
+
+/**
+ * The code editor, loaded the first time the dialog opens. Until it arrives, or if it never does,
+ * the dialog's plain box stands in, and everything works without highlighting.
+ * @param box - the plain box, whose caret the editor takes over.
+ * @returns the editor, null until loaded, and the offset to take focus at if the box held it.
+ */
+function useCodeEditor(box: React.RefObject<HTMLTextAreaElement | null>): {
+    Editor: typeof ShaderCodeEditor | null;
+    takeFocusAt: number | undefined;
+} {
+    const [loaded, setLoaded] = useState<{ Editor: typeof ShaderCodeEditor; takeFocusAt?: number } | null>(() =>
+        loadedEditor === null ? null : { Editor: loadedEditor },
+    );
+    useEffect(() => {
+        if (loaded !== null) {
+            return undefined;
+        }
+        let current = true;
+        import("./ShaderCodeEditor").then(
+            (module) => {
+                loadedEditor = module.ShaderCodeEditor;
+                if (current) {
+                    const area = box.current;
+                    setLoaded({
+                        Editor: module.ShaderCodeEditor,
+                        ...(area !== null && document.activeElement === area
+                            ? { takeFocusAt: area.selectionStart }
+                            : {}),
+                    });
+                }
+            },
+            () => {
+                // The plain box stays, and the next opening tries again.
+            },
+        );
+        return () => {
+            current = false;
+        };
+    }, [loaded, box]);
+    return { Editor: loaded?.Editor ?? null, takeFocusAt: loaded?.takeFocusAt };
+}
 
 /**
  * The working template for a place on a tab, from the element.
@@ -322,9 +375,13 @@ export function ShaderEditorDialog({
     // Whether the box has held focus since its text was last loaded, so its cursor means something.
     const [hasCursor, setHasCursor] = useState(false);
     const box = useRef<HTMLTextAreaElement>(null);
+    const editor = useRef<ShaderCodeEditorHandle>(null);
+    const { Editor, takeFocusAt } = useCodeEditor(box);
+    const [tabMoves, setTabMoves] = useState(false);
+    const { hasOpenPopouts } = usePopoutManager();
     const fields = useRef<HTMLDivElement>(null);
     // What to do with the box once the value just set has been drawn: place the caret.
-    const afterDraw = useRef<((area: HTMLTextAreaElement) => void) | null>(null);
+    const afterDraw = useRef<(() => void) | null>(null);
     const text = full ?? formatShaderDraft(form, body);
     const bodyLine = useMemo(() => splitShaderText(text).bodyLine, [text]);
     const boxValue = full ?? body;
@@ -376,11 +433,10 @@ export function ShaderEditorDialog({
     );
 
     useLayoutEffect(() => {
-        const area = box.current;
         const act = afterDraw.current;
-        if (area !== null && act !== null) {
+        if (act !== null) {
             afterDraw.current = null;
-            act(area);
+            act();
         }
     });
 
@@ -390,7 +446,7 @@ export function ShaderEditorDialog({
      */
     const load = (loaded: string): void => {
         setState((now) => stateFromText(loaded, tab, now));
-        setHasCursor(document.activeElement === box.current);
+        setHasCursor(editor.current?.hasFocus() ?? document.activeElement === box.current);
     };
 
     const setForm = (next: ShaderTextDraft): void => {
@@ -407,13 +463,18 @@ export function ShaderEditorDialog({
         }
     };
 
-    const caretAt =
-        (line: number, column: number) =>
-        (area: HTMLTextAreaElement): void => {
+    const caretAt = (line: number, column: number) => (): void => {
+        if (editor.current !== null) {
+            editor.current.focusAt(line, column);
+            return;
+        }
+        const area = box.current;
+        if (area !== null) {
             const at = offsetOf(area.value, line, column);
             area.focus();
             area.setSelectionRange(at, at);
-        };
+        }
+    };
 
     const toggleFull = (): void => {
         if (full === null) {
@@ -424,15 +485,19 @@ export function ShaderEditorDialog({
     };
 
     const insertName = (name: string): void => {
+        if (editor.current !== null) {
+            editor.current.insert(name);
+            return;
+        }
         const area = box.current;
         if (area === null) {
             return;
         }
         const { selectionStart: start, selectionEnd: end } = area;
         setState((now) => ({ ...now, body: now.body.slice(0, start) + name + now.body.slice(end) }));
-        afterDraw.current = (drawnArea) => {
-            drawnArea.focus();
-            drawnArea.setSelectionRange(start + name.length, start + name.length);
+        afterDraw.current = () => {
+            area.focus();
+            area.setSelectionRange(start + name.length, start + name.length);
         };
     };
 
@@ -461,6 +526,25 @@ export function ShaderEditorDialog({
         }
         onClose();
     };
+
+    // Temporary: Mantine's Modal hears Escape first, on window in the capture phase, before a Popout
+    // it contains, so Escape in a popout would close the whole dialog. Until the shared components
+    // fix that defect (see the branch issue #6478), the Modal's own handling is off and this listener
+    // closes the dialog unless a popout is open or the target opted out as Mantine's own check does.
+    useEffect(() => {
+        const onEscape = (event: KeyboardEvent): void => {
+            const optedOut =
+                event.target instanceof Element &&
+                event.target.getAttribute("data-mantine-stop-propagation") === "true";
+            if (event.key === "Escape" && !event.isComposing && !optedOut && !hasOpenPopouts()) {
+                close(false);
+            }
+        };
+        window.addEventListener("keydown", onEscape, { capture: true });
+        return () => {
+            window.removeEventListener("keydown", onEscape, { capture: true });
+        };
+    });
 
     let waitWord: string | undefined;
     if (boxValue.trim() === "") {
@@ -520,6 +604,17 @@ export function ShaderEditorDialog({
 
     const problems = result !== null && !result.ok ? result.problems : [];
     const invalid = problems.length > 0;
+    const inFull = full !== null;
+    const marks = useMemo<readonly ShaderCodeMark[]>(() => {
+        const listed = result !== null && !result.ok ? result.problems : [];
+        return listed.flatMap((problem) => {
+            // A problem with a line never reads the header.
+            const site = siteOf(problem, {}, bodyLine, inFull);
+            return site.kind === "line"
+                ? [{ line: site.line, column: site.column, message: pasteProblemWords(problem) }]
+                : [];
+        });
+    }, [result, bodyLine, inFull]);
     const sited = problems.map((problem) => ({ problem, site: siteOf(problem, form, bodyLine, full !== null) }));
     const markedFields = new Set(sited.flatMap(({ site }) => (site.kind === "field" ? [site.field] : [])));
     const paramMarks = sited.flatMap(({ site }) => (site.kind === "param" ? [site] : []));
@@ -534,9 +629,7 @@ export function ShaderEditorDialog({
 
     const goToSite = (site: ProblemSite): void => {
         if (site.kind === "line") {
-            if (box.current !== null) {
-                caretAt(site.line, site.column)(box.current);
-            }
+            caretAt(site.line, site.column)();
         } else if (site.kind === "before") {
             afterDraw.current = caretAt(site.line, site.column);
             setState((now) => ({ ...now, full: text }));
@@ -565,7 +658,10 @@ export function ShaderEditorDialog({
             }}
             title={init.duplicateOf === undefined ? EDITOR_WORDS.newTitle : EDITOR_WORDS.editTitle}
             size="xl"
+            closeOnEscape={false}
+            closeButtonProps={{ id: CLOSE_BUTTON_ID, "aria-label": EDITOR_WORDS.close }}
         >
+            <Tooltip label={EDITOR_WORDS.closeTip} target={`#${CLOSE_BUTTON_ID}`} />
             <Stack gap="xs" ref={fields} className="ws-shader-form">
                 <PanelLabelsProvider showLabels>
                     <div className="ws-shader-fields">
@@ -642,27 +738,44 @@ export function ShaderEditorDialog({
                     </div>
                 </PanelLabelsProvider>
                 <Group align="flex-start" gap="xs" wrap="nowrap">
-                    <Textarea
-                        ref={box}
-                        style={{ flex: 1 }}
-                        aria-label={EDITOR_WORDS.code}
-                        data-autofocus={places.length === 0 ? true : undefined}
-                        autosize
-                        minRows={12}
-                        maxRows={24}
-                        spellCheck={false}
-                        styles={{ input: { fontFamily: "var(--mantine-font-family-monospace)", fontSize: 12 } }}
-                        value={boxValue}
-                        // Mantine's error state: the invalid look and aria-invalid. The problems that
-                        // describe it are tied to it below, as Mantine ties only an error text of its own.
-                        error={invalid}
-                        onFocus={() => {
-                            setHasCursor(true);
-                        }}
-                        onChange={(event) => {
-                            typeInBox(event.currentTarget.value);
-                        }}
-                    />
+                    {Editor === null ? (
+                        <Textarea
+                            ref={box}
+                            style={{ flex: 1 }}
+                            aria-label={EDITOR_WORDS.code}
+                            data-autofocus={places.length === 0 ? true : undefined}
+                            autosize
+                            minRows={12}
+                            maxRows={24}
+                            spellCheck={false}
+                            styles={{ input: { fontFamily: "var(--mantine-font-family-monospace)", fontSize: 12 } }}
+                            value={boxValue}
+                            // Mantine's error state: the invalid look and aria-invalid. The problems that
+                            // describe it are tied to it below, as Mantine ties only an error text of its own.
+                            error={invalid}
+                            onFocus={() => {
+                                setHasCursor(true);
+                            }}
+                            onChange={(event) => {
+                                typeInBox(event.currentTarget.value);
+                            }}
+                        />
+                    ) : (
+                        <Editor
+                            ref={editor}
+                            value={boxValue}
+                            marks={marks}
+                            label={EDITOR_WORDS.code}
+                            autoFocus={places.length === 0}
+                            describedBy={invalid ? problemsId : undefined}
+                            takeFocusAt={takeFocusAt}
+                            onChange={typeInBox}
+                            onFocus={() => {
+                                setHasCursor(true);
+                            }}
+                            onTabMode={setTabMoves}
+                        />
+                    )}
                     {/* What the element draws of the text, framed by what it draws on; nothing reaches the graph until Add. */}
                     {picture === undefined ? (
                         <span className="ws-gallery-picture ws-paste-preview" aria-hidden />
@@ -672,6 +785,19 @@ export function ShaderEditorDialog({
                 </Group>
                 <Group gap="xs" justify="space-between">
                     <Group gap={4}>
+                        <Button
+                            size="xs"
+                            variant="subtle"
+                            disabled={Editor === null}
+                            aria-keyshortcuts={ariaKey(TAB_TOGGLE_KEY)}
+                            onClick={() => {
+                                editor.current?.toggleTabMode();
+                            }}
+                        >
+                            {Editor === null || tabMoves ? EDITOR_WORDS.tabNextField : EDITOR_WORDS.tabIndent}
+                            {"  "}
+                            {formatKey(TAB_TOGGLE_KEY)}
+                        </Button>
                         <Button size="xs" variant="subtle" aria-pressed={full !== null} onClick={toggleFull}>
                             {EDITOR_WORDS.fullText}
                         </Button>

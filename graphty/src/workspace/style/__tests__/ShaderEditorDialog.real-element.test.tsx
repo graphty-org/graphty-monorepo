@@ -6,6 +6,7 @@
  * shaders, the history.
  */
 
+import { EditorView } from "@codemirror/view";
 import { parseShaderText, shaderTemplate, splitShaderText } from "@graphty/graphty-element/catalog";
 import { afterEach, assert, beforeAll, describe, it } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
@@ -93,7 +94,7 @@ async function mount(set?: Record<string, unknown>): Promise<Mounted & { id: str
  * Opens the code dialog from the gallery's New shader....
  * @returns the code box.
  */
-async function openNew(): Promise<HTMLTextAreaElement> {
+async function openNew(): Promise<HTMLElement> {
     const gallery = await openGallery();
     await userEvent.click(within(gallery).getByRole("button", { name: "New shader..." }));
     return codeBox();
@@ -103,9 +104,32 @@ async function openNew(): Promise<HTMLTextAreaElement> {
  * The open dialog's code box.
  * @returns the code box.
  */
-async function codeBox(): Promise<HTMLTextAreaElement> {
+async function codeBox(): Promise<HTMLElement> {
     const dialog = await screen.findByRole("dialog", { name: DIALOG });
-    return within(dialog).getByRole<HTMLTextAreaElement>("textbox", { name: "Shader code" });
+    await waitFor(() => {
+        assert.isNotNull(dialog.querySelector('[data-editor="ready"]'), "the code editor has loaded");
+    });
+    return within(dialog).getByRole("textbox", { name: "Shader code" });
+}
+
+/**
+ * The code editor behind a code box.
+ * @param box - the code box.
+ * @returns its editor.
+ */
+function viewOf(box: HTMLElement): EditorView {
+    const view = EditorView.findFromDOM(box);
+    assert.isNotNull(view, "the box is a code editor");
+    return view;
+}
+
+/**
+ * What the code box holds.
+ * @param box - the code box.
+ * @returns its text.
+ */
+function textOf(box: HTMLElement): string {
+    return viewOf(box).state.doc.toString();
 }
 
 /**
@@ -179,13 +203,13 @@ describe("the code dialog on the real element", () => {
         const dialog = screen.getByRole("dialog", { name: "New shader" });
         const place = within(dialog).getByLabelText<HTMLInputElement>(/^Place/);
         assert.strictEqual(place.value, "On the node");
-        assert.strictEqual(box.value, bodyOf(shaderTemplate({ target: "node", place: "paint" })));
+        assert.strictEqual(textOf(box), bodyOf(shaderTemplate({ target: "node", place: "paint" })));
 
         // The template follows the field until the reader writes over it.
         await userEvent.click(place);
         await userEvent.click(await screen.findByRole("option", { name: "Behind" }));
         await waitFor(() => {
-            assert.strictEqual(box.value, bodyOf(shaderTemplate({ target: "node", place: "behind" })));
+            assert.strictEqual(textOf(box), bodyOf(shaderTemplate({ target: "node", place: "behind" })));
         });
         assert.strictEqual(place.value, "Behind");
     });
@@ -210,7 +234,7 @@ describe("the code dialog on the real element", () => {
         // The row puts the cursor on its line.
         await userEvent.click(within(rows[0]).getByRole("button"));
         assert.strictEqual(document.activeElement, box);
-        assert.strictEqual(box.selectionStart, box.value.indexOf("while"));
+        assert.strictEqual(viewOf(box).state.selection.main.head, textOf(box).indexOf("while"));
         assert.strictEqual(JSON.stringify(session.styles.get(id)), before);
         assert.strictEqual(session.history.position, steps);
         assert.lengthOf(session.shaders.list(), 0);
@@ -278,7 +302,7 @@ describe("the code dialog on the real element", () => {
         });
 
         const again = await openNew();
-        assert.strictEqual(again.value, bodyOf(FIXED_TEXT));
+        assert.strictEqual(textOf(again), bodyOf(FIXED_TEXT));
     });
 
     it("Copy code puts its text on the clipboard; Control+V on the section opens it, and Add applies the preset instead of a copy", async () => {
@@ -304,7 +328,7 @@ describe("the code dialog on the real element", () => {
         within(section("node", "shaders")).getByRole("button", { name: "Add to node shaders" }).focus();
         await userEvent.keyboard("{Control>}v{/Control}");
         const box = await codeBox();
-        assert.strictEqual(box.value, bodyOf(text));
+        assert.strictEqual(textOf(box), bodyOf(text));
         await pressAdd();
 
         await waitFor(() => {
@@ -353,6 +377,104 @@ describe("the code dialog on the real element", () => {
         await waitFor(() => {
             assert.lengthOf(session.shaders.list(), 0);
         });
+    });
+
+    it("Tab indents; Control+M makes Tab move focus, and the button below the box says so", async () => {
+        await mount();
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        await userEvent.click(box);
+        await userEvent.keyboard("{Control>}{Home}{/Control}");
+        const before = textOf(box);
+        await userEvent.keyboard("{Tab}");
+        await waitFor(() => {
+            assert.notStrictEqual(textOf(box), before, "Tab indented the line");
+        });
+        const after = textOf(box);
+        assert.strictEqual(document.activeElement, box, "Tab stayed in the box");
+
+        await userEvent.keyboard("{Control>}m{/Control}");
+        const toggle = await within(dialog).findByRole("button", { name: /^Tab: Next field/ });
+        assert.include(toggle.textContent ?? "", "Ctrl+M");
+        await userEvent.keyboard("{Tab}");
+        await waitFor(() => {
+            assert.notStrictEqual(document.activeElement, box, "Tab left the box");
+        });
+        assert.strictEqual(textOf(box), after);
+
+        await userEvent.click(toggle);
+        await within(dialog).findByRole("button", { name: /^Tab: Indent/ });
+    });
+
+    it("Control+Z and Control+Y undo the box's typing and never reach the project's history", async () => {
+        const { session } = await mount();
+        const box = await openNew();
+        const steps = session.history.position;
+        const before = textOf(box);
+        await userEvent.click(box);
+        await userEvent.keyboard("{Control>}{Home}{/Control}x");
+        await waitFor(() => {
+            assert.strictEqual(textOf(box), `x${before}`);
+        });
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await waitFor(() => {
+            assert.strictEqual(textOf(box), before);
+        });
+        // Nothing is left to undo in the box: the key still stops there.
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await userEvent.keyboard("{Control>}y{/Control}");
+        await waitFor(() => {
+            assert.strictEqual(textOf(box), `x${before}`);
+        });
+        assert.strictEqual(session.history.position, steps);
+    });
+
+    it("the close button's tooltip shows Esc", async () => {
+        await mount();
+        await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        await userEvent.hover(within(dialog).getByRole("button", { name: "Close" }));
+        const tip = await screen.findByRole("tooltip");
+        assert.include(tip.textContent ?? "", "Esc");
+    });
+
+    it("Escape in the gear closes only the gear; the next closes the dialog", async () => {
+        await mount();
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "tint settings" }));
+        const close = await screen.findByRole("button", { name: "Close tint settings" });
+        await userEvent.click(
+            within(close.closest<HTMLElement>('[role="dialog"]') ?? dialog).getByLabelText(/^Display name/),
+        );
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("button", { name: "Close tint settings" }), "the gear closed");
+        });
+        assert.isNotNull(screen.queryByRole("dialog", { name: "New shader" }), "the dialog stayed");
+
+        await userEvent.click(box);
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "New shader" }));
+        });
+    });
+
+    it("Escape in the color picker closes only the picker", async () => {
+        await mount();
+        await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        const row = within(dialog).getByRole("group", { name: "tint" });
+        const swatch = within(row).getByRole("button", { name: "Pick tint default color" });
+        await userEvent.click(swatch);
+        await waitFor(() => {
+            assert.strictEqual(swatch.getAttribute("aria-expanded"), "true", "the picker opened");
+        });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.strictEqual(swatch.getAttribute("aria-expanded"), "false", "the picker closed");
+        });
+        assert.isNotNull(screen.queryByRole("dialog", { name: "New shader" }), "the dialog stayed");
     });
 
     it("the live check finds a compile error before Add, marks the code box invalid and announces it", async () => {
@@ -471,11 +593,11 @@ describe("the code dialog on the real element", () => {
         await waitFor(() => {
             assert.isNull(insert.getAttribute("aria-disabled"));
         });
-        const before = box.value;
-        box.setSelectionRange(0, 0);
+        const before = textOf(box);
+        await userEvent.keyboard("{Control>}{Home}{/Control}");
         await userEvent.click(insert);
         await waitFor(() => {
-            assert.strictEqual(box.value, `tint${before}`);
+            assert.strictEqual(textOf(box), `tint${before}`);
         });
         assert.strictEqual(document.activeElement, box);
     });
@@ -486,14 +608,14 @@ describe("the code dialog on the real element", () => {
         const dialog = screen.getByRole("dialog", { name: "New shader" });
         await userEvent.fill(box, FIXED_TEXT);
         await waitFor(() => {
-            assert.strictEqual(box.value, bodyOf(FIXED_TEXT));
+            assert.strictEqual(textOf(box), bodyOf(FIXED_TEXT));
         });
         assert.strictEqual(within(dialog).getByLabelText<HTMLInputElement>(/^Name/).value, "Pulse ring");
 
         const broken = "/* graphty-shader 1\n[1, 2]\n*/\nvec4 shade(NodeInput n) { return n.color; }\n";
         await userEvent.fill(box, broken);
         await waitFor(() => {
-            assert.strictEqual(box.value, broken);
+            assert.strictEqual(textOf(box), broken);
             assert.isNull(within(dialog).queryByLabelText(/^Name/), "Full text hides Name");
         });
         assert.strictEqual(
@@ -520,7 +642,7 @@ vec4 shade(NodeInput n) { return n.color * gain; }
 
         await userEvent.click(within(dialog).getByRole("button", { name: "Full text" }));
         await waitFor(() => {
-            assert.include(box.value, '"min": 5');
+            assert.include(textOf(box), '"min": 5');
         });
         await userEvent.click(within(dialog).getByRole("button", { name: "Full text" }));
         await waitFor(() => {
@@ -543,7 +665,7 @@ vec4 shade(NodeInput n) { return n.color * gain; }
         });
         await userEvent.click(row);
         await waitFor(() => {
-            assert.include(box.value, "graphty-shader 1", "the box shows the whole text");
+            assert.include(textOf(box), "graphty-shader 1", "the box shows the whole text");
         });
         assert.strictEqual(document.activeElement, box);
     });
@@ -572,7 +694,7 @@ vec4 shade(NodeInput n) { return n.color * gain; }
         await userEvent.click(screen.getByRole("button", { name: "Close tint settings" }));
         await userEvent.click(within(dialog).getByRole("button", { name: "Full text" }));
         await waitFor(() => {
-            const written = splitShaderText(box.value).draft?.params?.[0]?.default as Record<string, unknown>;
+            const written = splitShaderText(textOf(box)).draft?.params?.[0]?.default as Record<string, unknown>;
             assert.strictEqual(written.by, "since.selected");
             assert.deepEqual(written.domain, [0, 0.3]);
             assert.lengthOf(written.range as string[], 2);
@@ -593,7 +715,7 @@ vec4 shade(NodeInput n) { return n.color * gain; }
         await userEvent.click(screen.getByRole("button", { name: "Close param1 settings" }));
         await userEvent.click(within(dialog).getByRole("button", { name: "Full text" }));
         await waitFor(() => {
-            assert.deepEqual(splitShaderText(box.value).draft?.params?.[1]?.default, {
+            assert.deepEqual(splitShaderText(textOf(box)).draft?.params?.[1]?.default, {
                 by: "since.hovered",
                 domain: [0, 0.3],
             });
@@ -612,7 +734,7 @@ vec4 shade(NodeInput n) { return n.color * gain; }
         await userEvent.fill(await within(dialog).findByLabelText<HTMLInputElement>(/^Minimum size/), "12");
         await userEvent.click(within(dialog).getByRole("button", { name: "Full text" }));
         await waitFor(() => {
-            assert.strictEqual(splitShaderText(box.value).draft?.minSize, 12);
+            assert.strictEqual(splitShaderText(textOf(box)).draft?.minSize, 12);
         });
     });
 
@@ -625,7 +747,7 @@ vec4 shade(NodeInput n) { return n.color * gain; }
         await userEvent.click(within(dialog).getByLabelText<HTMLInputElement>(/^Place/));
         await userEvent.click(await screen.findByRole("option", { name: "Around" }));
         await waitFor(() => {
-            assert.strictEqual(box.value, bodyOf(shaderTemplate({ target: "node", place: "around" })));
+            assert.strictEqual(textOf(box), bodyOf(shaderTemplate({ target: "node", place: "around" })));
         });
         assert.strictEqual(name.value, "Sun halo");
     });

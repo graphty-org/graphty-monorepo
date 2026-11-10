@@ -267,3 +267,30 @@ Still open from earlier sessions: the render-parity differences on the batched p
 Gexf 1488 px which is a pulled-edge defect on both paths), the one-off MissingCredential ResizeObserver error, the walks that
 still build every `Node` (putOnPlane, AnnotationMeshes.nodes, SimulationLayoutEngine.nodes, UpdateManager.takeNodeBatch,
 readCommunities), late-row body order, `nodeSizes` NaN for a row with no `Node`, and the parked edge-trim patch.
+
+## Session 8: checks at d4154554c9
+
+All run through tools/low-priority.sh, in graphty-element.
+
+- npx tsc --noEmit -p tsconfig.json: exit 0.
+- npm run lint (eslint, the two funnel rule tests, tsc, strict-consumer typecheck): exit 0.
+- npm run build: exit 0.
+- npm run api:report: the report gained `UpdateManager.adoptViewMasks`, added on this branch and called only
+  by DataManager. It is now tagged `@internal` and the report shows it as an internal member. Additive, not
+  breaking. Committed in d4154554c9.
+- node tools/sonar-gate.mjs (repository root): "no new issue or hotspot on the changed lines" over 18 files.
+- test/browser/node-batch.test.ts (render-parity project): 53 passed.
+- test/managers/DataManager.test.ts (browser project): 30 passed.
+- Full render-parity, test/render-parity/stories.test.ts (tmp/stage-26/parity16.log): 7 failed, 318 passed,
+  12 skipped, 353 s. Every failure is on the batched path. No story differs on the objects path and none is
+  unstable between two objects loads, so the objects path draws as on master.
+  Batched failures: Bidirectional, CytoscapeSession, ForceAtlas2Weighted and LouvainMoreCommunitiesThanColours
+  (1 px each), ThreePaths (325 px), Gexf (1488 px, the pulled-edge defect also seen on the objects path with
+  edges pulled), Mandala (7717 px).
+- Order-dependent difference, mechanism still not found: Mandala passed in the session 7 run and fails here
+  with 7717 px. Run alone, PatternsAndSprites gives Sticker 7717 px and Mandala passing. The same pixel count
+  moves between two stories of the same file depending on what loaded before, so some state outlives a story
+  load on the batched path. ThreePaths gives 325 px both alone and in the full run (session 7 recorded 68 px).
+
+Load-peak gate (from session 7, not re-measured): 1,245 B/node live heap after a forced GC during a 200k-node
+batched load, against the 1.5 KB/node target. Met.

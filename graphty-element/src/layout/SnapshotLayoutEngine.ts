@@ -162,8 +162,8 @@ interface SnapshotLayoutHost {
     weightMeaning?(): "strength" | "distance" | null;
     /** The data of a row drawn with no `Node` (renderPath "batched"), which the engine holds none for. */
     rowData?(row: number): Record<string | number, unknown> | undefined;
-    /** The element's `data.knownFields.positionScale`. */
-    positionScale?(): number;
+    /** The element's `data.knownFields.positionScale`; undefined before the element is attached. */
+    positionScale?(): number | undefined;
 }
 
 /** The element's reach into a snapshot engine. No entry point exports it. */

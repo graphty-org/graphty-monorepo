@@ -1594,7 +1594,7 @@ export class LayoutManager implements Manager {
             column: (graph, path) => this.scopeSource?.nodeValues?.(graph, path) ?? null,
             weightMeaning: this.weightMeaningFor(type),
             rowData: (row) => dataManagerInternals.unbuiltRecord(this.dataManager, row),
-            positionScale: () => this.graphContext?.getStyles().config.data.knownFields.positionScale ?? 1,
+            positionScale: () => this.graphContext?.getStyles().config.data.knownFields.positionScale,
             drawPaint: () => {
                 this.drawArrivedPaint?.();
             },
@@ -2290,6 +2290,20 @@ export class LayoutManager implements Manager {
      * @returns The mask and the rows it covers.
      */
     private holdMaskOf(members: ReadonlySet<NodeIdType>): [NodeMask, number] {
+        // Batched: by row from the snapshot, since iterating the nodes builds a `Node` for every
+        // row, each read through an engine that does not hold it yet.
+        if (this.dataManager.renderLimits?.batched() === true) {
+            const { ids, nodeCount } = this.dataManager.getSnapshot();
+            const held = makeMask(nodeCount);
+            for (let row = 0; row < nodeCount; row++) {
+                if (!members.has(ids.idOf(row))) {
+                    maskSet(held, row, true);
+                }
+            }
+
+            return [held, nodeCount];
+        }
+
         let rows = 0;
         for (const node of this.dataManager.nodes.values()) {
             if (validRow(node.index)) {

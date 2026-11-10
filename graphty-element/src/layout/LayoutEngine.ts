@@ -1707,7 +1707,12 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         }
 
         this.#nodes.push(n);
-        this.stale = true;
+        // Laying out by row (renderPath "batched"), the row arrived with its freeze, which already
+        // marked the layout stale; a `Node` built for it later is no change to the graph, and a
+        // re-run would move every row it already placed.
+        if (this.#rowSource() === null) {
+            this.stale = true;
+        }
     }
 
     /**
@@ -2062,6 +2067,20 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
 
     /** Compute the layout: assign the protected `result` from `graph`, or fill `positions`. */
     abstract doLayout(): void;
+
+    /**
+     * Place the rows an add brought, in the add's own pass. Under renderPath "batched" a stored
+     * row has no `Node` whose frame update would read it, so the stale layout is run here; on the
+     * object path nothing changes.
+     * @param nodes - The nodes the add built.
+     */
+    override updatePositions(nodes: readonly Node[]): void {
+        if (this.#rowSource() !== null) {
+            this.refresh();
+        }
+
+        super.updatePositions(nodes);
+    }
 
     /**
      * Recompute the layout when it is stale, and publish what it produced.

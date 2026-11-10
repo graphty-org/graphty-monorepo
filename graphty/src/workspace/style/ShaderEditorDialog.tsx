@@ -747,8 +747,7 @@ export function ShaderEditorDialog({
     useEffect(() => {
         const onEscape = (event: KeyboardEvent): void => {
             const optedOut =
-                event.target instanceof Element &&
-                event.target.getAttribute("data-mantine-stop-propagation") === "true";
+                event.target instanceof HTMLElement && event.target.dataset.mantineStopPropagation === "true";
             if (event.key === "Escape" && !event.isComposing && !optedOut && !hasOpenPopouts()) {
                 // A parameter's Name commits when it loses focus: blur first, so the saved draft has it.
                 flushSync(() => {
@@ -759,9 +758,9 @@ export function ShaderEditorDialog({
                 close(false);
             }
         };
-        window.addEventListener("keydown", onEscape, { capture: true });
+        globalThis.addEventListener("keydown", onEscape, { capture: true });
         return () => {
-            window.removeEventListener("keydown", onEscape, { capture: true });
+            globalThis.removeEventListener("keydown", onEscape, { capture: true });
         };
     });
 

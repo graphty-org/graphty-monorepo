@@ -6,6 +6,7 @@ import { CAPACITY_COLUMN, GraphStore } from "../../src/data/GraphStore";
 import { readSeedPosition } from "../../src/data/seedPosition";
 import { GraphOps, resolveEdgeCapacity } from "../../src/session/project/graphOps";
 import { resolveEdgeWeight } from "../../src/session/project/ingest";
+import type { MovedInput } from "../../src/session/sets/notify";
 
 /**
  * Add one node record through the graph primitives, as ingest does.
@@ -82,6 +83,24 @@ describe("ingestNode", () => {
         ingestNode(store, "b", { id: "b" });
         assert.strictEqual(store.stale, true, "a new row does");
         assert.notStrictEqual(store.getSnapshot(), before);
+    });
+
+    it("announces the fields of a merge that froze nothing, and not those of a write that will freeze", () => {
+        // A live set re-resolves on a freeze or on an attribute announcement. A merge that left the
+        // builder as it was freezes nothing, so it must announce; a new row will freeze, which
+        // re-queues every watch, so it announces nothing.
+        const store = makeStore();
+        ingestNode(store, "a", { id: "a" });
+        store.getSnapshot();
+        const heard: MovedInput[] = [];
+        store.inputs.tick.listen((input) => heard.push(input));
+
+        ingestNode(store, "a", { id: "a", label: "two" });
+        assert.deepInclude(heard, { kind: "attributes", element: "node", fields: ["id", "label"] });
+
+        heard.length = 0;
+        ingestNode(store, "b", { id: "b", label: "three" });
+        assert.deepStrictEqual(heard, [], "the freeze that follows tells every watch");
     });
 
     it("refuses an id graph-format will not take, instead of throwing mid-load", () => {

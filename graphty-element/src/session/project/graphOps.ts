@@ -1177,7 +1177,10 @@ class GraphEntry implements OpLogEntry {
  * @param next - The record after, or undefined.
  * @param seen - The fields this batch (one command, one undo or redo of a step) bumped already.
  * @param announce - Whether to tell the sets that watch attributes, as an edit after load does.
- * A row added or removed announces nothing: the freeze that follows re-queues every watch.
+ * By default only when the store is not stale: a write that also moved the builder (a row added
+ * or removed) announces nothing, because the freeze that follows re-queues every watch, while a
+ * write that left the builder as it was (a merge that only changed the record) freezes nothing,
+ * so it announces, and a watch resolves against the snapshot already cached.
  */
 function bumpFields(
     store: GraphStore,
@@ -1185,7 +1188,7 @@ function bumpFields(
     prior: GraphRecord | undefined,
     next: GraphRecord | undefined,
     seen: Bumped,
-    announce = false,
+    announce = !store.stale,
 ): void {
     const fields = new Set<string>();
     for (const key of [...Object.keys(prior ?? {}), ...Object.keys(next ?? {})]) {

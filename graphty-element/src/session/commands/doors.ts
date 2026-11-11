@@ -2476,6 +2476,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             leansLines: READ,
             getDrawnTarget: READ,
             getNodeBatches: READ,
+            getEdgeRowLines: READ,
             getScene: READ,
             getStatsManager: READ,
             is2D: READ,

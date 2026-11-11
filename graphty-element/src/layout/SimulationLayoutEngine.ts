@@ -36,7 +36,15 @@
  * that costs and why the repair that suggests itself is worse.
  */
 
-import { type F32, type GraphSnapshot, makeMask, maskSet, type NodeId, type NodeMask } from "@graphty/graph-format";
+import {
+    type F32,
+    type GraphSnapshot,
+    makeMask,
+    maskSet,
+    maskTest,
+    type NodeId,
+    type NodeMask,
+} from "@graphty/graph-format";
 import {
     type CommonLayoutOptions,
     createSimulation,
@@ -350,6 +358,17 @@ export interface SimulationEngineInit {
      */
     readonly builtEdges?: () => Iterable<Edge>;
     /**
+     * The nodes that have a `Node` (`dataManagerInternals.builtNodes`) under renderPath "batched", which
+     * {@link SimulationLayoutEngine.nodes} hands out. Omitted, every node of the data manager, building any `Node`
+     * not yet built.
+     */
+    readonly builtNodes?: () => Iterable<Node>;
+    /**
+     * The spacing radius (`Node.spacingRadius`) of a row with no `Node`, read from how it is drawn, for `nodeGap`;
+     * null for a row it cannot answer. Omitted, such a row is kept apart by nothing.
+     */
+    readonly rowSpacingRadius?: (row: number, flat: boolean) => number | null;
+    /**
      * Start the first load from the seed rather than from the arrangement the element holds: the
      * rebuild a seeded layout makes when new data arrives, so the frames that stepped the graph
      * as it stood before do not decide where it settles (issue #3379). Pinned rows are replayed
@@ -475,6 +494,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
     readonly #report: (error: GraphtyError) => void;
     readonly #dataManager: DataManager;
     readonly #builtEdges: () => Iterable<Edge>;
+    readonly #builtNodes: () => Iterable<Node>;
+    readonly #rowSpacingRadius: ((row: number, flat: boolean) => number | null) | undefined;
     readonly #weightMeaning: () => "strength" | "distance" | null;
     readonly #drawnTarget: () => DrawnTarget | null;
     /** The simulation filling the row table on the card, or null on the upload path. */
@@ -634,6 +655,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#report = built.report as (error: GraphtyError) => void;
         this.#dataManager = built.dataManager as DataManager;
         this.#builtEdges = built.builtEdges ?? ((): Iterable<Edge> => this.#dataManager.edges.values());
+        this.#builtNodes = built.builtNodes ?? ((): Iterable<Node> => this.#dataManager.nodes.values());
+        this.#rowSpacingRadius = built.rowSpacingRadius;
         this.#fromSeed = built.fromSeed === true;
         this.#weightMeaning = built.weightMeaning ?? ((): "strength" => "strength");
         this.#drawnTarget = built.drawnTarget ?? ((): null => null);
@@ -1195,10 +1218,14 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * iterable would let the simulation rewrite the position array every frame while not one mesh
      * moved. So they answer with the data manager's own collections, which hold exactly what
      * `LayoutManager` hands every other engine through `addNodes` / `addEdges`.
+     *
+     * A row stored with no `Node` (only under renderPath "batched") is drawn and moved by its row, so it is left
+     * out, as d3 and ngraph leave it out: reading the store's `values()` built a `Node` for every row the first
+     * frame after the layout started, the 100k-row graph's seconds before its first layout frame (#6389).
      * @returns The graph's live node collection.
      */
     get nodes(): Iterable<Node> {
-        return this.#dataManager.nodes.values();
+        return this.#builtNodes();
     }
 
     /**
@@ -1578,9 +1605,25 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const dimensions =
             this.#options.nodeGapFront === true ? 2 : (this.#options.model.dim ?? this.#options.dim ?? 3);
         const radii = new Float32Array(nodeCount);
+        const byNode = makeMask(nodeCount);
         for (const node of this.nodes) {
             if (this.#hasRow(node.index) && !this.isFollower(node.index)) {
                 radii[node.index] = node.spacingRadius(dimensions === 2) + gap / 2;
+            }
+
+            if (this.#hasRow(node.index)) {
+                maskSet(byNode, node.index, true);
+            }
+        }
+
+        // A row with no `Node` (renderPath "batched") is spaced by how it is drawn.
+        const ofRow = this.#rowSpacingRadius;
+        for (let row = 0; ofRow !== undefined && row < nodeCount; row++) {
+            if (!maskTest(byNode, row) && !this.isFollower(row)) {
+                const radius = ofRow(row, dimensions === 2);
+                if (radius !== null) {
+                    radii[row] = radius + gap / 2;
+                }
             }
         }
 

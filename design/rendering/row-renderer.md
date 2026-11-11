@@ -1453,6 +1453,15 @@ different in kind: they keep a body per `Node`, fed through `addNode`, so going 
 not a change to their publish. They and layout transitions, whose movers are keyed by `Node` and read `drawnPosition`, are the
 next pull request.
 
+Correction from cosmos-gap stage 115 (#6389): the paragraph above held for the publish but not for the frame loop. The
+engine's `nodes` getter, which `UpdateManager` walks every frame (`walkedEverything`, `updateNodes`), answered with the store's
+`nodes.values()`, and that lazy view builds a `Node` for every row it yields. So the first frame after `setLayout` started a
+simulation built and painted a `Node` for every row, the bulk of the 6-9 s before the first layout frame at 100k + 1M. Under
+`"batched"` the getter now hands out the built `Node`s only (`dataManagerInternals.builtNodes`), as its `edges` getter already
+did, and its `nodeGap` radii read a row with no `Node` from the row table's extent (round radius, else the half extents'
+length). Under `"objects"` both are as before. Starting or switching a layout then builds no `Node`, paints no row whose look
+did not change, and reuses the frozen snapshot; `node-batch.test.ts` counts all three.
+
 Correction from stage 26's sixth pull request: transitions go first, alone, and d3 and ngraph follow. The runner needed no
 rekeying: its movers are keyed by a `TransitionSubject`, which a `Node` is and a `RowSubject` now is too, a row drawn with no
 `Node` read and written through the row table (`centerOf`, `extentOf`, `shrink`, `place`) and painted from `StylePainter.nodePaint`.

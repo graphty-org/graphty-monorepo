@@ -1569,6 +1569,24 @@ export class LayoutManager implements Manager {
                     dataManager: this.dataManager,
                     // An edge stored with no `Edge` is simulated by row and drawn by its row line.
                     builtEdges: () => dataManagerInternals.builtEdges(this.dataManager).values(),
+                    // Every node under "objects", where every row has its `Node`, as before.
+                    builtNodes: () =>
+                        this.dataManager.renderLimits?.batched() === true
+                            ? dataManagerInternals.builtNodes(this.dataManager)
+                            : this.dataManager.nodes.values(),
+                    rowSpacingRadius: (row, flat) => {
+                        if (this.dataManager.renderLimits?.batched() !== true) {
+                            return null;
+                        }
+
+                        const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
+                        if (extent === undefined || extent.scale <= 0) {
+                            return null;
+                        }
+
+                        const { half } = extent;
+                        return extent.round ?? Math.hypot(half.x, half.y, flat ? 0 : half.z);
+                    },
                     fromSeed: how.fromSeed,
                     weightMeaning: this.weightMeaningFor(type),
                     drawnTarget: () => this.graphContext?.getDrawnTarget?.() ?? null,

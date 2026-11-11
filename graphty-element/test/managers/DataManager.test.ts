@@ -3,6 +3,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import type { AdHocData } from "../../src/config";
 import type { Graph } from "../../src/Graph";
 import { type DataManager, dataManagerInternals } from "../../src/managers/DataManager";
+import type { UpdateManager } from "../../src/managers/UpdateManager";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
@@ -559,6 +560,22 @@ describe("DataManager", () => {
         it("restyles the selection without building one", async () => {
             graph.setSelectionStyle({ edgeScale: 3 });
             await dispatcherOf(graph.getSession()).lane.settled();
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+        });
+
+        it("counts the rows without building one", () => {
+            assert.deepInclude(graph.rowCounts, { pulledEdges: 2, objectEdges: 0 });
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+        });
+
+        // The frame's own walks of the edges (the masks, the incident edges of a resized node,
+        // the screen-scale retrim, the rows a freeze renumbered) visit the built Edges only.
+        it("runs frames without building one", () => {
+            const { updateManager } = graph as unknown as { updateManager: UpdateManager };
+            updateManager.update();
+            dataManager.removeEdge("0");
+            dataManager.getSnapshot();
+            updateManager.update();
             assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
         });
     });

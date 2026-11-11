@@ -33,6 +33,7 @@ import {
     ciCommand,
     fitsCheckout,
     groupEntry,
+    GRAPHTY_PARTS,
     GROUPS,
     MATRIX_CAP,
     matrixLine,
@@ -197,8 +198,8 @@ describe("the test matrix", () => {
     // coverage-<shard> name; graphty-element and webgpu-graph-algorithms have upload steps of their own.
     it("uploads coverage for every shard with a job of its own that writes it", () => {
         const own = Object.fromEntries(plan(PACKAGES).map((e) => [e.shard, e.coverage]));
-        // the five graphty parts keep their reports apart
-        for (const n of [1, 2, 3, 4, 5]) {
+        // the graphty parts keep their reports apart
+        for (let n = 1; n <= GRAPHTY_PARTS; n++) {
             assert.equal(own[`graphty-${n}`], `graphty-${n}=graphty/.coverage-parts/graphty-${n}/lcov.info`);
         }
         assert.equal(own["graph-io"], "graph-io=graph-io/coverage/lcov.info");

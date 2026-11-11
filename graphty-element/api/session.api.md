@@ -673,6 +673,28 @@ export interface CommandOutcomeMap {
 }
 
 // @public
+export interface ComparedField {
+    readonly field: string;
+    readonly runId: RunId;
+}
+
+// @public
+export interface CompareSide {
+    readonly field?: string;
+    readonly run: RunRef;
+}
+
+// @public
+export interface ComparisonBase {
+    readonly a: ComparedField;
+    readonly b: ComparedField;
+    readonly elements: "node" | "edge";
+    readonly onlyA: readonly NodeId[];
+    readonly onlyB: readonly NodeId[];
+    readonly shared: number;
+}
+
+// @public
 export interface ComponentStatistics {
     componentOf(id: NodeId_2): number | undefined;
     readonly count: number;
@@ -2625,10 +2647,25 @@ export interface GraphvizCapability {
 export type GroupMatchCode = "group.new" | "group.gone";
 
 // @public
+export interface GroupMove {
+    readonly a: string | number;
+    readonly b: string | number;
+    readonly id: NodeId;
+    readonly mostOfGroup: string | number;
+}
+
+// @public
 export interface GroupOutlineClick {
     readonly group: string | number | boolean | null;
     readonly layer: LayerId;
     readonly shader: string;
+}
+
+// @public
+export interface GroupOverlap {
+    readonly a: string | number;
+    readonly b: string | number;
+    readonly count: number;
 }
 
 // @public
@@ -3804,6 +3841,18 @@ export type PartAnswer =
 export type PartialCode = "partial.iteration-cap" | "partial.time-box" | "partial.canceled" | "partial.stopped" | "partial.batch-incomplete";
 
 // @public
+export interface PartitionComparison extends ComparisonBase {
+    readonly agreement: number | undefined;
+    readonly groups: {
+        readonly a: number;
+        readonly b: number;
+    };
+    readonly kind: "partition";
+    readonly moves: readonly GroupMove[];
+    readonly overlaps: readonly GroupOverlap[];
+}
+
+// @public
 export type Path = string;
 
 // @public
@@ -4143,6 +4192,24 @@ export type QueuePolicy = (typeof QUEUE_POLICIES)[number];
 
 // @public
 export function quotePath(path: Path): Query;
+
+// @public
+export interface RankChange {
+    readonly id: NodeId;
+    readonly move: number;
+    readonly rankA: number;
+    readonly rankB: number;
+    readonly tiedA: number;
+    readonly tiedB: number;
+}
+
+// @public
+export interface RankingComparison extends ComparisonBase {
+    readonly changes: readonly RankChange[];
+    readonly correlation: number | undefined;
+    readonly kind: "ranking";
+    readonly moved: number;
+}
 
 // @public
 export interface RankingEntry {
@@ -4552,6 +4619,9 @@ export interface ResultColumnDescriptor {
 }
 
 // @public
+export type ResultComparison = RankingComparison | PartitionComparison;
+
+// @public
 export type ResultId = RunId;
 
 // @public
@@ -4572,6 +4642,7 @@ export interface ResultRef {
 
 // @public
 export interface ResultsApi {
+    compare(a: RunRef | CompareSide, b: RunRef | CompareSide): ResultComparison;
     get(run: RunRef): RunResult | undefined;
     has(run: RunRef, field?: string): boolean;
     path(run: RunRef, field?: string): Path;

@@ -1044,6 +1044,7 @@ export const READ_ONLY: readonly string[] = [
     "RenderManager.setPixelRatio",
     "RenderManager.startRenderLoop",
     "RenderManager.stopRenderLoop",
+    "ResultsApi.compare",
     "ResultsApi.get",
     "ResultsApi.has",
     "ResultsApi.path",

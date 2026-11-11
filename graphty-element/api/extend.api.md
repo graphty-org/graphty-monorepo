@@ -3295,6 +3295,16 @@ export interface TransitionRegistration {
 }
 
 // @public
+export interface TwoHandGestureDelta {
+    readonly angle: number;
+    readonly axis: Vec3 | null;
+    readonly zoom: number;
+}
+
+// @public
+export function twoHandGestureDelta(previousDistance: number, previousDirection: Vec3, distance: number, direction: Vec3): TwoHandGestureDelta;
+
+// @public
 export function validateOption(key: string, value: unknown, def: OptionDefinition): void;
 
 // @public

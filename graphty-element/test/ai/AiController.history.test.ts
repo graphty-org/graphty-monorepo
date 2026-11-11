@@ -103,6 +103,20 @@ describe("AiController history", () => {
         );
     });
 
+    it("says the open conversation changed once it opens a new one, so a host that redraws on it shows it", async () => {
+        const assistant = new ScriptedAssistant(await assistantSession(), { history: "memory" });
+        await assistant.controller.ready();
+
+        const id = assistant.controller.getConversation()?.id;
+        assert.isDefined(id);
+        assert.deepStrictEqual(
+            assistant.events.flatMap((event) =>
+                event.type === "ai-conversation-changed" ? [event.conversationId] : [],
+            ),
+            [id],
+        );
+    });
+
     it("exports the conversation as format 1, and lists nothing after the history is cleared", async () => {
         const assistant = new ScriptedAssistant(await assistantSession(), { history: "memory" });
         await assistant.say("add a node", [ADD_NODE]);

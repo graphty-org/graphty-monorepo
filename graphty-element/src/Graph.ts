@@ -4846,16 +4846,17 @@ export class Graph implements GraphContext {
      */
     get rowCounts(): RowCounts {
         const batchedNodes = this.#nodeBatches?.batchedNodes ?? 0;
-        let pulledEdges = 0;
-        for (const edge of this.dataManager.edges.values()) {
-            pulledEdges += edge.isPulled ? 1 : 0;
+        // An edge stored with no `Edge` is drawn from the row tables (`EdgeRowLines`), never as an object.
+        let objectEdges = 0;
+        for (const edge of this.builtEdges()) {
+            objectEdges += edge.isPulled ? 0 : 1;
         }
 
         return {
             batchedNodes,
             objectNodes: this.dataManager.nodes.size - batchedNodes,
-            pulledEdges,
-            objectEdges: this.dataManager.edges.size - pulledEdges,
+            pulledEdges: this.dataManager.edges.size - objectEdges,
+            objectEdges,
         };
     }
 

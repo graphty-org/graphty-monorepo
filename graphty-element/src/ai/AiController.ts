@@ -2590,12 +2590,10 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             const reopened = await this.toReopen(store);
             this.current = reopened ?? this.freshRecord();
             await this.markOpenUndone(this.graph.getSession());
-            if (failure !== undefined) {
-                this.emitChanged(failure);
-            }
-
+            // A new conversation is news too: until now getConversation read null, and a host that
+            // redraws on this event would show no open chat until something else changed.
+            this.emitChanged(failure);
             if (reopened !== undefined) {
-                this.emitChanged();
                 this.reopenPending(reopened);
             }
 

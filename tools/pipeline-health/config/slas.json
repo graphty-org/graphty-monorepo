@@ -118,7 +118,7 @@
         }
     },
     "runnerLimits": {
-        "linux_windows": 500,
+        "linux_windows": 300,
         "macos": 50
     },
     "prBudgetsMin": {

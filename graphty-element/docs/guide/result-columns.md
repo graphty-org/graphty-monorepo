@@ -201,3 +201,60 @@ drop the column when it returns `undefined`.
 | `E_UNKNOWN_RUN`       | the session holds no such run; `details.candidates` lists the nearest ids                                                                                                                                     |
 | `E_UNKNOWN_ATTRIBUTE` | the run publishes no field of that name; `details.candidates` lists the nearest                                                                                                                               |
 | `E_BAD_COMMAND`       | the call is malformed, because the field has no value per record here: a graph-level number such as modularity, a table, or an edge field on `nodePage` (and the reverse). Read those from `results.get(run)` |
+
+## Comparing two results
+
+`session.results.compare(a, b)` lines two runs up element by element. Two measurements give a
+ranking comparison: who kept their place, who moved and by how much, and who is tied. Two groupings
+give a partition comparison: which groups map onto which, and who left the rest of their group.
+
+```ts
+import "@graphty/graphty-element";
+
+const element = document.querySelector("graphty-element")!;
+const pagerank = await element.run("pagerank");
+const degree = await element.run("degree");
+
+const ranks = element.session.results.compare(pagerank, degree);
+if (ranks.kind === "ranking") {
+    console.log(ranks.correlation); // 1 = the same order, -1 = reversed
+    for (const { id, rankA, rankB, move } of ranks.changes.slice(0, 5)) {
+        console.log(id, rankA, "->", rankB, move);
+    }
+}
+```
+
+`changes` holds every element both runs measured, the largest move first. `move` is
+`rankA - rankB`, so a positive move rose in the second ranking. Tied elements share a rank
+(1, 2, 2, 4), and `tiedA` and `tiedB` say how many elements share it. `correlation` is Spearman's
+rank correlation, `undefined` with fewer than two shared elements or when one side gives them all
+the same value. `moved` counts the elements whose rank changed.
+
+Two community algorithms compare the same way:
+
+```ts
+const louvain = await element.run("louvain");
+const leiden = await element.run("leiden");
+
+const groups = element.session.results.compare(louvain, leiden);
+if (groups.kind === "partition") {
+    console.log(groups.agreement); // 1 = the same grouping, whatever the groups are called
+    for (const { id, a, b, mostOfGroup } of groups.moves) {
+        console.log(id, "left group", a, "for", b, "while most of its group went to", mostOfGroup);
+    }
+}
+```
+
+`agreement` is the adjusted Rand index: 1 for the same grouping under any names, around 0 for chance.
+`overlaps` lists every pair of groups sharing elements, the largest first, and `groups` counts the
+groups on each side.
+
+Each side is a run (its handle, its result or its id), or `{ run, field }` to compare a field other
+than the run's primary one. Both kinds report `shared`, the elements both sides carry a value for,
+and `onlyA` and `onlyB`, the ones only one side has. The comparison is a list of facts with no
+words: your application decides what to say about it.
+
+| Code            | When                                                                                                                                                                     |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `E_UNKNOWN_RUN` | the session holds no finished run by that name; `details.candidates` lists the nearest ids                                                                               |
+| `E_BAD_COMMAND` | `details.reason` is `no-element-field` (no per-element field by that name), `elements-differ` (nodes against edges) or `kinds-differ` (a grouping against a measurement) |

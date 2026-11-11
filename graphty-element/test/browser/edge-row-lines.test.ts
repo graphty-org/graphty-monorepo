@@ -495,3 +495,53 @@ describe("an edge loaded with no switch", () => {
         assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 2);
     });
 });
+
+// A straight pulled line follows its nodes' rows in its shader, so neither the load's placement walk nor a moving
+// layout's frames have anything to place for it: the walk (`UpdateManager.updateEdges` -> `Edge.update` ->
+// `pullRows`) is 1M visits a frame at 100k + 1M. Stage 27 of design/rendering/row-renderer.md.
+describe("a pulled edge under a moving layout", () => {
+    for (const [lazy, dim] of [
+        [true, 3],
+        [false, 3],
+        [true, 2],
+        [false, 2],
+    ] as const) {
+        const stored = lazy ? "stored with no Edge" : "with its Edge";
+        it(`is visited by no placement walk, ${stored}, in ${dim}D`, async () => {
+            const update = vi.spyOn(Edge.prototype, "update");
+            try {
+                const element = await lazyLoaded(
+                    [
+                        { src: 0, dst: 1 },
+                        { src: 1, dst: 2 },
+                        { src: 2, dst: 0 },
+                    ],
+                    true,
+                    {
+                        before: async (el) => {
+                            dataManagerInternals.storeEdgesUnbuilt(el.graph.getDataManager(), lazy);
+                            if (dim === 2) {
+                                await el.setViewMode("2d");
+                            }
+
+                            await el.graph.setLayout("ngraph", { dim, seed: 7 });
+                        },
+                    },
+                );
+                const dm = element.graph.getDataManager();
+                assert.equal(dataManagerInternals.edgesBuilt(dm), lazy ? 0 : 3);
+                if (!lazy) {
+                    for (const edge of dm.edges.values()) {
+                        assert.isTrue(edge.followsRows, "every Edge is a straight pulled line");
+                    }
+                }
+
+                await drawnFrames(element.graph.scene, 3);
+                const pulledVisits = update.mock.contexts.filter((edge: Edge) => edge.isPulled).length;
+                assert.equal(pulledVisits, 0);
+            } finally {
+                update.mockRestore();
+            }
+        });
+    }
+});

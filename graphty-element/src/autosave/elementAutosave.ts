@@ -683,14 +683,23 @@ export class ElementAutosave {
             return;
         }
 
-        this.#told = JSON.stringify(saver.status);
-        this.#lastSaved = commitOf(saver.status);
+        // A change made while the start waited (a page's setup right after connect) may already be
+        // written: that is a change of the status, told now. A restore is told by its own event.
+        const writtenWhileStarting = restored === null && saver.status.entry !== null;
+        if (!writtenWhileStarting) {
+            this.#told = JSON.stringify(saver.status);
+            this.#lastSaved = commitOf(saver.status);
+        }
+
         this.#noteOwn(key, saver.status.entry);
         this.#stops.push(
             saver.onStatus((status) => {
                 this.#onStatus(status);
             }),
         );
+        if (writtenWhileStarting) {
+            this.#onStatus(saver.status);
+        }
         this.#listen();
         // From here a hidden or closed page writes what is outstanding; before, nothing can be written.
         logger.info("listening", { entry: saver.entryId, restored: restored !== null, started: saver.started });

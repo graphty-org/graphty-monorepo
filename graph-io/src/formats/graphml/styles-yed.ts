@@ -3364,6 +3364,9 @@ function labelTree(get: GetValue, node: boolean, approximate: Approximate): Tree
     return label;
 }
 
+/** A node's gradient values, which the y:ShapeNode writes only beside a fill color. */
+const GRADIENT_PROPERTIES = ["fillGradient", "fillGradientAngle", "fillGradientColors", "fillGradientStops"] as const;
+
 /**
  * A node's `y:ShapeNode` from its values.
  * @param get - the node's values
@@ -3387,8 +3390,17 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
             noteGradientAngle(get, approximate);
         }
         noteGradientRamp(get, { fill, second, shape: yedShape ?? "rectangle" }, approximate);
-    } else if (fillOpacity === 0) {
-        node["y:Fill"] = { "@_hasColor": "false", "@_transparent": "false" };
+    } else {
+        // a y:Fill's color2 needs its color: with no string fill the gradient is not written
+        for (const property of GRADIENT_PROPERTIES) {
+            const had = get(property);
+            if (had !== null && had !== undefined) {
+                approximate(property, had);
+            }
+        }
+        if (fillOpacity === 0) {
+            node["y:Fill"] = { "@_hasColor": "false", "@_transparent": "false" };
+        }
     }
     const border = lineTree(get, ["borderColor", "borderWidth", "borderStyle"], approximate);
     if (border !== null) {

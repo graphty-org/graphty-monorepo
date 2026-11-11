@@ -286,6 +286,32 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
         assert.isAtMost(asked.pulled, 2 * (EDGES.length - 1), "each pulled line was asked a fixed number of times");
     });
 
+    it("are not asked for a support point by the frame's full walk while a layout moves every node", async () => {
+        const element = await loaded(renderer, false, "2d", { renderPath: "batched" });
+        assert.deepInclude(element.graph.rowCounts, { pulledEdges: EDGES.length - 1, objectEdges: 1 });
+        const visits = countVisits();
+        const followsRows = Object.getOwnPropertyDescriptor(Edge.prototype, "followsRows")?.get;
+        assert.isDefined(followsRows);
+        const asked = { pulled: 0, placed: 0 };
+        const original = Edge.prototype.supportEdge;
+        vi.spyOn(Edge.prototype, "supportEdge").mockImplementation(function (this: Edge, ...args) {
+            if (followsRows.call(this) as boolean) {
+                asked.pulled++;
+            } else {
+                asked.placed++;
+            }
+            return original.apply(this, args);
+        });
+
+        await element.graph.setLayout("force", { seed: 1 });
+        await element.waitForStableFrame();
+
+        // a line that follows its rows is straight, so it has no support point to settle and the walk does not ask
+        assert.isAtLeast(visits.placed, 10, "the layout moved the nodes over many frames");
+        assert.isAbove(asked.placed, 0, "the capped edge was asked");
+        assert.strictEqual(asked.pulled, 0, "no pulled line was asked for a support point");
+    });
+
     it("draw the placed lines' picture at rest, after a move and with an edge hidden", async () => {
         const placed = await loaded(renderer, false);
         assert.equal(placed.graph.rowCounts.pulledEdges, 0);

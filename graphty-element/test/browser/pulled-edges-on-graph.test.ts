@@ -12,7 +12,7 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import { Edge } from "../../src/Edge";
+import { Edge, pulledLooks } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import { poolGrowths } from "../../src/meshes/poolReserve";
@@ -175,7 +175,7 @@ async function loadGrowths(
     renderer: "webgl" | "webgpu",
     renderPath: "objects" | "batched",
     capped: boolean,
-): Promise<{ lines: number; caps: number }> {
+): Promise<{ lines: number; caps: number; looks: number }> {
     const element = document.createElement("graphty-element");
     element.renderer = renderer;
     element.renderPath = renderPath;
@@ -205,10 +205,11 @@ async function loadGrowths(
     await element.session.data.addNodes(nodes);
     poolGrowths.lines = 0;
     poolGrowths.caps = 0;
+    pulledLooks.judged = 0;
     await element.session.data.addEdges(edges);
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
-    const growths = { ...poolGrowths };
+    const growths = { ...poolGrowths, looks: pulledLooks.judged };
     element.remove();
     return growths;
 }
@@ -384,5 +385,13 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
         assert.strictEqual((await loadGrowths(renderer, "batched", true)).caps, 1, "the cap batch grew once");
         // 3,000 heads from 32 slots double seven times; the objects path is left as it was
         assert.strictEqual((await loadGrowths(renderer, "objects", true)).caps, 7, "the objects path doubles");
+    });
+
+    it("judge whether a look can be pulled once per look, not once or twice per edge, for a load", async () => {
+        // 3,000 edges drawn in one look (and the placeholder they are built with): before, every edge
+        // judged its look when it was built and again when it was painted, 6,000 times
+        const { looks } = await loadGrowths(renderer, "batched", false);
+        assert.isAbove(looks, 0, "the load judged its looks");
+        assert.isAtMost(looks, 4, "each look was judged once");
     });
 });

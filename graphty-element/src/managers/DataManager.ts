@@ -368,6 +368,8 @@ export const dataManagerInternals = {} as {
      * of design/rendering/row-renderer.md drives toward zero under `"batched"`.
      */
     edgesBuilt(manager: DataManager): number;
+    /** The `Edge`s built so far by id, building none: what a check of the drawn edges walks. */
+    builtEdges(manager: DataManager): ReadonlyMap<string, Edge>;
     /** A stored node id's row in the store, read with no `Node`; `INVALID_INDEX` for an id it does not hold. */
     rowOf(manager: DataManager, id: NodeIdType): number;
     /** The `Node`s built so far, walked without building one for a row that has none. */
@@ -480,6 +482,32 @@ class LazyView<K, V> extends Map<K, V> {
         return super.values();
     }
 
+    #builtView: ReadonlyMap<K, V> | undefined;
+
+    /**
+     * The objects built so far as a read-only map, building none: a live view, not a copy.
+     * @returns It.
+     */
+    builtView(): ReadonlyMap<K, V> {
+        const entries = (): MapIterator<[K, V]> => super.entries();
+        const size = (): number => super.size;
+        this.#builtView ??= readonlyMapView<K, V>({
+            get size() {
+                return size();
+            },
+            get: (id) => super.get(id),
+            has: (id) => super.has(id),
+            keys: () => super.keys(),
+            values: () => super.values(),
+            entries,
+            forEach: (callback, thisArg) => {
+                super.forEach(callback, thisArg);
+            },
+            [Symbol.iterator]: entries,
+        });
+        return this.#builtView;
+    }
+
     #buildAll(): void {
         const rows = this.#rows;
         if (rows !== null) {
@@ -584,6 +612,7 @@ export class DataManager implements Manager {
     static {
         dataManagerInternals.nodesBuilt = (manager) => manager.builtNodes;
         dataManagerInternals.edgesBuilt = (manager) => manager.builtEdges;
+        dataManagerInternals.builtEdges = (manager) => manager.edgeMap.builtView();
         dataManagerInternals.rowOf = (manager, id) => manager.store.builder.indexOf(id);
         dataManagerInternals.builtNodes = (manager) => manager.nodeMap.built();
         dataManagerInternals.unbuiltRows = (manager) => [...manager.unbuilt.keys()];
@@ -1205,7 +1234,8 @@ export class DataManager implements Manager {
             }
         }
 
-        for (const id of this.edges.keys()) {
+        // Building no `Edge`: the check must not change what it checks.
+        for (const id of [...this.edgeMap.builtView().keys(), ...this.unbuiltEdgeIds.keys()]) {
             if (!slice.edges.has(id)) {
                 problems.push(`edge ${JSON.stringify(id)} is drawn but not in the slice`);
             }
@@ -1500,8 +1530,10 @@ export class DataManager implements Manager {
      * @returns The ids of the edges torn down with them and not left waiting.
      */
     private dropRenderNodes(ids: ReadonlySet<NodeIdType>, slice: GraphSlice): EdgeId[] {
-        const removed: EdgeId[] = [];
-        const edges = [...this.edges.values()];
+        // An edge stored with no `Edge` goes the same way, with nothing to tear down: reading it
+        // would build one.
+        const removed = this.dropUnbuiltEdgesOf(ids, slice);
+        const edges = [...this.edgeMap.built()];
         disposeReleased(
             // Built ones only: a row removed with no `Node` has none to release, and is not given one.
             [...ids].flatMap((id) => this.nodeMap.builtOf(id) ?? []),
@@ -1542,6 +1574,36 @@ export class DataManager implements Manager {
                 }
             },
         );
+
+        return removed;
+    }
+
+    /**
+     * {@link dropRenderNodes} for the edges stored with no `Edge`: one the slice still holds goes
+     * back to waiting for its ends, any other is forgotten. Builds none.
+     * @param ids - The nodes going.
+     * @param slice - The slice being drawn.
+     * @returns The ids of the edges forgotten.
+     */
+    private dropUnbuiltEdgesOf(ids: ReadonlySet<NodeIdType>, slice: GraphSlice): EdgeId[] {
+        const removed: EdgeId[] = [];
+        for (const [row, stored] of [...this.unbuiltEdges]) {
+            if (!ids.has(stored.sourceId) && !ids.has(stored.targetId)) {
+                continue;
+            }
+
+            this.forgetUnbuiltEdge(row);
+            const id = edgeIdOf(stored.edgeId);
+            const record = slice.edges.get(id);
+            if (record === undefined || this.store.edgeIndexOf(stored.edgeId) === INVALID_INDEX) {
+                removed.push(id);
+                continue;
+            }
+
+            const pending: PendingEdge = { ...stored, record, edgeIndex: this.store.edgeIndexOf(stored.edgeId) };
+            this.pendingEdges.push(pending);
+            this.rememberPending(pending);
+        }
 
         return removed;
     }
@@ -2930,23 +2992,34 @@ export class DataManager implements Manager {
         if (this.bundles?.version !== this.edgeVersion) {
             const byEdge = new Map<Edge, EdgeBundle>();
             // By id, not by `Node`: reading an end's `Node` would build one for a row drawn with none.
-            const pairs = new Map<NodeIdType, Map<NodeIdType, Edge[]>>();
-            for (const each of this.edgeMap.values()) {
-                const { srcId: a, dstId: b } = each;
+            // An edge stored with no `Edge` joins by its row, and is built only when it shares its
+            // pair with another edge: a fan is drawn by `Edge`s, a lone edge needs none.
+            const pairs = new Map<NodeIdType, Map<NodeIdType, (Edge | number)[]>>();
+            const join = (a: NodeIdType, b: NodeIdType, each: Edge | number): void => {
                 let group = pairs.get(a)?.get(b) ?? pairs.get(b)?.get(a);
                 if (group === undefined) {
                     group = [];
-                    const inner = pairs.get(a) ?? new Map<NodeIdType, Edge[]>();
+                    const inner = pairs.get(a) ?? new Map<NodeIdType, (Edge | number)[]>();
                     inner.set(b, group);
                     pairs.set(a, inner);
                 }
 
                 group.push(each);
+            };
+            for (const each of this.edgeMap.built()) {
+                join(each.srcId, each.dstId, each);
+            }
+
+            for (const [row, stored] of this.unbuiltEdges) {
+                join(stored.sourceId, stored.targetId, row);
             }
 
             for (const inner of pairs.values()) {
-                for (const group of inner.values()) {
-                    if (group.length > 1) {
+                for (const joined of inner.values()) {
+                    if (joined.length > 1) {
+                        const group = joined.flatMap((each) =>
+                            typeof each === "number" ? (this.buildEdgeRow(each) ?? []) : each,
+                        );
                         group.forEach((each, rank) => {
                             byEdge.set(each, { rank, count: group.length, first: group[0], members: group });
                         });

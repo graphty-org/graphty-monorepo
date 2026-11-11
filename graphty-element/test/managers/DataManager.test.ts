@@ -511,5 +511,41 @@ describe("DataManager", () => {
             assert.equal(dataManager.edges.size, 0);
             assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
         });
+
+        // Undo and redo reconcile the drawn maps with the slice (a node going takes its edges back
+        // to waiting), and the strict-state check after each pass compares the drawn edges with
+        // the slice and the layout engine's hold. None of it may build an Edge.
+        it("goes through undo and redo of a node's removal without building one", async () => {
+            const session = graph.getSession();
+            await session.data.removeNodes(["a"]);
+            assert.equal(dataManager.edges.size, 1);
+
+            await session.undo();
+            assert.equal(dataManager.edges.size, 2);
+            assert.isTrue(dataManager.edges.has("0"));
+
+            await session.redo();
+            assert.equal(dataManager.edges.size, 1);
+            assert.isFalse(dataManager.edges.has("0"));
+
+            await session.undo();
+            assert.equal(dataManager.edges.size, 2);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+        });
+
+        it("bundles a built edge with no other edge built for a lone pair", () => {
+            const edge = dataManager.getEdge("0");
+            assert.isDefined(edge);
+            assert.equal(dataManager.drawnBundle(edge).count, 1);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 1);
+        });
+
+        it("builds the other edges of a built edge's pair, which it fans with", () => {
+            dataManager.addEdges([{ src: "b", dst: "a" }]);
+            const edge = dataManager.getEdge("0");
+            assert.isDefined(edge);
+            assert.equal(dataManager.drawnBundle(edge).count, 2);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 2, "the pair's two, not the lone b-c edge");
+        });
     });
 });

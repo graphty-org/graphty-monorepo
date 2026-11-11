@@ -1558,7 +1558,7 @@ export class UpdateManager implements Manager {
         let painted = 0;
 
         for (const index of painter.takeEdges(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : EDGE_PAINT_BATCH)) {
-            const edge = this.dataManager.edgesByIndex[index];
+            const edge = this.dataManager.edgesByIndex[index] ?? this.unbuiltEdgePainted(painter, index);
             const paint = edge === undefined ? null : painter.edgePaint(index);
 
             if (edge !== undefined && paint !== null) {
@@ -1570,6 +1570,63 @@ export class UpdateManager implements Manager {
         }
 
         return painted;
+    }
+
+    /**
+     * Draw an edge row stored with no `Edge` as a row line (`EdgeRowLines.paintRow`), and build its
+     * `Edge` only for what a row line does not draw: its paint, a self-loop, a route the layout's map
+     * arcs, or an end drawn behind edges.
+     * @param painter - Where the paint is read from.
+     * @param index - The edge row.
+     * @returns The row's new `Edge` to paint, or undefined when a row line drew it or no edge is stored there.
+     */
+    private unbuiltEdgePainted(painter: StylePainter, index: number): Edge | undefined {
+        const ends = dataManagerInternals.unbuiltEdgeEnds(this.dataManager, index);
+        if (ends === undefined) {
+            return undefined;
+        }
+
+        const lines = this.graphContext.getEdgeRowLines?.() ?? null;
+        const paint = painter.edgePaint(index);
+        const [source, target] = ends;
+        if (
+            lines !== null &&
+            paint !== null &&
+            source !== target &&
+            !this.mapArcsEdges() &&
+            !this.endBehindEdges(source) &&
+            !this.endBehindEdges(target) &&
+            lines.paintRow(index, source, target, paint)
+        ) {
+            return undefined;
+        }
+
+        return dataManagerInternals.buildEdgeAt(this.dataManager, index);
+    }
+
+    /**
+     * Whether the layout's map raises edges in arcs (`Edge.routeOf`): a map layout drawn in the 3D view.
+     * @returns True when it does.
+     */
+    private mapArcsEdges(): boolean {
+        const engine = this.graphContext.getLayoutManager().layoutEngine as { geoFrame?: unknown } | undefined;
+        return (engine?.geoFrame ?? null) !== null && !this.graphContext.is2D();
+    }
+
+    /**
+     * Whether a node row is drawn behind edges (`Node.isDrawnBehindEdges`), so an edge ends at its outline:
+     * read from the row's paint when no `Node` draws it, so none is built.
+     * @param row - The node row.
+     * @returns True when it is.
+     */
+    private endBehindEdges(row: number): boolean {
+        const node = this.dataManager.nodesByIndex[row];
+        if (node !== undefined) {
+            return node.isDrawnBehindEdges;
+        }
+
+        const look = this.graphContext.getNodeBatches?.()?.lookOf(row) ?? null;
+        return this.graphContext.is2D() && (look?.paint.style.shape?.zIndex ?? 0) < 0;
     }
 
     /**

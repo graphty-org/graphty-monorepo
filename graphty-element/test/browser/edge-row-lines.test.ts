@@ -166,3 +166,89 @@ describe("an edge row with no Edge", () => {
         assert.isNull(element.graph.getEdgeRowLines());
     });
 });
+
+/**
+ * Mount a batched element whose edges are stored with no `Edge` (`dataManagerInternals.storeEdgesUnbuilt`, which
+ * nothing in the element turns on yet), with the nodes and the edges given.
+ * @param edges - The edges.
+ * @param uncapped - Whether a layer takes the arrow caps off, so that a row line draws each edge.
+ * @returns The element.
+ */
+async function lazyLoaded(edges: { src: number; dst: number }[], uncapped = true): Promise<Graphty> {
+    const element = document.createElement("graphty-element");
+    element.renderer = "webgl";
+    element.renderPath = "batched";
+    element.style.display = "block";
+    element.style.width = "400px";
+    element.style.height = "300px";
+    document.body.appendChild(element);
+    await element.updateComplete;
+    await operationQueueOf(element.graph).waitForCompletion();
+    dataManagerInternals.storeEdgesUnbuilt(element.graph.getDataManager(), true);
+    await element.session.data.addNodes(NODES);
+    await element.graph.setLayout("fixed", { dim: 3 });
+    if (uncapped) {
+        await element.session.styles.add({
+            name: "uncapped",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none" },
+        } as never);
+    }
+
+    await element.session.data.addEdges(edges);
+    await operationQueueOf(element.graph).waitForCompletion();
+    await element.waitForStableFrame();
+    return element;
+}
+
+// The frame's paint loop draws an edge stored with no `Edge` as a row line, and builds its `Edge` only for what a
+// row line does not draw.
+describe("an edge stored with no Edge", () => {
+    it("is drawn by the frame as a row line, building no Edge", async () => {
+        const element = await lazyLoaded([
+            { src: 0, dst: 1 },
+            { src: 1, dst: 2 },
+        ]);
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 0);
+        assert.equal(lines.count, 2);
+        assert.deepEqual(lines.endsOf(0), [rowOf(element, 0), rowOf(element, 1)]);
+        assert.deepEqual(lines.endsOf(1), [rowOf(element, 1), rowOf(element, 2)]);
+    });
+
+    it("builds its Edge for a paint only an Edge draws", async () => {
+        const element = await lazyLoaded([{ src: 0, dst: 1 }], false);
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        assert.equal(lines.count, 0);
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 1);
+        assert.isDefined(edgeBetween(element.graph, 0, 1));
+    });
+
+    it("builds the Edge of a self-loop", async () => {
+        const element = await lazyLoaded([
+            { src: 0, dst: 0 },
+            { src: 0, dst: 1 },
+        ]);
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 1);
+        assert.equal(lines.count, 1);
+        assert.isTrue(lines.has(1));
+    });
+
+    it("goes when its edge is removed, before any freeze", async () => {
+        const element = await lazyLoaded([
+            { src: 0, dst: 1 },
+            { src: 1, dst: 2 },
+        ]);
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        element.graph.getDataManager().removeEdge("0");
+        assert.equal(lines.count, 1);
+        assert.isFalse(lines.has(0));
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 0);
+    });
+});

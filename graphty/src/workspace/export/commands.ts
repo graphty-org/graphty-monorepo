@@ -68,7 +68,9 @@ async function recordVideo(ctx: CommandContext): Promise<void> {
             download: true,
             downloadFilename: name,
         });
-        workspace.set({ notice: { message: `Exported ${name.replace(/\.webm$/, `.${result.metadata.format}`)}` } });
+        const extension = `.${result.metadata.format}`;
+        const file = name.replace(/\.webm$/, extension);
+        workspace.set({ notice: { message: `Exported ${file}` } });
     } catch (error) {
         // Stop in the Export dialog cancels it: nothing was saved, and nothing went wrong.
         if (!(error instanceof Error && error.name === "AnimationCancelledError")) {

@@ -286,9 +286,8 @@ export class MediaRecorderCapture {
 
                 const blob = new Blob(chunks, { type: recorder.mimeType });
                 // A recording stopped early (stop()) lasts until it stopped, not the duration asked.
-                const duration = this.stoppedEarly
-                    ? Math.min(options.duration, started ? Date.now() - startTime : 0)
-                    : options.duration;
+                const ran = started ? Date.now() - startTime : 0;
+                const duration = this.stoppedEarly ? Math.min(options.duration, ran) : options.duration;
                 const expectedFrames = Math.floor((duration / 1000) * fps);
 
                 // Determine format from MIME type

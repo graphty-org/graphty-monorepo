@@ -1321,9 +1321,20 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // coordinate at all and would render at the origin for the rest of its life. So its FIRST
         // coordinate lands as a placement, and every one after that is the reader's to keep.
         this.publishColumn(first, rows, coords, count, true);
+        // A pinned or dragged row was left out of the publish above; it is still drawn, where it is kept.
+        this.keepInPublishedBox(first, this.#fixedRows);
         if (drawn !== null) {
             this.#publishDrawn(drawn, viaCard === null ? null : landed);
         }
+    }
+
+    /**
+     * The box the last publish left the rows in: one {@link LayoutEngine.publishColumn} per publish.
+     * @returns The box, or null.
+     * @internal
+     */
+    override publishedBounds(): Readonly<Float64Array> | null {
+        return this.lastPublishedBox();
     }
 
     /**

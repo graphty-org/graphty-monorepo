@@ -59,8 +59,8 @@
     min-width: 0;
 }
 
-/* A text entry's kind (its glyph and word) where the label column is, so its source starts on the
-   field column when the kind fits it. It is at least the column wide, with the field label's 4px
+/* A text entry's kind (its glyph, word and own "+") where the label column is; its source is on the
+   field column on the line under it. It is at least the column wide, with the field label's 4px
    end padding; the negative margin takes back the row's 4px gap. It is not measured into the
    column (useLabelColumn): with its glyph it is wider than a field's name, and widening the column
    for it narrowed every field of the tab ("Icosphere" cut to "Icosph..."). So it takes its own
@@ -582,12 +582,6 @@
    a search leaves, so the controls under it never move. */
 .ws-checklist-fixed {
     min-height: calc(9 * 18px);
-}
-
-/* A style's setting, drawn under the style's row ("Size" under Halo): its name indented under the
-   style's name. */
-.ws-row[data-setting] .ws-field-name {
-    padding-inline-start: 12px;
 }
 
 /* A style's own "+" beside its name in the label column. */

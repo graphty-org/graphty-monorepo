@@ -8,6 +8,7 @@ import { setProjectAnnotations } from "@storybook/react-vite";
 import { onTestFinished } from "vitest";
 import { cdp, server, userEvent } from "vitest/browser";
 
+import { narrowTextBoxes } from "../src/stories/narrowText";
 import type { RealInput } from "../src/stories/real-input";
 import * as projectAnnotations from "./preview";
 
@@ -62,4 +63,13 @@ const realInput: RealInput = {
 // consumer's default; a test that needs continuous frames sets `renderOnDemand = false`.
 (globalThis as { __GRAPHTY_TEST_RENDER_ON_DEMAND__?: boolean }).__GRAPHTY_TEST_RENDER_ON_DEMAND__ = true;
 
-setProjectAnnotations([projectAnnotations, { parameters: { realInput } }]);
+// After its play function, a story fails when a text field, or words cut short with "...", is too
+// narrow to read (narrowText.ts): a "+" beside a label's source once left it reading "n..." (#6406).
+const noNarrowText = ({ title, name }: { title: string; name: string }): void => {
+    const found = narrowTextBoxes(document);
+    if (found.length > 0) {
+        throw new Error(`${title} / ${name}: text too narrow to read:\n  ${found.join("\n  ")}`);
+    }
+};
+
+setProjectAnnotations([projectAnnotations, { parameters: { realInput }, afterEach: noNarrowText }]);

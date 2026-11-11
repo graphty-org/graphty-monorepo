@@ -1429,6 +1429,7 @@ export class Graph implements GraphContext {
                 this.#resident = event.next;
                 this.#rowTable?.replaced(event.report.nodeRemap, dataManagerInternals.builtNodes(this.dataManager));
                 this.#nodeBatches?.rowsMoved(event.report.nodeRemap);
+                this.#edgeRowLines?.rowsMoved(event.report.nodeRemap, event.report.edgeRemap);
                 // a pulled line is drawn from the row table, so there are none without one
                 if (event.report.nodeRemap !== null && this.#rowTable) {
                     this.updateManager.rowsRenumbered();

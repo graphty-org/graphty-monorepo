@@ -1,4 +1,5 @@
 import { Color3, type Scene } from "@babylonjs/core";
+import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeStyleConfig } from "../config";
 import { drawnText } from "../config/RichTextStyle";
@@ -38,10 +39,12 @@ function noCap(cap: EdgeStyleConfig["arrowHead"]): boolean {
     return cap === undefined || ((cap.type ?? "none") === "none" && cap.text === undefined);
 }
 
-/** What a row line is drawn with: a straight pulled piece and the batch it came from. */
+/** What a row line is drawn with: a straight pulled piece, the batch it came from, and its nodes' rows. */
 interface RowLine {
     readonly batch: PulledLineBatch;
     readonly piece: number;
+    readonly source: number;
+    readonly target: number;
 }
 
 /** What {@link EdgeRowLines} reads from the graph. */
@@ -85,6 +88,17 @@ export class EdgeRowLines {
      */
     has(row: number): boolean {
         return this.lines.has(row);
+    }
+
+    /**
+     * The nodes' rows an edge row's line is pulled from.
+     * @param row - The edge row.
+     * @returns Its source and target rows, or undefined for a row not drawn here.
+     * @internal
+     */
+    endsOf(row: number): [number, number] | undefined {
+        const line = this.lines.get(row);
+        return line === undefined ? undefined : [line.source, line.target];
     }
 
     /**
@@ -146,7 +160,7 @@ export class EdgeRowLines {
             EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20,
         );
         batch.setRows(piece, source, target);
-        this.lines.set(row, { batch, piece });
+        this.lines.set(row, { batch, piece, source, target });
         this.host.requestFrame();
         return true;
     }
@@ -162,6 +176,37 @@ export class EdgeRowLines {
             this.lines.delete(row);
             this.host.requestFrame();
         }
+    }
+
+    /**
+     * A freeze renumbered the rows: each line moves to its edge's new row and is pulled from its nodes' new rows,
+     * and a line whose edge row or either node row the freeze dropped stops being drawn.
+     * @param nodeRemap - The freeze's node remap: old row to new, INVALID_INDEX for a dropped row; null when none moved.
+     * @param edgeRemap - The freeze's edge remap, the same way.
+     */
+    rowsMoved(nodeRemap: ArrayLike<number> | null, edgeRemap: ArrayLike<number> | null): void {
+        if ((nodeRemap === null && edgeRemap === null) || this.lines.size === 0) {
+            return;
+        }
+
+        const moved = (remap: ArrayLike<number> | null, row: number): number =>
+            remap === null ? row : (remap[row] ?? INVALID_INDEX);
+        const lines = [...this.lines];
+        this.lines.clear();
+        for (const [row, line] of lines) {
+            const edge = moved(edgeRemap, row);
+            const source = moved(nodeRemap, line.source);
+            const target = moved(nodeRemap, line.target);
+            if (edge === INVALID_INDEX || source === INVALID_INDEX || target === INVALID_INDEX) {
+                line.batch.release(line.piece);
+                continue;
+            }
+
+            line.batch.setRows(line.piece, source, target);
+            this.lines.set(edge, { ...line, source, target });
+        }
+
+        this.host.requestFrame();
     }
 
     /** Stop drawing every edge row here. */

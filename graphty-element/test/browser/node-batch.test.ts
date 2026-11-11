@@ -1550,8 +1550,6 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         const rows = vi.spyOn(PulledLineBatch.prototype, "setRows");
         cleanups.push(() => rows.mockRestore());
 
-        // The edge gets its `Edge`, whose pull this reads: a batched load would store it with none.
-        dataManagerInternals.storeEdgesUnbuilt(manager, false);
         // The graph is directed, so the edge would start with a head, and a capped line is never pulled.
         await element.session.styles.add({
             name: "uncapped",

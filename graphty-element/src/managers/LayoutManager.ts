@@ -20,7 +20,6 @@ import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { GraphSnapshotReplacedEvent, LayoutChangedEvent, LayoutWarningEvent } from "../events";
 import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
-import { FixedLayout } from "../layout/FixedLayoutEngine";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
 import { laidGroupMargins } from "../layout/groupMargins";
 import { labelBounds, paddedBox, sizedGroupBox } from "../layout/groupSizing";
@@ -1567,8 +1566,6 @@ export class LayoutManager implements Manager {
                         this.reportLayoutFailure(type, error, "stepped");
                     },
                     dataManager: this.dataManager,
-                    // An edge stored with no `Edge` is simulated by row and drawn by its row line.
-                    builtEdges: () => dataManagerInternals.builtEdges(this.dataManager).values(),
                     fromSeed: how.fromSeed,
                     weightMeaning: this.weightMeaningFor(type),
                     drawnTarget: () => this.graphContext?.getDrawnTarget?.() ?? null,
@@ -1710,24 +1707,10 @@ export class LayoutManager implements Manager {
                 remove: (keys) => {
                     engine.removeEdgeRows(keys);
                 },
-                adopt: (key, e) => engine.adoptEdgeRow(key, e),
             };
         }
 
-        if (!placesLateRows(engine) || readsEdges(engine)) {
-            return null;
-        }
-
-        // A static engine holds the late `Edge` without laying out again; a simulation holds none.
-        return laysOutRows(engine)
-            ? {
-                  ...noLayoutEdgeRows,
-                  adopt: (_key, e) => {
-                      simpleLayoutInternals.adoptEdge(engine, e);
-                      return true;
-                  },
-              }
-            : noLayoutEdgeRows;
+        return placesLateRows(engine) ? noLayoutEdgeRows : null;
     }
 
     /**
@@ -3323,22 +3306,6 @@ function sameShown(a: Shown | null, b: Shown | null): boolean {
  */
 function validRow(index: number): boolean {
     return Number.isInteger(index) && index >= 0 && index !== INVALID_INDEX;
-}
-
-/**
- * Whether an engine that lays out by row still builds its structure from the `Edge`s it holds:
- * Graphviz, and `fixed` when it routes edges through Graphviz, read `_edges` and key their routes
- * by `Edge`, so an edge stored under them with no `Edge` would be laid out as absent.
- * @param engine - The engine, or none.
- * @returns True for an engine that needs an `Edge` for every edge.
- */
-function readsEdges(engine: LayoutEngine | undefined): boolean {
-    if (engine instanceof FixedLayout) {
-        return engine.config.edgeRoutes === "graphviz";
-    }
-
-    const type = (engine?.constructor as { type?: unknown } | undefined)?.type;
-    return typeof type === "string" && type.startsWith("graphviz-");
 }
 
 /**

@@ -360,18 +360,6 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             this.#changes++;
         }
 
-        /**
-         * A freeze: laying out by row, it is how a node or an edge stored with no `Node` or `Edge`
-         * arrives, so it counts as a change; otherwise the add that froze counted already.
-         * @param args - The freeze, and whether a load is still streaming.
-         */
-        override reload(...args: Parameters<StaticLayoutEngine["reload"]>): void {
-            super.reload(...args);
-            if (simpleLayoutInternals.byRow(this)) {
-                this.#changes++;
-            }
-        }
-
         override removeEdge(...args: Parameters<StaticLayoutEngine["removeEdge"]>): void {
             super.removeEdge(...args);
             this.#changes++;

@@ -585,17 +585,14 @@ describe("DataManager", () => {
     describe("edges stored with no Edge, handed to the layout", () => {
         let added: string[];
         let removed: string[];
-        let adopted: string[];
 
         beforeEach(() => {
             added = [];
             removed = [];
-            adopted = [];
             dataManagerInternals.storeEdgesUnbuilt(dataManager, true);
             dataManagerInternals.setLayoutEdgeRows(dataManager, {
                 add: (rows) => added.push(...rows.map((r) => `${r.key}:${String(r.source)}-${String(r.target)}`)),
                 remove: (keys) => removed.push(...keys),
-                adopt: (key, e) => adopted.push(`${key}:${e.id}`) > 0,
             });
             dataManager.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
             dataManager.addEdges([
@@ -613,17 +610,16 @@ describe("DataManager", () => {
             );
         });
 
-        it("takes a row back when its edge is removed or cleared, and hands a built Edge the row's place", () => {
+        it("takes a row back when its edge is removed, built, or cleared", () => {
             dataManager.removeEdge("0");
             assert.deepEqual(removed, ["0"]);
 
             dataManager.getEdge("1");
-            assert.deepEqual(removed, ["0"], "a built Edge keeps its row's place: the link is not dropped");
-            assert.deepEqual(adopted, ["1:1"]);
+            assert.deepEqual(removed, ["0", "1"], "a built Edge reaches the engine in its row's place");
 
             dataManager.addEdges([{ src: "a", dst: "c" }]);
             dataManager.clear();
-            assert.deepEqual(removed, ["0", "2"]);
+            assert.deepEqual(removed, ["0", "1", "2"]);
         });
 
         it("builds every Edge for an engine that lays out Edges only", () => {

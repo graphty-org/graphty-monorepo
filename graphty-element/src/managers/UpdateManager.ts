@@ -1620,7 +1620,7 @@ export class UpdateManager implements Manager {
             return undefined;
         }
 
-        return this.buildRowEdge(index, true);
+        return this.buildRowEdge(index);
     }
 
     /**
@@ -1653,15 +1653,13 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Build an edge row's `Edge` (`dataManagerInternals.buildEdgeAt`), which queues its paint unless the
-     * caller paints it now, and draw it as the edge masks the last pass read say: no pass walks it before
-     * its row's masks move.
+     * Build an edge row's `Edge` (`dataManagerInternals.buildEdgeAt`), which queues its paint, and
+     * draw it as the edge masks the last pass read say: no pass walks it before its row's masks move.
      * @param index - The edge row.
-     * @param paintingNow - True when the caller paints it in this pass.
      * @returns The `Edge`, or undefined when no edge is stored there.
      */
-    private buildRowEdge(index: number, paintingNow = false): Edge | undefined {
-        const edge = dataManagerInternals.buildEdgeAt(this.dataManager, index, paintingNow);
+    private buildRowEdge(index: number): Edge | undefined {
+        const edge = dataManagerInternals.buildEdgeAt(this.dataManager, index);
         if (edge === undefined) {
             return undefined;
         }
@@ -3482,21 +3480,10 @@ export class UpdateManager implements Manager {
      *     nodes whose edges are to be visited when only those moved; false for none.
      */
     private edgesNeedWalking(): boolean | readonly Node[] {
-        const { edges } = this.layoutManager;
-        const edgeCount = Array.isArray(edges) ? edges.length : -1;
-        const { edgeVersion } = this.dataManager;
-
         if (this.edgeWalkForced) {
             this.edgeWalkForced = false;
+            this.lastWalkedEdgeCount = -1;
             this.sceneChanged = true;
-            // Under "batched" the walk of every edge records what it walked, so it is one walk, not three: on the
-            // objects path the next frame walks again for the edge count, and the one after for the node positions,
-            // as on master. A stable frame can end between them, and at a million edges each is the frame.
-            if (this.dataManager.renderLimits?.batched() === true) {
-                this.walkedEverything(edgeCount, edgeVersion);
-            } else {
-                this.lastWalkedEdgeCount = -1;
-            }
 
             return true;
         }
@@ -3507,14 +3494,13 @@ export class UpdateManager implements Manager {
         // that takes an edge up after the store told it: read off the array's own length, since
         // COUNTING BY ITERATING would be the million-edge walk this method exists to avoid. An
         // engine that hands back an iterator has to hold every edge the moment it is told.
-        if (edgeCount !== this.lastWalkedEdgeCount || edgeVersion !== this.lastWalkedEdgeVersion) {
-            if (this.dataManager.renderLimits?.batched() === true) {
-                this.walkedEverything(edgeCount, edgeVersion);
-            } else {
-                this.lastWalkedEdgeCount = edgeCount;
-                this.lastWalkedEdgeVersion = edgeVersion;
-            }
+        const { edges } = this.layoutManager;
+        const edgeCount = Array.isArray(edges) ? edges.length : -1;
+        const { edgeVersion } = this.dataManager;
 
+        if (edgeCount !== this.lastWalkedEdgeCount || edgeVersion !== this.lastWalkedEdgeVersion) {
+            this.lastWalkedEdgeCount = edgeCount;
+            this.lastWalkedEdgeVersion = edgeVersion;
             this.sceneChanged = true;
 
             return true;
@@ -3527,23 +3513,6 @@ export class UpdateManager implements Manager {
         }
 
         return moved;
-    }
-
-    /**
-     * Record that this frame walks every edge: the edge set it saw, and where every node sits, so the next frame
-     * walks again only for a change since this one.
-     * @param edgeCount - The engine's edge count, or -1.
-     * @param edgeVersion - The store's edge set.
-     */
-    private walkedEverything(edgeCount: number, edgeVersion: number): void {
-        this.lastWalkedEdgeCount = edgeCount;
-        this.lastWalkedEdgeVersion = edgeVersion;
-        let highest = -1;
-        for (const { index } of this.layoutManager.nodes) {
-            highest = Math.max(highest, index === INVALID_INDEX ? -1 : index);
-        }
-
-        this.noteEveryNode(highest);
     }
 
     /**

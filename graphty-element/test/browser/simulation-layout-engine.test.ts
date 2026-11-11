@@ -27,7 +27,6 @@ import { Graph } from "../../src/Graph";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import { measureEnvelope, SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
-import { dataManagerInternals } from "../../src/managers/DataManager";
 import { createFakeAccelerator, type FakeAccelerator, type FakeSimulation } from "../../src/testing/fakeAccelerator";
 import { cleanupE2EGraph, createE2EGraph } from "../helpers/e2e-graph-setup";
 
@@ -309,15 +308,7 @@ describe("the simulation layout bridge", () => {
         // with nothing would let the simulation rewrite the position array every frame while not
         // one mesh moved, no bounding box was computed and the camera never framed the graph.
         assert.lengthOf(Array.from(layout.nodes), 5, "every node reaches the frame loop");
-        // Under renderPath "batched" an edge may be stored with no `Edge`: the frame draws it as a row line, so it is
-        // not handed out here (building its `Edge` each frame ran a million-edge tab out of memory).
-        const dm = graph.getDataManager();
-        assert.strictEqual(dm.edges.size, 4, "every edge is stored");
-        const built = dataManagerInternals.edgesBuilt(dm);
-        assert.lengthOf(Array.from(layout.edges), built, "and every edge with an Edge");
-        if (graph.getEdgeRowLines() === null) {
-            assert.strictEqual(built, 4, "which on the objects path is every edge");
-        }
+        assert.lengthOf(Array.from(layout.edges), 4, "and every edge");
 
         const node = graph.getDataManager().getNode("n0");
         assert.isDefined(node);

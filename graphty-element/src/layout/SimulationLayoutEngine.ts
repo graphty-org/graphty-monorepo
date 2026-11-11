@@ -345,11 +345,6 @@ export interface SimulationEngineInit {
     /** The data manager the snapshot, its undirected copy and the position array come from. */
     readonly dataManager: DataManager;
     /**
-     * The edges that have an `Edge` (`dataManagerInternals.builtEdges`), which {@link SimulationLayoutEngine.edges}
-     * hands out. Omitted, every edge of the data manager, building any `Edge` not yet built.
-     */
-    readonly builtEdges?: () => Iterable<Edge>;
-    /**
      * Start the first load from the seed rather than from the arrangement the element holds: the
      * rebuild a seeded layout makes when new data arrives, so the frames that stepped the graph
      * as it stood before do not decide where it settles (issue #3379). Pinned rows are replayed
@@ -474,7 +469,6 @@ export class SimulationLayoutEngine extends LayoutEngine {
     readonly #controller: AccelerationController;
     readonly #report: (error: GraphtyError) => void;
     readonly #dataManager: DataManager;
-    readonly #builtEdges: () => Iterable<Edge>;
     readonly #weightMeaning: () => "strength" | "distance" | null;
     readonly #drawnTarget: () => DrawnTarget | null;
     /** The simulation filling the row table on the card, or null on the upload path. */
@@ -633,7 +627,6 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#controller = built.controller;
         this.#report = built.report as (error: GraphtyError) => void;
         this.#dataManager = built.dataManager as DataManager;
-        this.#builtEdges = built.builtEdges ?? ((): Iterable<Edge> => this.#dataManager.edges.values());
         this.#fromSeed = built.fromSeed === true;
         this.#weightMeaning = built.weightMeaning ?? ((): "strength" => "strength");
         this.#drawnTarget = built.drawnTarget ?? ((): null => null);
@@ -1202,14 +1195,11 @@ export class SimulationLayoutEngine extends LayoutEngine {
     }
 
     /**
-     * Every edge of the graph that has an `Edge`; see {@link SimulationLayoutEngine.nodes}. An edge stored with no
-     * `Edge` (only under renderPath "batched") is simulated by row and drawn by its row line, so it is left out, as
-     * d3 and ngraph leave out their edge rows: reading the store's `values()` would build an `Edge` for every one of
-     * them on every frame. On the objects path every edge has its `Edge`, so this is every edge, as before.
-     * @returns The graph's built edges, live.
+     * Every edge of the graph; see {@link SimulationLayoutEngine.nodes}.
+     * @returns The graph's live edge collection.
      */
     get edges(): Iterable<Edge> {
-        return this.#builtEdges();
+        return this.#dataManager.edges.values();
     }
 
     /**

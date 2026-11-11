@@ -94,11 +94,8 @@ async function dragCounted(
     await moveHeld(element, { x: x + 10, y: y + 5 });
     await element.waitForStableFrame();
 
-    // One edge of t, not a walk of every edge: on the batched path that walk would build an `Edge` for each
-    // edge stored with none, and their first placements would be counted as the drag's.
-    const edge = element.graph.getDataManager().getEdgesBetween("t", "n0")[0];
+    const edge = [...element.graph.getDataManager().edges.values()].find(({ srcId }) => srcId === "t");
     assert.isDefined(edge, "t has an edge");
-    await element.waitForStableFrame();
     const before = edge.drawnLine?.centre.clone();
     assert.isDefined(before, "its line is drawn");
 

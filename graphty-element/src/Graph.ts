@@ -4905,6 +4905,11 @@ export class Graph implements GraphContext {
                         this.updateManager.thawActiveMeshes();
                         this.updateManager.meshesShownOrHidden();
                     },
+                    resized: () => {
+                        if (this.layoutManager.layoutEngine?.wakeForResize() === true) {
+                            this.layoutManager.running = true;
+                        }
+                    },
                 },
                 this.scene,
             );

@@ -76,19 +76,33 @@ export const STATE_HEADER_BYTES = 256;
 export const PARTIAL_BYTES = 64;
 /** ForceAtlas2 defaults (spec 7.14, 7.17, 7.19). */
 export const FA2_DEFAULTS: Readonly<{
+    /** The iteration budget. */
     maxIter: 100;
+    /** The speed controller's tolerance. */
     jitterTolerance: 1;
+    /** The repulsion constant. */
     scalingRatio: 2;
+    /** The pull toward the center. */
     gravity: 1;
+    /** Gravity proportional to distance. */
     strongGravity: false;
+    /** Attraction divided by the source's mass. */
     distributedAction: false;
+    /** Logarithmic attraction. */
     linlog: false;
+    /** Accepted and ignored. */
     dissuadeHubs: false;
+    /** Numbers per node. */
     dim: 2;
+    /** Scene units per layout unit. */
     scale: 1;
+    /** Settled when the mean displacement stays below this times the RMS radius. */
     settleThreshold: 0.001;
+    /** For this many iterations in a row. */
     settleWindow: 10;
+    /** Iterations per `step()`. */
     iterationsPerStep: 1;
+    /** Batches in flight before `step()` coalesces. */
     maxInFlight: 2;
 }> = Object.freeze({
     maxIter: 100,
@@ -108,13 +122,21 @@ export const FA2_DEFAULTS: Readonly<{
 });
 /** GPU-only layout tuning defaults (spec 7.14): repulsion "auto", exactMaxNodes EXACT_MAX_NODES, nearMax 64, deterministic true, gridMax2D 512, gridMax3D 128, extentFactor 6, compat "paper". */
 export const LAYOUT_TUNING_DEFAULTS: Readonly<{
+    /** Exact up to `exactMaxNodes`, grid above. */
     repulsion: "auto";
+    /** `EXACT_MAX_NODES`. */
     exactMaxNodes: number;
+    /** The grid tier's near-field neighbour cap. */
     nearMax: 64;
+    /** Fixed summation order. */
     deterministic: true;
+    /** The largest grid side in 2D. */
     gridMax2D: 512;
+    /** The largest grid side in 3D. */
     gridMax3D: 128;
+    /** How far beyond the spread the grid reaches. */
     extentFactor: 6;
+    /** Follow the ForceAtlas2 paper rather than NetworkX. */
     compat: "paper";
 }> = Object.freeze({
     repulsion: "auto",
@@ -155,15 +177,25 @@ export const FR_COOLING_PATIENCE = 5;
 export const FR_ADAPTIVE_MAX_ITERATIONS = 10_000;
 /** Fruchterman-Reingold defaults (spec 7.20, 9.3; the CPU simulation's, `layout/src/simulation/fruchterman-reingold.ts:32`): `k` null = `1 / sqrt(n)`. */
 export const FR_DEFAULTS: Readonly<{
+    /** The ideal edge length; null means `1 / sqrt(nodeCount)`. */
     k: null;
+    /** The iteration budget. */
     iterations: 50;
+    /** No pinned nodes beyond the snapshot's `fixed` column. */
     fixed: null;
+    /** Numbers per node. */
     dim: 2;
+    /** Scene units per layout unit. */
     scale: 1;
+    /** Settled when the mean displacement stays below this times the RMS radius. */
     settleThreshold: 0.001;
+    /** For this many iterations in a row. */
     settleWindow: 10;
+    /** Iterations per `step()`. */
     iterationsPerStep: 1;
+    /** Batches in flight before `step()` coalesces. */
     maxInFlight: 2;
+    /** The temperature falls linearly to 0 across `iterations`. */
     cooling: "linear";
 }> = Object.freeze({
     k: null,
@@ -187,16 +219,27 @@ export const FR_DEFAULTS: Readonly<{
 export const SE_SCALE_REFERENCE_NODES = 300;
 /** Spring-electrical defaults: ngraph.forcelayout 3.3.1's (`lib/createPhysicsSimulator.js:29,34,40,54,59`; spec 7.20), plus the shared simulation defaults. `gravity` is ngraph's Coulomb constant: negative repels. */
 export const SE_DEFAULTS: Readonly<{
+    /** The rest length of an edge. */
     springLength: 10;
+    /** Hooke's constant, before size scaling. */
     springCoefficient: 0.8;
+    /** The Coulomb constant (negative repels), before size scaling. */
     gravity: -12;
+    /** Velocity damping. */
     dragCoefficient: 0.9;
+    /** The integrator's step. */
     timeStep: 0.5;
+    /** Numbers per node. */
     dim: 2;
+    /** Scene units per layout unit. */
     scale: 1;
+    /** Settled when the mean displacement stays below this times the RMS radius. */
     settleThreshold: 0.001;
+    /** For this many iterations in a row. */
     settleWindow: 10;
+    /** Iterations per `step()`. */
     iterationsPerStep: 1;
+    /** Batches in flight before `step()` coalesces. */
     maxInFlight: 2;
 }> = Object.freeze({
     springLength: 10,

@@ -49,34 +49,55 @@ export interface GpuContextOptions {
 
 /** The structural subset of GPUAdapterInfo the package reads (CONTRACT DECISION: structural so tests can fake it without the __brand of @webgpu/types). */
 export interface AdapterInfoLike {
+    /** The adapter's vendor, such as `nvidia`; may be empty. */
     readonly vendor: string;
+    /** The GPU architecture, such as `lovelace`; may be empty. */
     readonly architecture: string;
+    /** The device identifier; may be empty. */
     readonly device: string;
+    /** The driver's description string; may be empty. */
     readonly description: string;
+    /** True for a fallback (usually software) adapter, where the runtime reports it. */
     readonly isFallbackAdapter?: boolean | undefined;
+    /** The smallest subgroup size the adapter supports, where the runtime reports it. */
     readonly subgroupMinSize?: number | undefined;
+    /** The largest subgroup size the adapter supports, where the runtime reports it. */
     readonly subgroupMaxSize?: number | undefined;
 }
 
 /** What the app displays or logs about an adapter (spec 2.2). */
 export interface AdapterSummary {
+    /** The adapter's vendor, such as `nvidia`; may be empty. */
     readonly vendor: string;
+    /** The GPU architecture, such as `lovelace`; may be empty. */
     readonly architecture: string;
+    /** The device identifier; may be empty. */
     readonly device: string;
+    /** The driver's description string; may be empty. */
     readonly description: string;
+    /** True when the adapter is a software renderer (llvmpipe, SwiftShader, WARP). */
     readonly software: boolean;
+    /** The smallest subgroup size; 0 when the adapter has no `subgroups` feature. */
     readonly subgroupMinSize: number;
+    /** The largest subgroup size; 0 when the adapter has no `subgroups` feature. */
     readonly subgroupMaxSize: number;
+    /** The adapter's feature names. */
     readonly features: readonly string[];
+    /** The adapter's limits, by name. */
     readonly limits: Readonly<Record<string, number>>;
 }
 
 /** Result of GpuContext.probe (spec 2.2); `adapter` is the UNUSED adapter to pass to create({ adapter }). */
 export interface ProbeResult {
+    /** True when a usable adapter was found. */
     readonly ok: boolean;
+    /** `OK`, or why there is no usable adapter. */
     readonly code: "OK" | "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY";
+    /** A sentence for logs about why there is none; null when `ok`. */
     readonly reason: string | null;
+    /** The unused adapter to pass to `GpuContext.create({ adapter })`; null when there is none. */
     readonly adapter: GPUAdapter | null;
+    /** What the adapter is; null when there is none. */
     readonly summary: AdapterSummary | null;
 }
 
@@ -92,22 +113,35 @@ export interface FromOptions {
 
 /** Options of GpuContext.probe (spec 2.2). `gpu` may be undefined so an app can pass `navigator.gpu` without a guard: undefined -> E_NO_WEBGPU. */
 export interface ProbeOptions {
+    /** The WebGPU entry point: `navigator.gpu` in a browser, the handle of `createNodeGpu()` in Node. Undefined gives `E_NO_WEBGPU`. */
     readonly gpu: GPU | undefined;
+    /** Which adapter to ask for; default `"high-performance"`. */
     readonly powerPreference?: GPUPowerPreference | undefined;
+    /** When true, a software adapter gives `E_SOFTWARE_ONLY`; default false. */
     readonly rejectSoftware?: boolean | undefined;
 }
 
 /** The limits every planner reads; GPUSupportedLimits is structurally assignable to it (CONTRACT DECISION: planners take PlanCaps so faked tables need no cast). */
 export interface PlanLimits {
+    /** The largest buffer the device creates, in bytes. */
     readonly maxBufferSize: number;
+    /** The largest storage buffer binding, in bytes. */
     readonly maxStorageBufferBindingSize: number;
+    /** How many storage buffers one shader stage may bind. */
     readonly maxStorageBuffersPerShaderStage: number;
+    /** The alignment of a storage binding's offset, in bytes. */
     readonly minStorageBufferOffsetAlignment: number;
+    /** The alignment of a uniform binding's offset, in bytes. */
     readonly minUniformBufferOffsetAlignment: number;
+    /** The largest workgroup count of one dispatch dimension. */
     readonly maxComputeWorkgroupsPerDimension: number;
+    /** The most invocations one workgroup may hold. */
     readonly maxComputeInvocationsPerWorkgroup: number;
+    /** The largest workgroup size along x. */
     readonly maxComputeWorkgroupSizeX: number;
+    /** Workgroup shared memory, in bytes. */
     readonly maxComputeWorkgroupStorageSize: number;
+    /** The largest uniform buffer binding, in bytes. */
     readonly maxUniformBufferBindingSize: number;
 }
 
@@ -123,20 +157,31 @@ export interface GpuCaps {
     readonly subgroupMinSize: number;
     /** 0 when the "subgroups" feature is absent from the device. */
     readonly subgroupMaxSize: number;
+    /** True when the device runs on a software renderer. */
     readonly software: boolean;
+    /** Where the context runs: `"browser"`, `"node"`, or `"unknown"` for a context built outside the two entries. */
     readonly runtime: "browser" | "node" | "unknown";
+    /** The adapter's vendor; may be empty. */
     readonly vendor: string;
+    /** The GPU architecture; may be empty. */
     readonly architecture: string;
+    /** The device identifier; may be empty. */
     readonly device: string;
+    /** The driver's description string; may be empty. */
     readonly description: string;
 }
 
 /** What the pure planners need of GpuCaps: `limits` narrowed to PlanLimits plus the four scalar facts. A GpuCaps IS a PlanCaps. */
 export interface PlanCaps {
+    /** The device limits the planners read. */
     readonly limits: PlanLimits;
+    /** The device's features. */
     readonly features: ReadonlySet<string>;
+    /** The smallest subgroup size; 0 without the `subgroups` feature. */
     readonly subgroupMinSize: number;
+    /** The largest subgroup size; 0 without the `subgroups` feature. */
     readonly subgroupMaxSize: number;
+    /** True when the device runs on a software renderer. */
     readonly software: boolean;
 }
 

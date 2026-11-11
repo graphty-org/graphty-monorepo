@@ -34,8 +34,12 @@ export interface GpuBetweennessResult extends GpuScoresResult {
  * @public
  */
 export interface GpuEdgeScoresResult {
+    /** One score per logical edge, in edge order. */
     readonly scores: F32;
+    /** The scores' precision: always `"f32"`. */
     readonly precision: "f32";
+    /** How many sources the scores sum over: `nodeCount` for an exact run, the sample size for a sampled one. */
     readonly sourcesUsed: number;
+    /** True when the scores are wrong because shortest-path counts overflowed f32's range; see `GpuBetweennessResult.sigmaOverflow`. */
     readonly sigmaOverflow: boolean;
 }

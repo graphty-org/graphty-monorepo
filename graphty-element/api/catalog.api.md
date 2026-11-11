@@ -1693,6 +1693,9 @@ export const LABEL_LOOKS: readonly LabelLookDescriptor[];
 export const LABEL_STYLE_DEFAULTS: Readonly<LabelStyle>;
 
 // @public
+export const LABEL_STYLE_DESCRIPTORS: readonly LabelStyleFieldDescriptor[];
+
+// @public
 export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[];
 
 // @public
@@ -1703,6 +1706,9 @@ export type LabelBadge = "notification" | "label" | "label-success" | "label-war
 
 // @public
 export type LabelDeclutterOrder = "degree" | "size";
+
+// @public
+export type LabelFieldValueKind = "color" | "colors" | "number" | "text" | "boolean" | "enum";
 
 // @public
 export type LabelGradientDirection = "vertical" | "horizontal" | "diagonal";
@@ -1778,6 +1784,7 @@ export interface LabelStyle {
     marginLeft?: number;
     marginRight?: number;
     marginTop?: number;
+    maxLines?: number;
     maxNumber?: number;
     minNodeScreenSize?: number;
     minScreenSize?: number;
@@ -1824,6 +1831,19 @@ export interface LabelStyle {
     wrapSpaceCount?: number;
     wrapTrailingSpace?: boolean;
     wrapWidth?: number;
+}
+
+// @public
+export interface LabelStyleFieldDescriptor {
+    readonly accepts: LabelFieldValueKind;
+    readonly default?: string | number | boolean | readonly string[];
+    readonly exclusiveMin?: boolean;
+    readonly field: keyof LabelStyle;
+    readonly integer?: boolean;
+    readonly max?: number;
+    readonly min?: number;
+    readonly plainName: string;
+    readonly values?: readonly string[];
 }
 
 // @public

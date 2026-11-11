@@ -118,6 +118,48 @@ export default tseslint.config(
     },
 
     // ============================================
+    // THE ELEMENT KEEPS WRITING ITS OWN DEPRECATED FIELDS
+    // ============================================
+    // Each type below carries a field the element deprecated for its consumers and still fills in
+    // until the next major removes it. Writing that field is the element keeping its promise, not a
+    // use of deprecated code; reading or passing anything else deprecated is still an error.
+    {
+        files: ["src/**/*.ts"],
+        ignores: ["**/*.test.ts", "**/__tests__/**"],
+        rules: {
+            "@typescript-eslint/no-deprecated": [
+                "error",
+                {
+                    allow: [
+                        {
+                            from: "file",
+                            name: [
+                                "Caveats",
+                                "FieldInterpretation",
+                                "FieldBand",
+                                "LayoutImplementationSpec",
+                                "LayoutImplementation",
+                                "OptionDescriptor",
+                                "ExportResult",
+                                "OperationCancelledEvent",
+                                "CostEstimate",
+                                "RunRecord",
+                                "ScopeApi",
+                                "StyleChannelDescriptor",
+                                "UnboundLayer",
+                                "ScopeResolver",
+                                "ChannelDescriptor",
+                                "LegendSwatch",
+                                "LegendBlock",
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+
+    // ============================================
     // ALGORITHM FILES - RELAXED REQUIRE-AWAIT
     // ============================================
     {

@@ -10,6 +10,7 @@ import { Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { OrbitCameraController } from "../../src/cameras/OrbitCameraController";
 import { operationQueueOf } from "../../src/Graph";
 import { Node } from "../../src/Node";
 import { RowTable } from "../../src/render/RowTable";
@@ -57,22 +58,26 @@ async function mounted(path: "objects" | "batched"): Promise<Graphty> {
  * @param element - The element.
  * @param framings - How many moving framings to count.
  * @param layout - The layout to run.
- * @returns The rows visited per framing, and the boxes framed.
+ * @returns The rows visited per framing, the boxes framed, and how many spots each framing handed
+ * the camera (what `camera.fitBounds` "turning" fits).
  */
 async function countMovingFramings(
     element: Graphty,
     framings: number,
     layout = "ngraph",
-): Promise<{ visits: number[]; boxes: { min: Vector3; max: Vector3 }[] }> {
+): Promise<{ visits: number[]; boxes: { min: Vector3; max: Vector3 }[]; spots: number[] }> {
     const nodeWalk = vi.spyOn(Node.prototype, "framingBounds");
+    const fit = vi.spyOn(OrbitCameraController.prototype, "zoomToBoundingBox");
     const rowWalk = vi.spyOn(RowTable.prototype, "isHidden");
     cleanups.push(() => {
         nodeWalk.mockRestore();
         rowWalk.mockRestore();
+        fit.mockRestore();
     });
     const { graph } = element;
     const visits: number[] = [];
     const boxes: { min: Vector3; max: Vector3 }[] = [];
+    const spots: number[] = [];
     let seen = 0;
     let first = true;
     const done = new Promise<void>((resolve) => {
@@ -88,6 +93,7 @@ async function countMovingFramings(
             }
 
             visits.push(delta);
+            spots.push(fit.mock.lastCall?.[2]?.length ?? 0);
             boxes.push({
                 min: (event.boundingBoxMin as Vector3).clone(),
                 max: (event.boundingBoxMax as Vector3).clone(),
@@ -101,14 +107,17 @@ async function countMovingFramings(
     await done;
     nodeWalk.mockRestore();
     rowWalk.mockRestore();
-    return { visits, boxes };
+    fit.mockRestore();
+    return { visits, boxes, spots };
 }
 
 describe("zoom-to-fit while a layout runs", () => {
     it("visits no row per framing under batched, and frames every node", async () => {
         const element = await mounted("batched");
-        const { visits, boxes } = await countMovingFramings(element, 3);
+        const { visits, boxes, spots } = await countMovingFramings(element, 3);
         assert.deepEqual(visits, [0, 0, 0], "no row walked by a moving framing");
+        // Without spots a "turning" fit falls back to the plain box fit.
+        assert.deepEqual(spots, [8, 8, 8], "the box's corners handed to the camera as spots");
 
         // The box the last framing took holds every row the layout published then, so the graph
         // as it stands now (one step on at most) sits inside it, give or take that step.

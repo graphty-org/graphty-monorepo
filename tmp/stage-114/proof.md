@@ -25,7 +25,17 @@ pinned and dragged rows out of its publish). Without the kept-row fix it failed:
 `the pinned node's x is framed: expected 90.07242239967273 to be at least 500`. With it: passes, still 0 rows per
 moving framing.
 
+A third assertion, in the first case, counts the spots each moving framing hands the camera
+(`OrbitCameraController.zoomToBoundingBox`'s third argument), which `camera.fitBounds` "turning" fits; with none it
+falls back to the plain box fit. Before the fix: `expected [ +0, +0, +0 ] to deeply equal [ 8, 8, 8 ]`.
+`envelopeFraming` now returns the box's eight corners as spots (half 0), 8 small allocations per framing, none per
+row. The default "box" and renderPath "objects" are unaffected.
+
 ## Checks run (all through tools/low-priority.sh)
+
+- After the turning-spots fix: vitest browser batched-fit-envelope and UpdateManager.zoomToFit 24/24; vitest
+  OrbitCameraController 32/32; `tsc --noEmit` clean; eslint on UpdateManager.ts and the test clean; graphty-element
+  build exit 0; `npm run api:report` unchanged; `node tools/sonar-gate.mjs` no new issue on changed lines.
 
 - `npx tsc --noEmit -p tsconfig.json` (graphty-element): clean.
 - `npx eslint` on the 5 changed source files and the new test: clean.

@@ -1107,7 +1107,8 @@ pinned or held row counts where it is kept: `publishColumn` takes in a kept row 
 which leave their pinned and dragged rows out of the publish, add them after it (`LayoutEngine.keepInPublishedBox`, a loop
 over those rows only). The walk still runs for a framing asked for, the framing a layout settles on,
 a node drawn as an object, any hidden row (`RowTable.hiddenRows`), a layout transition and an engine that holds rows
-outside its publish (a scope or followers). Labels and bent edges are not framed while the layout moves.
+outside its publish (a scope or followers). Labels and bent edges are not framed while the layout moves. The box's
+eight corners are the framing's spots, so `camera.fitBounds` "turning" keeps the whole box in view as the camera turns.
 
 ### 4.6 Columns and load (#3249)
 

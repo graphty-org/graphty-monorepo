@@ -3082,8 +3082,10 @@ export class UpdateManager implements Manager {
      * Under renderPath "batched", the box a running layout's framing takes without walking a row:
      * the box the layout's last publish left the rows in (`LayoutEngine.publishedBounds`, measured in
      * the publish's own loop), grown by the widest row. At 100,000 rows the walk cost about 200 ms of
-     * a layout frame (issue #6389). Labels and bent edges are not framed while the layout moves; the
-     * framing it settles on, and any framing asked for, walks every row as before.
+     * a layout frame (issue #6389). The box's eight corners are its spots, so a "turning" fit
+     * (`camera.fitBounds`) keeps the whole box in view as the camera turns. Labels and bent edges
+     * are not framed while the layout moves; the framing it settles on, and any framing asked for,
+     * walks every row as before.
      *
      * Undefined, so the walk runs, whenever the box would not be the drawn picture's: a node drawn
      * as an object, a hidden row, a layout transition easing the rows, a layout holding rows outside
@@ -3122,12 +3124,13 @@ export class UpdateManager implements Manager {
         const world = root?.computeWorldMatrix(true);
         const min = new Vector3(Infinity, Infinity, Infinity);
         const max = new Vector3(-Infinity, -Infinity, -Infinity);
-        const corner = new Vector3();
+        // The box's corners are the spots a "turning" fit fits (`camera.fitBounds`).
+        const spots: FramingSpot[] = [];
         // The batches draw a row flat in 2D, wherever the layout put its z.
         const near = flat ? 0 : bounds[2] - pad;
         const far = flat ? 0 : bounds[5] + pad;
         for (let i = 0; i < 8; i++) {
-            corner.set(
+            const corner = new Vector3(
                 (i & 1) === 0 ? bounds[0] - pad : bounds[3] + pad,
                 (i & 2) === 0 ? bounds[1] - pad : bounds[4] + pad,
                 (i & 4) === 0 ? near : far,
@@ -3138,9 +3141,10 @@ export class UpdateManager implements Manager {
 
             min.minimizeInPlace(corner);
             max.maximizeInPlace(corner);
+            spots.push({ pos: corner, half: 0 });
         }
 
-        return min.x < max.x || min.y < max.y ? { min, max, spots: [] } : undefined;
+        return min.x < max.x || min.y < max.y ? { min, max, spots } : undefined;
     }
 
     /**

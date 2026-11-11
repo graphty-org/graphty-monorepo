@@ -14,6 +14,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { siteFeatures } from "../../../test/siteFeatures";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -222,6 +223,8 @@ describe("focus and Tab order in the workspace, on the real element", () => {
     });
 
     it("a section's + with nothing left to add is no Tab stop and says why", async () => {
+        // Fill full needs the node models experiment off: on, Fill also offers Picture.
+        await siteFeatures([]);
         await openRings();
         await userEvent.click(await treeRow("Everything"));
         await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));

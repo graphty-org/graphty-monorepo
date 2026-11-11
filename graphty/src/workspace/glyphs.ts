@@ -60,6 +60,7 @@ import {
     Highlighter,
     History,
     Hourglass,
+    Image,
     KeyRound,
     Lamp,
     Layers,
@@ -325,6 +326,9 @@ export const GLYPHS = {
     generated: Shuffle,
     // A graph with no picture yet shows the graph icon itself.
     noPicture: Waypoints,
+    // A node drawn as a 3D model, and a picture drawn on a node (the node-models experiment).
+    model: Box,
+    picture: Image,
     gpu: Zap,
     developer: Code,
     webAddress: Link,

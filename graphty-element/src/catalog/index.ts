@@ -84,6 +84,8 @@ export type {
     OptionChoiceRefusal,
     OptionDescriptor,
     OptionType,
+    OptionUnsupported,
+    OptionUnsupportedCode,
     PaletteDescriptor,
     PaletteId,
     Path,

@@ -618,6 +618,11 @@ export interface ChannelDescriptor {
     readonly step?: number;
     readonly stylePath: string;
     readonly target: "node" | "edge";
+    readonly unsupported?: {
+        readonly code: "channel.not-drawn";
+        readonly params: Readonly<Record<string, never>>;
+    };
+    // @deprecated
     readonly unsupportedReason?: string;
     readonly values?: readonly string[];
 }
@@ -2192,6 +2197,8 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
     technicalName?: string;
     // (undocumented)
     type: OptionType;
+    unsupported?: OptionUnsupported;
+    // @deprecated
     unsupportedReason?: string;
     // (undocumented)
     values?: readonly OptionChoice[];
@@ -2214,6 +2221,19 @@ export type OptionType = (typeof OPTION_TYPES)[number];
 
 // @public
 export type OptionUiMeta = OptionsSchema[string]["meta"];
+
+// @public
+export interface OptionUnsupported {
+    // (undocumented)
+    readonly code: OptionUnsupportedCode;
+    // (undocumented)
+    readonly params: {
+        readonly types?: readonly string[];
+    };
+}
+
+// @public
+export type OptionUnsupportedCode = "option.recursive" | "option.only-null" | "option.no-type" | "option.union" | "option.array" | "option.object" | "option.untyped" | "option.not-convertible";
 
 // @public
 export const PALETTE_DESCRIPTORS: readonly PaletteDescriptor[];

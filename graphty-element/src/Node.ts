@@ -32,6 +32,7 @@ import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
+import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
@@ -2722,7 +2723,8 @@ export class Node implements ModelUser {
             return;
         }
 
-        for (const edge of this.context.getDataManager().edges.values()) {
+        // Built `Edge`s only: an edge stored with no `Edge` keeps no cached ends to invalidate.
+        for (const edge of dataManagerInternals.builtEdges(this.context.getDataManager()).values()) {
             // By id: reading an end's `Node` would build one for a row drawn with none.
             if (edge.srcId === this.id || edge.dstId === this.id) {
                 edge.invalidatePositionCache();

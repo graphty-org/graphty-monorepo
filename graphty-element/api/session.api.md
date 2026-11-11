@@ -683,12 +683,27 @@ export interface ComponentStatistics {
 }
 
 // @public
+export interface CostBasis {
+    readonly derivationSeconds: number;
+    readonly edges: number | null;
+    readonly iterations: number | null;
+    readonly iterationsAssumed: boolean;
+    readonly nodes: number | null;
+    readonly provenance: CodedFact<CostProvenanceCode>;
+    readonly sample: number | null;
+    readonly sizesScaled: boolean;
+    readonly term: "class" | "algorithm" | "units" | null;
+}
+
+// @public
 export type CostConfidence = "measured" | "calibrated" | "modelled" | "unknown";
 
 // @public
 export interface CostEstimate {
     readonly available: boolean;
+    // @deprecated
     readonly basis: string;
+    readonly basisFacts: CostBasis;
     readonly blocksFrame: boolean;
     readonly cancellable: boolean;
     readonly confidence: CostConfidence;
@@ -734,6 +749,9 @@ export interface CostMeasurement {
     readonly nodes: number;
     readonly seconds: number;
 }
+
+// @public
+export type CostProvenanceCode = "cost.measured" | "cost.extrapolated" | "cost.declared-model" | "cost.calibrated" | "cost.built-in" | "cost.no-throughput" | "cost.size-unknown" | "cost.unbounded" | "cost.refused" | "cost.layout";
 
 // @public
 export function createGraphSession(options?: CreateGraphSessionOptions): GraphSession;
@@ -2284,6 +2302,45 @@ export type GraphtyErrorCode =
 | "E_IMAGE_LOAD" | "E_INTERNAL";
 
 // @public
+export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
+
+// @public
+export interface GraphtyErrorDetailsMap {
+    E_DUPLICATE_ID: {
+        readonly id?: string | number;
+    };
+    E_PARSE_FAILED: {
+        readonly format?: string;
+        readonly line?: number;
+    };
+    E_TOO_LARGE: {
+        readonly limit?: number;
+        readonly count?: number;
+        readonly of?: string;
+        readonly graph?: {
+            readonly nodes: number;
+            readonly edges: number;
+        };
+    };
+    E_UNKNOWN_ATTRIBUTE: {
+        readonly candidates?: readonly string[];
+        readonly available?: readonly string[];
+        readonly run?: string;
+        readonly field?: string;
+    };
+    E_UNKNOWN_LAYOUT: {
+        readonly layout?: string;
+        readonly available?: readonly string[];
+    };
+}
+
+// @public
+export type GraphtyErrorFor<C extends GraphtyErrorCode = GraphtyErrorCode> = C extends GraphtyErrorCode ? GraphtyError & {
+    readonly code: C;
+    readonly details: GraphtyErrorDetails<C>;
+} : never;
+
+// @public
 export interface GraphtyErrorInit {
     cause?: unknown;
     code: GraphtyErrorCode;
@@ -2717,7 +2774,7 @@ export function isAlgorithmRunCommand(value: unknown): value is AlgorithmRunComm
 export function isAssetId(value: unknown): value is AssetId;
 
 // @public
-export function isGraphtyError(value: unknown): value is GraphtyError;
+export function isGraphtyError(value: unknown): value is GraphtyErrorFor;
 
 // @public
 export function isGraphtyErrorCode(value: unknown): value is GraphtyErrorCode;

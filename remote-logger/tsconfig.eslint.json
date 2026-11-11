@@ -3,8 +3,13 @@
     "compilerOptions": {
         "composite": false,
         "noEmit": true,
-        "rootDir": "."
+        "rootDir": ".",
+        "module": "ES2022",
+        "paths": {
+            "@graphty/remote-logger": ["./src/index.ts"],
+            "@graphty/remote-logger/*": ["./src/*/index.ts"]
+        }
     },
-    "include": ["src/**/*.ts", "test/**/*.ts"],
+    "include": ["src/**/*.ts", "test/**/*.ts", "docs/examples/**/*.ts"],
     "exclude": ["node_modules", "dist"]
 }

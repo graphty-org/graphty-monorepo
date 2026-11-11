@@ -140,6 +140,9 @@ docs/layout/
 docs/graph-io/
 docs/public/graph-io/
 docs/visual-review/
+docs/graph-format/
+docs/graph-samples/
+docs/remote-logger/
 docs/cytoscape-extensions/
 
 # Layout package specific

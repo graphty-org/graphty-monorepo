@@ -23,6 +23,9 @@ const algorithmsTypedoc = loadTypedocSidebar("./docs/algorithms/api/generated/ty
 const layoutTypedoc = loadTypedocSidebar("./docs/layout/api/generated/typedoc-sidebar.json");
 const cytoscapeTypedoc = loadTypedocSidebar("./docs/cytoscape-extensions/api/generated/typedoc-sidebar.json");
 const graphIoTypedoc = loadTypedocSidebar("./docs/graph-io/api/generated/typedoc-sidebar.json");
+const graphFormatTypedoc = loadTypedocSidebar("./docs/graph-format/api/generated/typedoc-sidebar.json");
+const graphSamplesTypedoc = loadTypedocSidebar("./docs/graph-samples/api/generated/typedoc-sidebar.json");
+const remoteLoggerTypedoc = loadTypedocSidebar("./docs/remote-logger/api/generated/typedoc-sidebar.json");
 
 // One sidebar entry per graph-io format page, titled by the page's own heading, so a format added to graph-io
 // (whose page `npm run docs:reference` creates) appears here without an edit.
@@ -39,6 +42,49 @@ function graphIoFormatPages(): Array<{ text: string; link: string }> {
             link: `/graph-io/guide/formats/${f.slice(0, -3)}`,
         }));
 }
+
+// visual-review's pages are sections of its README, included at build time (`<!--@include: ...README.md#<region>-->`),
+// so a README link to a heading in another section must name the page that section landed on. This maps each heading
+// slug of the README to the page that includes its region: `requirements` -> `/visual-review/guide/setup`.
+function visualReviewAnchors(): Map<string, string> {
+    const readme = "./visual-review/README.md";
+    const dir = "./docs/visual-review";
+    const anchors = new Map<string, string>();
+    if (!existsSync(readme) || !existsSync(dir)) {
+        return anchors;
+    }
+    const regions = new Map<string, string[]>();
+    let region: string | undefined;
+    let fenced = false;
+    for (const line of readFileSync(readme, "utf-8").split("\n")) {
+        const marker = /^<!-- #(end)?region ([\w-]+) -->$/.exec(line);
+        fenced = line.startsWith("```") ? !fenced : fenced;
+        if (marker !== null) {
+            region = marker[1] === undefined ? marker[2] : undefined;
+        } else if (region !== undefined && !fenced && /^#{1,6} /.test(line)) {
+            const slug = line
+                .replace(/^#+ /, "")
+                .toLowerCase()
+                .replace(/[^a-z0-9 -]/g, "")
+                .replace(/ /g, "-");
+            regions.set(region, [...(regions.get(region) ?? []), slug]);
+        }
+    }
+    const pages = readdirSync(dir, { recursive: true, encoding: "utf-8" }).filter((f) => f.endsWith(".md"));
+    for (const page of pages) {
+        const link = `/visual-review/${page.slice(0, -3).replace(/(^|\/)index$/, "$1")}`;
+        for (const [, name] of readFileSync(`${dir}/${page}`, "utf-8").matchAll(
+            /@include:\s*[^#]*README\.md#([\w-]+?)\s*-->/g,
+        )) {
+            for (const slug of regions.get(name) ?? []) {
+                anchors.set(slug, link);
+            }
+        }
+    }
+    return anchors;
+}
+
+const visualReviewLinks = visualReviewAnchors();
 
 // Every page carries its sidebar in its own HTML, and a package's API sidebar lists up to ~1,500 pages. Rendered on
 // each of ~2,500 pages, that made the published site 2.8 GB, which GitHub Pages took over 10 minutes to sync (#6498).
@@ -150,6 +196,26 @@ const config = defineConfig({
         pageData.frontmatter.head = [...(pageData.frontmatter.head ?? []), ...head];
     },
 
+    markdown: {
+        config(md) {
+            // a link to a heading of visual-review's README on another of its pages (visualReviewAnchors above)
+            md.core.ruler.push("visual-review-anchors", (state) => {
+                const page = `/${(state.env as { relativePath?: string }).relativePath ?? ""}`;
+                if (!page.startsWith("/visual-review/")) {
+                    return;
+                }
+                const here = page.slice(0, -3).replace(/\/index$/, "/");
+                for (const token of state.tokens.flatMap((t) => [t, ...(t.children ?? [])])) {
+                    const href = token.type === "link_open" ? token.attrGet("href") : null;
+                    const target = href?.startsWith("#") ? visualReviewLinks.get(href.slice(1)) : undefined;
+                    if (target !== undefined && target !== here) {
+                        token.attrSet("href", `${target}${href}`);
+                    }
+                }
+            });
+        },
+    },
+
     vue: {
         template: {
             compilerOptions: {
@@ -176,6 +242,9 @@ const config = defineConfig({
                     { text: "layout", link: "/layout/" },
                     { text: "cytoscape-extensions", link: "/cytoscape-extensions/" },
                     { text: "graph-io", link: "/graph-io/" },
+                    { text: "graph-format", link: "/graph-format/" },
+                    { text: "graph-samples", link: "/graph-samples/" },
+                    { text: "remote-logger", link: "/remote-logger/" },
                     { text: "visual-review", link: "/visual-review/" },
                 ],
             },
@@ -191,6 +260,9 @@ const config = defineConfig({
                         { text: "layout", link: "/layout/" },
                         { text: "cytoscape-extensions", link: "/cytoscape-extensions/" },
                         { text: "graph-io", link: "/graph-io/" },
+                        { text: "graph-format", link: "/graph-format/" },
+                        { text: "graph-samples", link: "/graph-samples/" },
+                        { text: "remote-logger", link: "/remote-logger/" },
                         { text: "visual-review", link: "/visual-review/" },
                     ],
                 },
@@ -353,6 +425,115 @@ const config = defineConfig({
                     items: graphIoTypedoc,
                 },
             ],
+            "/graph-format/": [
+                {
+                    text: "Introduction",
+                    items: [
+                        { text: "Overview", link: "/graph-format/" },
+                        { text: "Getting Started", link: "/graph-format/guide/getting-started" },
+                    ],
+                },
+                {
+                    text: "Guide",
+                    items: [
+                        { text: "Building a Snapshot", link: "/graph-format/guide/building" },
+                        { text: "Ids and Columns", link: "/graph-format/guide/columns" },
+                        { text: "Views and Derived Graphs", link: "/graph-format/guide/views" },
+                        { text: "Sending and Saving", link: "/graph-format/guide/wire" },
+                        { text: "Invariants and Vocabulary", link: "/graph-format/guide/invariants" },
+                    ],
+                },
+                {
+                    text: "API",
+                    items: [{ text: "Overview", link: "/graph-format/api/" }],
+                },
+                {
+                    text: "Generated TypeDoc",
+                    collapsed: true,
+                    items: graphFormatTypedoc,
+                },
+            ],
+            "/graph-samples/": [
+                {
+                    text: "Introduction",
+                    items: [
+                        { text: "Overview", link: "/graph-samples/" },
+                        { text: "Getting Started", link: "/graph-samples/guide/getting-started" },
+                    ],
+                },
+                {
+                    text: "Guide",
+                    items: [
+                        { text: "Generators", link: "/graph-samples/guide/generators" },
+                        { text: "Datasets", link: "/graph-samples/guide/datasets" },
+                        { text: "Drawing a Sample", link: "/graph-samples/guide/graphty-element" },
+                    ],
+                },
+                {
+                    text: "API",
+                    items: [{ text: "Overview", link: "/graph-samples/api/" }],
+                },
+                {
+                    text: "Generated TypeDoc",
+                    collapsed: true,
+                    items: graphSamplesTypedoc,
+                },
+            ],
+            "/remote-logger/": [
+                {
+                    text: "Introduction",
+                    items: [
+                        { text: "Overview", link: "/remote-logger/" },
+                        { text: "Getting Started", link: "/remote-logger/guide/getting-started" },
+                    ],
+                },
+                {
+                    text: "Guide",
+                    items: [
+                        { text: "The Browser Client", link: "/remote-logger/guide/browser-client" },
+                        { text: "The Server", link: "/remote-logger/guide/server" },
+                        { text: "MCP Tools", link: "/remote-logger/guide/mcp" },
+                        { text: "Typical Setups", link: "/remote-logger/guide/setups" },
+                        { text: "Troubleshooting", link: "/remote-logger/guide/troubleshooting" },
+                    ],
+                },
+                {
+                    text: "API",
+                    items: [{ text: "Overview", link: "/remote-logger/api/" }],
+                },
+                {
+                    text: "Generated TypeDoc",
+                    collapsed: true,
+                    items: remoteLoggerTypedoc,
+                },
+            ],
+            "/visual-review/": [
+                {
+                    text: "Introduction",
+                    items: [
+                        { text: "Overview", link: "/visual-review/" },
+                        { text: "Installing It", link: "/visual-review/guide/setup" },
+                    ],
+                },
+                {
+                    text: "Guide",
+                    items: [
+                        { text: "Capturing in GitHub Actions", link: "/visual-review/guide/github-actions" },
+                        { text: "The Review Page", link: "/visual-review/guide/review-page" },
+                        { text: "Baselines in Git LFS", link: "/visual-review/guide/baselines" },
+                        { text: "The Pull Request Gate", link: "/visual-review/guide/gate" },
+                        { text: "Approving with a Passkey", link: "/visual-review/guide/passkey" },
+                        { text: "Troubleshooting", link: "/visual-review/guide/troubleshooting" },
+                    ],
+                },
+                {
+                    text: "Reference",
+                    items: [
+                        { text: "Command Line", link: "/visual-review/reference/cli" },
+                        { text: "Vitest Entry Points", link: "/visual-review/reference/vitest" },
+                    ],
+                },
+            ],
             "/layout/": [
                 {
                     text: "Introduction",
@@ -464,6 +645,9 @@ config.themeConfig!.sidebar = splitApiSidebars(config.themeConfig!.sidebar as Si
     layoutTypedoc,
     cytoscapeTypedoc,
     graphIoTypedoc,
+    graphFormatTypedoc,
+    graphSamplesTypedoc,
+    remoteLoggerTypedoc,
 ]);
 
 export default config;

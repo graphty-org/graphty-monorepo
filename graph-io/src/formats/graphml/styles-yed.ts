@@ -3394,7 +3394,7 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
         // a y:Fill's color2 needs its color: with no string fill the gradient is not written
         for (const property of GRADIENT_PROPERTIES) {
             const had = get(property);
-            if (had !== null && had !== undefined) {
+            if (had !== null) {
                 approximate(property, had);
             }
         }

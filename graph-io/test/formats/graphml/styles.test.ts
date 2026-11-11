@@ -1342,7 +1342,7 @@ describe("GraphML styles: writing", () => {
         expect(text).toContain('modelName="eight_pos" modelPosition="n"');
     });
 
-    it("notes a gradient on a node with no fill color, which a y:Fill cannot hold", async () => {
+    it("notes a gradient on a node with no fill color, which a y:Fill cannot hold", () => {
         const b = new GraphBuilder({ directed: true });
         b.addNode("a");
         const snapshot = b.freeze();

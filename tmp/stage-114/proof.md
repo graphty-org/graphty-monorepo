@@ -20,6 +20,11 @@ Refs #6389. Branch feat/6389-stage-114-gap-fit-without-row-walk.
 framing (200-node chain, ngraph running). Before the change: `expected [ 200, 200, 200 ] to deeply equal [ 0, 0, 0 ]`.
 After: passes (0 rows per framing under batched; the framed box holds every node; objects still walks >= 200).
 
+A second case in the same file pins node 0 at (500, -400, 300) and runs ForceAtlas2 (a simulation engine, which leaves
+pinned and dragged rows out of its publish). Without the kept-row fix it failed:
+`the pinned node's x is framed: expected 90.07242239967273 to be at least 500`. With it: passes, still 0 rows per
+moving framing.
+
 ## Checks run (all through tools/low-priority.sh)
 
 - `npx tsc --noEmit -p tsconfig.json` (graphty-element): clean.
@@ -29,6 +34,12 @@ After: passes (0 rows per framing under batched; the framed box holds every node
 - vitest: batched-fit-envelope, node-batch, row-table-shadow, UpdateManager.zoomToFit, object-roster,
   simulation-layout-engine (browser) 134/134; UpdateManager, simulation-envelope, ngraph-parallel-edges,
   ngraph-settle-budget 31/31; cost-coverage and jsx-types 11/11; re-run after the last refactor 221/221.
+- After the kept-row fix (commits 0e392821a7, aab96effbb): `tsc --noEmit` clean; eslint on LayoutEngine.ts,
+  SimulationLayoutEngine.ts and the test clean; graphty-element build success; `npm run api:report` adds the
+  @internal protected `LayoutEngine.keepInPublishedBox` to api/extend.api.md and api/index.api.md (committed);
+  vitest browser batched-fit-envelope, simulation-layout-engine-oracle, node-batch, node-behavior, layout-scaling
+  92/92; vitest engine-removal, weighted-layouts, scoped, layout-positions, cost-coverage 57/57;
+  `node tools/sonar-gate.mjs`: no new issue on changed lines (publishPositions kept at 15).
 - `node tools/sonar-gate.mjs`: no new issue on changed lines (publishColumn cognitive complexity brought back to 15).
 
 ## Target against measurement

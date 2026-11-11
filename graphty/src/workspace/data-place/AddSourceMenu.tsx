@@ -8,24 +8,18 @@ import { useCommand } from "../state/WorkspaceContext";
 
 /**
  * The commands the Sources "+" offers, in menu order (spec section 3.2): File..., Samples...,
- * Server..., Network data... and Paste, registered by the loading and server packages. Each is
+ * Network data... and Paste, registered by the loading and
+ * server packages. Each is
  * drawn only once its package registers it. Paste means what it means everywhere (`readPasted`):
  * the clipboard, opened as a web address when it is one, else read as data.
  */
-export const ADD_SOURCE = [
-    "data.add-file",
-    "data.samples",
-    "data.add-server",
-    "data.add-network",
-    "data.add-paste",
-] as const;
+const ADD_SOURCE = ["data.add-file", "data.samples", "data.add-server", "data.add-paste"] as const;
 
 /** Each item's glyph, drawn before its label as the Style "+" items are. */
 const GLYPH: Readonly<Record<(typeof ADD_SOURCE)[number], React.ReactNode>> = {
     "data.add-file": <GLYPHS.file size={14} aria-hidden />,
     "data.samples": <GLYPHS.gridView size={14} aria-hidden />,
     "data.add-server": <GLYPHS.server size={14} aria-hidden />,
-    "data.add-network": <GLYPHS.data size={14} aria-hidden />,
     "data.add-paste": <GLYPHS.paste size={14} aria-hidden />,
 };
 
@@ -41,7 +35,6 @@ export function AddSourceMenu(): React.JSX.Element | null {
         useCommand(ADD_SOURCE[1]),
         useCommand(ADD_SOURCE[2]),
         useCommand(ADD_SOURCE[3]),
-        useCommand(ADD_SOURCE[4]),
     ].filter((door) => door !== null);
     if (doors.length === 0) {
         return null;

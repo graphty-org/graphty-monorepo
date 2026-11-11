@@ -1,0 +1,33 @@
+diff --git a/dist/esm/realtime/client.js b/dist/esm/realtime/client.js
+index 467ce595c1ba032eccbc55f6fb26fdaa15637734..383df3be01660e09e428c5c8a0100364689de7ef 100644
+--- a/dist/esm/realtime/client.js
++++ b/dist/esm/realtime/client.js
+@@ -216,7 +216,7 @@ var GeminiLiveClient = class {
+ 				handle: resume ? this.lastResumptionUpdate?.newHandle : void 0
+ 			},
+ 			contextWindowCompression: this.contextWindowCompression,
+-			proactivity: { proactiveAudio: this.proactiveAudio },
++			proactivity: this.proactiveAudio ? { proactiveAudio: true } : void 0,
+ 			systemInstruction: { parts: [{ text: this.systemInstructions }] },
+ 			tools: [{ functionDeclarations: tools }],
+ 			realtimeInputConfig: {
+diff --git a/dist/esm/realtime/utils.js b/dist/esm/realtime/utils.js
+index 8c0b5f75b0390247d320b68315f4f1f30b8302d7..d22d86b9b9614103a8a762f53c9b0ec6596bc8bd 100644
+--- a/dist/esm/realtime/utils.js
++++ b/dist/esm/realtime/utils.js
+@@ -214,8 +214,15 @@ var AudioStreamer = class {
+ 		this.isStreaming = true;
+ 	}
+ 	stopAudioCapture() {
++		const wasStreaming = this.isStreaming;
+ 		if (this.mediaStream) for (const track of this.mediaStream.getAudioTracks()) track.enabled = false;
+ 		this.isStreaming = false;
++		if (wasStreaming && this.client?.isSetupComplete) {
++			const silence = this.arrayBufferToBase64(new Int16Array(512).buffer);
++			const frames = Math.ceil(this.client.automaticActivityDetection.silence_duration_ms * this.sampleRate / 1e3 / 512);
++			for (let i = 0; i < frames; i++) this.client.sendAudioMessage(silence);
++			this.client.sendMessage({ realtimeInput: { audioStreamEnd: true } });
++		}
+ 	}
+ 	convertToPCM16(float32Array) {
+ 		const int16Array = new Int16Array(float32Array.length);

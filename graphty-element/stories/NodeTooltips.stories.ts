@@ -170,7 +170,7 @@ async function hover(scene: Drawn, id: string, parameters: Record<string, unknow
     await holds(camera !== null, `${scene.story}: the graph has rendered but has no active camera`);
 
     const at = Vector3.Project(
-        (node as NonNullable<typeof node>).mesh.absolutePosition,
+        (node as NonNullable<typeof node>).drawnWorldPosition,
         Matrix.Identity(),
         graph.scene.getTransformMatrix(),
         (camera as NonNullable<typeof camera>).viewport.toGlobal(

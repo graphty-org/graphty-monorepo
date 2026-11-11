@@ -214,12 +214,16 @@ export class WindowCounter {
      * A counter at a window. Later sliding windows start where the last one ended.
      * @param target - What the window is read from.
      * @param window - The first window.
-     * @returns The counter, or null when an index alone cannot say what a window keeps.
+     * @returns The counter, or null when an index alone cannot say what a window keeps, or a kind
+     *     holds spans: a row can leave and come back, which this walk's one pass over the index misses.
      */
     static open(target: SlideTarget, window: TimeWindow): WindowCounter | null {
         const state = slideState(target, window);
+        if (state === null || (state.node?.index.spans ?? state.edge?.index.spans ?? null) !== null) {
+            return null;
+        }
 
-        return state === null ? null : new WindowCounter(state, window.mode === "cumulative");
+        return new WindowCounter(state, window.mode === "cumulative");
     }
 
     /**

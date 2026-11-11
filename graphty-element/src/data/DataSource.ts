@@ -25,6 +25,7 @@ import { AdHocData } from "../config";
 import { GraphtyError } from "../errors";
 import { toGraphtyError } from "../session/sources/errors";
 import type { FileStylesRead } from "../session/styles/fileStyles/apply";
+import type { TimeField } from "../session/time/TimeApi";
 import { ErrorAggregator } from "./ErrorAggregator.js";
 import { filePositionsOf } from "./filePositions.js";
 import {
@@ -280,7 +281,25 @@ export interface ImporterSourceOptions<Opts> {
      * @returns the words, or null
      */
     readonly statedBy?: (snapshot: GraphSnapshot, report: ImportReport) => string | null;
+    /**
+     * The time field the file declares, which a load with the timeline experiment on designates
+     * (a custom `DataSource` declares one with its protected `declareTime` method). Return null
+     * when the file declares none. Left out, no file declares one.
+     * @param snapshot - the imported graph
+     * @param report - the importer's report
+     * @returns the field, or null
+     * @experimental timeline
+     * @beta
+     */
+    readonly time?: (snapshot: GraphSnapshot, report: ImportReport) => TimeField | null;
 }
+
+/**
+ * The readers a load with the timeline experiment on reads through: a reader in it keeps the time
+ * data only the timeline reads (GEXF's lists of instants), so a load with the experiment off keeps
+ * its records exactly as they were.
+ */
+export const TIMELINE_READERS = new WeakSet();
 
 /**
  * The reader {@link DataSource.fromSource} returns: constructed with the source's params and the
@@ -467,6 +486,8 @@ export abstract class DataSource {
     protected chunkSize: number;
     /** Backing field of {@link declaredDirection}; written only by {@link declareDirection}. */
     private declaration: DeclaredDirection | null = null;
+    /** Backing field of {@link declaredTime}; written only by {@link declareTime}. */
+    private timeField: TimeField | null = null;
     /** Backing field of {@link declaredGraphValues}; written only by {@link declareGraphValues}. */
     private graphValues: Readonly<Record<string, unknown>> | null = null;
     /** Backing field of {@link declaredFileLayout}; written only by {@link declareFileLayout}. */
@@ -831,6 +852,33 @@ export abstract class DataSource {
     }
 
     /**
+     * The time field the file declared, or null when it declared none. Read it after the last chunk.
+     * @returns the field, or null
+     * @experimental timeline
+     * @beta
+     */
+    get declaredTime(): TimeField | null {
+        return this.timeField;
+    }
+
+    /**
+     * Record the time field the file being parsed declares, as GEXF's `mode="dynamic"` does. With
+     * the timeline experiment on, the load designates it (`session.time.field`, and `time:field`
+     * fires) in the load's own step, unless a time field is already set; off, it is ignored. Call it
+     * only when the file itself says which columns hold time.
+     * @param field - the field, with paths as the records name them
+     * @experimental timeline
+     * @beta
+     * @example
+     * ```ts
+     * this.declareTime({ edges: { start: "start", end: "end", unit: "ordinal" } });
+     * ```
+     */
+    protected declareTime(field: TimeField): void {
+        this.timeField = field;
+    }
+
+    /**
      * The layout the file asks to be drawn with, as graph-io's importer read it, or null when the
      * file names none or the source has not parsed yet. Read it after the last chunk.
      * @returns the layout
@@ -890,13 +938,16 @@ export abstract class DataSource {
         const pxPerUnit = positions?.pxPerUnit;
         const fit = positions?.viewerFit;
         const box = positions?.bounds;
+        const annotations = imported.importer.annotations?.(imported.snapshot) ?? [];
         return {
             extracted,
             snapshot: imported.snapshot,
+            ...(annotations.length === 0 ? {} : { annotations }),
             path: (kind, column) => held.path(kind, column),
             // A JSON dialect graph-io names (it names none for plain JSON) keeps its styles under its own name.
             format: format === "json" && dialect !== null ? dialect : format,
             ...(pxPerUnit === undefined ? {} : { positionPxPerUnit: pxPerUnit }),
+            positionsStored: positions?.usable === true,
             ...(fit === undefined || box === null || box === undefined
                 ? {}
                 : {
@@ -1060,7 +1111,7 @@ export abstract class DataSource {
      * own copy of graph-io, or the element cannot tell a refusal from a crash.
      * @param importer - the graph-io importer
      * @param descriptor - the format's catalogue entry; its `id` is the name the class registers under
-     * @param options - fixed importer options and how the file states its direction
+     * @param options - fixed importer options, how the file states its direction, and its time
      * @returns a `DataSource` subclass whose `type` is `descriptor.id`
      * @throws A `GraphtyError` with `E_BAD_COMMAND`, `details.field: "importer"`, when `importer` has
      * no `import` method.
@@ -1077,7 +1128,7 @@ export abstract class DataSource {
             );
         }
 
-        const { importOptions = {}, statedBy } = options;
+        const { importOptions = {}, statedBy, time } = options;
         const sniff = importer.sniff?.bind(importer);
         const list = importer.listGraphs?.bind(importer);
         // Whether the format's files can carry styles, from the importer itself unless the
@@ -1144,6 +1195,11 @@ export abstract class DataSource {
                 const words = statedBy?.(snapshot, report) ?? null;
                 if (words !== null) {
                     this.declareDirection(snapshot.directed, words, report.counts.expandedMixed);
+                }
+
+                const declared = time?.(snapshot, report) ?? null;
+                if (declared !== null) {
+                    this.declareTime(declared);
                 }
 
                 const { nodes, edges } = toRecords(

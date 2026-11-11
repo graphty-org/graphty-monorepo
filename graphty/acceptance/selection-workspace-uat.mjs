@@ -139,8 +139,19 @@ class Visit {
         return { id, start, steps: [], color: await this.colorOf(at) };
     }
 
+    // A new card is drawn in its input's frame with no color (the neutral border) and takes the
+    // color graphty-element gives it once the edit is handed on, a frame and any transition later.
     async colorOf(at) {
-        return this.card(at).evaluate((c) => c.style.getPropertyValue("--cm-card-color").toUpperCase());
+        const card = await this.card(at).elementHandle();
+        const handle = await this.page.waitForFunction(
+            (c) => {
+                const color = c.style.getPropertyValue("--cm-card-color");
+                return color !== "" && color !== "var(--cm-border)" && color.toUpperCase();
+            },
+            card,
+            { timeout: SETTLE },
+        );
+        return handle.jsonValue();
     }
 
     // What the session holds for this visit: the layer's selector or the filter conditions.
@@ -436,6 +447,8 @@ class Visit {
                     });
                     fail(`Done: expected ${String(total.size)} ${this.many} visible, session holds ${seen}`);
                 });
+            // Filters live in the Data place's Sources tab, under Data sources.
+            await this.page.getByRole("tab", { name: "Sources", exact: true }).click();
             await this.page.getByRole("list", { name: "Filters" }).getByRole("listitem").first().waitFor();
         } else {
             const handle = await this.page
@@ -465,7 +478,7 @@ class Visit {
         await this.checkRunsAfterDone();
     }
 
-    // Done keeps the runs the final cards read, as ordinary runs in Data > Runs.
+    // Done keeps the runs the final cards read, as ordinary results in Data > Calculated.
     async checkRunsAfterDone() {
         const read = new Set(
             this.cards.flatMap((c) =>
@@ -487,10 +500,11 @@ class Visit {
             fail(`Done: runs ${missing.join(",")} are gone; session holds ${runs.join(",")}`);
         }
         await this.page.getByRole("button", { name: "Data", exact: true }).click();
-        const rows = this.page.getByRole("list", { name: "Runs" }).getByRole("listitem");
+        await this.page.getByRole("tab", { name: "Calculated" }).click();
+        const rows = this.page.getByRole("list", { name: "Results" }).getByRole("listitem");
         await rows.first().waitFor();
         if ((await rows.count()) !== runs.length) {
-            fail(`Done: Data > Runs lists ${String(await rows.count())} rows for ${String(runs.length)} runs`);
+            fail(`Done: Data > Calculated lists ${String(await rows.count())} rows for ${String(runs.length)} runs`);
         }
     }
 
@@ -1666,6 +1680,190 @@ const flagOff = async (page) => {
     }
 };
 
+// A picture of a scenario's end state, for the reader to look at, beside the failure shots.
+const shot = (page, name) => page.screenshot({ path: join(args.out, `${name}.png`) });
+
+// Every histogram bar is whole and inside the plot, the end ones included, and the thumbs sit on the
+// end bars' outer edges.
+const wholeBars = (dataset, kind) => async (page) => {
+    const v = await visit(page, dataset, "style-nodes");
+    await v.pickFirst(0, kind);
+    await v
+        .card(0)
+        .getByRole("slider", { name: `${kind} range start` })
+        .waitFor();
+    const found = await v.card(0).evaluate((card) => {
+        const plot = card.querySelector('[data-testid="histogram-plot"]').getBoundingClientRect();
+        const bars = [...card.querySelectorAll('[data-testid="histogram-bar"]')].map((bar) =>
+            bar.getBoundingClientRect(),
+        );
+        return {
+            plot: { left: plot.left, right: plot.right },
+            widths: bars.map((bar) => bar.width),
+            first: { left: bars[0].left, width: bars[0].width },
+            last: { right: bars.at(-1).right, width: bars.at(-1).width },
+        };
+    });
+    const { plot, widths, first, last } = found;
+    if (first.left < plot.left - 0.5 || last.right > plot.right + 0.5) {
+        fail(
+            `a bar runs outside the plot: first at ${String(first.left)}, last ends ${String(last.right)}, plot ${JSON.stringify(plot)}`,
+        );
+    }
+    const widest = Math.max(...widths);
+    if (first.width < widest - 1 || last.width < widest - 1) {
+        fail(
+            `the end bars are cut: first ${String(first.width)}, last ${String(last.width)}, others up to ${String(widest)}`,
+        );
+    }
+    const centerOf = async (name) => {
+        const box = await v.card(0).getByRole("slider", { name }).boundingBox();
+        return box.x + box.width / 2;
+    };
+    const start = await centerOf(`${kind} range start`);
+    const end = await centerOf(`${kind} range end`);
+    if (Math.abs(start - (first.left - 1)) > 1.5 || Math.abs(end - (last.right + 1)) > 1.5) {
+        fail(
+            `the thumbs sit at ${String(start)} and ${String(end)}, the end bars' outer edges at ${String(first.left)} and ${String(last.right)}`,
+        );
+    }
+    await shot(page, `whole-bars-${dataset}-${kind}`);
+};
+
+// Analyze's chosen row opens its settings in the one settings popover, outside the list; a press in
+// it keeps Analyze open, Escape closes only it, and Run is still there.
+const analyzePopover = async (page) => {
+    const v = new Visit(page, "karate", "style-nodes");
+    await v.open();
+    await page.getByRole("button", { name: "Analyze", exact: true }).click();
+    await page.getByRole("option", { name: "Louvain" }).first().click();
+    await page.getByRole("button", { name: "Settings for Louvain" }).click();
+    const panel = page.locator('[data-settings="louvain"]');
+    await panel.waitFor();
+    const inPopover = await panel.evaluate(
+        (form) => form.closest("[data-popout-id]") !== null && form.closest('[role="listbox"]') === null,
+    );
+    if (!inPopover) {
+        fail("Louvain's settings are drawn in the list, not in the settings popover");
+    }
+    await v.type(panel.getByLabel("Resolution", { exact: true }), "1.3");
+    await panel.click({ position: { x: 4, y: 4 } });
+    const analyze = page.getByRole("dialog", { name: "Analyze" }).or(page.locator('[aria-label="Analyze"]'));
+    if (!(await analyze.first().isVisible())) {
+        fail("a press in the settings popover closed Analyze");
+    }
+    await shot(page, "analyze-settings-popover");
+    await page.keyboard.press("Escape");
+    await panel.waitFor({ state: "hidden" });
+    if (!(await analyze.first().isVisible())) {
+        fail("Escape in the settings popover closed Analyze too");
+    }
+    await page.getByRole("button", { name: "Run Louvain" }).click();
+    await page.waitForFunction(
+        () =>
+            document
+                .querySelector("graphty-element")
+                .session.runs.list()
+                .some((r) => r.algorithm === "louvain" && r.params.resolution === 1.3 && r.status === "succeeded"),
+        null,
+        { timeout: SETTLE },
+    );
+};
+
+// "+ Card" goes past six: the seventh and eighth cards get colors of their own from the element's
+// largest categorical palette.
+const pastSix = async (page) => {
+    const v = await visit(page, "lesmis", "style-nodes");
+    await v.firstStep(KINDS.reference);
+    for (let at = 1; at < 8; at++) {
+        await v.addCard(KINDS.reference);
+    }
+    const colors = v.cards.map((card) => card.color);
+    if (new Set(colors).size !== 8) {
+        fail(`eight cards hold ${String(new Set(colors).size)} colors: ${colors.join(" ")}`);
+    }
+    const kelly = await inPage(page, () =>
+        document
+            .querySelector("graphty-element")
+            .session.catalog.palettes()
+            .find((p) => p.id === "kelly")
+            .colors.map((c) => c.toUpperCase()),
+    );
+    for (const color of colors.slice(6)) {
+        if (!kelly.includes(color)) {
+            fail(`card color ${color} past six is not one of the element's palettes`);
+        }
+    }
+    if (!(await v.ws.locator("[data-or]").isEnabled())) {
+        fail("+ Card is off after eight cards");
+    }
+    await shot(page, "cards-past-six");
+    await v.leave("done");
+};
+
+// A group's swatch is the color the graph draws it in: in Styled, the Louvain layers Analyze added
+// paint each group, and the checklist shows those colors; in Card colors no swatch shows.
+const groupSwatches = async (page) => {
+    const v = new Visit(page, "lesmis", "style-nodes");
+    await v.open();
+    await page.getByRole("button", { name: "Analyze", exact: true }).click();
+    await page.getByRole("option", { name: "Louvain" }).first().click();
+    await page.getByRole("button", { name: "Run Louvain" }).click();
+    await page.waitForFunction(
+        () =>
+            document
+                .querySelector("graphty-element")
+                .session.runs.list()
+                .some((r) => r.algorithm === "louvain" && r.status === "succeeded"),
+        null,
+        { timeout: SETTLE },
+    );
+    await v.enter();
+    await v.firstStep(KINDS.louvain, { pick: [1] });
+    const step = v.step(0, 0);
+    const rows = () =>
+        step.evaluate((box) =>
+            [...box.querySelectorAll("input[type=checkbox]")].map((input) => ({
+                group: input.getAttribute("aria-label"),
+                color:
+                    input.closest(".mantine-Checkbox-root")?.querySelector(".ws-value-swatch")?.dataset.swatch ?? null,
+            })),
+        );
+    await v.ws.locator("label", { hasText: "Card colors" }).click();
+    if ((await rows()).some((row) => row.color !== null)) {
+        fail("Card colors shows a group swatch");
+    }
+    await v.ws.locator("label", { hasText: "Styled" }).click();
+    await step.locator(".ws-value-swatch").first().waitFor();
+    const groups = (await rows()).filter((row) => /^Group /.test(row.group ?? ""));
+    // What the graph draws each group's nodes in, read through the element, as Analyze's layers paint it.
+    const drawn = await inPage(page, () => {
+        const s = document.querySelector("graphty-element").session;
+        const run = s.runs.list().findLast((r) => r.algorithm === "louvain" && r.status === "succeeded");
+        const byGroup = new Map();
+        for (const node of s.data.nodes()) {
+            const group = run.result.node(node.id)?.group;
+            byGroup.set(group, [...(byGroup.get(group) ?? []), node.id]);
+        }
+        // Each group's nodes by id: one color when all of them are drawn in it.
+        return [...byGroup.values()].map((nodes) => {
+            const [color] = s.styles.agreement({ nodes }, "node.color").channels;
+            return color?.state === "agree" ? [String(color.value?.hex ?? color.value)] : [];
+        });
+    });
+    const drawnColors = new Set(drawn.filter((colors) => colors.length === 1).map(([color]) => color.toLowerCase()));
+    if (groups.some((row) => row.color === null || !drawnColors.has(row.color.toLowerCase()))) {
+        fail(
+            `a group swatch is not a drawn color: ${JSON.stringify(groups.slice(0, 4))} vs ${[...drawnColors].slice(0, 6).join(" ")}`,
+        );
+    }
+    if (new Set(groups.map((row) => row.color)).size < 2) {
+        fail("every group shows the same swatch");
+    }
+    await shot(page, "group-swatches-styled");
+    await v.leave("done");
+};
+
 const SCENARIOS = [
     [
         "slider: Betweenness, Karate Club, both exact ends",
@@ -1737,6 +1935,12 @@ const SCENARIOS = [
     ["columns: category and number, Add", dataColumns("add")],
     ["columns: category and number, Keep", dataColumns("keep")],
     ["columns: category and number, Except", dataColumns("except")],
+    ["histogram: whole end bars, Degree, Karate Club", wholeBars("karate", "Degree")],
+    ["histogram: whole end bars, Degree, Les Miserables", wholeBars("lesmis", "Degree")],
+    ["histogram: whole end bars, Betweenness, Karate Club", wholeBars("karate", "Betweenness")],
+    ["analyze: settings in the settings popover, Escape, Run", analyzePopover],
+    ["cards: + Card past six, colors from the element", pastSix],
+    ["swatches: Styled shows drawn group colors, Card colors none", groupSwatches],
 ];
 
 const rowWords = (row) =>

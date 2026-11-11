@@ -25,7 +25,7 @@ import {
     useCombobox,
 } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
 import { sourceName } from "../data-place/words";
@@ -68,6 +68,7 @@ import {
     TEXT_WORDS,
     type TextMode,
 } from "./cards";
+import { DrawnSwatches } from "./drawnSwatches";
 import { keystrokeTarget } from "./useFocusLine";
 import { useStepWriter } from "./useStepWriter";
 import { FIND_ATTRIBUTE, LAYER_SPOKEN, LAYER_TOKEN, NATURAL, prefixFirst, valueName } from "./words";
@@ -248,7 +249,7 @@ function coverName(session: GraphSession, cards: readonly Card[], side: Side): s
 
 /**
  * The rule several rows pick together, for the union count; null when one picks everything, or
- * stands alone (selected, hovered), so no single rule says it.
+ * stands alone (edges picked by hand), so no single rule says it.
  * @param rows - the rows.
  * @returns the rule.
  */
@@ -281,15 +282,27 @@ function useLeafCount(
     side: Side,
     reading: "clipped" | "incident" = "clipped",
 ): number | undefined {
-    const key = `${JSON.stringify(leaf)} ${side} ${reading} ${String(session.history.version)}`;
+    const rule = `${JSON.stringify(leaf)} ${side} ${reading}`;
+    // Each count carries the rule it was counted for: on the render after the rule changes, the
+    // read still holds the old rule's count, which must not pass for the new one.
     const counted = useAsyncValue(
-        () => (leaf === null ? null : session.scope.count({ define: { kind: "rule", where: leaf, reading } })),
-        key,
+        () =>
+            leaf === null
+                ? null
+                : session.scope
+                      .count({ define: { kind: "rule", where: leaf, reading } })
+                      .then((each) => ({ rule, value: side === "node" ? each.nodes : each.edges })),
+        `${rule} ${String(session.history.version)}`,
     );
-    if (counted === undefined) {
-        return undefined;
+    // The history moves for changes the count does not read (the layout settling, a color), and
+    // each one counts again: the same rule keeps saying its last count until the new one lands,
+    // rather than blinking out of the card's header and name (#6331).
+    const [kept, setKept] = useState(counted);
+    if (counted !== undefined && counted !== kept) {
+        setKept(counted);
     }
-    return side === "node" ? counted.nodes : counted.edges;
+    const shown = counted ?? kept;
+    return leaf !== null && shown?.rule === rule ? shown.value : undefined;
 }
 
 /**
@@ -357,7 +370,7 @@ const VALUE_BOX = "input:not([type=hidden]):not([type=checkbox]):not([readonly])
  * Cards a caller holds instead of a layer's (a filter step's rule): drawn and edited as a layer's
  * are, and handed back on every change instead of written.
  */
-export interface HeldCards {
+interface HeldCards {
     readonly cards: readonly Card[];
     readonly onChange: (cards: readonly Card[]) => void;
 }
@@ -1304,7 +1317,7 @@ export function AddCondition({
     extra?: readonly ExtraItem[];
     /** Draws the opener as a "+" icon button with this name and tooltip, not "Add a condition". */
     plus?: string;
-    /** Opens the list from outside (the toolbar's Filters). */
+    /** Opens the list from outside (the Filters command). */
     opened?: boolean;
     /** Told when the list closes, so `opened` can be put back. */
     onOpened?: (opened: boolean) => void;
@@ -1412,7 +1425,7 @@ export function AddCondition({
             store.set({ announcement: spoken });
         }
     }, [nothing, spoken, store]);
-    // Opened from outside (the toolbar's Filters): the list opens, its search focused.
+    // Opened from outside (the Filters command): the list opens, its search focused.
     const { openDropdown, focusSearchInput } = combobox;
     useEffect(() => {
         if (opened === true) {
@@ -1785,7 +1798,7 @@ function ValueBrush({
         return null;
     }
     const shown = moving ?? value;
-    // One-value bins drawn as bars belong to the full-screen workspace (the `selection-workspace` experiment).
+    // The last bar lit with both thumbs on it belongs to the full-screen workspace (the `selection-workspace` experiment).
     const wide = selectionWorkspaceOn(session);
     const heights = barHeights(
         spread.bins.map((bin) => bin.count),
@@ -1801,10 +1814,9 @@ function ValueBrush({
                     // Skewed counts are drawn at log heights and a bin holding anything is never flat,
                     // so a long tail of small bins still shows; the label keeps the count.
                     count: heights[at] ?? 0,
-                    // A bin of one value (an integer's) spans half a step either side, so it is drawn
-                    // as a bar, never a hairline.
-                    from: bin.to > bin.from || !wide ? bin.from : Math.max(low, bin.from - step / 2),
-                    to: bin.to > bin.from || !wide ? bin.to : Math.min(high, bin.to + step / 2),
+                    // A bin of one value (from = to) is drawn a step wide and whole, ends included.
+                    from: bin.from,
+                    to: bin.to,
                     // No bound set is the whole range, every bar lit: what the step passes.
                     // A one-value bin at the low bound (from = to = min) is in range too, and so is
                     // the last bin, which holds its upper end, when both thumbs sit on it.
@@ -2111,6 +2123,9 @@ function fixedText(leaf: RuleTree): string {
     if (leaf.kind === "member" && typeof leaf.of === "object" && "nodes" in leaf.of) {
         const ids = leaf.of.nodes.map(String);
         return ids.length > 5 ? `${ids.slice(0, 5).join(", ")}, +${String(ids.length - 5)}` : ids.join(", ");
+    }
+    if (leaf.kind === "state") {
+        return leaf.state;
     }
     return leaf.kind === "expression" ? leaf.where : JSON.stringify(leaf);
 }
@@ -2770,17 +2785,31 @@ function NumberCard({
                     There are only {many(total, side)}, so this keeps all of them.
                 </Text>
             )}
-            {card.match !== "absent" && card.match !== "present" && missing > 0 && (
-                // A fact, not a sentence: the chip, with what it means in its tooltip.
-                <Tooltip
-                    label={`${many(missing, side)} ${missing === 1 ? "has" : "have"} no value and ${missing === 1 ? "is" : "are"} left out`}
-                >
-                    <Text span className="ws-chip" style={{ alignSelf: "flex-start" }}>
-                        Not measured: {missing}
-                    </Text>
-                </Tooltip>
-            )}
+            {card.match !== "absent" && card.match !== "present" && <NotMeasured missing={missing} side={side} />}
         </Stack>
+    );
+}
+
+/**
+ * How many a number or date card leaves out for having no value: a fact, not a sentence -- the
+ * chip, with what it means in its tooltip. Nothing when every one has a value.
+ * @param props - Component props
+ * @param props.missing - how many have no value.
+ * @param props.side - nodes or edges.
+ * @returns the chip, or null.
+ */
+function NotMeasured({ missing, side }: Readonly<{ missing: number; side: Side }>): React.JSX.Element | null {
+    if (missing === 0) {
+        return null;
+    }
+    return (
+        <Tooltip
+            label={`${many(missing, side)} ${missing === 1 ? "has" : "have"} no value and ${missing === 1 ? "is" : "are"} left out`}
+        >
+            <Text span className="ws-chip" style={{ alignSelf: "flex-start" }}>
+                Not measured: {missing}
+            </Text>
+        </Tooltip>
     );
 }
 
@@ -3006,16 +3035,13 @@ function DateCard({
                 </Group>
             )}
             {refused !== null && (
+                // A field message, not a sentence; the box's placeholder says what it takes.
                 <Text id={messageId} size="xs" c="var(--cm-text-danger)" role="alert">
-                    &quot;{(drafts[refused] ?? "").trim()}&quot; is not a date. Type a date or a year, like{" "}
-                    {dates[0] ?? "2005"}.
+                    Not a date
                 </Text>
             )}
-            {card.match !== "absent" && card.match !== "present" && counts.missing > 0 && (
-                <Text size="xs" c="dimmed">
-                    {many(counts.missing, side)} {counts.missing === 1 ? "has" : "have"} no value and{" "}
-                    {counts.missing === 1 ? "is" : "are"} left out.
-                </Text>
+            {card.match !== "absent" && card.match !== "present" && (
+                <NotMeasured missing={counts.missing} side={side} />
             )}
         </Stack>
     );
@@ -3028,6 +3054,7 @@ function DateCard({
  * @param label - the value's name.
  * @param count - how many carry it.
  * @param side - nodes or edges.
+ * @param swatch - the color the graph draws the value in, if it shows one.
  * @returns the checkbox's label props.
  */
 function valueRow(
@@ -3035,6 +3062,7 @@ function valueRow(
     label: string,
     count: number,
     side: Side,
+    swatch?: string,
 ): Pick<React.ComponentProps<typeof Checkbox>, "label" | "aria-label" | "styles"> {
     const words = `${label}, ${many(count, side)}`;
     if (variant === undefined) {
@@ -3046,7 +3074,15 @@ function valueRow(
         label: (
             // A step's checklist rows are the pane's 11/16 type; a filter card's keep its own.
             <Group gap={4} wrap="nowrap" justify="space-between">
-                <Text size={variant === "step" ? "sm" : "xs"} truncate span>
+                {swatch !== undefined && (
+                    <span className="ws-value-swatch" data-swatch={swatch} style={{ background: swatch }} />
+                )}
+                <Text
+                    size={variant === "step" ? "sm" : "xs"}
+                    truncate
+                    span
+                    style={swatch === undefined ? undefined : { flex: 1, minWidth: 0 }}
+                >
                     {label}
                 </Text>
                 <Text size={variant === "step" ? "sm" : "xs"} c="dimmed" span>
@@ -3087,6 +3123,38 @@ function categoryCounts(
 
 /** No value pinned to a checklist's top. */
 const NO_VALUES: ReadonlySet<string> = new Set();
+
+/**
+ * The color the graph draws a value's elements in now, from graphty-element's style agreement over
+ * them: one color when every one of them is drawn in it, else none, so a swatch is never a color the
+ * graph does not show.
+ * @param session - the element's session
+ * @param path - the field
+ * @param side - nodes or edges
+ * @param value - the value, as the card spells it
+ * @param _painted - a count of what the graph draws changing: a new one reads the color again
+ * @returns the color, or undefined
+ */
+function drawnColor(
+    session: GraphSession,
+    path: string,
+    side: Side,
+    value: string,
+    _painted: number,
+): string | undefined {
+    const where: RuleTree = { kind: "categories", attribute: path, values: [value] };
+    const [color] = session.styles.agreement(
+        { define: { kind: "rule", where, reading: "listed" } },
+        `${side}.color`,
+    ).channels;
+    if (color?.state !== "agree" || color.unpainted > 0) {
+        return undefined;
+    }
+    // A color reads as its hex, or as { r, g, b, a, hex }.
+    const drawn: unknown = color.value;
+    const hex = typeof drawn === "object" && drawn !== null && "hex" in drawn ? drawn.hex : drawn;
+    return typeof hex === "string" ? hex : undefined;
+}
 
 /**
  * A category card: a counted checklist of the values, ticked ones being alternatives, drawing at
@@ -3133,6 +3201,24 @@ function CategoryCard({
         () => listed ?? categoryCounts(session, path, side, counted ?? within, version),
         [session, path, side, within, counted, version, listed],
     );
+    // Each value's drawn color, read again when a layer or a run changes what the graph paints.
+    const swatches = useContext(DrawnSwatches) && variant === "step";
+    const [painted, setPainted] = useState(0);
+    useEffect(() => {
+        if (!swatches) {
+            return undefined;
+        }
+        const offs = (["project:changed", "run:changed"] as const).map((event) =>
+            session.on(event, () => {
+                setPainted((v) => v + 1);
+            }),
+        );
+        return () => {
+            offs.forEach((off) => {
+                off();
+            });
+        };
+    }, [session, swatches]);
     const [search, setSearch] = useState("");
     const typed = search.trim().toLowerCase();
     const named = useMemo(
@@ -3158,6 +3244,18 @@ function CategoryCard({
     // saved card reads as it did. Pinning is for the list cut to 8 rows, where a tick could be cut.
     const whole = variant === "step" && selectionWorkspaceOn(session) && named.length <= SHOWN_VALUES;
     const { rows } = checklistRows(named, whole ? NO_VALUES : ordered.current.checked, typed);
+    const shownValues = rows.map((each) => each.value).join("\n");
+    const drawn = useMemo(
+        () =>
+            new Map(
+                swatches
+                    ? shownValues
+                          .split("\n")
+                          .map((value) => [value, drawnColor(session, path, side, value, painted)] as const)
+                    : [],
+            ),
+        [swatches, session, path, side, shownValues, painted],
+    );
     const { moreChecked, matches, unchecked } = checklistRows(named, checked, typed);
     const toggle = (value: string, on: boolean): void => {
         const values = on ? [...card.values, value] : card.values.filter((v) => v !== value);
@@ -3217,7 +3315,7 @@ function CategoryCard({
                             <Checkbox
                                 key={each.value}
                                 size="xs"
-                                {...valueRow(variant, each.label, each.count, side)}
+                                {...valueRow(variant, each.label, each.count, side, drawn.get(each.value))}
                                 data-enter-done
                                 onKeyDown={tickOnEnter}
                                 checked={checked.has(each.value)}

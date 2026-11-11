@@ -9,6 +9,9 @@ import { isGraphtyError, type LoadedSource, type TooLargeDetails } from "@grapht
 import { formatCount } from "../settings/numberFormat";
 import type { PageRole } from "./choices";
 
+/** Beside a column graphty-element found looks like time, until the reader makes it the time column. */
+export const TIMELINE_CANDIDATE = "timeline candidate";
+
 /** Role menu words, by role and by what a table's rows are (section 2.10, "Sample grid"). */
 const ROLE_WORDS: Readonly<Record<PageRole, string>> = {
     key: "Key",
@@ -29,6 +32,9 @@ const ROLE_WORDS: Readonly<Record<PageRole, string>> = {
     city: "City",
     attribute: "Attribute",
 };
+
+/** The Time option of a column that looks like time. */
+export const SUGGESTED_TIME = `${ROLE_WORDS.time} (suggested)`;
 
 /** Joins names: "a and b", "a, b, and c". */
 const AND = new Intl.ListFormat("en-US", { type: "conjunction" });

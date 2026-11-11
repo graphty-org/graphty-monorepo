@@ -3,7 +3,7 @@
  * @module test/helpers/llm-regression-gemini
  *
  * Every request of a run repeats the same prefix -- the system instruction, about 30 tool definitions and the
- * tool config, about 5,000 of its 5,700 input tokens -- so the transport, a fetch handed to the AI SDK:
+ * tool config, about 5,000 of its 5,700 input tokens -- so the transport, a fetch handed to the provider:
  *
  * - caches each prefix the second time it is sent (Gemini explicit context caching: POST cachedContents), and
  *   sends later requests with that prefix as `cachedContent` with the prefix's fields left out, as the API
@@ -123,6 +123,21 @@ export interface GeminiTransportOptions {
     usageFile?: string;
 }
 
+/**
+ * An answer's usage: a JSON body's, or the last a server-sent stream reports, each event of which repeats the total.
+ * @param text - The body.
+ * @returns The usage, empty when it reports none.
+ */
+function usageOf(text: string): UsageMetadata {
+    const events = text.trimStart().startsWith("{")
+        ? [text]
+        : text.split("\n").flatMap((line) => (line.startsWith("data:") ? [line.slice("data:".length)] : []));
+    const usages = events.flatMap(
+        (event) => (JSON.parse(event) as { usageMetadata?: UsageMetadata }).usageMetadata ?? [],
+    );
+    return usages.at(-1) ?? {};
+}
+
 const defaultSleep = async (ms: number, signal?: AbortSignal | null): Promise<void> => {
     await sleepFor(ms, undefined, { signal: signal ?? undefined });
 };
@@ -165,7 +180,7 @@ export class GeminiTransport {
     /** The fetch to hand the SDK. */
     readonly fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
         const url = input instanceof Request ? input.url : String(input);
-        const match = /^(.*)\/models\/([^/:]+):generateContent/.exec(url);
+        const match = /^(.*)\/models\/([^/:]+):(?:generateContent|streamGenerateContent)/.exec(url);
         if (!match || typeof init?.body !== "string") {
             return this.base(input, init);
         }
@@ -211,7 +226,7 @@ export class GeminiTransport {
 
         const response = await this.send(url, { ...init, body: JSON.stringify(body) });
         if (response.ok) {
-            this.record(((await response.clone().json()) as { usageMetadata?: UsageMetadata }).usageMetadata ?? {});
+            this.record(usageOf(await response.clone().text()));
         }
 
         return response;

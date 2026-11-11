@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin, UserConfig } from "vite";
 
-import { aliases } from "./vite.aliases";
+import { aliases, elementSourcePlugins } from "./vite.aliases";
 import { buildStampPlugin } from "./vite.build-stamp";
 import { sampleDataPlugin } from "./vite.sample-data";
 
@@ -61,6 +61,7 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, monorepoRoot, "");
     const plugins = [
         react(),
+        ...elementSourcePlugins,
         unversionedDepsNotImmutable(),
         // The commit and release tag in a <meta name="graphty-build">, read by Help > About.
         buildStampPlugin(),
@@ -91,6 +92,10 @@ export default defineConfig(({ mode }) => {
             // build (.github/workflows/ci.yml, "Upload graphty's source maps to Sentry").
             ...(process.env.SENTRY_RELEASE ? { __SENTRY_RELEASE__: JSON.stringify(process.env.SENTRY_RELEASE) } : {}),
         },
+        // graphty-element's credential store loads encrypt-storage on its first use. Found that late,
+        // the dev server optimizes it then and reloads the page under the reader; listed here, it
+        // is optimized at startup. Dev server only.
+        optimizeDeps: { include: ["encrypt-storage"] },
         server: {
             host: true,
             fs: {

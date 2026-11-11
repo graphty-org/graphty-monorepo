@@ -35,7 +35,9 @@ export type {
     SourcePreview,
     SourcePreviewOptions,
     SourcePreviewRow,
+    SourceRead,
     SourceRefreshReport,
+    SourceSettings,
 } from "./types";
 export type {
     AwsCredentials,
@@ -56,6 +58,7 @@ export type {
     SourceCursor,
     SourceDescriptor,
     EdgeRecord as SourceEdgeRecord,
+    SourceExample,
     SourceFeature,
     SourceFile,
     SourceFinish,
@@ -77,7 +80,6 @@ export type {
     SourceRequestInit,
     SourceRuntime,
     SourceRuntimeReason,
-    SourceSample,
     SourceValidators,
 } from "@graphty/graph-io";
 export {

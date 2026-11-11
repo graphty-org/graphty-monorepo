@@ -6,6 +6,9 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession } from "../../session";
 import { exportSession } from "../../src/data/export";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** yEd's arrows of several pieces, and the ones that share an end cap with them. */
 const YED_ARROWS = [

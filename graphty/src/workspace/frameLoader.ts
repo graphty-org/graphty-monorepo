@@ -4,6 +4,7 @@
  * or when a project opens, whichever comes first.
  */
 
+import { bootSignal } from "../bootSignal";
 import type { Frame as FrameComponent } from "./frame/Frame";
 
 let loaded: typeof FrameComponent | null = null;
@@ -14,10 +15,14 @@ let loading: Promise<typeof FrameComponent> | null = null;
  * @returns Settles with the frame once loaded.
  */
 export function loadFrame(): Promise<typeof FrameComponent> {
-    loading ??= import("./frame/Frame").then((module) => {
-        loaded = module.Frame;
-        return module.Frame;
-    });
+    if (loading === null) {
+        bootSignal({ start: "frame code loaded" });
+        loading = import("./frame/Frame").then((module) => {
+            loaded = module.Frame;
+            bootSignal({ line: "frame code loaded" });
+            return module.Frame;
+        });
+    }
     return loading;
 }
 

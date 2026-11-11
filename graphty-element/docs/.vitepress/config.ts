@@ -86,6 +86,7 @@ export default defineConfig({
                         { text: "What a Run Painted", link: "/guide/run-painting" },
                         { text: "Filter Conditions", link: "/guide/filter-conditions" },
                         { text: "Selections Built From Steps", link: "/guide/selection-steps" },
+                        { text: "Rectangle and Lasso Selection", link: "/guide/region-select" },
                         { text: "Sets", link: "/guide/sets" },
                         { text: "Notes", link: "/guide/notes" },
                         { text: "Finding", link: "/guide/find" },
@@ -110,6 +111,9 @@ export default defineConfig({
                         { text: "Where a Node Is on Screen", link: "/guide/screen-position" },
                         { text: "Screenshots & Video", link: "/guide/screenshots" },
                         { text: "VR/AR", link: "/guide/vr-ar" },
+                        { text: "AI Assistant", link: "/guide/ai-assistant" },
+                        { text: "The Conversation Format", link: "/guide/ai-conversation-format" },
+                        { text: "AI Provider Features", link: "/guide/ai-provider-features" },
                     ],
                 },
                 {

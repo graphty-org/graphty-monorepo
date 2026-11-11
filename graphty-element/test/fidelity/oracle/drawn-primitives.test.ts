@@ -7,9 +7,9 @@
 import { assert, describe, it } from "vitest";
 
 import type { Scene, SceneEdge } from "../../../../graph-io/test/fidelity/scene";
-import type { DrawnBorder, DrawnEdge, DrawnGraph, DrawnNode } from "../drawn-scene";
+import type { DrawnBorder, DrawnEdge, DrawnGraph, DrawnLabel, DrawnNode } from "../drawn-scene";
 import { rampColor, withoutCaptions } from "./compare-oracle";
-import { drawnPrimitives } from "./drawn-primitives";
+import { drawnPrimitives, inkedLines } from "./drawn-primitives";
 import type { Pt } from "./primitives";
 
 type Cap = DrawnEdge["caps"][number];
@@ -77,6 +77,25 @@ function graphOf(
 type PScene = ReturnType<typeof drawnPrimitives>;
 
 describe("graphty's drawing in the oracle comparison's model", () => {
+    it("reads a label's words where its inked lines are, not over a blank line before them", () => {
+        // yEd's "\nCS" (graphml-stm32-func n30, n36): two lines, the words on the second, as the SVG's text box holds
+        const box = { x0: 0, y0: 0, x1: 10, y1: 20 };
+        // the scene counts only the inked lines; its text holds every laid-out line, and which were drawn a line tall
+        const label = (text: string, rotation: number, tall?: boolean[]): DrawnLabel =>
+            ({ text, rotation, lineCount: 1, tall }) as DrawnLabel;
+        assert.deepEqual(inkedLines(label("\nCS", 0, [true, true]), box), { x0: 0, y0: 10, x1: 10, y1: 20 });
+        assert.deepEqual(inkedLines(label("C\nS", 180, [true, true]), box), box);
+        assert.deepEqual(inkedLines(label("\nCS", 180, [true, true]), box), { x0: 0, y0: 0, x1: 10, y1: 10 });
+        // a blank line drawn with no height (always after the last words) is not part of the box
+        assert.deepEqual(inkedLines(label("CS\n", 0, [true, false]), box), box);
+        assert.deepEqual(inkedLines(label("\nCS", 0, [false, true]), box), box);
+        // turned a quarter clockwise, the lines step leftward; three quarters, rightward
+        assert.deepEqual(inkedLines(label("\nCS", 90, [true, true]), box), { x0: 0, y0: 0, x1: 5, y1: 20 });
+        assert.deepEqual(inkedLines(label("\nCS", 270, [true, true]), box), { x0: 5, y0: 0, x1: 10, y1: 20 });
+        assert.deepEqual(inkedLines(label("A\nB", 0), box), box);
+        assert.deepEqual(inkedLines(label("\nCS", 30), box), box);
+    });
+
     it("counts no arrowhead for a cap drawn at no opacity or no size", () => {
         assert.lengthOf(graphOf([cap({ opacity: 0 })]).edges[0].arrows, 0);
         assert.lengthOf(graphOf([cap({ sizePx: 0 })]).edges[0].arrows, 0);
@@ -420,6 +439,44 @@ describe("graphty's drawing in the oracle comparison's model", () => {
         // an outer ring with no border of the node's own is its outline, as the oracle reads it
         const alone = nodeOf({ border: outer.border, innerBorder: null, outer });
         assert.deepEqual([alone?.w, alone?.stroke?.color, alone?.ring ?? null], [44, "#999999", null]);
+    });
+
+    it("reads a node's linear ramp along the direction its color changes once stretched over the node's box", () => {
+        // NodeMesh paints the ramp across a square texture and stretches it over the box
+        const angleOf = (direction: number, w: number, h: number): number | null | undefined => {
+            const sceneNode = {
+                id: "a",
+                x: 150,
+                y: 60,
+                w,
+                h,
+                shape: "rect",
+                fill: "#ff0000",
+                fillOpacity: 1,
+                border: { color: null, width: 0, style: "solid" },
+                label: null,
+                visible: true,
+                drawn: { subPixel: false, fillCovered: false, fillDrawn: "#ff0000" },
+            };
+            const ramp = { kind: "linear", colors: ["#ff0000", "#0000ff"], direction };
+            const drawnNode = { insetPx: 0, label: null, gradient: true, ramp } as unknown as DrawnNode;
+            const scene = { nodes: [sceneNode], edges: [], groups: [], annotations: [], gaps: [] } as unknown as Scene;
+            const drawn: DrawnGraph = {
+                nodes: new Map([["a", drawnNode]]),
+                edges: new Map(),
+                annotations: [],
+                background: { hex: "#ffffff", alpha: 1 },
+                width: 300,
+                height: 120,
+            };
+            return drawnPrimitives(scene, drawn).nodes[0]?.fill?.gradient?.angle;
+        };
+        // a 45-degree ramp on a 220 x 94 box changes color along 66.9 degrees on screen, as yEd Live's does
+        assert.closeTo(angleOf(45, 220, 94) ?? Number.NaN, (Math.atan2(220, 94) * 180) / Math.PI, 0.01);
+        // a square box, and a ramp along a side, are not turned
+        assert.closeTo(angleOf(45, 94, 94) ?? Number.NaN, 45, 0.01);
+        assert.closeTo(angleOf(90, 220, 94) ?? Number.NaN, 90, 0.01);
+        assert.closeTo(angleOf(180, 220, 94) ?? Number.NaN, 180, 0.01);
     });
 
     it("ends an edge at the node drawn over its own, where a reader sees it end (json-cyjs-tokyo's stacked stations)", () => {

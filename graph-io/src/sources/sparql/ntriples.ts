@@ -7,7 +7,7 @@
 import { itemAt } from "../../common/text.js";
 
 /** One RDF term. */
-export type Term =
+type Term =
     | { readonly kind: "iri"; readonly value: string }
     | { readonly kind: "bnode"; readonly value: string }
     | { readonly kind: "literal"; readonly value: string; readonly lang: string; readonly datatype: string };

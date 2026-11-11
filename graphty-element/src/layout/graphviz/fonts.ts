@@ -77,7 +77,7 @@ export function canvasMeasure(): MeasureText | null {
  * @param measure - measures text in a CSS font
  * @returns the name of the Graphviz family whose widths are nearest the drawn face's
  */
-export function graphvizFamilyFor(font: DrawnFont, measure: MeasureText): string {
+function graphvizFamilyFor(font: DrawnFont, measure: MeasureText): string {
     const css = `${font.italic ? "italic" : "normal"} ${font.bold ? "bold" : "normal"} ${MEASURE_PX}px ${font.family}`;
     const drawn = measure(css, FONT_PROBE) / MEASURE_PX;
     let best = GRAPHVIZ_FAMILIES[0];

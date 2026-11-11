@@ -6,6 +6,9 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession } from "../../../session";
+import { fileStylesOn } from "../../helpers/file-styles-on";
+
+fileStylesOn();
 
 const labelOf = (session: ReturnType<typeof createGraphSession>, node: string): Record<string, unknown> =>
     ((session.styles.explain({ node }).merged as Record<string, unknown>)["node.labelStyle"] ?? {}) as Record<

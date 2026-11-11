@@ -59,15 +59,6 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     source: "Source",
 };
 
-/**
- * The kind line of a Sources row's left-out child, which names its load rather than "Source".
- * @param load - the load's name.
- * @returns such as "Left out of people.csv and messages.csv".
- */
-export function leftOutOf(load: string): string {
-    return `Left out of ${load}`;
-}
-
 /** The kind word of a path run's row, which is a measure row by shape but not a measure to a reader. */
 export const PATH_WORD = "Path";
 
@@ -248,6 +239,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.raisedBorderWidth": "Raised border width",
     "node.raisedBorderLightColor": "Raised border light color",
     "node.raisedBorderDarkColor": "Raised border dark color",
+    "node.shadowColor": "Shadow color",
+    "node.shadowOpacity": "Shadow opacity",
+    "node.shadowBlur": "Shadow blur",
+    "node.shadowOffsetX": "Shadow offset X",
+    "node.shadowOffsetY": "Shadow offset Y",
     "node.underlayColor": "Underlay color",
     "node.underlayOpacity": "Underlay opacity",
     "node.underlayPadding": "Underlay padding",
@@ -318,6 +314,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.shapeTexts": "Shape",
     "node.labelTable": "Label",
     "node.shapeLineWidth": "Shape",
+    "node.shapeLineHaloColor": "Shape",
+    "node.shapeLineHaloWidth": "Shape",
     "node.gradientColors": "Gradient",
     "node.gradientStops": "Gradient",
     "node.gradientKind": "Gradient",
@@ -344,6 +342,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.gradientKind": "Gradient",
     "edge.waveAmplitude": "Wave amplitude",
     "edge.wavePeriod": "Wave period",
+    "edge.dashLength": "Dash length",
+    "edge.dashGap": "Dash gap",
     "edge.bendCurve": "Bend curve",
     "edge.arcRadius": "Arc radius",
     "edge.route": "Route",
@@ -408,6 +408,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelOutlineOpacity": "Label",
     "edge.labelBorderOpacity": "Label",
     "edge.labelPadding": "Label",
+    "edge.labelTable": "Label",
     "edge.labelCornerRadius": "Label",
     "edge.labelLineHeight": "Label",
     "edge.labelOffsetX": "Label",
@@ -466,7 +467,7 @@ export function directionWords(statistics: GraphStatistics): string {
  * @param directedness - the element's direction.
  * @returns the sentence, or null.
  */
-export function arrowheadNote(directedness: GraphStatistics["directedness"]): string | null {
+function arrowheadNote(directedness: GraphStatistics["directedness"]): string | null {
     // An arrowhead on an edge with no direction shows the file's order, not a direction.
     const follows =
         "an arrowhead shows only the file's order: it points from each edge's first-listed node to its second";
@@ -584,7 +585,7 @@ export function selectionWords(nodes: number, edges: number): string {
  * @param session - the session.
  * @returns the words.
  */
-export function selectionNameWords(session: GraphSession): string {
+function selectionNameWords(session: GraphSession): string {
     const { nodes, edges } = session.selection;
     if (nodes.length + edges.length === 1) {
         if (nodes.length === 1) {
@@ -882,7 +883,7 @@ export function xrReasonWords(reason: XrUnavailableReason, mode: XrRowMode): str
 }
 
 /**
- * The XR rows the View menu draws: one "VR / AR" row when neither mode can be entered for the
+ * The XR rows the Mode menu draws: one "VR / AR" row when neither mode can be entered for the
  * same reason, otherwise one row per mode, each with its reason or null.
  * @param xr - the element's XR facts.
  * @returns the rows, top to bottom.

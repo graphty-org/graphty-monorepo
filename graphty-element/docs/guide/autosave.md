@@ -88,7 +88,7 @@ Data calls (`addNodes`, `loadFromUrl`, `loadFromFile` and the rest) also wait fo
 then run as ordinary changes.
 
 A graph the page asks the session for while the entry is still being read (`session.data.import`,
-`loadSample`, `addNodes` and the other session data calls) is never replaced by the restore: the
+`loadExample`, `addNodes` and the other session data calls) is never replaced by the restore: the
 work is not reopened over it, stays listed, and fires `graphty-autosave-available` with reason
 `"page-data-changed"`, so the page can offer it.
 
@@ -114,16 +114,17 @@ draws nothing but still loads the data and restores the work, so the reader can 
 
 ## Choices
 
-| Option, on `autosaveOptions` | Default       | What it does                                                                     |
-| ---------------------------- | ------------- | -------------------------------------------------------------------------------- |
-| `key`                        | the attribute | the key, overriding the attribute's value                                        |
-| `restore`                    | `"auto"`      | `"manual"` restores nothing by itself; see below                                 |
-| `delayMs`, `maxWaitMs`       | 500, 2000     | the debounce of a write while visible, and the most a change waits               |
-| `dataMaxWaitMs`              | 10000         | the most a change to the graph's data waits                                      |
-| `keep`                       | 10            | entries per key beyond which clean ones are deleted; unsaved work never is       |
-| `persist`                    | `false`       | ask for persistent storage after the first write that follows a reader's gesture |
-| `unloadGuard`                | `"pending"`   | when to ask the reader before the page closes; see below                         |
-| `store`                      | IndexedDB     | a store of your own (`AutosaveStore` from `@graphty/graphty-element/extend`)     |
+| Option, on `autosaveOptions` | Default       | What it does                                                                         |
+| ---------------------------- | ------------- | ------------------------------------------------------------------------------------ |
+| `key`                        | the attribute | the key, overriding the attribute's value                                            |
+| `restore`                    | `"auto"`      | `"manual"` restores nothing by itself; see below                                     |
+| `delayMs`, `maxWaitMs`       | 500, 2000     | the debounce of a write while visible, and the most a change waits                   |
+| `dataMaxWaitMs`              | 10000         | the most a change to the graph's data waits                                          |
+| `keep`                       | 10            | entries per key beyond which clean ones are deleted; unsaved work never is           |
+| `persist`                    | `false`       | ask for persistent storage after the first write that follows a reader's gesture     |
+| `unloadGuard`                | `"pending"`   | when to ask the reader before the page closes; see below                             |
+| `store`                      | IndexedDB     | a store of your own (`AutosaveStore` from `@graphty/graphty-element/extend`)         |
+| `keepCamera`                 | `false`       | put the camera back where this tab left it when its work reopens, instead of framing |
 
 `autosave-restore="manual"` (or `restore: "manual"`) turns automatic restore off: the element fires
 `graphty-autosave-available` with reason `"manual"` when an entry exists, and you call
@@ -214,6 +215,10 @@ await removeAutosave("acme.org-chart", latest.id);
 ```
 
 Both take `{ store }` for a store of your own. Where the browser keeps no storage, the list is empty.
+
+An entry listed with `own: true` is the one this tab was writing before a reload or a discarded
+tab: open it without asking. After a reload the call waits up to two seconds for the page that left
+to let go of the entry; a duplicated tab gets `own: false` while its original is still writing.
 
 ## Status and codes
 

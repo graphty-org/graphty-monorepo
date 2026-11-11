@@ -198,7 +198,7 @@ export interface BFSResult<TNodeId> {
     visitedCount: number;
 }
 
-export interface ClusterExplanation {
+interface ClusterExplanation {
     clusterId: string;
     reason: string;
     modularityImprovement: number;

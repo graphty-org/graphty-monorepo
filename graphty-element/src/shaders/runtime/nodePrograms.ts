@@ -51,7 +51,7 @@ export const BATCH_ATTRIBUTES = [
 export const BATCH_FLOATS = BATCH_ATTRIBUTES.length * 4;
 
 /** The batch's plain uniforms beside the scene block. */
-export const BATCH_UNIFORMS = [
+const BATCH_UNIFORMS = [
     "world",
     "view",
     "projection",
@@ -66,11 +66,11 @@ export const BATCH_UNIFORMS = [
 export const MESH_ATTRIBUTES = ["graphtyShaderA", "graphtyShaderB"] as const;
 
 /** The radii the outline ring is drawn between, as multiples of the node's (NodeEffects). */
-export const RING_INNER = 1;
-export const RING_OUTER = 1.35;
+const RING_INNER = 1;
+const RING_OUTER = 1.35;
 
 /** How far a glow reaches, as a multiple of the radius. */
-export const GLOW_REACH = 1.8;
+const GLOW_REACH = 1.8;
 
 /**
  * The locals `graphty_p_<name>` that {@link mainPrelude} clamps into the body's globals.

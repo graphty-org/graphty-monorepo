@@ -98,7 +98,10 @@ export type {
     // View mode types
     ViewMode,
     // XR configuration types
+    XRAiConfig,
+    XRAiControlCode,
     XRConfig,
+    XRControllerButton,
     XRInputConfig,
     XRModeConfig,
     XRTeleportationConfig,
@@ -195,7 +198,9 @@ export type {
 
 // The project file: the whole session as one graphty document, as `element.session.project`
 export type {
+    AssetStorage,
     ProjectApi,
+    ProjectAssetChoice,
     ProjectOpenOptions,
     ProjectOpenReport,
     ProjectProblem,
@@ -432,7 +437,14 @@ export {
 // =============================================================================
 // Renderer
 // =============================================================================
-export type { ActiveRenderer, PixelRatio, RendererRequest, RendererStatus } from "./src/managers/RenderManager";
+export type {
+    ActiveRenderer,
+    LayoutDevice,
+    PixelRatio,
+    RendererRequest,
+    RendererStatus,
+} from "./src/managers/RenderManager";
+export type { RenderPath, RowCounts } from "./src/meshes/NodeBatch";
 
 // =============================================================================
 // Acceleration

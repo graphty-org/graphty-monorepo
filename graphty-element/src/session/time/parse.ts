@@ -298,6 +298,54 @@ export function inferUnit(values: Iterable<unknown>): TimeUnit | undefined {
     return unitOfTally(tally);
 }
 
+/**
+ * A column name that speaks of time, as whole words: `sent_at` and `startDate` do, `friend` and
+ * `candidate` do not. Run on the name with its camel case split and lowered.
+ */
+const TIME_NAME = /(?:^|[^a-z])(?:date|datetime|time|timestamp|year|start|end|created|sent|when|period)s?(?:$|[^a-z])/; // NOSONAR(S5843): one flat list of words between two word edges
+
+/** A loose reading counts toward a candidate only with a four-digit year in it. */
+const HAS_YEAR = /\d{4}/;
+
+/**
+ * Whether a column's name speaks of time.
+ * @param name - The column's name.
+ * @returns True when it does.
+ */
+function isTimeName(name: string): boolean {
+    return TIME_NAME.test(name.replaceAll(/([a-z])([A-Z])/g, "$1 $2").toLowerCase());
+}
+
+/**
+ * Whether a value is a date on its face, with no help from its column's name: a number written as
+ * text is not, though `2021` is strict ISO 8601.
+ * @param value - The value.
+ * @returns True for a `Date` or strict ISO text.
+ */
+function isStrictDate(value: unknown): boolean {
+    return (
+        value instanceof Date ||
+        (typeof value === "string" && !isNumericText(value) && readInstant(value, "ms").how === "strict")
+    );
+}
+
+/**
+ * How a column reads as time, judged from a sample of its non-empty values: every one is a strict
+ * date, or the column is named for time and every number fits an epoch or a calendar year. Never
+ * from the name alone.
+ * @param name - The column's name.
+ * @param samples - Its sampled values.
+ * @returns True when the column looks like time.
+ */
+export function looksLikeTime(name: string, samples: readonly unknown[]): boolean {
+    const unit = inferUnit(samples);
+    if (unit !== undefined) {
+        return unit !== "ordinal" && isTimeName(name);
+    }
+
+    return samples.length > 0 && samples.every(isStrictDate);
+}
+
 /** What the present values of a column have looked like so far, for {@link unitOfTally}. */
 export interface UnitTally {
     count: number;
@@ -353,6 +401,65 @@ export function unitOfTally(tally: UnitTally): TimeUnit | undefined {
     }
 
     return millis === count ? "ms" : "ordinal";
+}
+
+/** What a column's values have looked like so far as a time candidate. */
+export interface CandidateTally extends UnitTally {
+    /** How many values are present. */
+    total: number;
+    /** How many of the values that are not numbers read as time. */
+    parsed: number;
+}
+
+/**
+ * A candidate tally of no values.
+ * @returns It.
+ */
+export function newCandidateTally(): CandidateTally {
+    return { ...newUnitTally(), total: 0, parsed: 0 };
+}
+
+/**
+ * Count one value of a column, numeric text as its number.
+ * @param tally - The tally so far.
+ * @param value - The value.
+ */
+export function tallyCandidate(tally: CandidateTally, value: unknown): void {
+    if (value === undefined || value === null || value === "") {
+        return;
+    }
+
+    tally.total++;
+    if (typeof value === "string" && !isDateShaped(value) && isNumericText(value)) {
+        tallyUnit(tally, Number(value));
+        return;
+    }
+
+    tallyUnit(tally, value);
+    if (typeof value !== "number") {
+        const { how } = readInstant(value, "ms");
+        tally.parsed +=
+            how === "strict" || (how === "loose" && typeof value === "string" && HAS_YEAR.test(value)) ? 1 : 0;
+    }
+}
+
+/**
+ * How a tallied column reads as time. A column of numbers counts whole or not at all: epochs under
+ * any name, years only under a time name, and plain steps never.
+ * @param tally - The column's tally.
+ * @param name - The column's name.
+ * @returns How many of its values read as time, and the unit of a column of numbers.
+ */
+export function candidateReading(
+    tally: CandidateTally,
+    name: string,
+): { readonly parsed: number; readonly unit?: TimeUnit } {
+    const unit = unitOfTally(tally);
+    if (unit === undefined) {
+        return { parsed: tally.parsed };
+    }
+
+    return unit !== "ordinal" && (unit !== "year" || isTimeName(name)) ? { parsed: tally.count, unit } : { parsed: 0 };
 }
 
 /**
@@ -464,6 +571,58 @@ export function readInstant(
     }
 
     return typeof value === "string" ? readText(value, unit, timeZone) : { at: Number.NaN, how: "unparsed" };
+}
+
+/**
+ * The smallest number above a finite one.
+ * @param at - The number.
+ * @returns The next float up.
+ */
+function nextAbove(at: number): number {
+    if (at === 0) {
+        return Number.MIN_VALUE;
+    }
+
+    const bits = new BigInt64Array(Float64Array.of(at).buffer);
+    bits[0] += at > 0 ? 1n : -1n;
+
+    return new Float64Array(bits.buffer)[0];
+}
+
+/**
+ * Where a span ends. An instant is a span ending at the next float above it, so the one test
+ * `start < to && end > from` covers both; an end at or before its start reads as such an instant.
+ * @param start - The span's start.
+ * @param end - The end as given.
+ * @returns The end.
+ */
+export function spanEnd(start: number, end: number): number {
+    return end > start ? end : nextAbove(start);
+}
+
+/**
+ * A spells value as its spells' raw bounds: a list of `{ start, end }`, `[start, end]` or bare
+ * instants, whose two bounds are the same value.
+ * @param value - The value.
+ * @returns One `[start, end]` per spell; none for an empty value.
+ */
+export function spellPairs(value: unknown): readonly (readonly [unknown, unknown])[] {
+    if (value === undefined || value === null || value === "") {
+        return [];
+    }
+
+    return (Array.isArray(value) ? value : [value]).map((spell: unknown) => {
+        if (Array.isArray(spell)) {
+            return [spell[0], spell[1]] as const;
+        }
+
+        if (typeof spell === "object" && spell !== null && !(spell instanceof Date)) {
+            const { start, end } = spell as { readonly start?: unknown; readonly end?: unknown };
+            return [start, end] as const;
+        }
+
+        return [spell, spell] as const;
+    });
 }
 
 /**

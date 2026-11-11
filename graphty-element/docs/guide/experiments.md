@@ -53,7 +53,8 @@ shipped.
 ### `timeline`
 
 Time-series playback over a date or number column: `session.time`, the `time:*` events, and the
-attributes `node-time-path`, `edge-time-path`, `node-time-unit` and `edge-time-unit`. See
+attributes `node-time-path`, `edge-time-path`, `node-time-end-path`, `edge-time-end-path`,
+`node-time-unit` and `edge-time-unit`. See
 [Timeline](./timeline).
 
 ```html
@@ -101,6 +102,37 @@ a saved run's `caveats.window` is left out of what `session.runs` hands over.
 
 Versions 3.31.0 to 3.35.0 had the timeline on for everyone. A page written against them adds
 `features="timeline"` to keep it.
+
+### `file-styles`
+
+Drawing the styles other programs write into graph files, and writing a graph's styles into one: a
+load with `styles: "file"`, an export with `styles: true`, and every style channel and value added
+to draw those files (flat node shapes, borders, widths and heights, more arrowheads and line
+patterns, label boxes and positions, and the rest). See [Styles from Files](./file-styles).
+
+```html
+<graphty-element features="file-styles"></graphty-element>
+```
+
+With it off:
+
+- A load that asks for `styles: "file"`, by its options or by the source's, refuses with
+  `E_FEATURE_OFF` (`{ feature: "file-styles", key: "styles" }`) before reading anything, and an
+  export with `styles: true` refuses the same way. `dataSourceConfig: { styles: "file" }` on the
+  element loads the data without its styles and lists `styles` in `element.refusedFeatures`.
+- A draft's `styles` is null, `lastImport()` has no `styles`, the formats in `session.catalog`
+  carry no `styles` and no `styles` writer option, and an export notes no style loss.
+- `session.catalog.channels(target)` leaves out the channels the experiment added and the values it
+  added to the rest, and a binding that spreads over a channel's values (a number onto node
+  shapes, groups onto line patterns) spreads over the values that are left.
+- The fixed layout's `edgeRoutes` and `graphvizAttributes` options are left out of
+  `session.catalog`, and the recommended layout no longer asks Graphviz to route a placed DOT
+  file's edges.
+- `data.setFileStyles`, sent through `session.execute` or inside `session.transaction`, refuses with
+  `E_FEATURE_OFF`.
+
+A layer that writes one of the experiment's channels or values directly is still accepted and
+drawn, and a project saved with the experiment on opens with the styles it was saved with.
 
 ## What `@experimental` promises
 

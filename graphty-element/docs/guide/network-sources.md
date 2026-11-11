@@ -6,9 +6,12 @@ about a load may change in a minor release until they are declared stable.
 :::
 
 A network source turns parameters into a graph over the network: a public repository (NDEx), a
-graph database (Neo4j, Amazon Neptune), a REST API (OpenAlex), a SPARQL endpoint, graph-samples'
-datasets, or a service of your own.
-graphty-element loads from any of them by name. You install nothing else and write no client.
+graph database (Neo4j, Amazon Neptune), a REST API (OpenAlex), a SPARQL endpoint, or a service of
+your own. graphty-element loads from any of them by name. You install nothing else and write no
+client.
+
+graph-samples' datasets are not a network source: load one with
+`session.data.loadDataset("karate")`.
 
 ## Load from a built-in source
 
@@ -17,13 +20,10 @@ const element = document.querySelector("graphty-element");
 
 // A pathway from NDEx, the public repository of biological networks.
 await element.loadFromSource("ndex", { uuid: "86719f5b-1439-11f0-9806-005056ae3c32" });
-
-// A sample dataset from graph-samples, downloaded from graphty.app.
-await element.loadFromSource("graph-samples", { dataset: "karate" });
 ```
 
 `sourceDescriptors()` from `@graphty/graphty-element/catalog` lists every source: its id, what
-parameters it takes, which credentials it accepts and the public samples it offers. It runs in
+parameters it takes, which credentials it accepts and the public examples it offers. It runs in
 Node and loads no source's code, so a settings form can be drawn from it:
 
 ```ts
@@ -38,22 +38,49 @@ for (const { id, descriptor } of sourceDescriptors()) {
 }
 ```
 
-## Load a sample by its id
+## Load an example
 
-Every public sample a source lists has an id. `session.data.loadSample(id)` loads it in one call,
-with the sample's parameters, its endpoint and the login its service publishes:
+A source's examples are public servers and the parameters that load a known graph from them
+(`descriptor.examples` in `sourceDescriptors()`). `session.data.loadExample(source, id)` loads one
+in one call, with its parameters, its endpoint, the login its service publishes and, for one too
+big to load whole, its first page:
 
 ```ts
 // The Neo4j demo server's movies database, with the login the demo publishes.
-await element.session.data.loadSample("neo4j-movies");
+await element.session.data.loadExample("neo4j", "neo4j-movies");
 
-// graph-samples' karate club.
-await element.session.data.loadSample("graph-samples-karate");
+// TP53's protein interactions from UniProt's SPARQL endpoint.
+await element.session.data.loadExample("sparql", "uniprot-tp53");
 ```
 
-It takes the options `import` takes; a `credential` or `endpoint` you pass wins over the sample's.
-An id no source lists rejects with `E_SOURCE_UNKNOWN`, whose `details.known` lists every sample id.
-The ids are the `id` of each entry in `descriptor.samples`, from `sourceDescriptors()`.
+It takes the options `import` takes; a `credential` or `endpoint` you pass wins over the
+example's. An id the source does not list rejects with `E_SOURCE_UNKNOWN`, whose
+`details.known` lists that source's example ids.
+
+| Source     | Examples                                                                                                  |
+| ---------- | --------------------------------------------------------------------------------------------------------- |
+| `ndex`     | `ndex-wp5483`, `ndex-nci-pid`, `ndex-huri`, `ndex-signor`, `ndex-dgidb`, `ndex-wikipathways-landscape`    |
+| `neo4j`    | `neo4j-movies`, `neo4j-northwind`, `neo4j-gameofthrones`, `neo4j-fincen`, `neo4j-movies-bolt`, `hetionet` |
+| `sparql`   | `uniprot-tp53`, `dbpedia-philosophers`, `wikidata-einstein`                                               |
+| `rest`     | `string-tp53`, `deps-dev-webpack`                                                                         |
+| `openalex` | `openalex-watts-strogatz`                                                                                 |
+
+The Neo4j demo server (`demo.neo4jlabs.com`) is read-only and publishes each database's login as
+its name, for both user and password. Amazon Neptune has no public server, so it has no example.
+
+## Read first, load later
+
+`session.data.readExample(source, example, options)` reads one of a source's examples and changes
+nothing, so a failure can be shown before anything is opened for the data. It takes what `import`
+takes and refuses what the renderer could not draw with `E_TOO_LARGE`. Pass the result to `import`,
+on any session, and it loads without reading the service again:
+
+```ts
+const scratch = createGraphSession();
+const read = await scratch.data.readExample("ndex", "ndex-wp5483");
+await element.session.data.import(read); // read.nodes and read.edges say how big it is
+scratch.dispose();
+```
 
 ## Write your own source
 
@@ -163,6 +190,7 @@ the values. Your application writes the words.
 | `E_SOURCE_UNSUPPORTED` | the source cannot do what was asked            | `feature`                            |
 | `E_SOURCE_PENDING`     | a load of an opened project has not been run   | `id`                                 |
 | `E_LOAD_UNKNOWN`       | no load in the graph has that key              | `key`, `known`                       |
+| `E_TOO_LARGE`          | it is past what the renderer can draw          | `limit`, `count`, `of`, `graph`      |
 
 `stored: true` on `E_SOURCE_AUTH` means a remembered credential was used and refused, so you can
 offer to replace it; `slot` names the credential slot to ask the reader for. The full list is `SOURCE_ISSUE` in `@graphty/graphty-element`.
@@ -242,6 +270,16 @@ for (const load of element.session.data.pendingSourceLoads()) {
 }
 ```
 
+The reader's own autosave is different: it is their work coming back, not a file someone sent.
+When the element's autosave restores a project, a load the reader ran stays live and does not
+wait again; only a load that was still waiting when the autosave was written waits. When your page
+keeps the reader's projects itself (a list of projects saved in the browser), open them the same
+way with `ownWork`; never pass it for a file the reader picked or was sent:
+
+```ts
+await element.session.project.open(savedText, { ownWork: true });
+```
+
 A project file never turns click-to-expand on: the trigger comes from your page's
 `behavior.expand` configuration or the load options your code passed, never from the file.
 
@@ -257,3 +295,24 @@ const fetch = replayFetch([{ url: "https://example.com/api/people?team=core", bo
 await element.loadFromSource("people", { team: "core" }, { endpoint: "https://example.com", fetch });
 fetch.calls.length; // 1
 ```
+
+## Showing and changing what a load fetches
+
+`session.data.sourceSettings(key)` says what a load connects to and fetches: its `source`, `endpoint`,
+`config`, `limits` and `expand`. The params are redacted as a saved file has them and no credential
+is in it, so it is safe to show. It is `undefined` for anything that is not a network load.
+
+To change a load, read it again with new settings through `replaceSource`. The key and the name stay,
+styles and filters stay, and it is one undo step:
+
+```javascript
+const [{ key }] = session.data.sources();
+const settings = session.data.sourceSettings(key);
+await session.data.replaceSource(key, {
+    source: settings.source,
+    config: { ...settings.config, query: "MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100" },
+});
+```
+
+With no `credential` given, the one remembered for that endpoint is used. A `credential` is taken in
+the third argument, with `endpoint`, `limits` and `signal`, as `import` takes them.

@@ -189,7 +189,10 @@ describe("cypher over Bolt (neo4j-driver mocked)", () => {
         );
         expect([...snapshot.ids].sort()).toEqual(["G1", "G2", "G3"]);
         expect(snapshot.nodes.value("_source.degree", snapshot.ids.requireIndex("G2"))).toBe(2);
-        expect(fake.sessions.at(-1)?.runs[0].statement).toContain("s.`name` IN $ids");
+        const statement = fake.sessions.at(-1)?.runs[0].statement;
+        expect(statement).toContain("s.`name` IN $ids");
+        // a neighbor without the id property is kept, keyed by its server id (#6215)
+        expect(statement).not.toContain("x.`name` IS NOT NULL");
     });
 
     it("hands a basic or bearer credential to the driver, bound to the endpoint", async () => {

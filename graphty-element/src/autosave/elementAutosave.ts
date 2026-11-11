@@ -8,6 +8,8 @@
  */
 
 import { GraphtyError } from "../errors/GraphtyError";
+import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
+import type { CameraState } from "../screenshot/types";
 import type { CodedFact } from "../session/shared";
 import type { GraphSession } from "../session/types";
 import {
@@ -32,8 +34,14 @@ import type {
     AutosaveStore,
 } from "./types";
 
+/** Facts about a page's autosave, for a reader of the logs: ids, counts and booleans, never data. */
+const logger: Logger = GraphtyLogger.getLogger(["graphty", "autosave"]);
+
 /** How often the storage estimate may be read after writes. */
-export const ESTIMATE_INTERVAL_MS = 60_000;
+const ESTIMATE_INTERVAL_MS = 60_000;
+
+/** How long a load waits for the lock of the page it replaces. */
+const LEAVING_WAIT_MS = 2000;
 
 /** The detail of `graphty-autosave-at-risk`. */
 export type AutosaveAtRisk = CodedFact<"W_AUTOSAVE_ORIGIN_EPHEMERAL">;
@@ -50,10 +58,29 @@ export interface PageLocks extends AutosaveLocks {
      * the first claim this page makes of it, so an element mounted later writes under it.
      * Optional: without it, every lock counts as this page's.
      * @param name - The lock.
+     * @param waitMs - When set, wait this long for a holder to let go; for a page that left.
      * @returns True when this page holds it.
      */
-    own?(name: string): Promise<boolean>;
+    own?(name: string, waitMs?: number): Promise<boolean>;
+    /**
+     * Settle who has a lock this tab held before a reload: resolves once the lock is free (the page
+     * that held it has gone), once a live page says it holds it (a duplicated tab's original), or
+     * after {@link HANDOFF_MS} when the holder says nothing. Immediate when this page holds it.
+     * Optional: without it, nothing is waited for.
+     * @param name - The lock.
+     */
+    handoff?(name: string): Promise<void>;
 }
+
+/**
+ * The longest a reloaded tab waits for its own entry's lock from a holder that neither lets go nor
+ * answers (a tab running another copy of graphty-element, or one the browser froze). A page that is
+ * unloading lets go as soon as the browser tears it down, and a live holder answers at once.
+ */
+export const HANDOFF_MS = 3000;
+
+/** Where pages ask who holds a lock, and live holders answer. */
+const LOCKS_CHANNEL = "graphty-autosave-locks";
 
 /** What autosave needs from the page. `browserEnvironment()` is the real one. */
 export interface AutosaveEnvironment {
@@ -122,14 +149,64 @@ function webLocks(locks: LockManager): PageLocks {
         new Promise((resolve, reject) => {
             locks.request(name, { ifAvailable: true }, holdLock(resolve)).catch(reject);
         });
-    const claim = async (name: string): Promise<(() => void) | null> => {
+    // A reload can start before the browser has torn down the page it replaces, which still holds
+    // this tab's lock; a duplicated tab finds the lock held by its live original. Holders answer
+    // "who holds it?" until their page hides, so the two can be told apart.
+    const channel = typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(LOCKS_CHANNEL);
+    let leaving = false;
+    globalThis.addEventListener?.("pagehide", () => {
+        leaving = true;
+    });
+    globalThis.addEventListener?.("pageshow", () => {
+        leaving = false;
+    });
+    channel?.addEventListener("message", (event: MessageEvent<{ ask?: string }>) => {
+        const name = event.data.ask;
+        if (!leaving && name !== undefined && (mine.has(name) || parked.has(name))) {
+            channel?.postMessage({ held: name });
+        }
+    });
+    const handoff = (name: string): Promise<void> => {
+        if (mine.has(name) || parked.has(name)) {
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+            const stop = new AbortController();
+            const done = (): void => {
+                stop.abort();
+                clearTimeout(timer);
+                channel?.removeEventListener("message", heard);
+                resolve();
+            };
+            const heard = (event: MessageEvent<{ held?: string }>): void => {
+                if (event.data.held === name) {
+                    done();
+                }
+            };
+            // ponytail: the bound covers only a holder that is silent; every other case ends on an event.
+            const timer = setTimeout(done, HANDOFF_MS);
+            channel?.addEventListener("message", heard);
+            channel?.postMessage({ ask: name });
+            locks.request(name, { signal: stop.signal }, () => undefined).then(done, done);
+        });
+    };
+    // ponytail: a timer, because a holder that never lets go sends no event; reached only with a
+    // leaving mark present and the lock held. A live holder saying so over a channel would still need it.
+    const waited = (name: string, waitMs: number): Promise<(() => void) | null> =>
+        new Promise((resolve) => {
+            locks.request(name, { signal: AbortSignal.timeout(waitMs) }, holdLock(resolve)).catch(() => {
+                resolve(null);
+            });
+        });
+    const claim = async (name: string, waitMs?: number): Promise<(() => void) | null> => {
         const kept = parked.get(name);
         if (kept !== undefined) {
             parked.delete(name);
             return kept;
         }
 
-        const release = await request(name);
+        const release = (await request(name)) ?? (waitMs === undefined ? null : await waited(name, waitMs));
         if (release === null) {
             return null;
         }
@@ -151,7 +228,7 @@ function webLocks(locks: LockManager): PageLocks {
                 await locks.request(name, () => undefined);
             }
         },
-        own: (name) => {
+        own: (name, waitMs) => {
             if (mine.has(name) || parked.has(name)) {
                 return Promise.resolve(true);
             }
@@ -160,7 +237,11 @@ function webLocks(locks: LockManager): PageLocks {
             // finds the lock the first is taking, and reports this page's own entry as another's.
             let owning = claiming.get(name);
             if (owning === undefined) {
-                owning = claim(name)
+                // With a wait, the holder is known to be the page that left; without one, ask who it is.
+                owning = claim(name, waitMs)
+                    .then((release) =>
+                        release !== null || waitMs !== undefined ? release : handoff(name).then(() => claim(name)),
+                    )
                     .then((release) => {
                         if (release === null) {
                             return false;
@@ -177,6 +258,7 @@ function webLocks(locks: LockManager): PageLocks {
 
             return owning;
         },
+        handoff,
     };
 }
 
@@ -238,6 +320,39 @@ const departing = new Map<string, Promise<void>>();
 /** The session storage name of this tab's own entry of a key. */
 const OWN_ITEM = "graphty-autosave:own:";
 
+/** The session storage name of the entry a page was writing when it left for good. */
+const LEAVING_ITEM = "graphty-autosave:leaving:";
+
+/** The session storage name of the camera a page last showed. */
+const CAMERA_ITEM = "graphty-autosave:camera:";
+
+/**
+ * The entry a page of this tab left behind, if one really left; the mark is used up. A duplicated
+ * tab's copy of the mark can only name a lock its original still holds, and waits out the timer.
+ * @param env - The page.
+ * @param key - The key.
+ * @returns The entry id, or null.
+ */
+function takeLeaving(env: AutosaveEnvironment, key: string): string | null {
+    try {
+        const storage = env.sessionStorage();
+        const entry = storage?.getItem(LEAVING_ITEM + key) ?? null;
+        storage?.removeItem(LEAVING_ITEM + key);
+        return entry;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * How this page was reached, for the logs.
+ * @returns `navigate`, `reload`, `back_forward`, or null where the browser does not say.
+ */
+function navigationType(): string | null {
+    const [entry] = (globalThis.performance?.getEntriesByType?.("navigation") ?? []) as PerformanceNavigationTiming[];
+    return entry?.type ?? null;
+}
+
 /**
  * This tab's own entry of a key, as session storage kept it across a reload or a discard.
  * @param env - The page.
@@ -266,6 +381,20 @@ export interface AutosaveStart {
      * @returns Settles once it is back.
      */
     readonly reloadPage: () => Promise<void>;
+    /** Reads and places the camera, for `keepCamera`. */
+    readonly camera?: AutosaveCamera;
+}
+
+/** The element's camera, for `keepCamera`. */
+export interface AutosaveCamera {
+    /** @returns The camera now. */
+    get(): CameraState;
+    /**
+     * Place the camera at once.
+     * @param state - Where.
+     * @returns Settles once it is placed.
+     */
+    set(state: CameraState): Promise<void>;
 }
 
 /**
@@ -346,6 +475,7 @@ export class ElementAutosave {
     #lastSaved: string | null = null;
     #departed = false;
     #reloadPage: () => Promise<void> = () => Promise.resolve();
+    #camera: AutosaveCamera | undefined;
 
     /** The API the element hands out as `autosaver`. */
     readonly api: AutosaveApi;
@@ -366,7 +496,9 @@ export class ElementAutosave {
             list: () => this.#saver?.list() ?? Promise.resolve([]),
             restore: async (id, options) => {
                 await this.#ready;
-                return this.#need().restore(id, options?.discard === true);
+                const report = await this.#need().restore(id, options?.discard === true);
+                this.#placeCamera(id);
+                return report;
             },
             remove: async (id) => {
                 await this.#ready;
@@ -497,6 +629,7 @@ export class ElementAutosave {
         this.#options = options;
         this.#store = store;
         this.#reloadPage = start.reloadPage;
+        this.#camera = start.camera;
         const saver = new Autosaver({
             session: start.session,
             store,
@@ -508,6 +641,9 @@ export class ElementAutosave {
             clock: this.#env.clock,
             locks: this.#env.locks,
             hidden: () => this.#env.document.visibilityState === "hidden",
+            onEntryStart: (id) => {
+                this.#noteOwn(key, id);
+            },
         });
         this.#saver = saver;
         this.#stops.push(
@@ -525,6 +661,14 @@ export class ElementAutosave {
                 await leaving;
                 await this.#env.locks.wait(lockName(key, own));
             }
+
+            // A reload: the page before it may still hold the lock for its final write.
+            if (takeLeaving(this.#env, key) === own) {
+                await this.#env.locks.own?.(lockName(key, own), LEAVING_WAIT_MS);
+            }
+
+            // After a reload with no leaving mark, the page it replaced may not have let go yet.
+            await this.#env.locks.handoff?.(lockName(key, own));
         }
 
         saver.setFacts(await this.#gatherFacts(), true);
@@ -548,8 +692,11 @@ export class ElementAutosave {
             }),
         );
         this.#listen();
+        // From here a hidden or closed page writes what is outstanding; before, nothing can be written.
+        logger.info("listening", { entry: saver.entryId, restored: restored !== null, started: saver.started });
         this.#updateGuard(saver.status);
         if (restored !== null) {
+            this.#placeCamera(restored.entry.id);
             this.#dispatch("graphty-autosave-restored", restored);
         }
 
@@ -805,14 +952,32 @@ export class ElementAutosave {
             });
         };
         const close = (): Promise<void> => this.#store?.close?.() ?? Promise.resolve();
+        const flushLogged = (): Promise<void> =>
+            saver.flush(true).then(() => {
+                logger.info("flush finished", { entry: saver.entryId });
+            });
         on(document, "visibilitychange", () => {
+            logger.info("visibility", { state: document.visibilityState });
             if (document.visibilityState === "hidden") {
-                void saver.flush(true);
+                this.#keepCamera(saver);
+                void flushLogged();
             }
         });
         on(window, "pagehide", (event) => {
-            const flushed = saver.flush(true);
-            if ((event as PageTransitionEvent).persisted) {
+            const { persisted } = event as PageTransitionEvent;
+            logger.info("pagehide", { persisted });
+            this.#keepCamera(saver);
+            if (!persisted) {
+                // Written before anything else can end the page: only a page that really left writes it.
+                try {
+                    this.#env.sessionStorage()?.setItem(LEAVING_ITEM + saver.key, saver.entryId);
+                } catch {
+                    // No session storage here: a reload cannot wait for this page's lock.
+                }
+            }
+
+            const flushed = flushLogged();
+            if (persisted) {
                 // Into the back/forward cache, which a held Web Lock keeps the page out of. Released
                 // now, not after the write: the write finishes only once the page is shown again,
                 // when the lock it would release is the one `pageshow` took back.
@@ -824,7 +989,8 @@ export class ElementAutosave {
             void flushed.then(() => saver.releaseLock()).then(close);
         });
         on(document, "freeze", () => {
-            void saver.flush(true).then(close);
+            logger.info("freeze");
+            void flushLogged().then(close);
         });
         on(window, "pageshow", (event) => {
             if ((event as PageTransitionEvent).persisted) {
@@ -832,6 +998,7 @@ export class ElementAutosave {
             }
         });
         on(document, "resume", () => {
+            logger.info("resume");
             void saver.reclaim();
         });
 
@@ -843,6 +1010,45 @@ export class ElementAutosave {
             };
             window.addEventListener("pointerdown", gesture, { capture: true, once: true });
             window.addEventListener("keydown", gesture, { capture: true, once: true });
+        }
+    }
+
+    /**
+     * Keep where the camera is, with the entry it belongs to, when the consumer asked for it.
+     * @param saver - The writer.
+     */
+    #keepCamera(saver: Autosaver): void {
+        if (this.#options.keepCamera !== true || this.#camera === undefined) {
+            return;
+        }
+
+        try {
+            const item = JSON.stringify({ entry: saver.entryId, state: this.#camera.get() });
+            this.#env.sessionStorage()?.setItem(CAMERA_ITEM + saver.key, item);
+        } catch {
+            // No session storage here, or no camera yet: the graph is framed as on any load.
+        }
+    }
+
+    /**
+     * Put the camera back where this tab left it, when it is the restored entry's.
+     * @param entry - The restored entry.
+     */
+    #placeCamera(entry: string): void {
+        const camera = this.#camera;
+        const key = this.#saver?.key;
+        if (this.#options.keepCamera !== true || camera === undefined || key === undefined) {
+            return;
+        }
+
+        try {
+            const text = this.#env.sessionStorage()?.getItem(CAMERA_ITEM + key) ?? null;
+            const kept = text === null ? null : (JSON.parse(text) as { entry: string; state: CameraState });
+            if (kept?.entry === entry) {
+                void camera.set(kept.state).catch(() => undefined);
+            }
+        } catch {
+            // Nothing readable kept: the graph is framed as on any load.
         }
     }
 
@@ -864,7 +1070,8 @@ export class ElementAutosave {
         const mode = this.#options.unloadGuard ?? "pending";
         let wanted = false;
         if (mode === "pending") {
-            wanted = status.state === "pending" || status.state === "failing";
+            // A pending write of layout positions only (the layout came to rest) holds no change.
+            wanted = status.state === "failing" || (status.state === "pending" && this.#saver?.unsavedChanges === true);
         } else if (mode === "unexported") {
             wanted = status.unexported;
         }
@@ -921,9 +1128,10 @@ async function withLookupStore<T>(
  *
  * `own` is true for the one entry this tab was writing (after a reload, or after the browser
  * discarded the tab and loaded it again) once this tab holds its lock: the call takes the lock and
- * keeps it for the element this page mounts next with the same key. A duplicated tab inherits the
- * session storage naming the entry, but while the original tab holds the lock it gets `own: false`,
- * and its element writes to a copy.
+ * keeps it for the element this page mounts next with the same key. After a reload it waits, up
+ * to two seconds, for the page that left to let go of the lock. A duplicated tab inherits the
+ * session storage naming the entry, but while the original tab holds the lock it gets `own: false`
+ * at once, and its element writes to a copy.
  * @param key - The autosave key.
  * @param options - Where to look.
  * @returns The entries.
@@ -934,13 +1142,27 @@ export function listAutosaves(key: string, options: AutosaveLookupOptions = {}):
             return [];
         }
 
-        const metas = await store.list(key);
         const candidate = ownEntries.get(key) ?? readOwnItem(env, key);
-        const owned =
-            candidate !== null &&
-            metas.some((meta) => meta.id === candidate) &&
-            ((await env.locks.own?.(lockName(key, candidate))) ?? true);
+        const leaving = takeLeaving(env, key);
+        const waited = candidate !== null && leaving === candidate;
+        // Before the list: the page that left may still be writing this entry's final commit.
+        if (waited) {
+            await env.locks.own?.(lockName(key, candidate), LEAVING_WAIT_MS);
+        }
+
+        const metas = await store.list(key);
+        const exists = metas.some((meta) => meta.id === candidate);
+        const owned = candidate !== null && exists && ((await env.locks.own?.(lockName(key, candidate))) ?? true);
         const held = await env.locks.held();
+        logger.info("kept work listed", {
+            noted: candidate !== null,
+            exists,
+            own: owned,
+            waited,
+            leavingMark: leaving !== null,
+            entries: metas.length,
+            navigationType: navigationType(),
+        });
         return metas.map((meta) => ({
             ...entryOfMeta(meta, held.has(lockName(key, meta.id))),
             own: owned && meta.id === candidate,

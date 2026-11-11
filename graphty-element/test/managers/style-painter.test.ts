@@ -16,8 +16,14 @@ import defaultsDeep from "lodash/defaultsDeep.js";
 import { assert, describe, it } from "vitest";
 
 import type { LayerSpec, Path } from "../../src/catalog/types";
-import { defaultEdgeStyle, defaultNodeStyle, EdgeStyle, NodeStyle } from "../../src/config";
-import { bootstrapEdgePaint, bootstrapNodePaint, fillDefaults, StylePainter } from "../../src/managers/StylePainter";
+import { defaultEdgeStyle, defaultNodeStyle, EdgeStyle, NodeStyle, type NodeStyleConfig } from "../../src/config";
+import {
+    batchableOf,
+    bootstrapEdgePaint,
+    bootstrapNodePaint,
+    fillDefaults,
+    StylePainter,
+} from "../../src/managers/StylePainter";
 import {
     createStylesApi,
     type ElementLayerSpec,
@@ -25,7 +31,7 @@ import {
     type SessionStylesApi,
 } from "../../src/session/styles/index";
 import type { SelectorSource } from "../../src/session/styles/predicate";
-import { createLayerRepaint, type RepaintEngine } from "../../src/session/styles/repaint";
+import { createLayerRepaint, type ElementPaint, type RepaintEngine } from "../../src/session/styles/repaint";
 
 /** One element's columns, keyed by the path a selector or a binding names. */
 type Row = Readonly<Record<Path, unknown>>;
@@ -469,6 +475,120 @@ describe("StylePainter channels", () => {
     });
 });
 
+describe("StylePainter shared edge paints", () => {
+    it("hands every edge of one look the same paint, built once (#6026)", async () => {
+        // A time window's Ghost row moves thousands of edges a frame between two looks; building
+        // each one's paint afresh was a third of the frame.
+        const held = harness();
+        await held.paintAll();
+
+        const first = held.painter.edgePaint(0);
+        assert.isNotNull(first);
+        assert.isTrue(held.painter.edgePaint(1) === first, "the other edge of the same look shares it");
+        assert.isTrue(held.painter.edgePaint(0) === first, "and asking again builds nothing");
+    });
+
+    it("builds a new paint once the look changes", async () => {
+        const held = harness();
+        await held.paintAll();
+        const before = held.painter.edgePaint(0);
+
+        await held.styles.add({
+            name: "edge colour",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.color": "#FF0000" },
+        });
+        await held.paintAll();
+
+        const after = held.painter.edgePaint(0);
+        assert.isFalse(after === before);
+        assert.strictEqual(after?.style.line?.color, "#ff0000");
+        assert.isTrue(held.painter.edgePaint(1) === after);
+    });
+
+    it("never shares the paint of an edge that carries content of its own", async () => {
+        const held = harness();
+        await held.styles.add({
+            name: "labels",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.label": "wire" },
+        });
+        await held.paintAll();
+
+        const first = held.painter.edgePaint(0);
+        assert.strictEqual(first?.style.label?.text, "wire");
+        assert.isFalse(held.painter.edgePaint(1) === first, "a label is per edge, so its paint is too");
+    });
+});
+
+describe("StylePainter row paints, one look per mesh key", () => {
+    const RAMP: LayerSpec = {
+        name: "degree ramp",
+        target: "node",
+        selector: { match: "has", path: "results.degree.value" },
+        encode: { "node.color": { by: "results.degree.value", scale: "linear", palette: "viridis" } },
+    };
+
+    it("paints a row with no Node exactly as its Node would be painted", async () => {
+        const held = harness();
+        await held.styles.add(RAMP);
+        await held.paintAll();
+
+        for (let index = 0; index < NODES.length; index++) {
+            assert.deepStrictEqual(held.painter.rowPaint(index), held.painter.nodePaint(index));
+        }
+    });
+
+    it("builds one style per mesh key, not one per row, whatever color each row has", async () => {
+        const held = harness();
+        await held.styles.add(RAMP);
+        await held.paintAll();
+
+        const paints = NODES.map((_, index) => held.painter.rowPaint(index));
+        const styles = new Set(paints.map((paint) => paint?.style));
+        assert.strictEqual(styles.size, 1, "four rows of one shape share one style");
+        assert.strictEqual(new Set(paints.map((paint) => paint?.color?.r)).size, NODES.length, "each keeps its color");
+    });
+
+    it("builds a style per size when the size is data-driven", async () => {
+        const held = harness();
+        await held.styles.add({
+            name: "size by degree",
+            target: "node",
+            selector: { match: "has", path: "results.degree.value" },
+            encode: { "node.size": { by: "results.degree.value", scale: "linear", range: [1, 4] } },
+        });
+        await held.paintAll();
+
+        const styles = new Set(NODES.map((_, index) => held.painter.rowPaint(index)?.style));
+        assert.strictEqual(styles.size, NODES.length);
+    });
+
+    it("never shares the style of a row that carries content of its own", async () => {
+        const held = harness();
+        await held.styles.add({
+            name: "labels",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.label": "host" },
+        });
+        await held.paintAll();
+
+        const first = held.painter.rowPaint(0);
+        assert.strictEqual(first?.style.label?.text, "host");
+        assert.isFalse(held.painter.rowPaint(1)?.style === first?.style, "a label is per row, so its style is too");
+    });
+
+    it("leaves nodePaint building a style of its own for every node, as the objects path always has", async () => {
+        const held = harness();
+        await held.paintAll();
+
+        assert.isFalse(held.painter.nodePaint(0)?.style === held.painter.nodePaint(1)?.style);
+    });
+});
+
 describe("StylePainter arrowheads", () => {
     it("draws a head on a directed graph's edges and none on an undirected graph's", async () => {
         const directed = harness(true);
@@ -588,6 +708,104 @@ describe("StylePainter dirty set", () => {
     });
 });
 
+/**
+ * A painter over a pass that announces whatever it is told to.
+ * @returns The painter and the announcement.
+ */
+function announcing(): {
+    painter: StylePainter;
+    announce(rows: { node?: number[]; edge?: number[] }, rowsOnly: boolean): void;
+} {
+    let last: { rows: { node?: number[]; edge?: number[] }; rowsOnly: boolean } = { rows: {}, rowsOnly: false };
+    const painter = new StylePainter();
+    const paint: Partial<ElementPaint> = {
+        onPainted: () => () => undefined,
+        lastPainted: (target) => last.rows[target] ?? [],
+        lastPaintRowsOnly: () => last.rowsOnly,
+    };
+    painter.bind(paint as ElementPaint);
+
+    return {
+        painter,
+        announce(rows, rowsOnly) {
+            last = { rows, rowsOnly };
+            painter.markPainted();
+        },
+    };
+}
+
+describe("StylePainter rows-only passes", () => {
+    it("says so once, for what a rows-only pass painted", () => {
+        const { painter, announce } = announcing();
+        announce({ node: [0], edge: [1] }, true);
+
+        assert.isTrue(painter.takeNodesRowsOnly());
+        assert.isTrue(painter.takeEdgesRowsOnly());
+        assert.isFalse(painter.takeNodesRowsOnly(), "asked again");
+        assert.isFalse(painter.takeEdgesRowsOnly(), "asked again");
+    });
+
+    it("says no for a pass that is not rows-only, and with nothing painted", () => {
+        const { painter, announce } = announcing();
+        assert.isFalse(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
+
+        announce({ node: [0], edge: [1] }, false);
+        assert.isFalse(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
+    });
+
+    it("says no when a plain pass is pending beside a rows-only one, in either order", () => {
+        const after = announcing();
+        after.announce({ node: [0], edge: [1] }, true);
+        after.announce({ node: [2], edge: [3] }, false);
+        assert.isFalse(after.painter.takeNodesRowsOnly());
+        assert.isFalse(after.painter.takeEdgesRowsOnly());
+
+        const before = announcing();
+        before.announce({ node: [2], edge: [3] }, false);
+        before.announce({ node: [0], edge: [1] }, true);
+        assert.isFalse(before.painter.takeNodesRowsOnly());
+        assert.isFalse(before.painter.takeEdgesRowsOnly());
+    });
+
+    it("leaves one kind alone when a plain pass paints only the other", () => {
+        const { painter, announce } = announcing();
+        announce({ node: [0], edge: [1] }, true);
+        announce({ edge: [3] }, false);
+        assert.isTrue(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
+    });
+
+    it("says no for a row queued after a rows-only pass, of that kind only", () => {
+        const { painter, announce } = announcing();
+        announce({ node: [0], edge: [1] }, true);
+        painter.queue("edge", 5);
+        assert.isTrue(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
+
+        announce({ node: [0], edge: [1] }, true);
+        painter.queue("node", 5);
+        assert.isFalse(painter.takeNodesRowsOnly());
+    });
+
+    it("says no once every element is put back", () => {
+        const { painter, announce } = announcing();
+        announce({ node: [0], edge: [1] }, true);
+        painter.invalidate(4, 2);
+        assert.isFalse(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
+    });
+
+    it("forgets a rows-only pass when it is bound again", () => {
+        const { painter, announce } = announcing();
+        announce({ node: [0], edge: [1] }, true);
+        painter.bind(null);
+        assert.isFalse(painter.takeNodesRowsOnly());
+        assert.isFalse(painter.takeEdgesRowsOnly());
+    });
+});
+
 /** Every object reachable from a value, so two results can be checked for a shared one. */
 function objectsIn(value: unknown, into = new Set<object>()): Set<object> {
     if (value !== null && typeof value === "object" && !into.has(value)) {
@@ -636,5 +854,46 @@ describe("fillDefaults", () => {
 
         assert.strictEqual(filled.kept, 1);
         assert.isUndefined(({} as Record<string, unknown>).polluted);
+    });
+});
+
+describe("batchableOf", () => {
+    const plain = { flatOutline: false };
+    const style = (over: object): NodeStyleConfig =>
+        defaultsDeep({}, over, NodeStyle.parse(defaultNodeStyle)) as NodeStyleConfig;
+
+    it.each<[string, object, boolean]>([
+        ["the default style", {}, true],
+        ["a shape, a size and a detail", { shape: { type: "box", size: 2, detail: 8 } }, true],
+        ["the geometry and material effects", { effect: { wireframe: true, flatShaded: true, unlit: true } }, true],
+        ["a plain color", { texture: { color: "#ff0000" } }, true],
+        ["a solid opaque color", { texture: { color: { colorType: "solid", value: "#ff0000", opacity: 1 } } }, true],
+        ["an option left undefined", { texture: { image: undefined } }, true],
+        ["a label switched off", { label: { enabled: false } }, true],
+        [
+            "a solid color with transparency",
+            { texture: { color: { colorType: "solid", value: "#f00", opacity: 0.5 } } },
+            true,
+        ],
+        [
+            "a gradient, in its source's material",
+            { texture: { color: { colorType: "gradient", colors: ["#f00", "#00f"] } } },
+            true,
+        ],
+        ["a radial gradient", { texture: { color: { colorType: "radial-gradient", colors: ["#f00", "#00f"] } } }, true],
+        ["a picture, in its source's material", { texture: { image: "a.png" } }, true],
+        ["an icon", { texture: { icon: "star" } }, false],
+        ["a glow", { effect: { glow: { color: "#ff0000", strength: 1 } } }, false],
+        ["a z order, baked into the source's vertices", { shape: { zIndex: -3, drawOrder: 20 } }, true],
+        ["a shape option no batch draws", { shape: { width: 2 } }, false],
+        ["a label, which hangs from the row's anchor", { label: { enabled: true } }, true],
+        ["a tooltip", { tooltip: { enabled: true } }, true],
+        ["a style option added later", { laterOption: true }, false],
+    ])("%s", (_name, over, batchable) => {
+        assert.equal(batchableOf({ style: style(over) }, plain), batchable);
+    });
+
+    it("a flat outline keeps every row an object", () => {
+        assert.isFalse(batchableOf({ style: style({}) }, { flatOutline: true }));
     });
 });

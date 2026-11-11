@@ -26,6 +26,9 @@
  * (tools/vitest-file-guard.mjs). It sits above TEST_GUARD_MS so a test that hangs in a page that
  * still runs is ended by the test guard, with its stack.
  *
+ * Each file can stay under FILE_GUARD_MS while a job of several files outlasts the CI job, so CI's test job also
+ * stops the whole run itself and names what was running (TEST_STEP_LIMIT_MS, tools/results/run-group.mjs).
+ *
  * Measurements are not tests and carry no guard: an inline project whose name starts with
  * "bench" (graphty-element's bench and bench-browser, webgpu-graph-algorithms' noise-floor
  * recording) is started by hand, never by the gate, and runs with no time limit at all.

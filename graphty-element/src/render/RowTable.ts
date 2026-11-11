@@ -2,9 +2,9 @@
  * @file The drawn place and size of every row of one graph, as float textures a shader can read
  * and as a CPU table picking can walk (design/rendering/row-renderer.md 4.1).
  *
- * A row is the node's index in the snapshot. Nothing draws from these tables yet: they follow
- * the meshes in shadow, built only when something opens them (`Graph.openRowTable`), so a graph
- * that never does pays one null check per move.
+ * A row is the node's index in the snapshot. Node batches draw from these tables. They are built
+ * only when something opens them (`Graph.openRowTable`), so a graph on the `"objects"` path pays
+ * one null check per move.
  */
 
 import { type AbstractEngine, Constants, RawTexture, type Scene, type ThinEngine, Vector3 } from "@babylonjs/core";
@@ -16,7 +16,7 @@ import { batchUploadFrames } from "../meshes/FrameRoster";
 import type { Node } from "../Node";
 
 /** Texels across both textures: a shader reads texel `i` at `(i % 1024, i / 1024)`. */
-export const ROW_TEXTURE_WIDTH = 1024;
+const ROW_TEXTURE_WIDTH = 1024;
 
 const FLOATS_PER_TEXEL = 4;
 /** `rowPosition` and `rowBounds`: x, y, z and w; x, y, z and radius times w. */
@@ -29,7 +29,7 @@ const EXTENT_FLOATS = 12;
 const EXTENT_BOUNDING_RADIUS = 7;
 
 /** The `rowExtent` flag of a row whose surface is the same distance from its center every way. */
-export const ROW_EXTENT_ROUND = 1;
+const ROW_EXTENT_ROUND = 1;
 
 /** Drawn somewhere other than its lane row (a drag, a transition, a group), so a repack leaves it. */
 const HELD = 1;
@@ -40,7 +40,26 @@ const SHRUNK = 4;
 /** Measured at least once since it took this row. */
 const KNOWN = 8;
 
+/** What {@link RowTable.measure} reads of a row: a `Node`, or a row drawn with no `Node` (`ColumnRow`). */
+export interface RowMeasure {
+    readonly index: number;
+    readonly drawnScale: number;
+    readonly roundRadius: number | null;
+    readonly borderReach: number;
+    readonly drawnHalfExtents: Readonly<{ x: number; y: number; z: number }>;
+    readonly drawnBoundingRadius: number;
+    readonly outlineHalfExtents: Readonly<{ x: number; y: number; z: number }>;
+}
+
 /** What {@link RowTable.extentOf} reads. */
+/** Where a layout on the drawing device fills `rowPosition` (design/rendering/row-renderer.md 4.5). */
+export interface DrawnTarget {
+    readonly table: RowTable;
+    readonly device: GPUDevice;
+    /** A layout transition is drawing rows off their lanes: landings go up by upload, not by copy. */
+    readonly suspended?: boolean;
+}
+
 export interface RowExtent {
     /** The node's own scale, the same on every axis: a stretched node (a group, a model) is no batch's. */
     scale: number;
@@ -121,6 +140,12 @@ class RowTexture {
      * @param whole - Send everything: the texture came back empty.
      * @returns The bytes sent.
      */
+    /** Forget what changed: the card already has it. */
+    clean(): void {
+        this.first = Number.POSITIVE_INFINITY;
+        this.last = -1;
+    }
+
     upload(whole: boolean): number {
         const lineFloats = ROW_TEXTURE_WIDTH * FLOATS_PER_TEXEL;
         const firstLine = whole ? 0 : Math.floor((this.first * this.floatsPerRow) / lineFloats);
@@ -187,11 +212,27 @@ export class RowTable {
     uploads = 0;
     /** Bytes those calls sent. */
     uploadedBytes = 0;
+    /**
+     * Counts every write that can move a row: a repack from the lane, a placed row, a freeze or a
+     * clear. Unchanged, no row is drawn anywhere new, so a walk of the drawn positions skips the rows.
+     */
+    moves = 0;
+    /** Calls that sent the `rowPosition` texture to the card. */
+    positionUploads = 0;
+    /** Landings copied into the `rowPosition` texture on the card, with no upload. */
+    copies = 0;
+    /**
+     * Told of every row written other than by a repack from the lane, while a layout fills the
+     * `rowPosition` texture on the card: it keeps the layout's copy of those rows the same.
+     */
+    drawnMirror: ((row: number, x: number, y: number, z: number, w: number) => void) | null = null;
 
     private readonly positions: RowTexture;
     private readonly extents: RowTexture;
     private flags: Uint8Array<ArrayBuffer>;
     private laneChanges = -1;
+    /** A landing was copied to the card since the last repack, which then sends no row of it. */
+    private copied = false;
     private twoD = false;
     private readonly laneRow = { x: 0, y: 0, z: 0 };
     private readonly stopFlush: () => void;
@@ -248,6 +289,101 @@ export class RowTable {
     }
 
     /**
+     * Whether a row is held where {@link RowTable.place} put it, off its lane: its node's own
+     * position is then the exact one, which this table keeps only to 32 bits.
+     * @param row - The row.
+     * @returns True when it is held.
+     */
+    isHeld(row: number): boolean {
+        return ((this.flags[row] ?? 0) & HELD) !== 0;
+    }
+
+    /**
+     * Whether a row is filtered out or hidden by a style ({@link RowTable.hide}).
+     * @param row - The row.
+     * @returns True when it is hidden.
+     */
+    isHidden(row: number): boolean {
+        return ((this.flags[row] ?? 0) & HIDDEN) !== 0;
+    }
+
+    /**
+     * Whether a row is drawn from its own writes rather than repacked from the lane: held or shrunk.
+     * @param row - The row.
+     * @returns True when the repack leaves it alone.
+     */
+    keepsOwnRow(row: number): boolean {
+        return ((this.flags[row] ?? 0) & (HELD | SHRUNK)) !== 0;
+    }
+
+    /**
+     * Fill the first `rows` rows of the `rowPosition` texture from a layout's drawn buffer on the
+     * card (design/rendering/row-renderer.md 4.5): one copy, no upload. The CPU copy follows at
+     * the next repack, which then sends none of its rows.
+     * @param device - The device the texture and the buffer live on.
+     * @param buffer - Four floats per row, x, y, z and w, as `rowPosition` holds them.
+     * @param rows - Rows to copy.
+     * @returns False when the texture is not on the card yet, so nothing was copied.
+     */
+    copyLanded(device: GPUDevice, buffer: GPUBuffer, rows: number): boolean {
+        const texture = this.positions.texture.getInternalTexture()?._hardwareTexture?.underlyingResource as
+            GPUTexture | undefined;
+        if (texture === undefined || rows <= 0) {
+            return false;
+        }
+
+        const bytesPerRow = ROW_TEXTURE_WIDTH * FLOATS_PER_TEXEL * 4;
+        const lines = Math.floor(rows / ROW_TEXTURE_WIDTH);
+        const rest = rows % ROW_TEXTURE_WIDTH;
+        const encoder = device.createCommandEncoder({ label: "rowPosition/landed" });
+        if (lines > 0) {
+            encoder.copyBufferToTexture(
+                { buffer, bytesPerRow },
+                { texture },
+                {
+                    width: ROW_TEXTURE_WIDTH,
+                    height: lines,
+                },
+            );
+        }
+
+        if (rest > 0) {
+            encoder.copyBufferToTexture(
+                { buffer, offset: lines * bytesPerRow, bytesPerRow },
+                { texture, origin: { x: 0, y: lines } },
+                { width: rest, height: 1 },
+            );
+        }
+
+        device.queue.submit([encoder.finish()]);
+        this.positions.clean();
+        this.copied = true;
+        this.copies++;
+        return true;
+    }
+
+    /**
+     * Send a row's CPU copy at the next flush, over the landing just copied: the layout's ring held
+     * something else for the row when that batch landed.
+     * @param row - The row.
+     */
+    resend(row: number): void {
+        if (row < this.rows) {
+            this.positions.touch(row);
+        }
+    }
+
+    /**
+     * A layout published by upload after a landing was copied and before the repack: the copy no
+     * longer holds the lane, so the next repack sends every row it writes. Without this a settling
+     * batch that landed in the same frame as the last copy never went up, and the texture rested
+     * on the copied landing while the CPU copy held the settled rows.
+     */
+    dropCopy(): void {
+        this.copied = false;
+    }
+
+    /**
      * Where a row is drawn.
      * @param row - The row.
      * @returns A new vector.
@@ -279,6 +415,24 @@ export class RowTable {
     }
 
     /**
+     * Where the coordinate lane puts a row, as the repack draws it: flat in 2D.
+     * @param row - The row.
+     * @param out - Written with the place.
+     * @param out.x - X.
+     * @param out.y - Y.
+     * @param out.z - Z.
+     * @returns False when the lane places the row nowhere.
+     */
+    laneOf(row: number, out: { x: number; y: number; z: number }): boolean {
+        this.lane().read(row, out);
+        if (this.twoD) {
+            out.z = 0;
+        }
+
+        return Number.isFinite(out.x);
+    }
+
+    /**
      * Say a node's mesh was put at a point: the mesh funnel's write.
      * @param row - The node's row.
      * @param x - Drawn x.
@@ -296,6 +450,7 @@ export class RowTable {
             Math.fround(x) === lane.x && Math.fround(y) === lane.y && Math.fround(z) === (this.twoD ? 0 : lane.z);
         const flags = this.flags[row] ?? 0;
         this.flags[row] = atLane ? flags & ~HELD : flags | HELD;
+        this.moves++;
         const base = row * POSITION_FLOATS;
         const { floats } = this.positions;
         const bounds = this.rowBounds;
@@ -304,9 +459,10 @@ export class RowTable {
         floats[base + 2] = bounds[base + 2] = z;
         if ((flags & (HIDDEN | SHRUNK)) === 0) {
             this.writeW(row, 1);
+        } else {
+            this.positions.touch(row);
+            this.mirror(row);
         }
-
-        this.positions.touch(row);
     }
 
     /**
@@ -338,6 +494,11 @@ export class RowTable {
 
         const flags = this.flags[row] ?? 0;
         this.flags[row] = hidden ? flags | HIDDEN : flags & ~HIDDEN;
+        if (!hidden && (flags & (HIDDEN | SHRUNK)) === SHRUNK) {
+            // Still drawn, part of the way through a shrink: its W is the shrink's.
+            return;
+        }
+
         this.writeW(row, !hidden && ((flags & HELD) !== 0 || this.lane().isPlaced(row)) ? 1 : 0);
     }
 
@@ -353,10 +514,10 @@ export class RowTable {
     }
 
     /**
-     * Write a node's `rowExtent` row and its bounding radius. Paint calls it, never a move.
-     * @param node - The node.
+     * Write a row's `rowExtent` row and its bounding radius. Paint calls it, never a move.
+     * @param node - The node, or the row drawn with no `Node` (`ColumnRow`).
      */
-    measure(node: Node): void {
+    measure(node: RowMeasure): void {
         const row = node.index;
         const flags = this.flags[row] ?? SHRUNK;
         if (row >= this.rows || (flags & SHRUNK) !== 0) {
@@ -396,6 +557,7 @@ export class RowTable {
      */
     replaced(remap: U32 | null, nodes: Iterable<Node>): void {
         const lane = this.lane();
+        this.moves++;
         this.positions.follow(remap, lane.capacity);
         this.extents.follow(remap, lane.capacity);
         const { length } = this.positions.floats;
@@ -426,6 +588,7 @@ export class RowTable {
 
     /** Forget every row: the dataset was cleared. */
     cleared(): void {
+        this.moves++;
         this.flags.fill(0);
         this.rows = 0;
         this.laneChanges = -1;
@@ -438,7 +601,9 @@ export class RowTable {
         if (lane.changes !== this.laneChanges || twoD !== this.twoD) {
             this.twoD = twoD;
             this.laneChanges = lane.changes;
-            this.repack(lane.view(Math.min(this.rows, lane.count)));
+            this.moves++;
+            this.repack(lane.view(Math.min(this.rows, lane.count)), !this.copied);
+            this.copied = false;
         }
 
         // Babylon gives a texture back as it was made after a lost context, so every row goes
@@ -449,6 +614,7 @@ export class RowTable {
             if (bytes > 0) {
                 this.uploads++;
                 this.uploadedBytes += bytes;
+                this.positionUploads += table === this.positions ? 1 : 0;
             }
         }
     }
@@ -463,8 +629,9 @@ export class RowTable {
     /**
      * One typed pass from the lane over every row nothing else holds.
      * @param lane - The lane's live rows.
+     * @param send - False when a landing already put these rows on the card.
      */
-    private repack(lane: Float32Array): void {
+    private repack(lane: Float32Array, send: boolean): void {
         const { flags } = this;
         const rows = lane.length / 3;
         for (let row = 0; row < rows; row++) {
@@ -473,7 +640,7 @@ export class RowTable {
             }
         }
 
-        if (rows > 0) {
+        if (rows > 0 && send) {
             this.positions.touch(0, rows - 1);
         }
     }
@@ -494,8 +661,15 @@ export class RowTable {
         floats[to] = bounds[to] = placed ? x : 0;
         floats[to + 1] = bounds[to + 1] = placed ? (lane[from + 1] ?? 0) : 0;
         floats[to + 2] = bounds[to + 2] = placed && !this.twoD ? (lane[from + 2] ?? 0) : 0;
+        const shownBefore = floats[to + 3];
         floats[to + 3] = w;
         bounds[to + 3] = (this.extents.floats[row * EXTENT_FLOATS + EXTENT_BOUNDING_RADIUS] ?? 0) * w;
+        // The layout's ring keeps the w it was given, so a row the lane first places (or unplaces)
+        // tells it, and goes up once, since the landing already copied holds the old w.
+        if (w !== shownBefore && this.drawnMirror !== null) {
+            this.positions.touch(row);
+            this.mirror(row);
+        }
     }
 
     private writeW(row: number, w: number): void {
@@ -503,5 +677,15 @@ export class RowTable {
         this.positions.floats[base + 3] = w;
         this.rowBounds[base + 3] = (this.extents.floats[row * EXTENT_FLOATS + EXTENT_BOUNDING_RADIUS] ?? 0) * w;
         this.positions.touch(row);
+        this.mirror(row);
+    }
+
+    private mirror(row: number): void {
+        const tell = this.drawnMirror;
+        if (tell !== null) {
+            const base = row * POSITION_FLOATS;
+            const { floats } = this.positions;
+            tell(row, floats[base] ?? 0, floats[base + 1] ?? 0, floats[base + 2] ?? 0, floats[base + 3] ?? 0);
+        }
     }
 }

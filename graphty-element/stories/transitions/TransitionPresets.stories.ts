@@ -179,8 +179,8 @@ async function switchLayout(canvasElement: HTMLElement, story: string, held: boo
         // them: the middle of its line lies on the segment between them (not at its midpoint,
         // since the arrowhead trims the target end).
         for (const edge of element.graph.getDataManager().edges.values()) {
-            const a = edge.srcNode.mesh.position;
-            const b = edge.dstNode.mesh.position;
+            const a = edge.srcNode.drawnPosition;
+            const b = edge.dstNode.drawnPosition;
             const middle = edge.drawnCentre;
             const dx = b.x - a.x;
             const dy = b.y - a.y;
@@ -204,7 +204,7 @@ async function switchLayout(canvasElement: HTMLElement, story: string, held: boo
     const at = { x: 0, y: 0, z: 0 };
     for (const node of element.graph.getDataManager().nodes.values()) {
         element.session.positions.read(node.index, at);
-        const drawnAt = node.mesh.position;
+        const drawnAt = node.drawnPosition;
         if (Math.hypot(drawnAt.x - at.x, drawnAt.y - at.y, drawnAt.z - at.z) > 1e-6) {
             throw new Error(`${story}: node ${String(node.id)} did not land on its layout place`);
         }

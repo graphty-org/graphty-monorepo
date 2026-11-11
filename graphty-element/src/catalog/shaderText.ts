@@ -44,13 +44,21 @@ import {
     motionOf,
     PLACES_BY_TARGET,
     SHADER_CLOCKS,
+    SHADER_MIN_SIZE_RANGE,
+    SHADER_PARAM_TYPES,
+    SHADER_REACH_RANGE,
+    type ShaderClock,
     type ShaderMotion,
     type ShaderParamDescriptor,
+    type ShaderParamDraft,
+    shaderParamShape,
     type ShaderPlace,
     type ShaderProblem,
     type ShaderRegistration,
     type ShaderTarget,
     type ShaderText,
+    type ShaderTextDraft,
+    type ShaderTextParts,
     type ShaderTextResult,
     SQUARE_PLACES,
 } from "./shaders";
@@ -59,10 +67,10 @@ import {
 export const SHADER_TEXT_MAGIC = "graphty-shader 1";
 
 /** The most parameters one shader declares. */
-export const SHADER_PARAM_LIMIT = 16;
+const SHADER_PARAM_LIMIT = 16;
 
 /** The most parameters one shader lets `encode` bind per element. */
-export const SHADER_VARIES_LIMIT = 4;
+const SHADER_VARIES_LIMIT = 4;
 
 /** The most characters a name or a label keeps. */
 const NAME_LIMIT = 40;
@@ -74,7 +82,7 @@ const HEADER_LIMIT = 16_384;
 const FLOAT32_MAX = 3.4e38;
 
 /** The parameter types a shader may declare. */
-const PARAM_TYPES: ReadonlySet<string> = new Set(["number", "integer", "boolean", "enum", "color"]);
+const PARAM_TYPES: ReadonlySet<string> = new Set(SHADER_PARAM_TYPES);
 
 /** The parameter types `encode` may bind per element. */
 const VARYING_TYPES: ReadonlySet<string> = new Set(["number", "integer", "color"]);
@@ -138,9 +146,6 @@ const HEX_COLOR = /^#[\da-fA-F]{6}$/;
 
 /** Every place a shader may name. */
 const PLACES: ReadonlySet<string> = new Set(Object.values(PLACES_BY_TARGET).flat());
-
-/** The largest `minSize`, in CSS pixels. */
-const MIN_SIZE_LIMIT = 512;
 
 /**
  * Whether a character may stay in a name: not a control character, not a bidirectional override.
@@ -313,7 +318,7 @@ function isClockDefault(value: object, type: string): boolean {
  * @returns The descriptor, or the problem.
  */
 function readParam(raw: unknown, index: number): ShaderParamDescriptor | ShaderProblem {
-    const label = isRecord(raw) && typeof raw.name === "string" ? raw.name : `#${String(index)}`;
+    const label = isRecord(raw) && typeof raw.name === "string" && raw.name !== "" ? raw.name : `#${String(index)}`;
     if (!isRecord(raw)) {
         return paramProblem(label, "name");
     }
@@ -397,7 +402,7 @@ function choicesFault(choices: unknown, type: string): string | null {
  * @returns The descriptor.
  */
 function paramDescriptor(raw: Record<string, unknown>, name: string, type: string): ShaderParamDescriptor {
-    const plainName = typeof raw.plainName === "string" ? cleanName(raw.plainName) : sentenceCase(name);
+    const plainName = typeof raw.plainName === "string" ? cleanName(raw.plainName) : shaderParamPlainName(name);
     const values = raw.values as { value: string; label: string }[] | undefined;
     const value = type === "color" && typeof raw.default === "string" ? raw.default.toLowerCase() : raw.default;
 
@@ -494,7 +499,7 @@ function readMotion(raw: unknown, params: readonly ShaderParamDescriptor[]): Sha
 
 /** What one optional header key may hold. */
 const OPTIONAL_KEYS: Readonly<Record<string, (value: unknown) => boolean>> = {
-    reach: (value) => typeof value === "number" && value >= 1 && value <= 6,
+    reach: (value) => typeof value === "number" && value >= SHADER_REACH_RANGE.min && value <= SHADER_REACH_RANGE.max,
     blend: (value) => value === "over" || value === "add",
     form: (value) => value === "field" || value === "sphere",
     bloom: (value) => typeof value === "boolean",
@@ -507,7 +512,8 @@ const OPTIONAL_KEYS: Readonly<Record<string, (value: unknown) => boolean>> = {
         value.length > 0 &&
         new Set(value).size === value.length &&
         value.every((entry) => typeof entry === "string" && PLACES.has(entry)),
-    minSize: (value) => typeof value === "number" && value >= 0 && value <= MIN_SIZE_LIMIT,
+    minSize: (value) =>
+        typeof value === "number" && value >= SHADER_MIN_SIZE_RANGE.min && value <= SHADER_MIN_SIZE_RANGE.max,
     categories: (value) =>
         Array.isArray(value) &&
         value.length <= 8 &&
@@ -695,6 +701,48 @@ function parseHeaderJson(text: string, split: Split): { value: unknown } | Shade
             params: { line: at.line, column: at.column, message, reason: "unexpected-token" },
         };
     }
+}
+
+/**
+ * The problem of a header that is not a JSON object.
+ * @param text - The whole text.
+ * @param split - The header.
+ * @returns The problem.
+ */
+function notAnObject(text: string, split: Split): ShaderProblem {
+    const at = placeOf(text, split.jsonOffset);
+    return { code: "shader.header-json", params: { line: at.line, column: at.column, message: "not an object" } };
+}
+
+/**
+ * Read a header's JSON as an object: the one reader `parseShaderText` and `splitShaderText` share.
+ * @param text - The whole text.
+ * @param split - The header.
+ * @returns The object, or the problem.
+ */
+function readHeaderObject(text: string, split: Split): { readonly value: Record<string, unknown> } | ShaderProblem {
+    const parsed = parseHeaderJson(text, split);
+    if ("code" in parsed) {
+        return parsed;
+    }
+
+    return isRecord(parsed.value) ? { value: parsed.value } : notAnObject(text, split);
+}
+
+/**
+ * Check a header's keys and values.
+ * @param header - The header.
+ * @param namespaced - Whether its id must carry a namespace.
+ * @returns The descriptor, or the problems.
+ */
+function checkHeader(
+    header: Record<string, unknown>,
+    namespaced: boolean,
+): ShaderRegistrationDescriptor | ShaderProblem[] {
+    const unknown = Object.keys(header).filter((key) => !HEADER_KEYS.has(key));
+    return unknown.length > 0
+        ? unknown.map((key) => ({ code: "shader.header-key", params: { key } }))
+        : readShaderDescriptor(header, "name", namespaced);
 }
 
 /** What a parsed registration's descriptor always carries. */
@@ -1030,27 +1078,12 @@ export function parseShaderText(text: ShaderText, options?: ShaderTextOptions): 
         );
     }
 
-    const parsed = parseHeaderJson(text, split);
-    if ("code" in parsed) {
-        return { ok: false, problems: [parsed] };
+    const header = readHeaderObject(text, split);
+    if ("code" in header) {
+        return { ok: false, problems: [header] };
     }
 
-    if (!isRecord(parsed.value)) {
-        const at = placeOf(text, split.jsonOffset);
-        return {
-            ok: false,
-            problems: [
-                { code: "shader.header-json", params: { line: at.line, column: at.column, message: "not an object" } },
-            ],
-        };
-    }
-
-    const unknown = Object.keys(parsed.value).filter((key) => !HEADER_KEYS.has(key));
-    if (unknown.length > 0) {
-        return { ok: false, problems: unknown.map((key) => ({ code: "shader.header-key", params: { key } })) };
-    }
-
-    const descriptor = readShaderDescriptor(parsed.value, "name", true);
+    const descriptor = checkHeader(header.value, true);
     if (Array.isArray(descriptor)) {
         return { ok: false, problems: descriptor };
     }
@@ -1058,9 +1091,337 @@ export function parseShaderText(text: ShaderText, options?: ShaderTextOptions): 
     return finishText(descriptor, split.body, placeOf(text, split.bodyOffset), options);
 }
 
+/**
+ * Split a text into its header as written and its body, for an editor to fill a form from. Unlike
+ * {@link parseShaderText} this keeps a header with wrong values (they are reported in `problems`,
+ * beside the draft), takes a bare id and any characters, and does not read the body.
+ * @param text - The text: GLSL with a `graphty-shader 1` header, or a body alone.
+ * @returns The header's keys and the body. A text with no header gets a placeholder draft and is
+ *   all body. A header that is not a JSON object, or whose `params` is not a list of objects, has
+ *   no draft. A value that is not a string has no draft and a `shader.header-missing` problem.
+ * @since 3.49.0
+ */
+export function splitShaderText(text: ShaderText): ShaderTextParts {
+    if (typeof text !== "string") {
+        return { headed: false, problems: [{ code: "shader.header-missing", params: {} }], body: "", bodyLine: 1 };
+    }
+
+    const split = splitHeader(text);
+    if (split === null) {
+        return { headed: false, draft: { id: "user/shader", params: [] }, problems: [], body: text, bodyLine: 1 };
+    }
+
+    const parts = { headed: true, body: split.body, bodyLine: placeOf(text, split.bodyOffset).line };
+    const header = readHeaderObject(text, split);
+    if ("code" in header) {
+        return { ...parts, problems: [header] };
+    }
+
+    const { params } = header.value;
+    if (params !== undefined && !(Array.isArray(params) && params.every(isRecord))) {
+        return { ...parts, problems: [notAnObject(text, split)] };
+    }
+
+    const checked = checkHeader(header.value, false);
+    return { ...parts, draft: header.value, problems: Array.isArray(checked) ? checked : [] };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Editing a header as written
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The display name a parameter takes from its name when it declares none.
+ * @param name - The parameter's name.
+ * @returns The display name.
+ * @since 3.49.0
+ */
+export function shaderParamPlainName(name: string): string {
+    return sentenceCase(name);
+}
+
+/** The parameter fields that hold only for some types. */
+const TYPED_PARAM_FIELDS: ReadonlySet<string> = new Set(["min", "max", "step", "values", "varies", "choices"]);
+
+/**
+ * A parameter's default when its type changes: the number it holds if the new type can take it,
+ * else the type's own, inside the range the row keeps.
+ * @param param - The parameter, its range already cut to the new type.
+ * @param type - The new type.
+ * @param labels - The new choices of an enum.
+ * @returns The default.
+ */
+function defaultOfType(
+    param: ShaderParamDraft,
+    type: ShaderParamDescriptor["type"],
+    labels: readonly string[],
+): unknown {
+    if (type !== "number" && type !== "integer") {
+        return type === "enum" ? labels[0] : shaderParamShape(type).default;
+    }
+
+    const { default: held, min, max } = param;
+    const usable = typeof held === "number" && (type === "number" || Number.isInteger(held));
+    const value = usable ? held : (shaderParamShape(type).default as number);
+    const floored = typeof min === "number" ? Math.max(value, min) : value;
+    return typeof max === "number" ? Math.min(floored, max) : floored;
+}
+
+/**
+ * A parameter under another type: a valid default, and the fields the new type has no use for
+ * cleared. Every other key stays as written.
+ * @param param - The parameter.
+ * @param type - The new type.
+ * @param labels - An enum's choices: each is both the label and the stored value, and the first is
+ *   the default. The words are the caller's.
+ * @returns The parameter.
+ * @since 3.49.0
+ */
+export function changeShaderParamType(
+    param: ShaderParamDraft,
+    type: ShaderParamDescriptor["type"],
+    labels: readonly string[] = [],
+): ShaderParamDraft {
+    if (param.type === type) {
+        return param;
+    }
+
+    const { fields } = shaderParamShape(type);
+    const applies = (key: string, value: unknown): boolean => {
+        if (key === "choices") {
+            return type === "integer";
+        }
+
+        const fractional = type === "integer" && (key === "min" || key === "max") && !Number.isInteger(value);
+        return (fields as readonly string[]).includes(key) && !fractional;
+    };
+    const kept = Object.fromEntries(
+        Object.entries(param).filter(([key, value]) => !TYPED_PARAM_FIELDS.has(key) || applies(key, value)),
+    );
+
+    return {
+        ...kept,
+        type,
+        default: defaultOfType(kept, type, labels),
+        ...(type === "enum" ? { values: labels.map((label) => ({ value: label, label })) } : {}),
+    };
+}
+
+/**
+ * Change the type of one parameter row of a header, as {@link changeShaderParamType} does, and drop
+ * what else in the header names that row when the new type cannot serve it: `reachParam` needs a
+ * number or an integer, a loop's `speedParam` a number.
+ * @param draft - The header.
+ * @param index - The row's place in `params`.
+ * @param type - The new type.
+ * @param labels - An enum's choices, as {@link changeShaderParamType} takes them.
+ * @returns The header; the same object when there is no such row.
+ * @since 3.49.0
+ */
+export function retypeShaderParam(
+    draft: ShaderTextDraft,
+    index: number,
+    type: ShaderParamDescriptor["type"],
+    labels: readonly string[] = [],
+): ShaderTextDraft {
+    const params = draft.params ?? [];
+    const row = params[index];
+    if (row === undefined) {
+        return draft;
+    }
+
+    const next: Record<string, unknown> = {
+        ...draft,
+        params: params.map((each, at) => (at === index ? changeShaderParamType(each, type, labels) : each)),
+    };
+    if (draft.reachParam === row.name && type !== "number" && type !== "integer") {
+        next.reachParam = undefined;
+    }
+
+    const { motion } = draft;
+    if (isRecord(motion) && isRecord(motion.loop) && motion.loop.speedParam === row.name && type !== "number") {
+        next.motion = { ...motion, loop: { ...motion.loop, speedParam: undefined } };
+    }
+
+    return next;
+}
+
+/** The seconds a new clock binding maps, as the starters write it. */
+const CLOCK_START_DOMAIN: readonly [number, number] = [0, 0.3];
+
+/**
+ * A parameter's default bound to a clock, as an editor shows it. @since 3.49.0
+ */
+export interface ShaderParamClock {
+    /** The clock. */
+    readonly by: ShaderClock;
+    /** The seconds mapped; the starters' `[0, 0.3]` when the header has no pair. */
+    readonly domain: readonly [number, number];
+    /** A color's two ends, as written. */
+    readonly range?: readonly [unknown, unknown];
+}
+
+/**
+ * The clock a parameter row's default is bound to, read leniently so a half-typed binding can be
+ * edited: any `by` that is one of `SHADER_CLOCKS`. Whether a type may be bound at all is
+ * `shaderParamShape(type).clock`.
+ * @param param - The row as written.
+ * @returns The binding, or undefined for a plain default.
+ * @since 3.49.0
+ */
+export function shaderParamClock(param: ShaderParamDraft): ShaderParamClock | undefined {
+    const value = param.default;
+    if (!isRecord(value) || !SHADER_CLOCKS.includes(value.by as never)) {
+        return undefined;
+    }
+
+    const { by, domain, range } = value;
+    return {
+        by: by as ShaderClock,
+        domain: Array.isArray(domain) ? (domain as [number, number]) : CLOCK_START_DOMAIN,
+        ...(Array.isArray(range) ? { range: range as [unknown, unknown] } : {}),
+    };
+}
+
+/**
+ * Bind a parameter row's default to a clock, or take the binding off. A new binding maps the
+ * starters' seconds, and a color's range starts at its current color at both ends; a binding
+ * already there keeps its seconds and range. Taking it off puts back the type's default, or a
+ * color's first range color.
+ * @param param - The row; its type should take a clock (`shaderParamShape(type).clock`).
+ * @param by - The clock, or undefined for none.
+ * @returns The row.
+ * @since 3.49.0
+ */
+export function bindShaderParamClock(param: ShaderParamDraft, by: ShaderClock | undefined): ShaderParamDraft {
+    const bound = shaderParamClock(param);
+    const isColor = param.type === "color";
+    if (by === undefined) {
+        const first = bound?.range?.[0];
+        const plain = shaderParamShape(param.type as ShaderParamDescriptor["type"]).default;
+        return { ...param, default: isColor && first !== undefined ? first : plain };
+    }
+
+    const color = typeof param.default === "string" ? param.default : shaderParamShape("color").default;
+    const range = isColor ? { range: bound?.range ?? [color, color] } : {};
+    return { ...param, default: { by, domain: [...(bound?.domain ?? CLOCK_START_DOMAIN)], ...range } };
+}
+
+/**
+ * The header keys that name a parameter, moved to another name or dropped, unless another row still
+ * answers to the old name.
+ * @param draft - The header.
+ * @param from - The old name.
+ * @param to - The new name; undefined drops the references.
+ * @returns The header.
+ */
+function carryParamReferences(draft: ShaderTextDraft, from: string, to: string | undefined): ShaderTextDraft {
+    if (draft.params?.some((row) => row.name === from) === true) {
+        return draft;
+    }
+
+    const next: Record<string, unknown> = { ...draft };
+    if (draft.reachParam === from) {
+        next.reachParam = to;
+    }
+
+    const { motion, preview } = draft;
+    if (isRecord(motion) && isRecord(motion.loop) && motion.loop.speedParam === from) {
+        next.motion = { ...motion, loop: { ...motion.loop, speedParam: to } };
+    }
+
+    if (isRecord(preview) && isRecord(preview.params)) {
+        const values = Object.entries(preview.params).filter(([key]) => key !== from || to !== undefined);
+        next.preview = {
+            ...preview,
+            params: Object.fromEntries(values.map(([key, value]) => [key === from ? to : key, value])),
+        };
+    }
+
+    return next;
+}
+
+/**
+ * Rename a parameter of a header, and what else in the header names it (a loop's speed, the reach
+ * parameter, the preview's values). The body is not touched. Of two rows with one name, the last,
+ * which is the one a duplicate's problem marks, unless `index` names the row. A rename onto a name
+ * another row already has moves no reference, so the duplicate is reported and renaming back loses
+ * nothing.
+ * @param draft - The header.
+ * @param from - The row's name.
+ * @param to - Its new name.
+ * @param index - The row's place in `params`, for a row whose name is not its own (a duplicate, or
+ *   empty); absent, the last row named `from`.
+ * @returns The header; the same object when there is no such row.
+ * @since 3.49.0
+ */
+export function renameShaderParam(draft: ShaderTextDraft, from: string, to: string, index?: number): ShaderTextDraft {
+    const params = draft.params ?? [];
+    const at = index ?? params.map((row) => row.name).lastIndexOf(from);
+    if (params[at] === undefined || from === to) {
+        return draft;
+    }
+
+    const renamed = { ...draft, params: params.map((row, each) => (each === at ? { ...row, name: to } : row)) };
+    return params.some((row) => row.name === to) ? renamed : carryParamReferences(renamed, from, to);
+}
+
+/**
+ * Remove a parameter of a header, and what else in the header names it. The body is not touched.
+ * Of two rows with one name, the last, unless `index` names the row.
+ * @param draft - The header.
+ * @param name - The row's name.
+ * @param index - The row's place in `params`; absent, the last row named `name`.
+ * @returns The header; the same object when there is no such row.
+ * @since 3.49.0
+ */
+export function removeShaderParam(draft: ShaderTextDraft, name: string, index?: number): ShaderTextDraft {
+    const params = draft.params ?? [];
+    const at = index ?? params.map((row) => row.name).lastIndexOf(name);
+    if (params[at] === undefined) {
+        return draft;
+    }
+
+    return carryParamReferences({ ...draft, params: params.filter((_, index) => index !== at) }, name, undefined);
+}
+
 // ---------------------------------------------------------------------------------------------
 // Writing text
 // ---------------------------------------------------------------------------------------------
+
+/** The character that starts a JSON escape. */
+const BACKSLASH = String.fromCodePoint(0x5c);
+
+/**
+ * A header and a body as shader text. `*` `/` inside a JSON string is written `*\/`, which reads
+ * back equal and does not end the comment, and a character above 0x7E is written as a `\uXXXX`
+ * escape, which reads back equal and keeps the header ASCII.
+ * @param header - The header's keys.
+ * @param body - The body.
+ * @returns The text.
+ */
+function composeText(header: Readonly<Record<string, unknown>>, body: string): ShaderText {
+    const json = JSON.stringify(header, null, 4)
+        .replaceAll("*/", String.raw`*\/`)
+        .replaceAll(
+            /[\u007f-\uffff]/g,
+            (char) => `${BACKSLASH}u${(char.codePointAt(0) ?? 0).toString(16).padStart(4, "0")}`,
+        );
+    return `/* ${SHADER_TEXT_MAGIC}\n${json}\n*/\n${body}`;
+}
+
+/**
+ * Write a header as written and a body as shader text, the inverse of {@link splitShaderText}. The
+ * draft's keys keep their order and nothing is checked, so a half-typed row survives the trip for
+ * `check` to report.
+ * @param draft - The header's keys.
+ * @param body - The body.
+ * @returns The text.
+ * @since 3.49.0
+ */
+export function formatShaderDraft(draft: ShaderTextDraft, body: string): ShaderText {
+    return composeText(draft, body);
+}
 
 /**
  * A parameter as a header writes it: the plain name only when it is not the one derived.
@@ -1075,7 +1436,7 @@ function paramEntry(param: ShaderParamDescriptor): Record<string, unknown> {
         }
     }
 
-    if (param.plainName !== sentenceCase(param.name)) {
+    if (param.plainName !== shaderParamPlainName(param.name)) {
         entry.plainName = param.plainName;
     }
 
@@ -1175,5 +1536,5 @@ export function formatShaderText(registration: ShaderRegistration): ShaderText {
         .map(paramEntry);
     const body = lowDetail === undefined ? glsl : joinFar(descriptor.id, glsl, lowDetail);
 
-    return `/* ${SHADER_TEXT_MAGIC}\n${JSON.stringify(header, null, 4)}\n*/\n${body}`;
+    return composeText(header, body);
 }

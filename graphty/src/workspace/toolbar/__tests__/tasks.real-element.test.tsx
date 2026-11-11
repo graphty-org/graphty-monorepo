@@ -1,7 +1,7 @@
 /**
  * The tier 1 tasks this package delivers, each walked from the empty app on the REAL
- * graphty-element: T7 (rank nodes), T8 (find groups) and T11 (a readable layout), plus the View
- * flyout, the Legend and Table tools, and a node's neighborhood. Every assertion reads what the element reports, never pixels.
+ * graphty-element: T7 (rank nodes), T8 (find groups) and T11 (a readable layout), plus the Mode and Camera
+ * menus, the Legend and Table tools, and a node's neighborhood. Every assertion reads what the element reports, never pixels.
  *
  * Opening the sample goes through the element's own import by URL, as the Start screen package
  * will; until that package lands its sample cards are not drawn, so the walk calls the same door.
@@ -15,6 +15,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { readableName } from "../../style/words";
 import { Workspace } from "../../Workspace";
@@ -90,6 +91,10 @@ async function finished(session: GraphSession, algorithm: string): Promise<RunId
     }
     return found;
 }
+
+// Analyze's algorithm form, which the `selection-workspace` experiment replaces with its calm list
+// (covered by its own tests): the experiment stays off here.
+withFeatures([]);
 
 describe("tier 1 tasks from the toolbar, on the real element", () => {
     // The design's frame, 1366 x 768. At the runner's default 414 px the panels leave the canvas
@@ -295,17 +300,18 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.equal(session.layout.id, before);
     });
 
-    it("names the view mode on the View tool and offers 2D, 3D and VR or AR from its menu", async () => {
+    it("names the view mode on the Mode tool, draws its icon, and offers 2D, 3D and VR or AR", async () => {
         const session = await openKarate();
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-        // Named with the mode it shows (WCAG 2.5.3).
-        const view = within(toolbar).getByRole("button", { name: "View, 3D" });
-        assert.equal(view.textContent, "3D");
+        // Named with the mode its icon shows (WCAG 2.5.3).
+        const view = within(toolbar).getByRole("button", { name: "Mode, 3D" });
+        const face = (): string | null | undefined => view.querySelector("svg")?.getAttribute("data-mode");
+        assert.equal(face(), "3d");
         // No XR buttons on the canvas: the menu is the one way in.
         assert.isNull(document.querySelector("graphty-element .xr-button-container, .xr-button-container"));
 
         await userEvent.click(view);
-        const menu = await screen.findByRole("menu", { name: /^View/ });
+        const menu = await screen.findByRole("menu", { name: /^Mode/ });
         const twoD = within(menu).getByRole("menuitemradio", { name: /^2D/ });
         const threeD = within(menu).getByRole("menuitemradio", { name: /^3D/ });
         assert.equal(threeD.getAttribute("aria-checked"), "true");
@@ -323,7 +329,8 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 assert.notInclude(row.textContent, "Checking");
             }
         });
-        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Front/ }));
+        // The camera moves are the Camera tool's, not here.
+        assert.isNull(within(menu).queryByRole("menuitem", { name: /^Front/ }));
         // The workspace turns XR on (graphty-element leaves it off unless a page asks), so a
         // missing mode is the browser's answer, never "disabled".
         const { reasons } = session.capabilities.xr;
@@ -333,14 +340,67 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await userEvent.click(twoD);
         await waitFor(() => {
             assert.equal(session.layout.dimension, "2d");
-            assert.equal(view.textContent, "2D");
+            assert.equal(face(), "2d");
         });
+        assert.equal(view.getAttribute("aria-label"), "Mode, 2D");
         await userEvent.click(view);
-        const flat = await screen.findByRole("menu", { name: /^View/ });
-        // One row says why the camera views are gone, instead of four disabled ones.
-        assert.isNull(within(flat).queryByRole("menuitem", { name: /^Front/ }));
-        assert.include(within(flat).getByRole("menuitem", { name: /^Camera views/ }).textContent, "Only in 3D");
+        const flat = await screen.findByRole("menu", { name: /^Mode/ });
         assert.include(within(flat).getByRole("menuitemradio", { name: /^3D/ }).textContent, "5");
+    });
+
+    it("moves the camera from the Camera tool, turns Auto-rotate on and off, and keeps 3D views for 3D", async () => {
+        const session = await openKarate();
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+        if (element === null) {
+            return;
+        }
+        const camera = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
+            name: "Camera",
+        });
+        const open = async (): Promise<HTMLElement> => {
+            await userEvent.click(camera);
+            return screen.findByRole("menu", { name: /^Camera/ });
+        };
+
+        let menu = await open();
+        for (const name of [/^Fit/, /^Frame selection/, /^Front/, /^Side/, /^Top/, /^Isometric/]) {
+            assert.isNotNull(within(menu).getByRole("menuitem", { name }));
+        }
+        // Each standard view shows its key on its row.
+        assert.include(within(menu).getByRole("menuitem", { name: /^Front/ }).textContent, "1");
+        assert.include(within(menu).getByRole("menuitem", { name: /^Top/ }).textContent, "7");
+        // Zoom is a 2D move.
+        assert.isNull(within(menu).queryByRole("menuitem", { name: /^Zoom in/ }));
+        const rotate = within(menu).getByRole("menuitemcheckbox", { name: /^Auto-rotate/ });
+        assert.equal(rotate.getAttribute("aria-checked"), "false");
+        assert.equal(element.autoRotate, 0);
+        await userEvent.click(rotate);
+        await waitFor(() => {
+            assert.isAbove(element.autoRotate, 0);
+        });
+
+        menu = await open();
+        const on = within(menu).getByRole("menuitemcheckbox", { name: /^Auto-rotate/ });
+        assert.equal(on.getAttribute("aria-checked"), "true");
+        await userEvent.click(on);
+        await waitFor(() => {
+            assert.equal(element.autoRotate, 0);
+        });
+
+        await session.layout.setDimension("2d");
+        menu = await open();
+        // In 2D the 3D views and Auto-rotate stay, disabled with their reason; zoom is offered.
+        for (const name of [/^Front/, /^Side/, /^Top/, /^Isometric/]) {
+            const row = within(menu).getByRole("menuitem", { name });
+            assert.equal(row.getAttribute("aria-disabled"), "true");
+            assert.include(row.textContent, "Only in 3D");
+        }
+        const flatRotate = within(menu).getByRole("menuitemcheckbox", { name: /^Auto-rotate/ });
+        assert.equal(flatRotate.getAttribute("aria-disabled"), "true");
+        assert.include(flatRotate.textContent, "Only in 3D");
+        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Zoom in/ }));
+        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Zoom out/ }));
     });
 
     it("frames a selected edge's two ends with Frame selection, and disables it with nothing selected", async () => {
@@ -354,11 +414,11 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         // still moving them after the queue empties: wait for the drawing to stop.
         await element.waitForStableFrame();
         const view = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
-            name: /^View, /,
+            name: "Camera",
         });
         const frameRow = async (): Promise<HTMLElement> => {
             await userEvent.click(view);
-            const menu = await screen.findByRole("menu", { name: /^View/ });
+            const menu = await screen.findByRole("menu", { name: /^Camera/ });
             return within(menu).getByRole("menuitem", { name: /^Frame selection/ });
         };
 
@@ -574,14 +634,12 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
     });
 
-    it("opens Filters from the Graph place with the toolbar's Filters, its + list open", async () => {
+    it("opens Filters from the Graph place through Quick actions, its + list open", async () => {
         await openKarate();
         assert.isNull(screen.queryByRole("region", { name: "Data place" }));
-        const filters = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
-            name: "Filters",
-        });
-
-        await userEvent.click(filters);
+        await userEvent.keyboard("{Control>}k{/Control}");
+        await userEvent.keyboard("filter");
+        await userEvent.click(await screen.findByRole("option", { name: /^Filters/ }));
         await screen.findByRole("region", { name: "Data place" });
         await screen.findByRole("option", { name: "Largest component" });
     });

@@ -238,6 +238,7 @@ import {
     startingRows,
 } from "./rows";
 import { createScaleRegistry, type ScaleRegistry } from "./scales";
+import { selectorStates } from "./selector";
 import {
     arrange,
     documentRows,
@@ -1044,6 +1045,14 @@ export interface StylesApi {
      */
     counts(id: LayerId): StyleCounts;
     /**
+     * How many of the elements a layer's rule matches are drawn now: `counts(id).matched` less those
+     * a filter hides.
+     * @param id - The layer.
+     * @returns The count.
+     * @experimental assistant
+     */
+    drawnCount(id: LayerId): number;
+    /**
      * Turn a rule into the fixed value it currently produces, so a person can then edit it.
      *
      * THE PAIRED VERB OF {@link StylesApi.explain}, which reports a channel worked out from the
@@ -1469,6 +1478,12 @@ export interface StylesSources {
      * layer the element ships is the element's bug and not the caller's.
      */
     readonly base?: readonly ElementLayerSpec[];
+    /**
+     * Element layers painted above the whole stack and never part of it: not listed, saved or
+     * undone, so a passing look (a peek) costs the project nothing. Answer the same array until
+     * they change: each new one is compiled once.
+     */
+    readonly transient?: () => readonly ElementLayerSpec[];
     /** Which paths this session answers. Absent means it cannot say, and none are reported. */
     readonly paths?: PathDirectory;
     /** Whether the graph is directed now, which decides the head an edge draws when no layer sets one. */
@@ -1477,6 +1492,8 @@ export interface StylesSources {
     readonly liftDrawn?: () => boolean;
     /** The scales a binding may name. Absent builds a registry holding the built-ins. */
     readonly scales?: ScaleRegistry;
+    /** Whether the file styles experiment is on, which decides the values a binding spreads over; absent reads on. */
+    readonly fileStyles?: () => boolean;
     /**
      * Where a run is looked up, for the two verbs that take one.
      *
@@ -2646,7 +2663,24 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      */
     const painting = (stack: readonly CompiledLayer[]): readonly CompiledLayer[] => {
         const painted = basePainting(stack);
-        return branchesShown === null ? painted : previewStack(painted, branchesShown.layers);
+        const shown = branchesShown === null ? painted : previewStack(painted, branchesShown.layers);
+        const specs = sources.transient?.() ?? [];
+        return specs.length === 0 ? shown : [...shown, ...transientLayers(specs)];
+    };
+
+    /** The transient layers last compiled, by the array that named them. */
+    let compiledTransient: { specs: readonly ElementLayerSpec[]; layers: readonly CompiledLayer[] } | undefined;
+    /**
+     * The transient layers, compiled.
+     * @param specs - The layers.
+     * @returns Them, bottom first.
+     */
+    const transientLayers = (specs: readonly ElementLayerSpec[]): readonly CompiledLayer[] => {
+        if (compiledTransient?.specs !== specs) {
+            compiledTransient = { specs, layers: compileElementLayers(specs, minter()) };
+        }
+
+        return compiledTransient.layers;
     };
 
     /** The branches view drawn now, and the layers it draws. */
@@ -2655,14 +2689,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const suspended = new WeakMap<CompiledLayer, CompiledLayer>();
 
     /**
-     * Whether a layer draws the selection ring or the hover mark: a layer of the state
-     * `"selected"` or `"hovered"` (the Selected and Hovered rows, or a reader's own).
+     * Whether a layer draws the selection ring or the hover mark: a layer reading the state
+     * `"selected"` or `"hovered"`, whoever made it.
      * @param entry - A layer in the stack.
      * @returns True for one.
      */
     const isStateMark = (entry: CompiledLayer): boolean => {
-        const { selector } = entry.layer;
-        return selector.match === "state" && (selector.state === "selected" || selector.state === "hovered");
+        return selectorStates(entry.layer.selector).some((state) => state === "selected" || state === "hovered");
     };
 
     /**
@@ -3085,6 +3118,27 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const cut = painted.findIndex((entry) => !entry.layer.locked && !beneath.has(rowKeyOf(entry)));
 
         return cut === -1 ? painted : painted.slice(0, cut);
+    };
+
+    /**
+     * What a layer selects among the elements drawn: a filter step that hides some of them takes
+     * them out of the count, so a key never counts nodes the drawing does not show.
+     * @param id - The layer.
+     * @returns How many, and out of how many of its kind.
+     */
+    const selectsAmongDrawn = (id: LayerId): { count: number; of: number } => {
+        const whole = sources.resolveScope?.(WHOLE_GRAPH) ?? emptyScope();
+        const compiled = byId().get(id);
+        const edges = compiled?.layer.target === "edge";
+        const drawn = elementsOf(DRAWN);
+        const test = compiled?.selector.test ?? null;
+        let count = 0;
+        for (const index of edges ? drawn.edges : drawn.nodes) {
+            if (test === null || test(index)) {
+                count++;
+            }
+        }
+        return { count, of: edges ? whole.edgeCount : whole.nodeCount };
     };
 
     /** What a legend is read from. */
@@ -4745,6 +4799,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             binding: filled,
             column,
             scales,
+            fileStyles: sources.fileStyles?.() !== false,
             asWritten: binding,
             ...(options.bins === undefined ? {} : { bins: options.bins }),
             ...(options.span === undefined ? {} : { span: options.span }),
@@ -4907,22 +4962,35 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
     };
 
+    /**
+     * Check the element's own layers.
+     * @param specs - The layers.
+     * @param id - Mints each one's id.
+     * @returns The compiled layers.
+     * @throws A `GraphtyError` coded `E_INTERNAL` for a malformed one: it is the element's bug.
+     */
+    function compileElementLayers(
+        specs: readonly ElementLayerSpec[],
+        id: (name: string) => LayerId,
+    ): readonly CompiledLayer[] {
+        return specs.map((spec) => {
+            const checked = check(spec, id(spec.name));
+
+            if (checked.layer === null) {
+                throw new GraphtyError({
+                    code: "E_INTERNAL",
+                    message: `The element's own style layer "${spec.name}" is malformed.`,
+                    source: "style",
+                    details: { errors: checked.result.errors },
+                });
+            }
+
+            return checked.layer;
+        });
+    }
+
     // The element's own layers are the baseline: seeded once, and never a step.
-    const seedId = minter();
-    const seeded = (sources.base ?? []).map((spec) => {
-        const checked = check(spec, seedId(spec.name));
-
-        if (checked.layer === null) {
-            throw new GraphtyError({
-                code: "E_INTERNAL",
-                message: `The element's own style layer "${spec.name}" is malformed.`,
-                source: "style",
-                details: { errors: checked.result.errors },
-            });
-        }
-
-        return checked.layer;
-    });
+    const seeded = compileElementLayers(sources.base ?? [], minter());
     if (seeded.length > 0) {
         dispatcher.seed((draft) => {
             draft.styles = Object.freeze([...current(), ...seeded]);
@@ -5671,6 +5739,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 binding: palette === undefined ? rule : { ...rule, palette },
                 count: options.count,
                 scales,
+                fileStyles: sources.fileStyles?.() !== false,
             });
         },
 
@@ -5754,6 +5823,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                           { code: "shader.group-cap" as const, params: { left, limit: GROUP_OUTLINE_CAP } },
                       ]),
                   };
+        },
+
+        drawnCount(id: LayerId): number {
+            return selectsAmongDrawn(id).count;
         },
 
         setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): void {

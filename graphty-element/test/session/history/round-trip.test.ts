@@ -9,10 +9,13 @@ import { setDefaultFeatures } from "../../../src/features/resolve";
 import { createElementSession, dispatcherOf } from "../../../src/session/GraphSession";
 import { stateDigest } from "../../../src/session/project/digest";
 import type { GraphSession } from "../../../src/session/types";
+import { fileStylesOn } from "../../helpers/file-styles-on";
 import { fakeLayout, heldScheduler } from "./fakes";
 import { blankHarness, blankSession, fixtureSession, paintBaseline } from "./fixture-session";
 import { FIXTURES } from "./fixtures";
 import { pictureDigest, roundTrip } from "./round-trip-harness";
+
+fileStylesOn();
 
 // The timeline is an experiment: this file's sessions switch it on.
 beforeAll(() => {

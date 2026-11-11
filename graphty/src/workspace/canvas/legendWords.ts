@@ -19,6 +19,7 @@ import {
     type LegendFactCode,
     type LegendSwatch,
     RESULT_SHAPE_CONTRACTS,
+    selectorStates,
 } from "@graphty/graphty-element/session";
 
 import { highlightEntry } from "../analyze/words";
@@ -110,10 +111,13 @@ function byRank(block: LegendBlock): LegendBlock {
  * @returns the blocks `styles.legend()` returned, less those of a state layer.
  */
 export function dataBlocks(session: GraphSession): LegendBlock[] {
-    // ponytail: only a top-level state selector counts; a rule tree that mixes a state in is still keyed.
+    const onData = (id: string): boolean => {
+        const layer = session.styles.get(id);
+        return layer === undefined || selectorStates(layer.selector).length === 0;
+    };
     return session.styles
         .legend()
-        .filter((block) => session.styles.get(block.layerId)?.selector.match !== "state")
+        .filter((block) => onData(block.layerId))
         .flatMap((block) => (isEffectBlock(block) ? effectRows(session, block) : [heldRows(session, block)]));
 }
 
@@ -435,7 +439,7 @@ export const NOTHING_KEYED = "Nothing is styled yet";
  * @param layer - The name of the layer that paints over it.
  * @returns The words.
  */
-export function coveredWords(layer: string): string {
+function coveredWords(layer: string): string {
     return `covered by ${layer}`;
 }
 
@@ -447,7 +451,7 @@ export function coveredWords(layer: string): string {
  * @param covers - The layers above that paint the property on the block's elements, and on how many.
  * @returns The line, or null when nothing covers it.
  */
-export function coveredLine(
+function coveredLine(
     block: LegendBlock,
     covers: readonly { readonly layer: string; readonly count: number }[],
 ): string | null {
@@ -711,7 +715,7 @@ function rowName(session: GraphSession, block: LegendBlock): string {
     // A run computed in a time window names that window, current or kept: "Degree, Jun 3 - Jun 12".
     const ran = run.caveats.window;
     if (ran !== undefined) {
-        const named = `${name}, ${rangeWords(ran.from, ran.to, unitOf(session))}`;
+        const named = `${name}, ${rangeWords(ran.from, ran.to, unitOf(session), undefined, session.time.timeZone)}`;
         return run.status === "succeeded" && run.stale !== null ? `${named}, out of date` : named;
     }
     if (run.status !== "succeeded" || run.stale === null) {
@@ -784,7 +788,7 @@ function addCovers(
     }
     for (const { layerId, count: n } of session.styles.counts(id).covers[channel]?.layers ?? []) {
         const above = session.styles.get(layerId);
-        if (above !== undefined && above.selector.match !== "state") {
+        if (above !== undefined && selectorStates(above.selector).length === 0) {
             // A run's layer goes by the run's name, as the Analyze list names it.
             const run = above.source.by === "run" ? session.runs.get(above.source.runId) : undefined;
             const name = run === undefined ? above.name : runName(session, run);

@@ -1,8 +1,8 @@
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { AdHocData } from "../../src/config";
 import type { Graph } from "../../src/Graph";
-import type { DataManager } from "../../src/managers/DataManager";
+import { type DataManager, dataManagerInternals } from "../../src/managers/DataManager";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 describe("DataManager", () => {
@@ -44,6 +44,15 @@ describe("DataManager", () => {
             const node = dataManager.getNode("node1");
             assert.isDefined(node);
             assert.equal(node.id, "node1");
+        });
+
+        it("finds no node on a row past the end, and the node on a live row", () => {
+            dataManager.addNodes([{ id: "node1" }, { id: "node2" }]);
+
+            assert.equal(dataManager.nodeAtRow(1)?.id, "node2");
+            // 0x999998: a row no graph here holds, as a stray texel of the node ID target names.
+            assert.isUndefined(dataManager.nodeAtRow(10066328));
+            assert.isUndefined(dataManager.nodeAtRow(-1));
         });
 
         it("should add multiple nodes", () => {
@@ -357,6 +366,94 @@ describe("DataManager", () => {
             const layoutManager = graph.getLayoutManager();
             assert.equal(Array.from(layoutManager.nodes).length, 2);
             assert.equal(Array.from(layoutManager.edges).length, 1);
+        });
+    });
+    // The count the lazy-node stage of design/rendering/row-renderer.md drives toward zero under
+    // "batched". Under "objects", the default, every node a load stores is built once, at the load.
+    describe("nodes built", () => {
+        it("counts one Node per stored node, and none for a read", () => {
+            assert.equal(dataManagerInternals.nodesBuilt(dataManager), 0);
+
+            dataManager.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+            assert.equal(dataManagerInternals.nodesBuilt(dataManager), 3);
+
+            const first = dataManager.getNode("a");
+            assert.strictEqual(dataManager.getNode("a"), first, "a read hands back the same object");
+            assert.equal(dataManagerInternals.nodesBuilt(dataManager), 3);
+        });
+
+        it("counts a node removed and added again as a second build", () => {
+            dataManager.addNodes([{ id: "a" }]);
+            dataManager.removeNodeAndIncidentEdges("a");
+            dataManager.addNodes([{ id: "a" }]);
+
+            assert.equal(dataManagerInternals.nodesBuilt(dataManager), 2);
+        });
+    });
+
+    // The count the lazy-edge stage of design/rendering/row-renderer.md drives toward zero under
+    // "batched". Under "objects", the default, every edge a load stores is built once, when both ends are.
+    describe("edges built", () => {
+        it("counts one Edge per stored edge, a deferred one once its ends arrive, and none for a read", () => {
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+
+            dataManager.addNodes([{ id: "a" }, { id: "b" }]);
+            dataManager.addEdges([
+                { src: "a", dst: "b" },
+                { src: "b", dst: "c" },
+            ]);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 1, "b -> c waits for c");
+
+            dataManager.addNodes([{ id: "c" }]);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 2);
+
+            assert.equal([...dataManager.edges.values()].length, 2);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 2);
+        });
+
+        it("counts an edge removed and added again as a second build", () => {
+            dataManager.addNodes([{ id: "a" }, { id: "b" }]);
+            dataManager.addEdge({ src: "a", dst: "b" });
+            dataManager.removeNodeAndIncidentEdges("b");
+            dataManager.addNodes([{ id: "b" }]);
+            dataManager.addEdge({ src: "a", dst: "b" });
+
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 2);
+        });
+    });
+
+    // An edge reaches its ends through accessors (the lazy-node stage of design/rendering/row-renderer.md):
+    // on the "batched" path each end's Node is looked up when first read, not when the edge is built. Under
+    // "objects" both are resolved as the edge is built, as before.
+    describe("edge ends", () => {
+        it("builds an edge on the batched path reading each end's Node once, and hands out the graph's own", () => {
+            graph.setRenderPath("batched");
+            dataManager.addNodes([{ id: "a" }, { id: "b" }]);
+            const reads = vi.spyOn(dataManager.nodeCache, "get");
+
+            dataManager.addEdge({ src: "a", dst: "b" });
+            assert.equal(dataManager.edges.size, 1);
+            // Master read each end twice: once to check it exists and once more for the edge. Now the check
+            // asks only whether the id is stored, and the line's pull check (an end drawn behind edges, a
+            // group or a 2D node below z-index 0, keeps its line off the pull) reads an end stored with
+            // no Node from its row, which is never behind edges before it is painted: no end is read.
+            assert.equal(reads.mock.calls.length, 0, "no end's Node is read to build the edge");
+
+            const [edge] = dataManager.edges.values();
+            assert.strictEqual(edge.srcNode, dataManager.getNode("a"));
+            assert.strictEqual(edge.dstNode, dataManager.getNode("b"));
+        });
+
+        it("still defers an edge until both ends are stored", () => {
+            graph.setRenderPath("batched");
+            dataManager.addNodes([{ id: "a" }]);
+            dataManager.addEdge({ src: "a", dst: "b" });
+            assert.equal(dataManager.edges.size, 0, "no edge until b is stored");
+
+            dataManager.addNodes([{ id: "b" }]);
+            assert.equal(dataManager.edges.size, 1);
+            const [edge] = dataManager.edges.values();
+            assert.strictEqual(edge.dstNode, dataManager.getNode("b"));
         });
     });
 });

@@ -8,6 +8,8 @@
  * hands them back to Graphviz as the file gave them.
  */
 
+import { INVALID_INDEX } from "@graphty/graph-format";
+
 import type { RankSet } from "../../data/groups";
 import type { NodeIdType } from "../../Node";
 import type { DotEdge, DotStructure } from "./toDot";
@@ -81,6 +83,9 @@ const NODE_SIZE_ATTRIBUTES = [
  * `labelloc` is its clusters' default too), and its margin.
  */
 const CLUSTER_ATTRIBUTES = ["label", "fontsize", "fontname", "labelloc", "margin"] as const;
+
+/** The edge attributes that name a cluster the edge is clipped at (with the graph's `compound=true`). */
+const CLUSTER_ENDS = ["lhead", "ltail"] as const;
 
 /** The attributes that hold a label's words. */
 const LABELS = new Set(["label", "xlabel", "headlabel", "taillabel"]);
@@ -163,7 +168,7 @@ function attributeText(name: string, value: string): string {
 
 /**
  * The structure to hand Graphviz.
- * @param rowOf - each node id's row, or a negative number for none
+ * @param rowOf - each node id's row, or a negative number or `INVALID_INDEX` for none (a node the run leaves out)
  * @param edges - the edges, in the order they arrived
  * @param groups - each group's row with its data
  * @param ranks - the rank subgraphs
@@ -187,8 +192,8 @@ export function graphvizStructure<E extends EdgeLike>(
     for (const edge of edges) {
         const src = rowOf(edge.srcId);
         const dst = rowOf(edge.dstId);
-        if (src >= 0 && dst >= 0) {
-            dotEdges.push({ src, dst, attributes: attributesOf(edge.data, EDGE_ATTRIBUTES) });
+        if (isRow(src) && isRow(dst)) {
+            dotEdges.push({ src, dst, attributes: edgeAttributes(edge.data, rowOf, groups) });
             edgeOf.push(edge);
         }
     }
@@ -197,10 +202,44 @@ export function graphvizStructure<E extends EdgeLike>(
         edges: dotEdges,
         edgeOf,
         groupAttributes: new Map([...groups].map(([row, data]) => [row, attributesOf(data, CLUSTER_ATTRIBUTES)])),
-        ranks: ranks.map(({ rank, members }) => ({ rank, rows: members.map(rowOf).filter((row) => row >= 0) })),
+        ranks: ranks.map(({ rank, members }) => ({ rank, rows: members.map(rowOf).filter(isRow) })),
         ...(nodes === undefined ? {} : { nodeAttributes: nodeAttributes(nodes, sizing) }),
         ...(sizing === undefined ? {} : { labelSized: true }),
     };
+}
+
+/**
+ * Whether `rowOf` answered a row.
+ * @param row - its answer
+ * @returns true for a row
+ */
+function isRow(row: number): boolean {
+    return row >= 0 && row !== INVALID_INDEX;
+}
+
+/**
+ * An edge's attributes for Graphviz: those of {@link EDGE_ATTRIBUTES}, and the cluster it is clipped at, named as the cluster its group is handed over as (`cluster_n<row>`).
+ * @param data - the edge's data
+ * @param rowOf - each node id's row, or a negative number for none
+ * @param groups - each group's row with its data
+ * @returns the attributes as Graphviz text
+ */
+function edgeAttributes(
+    data: Readonly<Record<string, unknown>>,
+    rowOf: (id: NodeIdType) => number,
+    groups: ReadonlyMap<number, unknown>,
+): Record<string, string> {
+    const out = attributesOf(data, EDGE_ATTRIBUTES);
+    for (const name of CLUSTER_ENDS) {
+        const cluster = data[name];
+        const row = typeof cluster === "string" ? rowOf(cluster) : -1;
+        // a name that is no group handed over is one Graphviz ignores too (with a warning)
+        if (groups.has(row)) {
+            out[name] = `cluster_n${row}`;
+        }
+    }
+
+    return out;
 }
 
 /**

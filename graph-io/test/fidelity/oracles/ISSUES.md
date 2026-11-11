@@ -220,92 +220,90 @@ show its fallback for those settings and do not judge the settings themselves:
 In `yed-live-graphml-specimen-labels-p3` and `-p5`, yEd Live's own trimming drops words from one label each ('Wrap this
 long text', '<b>A long</b> label text').
 
-**What remains.** The row that remains keeps its stand-in `.oracle.json` and PNG, held to `standInFloors`, until its
-drawing is settled:
-
-- `yed-graphml-specimen-images-charts`: yEd refuses the input on all 3 tries ('Could not import file', an IOException
-  with no message), so its oracle is still draw.io's drawing. The input is written by
-  `graph-io/test/fidelity/generators/specimens/yed.py`, not saved by yEd, and it holds ImageNode, SVGNode and
-  label-icon resources; those are the likely trigger, unproven.
+**The last stand-in, replaced (2026-11-07, #5792).** yEd refused `yed-graphml-specimen-images-charts` because each
+label's `iconData` named the PNG resource itself; yEd reads `iconData` as an icon resource that wraps the image
+(`yed:ScaledIcon` around `yed:ImageIcon`). Opening reduced copies of the sheet in yEd showed it: without the
+`iconData` attributes, or without the icon nodes, yEd opens the file; without the ImageNodes or the SVGNodes it still
+refuses it. The generator now writes the icon resource, and the sheet's oracle is yEd's own drawing, made as above.
 
 `gml-bionetgen-ruleviz-pattern` is not a row here and has no yEd drawing. Its file holds 134 nodes with no coordinates,
 and with no layout run yEd stacks them at one spot, so its drawing shows about 4 nodes and judges nothing.
 
-| program  | file                                                                                                     | oracle                                                                            | status            |
-| -------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ----------------- |
-| yEd      | `graph-io/test/corpus/styles/gml/fidelity/dunnart-autobahn.gml`                                          | `graph-io/test/fidelity/oracles/gml-dunnart-autobahn.svg`                         | real drawing      |
-| yEd      | `graph-io/test/corpus/styles/gml/fidelity/dunnart-planar-orthogonal.gml`                                 | `graph-io/test/fidelity/oracles/gml-dunnart-planar-orthogonal.svg`                | real drawing      |
-| yEd      | `graph-io/test/corpus/styles/gml/fidelity/jgrapht-grid-territorio.gml`                                   | `graph-io/test/fidelity/oracles/gml-jgrapht-grid-territorio.svg`                  | real drawing      |
-| yEd      | `graph-io/test/corpus/styles/gml/spupyrev_bob__need4stacks261.gml`                                       | `graph-io/test/fidelity/oracles/gml-need4stacks261.svg`                           | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-arrows-p2.gml`                                            | `graph-io/test/fidelity/oracles/gml-specimen-arrows-p2.svg`                       | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-arrows-p3.gml`                                            | `graph-io/test/fidelity/oracles/gml-specimen-arrows-p3.svg`                       | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-edge-labels-p2.gml`                                       | `graph-io/test/fidelity/oracles/gml-specimen-edge-labels-p2.svg`                  | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-edges-lines-p2.gml`                                       | `graph-io/test/fidelity/oracles/gml-specimen-edges-lines-p2.svg`                  | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-groups.gml`                                               | `graph-io/test/fidelity/oracles/gml-specimen-groups.svg`                          | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-labels-p2.gml`                                            | `graph-io/test/fidelity/oracles/gml-specimen-labels-p2.svg`                       | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-labels-p3.gml`                                            | `graph-io/test/fidelity/oracles/gml-specimen-labels-p3.svg`                       | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-node-fills-borders-p2.gml`                                | `graph-io/test/fidelity/oracles/gml-specimen-node-fills-borders-p2.svg`           | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-node-shapes-p2.gml`                                       | `graph-io/test/fidelity/oracles/gml-specimen-node-shapes-p2.svg`                  | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-node-shapes-p3.gml`                                       | `graph-io/test/fidelity/oracles/gml-specimen-node-shapes-p3.svg`                  | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-node-sizes-opacity-p2.gml`                                | `graph-io/test/fidelity/oracles/gml-specimen-node-sizes-opacity-p2.svg`           | real drawing      |
-| yEd      | `graph-io/test/corpus/styles/gml/fidelity/synthetic-coverage.gml`                                        | `graph-io/test/fidelity/oracles/gml-synthetic-coverage.svg`                       | real drawing      |
-| yEd      | `graph-io/test/corpus/styles/gml/fidelity/visualgraph-tree30.gml`                                        | `graph-io/test/fidelity/oracles/gml-visualgraph-tree30.svg`                       | real drawing      |
-| yEd      | `graph-io/test/corpus/styles/gml/ImperialCollegeLondon_pyrealm__pmodel.gml`                              | `graph-io/test/fidelity/oracles/gml-yed-pmodel.svg`                               | real drawing      |
-| yEd      | `graph-io/test/corpus/styles/graphml/yed-large/ministryofjustice__cla_backend__checker-graph.graphml.gz` | `graph-io/test/fidelity/oracles/graphml-cla-checker-graph.svg`                    | real drawing      |
-| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/galaxy-lcms-workflow.graphml`                              | `graph-io/test/fidelity/oracles/graphml-galaxy-lcms-workflow.svg`                 | real drawing      |
-| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/libcitygml-mapping.graphml`                                | `graph-io/test/fidelity/oracles/graphml-libcitygml-mapping.svg`                   | real drawing      |
-| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/magiclantern-architecture.graphml`                         | `graph-io/test/fidelity/oracles/graphml-magiclantern-architecture.svg`            | real drawing      |
-| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/open-archaeo.graphml`                                      | `graph-io/test/fidelity/oracles/graphml-open-archaeo.svg`                         | real drawing      |
-| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/scala-collection-mutable.graphml`                          | `graph-io/test/fidelity/oracles/graphml-scala-collection-mutable.svg`             | real drawing      |
-| yEd      | `graph-io/test/corpus/styles/graphml/LTVA1_STM32CrapSynth__func.graphml.gz`                              | `graph-io/test/fidelity/oracles/graphml-stm32-func.svg`                           | real drawing      |
-| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/synthetic-edges.graphml`                                   | `graph-io/test/fidelity/oracles/graphml-synthetic-edges.svg`                      | real drawing      |
-| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/synthetic-nodes.graphml`                                   | `graph-io/test/fidelity/oracles/graphml-synthetic-nodes.svg`                      | real drawing      |
-| yEd      | `graph-io/test/corpus/styles/graphml/yed-shapenode/voc__voctomix__schema.graphml`                        | `graph-io/test/fidelity/oracles/graphml-yed-voctomix.svg`                         | real drawing      |
-| yEd Live | `graph-io/test/corpus/styles/graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz`  | `graph-io/test/fidelity/oracles/graphml-yfiles-html-ss13-tree.svg`                | real drawing      |
-| yEd Live | `graph-io/test/corpus/styles/graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml`        | `graph-io/test/fidelity/oracles/graphml-yfiles-html-stag-flowchart.svg`           | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-arrows.graphml`                                   | `graph-io/test/fidelity/oracles/yed-graphml-specimen-arrows.svg`                  | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-edge-labels.graphml`                              | `graph-io/test/fidelity/oracles/yed-graphml-specimen-edge-labels.svg`             | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-edges-lines.graphml`                              | `graph-io/test/fidelity/oracles/yed-graphml-specimen-edges-lines.svg`             | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-groups-p2.graphml`                                | `graph-io/test/fidelity/oracles/yed-graphml-specimen-groups-p2.svg`               | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-groups.graphml`                                   | `graph-io/test/fidelity/oracles/yed-graphml-specimen-groups.svg`                  | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-images-charts.graphml`                            | `graph-io/test/fidelity/oracles/yed-graphml-specimen-images-charts.svg`           | remains: stand-in |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-labels-p2.graphml`                                | `graph-io/test/fidelity/oracles/yed-graphml-specimen-labels-p2.svg`               | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-labels.graphml`                                   | `graph-io/test/fidelity/oracles/yed-graphml-specimen-labels.svg`                  | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-fills-borders.graphml`                       | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-fills-borders.svg`      | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p2.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p2.svg`          | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p3.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p3.svg`          | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p4.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p4.svg`          | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p5.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p5.svg`          | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p6.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p6.svg`          | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes.graphml`                              | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes.svg`             | real drawing      |
-| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-sizes-opacity.graphml`                       | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-sizes-opacity.svg`      | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-arrows-p2.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-arrows-p2.svg`          | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-arrows.graphml`                              | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-arrows.svg`             | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edge-labels-p2.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edge-labels-p2.svg`     | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edge-labels.graphml`                         | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edge-labels.svg`        | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edges-lines-p2.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edges-lines-p2.svg`     | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edges-lines-p3.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edges-lines-p3.svg`     | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edges-lines.graphml`                         | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edges-lines.svg`        | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-groups-p2.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-groups-p2.svg`          | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-groups-p3.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-groups-p3.svg`          | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-groups-p4.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-groups-p4.svg`          | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-groups.graphml`                              | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-groups.svg`             | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-images-charts.graphml`                       | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-images-charts.svg`      | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels-p2.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels-p2.svg`          | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels-p3.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels-p3.svg`          | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels-p4.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels-p4.svg`          | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels-p5.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels-p5.svg`          | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels.graphml`                              | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels.svg`             | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-mappings-bypass.graphml`                     | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-mappings-bypass.svg`    | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-fills-borders.graphml`                  | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-fills-borders.svg` | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p2.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p2.svg`     | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p3.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p3.svg`     | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p4.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p4.svg`     | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p5.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p5.svg`     | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p6.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p6.svg`     | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p7.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p7.svg`     | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes.graphml`                         | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes.svg`        | real drawing      |
-| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-sizes-opacity.graphml`                  | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-sizes-opacity.svg` | real drawing      |
+| program  | file                                                                                                     | oracle                                                                            | status       |
+| -------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------ |
+| yEd      | `graph-io/test/corpus/styles/gml/fidelity/dunnart-autobahn.gml`                                          | `graph-io/test/fidelity/oracles/gml-dunnart-autobahn.svg`                         | real drawing |
+| yEd      | `graph-io/test/corpus/styles/gml/fidelity/dunnart-planar-orthogonal.gml`                                 | `graph-io/test/fidelity/oracles/gml-dunnart-planar-orthogonal.svg`                | real drawing |
+| yEd      | `graph-io/test/corpus/styles/gml/fidelity/jgrapht-grid-territorio.gml`                                   | `graph-io/test/fidelity/oracles/gml-jgrapht-grid-territorio.svg`                  | real drawing |
+| yEd      | `graph-io/test/corpus/styles/gml/spupyrev_bob__need4stacks261.gml`                                       | `graph-io/test/fidelity/oracles/gml-need4stacks261.svg`                           | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-arrows-p2.gml`                                            | `graph-io/test/fidelity/oracles/gml-specimen-arrows-p2.svg`                       | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-arrows-p3.gml`                                            | `graph-io/test/fidelity/oracles/gml-specimen-arrows-p3.svg`                       | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-edge-labels-p2.gml`                                       | `graph-io/test/fidelity/oracles/gml-specimen-edge-labels-p2.svg`                  | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-edges-lines-p2.gml`                                       | `graph-io/test/fidelity/oracles/gml-specimen-edges-lines-p2.svg`                  | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-groups.gml`                                               | `graph-io/test/fidelity/oracles/gml-specimen-groups.svg`                          | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-labels-p2.gml`                                            | `graph-io/test/fidelity/oracles/gml-specimen-labels-p2.svg`                       | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-labels-p3.gml`                                            | `graph-io/test/fidelity/oracles/gml-specimen-labels-p3.svg`                       | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-node-fills-borders-p2.gml`                                | `graph-io/test/fidelity/oracles/gml-specimen-node-fills-borders-p2.svg`           | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-node-shapes-p2.gml`                                       | `graph-io/test/fidelity/oracles/gml-specimen-node-shapes-p2.svg`                  | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-node-shapes-p3.gml`                                       | `graph-io/test/fidelity/oracles/gml-specimen-node-shapes-p3.svg`                  | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/gml/specimen-node-sizes-opacity-p2.gml`                                | `graph-io/test/fidelity/oracles/gml-specimen-node-sizes-opacity-p2.svg`           | real drawing |
+| yEd      | `graph-io/test/corpus/styles/gml/fidelity/synthetic-coverage.gml`                                        | `graph-io/test/fidelity/oracles/gml-synthetic-coverage.svg`                       | real drawing |
+| yEd      | `graph-io/test/corpus/styles/gml/fidelity/visualgraph-tree30.gml`                                        | `graph-io/test/fidelity/oracles/gml-visualgraph-tree30.svg`                       | real drawing |
+| yEd      | `graph-io/test/corpus/styles/gml/ImperialCollegeLondon_pyrealm__pmodel.gml`                              | `graph-io/test/fidelity/oracles/gml-yed-pmodel.svg`                               | real drawing |
+| yEd      | `graph-io/test/corpus/styles/graphml/yed-large/ministryofjustice__cla_backend__checker-graph.graphml.gz` | `graph-io/test/fidelity/oracles/graphml-cla-checker-graph.svg`                    | real drawing |
+| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/galaxy-lcms-workflow.graphml`                              | `graph-io/test/fidelity/oracles/graphml-galaxy-lcms-workflow.svg`                 | real drawing |
+| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/libcitygml-mapping.graphml`                                | `graph-io/test/fidelity/oracles/graphml-libcitygml-mapping.svg`                   | real drawing |
+| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/magiclantern-architecture.graphml`                         | `graph-io/test/fidelity/oracles/graphml-magiclantern-architecture.svg`            | real drawing |
+| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/open-archaeo.graphml`                                      | `graph-io/test/fidelity/oracles/graphml-open-archaeo.svg`                         | real drawing |
+| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/scala-collection-mutable.graphml`                          | `graph-io/test/fidelity/oracles/graphml-scala-collection-mutable.svg`             | real drawing |
+| yEd      | `graph-io/test/corpus/styles/graphml/LTVA1_STM32CrapSynth__func.graphml.gz`                              | `graph-io/test/fidelity/oracles/graphml-stm32-func.svg`                           | real drawing |
+| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/synthetic-edges.graphml`                                   | `graph-io/test/fidelity/oracles/graphml-synthetic-edges.svg`                      | real drawing |
+| yEd      | `graph-io/test/corpus/styles/graphml/fidelity/synthetic-nodes.graphml`                                   | `graph-io/test/fidelity/oracles/graphml-synthetic-nodes.svg`                      | real drawing |
+| yEd      | `graph-io/test/corpus/styles/graphml/yed-shapenode/voc__voctomix__schema.graphml`                        | `graph-io/test/fidelity/oracles/graphml-yed-voctomix.svg`                         | real drawing |
+| yEd Live | `graph-io/test/corpus/styles/graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz`  | `graph-io/test/fidelity/oracles/graphml-yfiles-html-ss13-tree.svg`                | real drawing |
+| yEd Live | `graph-io/test/corpus/styles/graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml`        | `graph-io/test/fidelity/oracles/graphml-yfiles-html-stag-flowchart.svg`           | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-arrows.graphml`                                   | `graph-io/test/fidelity/oracles/yed-graphml-specimen-arrows.svg`                  | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-edge-labels.graphml`                              | `graph-io/test/fidelity/oracles/yed-graphml-specimen-edge-labels.svg`             | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-edges-lines.graphml`                              | `graph-io/test/fidelity/oracles/yed-graphml-specimen-edges-lines.svg`             | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-groups-p2.graphml`                                | `graph-io/test/fidelity/oracles/yed-graphml-specimen-groups-p2.svg`               | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-groups.graphml`                                   | `graph-io/test/fidelity/oracles/yed-graphml-specimen-groups.svg`                  | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-images-charts.graphml`                            | `graph-io/test/fidelity/oracles/yed-graphml-specimen-images-charts.svg`           | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-labels-p2.graphml`                                | `graph-io/test/fidelity/oracles/yed-graphml-specimen-labels-p2.svg`               | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-labels.graphml`                                   | `graph-io/test/fidelity/oracles/yed-graphml-specimen-labels.svg`                  | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-fills-borders.graphml`                       | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-fills-borders.svg`      | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p2.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p2.svg`          | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p3.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p3.svg`          | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p4.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p4.svg`          | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p5.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p5.svg`          | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p6.graphml`                           | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p6.svg`          | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes.graphml`                              | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes.svg`             | real drawing |
+| yEd      | `graph-io/test/fidelity/specimens/yed-graphml/specimen-node-sizes-opacity.graphml`                       | `graph-io/test/fidelity/oracles/yed-graphml-specimen-node-sizes-opacity.svg`      | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-arrows-p2.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-arrows-p2.svg`          | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-arrows.graphml`                              | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-arrows.svg`             | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edge-labels-p2.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edge-labels-p2.svg`     | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edge-labels.graphml`                         | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edge-labels.svg`        | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edges-lines-p2.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edges-lines-p2.svg`     | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edges-lines-p3.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edges-lines-p3.svg`     | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edges-lines.graphml`                         | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edges-lines.svg`        | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-groups-p2.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-groups-p2.svg`          | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-groups-p3.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-groups-p3.svg`          | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-groups-p4.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-groups-p4.svg`          | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-groups.graphml`                              | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-groups.svg`             | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-images-charts.graphml`                       | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-images-charts.svg`      | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels-p2.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels-p2.svg`          | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels-p3.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels-p3.svg`          | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels-p4.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels-p4.svg`          | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels-p5.graphml`                           | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels-p5.svg`          | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels.graphml`                              | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels.svg`             | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-mappings-bypass.graphml`                     | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-mappings-bypass.svg`    | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-fills-borders.graphml`                  | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-fills-borders.svg` | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p2.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p2.svg`     | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p3.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p3.svg`     | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p4.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p4.svg`     | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p5.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p5.svg`     | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p6.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p6.svg`     | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes-p7.graphml`                      | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes-p7.svg`     | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-shapes.graphml`                         | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-shapes.svg`        | real drawing |
+| yEd Live | `graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-sizes-opacity.graphml`                  | `graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-sizes-opacity.svg` | real drawing |
 
 ## After merging the eight fix branches (2026-10-18)
 
@@ -963,8 +961,9 @@ copy a draw.io mistake into graph-io):
       the event, gateway, task, artifact and data object symbols; it draws nothing for three event characteristics
       (`START_EVENT_SUB_PROCESS_NON_INTERRUPTING`, `INTERMEDIATE_BOUNDARY_NON_INTERRUPTING`, `INTERMEDIATE_THROWING`,
       whose spelling is inferred: `bpmnStyleProperties` in `yed-vocabulary.json`) nor for an `Event` with no
-      properties. graph-io reads only the configuration's outline (`bpmn.event` an ellipse, `bpmn.gateway` a
-      diamond), so every symbol, marker and icon color is a gap: graphty-element has no BPMN symbol to draw yet.
+      properties. graph-io reads the configuration's outline (`bpmn.event` an ellipse, `bpmn.gateway` a diamond)
+      and draws the symbols, markers and icon colors as yEd's own drawings of these sheets show them, as a picture
+      over the node.
     - Older yEd versions write the Modern Nodes ids without their `com.yjava.` prefix (`BevelNode`, `BevelNode2`,
       `BevelNode3`, `BevelNodeWithShadow`: `generic-legacy-*`), and `DemoGroup` (a GenericGroupNode with a
       `headerBackground` property). draw.io draws them as plain boxes.
@@ -2390,10 +2389,15 @@ defects, open:
   of half an inch (`quantum-label`, `quantum-box`); graphty draws them unrounded (`node.width`, `node.height`).
 - `ratio=2` (`dot-specimen-groups-p12`): Graphviz stretches the stored positions to twice as tall as wide; graphty
   keeps them (`node.position`, `node.width`, `node.height` on every node of the page).
-- The root graph's label is never drawn, plain or HTML-like (`stray.present` on `dot-specimen-groups-p4`, `-p5`,
-  `-p7`, `-p13`, `-p14`: Graphviz's "graph-label" at the bottom or top, left, center or right, in its own color and
-  font; `-p8`: the HTML words "graph", "label", "html"). graph-io keeps the label as a graph attribute and
-  graphty-element has no graph-level label to draw it in, so the fix starts in graphty-element.
+- FIXED (2026-11-07) for a laid-out file: the root graph's label was never drawn, plain or HTML-like
+  (`stray.present` on `dot-specimen-groups-p4`, `-p5`, `-p7`, `-p13`, `-p14`: Graphviz's "graph-label" at the
+  bottom or top, left, center or right, in its own color and font; `-p8`: the HTML words "graph", "label", "html").
+  The DOT importer's `annotations()` now gives it as text annotations, one per line or HTML font run, at a stored
+  `lp`, else in the band Graphviz adds beside the root `bb` (`place_root_label`), and graphty-element draws them
+  with the file's other annotations. Still open: a file with no `bb` and no `lp` (`dot-real-crazy`,
+  `dot-real-siblings`, `dot-real-happiness`, `dot-synth-nodes`, `dot-synth-edges-clusters`) has no place for the
+  title until graphty lays it out, and graphty-element paints annotations once at file coordinates; drawing the
+  title there needs a graph-level label placed against the drawn graph's bounding box and moved with the layout.
 - Stored edge `pos` with the tail arrow's `s,x,y` point (`dot-specimen-edges-lines-p11`, `pos-arrow-startpoint`,
   `pos-arrow-both-points`, beside the `e,x,y` row `pos-arrow-endpoint` of `dot-specimen-edges-lines`): Graphviz draws
   a full `normal` triangle from the spline's end to the stored point, but the comparator reads each of these arrows
@@ -2693,14 +2697,24 @@ Rows still open, each with what stops it:
   oracle draws a picture, vis-network draws nothing; oracle limit, to recheck in a browser.
 - yEd (`yed-graphml-specimen-node-shapes-p2` .. `-p6`): the BPMN artifacts, the SBGN nucleic acid feature and perturbing
   agent, the UML class and 3D rectangle's size, the UML note and the shapes that keep their proportions in a box of
-  another shape are read as yEd's own drawings show them (#5788). The lines some shapes draw inside (predefined
-  process, internal storage, direct data's rim, the big entity's header), the strips of a raised border (#5839) and a
-  BPMN intermediate event's and transaction's double line are not drawn.
+  another shape are read as yEd's own drawings show them (#5788). The lines some shapes draw inside (direct data's
+  rim, the big entity's header), the strips of a raised border (#5839) and a BPMN intermediate event's and
+  transaction's double line are not drawn. What yEd draws inside a GenericNode beside its outline -- the BPMN
+  gateway markers, event symbols, task icons, activity markers, a data object's fold and arrow in the icon colors, the
+  lines inside a predefined process and an internal storage -- and a UML note's fold are drawn as a picture over the
+  node, measured from these sheets (`graph-io` `styles-yed-drawing.ts`): `stray.present` -p2 22 to 20, -p3 16 to 15,
+  -p4 30 to 0, -p5 31 to 0, -p6 24 to 0 in each view, `graphml-libcitygml-mapping` 11 to 1, `graphml-synthetic-nodes`
+  12 to 11. Left: an activity's markers past its sides (four markers on a node 56 wide) are cut at the node, and only
+  one size of each node has been drawn, so how the marks scale is unproven.
 - yEd `y:ImageNode` (`yed-graphml-specimen-images-charts`): graphty draws the PNG yEd draws; draw.io, the stand-in,
   draws an empty box, so this sheet's stand-in raster floors (`raster.nodeBody`, `raster.nodeOutline`) fall until
-  the owner's yEd export replaces the stand-in. yEd's own drawings show it paints neither an image node's fill nor its
-  border (`graphml-stm32-func`: 15 nodes, `graphml-synthetic-nodes`), but draw.io paints both on this sheet, which yEd
-  refuses to open, so graphty keeps them under the picture until this sheet has yEd's own drawing (#5792).
+  the owner's yEd export replaces the stand-in. yEd's own drawings show it paints neither an image or SVG node's fill
+  nor its border (`graphml-stm32-func`: 15 `y:ImageNode`s, each with `<y:Fill color="#CCCCFF">`, drawn as an `<image>`
+  alone, #CCCCFF nowhere in the SVG; `graphml-synthetic-nodes` likewise; this sheet's own yEd drawing, 2026-11-07,
+  #5792, the same), so graph-io reads both realizers as a node of no shape with its picture (#5788): stm32-func
+  node.fill and node.stroke 15 more pass in each view. synthetic-nodes `svg-node` now fails node.stroke: its picture is
+  an SVG ellipse that yEd inlines as paths (read as the node's body) and graphty draws as an image, whose contents the
+  comparator does not read.
 - Layouts of files without positions (`unpositioned-layout-scale`): graphty lays such a file out with its own
   force layout (the vis-network samples now pass) and draws the file's lengths at one scale chosen from the file (median node, else median label,
   else median edge). The program lays it out its own way: vis-network's physics (`springLength` 95 px), Gephi's
@@ -5078,3 +5092,40 @@ label.offset and `gml-synthetic-coverage` edge 4->15 label.alongLine, three labe
   picture over the node; the comparison reads its pieces like the program's own SVG. Left: a BPMN event on a port and a
   choreography's messages lie outside their node's box and are not drawn (`-p6`); the oracle's open lines (the loop and
   script symbols) are no strays, so neither side's are judged.
+
+## yEd label fonts and blank label lines on `graphml-stm32-func` (#706, 2026-11-09)
+
+`label.family` 107/107 failing (each view), not fixed, and not a defect of graph-io, graphty-element or the comparator:
+
+- The file names `Times New Roman` for 124 of its 147 labels. The oracle's yEd ran on a Linux JRE that has no font of
+  that name, and Java draws a font it lacks in Dialog's face (DejaVu Sans): ySVG wrote no `font-family` on any text,
+  so every label inherits the root's `'Dialog'`, while it does write the faces Java has (`'DejaVu Serif'` on
+  `yed-graphml-specimen-labels`). The words' places agree: `USB-UART` at 32 is centered in its 188.28-wide node at
+  x 555.756, which is a 164.3-wide line, DejaVu Sans's width (Times New Roman's is 160.0).
+- The file itself was drawn in Times New Roman by the yEd that wrote it: the label's stored box is 164.016 wide, Times
+  New Roman's 160.0 plus yEd's 2 + 2 inset, and `\nCS` at 14 is stored 35.008 tall, two Times New Roman lines (1.107 em)
+  plus 4.
+- graph-io reads `Times New Roman, DejaVu Sans, sans-serif` (the font, else Dialog's face), and the browser draws it
+  in Liberation Serif, fontconfig's metric twin of Times New Roman; Java does not use fontconfig's aliases, so on the
+  same machine yEd falls back and Chromium does not. Reading the name as Dialog would draw every yEd file that names
+  Times New Roman in the wrong face on every machine that has it (Windows and macOS, where yEd is mostly run).
+- The same cause fails `yed-graphml-specimen-labels` font-family-times-new-roman and -courier-new,
+  `gml-specimen-labels-p2` and `gml-specimen-edge-labels-p2` fontname-times-new-roman and -courier-new,
+  `gml-synthetic-coverage` (39) and `graphml-synthetic-nodes` (8). Arial passes only because Dialog and Liberation
+  Sans are both sans-serif.
+- Closing it needs a new yEd drawing on a JRE that has Times New Roman and Courier New (or their names), which this
+  round may not make.
+
+Fixed, the 7 `CS` labels (n29 to n32, n36, n63, n72) whose text is `\nCS`: yEd draws a blank first line and the word
+on the second.
+
+- graph-io trimmed the line break away. A label written with `xml:space="preserve"` (yEd writes it on every label) now
+  keeps its leading whitespace and drops its trailing (`crocs-muni` scrutiny `User's\nprofile\n` is stored two lines
+  tall, so a trailing break adds no line); a label without it is trimmed as before.
+- graphty-element measured a blank line as no height (a line with no run in it), so `\nCS` stood one line tall. A
+  blank line between or before others is now a line of the label's font (`RichTextParser.parse`); a label that is
+  only blank is unchanged.
+- The comparator centered graphty's label on its whole plane, the blank line included, where the SVG text is the word
+  alone; it now takes the box of the inked lines (`inkedLines`, a quarter turn at a time).
+- label.offset 100/107 -> 107/107 and label.anchor 105/107 -> 107/107, on both views. No other sample of any program
+  changed a failing element or a score (full report against master, 563 samples).

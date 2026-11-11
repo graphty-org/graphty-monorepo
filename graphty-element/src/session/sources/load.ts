@@ -23,17 +23,17 @@ import {
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
 import { ErrorAggregator } from "../../data/ErrorAggregator";
 import { aggregateErrors, columnsMapping, sourceGraph, toRecords } from "../../data/graph-io-import";
-import { ensureGraphSamplesSource } from "../../data/graphSamplesSource";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { describeRows } from "../attributes";
 import type { HeldRows } from "../commands/data";
 import type { DataImportSourceCommand } from "../commands/source-load";
+import { DEFAULT_LIMITS, tooLargeError } from "../limits";
 import { historyMark } from "../loadLine";
 import type { SessionCommand } from "../planning";
 import { pairKey, planReplace } from "../replace";
 import type { CodedFact } from "../shared";
 import type { RowUpdate } from "../types";
-import { resolve, slotNameOf, slotOf } from "./credentialLookup";
+import { originOf, resolve, slotNameOf, slotOf } from "./credentialLookup";
 import { notYetRun, toGraphtyError } from "./errors";
 import { factParams } from "./expand";
 import type { SourceHost } from "./host";
@@ -48,6 +48,7 @@ import type {
     SourceMoreOptions,
     SourcePreview,
     SourcePreviewOptions,
+    SourceRead,
     SourceRefreshReport,
 } from "./types";
 
@@ -63,16 +64,6 @@ const PREVIEW_NODES = 25;
  * ponytail: a fixed ceiling; derive it from the saved `limits.maxNodes` if 100 pages ever runs short.
  */
 const MAX_PAGES = 100;
-
-/**
- * The scheme, host and port of an endpoint.
- * @param endpoint - the endpoint
- * @returns the origin
- */
-function originOf(endpoint: string): string {
-    const url = new URL(endpoint);
-    return `${url.protocol}//${url.host}`;
-}
 
 /** What one read of a source settled: the credential it used, its slot and whether it was remembered. */
 interface Access {
@@ -91,9 +82,15 @@ interface Access {
  * @param host - the session pieces
  * @param id - the source id
  * @param options - the caller's options
+ * @param params - the load's params, which pick an example's published login among several at one origin
  * @returns the access
  */
-async function accessFor(host: SourceHost, id: string, options: SourceLoadOptions): Promise<Access> {
+async function accessFor(
+    host: SourceHost,
+    id: string,
+    options: SourceLoadOptions,
+    params?: Readonly<Record<string, unknown>>,
+): Promise<Access> {
     const descriptor = descriptorOf(id);
     const endpoint = options.endpoint ?? descriptor?.defaultEndpoint ?? null;
     const slot = slotNameOf(id);
@@ -101,7 +98,7 @@ async function accessFor(host: SourceHost, id: string, options: SourceLoadOption
         return { endpoint, credential: options.credential, slot, stored: false };
     }
 
-    const remembered = endpoint === null ? undefined : await resolve(host.owner, id, originOf(endpoint));
+    const remembered = endpoint === null ? undefined : await resolve(host.owner, id, originOf(endpoint), params);
     if (remembered === undefined && (descriptor?.authRequired === "required" || slotOf(id)?.required === true)) {
         throw new GraphtyError({
             code: "E_SOURCE_AUTH",
@@ -302,22 +299,146 @@ function totalOf(read: Read, known: number | undefined, knownEdges?: number): { 
     };
 }
 
+/** What `SourceRead.rows` holds: the read, and what it was read with, for the load that takes it. */
+interface HeldRead {
+    readonly access: Access;
+    readonly read: Read;
+    readonly options: SourceLoadOptions;
+    /** How many nodes the source holds, when the caller knew (a sample's count). */
+    readonly known?: number;
+}
+
 /**
- * Load from a source as one undoable step, and record the load.
+ * Refuses a count past what the renderer can draw, as a load into an empty graph would be.
+ * @param of - what is counted
+ * @param count - how many were read
+ * @param limit - the most the renderer can draw
+ * @throws A `GraphtyError` with `E_TOO_LARGE` when the count is past the limit
+ */
+function refuseAboveCeiling(of: "nodes" | "edges", count: number, limit: number): void {
+    if (count > limit) {
+        throw tooLargeError(of, 0, count, limit, { nodes: 0, edges: 0 });
+    }
+}
+
+/**
+ * Read a source without loading it, for a `data.import` that may run in another session.
+ * @param host - the session pieces
+ * @param input - the source and its params
+ * @param options - the load options; the import that takes the read keeps them
+ * @param known - how many nodes the source holds, when the caller knows (a sample's count)
+ * @returns the read
+ */
+export async function readSource(
+    host: SourceHost,
+    input: SourceInput,
+    options: SourceLoadOptions,
+    known?: number,
+): Promise<SourceRead> {
+    const access = await accessFor(host, input.source, options, input.config);
+    const read = await readRows(input.source, input.config, access, options);
+    const { renderCeiling, edgesDrawn } = host.ceilings?.() ?? DEFAULT_LIMITS;
+    refuseAboveCeiling("nodes", read.held.nodes.length, renderCeiling);
+    refuseAboveCeiling("edges", read.held.edges.length, edgesDrawn);
+    const rows: HeldRead = { access, read, options, ...(known === undefined ? {} : { known }) };
+    return { ...input, nodes: read.held.nodes.length, edges: read.held.edges.length, rows };
+}
+
+/**
+ * What the ledger records of a finished read.
+ * @param input - the source and its params
+ * @param read - the rows and graph-io's facts
+ * @param access - the endpoint and the credential
+ * @param options - the load options
+ * @param known - how many nodes the source holds, when the caller knows
+ * @returns the facts
+ */
+function loadFacts(
+    input: SourceInput,
+    read: Read,
+    access: Access,
+    options: SourceLoadOptions,
+    known?: number,
+): Parameters<SourceHost["ledger"]["addLoad"]>[0] {
+    return {
+        source: input.source,
+        version: read.info?.version ?? descriptorOf(input.source)?.version ?? 1,
+        config: input.config,
+        endpoint: read.info?.endpoint ?? access.endpoint,
+        // The ledger keeps only the recordable choices; the credential and `write` never reach it.
+        // The mode is the one the load ran with, as an opened project's record says it.
+        options: { ...options, mode: options.mode ?? "replace" },
+        next: read.info?.next ?? null,
+        validators: read.info?.validators ?? {},
+        credential: access.credential ?? null,
+        credentialSlot: access.slot,
+        ...totalOf(read, known),
+        ...(options.expand === undefined ? {} : { expand: options.expand }),
+    };
+}
+
+/** What `replaceSource` needs from a read of a network source, before it plans. */
+export interface NetworkDraft {
+    /** The new load's key; the rows are stamped with it. */
+    readonly key: string;
+    /** The rows as read, unstamped, to compare with the graph's. */
+    readonly held: HeldRows;
+    /** The step that merges the rows. */
+    readonly command: DataImportSourceCommand;
+    /** Takes the new load's record back, when its step failed. */
+    rollback(): void;
+}
+
+/**
+ * Read a source to replace a load with, outside any command, and record the new load. A new record
+ * and never an edit of the old one: the ledger is outside undo, so undoing the replace brings the
+ * old rows back and they name the old record, whose query a refresh then uses.
  * @param host - the session pieces
  * @param input - the source and its params
  * @param options - the load options
+ * @param sourceKey - the `data.sources()` entry the rows go under
+ * @param mode - what the record says the load ran with: the replaced load's mode
+ * @returns the draft
+ */
+export async function networkDraft(
+    host: SourceHost,
+    input: SourceInput,
+    options: SourceLoadOptions,
+    sourceKey: SourceKey,
+    mode: SourceLoadOptions["mode"],
+): Promise<NetworkDraft> {
+    const access = await accessFor(host, input.source, options, input.config);
+    const read = await readRows(input.source, input.config, access, options);
+    const before = host.ledger.toMember();
+    const record = host.ledger.addLoad(loadFacts(input, read, access, { ...options, mode }));
+    return {
+        key: record.key,
+        held: read.held,
+        command: importCommand(host, record.key, input, read, { ...options, mode: "merge", sourceKey }),
+        rollback: () => {
+            host.ledger.fromMember(before);
+        },
+    };
+}
+
+/**
+ * Load from a source as one undoable step, and record the load.
+ * @param host - the session pieces
+ * @param input - the source and its params, or what `readExample` read, which loads without a fetch
+ * @param given - the load options
  * @param total - how many nodes the source holds, when the caller knows (a sample's count)
  * @returns the load's record
  */
 export async function importSource(
     host: SourceHost,
-    input: SourceInput,
-    options: SourceLoadOptions,
+    input: SourceInput | SourceRead,
+    given: SourceLoadOptions,
     total?: number,
 ): Promise<SourceLoadRecord> {
-    const access = await accessFor(host, input.source, options);
-    const read = await readRows(input.source, input.config, access, options);
+    const held = "rows" in input ? (input.rows as HeldRead) : undefined;
+    const options = held === undefined ? given : { ...held.options, ...given };
+    const access = held?.access ?? (await accessFor(host, input.source, options, input.config));
+    const read = held?.read ?? (await readRows(input.source, input.config, access, options));
     // A load asked for earlier dispatches first, however long it spends reading (issue #3382).
     await host.waitTurn?.();
     // Recorded as the step is dispatched, so a consumer that hears the step finds the record; put
@@ -330,21 +451,7 @@ export async function importSource(
 
     // The ledger keeps every record; `data.loads()` lists the ones whose rows the graph holds, so
     // undoing this load (or the load it replaces) takes its record away (or back) with the rows.
-    const record = host.ledger.addLoad({
-        source: input.source,
-        version: read.info?.version ?? descriptorOf(input.source)?.version ?? 1,
-        config: input.config,
-        endpoint: read.info?.endpoint ?? access.endpoint,
-        // The ledger keeps only the recordable choices; the credential and `write` never reach it.
-        // The mode is the one the load ran with, as an opened project's record says it.
-        options: { ...options, mode: options.mode ?? "replace" },
-        next: read.info?.next ?? null,
-        validators: read.info?.validators ?? {},
-        credential: access.credential ?? null,
-        credentialSlot: access.slot,
-        ...totalOf(read, total),
-        ...(options.expand === undefined ? {} : { expand: options.expand }),
-    });
+    const record = host.ledger.addLoad(loadFacts(input, read, access, options, total ?? held?.known));
     try {
         await dispatchRows(host, record.key, input, read, options);
     } catch (error) {
@@ -361,45 +468,79 @@ export async function importSource(
 }
 
 /**
- * Load a public sample a registered source lists: its params, endpoint and published login.
- * @param host - the session pieces
- * @param id - the sample's id
+ * What reading one of a source's examples takes: its params, endpoint, published login and first page.
+ * @param source - the source id
+ * @param id - the example's id within the source
  * @param options - the load options; a credential or endpoint given here wins
- * @returns the load's record
+ * @returns the source's input, the options and how many nodes the example holds
+ * @throws A `GraphtyError` with `E_SOURCE_UNKNOWN` when the source lists no such example
  */
-export function loadSample(host: SourceHost, id: string, options: SourceLoadOptions): Promise<SourceLoadRecord> {
-    ensureGraphSamplesSource();
-    const listed = registry
-        .listSources()
-        .flatMap((info) => (info.descriptor.samples ?? []).map((sample) => ({ source: info.id, sample })));
-    const found = listed.find((entry) => entry.sample.id === id);
-    if (found === undefined) {
-        return Promise.reject(
-            new GraphtyError({
-                code: "E_SOURCE_UNKNOWN",
-                message: `No registered source lists a sample with id ${JSON.stringify(id)}.`,
-                source: "data",
-                details: { id, known: listed.map((entry) => entry.sample.id) },
-            }),
-        );
+function exampleRead(
+    source: string,
+    id: string,
+    options: SourceLoadOptions,
+): { input: SourceInput; options: SourceLoadOptions; known: number | undefined } {
+    const examples = descriptorOf(source)?.examples ?? [];
+    const example = examples.find((each) => each.id === id);
+    if (example === undefined) {
+        throw new GraphtyError({
+            code: "E_SOURCE_UNKNOWN",
+            message: `The ${JSON.stringify(source)} source lists no example with id ${JSON.stringify(id)}.`,
+            source: "data",
+            details: { source, id, known: examples.map((each) => each.id) },
+        });
     }
 
-    const { source, sample } = found;
-    const login = sample.publicLogin;
-    // A sample too big to load whole starts with the first page its descriptor names; `more` reads on.
+    const login = example.publicLogin;
+    // An example too big to load whole starts with the first page its descriptor names; `more` reads on.
     const firstPage =
-        sample.firstPage === undefined ? {} : { limits: { maxNodes: sample.firstPage, onLimit: "stop" as const } };
-    return importSource(
-        host,
-        { source, config: sample.params, name: sample.plainName },
-        {
-            ...(sample.endpoint === undefined ? {} : { endpoint: sample.endpoint }),
+        example.firstPage === undefined ? {} : { limits: { maxNodes: example.firstPage, onLimit: "stop" as const } };
+    return {
+        input: { source, config: example.params, name: example.plainName },
+        options: {
+            ...(example.endpoint === undefined ? {} : { endpoint: example.endpoint }),
             ...(login === undefined ? {} : { credential: credentials.basic(login.username, login.password) }),
             ...firstPage,
             ...options,
         },
-        sample.counts?.nodes,
-    );
+        known: example.counts?.nodes,
+    };
+}
+
+/**
+ * Load one of a source's examples.
+ * @param host - the session pieces
+ * @param source - the source id
+ * @param id - the example's id within the source
+ * @param options - the load options; a credential or endpoint given here wins
+ * @returns the load's record
+ */
+export async function loadExample(
+    host: SourceHost,
+    source: string,
+    id: string,
+    options: SourceLoadOptions,
+): Promise<SourceLoadRecord> {
+    const example = exampleRead(source, id, options);
+    return importSource(host, example.input, example.options, example.known);
+}
+
+/**
+ * Read one of a source's examples without loading it, for a `data.import` that may run in another session.
+ * @param host - the session pieces
+ * @param source - the source id
+ * @param id - the example's id within the source
+ * @param options - the load options; a credential or endpoint given here wins
+ * @returns the read
+ */
+export async function readExample(
+    host: SourceHost,
+    source: string,
+    id: string,
+    options: SourceLoadOptions,
+): Promise<SourceRead> {
+    const example = exampleRead(source, id, options);
+    return readSource(host, example.input, example.options, example.known);
 }
 
 /**
@@ -414,7 +555,7 @@ export async function testSource(
     input: SourceInput,
     options: SourceLoadOptions,
 ): Promise<SourceProbe> {
-    const access = await accessFor(host, input.source, options);
+    const access = await accessFor(host, input.source, options, input.config);
     return coded(access, () => registry.probeSource(input.source, input.config, ioOptions(access, options)));
 }
 
@@ -432,7 +573,7 @@ export async function listSource(
     query: Omit<SourceListQuery<Record<string, unknown>>, "params">,
     options: SourceLoadOptions,
 ): Promise<SourceListing> {
-    const access = await accessFor(host, input.source, options);
+    const access = await accessFor(host, input.source, options, input.config);
     return coded(access, () =>
         registry.listFromSource(input.source, { ...query, params: input.config }, ioOptions(access, options)),
     );
@@ -458,10 +599,15 @@ export async function more(host: SourceHost, options: SourceMoreOptions): Promis
 
     const saved = record.options as Pick<SourceLoadOptions, "limits">;
     const config = currentParams(record);
-    const access = await accessFor(host, record.source, {
-        ...rest,
-        endpoint: rest.endpoint ?? record.endpoint ?? undefined,
-    });
+    const access = await accessFor(
+        host,
+        record.source,
+        {
+            ...rest,
+            endpoint: rest.endpoint ?? record.endpoint ?? undefined,
+        },
+        record.config,
+    );
     const read = await readRows(record.source, config, access, {
         ...(saved.limits === undefined ? {} : { limits: saved.limits }),
         ...rest,
@@ -490,6 +636,7 @@ export async function more(host: SourceHost, options: SourceMoreOptions): Promis
         ...(read.info?.total?.nodes === undefined ? {} : { total: read.info.total.nodes }),
         ...(read.info?.total?.edges === undefined ? {} : { totalEdges: read.info.total.edges }),
     });
+    host.emit("source:refreshed", { load: record.key });
 }
 
 /**
@@ -535,10 +682,19 @@ export async function previewSource(
     options: SourcePreviewOptions,
 ): Promise<SourcePreview> {
     const { maxNodes = PREVIEW_NODES, ...rest } = options;
-    const access = await accessFor(host, input.source, rest);
-    const read = await readRows(input.source, input.config, access, {
-        ...rest,
-        limits: { ...rest.limits, maxNodes, onLimit: "stop" },
+    const access = await accessFor(host, input.source, rest, input.config);
+    const readUpTo = (cap: number): Promise<Read> =>
+        readRows(input.source, input.config, access, {
+            ...rest,
+            limits: { ...rest.limits, maxNodes: cap, onLimit: "stop" },
+        });
+    // A source that cannot cut its answer short (a whole network file) refuses a cap below its size,
+    // before its first byte. It is read as a load would be, and the slice below is the preview.
+    const read = await readUpTo(maxNodes).catch((error: unknown) => {
+        if (!(error instanceof GraphtyError) || error.code !== "E_SOURCE_LIMIT") {
+            throw error;
+        }
+        return readUpTo(rest.limits?.maxNodes ?? (host.ceilings?.() ?? DEFAULT_LIMITS).renderCeiling);
     });
     // The `_source.` facts are the element's bookkeeping, not the source's data.
     const nodes = read.held.nodes.slice(0, maxNodes).map(withoutSourceFacts);
@@ -605,10 +761,15 @@ export async function checkSource(host: SourceHost, key: string, options: Source
         return Object.freeze({ changed: null });
     }
 
-    const access = await accessFor(host, record.source, {
-        ...options,
-        endpoint: options.endpoint ?? record.endpoint ?? undefined,
-    });
+    const access = await accessFor(
+        host,
+        record.source,
+        {
+            ...options,
+            endpoint: options.endpoint ?? record.endpoint ?? undefined,
+        },
+        record.config,
+    );
     const freshness = await coded(access, () =>
         registry.validateSource(record.source, currentParams(record), record.validators, ioOptions(access, options)),
     );
@@ -636,10 +797,15 @@ export async function refreshSource(
     const config = currentParams(record);
     const { write: _write, ...readOnly } = options;
     const saved = record.options as Pick<SourceLoadOptions, "limits">;
-    const access = await accessFor(host, record.source, {
-        ...readOnly,
-        endpoint: options.endpoint ?? record.endpoint ?? undefined,
-    });
+    const access = await accessFor(
+        host,
+        record.source,
+        {
+            ...readOnly,
+            endpoint: options.endpoint ?? record.endpoint ?? undefined,
+        },
+        record.config,
+    );
     const read = await readPages(record, config, access, {
         ...(saved.limits === undefined ? {} : { limits: saved.limits }),
         ...readOnly,
@@ -699,6 +865,7 @@ export async function refreshSource(
         endpoint: access.endpoint,
         ...totalOf(read, record.total, record.totalEdges),
     });
+    host.emit("source:refreshed", { load: loadKey });
     return report;
 }
 
@@ -851,10 +1018,15 @@ export async function runPendingSourceLoad(host: SourceHost, id: string, options
     const config = currentParams(record);
     const { write: _write, ...readOnly } = options;
     const saved = record.options as Pick<SourceLoadOptions, "limits">;
-    const access = await accessFor(host, record.source, {
-        ...readOnly,
-        endpoint: options.endpoint ?? record.endpoint ?? undefined,
-    });
+    const access = await accessFor(
+        host,
+        record.source,
+        {
+            ...readOnly,
+            endpoint: options.endpoint ?? record.endpoint ?? undefined,
+        },
+        record.config,
+    );
     // As many pages as the load read, as a refresh does, so a later `more` continues past them.
     const read = await readPages(record, config, access, {
         ...(saved.limits === undefined ? {} : { limits: saved.limits }),
@@ -877,4 +1049,5 @@ export async function runPendingSourceLoad(host: SourceHost, id: string, options
         endpoint: access.endpoint,
         ...totalOf(read, record.total, record.totalEdges),
     });
+    host.emit("source:refreshed", { load: id });
 }

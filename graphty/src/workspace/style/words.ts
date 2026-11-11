@@ -27,6 +27,8 @@ import {
     type GraphtyErrorCode,
     type GraphtyWarningCode,
     type ReadableValue,
+    renamePaths,
+    rulePath,
 } from "@graphty/graphty-element/session";
 
 import { wordsFor } from "../analyze/words";
@@ -54,7 +56,22 @@ export interface SectionSpec {
     readonly channels: readonly Channel[];
     /** The section is the tab's Shaders list: its rows are the layer's shader uses, its "+" opens the gallery. */
     readonly shaders?: boolean;
+    /**
+     * Properties the section sets from inside one of its lines (the Shape field's Model... and Model
+     * settings), never a "+" item of their own.
+     */
+    readonly inner?: readonly Channel[];
 }
+
+/** A model's channels: what the Shape field names, and what Model settings sets. */
+export const MODEL_CHANNELS: readonly Channel[] = [
+    "node.model",
+    "node.modelSourceUp",
+    "node.modelTurn",
+    "node.modelTint",
+    "node.modelFit",
+    "node.modelCenter",
+];
 
 /**
  * One kind of text a Text list entry draws: its words, its look, and the look's three channels a
@@ -184,6 +201,51 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
     ],
 };
 
+/** The Line properties the `cosmograph` experiment adds (issue #3247): the long-edge fade and blending. */
+const COSMOGRAPH_LINE_CHANNELS: readonly Channel[] = [
+    "edge.fadeEnd",
+    "edge.fadeStart",
+    "edge.fadeOpacity",
+    "edge.blending",
+];
+
+/** The edge sections with the `cosmograph` experiment on: Line ends with its fade and blending. */
+const COSMOGRAPH_EDGE_SECTIONS: readonly SectionSpec[] = SECTIONS.edge.map((section) =>
+    section.id === "line" ? { ...section, channels: [...section.channels, ...COSMOGRAPH_LINE_CHANNELS] } : section,
+);
+
+/**
+ * The node sections with the `node-models` experiment on (issue #3396): Shape holds a model in
+ * place of a built-in shape, with its settings, and Fill's "+" offers Picture.
+ */
+const NODE_MODELS_SECTIONS: readonly SectionSpec[] = SECTIONS.node.map((section) => {
+    if (section.id === "shape") {
+        return { ...section, inner: MODEL_CHANNELS };
+    }
+    return section.id === "fill" ? { ...section, channels: [...section.channels, "node.texture"] } : section;
+});
+
+/** The experiments that change which properties the Style tab's sections hold. */
+export interface SectionFlags {
+    /** The `cosmograph` experiment: Line's long-edge fade and blending. */
+    readonly cosmograph: boolean;
+    /** The `node-models` experiment: Shape's models and Fill's Picture. */
+    readonly nodeModels: boolean;
+}
+
+/**
+ * A group's sections, with what the experiments switched on add.
+ * @param kind - nodes or edges.
+ * @param flags - which experiments are on.
+ * @returns the sections, in their fixed order.
+ */
+export function sectionsFor(kind: Kind, flags: SectionFlags): readonly SectionSpec[] {
+    if (kind === "edge") {
+        return flags.cosmograph ? COSMOGRAPH_EDGE_SECTIONS : SECTIONS.edge;
+    }
+    return flags.nodeModels ? NODE_MODELS_SECTIONS : SECTIONS.node;
+}
+
 /**
  * The opacity a color field carries in its opacity box: Fill's and Line's. Opacity has one source,
  * the opacity channel, so the color stays six digits and a row that set Opacity keeps it.
@@ -217,6 +279,10 @@ export const TWO_WORDS: Partial<Readonly<Record<Channel, readonly (readonly [boo
     "edge.curvature": [
         [false, "Straight"],
         [true, "Curved"],
+    ],
+    "edge.blending": [
+        [true, "On"],
+        [false, "Off"],
     ],
 };
 
@@ -450,6 +516,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.raisedBorderWidth": "Raised border width",
     "node.raisedBorderLightColor": "Raised border light color",
     "node.raisedBorderDarkColor": "Raised border dark color",
+    "node.shadowColor": "Shadow color",
+    "node.shadowOpacity": "Shadow opacity",
+    "node.shadowBlur": "Shadow blur",
+    "node.shadowOffsetX": "Shadow offset X",
+    "node.shadowOffsetY": "Shadow offset Y",
     "node.underlayColor": "Underlay color",
     "node.underlayOpacity": "Underlay opacity",
     "node.underlayPadding": "Underlay padding",
@@ -520,6 +591,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.shapeTexts": "Shape texts",
     "node.labelTable": "Label table",
     "node.shapeLineWidth": "Shape line width",
+    "node.shapeLineHaloColor": "Shape line halo color",
+    "node.shapeLineHaloWidth": "Shape line halo width",
     "node.gradientColors": "Gradient colors",
     "node.gradientStops": "Gradient stops",
     "node.gradientKind": "Gradient kind",
@@ -546,6 +619,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.gradientKind": "Gradient kind",
     "edge.waveAmplitude": "Wave amplitude",
     "edge.wavePeriod": "Wave period",
+    "edge.dashLength": "Dash length",
+    "edge.dashGap": "Dash gap",
     "edge.bendCurve": "Bend curve",
     "edge.arcRadius": "Arc radius",
     "edge.route": "Route",
@@ -610,6 +685,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelOutlineOpacity": "Label outline opacity",
     "edge.labelBorderOpacity": "Label border opacity",
     "edge.labelPadding": "Label padding",
+    "edge.labelTable": "Label table",
     "edge.labelCornerRadius": "Label corner radius",
     "edge.labelLineHeight": "Label line height",
     "edge.labelOffsetX": "Label offset x",
@@ -1257,7 +1333,7 @@ export function madeWords(name: string, nodes: number, edges: number): string {
  * @param edges - how many edges are selected.
  * @returns the words.
  */
-export function selectedWords(nodes: number, edges: number): string {
+function selectedWords(nodes: number, edges: number): string {
     const [first, ...rest] = pickedCount(nodes, edges).split(" and ");
     const [n, word] = first.split(" ");
     const selected = n === "1" ? `selected ${word}` : `${n} selected ${word}`;
@@ -1408,6 +1484,68 @@ export const OPTION_TILE_WORDS: Readonly<Record<"node" | "edge", string>> = {
     edge: "Line option",
 };
 
+/** The shader editor's words, each as a reader sees it. */
+export const EDITOR_WORDS = {
+    newTitle: "New shader",
+    editTitle: "Edit shader",
+    code: "Shader code",
+    preview: "Preview",
+    problems: "Problems",
+    add: "Add",
+    addToProject: "Add to project",
+    drawsOn: "Draws on",
+    targets: { node: "Node", edge: "Edge", background: "Background" },
+    showInStyle: "Show in Style",
+    addedToProject: (name: string) => `${name} added to This project`,
+    alreadyInGallery: (name: string) => `${name} is already in the gallery`,
+    name: "Name",
+    reach: "Reach",
+    minSize: "Minimum size",
+    fullText: "Full text",
+    copyCode: "Copy code",
+    copied: "Shader code copied",
+    copyFailed: "The code could not be copied",
+    close: "Close",
+    closeTip: "Close  Esc",
+    tabIndent: "Tab: Indent",
+    tabNextField: "Tab: Next field",
+    parameters: "Parameters",
+    unnamedParam: "Parameter",
+    displayName: "Display name",
+    min: "Min",
+    max: "Max",
+    step: "Step",
+    choices: "Choices",
+    varies: "Varies",
+    on: "On",
+    off: "Off",
+    starts: "Starts",
+    startsNone: "None",
+    from: "From",
+    to: "To",
+    insertNeedsCursor: "Click in the code first",
+    paramTypes: {
+        number: "Number",
+        integer: "Integer",
+        boolean: "Switch",
+        enum: "Choice",
+        color: "Color",
+    } as Readonly<Record<string, string>>,
+    seedChoices: ["One", "Two"],
+    nameOf: (param: string): string => `${param} name`,
+    typeOf: (param: string): string => `${param} type`,
+    defaultOf: (param: string): string => `${param} default`,
+    insert: (param: string): string => `Insert ${param}`,
+    settingsOf: (param: string): string => `${param} settings`,
+    closeSettings: (param: string): string => `Close ${param} settings`,
+    removeParam: (param: string): string => `Remove ${param}`,
+    choiceLabel: (param: string, index: number): string => `${param} choice ${String(index)}`,
+    removeChoice: (param: string, index: number): string => `Remove ${param} choice ${String(index)}`,
+    addChoice: (param: string): string => `Add a choice to ${param}`,
+    newChoice: (position: number): string => `Choice ${String(position)}`,
+    rangeColor: (param: string, at: number): string => `${param} color ${String(at + 1)}`,
+} as const;
+
 /** The code dialog's link to the published guide to writing a shader. */
 export const PASTE_GUIDE_WORDS = "How to write one";
 
@@ -1549,7 +1687,7 @@ export function effectOffWords(name: string): string {
 }
 
 /** The moments a clock counts from, as a bound parameter's value shows them. */
-const CLOCK_WORDS: Readonly<Record<string, string>> = {
+export const CLOCK_WORDS: Readonly<Record<string, string>> = {
     "since.matched": "When this layer starts applying",
     "since.unmatched": "When this layer stops applying",
     "since.selected": "When selected",
@@ -1770,3 +1908,117 @@ export const GROUP_BY_WORDS = {
     line: (value: string): string => `Group by ${value}`,
     none: "None",
 } as const;
+
+/** The Shape list's last entry, which opens the Models pop-over (the node-models experiment). */
+export const MODEL_TILE = "Model...";
+
+/** The value the Shape list's Model... entry carries: never written, it opens the Models pop-over. */
+export const MODEL_PICK = "+model";
+
+/** What Fill's "+" and the Picture line call `node.texture` (the node-models experiment). */
+export const PICTURE_WORD = "Picture";
+
+/**
+ * Model settings' rows (node-models design 13.3): each row's word and, for a choice, each value's
+ * word in list order. Turn is a number in degrees.
+ */
+export const MODEL_SETTING_ROWS: readonly {
+    readonly channel: Channel;
+    readonly word: string;
+    readonly choices?: readonly (readonly [string, string])[];
+}[] = [
+    {
+        channel: "node.modelSourceUp",
+        word: "Up",
+        choices: [
+            ["detected", "Detected"],
+            ["y", "Y"],
+            ["z", "Z"],
+            ["-y", "-Y"],
+            ["-z", "-Z"],
+            ["x", "X"],
+            ["-x", "-X"],
+        ],
+    },
+    { channel: "node.modelTurn", word: "Turn" },
+    {
+        channel: "node.modelTint",
+        word: "Color",
+        choices: [
+            ["false", "Model's own"],
+            ["true", "Node color on top"],
+            ["replace", "Node color only"],
+        ],
+    },
+    {
+        channel: "node.modelFit",
+        word: "Fit",
+        choices: [
+            ["contain", "Keep proportions"],
+            ["stretch", "Stretch"],
+        ],
+    },
+    {
+        channel: "node.modelCenter",
+        word: "Center",
+        choices: [
+            ["bounds", "Middle"],
+            ["origin", "File's origin"],
+        ],
+    },
+];
+
+/** A warning chip on a Model settings row: its word and its tooltip (design 13.3). */
+export const MODEL_SETTING_CHIPS: Readonly<
+    Partial<Record<Channel, { readonly code: string; readonly word: string; readonly tip: string }>>
+> = {
+    "node.modelSourceUp": { code: "W_MODEL_UP_GUESSED", word: "Guessed", tip: "up axis guessed from the file" },
+    "node.modelTint": { code: "W_MODEL_COLOR_IGNORED", word: "Color unused", tip: "node color not drawn on the model" },
+};
+
+/**
+ * A rule as the reader reads and types it: its numbers without the backticks the element writes
+ * around them. Only numbers: a backticked text means something else bare.
+ * @param rule - the rule, without "=".
+ * @returns the rule.
+ */
+export function plainRule(rule: string): string {
+    return rule.replaceAll(/`(-?\d+(?:\.\d+)?)`/g, "$1");
+}
+
+/**
+ * The name the panels show a column a rule reads by: a run's value under its run's name, a node's
+ * structure under its own (Degree, never graphty.degree).
+ * @param session - the element's session.
+ * @param path - the path as the rule names it: a bare column name or a dotted path.
+ * @returns the name, or undefined for a path no value answers.
+ */
+export function shownName(session: GraphSession, path: string): string | undefined {
+    const value = session.data
+        .readableValues()
+        .find((each) => each.end === undefined && (each.path === path || rulePath(each.path) === path));
+    if (value !== undefined) {
+        return readableName(session, value).name;
+    }
+    const structure = session.data.structureValues().find((each) => each.path === path);
+    if (structure !== undefined) {
+        return structure.plainName;
+    }
+    const named = attributeName(session, path);
+    return named === path ? undefined : named;
+}
+
+/**
+ * A rule as the find box shows it: each column under the name the panels give it, numbers bare.
+ * It is shown, never typed back: a rule reads columns by their paths.
+ * @param session - the element's session.
+ * @param rule - the rule, without "=".
+ * @returns the words.
+ */
+export function shownRule(session: GraphSession, rule: string): string {
+    try {
+        return plainRule(renamePaths(rule, (path) => shownName(session, path)));
+    } catch {
+        return plainRule(rule);
+    }
+}

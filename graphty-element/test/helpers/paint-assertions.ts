@@ -194,7 +194,7 @@ export function strandedOnBootstrap(graph: Graph): readonly string[] {
     return graph
         .getNodes()
         .filter((node) => {
-            const metadata = node.mesh.metadata as { styleId?: unknown } | null | undefined;
+            const metadata = node.drawnAnchor.metadata as { styleId?: unknown } | null | undefined;
 
             return metadata?.styleId === BOOTSTRAP_NODE_KEY || metadata?.styleId === BOOTSTRAP_EDGE_KEY;
         })
@@ -342,7 +342,7 @@ function projectNode(graph: Graph, frame: Frame, nodeId: string | number): { x: 
     assert.isNotNull(camera, "a graph that has rendered has an active camera");
 
     const projected = Vector3.Project(
-        node.mesh.absolutePosition,
+        node.drawnWorldPosition,
         // Identity, because `absolutePosition` is already world space. The matrix the scene hands
         // back is view times projection, which is the rest of the journey.
         Matrix.Identity(),

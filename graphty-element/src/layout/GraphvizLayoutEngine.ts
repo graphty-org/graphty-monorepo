@@ -1,4 +1,4 @@
-import type { F32 } from "@graphty/graph-format";
+import { type F32, INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema, parseOptions } from "../config";
@@ -22,6 +22,7 @@ import {
     edgeLabelPlaces,
     type EdgeLabelsAt,
     edgeLabelsLeftOut,
+    edgeLineEnds,
     fromJson,
     nodeXlabelPlaces,
 } from "./graphviz/fromJson";
@@ -239,6 +240,7 @@ async function computeWith(
 ): Promise<{
     positions: F32;
     bends: ReadonlyMap<number, string>;
+    ends: ReadonlyMap<number, NonNullable<EdgePosition["lineEnds"]>>;
     labels: ReadonlyMap<number, EdgeLabelsAt>;
     xlabels: ReadonlyMap<number, readonly [number, number] | null>;
     margins: ReadonlyMap<number, GroupMargins>;
@@ -248,6 +250,7 @@ async function computeWith(
         return {
             positions: new Float32Array(0),
             bends: new Map(),
+            ends: new Map(),
             labels: new Map(),
             xlabels: new Map(),
             margins: new Map(),
@@ -263,7 +266,9 @@ async function computeWith(
     // The DOT names nodes by row, so a root given as a node's id is given as its row.
     if (attributes.root !== undefined) {
         const { ids } = input.stored;
-        const row = [attributes.root, Number(attributes.root)].map((id) => ids.indexOf(id)).find((index) => index >= 0);
+        const row = [attributes.root, Number(attributes.root)]
+            .map((id) => ids.indexOf(id))
+            .find((index) => index !== INVALID_INDEX);
         if (row !== undefined) {
             attributes.root = `n${row}`;
         }
@@ -301,6 +306,7 @@ async function computeWith(
     return {
         positions: fromJson(reply.json, n).map((value) => value * scale),
         bends: edgeBends(reply.json, structure.edges ?? [], graphvizPosBends),
+        ends: edgeLineEnds(reply.json, structure.edges ?? []),
         labels: edgeLabelsAt(reply.json, structure.edges ?? []),
         xlabels: new Map(
             [...nodeXlabelPlaces(reply.json)].map(([row, place]) => [
@@ -388,6 +394,11 @@ export function layoutStructure(
     const data = new Map<number, Readonly<Record<string, unknown>>>();
     for (const node of nodes) {
         const row = ids.indexOf(node.id);
+        // A node the run leaves out (hidden under `layout.visibleOnly`) has no row in its graph.
+        if (row === INVALID_INDEX) {
+            continue;
+        }
+
         if (followers.has(row)) {
             groups.set(row, node.data);
         } else if (withOutlines || labelSized) {
@@ -467,6 +478,9 @@ export async function pinnedRoutes(
     return bends;
 }
 
+/** How far, as a share of their distance, two nodes may sit from where Graphviz laid them and keep its line ends. */
+const LAID_CHORD_SLACK = 1e-3;
+
 /** One engine's layout class: a single-pass snapshot layout, two-dimensional. */
 type GraphvizLayoutClass = (new (opts: object) => SnapshotLayoutEngine) & {
     readonly type: string;
@@ -492,6 +506,11 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         protected readonly options: Readonly<Record<string, unknown>>;
         /** The route Graphviz laid each edge along, as bends, for the edges it did not draw straight. */
         private routes = new Map<Edge, readonly number[]>();
+        /**
+         * Where Graphviz starts and ends each edge's line, for nodes Graphviz shaped as the element draws them, with the
+         * line between the two centers Graphviz laid them at (`dx, dy`), which those ends hold for.
+         */
+        private lineEnds = new Map<Edge, { at: NonNullable<EdgePosition["lineEnds"]>; chord: readonly number[] }>();
         /** Where Graphviz put each labelled edge's label and end labels, as `along, across` its two ends. */
         private labelPlaces = new Map<Edge, EdgeLabelsAt>();
         /** Where Graphviz put each node's external label, right and down of its center in scene units, by node id as text. */
@@ -526,7 +545,7 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
                 false,
                 this.options.nodeSize === "label",
             );
-            const { positions, bends, labels, xlabels, margins } = await computeWith(
+            const { positions, bends, ends, labels, xlabels, margins } = await computeWith(
                 engine,
                 input,
                 this.options,
@@ -539,6 +558,16 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
                 // label and the edges it routes inside it
                 laidGroupMargins.set(this, margins);
                 this.routes = routesOf(bends, structure.edgeOf);
+                // only a node Graphviz shaped from its own attributes has the outline Graphviz ended the line on; a
+                // node handed over at its drawn size goes as a circle or a box, whatever the element draws
+                const chord = (k: number): number[] => {
+                    const { src, dst } = structure.edges?.[k] ?? { src: 0, dst: 0 };
+                    return [positions[2 * dst] - positions[2 * src], positions[2 * dst + 1] - positions[2 * src + 1]];
+                };
+                this.lineEnds =
+                    this.options.nodeSize === "label"
+                        ? new Map([...ends].map(([k, at]) => [structure.edgeOf[k], { at, chord: chord(k) }]))
+                        : new Map();
                 this.labelPlaces = new Map([...labels].map(([k, place]) => [structure.edgeOf[k], place]));
                 this.xlabelPlaces = new Map(
                     [...xlabels].map(([row, place]) => [String(input.stored.ids.idOf(row)), place]),
@@ -574,7 +603,21 @@ function graphvizLayout(engine: GraphvizEngine): GraphvizLayoutClass {
         override getEdgePosition(e: Edge): EdgePosition {
             const ends = super.getEdgePosition(e);
             const bends = this.routes.get(e);
-            return { ...ends, ...(bends === undefined ? {} : { bends }), ...this.labelPlaces.get(e) };
+            // the ends hold only while the two nodes are where Graphviz laid them, one against the other: a node moved
+            // since (dragged, pinned elsewhere) leaves its line cut at the outlines again
+            const laid = this.lineEnds.get(e);
+            const dx = ends.dst.x - ends.src.x;
+            const dy = ends.dst.y - ends.src.y;
+            const moved =
+                laid === undefined ||
+                Math.hypot(dx - laid.chord[0], dy - laid.chord[1]) > LAID_CHORD_SLACK * Math.max(1, Math.hypot(dx, dy));
+            const lineEnds = moved ? undefined : laid.at;
+            return {
+                ...ends,
+                ...(bends === undefined ? {} : { bends }),
+                ...(lineEnds === undefined ? {} : { lineEnds }),
+                ...this.labelPlaces.get(e),
+            };
         }
     };
 }

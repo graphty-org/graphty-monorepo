@@ -22,6 +22,7 @@
 
 import type { RunId } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
+import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import { dispatcherOf } from "../session/GraphSession";
 import { loadLineOf, type LoadTurn, supersededError } from "../session/loadLine";
 import { onProjectBoundary } from "../session/project/boundary";
@@ -55,11 +56,15 @@ import {
     isAutosaveConflict,
 } from "./types";
 
-/** The entry format this code writes. */
+/**
+ * The entry format this code writes. Exported, and so tagged public, because
+ * tools/channel/nightly.mjs reads this declaration from the source text as written here.
+ * @public
+ */
 export const AUTOSAVE_FORMAT_VERSION = 1;
 
 /** How long a write may go without completing or failing before it is aborted. */
-export const WATCHDOG_MS = 10_000;
+const WATCHDOG_MS = 10_000;
 
 /** The history steps a page-supplied load makes; any other step made during one is the reader's. */
 const PAGE_LOAD_CODES: ReadonlySet<string> = new Set([
@@ -73,10 +78,13 @@ const PAGE_LOAD_CODES: ReadonlySet<string> = new Set([
 const DEADLINE_LATE_MS = 1_000;
 
 /** How long the listing at the start may take before the page loads without a restore. */
-export const LIST_TIMEOUT_MS = 3000;
+const LIST_TIMEOUT_MS = 3000;
+
+/** Facts about each entry and write, for a reader of the logs: ids, counts and booleans, never data. */
+const logger: Logger = GraphtyLogger.getLogger(["graphty", "autosave"]);
 
 /** Automatic restores started and never confirmed, after which an entry is no longer restored automatically. */
-export const RESTORE_ATTEMPTS = 2;
+const RESTORE_ATTEMPTS = 2;
 
 /** Time, timers and idle callbacks: the real ones, or a test's. */
 export interface AutosaveClock {
@@ -154,6 +162,8 @@ export interface AutosaverOptions {
     readonly locks?: AutosaveLocks;
     /** Whether the page is hidden now: a change made then is written at once, with no timer. */
     readonly hidden?: () => boolean;
+    /** Told an entry's id when its first change is made, before anything is written. */
+    readonly onEntryStart?: (id: string) => void;
 }
 
 /** What the restore at the start is told. */
@@ -387,6 +397,7 @@ export class Autosaver {
     readonly #maxWaitMs: number;
     readonly #dataMaxWaitMs: number;
     readonly #hidden: () => boolean;
+    readonly #onEntryStart: ((id: string) => void) | undefined;
     readonly #keep: number;
     readonly #clock: AutosaveClock;
     readonly #locks: AutosaveLocks;
@@ -399,6 +410,8 @@ export class Autosaver {
     #endings: Ending[] = [];
     /** Committed project changes seen so far: the revision a write built now contains. */
     #changes = 0;
+    /** {@link unsavedChanges} as the status listeners were last told it. */
+    #toldUnsaved = false;
     #saved: { at: string; revision: number } | null = null;
     #problem: CodedFact<AutosaveCode> | null = null;
     /** What the write in flight carries, so a boundary rewrites it too. */
@@ -454,6 +467,7 @@ export class Autosaver {
         this.#maxWaitMs = options.maxWaitMs ?? 2000;
         this.#dataMaxWaitMs = options.dataMaxWaitMs ?? 10_000;
         this.#hidden = options.hidden ?? (() => false);
+        this.#onEntryStart = options.onEntryStart;
         this.#keep = options.keep ?? 10;
         this.#clock = options.clock ?? realClock;
         this.#locks = options.locks ?? noLocks;
@@ -566,6 +580,15 @@ export class Autosaver {
      */
     get started(): boolean {
         return this.#entry.started;
+    }
+
+    /**
+     * Whether a change counted in the revision (one the reader or a load made) is not yet
+     * committed; a write of layout positions alone holds none.
+     * @returns True while one is outstanding.
+     */
+    get unsavedChanges(): boolean {
+        return this.#changes > (this.#saved?.revision ?? 0) || this.#heldReaderWork();
     }
 
     /**
@@ -1475,8 +1498,9 @@ export class Autosaver {
             await turn.wait();
             this.#restoreTurn = turn;
             this.#restoringFlag = true;
+            // The reader's own work coming back: a network load they ran stays live.
             report = await line.within(turn, () =>
-                this.#session.project.open(text, { discard: true, limits: { fileBytes: Infinity } }),
+                this.#session.project.open(text, { discard: true, ownWork: true, limits: { fileBytes: Infinity } }),
             );
         } catch (error) {
             this.#restoringFlag = false;
@@ -1657,6 +1681,8 @@ export class Autosaver {
         if (!entry.started) {
             // A new entry holds nothing yet, so its first write carries everything.
             entry.started = true;
+            logger.info("entry started", { entry: entry.id });
+            this.#onEntryStart?.(entry.id);
             EVERY_PART.forEach((tag) => entry.unwritten.add(tag));
         }
 
@@ -1815,8 +1841,16 @@ export class Autosaver {
                 job.claim.push(entry);
             }
 
+            const began = this.#clock.now();
             job.done.push(() => {
                 entry.gen += 1;
+                logger.info("entry committed", {
+                    entry: entry.id,
+                    gen: entry.gen,
+                    revision: meta.revision,
+                    dirty: meta.dirty,
+                    tookMs: this.#clock.now() - began,
+                });
                 entry.sizes = sizes;
                 if (built.assets !== undefined) {
                     entry.assets = new Set(built.assets);
@@ -2145,8 +2179,12 @@ export class Autosaver {
     #tell(): void {
         const { status } = this;
         const told = JSON.stringify(status);
-        if (told !== this.#told) {
+        // A change made while a write of positions alone is pending leaves the status as it was,
+        // and still arms the element's unload guard.
+        const unsaved = this.unsavedChanges;
+        if (told !== this.#told || unsaved !== this.#toldUnsaved) {
             this.#told = told;
+            this.#toldUnsaved = unsaved;
             for (const listener of this.#listeners) {
                 listener(status);
             }

@@ -7,7 +7,7 @@ import type { GraphSession, HistoryStepId, Layer } from "@graphty/graphty-elemen
 import { Box, Button, Checkbox, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
-import { selectionWorkspaceOn } from "../features";
+import { cosmographOn, nodeModelsOn, selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { findTreeRow, isHidden, isLocked, paintedTarget, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { isPanelEscape } from "../keys/keys";
@@ -29,15 +29,15 @@ import {
     selectionRow,
     sourceName,
     startingAdds,
-    startingEverything,
     type Target,
+    wholeGraphRow,
 } from "./row";
 import { Section } from "./Section";
 import { useFocusLine } from "./useFocusLine";
 import { useLabelColumn } from "./useLabelColumn";
 import { useStyleVersion } from "./useStyleVersion";
 import { WhichPicker } from "./WhichPicker";
-import { firstStyleWords, madeWords, SECTIONS } from "./words";
+import { firstStyleWords, madeWords, sectionsFor } from "./words";
 
 /**
  * The row the Style tab edits when the caller names none, read from `inspected` as the inspector
@@ -57,9 +57,8 @@ function defaultRow(
     switch (inspected?.kind) {
         case undefined:
         case "everything-row": {
-            // The starting Everything row holds the base look when the project has one.
-            const starting = startingEverything(session);
-            return starting === undefined ? everythingRow(session) : treeRowLayers(session, starting);
+            const whole = wholeGraphRow(session);
+            return whole === undefined ? everythingRow(session) : treeRowLayers(session, whole);
         }
         case "measure-row":
         case "run-row": {
@@ -131,7 +130,7 @@ export function StylePanel({ layers, rowId }: Readonly<StylePanelProps>): React.
     const everything =
         layers === undefined &&
         (inspected?.kind ?? "everything-row") === "everything-row" &&
-        startingEverything(session) === undefined;
+        wholeGraphRow(session) === undefined;
     // Keyed by the row, so an empty label line is dropped when the row changes.
     return (
         <RowStyle
@@ -372,7 +371,7 @@ export interface KindControl {
 }
 
 /** How a kind's picker and the other kind's tab hand a field between them. */
-export interface Elsewhere {
+interface Elsewhere {
     /** The field to open on with a card on it. */
     readonly adding?: string;
     /** Goes to the other kind's tab with a card on a field it carries. */
@@ -491,12 +490,13 @@ export function RowStyle({
         };
         return (
             <section className="ws-style-group" data-group={side}>
-                {SECTIONS[side].map((spec) =>
-                    spec.id === "text" ? (
-                        <LabelSection key={spec.id} ctx={ctx} />
-                    ) : (
-                        <Section key={spec.id} ctx={ctx} spec={spec} />
-                    ),
+                {sectionsFor(side, { cosmograph: cosmographOn(session), nodeModels: nodeModelsOn(session) }).map(
+                    (spec) =>
+                        spec.id === "text" ? (
+                            <LabelSection key={spec.id} ctx={ctx} />
+                        ) : (
+                            <Section key={spec.id} ctx={ctx} spec={spec} />
+                        ),
                 )}
             </section>
         );

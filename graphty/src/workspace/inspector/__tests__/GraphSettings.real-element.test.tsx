@@ -11,6 +11,7 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectionWorkspaceOn } from "../../features";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -143,12 +144,17 @@ describe("Graph settings", () => {
         await waitFor(() => {
             assert.strictEqual(element.layoutBehavior?.node?.outlineWidth, 3);
         });
-        assert.isNotNull(screen.getByText(/use Halo/));
+        // The Halo hint names the old outline-and-pane editor, so the selection workspace drops it.
+        if (selectionWorkspaceOn(element.session)) {
+            assert.isNull(screen.queryByText(/use Halo/));
+        } else {
+            assert.isNotNull(screen.getByText(/use Halo/));
+        }
     });
 
     it("hides Lighting and Same size at any depth in 2D, moves focus on, and the Values tab counts them", async () => {
         const element = await openGraphSettings();
-        // Focus on Same size at any depth, then 5, the toolbar View's key for 2D.
+        // Focus on Same size at any depth, then 5, the Mode menu's key for 2D.
         await userEvent.click(screen.getByRole("switch", { name: "Same size at any depth" }));
         await userEvent.click(screen.getByRole("switch", { name: "Same size at any depth" }));
         await userEvent.keyboard("5");
@@ -167,7 +173,7 @@ describe("Graph settings", () => {
         assert.strictEqual(note.textContent, "2 graph settings apply only in another view");
     });
 
-    it("draws no View switch and no Layout section: the toolbar is their one home", async () => {
+    it("draws no Mode switch and no Layout section: the toolbar is their one home", async () => {
         await openGraphSettings();
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
         const threeD = within(inspector)

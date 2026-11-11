@@ -1486,7 +1486,7 @@ async function withReference(page: string, text: string): Promise<string> {
 }
 
 /** A generated file: its text on disk and the text this generator produces. */
-export interface Generated {
+interface Generated {
     readonly current: string;
     readonly expected: string;
 }

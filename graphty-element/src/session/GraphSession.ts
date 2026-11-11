@@ -17,7 +17,6 @@ import {
     ACCELERATION_POLICY_DEFAULT,
     AccelerationController,
     type AccelerationPolicy,
-    type Capabilities,
     type GraphAccelerator,
     type XrCapability,
 } from "../acceleration";
@@ -55,6 +54,7 @@ import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
+import type { FeatureId } from "../features/registry";
 import { type EnabledFeatures, featureOff, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
 import { graphvizAvailability } from "../layout/graphviz/availability";
 import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
@@ -66,9 +66,11 @@ import { declarationKey, FILE_GRAPH_VALUE, type FileGraphValue } from "./command
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
+import { dispatcherOf, registerDispatcher } from "./dispatchers";
 import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
 import { graphvizEngineFor, type LayoutRecommendation, recommendLayout } from "./layout";
+import { RenderLimits } from "./limits";
 import { loadLineOf } from "./loadLine";
 import { createNetworkApi, type NetworkApiInternal } from "./network";
 import { createNoteFacts } from "./notes/countIndex";
@@ -86,6 +88,7 @@ import {
     type PlanningContext,
     type SessionCommand,
 } from "./planning";
+export { dispatcherOf } from "./dispatchers";
 import { boundaryOf, projectBoundary } from "./project/boundary";
 import { dataDigest } from "./project/digest";
 import {
@@ -134,7 +137,13 @@ import {
 import { createStepRuns, type StepRuns } from "./scope/stepRuns";
 import { freezeLiveReferences, mapUnions } from "./scope/steps";
 import { sealedSet } from "./sealed";
-import { createSelectionApi, type RuleCheck, type SelectionOwner, type SelectionTextMode } from "./selection";
+import {
+    createSelectionApi,
+    type RuleCheck,
+    type SelectionOwner,
+    type SelectionSources,
+    type SelectionTextMode,
+} from "./selection";
 import { createMaterialiser } from "./sets/algebra";
 import { outcomeOf, SetsCache } from "./sets/cache";
 import { captureItem, captureOf, type HeldCaptures, heldItems, nextCaptures } from "./sets/captures";
@@ -183,6 +192,7 @@ import {
     STRUCTURE_PATHS,
 } from "./styles/sources";
 import { paintingOf } from "./styles/StylesApi";
+import type { EdgeAgeFade } from "./time/ageFade";
 import { numericBound } from "./time/parse";
 import { createTimeApi, gatedTimeApi, type TimeApi, type TimeInternals } from "./time/TimeApi";
 import { isTimeZone } from "./time/zone";
@@ -205,6 +215,7 @@ import type {
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
+    SessionCapabilities,
     SessionCatalogApi,
     SessionConfig,
     SessionDataApi,
@@ -222,8 +233,14 @@ import type {
     TransactionOptions,
     TransactionScope,
 } from "./types";
-import { createVisibilityApi, type FilterValueSource, type SessionVisibilityApi } from "./visibility";
+import {
+    createVisibilityApi,
+    type FilterSources,
+    type FilterValueSource,
+    type SessionVisibilityApi,
+} from "./visibility";
 import { type FilterRunResult, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
+import type { SlideCounts } from "./visibility/slide";
 
 /**
  * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
@@ -270,7 +287,9 @@ export interface LaneStore extends Omit<SessionGraphStore, "positions"> {
  * read live. No entry point exports it.
  * @internal
  */
-export interface ElementSessionOptions extends Omit<CreateGraphSessionOptions, "config" | "features"> {
+export interface ElementSessionOptions extends Omit<CreateGraphSessionOptions, "config" | "features" | "limits"> {
+    /** The ceilings in force, which the element sets from its render path and `limits`. */
+    readonly ceilings?: RenderLimits;
     /** The requested experiments, read once, when `features` is first read. */
     readonly features?: () => readonly string[] | undefined;
     /** The store to read. When absent the session builds one of its own and disposes it. */
@@ -279,6 +298,8 @@ export interface ElementSessionOptions extends Omit<CreateGraphSessionOptions, "
     readonly records?: SessionRecordSource;
     /** What VR and AR can do on the renderer this session draws through. */
     readonly xr?: XrSource;
+    /** The drawn nodes inside a polygon on the canvas, for a `region` selection target. */
+    readonly region?: SelectionSources["region"];
     /** The configuration; `data` may be a function, read on every use. */
     readonly config?: Omit<NonNullable<CreateGraphSessionOptions["config"]>, "data"> & {
         readonly data?: SessionDataConfigInput | (() => SessionDataConfig);
@@ -358,6 +379,7 @@ const TX_PARTS = [
     "visibility",
     "styles",
     "shaders",
+    "time",
     "views",
     "positions",
     "config",
@@ -390,6 +412,8 @@ interface SessionParts {
     readonly ownedAcceleration: AccelerationController | null;
     /** What VR and AR can do. */
     readonly xr: XrSource;
+    /** The ceilings in force, for `capabilities.limits`. */
+    readonly ceilings: RenderLimits;
     /** Starting runs, finding them and taking them away, plus the teardown a session owes them. */
     readonly runs: SessionRunsApi;
     /** Addressing what those runs produced. */
@@ -412,6 +436,8 @@ interface SessionParts {
     readonly timelineOn: () => boolean;
     /** Stops playback, for `dispose()`. */
     readonly stopTime: () => void;
+    /** What the renderer fades edges by age with; see {@link ElementSession.edgeAges}. */
+    readonly edgeAges: () => EdgeAgeFade | null;
     /** The style stack, with the element's own layers already at the bottom of it. */
     readonly styles: SessionStylesApi;
     /** The project's shaders, and whether each may run. */
@@ -442,6 +468,8 @@ interface SessionInternals {
     readonly baselineWindow?: boolean;
     /** Settles on the next drawn frame, or at once when no frame is coming; absent with no renderer. */
     readonly renderedFrame?: () => Promise<void>;
+    /** Whether the element draws on the `"batched"` render path, which allows the repaint's uniform mesh-key fill. */
+    readonly batched?: () => boolean;
 }
 
 /**
@@ -555,6 +583,8 @@ class Session implements ElementSession {
     private readonly shadersController: ShadersController;
     /** Stops playback. */
     private readonly stopTime: () => void;
+    /** See {@link ElementSession.edgeAges}. */
+    readonly edgeAges: () => EdgeAgeFade | null;
     private readonly sessionRuns: SessionRunsApi;
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
@@ -568,8 +598,11 @@ class Session implements ElementSession {
     /** The controller, when this session built it and therefore has to dispose it. */
     private readonly ownedAcceleration: AccelerationController | null;
     private readonly xr: XrSource;
+    private readonly ceilings: RenderLimits;
+    /** Stops the ceilings subscription `capabilities:changed` is also published from. */
+    private readonly unwatchCeilings: () => void;
     /** The capability document last composed, kept while neither of its parts changes. */
-    private composed: Pick<Capabilities, "acceleration" | "xr"> | null = null;
+    private composed: SessionCapabilities | null = null;
     /** Stops the controller subscription `capabilities:changed` is published from. */
     private readonly unwatchController: () => void;
     /** Stops the XR subscription `capabilities:changed` is also published from. */
@@ -620,12 +653,13 @@ class Session implements ElementSession {
             },
             () => this.project.id,
         );
-        this.assets = createAssetsApi(this.network);
+        this.assets = createAssetsApi(this.network, () => this.styles);
         this.journal = parts.journal;
         this.selection = parts.selection;
         this.visibility = parts.visibility;
         this.time = parts.time;
         this.stopTime = parts.stopTime;
+        this.edgeAges = parts.edgeAges;
         this.styles = parts.styles;
         this.shaders = parts.shaders.api;
         this.shadersController = parts.shaders;
@@ -643,6 +677,8 @@ class Session implements ElementSession {
         };
         this.unwatchController = this.controller.onChange(changed);
         this.unwatchXr = this.xr.onChange(changed);
+        this.ceilings = parts.ceilings;
+        this.unwatchCeilings = this.ceilings.onChange(changed);
         let version = 0;
         this.dispatcher = parts.dispatcher;
         // Chained: the kept sets hear each change after it, to tell `set:changed`.
@@ -689,7 +725,7 @@ class Session implements ElementSession {
                 }
             },
         };
-        DISPATCHERS.set(this, this.dispatcher);
+        registerDispatcher(this, this.dispatcher);
         LANES.set(this, this.store);
         SESSION_RUNS.set(this, this.sessionRuns);
         this.history = historyOf(this.dispatcher, () => version);
@@ -721,10 +757,13 @@ class Session implements ElementSession {
             if (advice === undefined) {
                 return undefined;
             }
+            // Graphviz's routes draw a placed DOT file as Graphviz does: part of the file styles experiment.
+            const routed = advice.options?.edgeRoutes === "graphviz";
+            const options = routed && this.dispatcher.services.fileStyles?.() === false ? undefined : advice.options;
             const advised = {
                 id: advice.layout.id,
                 engine: advice.layout.engine,
-                ...(advice.options === undefined ? {} : { options: advice.options }),
+                ...(options === undefined ? {} : { options }),
             };
 
             // A file that placed some nodes and not others: its placed nodes stay where it put
@@ -747,12 +786,15 @@ class Session implements ElementSession {
                 publish(this.watchers, "project:status", change);
             },
             isDerived: (id) => this.sessionRuns.isDerivedId(id),
+            restoreDerived: (id) => {
+                this.sessionRuns.restoreDerived(id);
+            },
             projectChanged: () => {
                 this.network.projectChanged();
             },
             sources: {
-                restore: (read) => {
-                    this.sessionData.restoreSourceMember(read);
+                restore: (read, autosave) => {
+                    this.sessionData.restoreSourceMember(read, autosave);
                 },
             },
         });
@@ -1030,7 +1072,7 @@ class Session implements ElementSession {
      * asks the browser about XR: the renderer does that once, after its first frame.
      * @returns the capability document
      */
-    get capabilities(): Pick<Capabilities, "acceleration" | "xr"> {
+    get capabilities(): SessionCapabilities {
         // The probe starts HERE rather than at construction, and only for a controller this
         // session built. Constructing a session must not reach for the hardware: a renderer builds
         // one on its way up, and asking for a GPU adapter on the way to drawing a 30-node graph is
@@ -1049,11 +1091,16 @@ class Session implements ElementSession {
      * until either changes, so a consumer that cached the last one can compare it by identity.
      * @returns The document.
      */
-    private document(): Pick<Capabilities, "acceleration" | "xr"> {
+    private document(): SessionCapabilities {
         const { acceleration } = this.controller.capabilities;
         const xr = this.xr.capability;
-        if (this.composed?.acceleration !== acceleration || this.composed.xr !== xr) {
-            this.composed = Object.freeze({ acceleration, xr });
+        const limits = this.ceilings.effective;
+        if (
+            this.composed?.acceleration !== acceleration ||
+            this.composed.xr !== xr ||
+            this.composed.limits !== limits
+        ) {
+            this.composed = Object.freeze({ acceleration, xr, limits });
         }
 
         return this.composed;
@@ -1263,6 +1310,7 @@ class Session implements ElementSession {
         this.dispatcher.clear();
         this.unwatchController();
         this.unwatchXr();
+        this.unwatchCeilings();
         this.unfollowStore();
         // Runs first: a run still in flight holds a reference to the data it is reading, and
         // disposing the store under it would have it finish against a graph that no longer exists.
@@ -1368,9 +1416,6 @@ export async function paintAddedRows(
     await ROW_PAINTERS.get(dispatcherOf(session))?.(stack, dirty, edgeRows);
 }
 
-/** Each session's dispatcher, for the element's own tests; see {@link dispatcherOf}. */
-const DISPATCHERS = new WeakMap<GraphSession, Dispatcher>();
-
 /** Each session's store, with its lane writable; see {@link laneOf}. */
 const LANES = new WeakMap<GraphSession, LaneStore>();
 
@@ -1388,21 +1433,6 @@ export function laneOf(session: GraphSession): ElementPositions {
     }
 
     return store.positions;
-}
-
-/**
- * The dispatcher behind a session. Not published: the element's own tests spy on it and read the
- * project state it holds.
- * @param session - A session this module built.
- * @returns Its dispatcher.
- */
-export function dispatcherOf(session: GraphSession): Dispatcher {
-    const dispatcher = DISPATCHERS.get(session);
-    if (dispatcher === undefined) {
-        throw new GraphtyError({ code: "E_INTERNAL", message: "That session was not built here.", source: "history" });
-    }
-
-    return dispatcher;
 }
 
 /**
@@ -2057,6 +2087,47 @@ function elementBaseLayers(): readonly ElementLayerSpec[] {
     ];
 }
 
+/** No element layers. */
+const NO_LAYERS: readonly ElementLayerSpec[] = Object.freeze([]);
+
+/**
+ * The layers that draw a peek: a slate halo and band, in no hue the data draws with, dark enough to
+ * read on the element's light canvas. Base layers, so a key never lists them.
+ * @param peeked - What it shows.
+ * @param peeked.nodes - The nodes.
+ * @param peeked.edges - The edges.
+ * @returns The layers.
+ */
+function peekLayersOf(peeked: {
+    readonly nodes: readonly NodeId[];
+    readonly edges: readonly EdgeId[];
+}): ElementLayerSpec[] {
+    const made: ElementLayerSpec[] = [];
+    if (peeked.nodes.length > 0) {
+        made.push({
+            name: "Peeked nodes",
+            kind: "base",
+            source: { by: "element", reason: "hover" },
+            target: "node",
+            selector: { match: "ids", nodes: peeked.nodes },
+            set: { "node.haloColor": "#334155", "node.haloScale": 1.6, "node.haloOpacity": 1 },
+        });
+    }
+
+    if (peeked.edges.length > 0) {
+        made.push({
+            name: "Peeked edges",
+            kind: "base",
+            source: { by: "element", reason: "hover" },
+            target: "edge",
+            selector: { match: "ids", edges: peeked.edges },
+            set: { "edge.bandColor": "#334155", "edge.bandWidth": 2.5, "edge.bandOpacity": 1 },
+        });
+    }
+
+    return made;
+}
+
 /**
  * Every path this session can answer for one kind of element.
  * @param data - The session's data surface, which lists the attributes.
@@ -2432,6 +2503,7 @@ function repaintAgainstCurrentData(
             meshStyleOf: (target, key) => engine.meshStyleOf(target, key),
             meshCount: (target) => engine.meshCount(target),
             lastPainted: (target) => engine.lastPainted(target),
+            lastPaintRowsOnly: () => engine.lastPaintRowsOnly(),
             onPainted: (listener) => engine.onPainted(listener),
             painting: () => engine.painting(),
             problems: () => engine.problems(),
@@ -2498,7 +2570,12 @@ function repaintAgainstCurrentData(
 export function createGraphSession(options: CreateGraphSessionOptions = {}): GraphSession {
     // Only the published options, even from a caller the types did not check: a store or a record
     // source handed in would make that caller a second writer of the graph.
-    const { config, acceleration, runs, features } = options;
+    const { config, acceleration, runs, features, limits } = options;
+    const ceilings = new RenderLimits(true);
+    if (limits !== undefined) {
+        ceilings.request(limits);
+    }
+
     // Copied now, as documented: a later setDefaultFeatures, or a change to the caller's array,
     // must not reach a session that already exists.
     const requested = Object.freeze([...(features ?? pageDefaultFeatures())]);
@@ -2507,6 +2584,7 @@ export function createGraphSession(options: CreateGraphSessionOptions = {}): Gra
         ...(acceleration === undefined ? {} : { acceleration }),
         ...(runs === undefined ? {} : { runs }),
         features: () => requested,
+        ceilings,
     });
 }
 
@@ -2563,8 +2641,27 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let settledFeatures: EnabledFeatures | undefined;
     const requested = options.features ?? ((): undefined => undefined);
     const settleFeatures = (): EnabledFeatures => (settledFeatures ??= resolveFeatures(requested()));
-    // Asked without settling: an element's attributes may still be arriving.
-    const timelineOn = (): boolean => (settledFeatures ?? resolveFeatures(requested())).enabled.includes("timeline");
+    const ceilings = options.ceilings ?? new RenderLimits(true);
+    // Asked without settling, as an element's attributes may still be arriving, and on every
+    // timeline move: resolved again only when the ids asked for are a new array.
+    let askedFor: readonly string[] | null = null;
+    let askedOn: readonly FeatureId[] = [];
+    const featureOn = (id: FeatureId): boolean => {
+        if (settledFeatures !== undefined) {
+            return settledFeatures.enabled.includes(id);
+        }
+
+        const asked = requested() ?? pageDefaultFeatures();
+        if (asked !== askedFor) {
+            askedFor = asked;
+            askedOn = resolveFeatures(asked).enabled;
+        }
+
+        return askedOn.includes(id);
+    };
+    const timelineOn = (): boolean => featureOn("timeline");
+    const fileStylesOn = (): boolean =>
+        (settledFeatures ?? resolveFeatures(requested())).enabled.includes("file-styles");
     const runsOptions = options.runs ?? {};
     // ONE queue for both, whether the host handed one in or not: a filter pass and an algorithm
     // run both read the whole graph, and two queues would let one start while the other is
@@ -2585,6 +2682,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const readProject = projectConfigReader(dispatcher, resolveDataConfig(options.config?.data));
     dispatcher.services.config = readProject;
     dispatcher.services.timeline = timelineOn;
+    dispatcher.services.fileStyles = fileStylesOn;
     const readData = (): SessionDataConfig => readProject().data;
     // A controller handed in is the authority on its own policy: the session does not own it, so
     // it cannot make a configuration value true merely by declaring it.
@@ -2612,7 +2710,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     };
     // Set once the style stack exists: what a selection change repaints.
     let repaintSelected = (): void => undefined;
-    let repaintGhosts = (): void => undefined;
+    let repaintGhosts = (_moved?: SlideCounts): void => undefined;
 
     // The style stack, late-bound because the runs are built before it and the auto-apply policy
     // hands a run's derived layer to it. A thunk rather than a captured object for the reason the
@@ -2621,9 +2719,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let stack: SessionStylesApi | null = null;
     // Set once the stack exists; until then no layer reads the pointer.
     let repaintHover = (): void => undefined;
+    let repaintPeek = (_dirty: ElementIndices): void => undefined;
     // Moves whenever the selection, or an element's state a `{match:"state"}` layer reads, moves:
     // the style stack keeps its readings until it does.
     let stateRevision = 0;
+    // Set once the selection and the filter exist: what a `state` leaf and a state layer read.
+    let elementInState: NonNullable<FilterSources["inState"]> = () => false;
     // The query engine, late-bound for the same reason: it reads the style layers' selector
     // source, which reads the runs, and the scope and visibility APIs are built before both.
     let query: QueryEngine | null = null;
@@ -2675,6 +2776,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             },
             importer: () => dispatcher.capturedDispatch(),
             loadLine: loadLineOf(dispatcher),
+            ceilings,
             slice,
             measure: async (command, config) => {
                 const scratch = createGraphSession({ config: { data: config, acceleration: { policy: "off" } } });
@@ -2721,6 +2823,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // And the query engine, below that.
             search: (text, request) => requireQuery(query).search(text, request),
             textTest: (text, mode, target, only) => requireQuery(query).textTest(text, mode, target, only),
+            matchWhere: (where, target) =>
+                new Set<NodeId | EdgeId>(
+                    target === "node" ? requireQuery(query).nodes(where) : requireQuery(query).edges(where),
+                ),
             // Read through calls: the runs are built below.
             run: (id: RunId) => runs.get(id),
             runIds: () => runs.list().map((run) => run.id),
@@ -2732,6 +2838,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // Read through calls: the timeline and the visibility are built below.
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
             timeline: () => timelineOn(),
+            fileStyles: () => fileStylesOn(),
             visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
         },
     );
@@ -2739,7 +2846,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // A session that holds a store of its own kind writes it through its own ingest; the element
     // hands its data manager's in instead.
     if (store.store instanceof GraphStore) {
-        dispatcher.services.data = headlessDataService(store.store, dispatcher, readData);
+        dispatcher.services.data = headlessDataService(store.store, dispatcher, readData, ceilings);
     }
 
     const components = componentLabelsOf(data);
@@ -2959,6 +3066,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         supplied: suppliedNow,
         focus: () => focusedNode(),
+        inState: (state, target, index) => elementInState(state, target, index),
+        stateRevision: () => stateRevision,
         // The runs a union step's measure reads: built once the runs and the estimate exist.
         stepRuns: () => stepRunsRef.current,
         edit: () => openEdit(),
@@ -3021,8 +3130,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             repaintGhosts();
             publish(watchers, "visibility:changed", change);
         },
-        onSlide: () => {
-            repaintGhosts();
+        onSlide: (moved) => {
+            repaintGhosts(moved);
         },
         onMaskVersion: advanceTick,
         selection: {
@@ -3259,9 +3368,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 nodeTimeUnit: known.nodeTimeUnit ?? null,
                 // A saved zone stays saved with the timeline off or a name this engine lacks, unread.
                 nodeTimeParseZone: readableZone(known.nodeTimeParseZone),
+                nodeTimeEndPath: known.nodeTimeEndPath ?? null,
+                nodeTimeSpellsPath: known.nodeTimeSpellsPath ?? null,
                 edgeTimePath: known.edgeTimePath,
                 edgeTimeUnit: known.edgeTimeUnit ?? null,
                 edgeTimeParseZone: readableZone(known.edgeTimeParseZone),
+                edgeTimeEndPath: known.edgeTimeEndPath ?? null,
+                edgeTimeSpellsPath: known.edgeTimeSpellsPath ?? null,
             };
         },
         declarations: () => dispatcher.state.attributes,
@@ -3280,6 +3393,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         ...(internals.renderedFrame === undefined ? {} : { renderedFrame: internals.renderedFrame }),
     });
     timeInternals = time.internals;
+    dispatcher.services.timeFieldChanged = () => {
+        publish(watchers, "time:field", { field: time.api.field });
+    };
 
     const results = createResultsApi({
         entry: (id) => runEntry(runs, id),
@@ -3363,10 +3479,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
     const engine = query;
 
+    // Settled on first asking, as the session's `features` is.
+    let peekable: boolean | undefined;
+    let peekLayers: readonly ElementLayerSpec[] = NO_LAYERS;
     selection = createSelectionApi({
         snapshot,
         scope,
         results,
+        ...(options.region === undefined ? {} : { region: options.region }),
         match: (where: Query) => engine.select(where),
         find: (text: string, mode: SelectionTextMode) => engine.find(text, mode),
         // A rule reads a file column by its bare name ("minutes"); the published path is the
@@ -3445,6 +3565,15 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             advanceTick();
             repaintStates({ node: ids.flatMap((id) => nodeIndex(id) ?? []), edge: [] });
         },
+        onPeek: (dirty, peeked) => {
+            peekLayers = peeked === null ? NO_LAYERS : peekLayersOf(peeked);
+            advanceTick();
+            repaintPeek(dirty);
+        },
+        canPeek: () => {
+            peekable ??= resolveFeatures(options.features?.()).has("assistant");
+            return peekable;
+        },
         // The origin moved with no member: `selection:changed` stays a membership event, so the
         // origin has its own.
         onOriginChange: (origin) => {
@@ -3470,9 +3599,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // the elements one run measured walks that run's 300 rows, not the graph's 50,000.
             measured: elements.measured,
             scales,
+            fileStyles: fileStylesOn,
             // With the base look in the Everything row, what no shown layer paints is not drawn.
             hideUnpainted: () => dispatcher.state.config.get("editableBase") === true,
             ...(internals.now === undefined ? {} : { now: internals.now }),
+            ...(internals.batched === undefined ? {} : { uniformFill: internals.batched }),
         }),
         snapshot,
     );
@@ -3482,11 +3613,27 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // step: each change repaints exactly the elements whose state moved, when a layer reads one.
     const readsState = (): boolean =>
         stack?.compiled().some((entry) => entry.layer.selector.match === "state") ?? false;
-    const repaintStates = (dirty: ElementIndices): void => {
+    const repaintStates = (dirty: ElementIndices, rowsOnly = false): void => {
         if (dirty.node.length > 0 || dirty.edge.length > 0) {
             stateRevision++;
+            // A rule reading a state follows it through its live scope.
+            notifier.notify({ kind: "state" });
         }
         if (stack === null || (dirty.node.length === 0 && dirty.edge.length === 0) || !readsState()) {
+            return;
+        }
+
+        painter
+            .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined, rowsOnly })
+            .catch((error: unknown) => {
+                if (!teardown.signal.aborted) {
+                    console.error("[graphty] Could not repaint the layers reading the selection.", error);
+                }
+            });
+    };
+    // The peek's layers leave the stack as it ends, so its repaint cannot ask what reads a state.
+    repaintPeek = (dirty: ElementIndices): void => {
+        if (stack === null) {
             return;
         }
 
@@ -3494,7 +3641,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined })
             .catch((error: unknown) => {
                 if (!teardown.signal.aborted) {
-                    console.error("[graphty] Could not repaint the layers reading the selection.", error);
+                    console.error("[graphty] Could not repaint the elements a peek moved.", error);
                 }
             });
     };
@@ -3535,14 +3682,36 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // The ghosts as last repainted: a window move, a slide or the ghost setting repaints the
     // elements that became or stopped being ghosts.
     let paintedGhosts: { readonly node: Uint8Array; readonly edge: Uint8Array } | null = null;
-    repaintGhosts = (): void => {
+    let seenGhosts: ReturnType<typeof visibility.ghosts> = null;
+    repaintGhosts = (moved?: SlideCounts): void => {
+        const ghosts = visibility.ghosts();
+        // A slide can carry the same bytes forward with different rows in them.
+        if (ghosts !== seenGhosts || moved !== undefined) {
+            seenGhosts = ghosts;
+            stateRevision++;
+            notifier.notify({ kind: "state" });
+        }
+
         if (!readsState()) {
             paintedGhosts = null;
             return;
         }
 
-        const ghosts = visibility.ghosts();
         if (ghosts === null && paintedGhosts === null) {
+            return;
+        }
+
+        // The same bytes, brought forward by the slide's rows: those rows are all that moved.
+        if (moved !== undefined && ghosts !== null && ghosts.node === paintedGhosts?.node) {
+            const { enteredNodes, leftNodes, enteredEdges, leftEdges } = moved.rows;
+            paintedGhosts = ghosts;
+            repaintStates(
+                {
+                    node: [...Array.from(enteredNodes), ...Array.from(leftNodes)],
+                    edge: [...Array.from(enteredEdges), ...Array.from(leftEdges)],
+                },
+                true,
+            );
             return;
         }
 
@@ -3603,6 +3772,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         stopHearing();
         layerScopes.dispose();
         notifier.dispose();
+        selection?.endPeek();
     });
     const nodeIndex = nodeIndexOf(snapshot);
     const edgeIndex = edgeIndexOf(snapshot);
@@ -3615,6 +3785,26 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         const id = focusedNode();
         return id === null ? undefined : nodeIndex(id);
     });
+    elementInState = (state, target, index) => {
+        if (state === "ghosted") {
+            return visibility.ghosted(target, index);
+        }
+
+        if (state === "pinned") {
+            return target === "node" && store.store.positions.isPinned(index);
+        }
+
+        const owner = requireSelection(selection);
+        if (state === "hovered") {
+            return (
+                target === "node" &&
+                ((owner.hovered !== null && nodeIndex(owner.hovered) === index) ||
+                    (owner.hoverPreview && owner.nodeMembers().has(index)))
+            );
+        }
+
+        return (target === "node" ? owner.nodeMembers() : owner.edgeMembers()).has(index);
+    };
     const styles = createStylesApi({
         dispatcher,
         elements: {
@@ -3622,32 +3812,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             nodeIndex,
             edgeIndex,
             scope: (spec: Scope) => layerScopes.live(spec),
-            inState: (state, target, index) => {
-                if (state === "ghosted") {
-                    return visibility.ghosted(target, index);
-                }
-
-                if (state === "pinned") {
-                    return target === "node" && store.store.positions.isPinned(index);
-                }
-
-                const owner = requireSelection(selection);
-                if (state === "hovered") {
-                    return (
-                        target === "node" &&
-                        ((owner.hovered !== null && nodeIndex(owner.hovered) === index) ||
-                            (owner.hoverPreview && owner.nodeMembers().has(index)))
-                    );
-                }
-
-                return (target === "node" ? owner.nodeMembers() : owner.edgeMembers()).has(index);
-            },
+            inState: elementInState,
             hover: hoverSource,
             focus: focusSource,
         },
         admitScope: (spec: unknown) => scope.admit(spec),
         admitRule: (rule: unknown) => scope.canonicalUnions(rule),
         base: elementBaseLayers(),
+        transient: () => peekLayers,
         directed: () => snapshot().directed,
         // `edge.lift` rises out of a flat layout's plane: drawn only for a flat layout in 3D.
         liftDrawn: () => {
@@ -3656,6 +3828,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
         paths,
         scales,
+        fileStyles: fileStylesOn,
         runs: encodingSourceOf(runs),
         columns: {
             attributes: () => data.attributes(),
@@ -4105,6 +4278,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             results: () => results,
             projectShaders: () => shaders.descriptors(),
             nodeValues: (path) => planning.nodeValues?.(path) ?? null,
+            fileStyles: fileStylesOn,
         }),
         features: settleFeatures,
         timelineOn,
@@ -4112,6 +4286,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         controller: acceleration.controller,
         ownedAcceleration: acceleration.owned,
         xr: options.xr ?? HEADLESS_XR,
+        ceilings,
         runs,
         results,
         scope,
@@ -4124,6 +4299,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         stopTime: () => {
             time.internals.dispose();
         },
+        edgeAges: () => (timelineOn() ? time.internals.edgeAges() : null),
         styles,
         stopStyleEdits: () => {
             teardown.abort(new DOMException("The session was disposed.", "AbortError"));

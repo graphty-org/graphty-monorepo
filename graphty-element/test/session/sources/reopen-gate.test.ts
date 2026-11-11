@@ -129,6 +129,38 @@ describe("a reopened project's network entries", () => {
         assert.strictEqual(session.data.nodes().length, 1, "the graph is as the file holds it");
     });
 
+    it("keeps the loads of the reader's own work live, and only those still waiting wait again", async () => {
+        const live = fresh();
+        await live.project.open(await savedFile(), { ownWork: true });
+        assert.deepEqual(live.data.pendingSourceLoads(), [], "a load that ran stays live");
+        await live.data.more({ load: "s1" });
+
+        const waited = fresh();
+        await waited.project.open(await savedFile(() => undefined), { ownWork: false });
+        const { text } = await waited.project.save();
+        const again = fresh();
+        await again.project.open(text, { ownWork: true });
+        assert.deepEqual(
+            again.data.pendingSourceLoads().map((each) => each.id),
+            ["s1"],
+            "a load still waiting when it was saved waits again",
+        );
+    });
+
+    it("treats every load as waiting when the member has no waiting list, even for the reader's own work", async () => {
+        const text = await savedFile();
+        const doc = JSON.parse(text) as { members: { kind: string; waiting?: unknown }[] };
+        const member = doc.members.find((each) => each.kind === "graphty-sources");
+        assert.deepEqual(member?.waiting, [], "a save writes the list, even empty");
+        delete member?.waiting;
+        const session = fresh();
+        await session.project.open(JSON.stringify(doc), { ownWork: true });
+        assert.deepEqual(
+            session.data.pendingSourceLoads().map((each) => each.id),
+            ["s1"],
+        );
+    });
+
     it("runs once the application runs it, and then every call fetches", async () => {
         const session = await opened(await savedFile());
         await session.data.runPendingSourceLoad("s1");

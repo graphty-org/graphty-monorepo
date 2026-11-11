@@ -1,7 +1,7 @@
 /**
  * The CardList, driven by the real pointer and keyboard: cards draw in the caller's order and an
  * appended card draws last and folds the others; the x moves focus to the next card; the grip
- * reorders by drag and by Up and Down; the title renames on Enter and keeps its name on Escape; the
+ * reorders by drag and takes no keys; the title renames on Enter and keeps its name on Escape; the
  * empty slot shows with no cards; and a long title truncates so the control beside it never overlaps it.
  */
 import { screen, waitFor, within } from "@testing-library/react";
@@ -105,7 +105,7 @@ describe("CardList", () => {
         });
     });
 
-    it("the grip reorders by drag and by Up and Down, focus staying on it", async () => {
+    it("the grip reorders by drag; its arrow keys move nothing, and its tooltip names no key", async () => {
         await renderThemed(<Harness start={["A", "B", "C"]} />);
         const grip = screen.getByRole("button", { name: "Move C" });
         const top = screen.getByRole("region", { name: "A" }).getBoundingClientRect();
@@ -118,16 +118,13 @@ describe("CardList", () => {
         await waitFor(() => {
             assert.deepEqual(titles(), ["C", "A", "B"]);
         });
+        // Every hotkey needs a visible button showing its key: the grip has none, so it takes none.
         screen.getByRole("button", { name: "Move C" }).focus();
-        await userEvent.keyboard("{ArrowDown}");
-        await waitFor(() => {
-            assert.deepEqual(titles(), ["A", "C", "B"]);
-        });
-        assert.strictEqual(document.activeElement, screen.getByRole("button", { name: "Move C" }));
-        await userEvent.keyboard("{ArrowUp}");
-        await waitFor(() => {
-            assert.deepEqual(titles(), ["C", "A", "B"]);
-        });
+        await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowUp}");
+        assert.deepEqual(titles(), ["C", "A", "B"], "the arrows leave the order");
+        await userEvent.hover(screen.getByRole("button", { name: "Move C" }));
+        const tip = await screen.findByRole("tooltip");
+        assert.strictEqual(tip.textContent, "Drag to reorder");
     });
 
     it("the title renames on Enter and keeps its name on Escape", async () => {

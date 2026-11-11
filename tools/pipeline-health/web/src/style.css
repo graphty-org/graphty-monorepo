@@ -651,7 +651,7 @@ h3 {
     gap: 14px;
     align-items: center;
 }
-/* A bar's label wraps rather than ending in "...": "shared: the same check in 3 or more pull requests" is the point. */
+/* A bar's label wraps rather than ending in "...": "shared: the same check in 2 or more pull requests" is the point. */
 .bl {
     min-width: 0;
     overflow-wrap: anywhere;

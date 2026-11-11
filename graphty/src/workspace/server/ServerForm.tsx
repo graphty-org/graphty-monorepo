@@ -1,56 +1,62 @@
 import "./server.css";
 
-import { Popout, PopoutManager, SegmentedControl } from "@graphty/compact-mantine";
+import {
+    ActionRow,
+    FieldRow,
+    PANEL_GRID,
+    PanelField,
+    PanelLabelsProvider,
+    Popout,
+    PopoutManager,
+    SegmentedControl,
+    ToggleRow,
+} from "@graphty/compact-mantine";
 import type { SourceCatalogEntry } from "@graphty/graphty-element/catalog";
 import { type CodedFact, type SourceParamDescriptor, type SourcePreview } from "@graphty/graphty-element/session";
-import { Button, Checkbox, Loader, NumberInput, PasswordInput, Select, Text, Textarea, TextInput } from "@mantine/core";
-import React, { useRef, useState } from "react";
+import { Button, Input, Loader, PasswordInput, Stack, Textarea } from "@mantine/core";
+import React, { useEffect, useRef, useState } from "react";
 
+import { sourceName } from "../data-place/words";
 import { GLYPHS } from "../glyphs";
 import { useSessionVersion } from "../inspector/hooks";
+import { replaceWith } from "../replace/commands";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     EXPAND_DEFAULTS,
-    formCredential,
+    formFromSettings,
     formReady,
     freshForm,
     SERVER_DIALOG,
     type ServerFormState,
     serverKinds,
-    serverRequest,
+    serverLoad,
     START_WORDS,
-    withExample,
-    withoutExample,
+    undeclaredParams,
     withStart,
 } from "./commands";
 import { CodeChip, PreviewRows } from "./PreviewRows";
-import { failureOf, kindName } from "./words";
-
-/** Dropdowns render inside the pop-over, so picking an option is not a click outside it. */
-const IN_PLACE = { withinPortal: false } as const;
+import { codeWords, failureOf, kindName } from "./words";
 
 /** The params the form draws as its own rows, not as the source's generic rows. */
 const OWN_ROWS = new Set(["mode"]);
 
 /** Params few readers change, drawn after the main rows with the source's own advanced ones. */
-const RARE_PARAMS = new Set(["transport", "database"]);
+const RARE_PARAMS = new Set(["transport"]);
+
+/** The choice of a select that means none: an enum left unset. */
+const NONE = "";
 
 /**
- * One property row: a label and its control.
- * @param props - Component props
- * @param props.label - the label.
- * @param props.children - the control.
- * @returns the row.
+ * A number field's value as a param takes it: a number, or undefined for a blank.
+ * @param value - what the field reported.
+ * @returns the number, or undefined.
  */
-function Row({ label, children }: Readonly<{ label: string; children: React.ReactNode }>): React.JSX.Element {
-    return (
-        <div className="sv-row">
-            <Text size="xs" c="dimmed" truncate>
-                {label}
-            </Text>
-            <div className="sv-control">{children}</div>
-        </div>
-    );
+function numberOf(value: string | number): number | undefined {
+    if (value === "") {
+        return undefined;
+    }
+    const number = Number(value);
+    return Number.isFinite(number) ? number : undefined;
 }
 
 /** What an expansion fetches, as the form and the node menu's Expand... edit it. */
@@ -69,22 +75,24 @@ export function ExpandFields({
 }: Readonly<{ value: ExpandWith; onChange: (next: ExpandWith) => void }>): React.JSX.Element {
     return (
         <>
-            <Row label="Depth">
-                <NumberInput
-                    size="xs"
-                    aria-label="Depth"
+            <FieldRow>
+                <PanelField
+                    label="Depth"
+                    kind="number"
                     min={1}
                     max={5}
+                    decimalScale={0}
                     value={value.depth}
                     onChange={(depth) => {
-                        onChange({ ...value, depth: Number(depth) || 1 });
+                        onChange({ ...value, depth: numberOf(depth) ?? 1 });
                     }}
                 />
-            </Row>
-            <Row label="Direction">
+            </FieldRow>
+            <Input.Wrapper label="Direction" size="xs" w={PANEL_GRID.BODY}>
                 <SegmentedControl
                     size="xs"
                     aria-label="Direction"
+                    fullWidth
                     data={[
                         { value: "out", label: "Out" },
                         { value: "in", label: "In" },
@@ -95,29 +103,29 @@ export function ExpandFields({
                         onChange({ ...value, direction: direction as ExpandWith["direction"] });
                     }}
                 />
-            </Row>
-            <Row label="Edge types">
-                <TextInput
-                    size="xs"
-                    aria-label="Edge types"
+            </Input.Wrapper>
+            <FieldRow>
+                <PanelField
+                    label="Edge types"
                     placeholder="any"
                     value={value.types}
-                    onChange={(event) => {
-                        onChange({ ...value, types: event.currentTarget.value });
+                    onChange={(types) => {
+                        onChange({ ...value, types: String(types) });
                     }}
                 />
-            </Row>
-            <Row label="Expand limit">
-                <NumberInput
-                    size="xs"
-                    aria-label="Expand limit"
+            </FieldRow>
+            <FieldRow>
+                <PanelField
+                    label="Expand limit"
+                    kind="number"
                     min={1}
+                    decimalScale={0}
                     value={value.limit}
                     onChange={(limit) => {
-                        onChange({ ...value, limit: Number(limit) || EXPAND_DEFAULTS.limit });
+                        onChange({ ...value, limit: numberOf(limit) ?? EXPAND_DEFAULTS.limit });
                     }}
                 />
-            </Row>
+            </FieldRow>
         </>
     );
 }
@@ -151,62 +159,27 @@ function ParamRow({
     onChange,
 }: Readonly<{ param: SourceParamDescriptor; value: unknown; onChange: (next: unknown) => void }>): React.JSX.Element {
     const label = param.plainName;
-    let control: React.ReactNode;
-    if (param.type === "enum") {
-        control = (
-            <Select
-                size="xs"
-                aria-label={label}
-                comboboxProps={IN_PLACE}
-                data={(param.values ?? []).map((each) => ({ value: each.value, label: each.label }))}
-                value={typeof value === "string" ? value : null}
-                onChange={onChange}
-            />
-        );
-    } else if (param.type === "boolean") {
-        control = (
-            <Checkbox
-                size="xs"
-                aria-label={label}
+    if (param.type === "boolean") {
+        return (
+            <ToggleRow
+                label={label}
                 checked={value === true}
-                onChange={(event) => {
-                    onChange(event.currentTarget.checked);
+                onChange={(checked) => {
+                    onChange(checked);
                 }}
             />
         );
-    } else if (param.type === "integer" || param.type === "number") {
-        control = (
-            <NumberInput
-                size="xs"
-                aria-label={label}
-                min={param.min}
-                max={param.max}
-                value={typeof value === "number" ? value : ""}
-                onChange={(next) => {
-                    onChange(next === "" ? undefined : Number(next));
-                }}
-            />
-        );
-    } else if (param.type === "query" || param.type === "text") {
-        control = (
+    }
+    if (param.type === "query" || param.type === "text") {
+        return (
             <Textarea
                 size="xs"
-                aria-label={label}
+                w={PANEL_GRID.BODY}
+                label={label}
                 autosize
                 minRows={2}
                 maxRows={8}
-                className="sv-code-input"
-                value={shownText(value)}
-                onChange={(event) => {
-                    onChange(event.currentTarget.value);
-                }}
-            />
-        );
-    } else {
-        control = (
-            <TextInput
-                size="xs"
-                aria-label={label}
+                styles={{ input: { fontFamily: "var(--mantine-font-family-monospace)" } }}
                 value={shownText(value)}
                 onChange={(event) => {
                     onChange(event.currentTarget.value);
@@ -214,7 +187,49 @@ function ParamRow({
             />
         );
     }
-    return <Row label={label}>{control}</Row>;
+    let field: React.JSX.Element;
+    if (param.type === "enum") {
+        field = (
+            <PanelField
+                label={label}
+                kind="select"
+                data={[
+                    { value: NONE, label: "Default" },
+                    ...(param.values ?? []).map((each) => ({ value: each.value, label: each.label })),
+                ]}
+                value={typeof value === "string" ? value : NONE}
+                onChange={(next) => {
+                    onChange(next === NONE ? undefined : next);
+                }}
+            />
+        );
+    } else if (param.type === "integer" || param.type === "number") {
+        field = (
+            <PanelField
+                label={label}
+                kind="number"
+                min={param.min}
+                max={param.max}
+                decimalScale={param.type === "integer" ? 0 : undefined}
+                placeholder="default"
+                value={typeof value === "number" ? value : null}
+                onChange={(next) => {
+                    onChange(numberOf(next));
+                }}
+            />
+        );
+    } else {
+        field = (
+            <PanelField
+                label={label}
+                value={shownText(value)}
+                onChange={(next) => {
+                    onChange(String(next));
+                }}
+            />
+        );
+    }
+    return <FieldRow>{field}</FieldRow>;
 }
 
 /**
@@ -271,23 +286,23 @@ function ApiKeyRow({
         return null;
     }
     return (
-        <Row label="API key">
-            <PasswordInput
-                size="xs"
-                aria-label="API key"
-                placeholder={authRequired === "optional" ? "optional" : "key"}
-                autoComplete="off"
-                value={value}
-                onChange={(event) => {
-                    onChange(event.currentTarget.value);
-                }}
-            />
-        </Row>
+        <PasswordInput
+            size="xs"
+            w={PANEL_GRID.BODY}
+            label="API key"
+            placeholder={authRequired === "optional" ? "optional" : "key"}
+            autoComplete="off"
+            value={value}
+            onChange={(event) => {
+                onChange(event.currentTarget.value);
+            }}
+        />
     );
 }
 
 /**
- * The Sign in row, for a source that takes a basic login or a bearer token; nothing for any other.
+ * The Sign in rows, User and Password (or Token), for a source that takes a basic login or a
+ * bearer token; nothing for any other.
  * @param props - Component props
  * @param props.entry - the source.
  * @param props.user - the user typed.
@@ -312,39 +327,42 @@ function SignInRow({
         return null;
     }
     return (
-        <Row label="Sign in">
-            <div className="sv-pair">
-                {basic ? (
-                    <TextInput
-                        size="xs"
-                        aria-label="User"
+        <>
+            {basic ? (
+                <FieldRow>
+                    <PanelField
+                        label="User"
                         placeholder="user"
                         autoComplete="off"
                         value={user}
-                        onChange={(event) => {
-                            onChange({ user: event.currentTarget.value });
+                        onChange={(next) => {
+                            onChange({ user: String(next) });
                         }}
                     />
-                ) : null}
-                <PasswordInput
-                    size="xs"
-                    aria-label={basic ? "Password" : "Token"}
-                    placeholder={basic ? "password" : "token"}
-                    autoComplete="off"
-                    value={secret}
-                    onChange={(event) => {
-                        onChange({ secret: event.currentTarget.value });
-                    }}
-                />
-            </div>
-        </Row>
+                </FieldRow>
+            ) : null}
+            <PasswordInput
+                size="xs"
+                w={PANEL_GRID.BODY}
+                label={basic ? "Password" : "Token"}
+                placeholder={basic ? "password" : "token"}
+                autoComplete="off"
+                value={secret}
+                onChange={(event) => {
+                    onChange({ secret: event.currentTarget.value });
+                }}
+            />
+        </>
     );
 }
 
 /**
- * The server form (spec section 3.9): Kind, Example, Endpoint, Sign in, Start, the query or the
- * source's own params, Limit and Expand on double-click; Test reads a preview, Load loads. Rows a
- * source cannot use are absent.
+ * The network data form (spec section 3.9): Kind, Endpoint, Sign in, Start, the query or
+ * the source's own params, Limit and Expand on double-click with what an expansion fetches; Test
+ * reads a preview, Load loads. Rows a source cannot use are absent. Built only from compact-mantine
+ * rows (FieldRow, PanelField, ToggleRow, ActionRow) with captions above, and themed Mantine inputs
+ * as wide as a row's field; as a form that is itself a pop-over, it draws every setting flat
+ * (SettingsPopout.tsx). Closing it during a Load stops the Load.
  * @param props - Component props
  * @param props.onClose - closes the pop-over.
  * @returns the form.
@@ -352,29 +370,28 @@ function SignInRow({
 function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.Element {
     const { session, element, store } = useWorkspace();
     const kinds = serverKinds();
-    // Opened on the source Open network data's card names, else on Neo4j.
+    const editing = store.get().serverEdit;
+    // Opened on the source the store names, else on the first listed (NDEx, which needs no sign-in).
+    // An edit opens filled in with what the load holds.
     const [form, setForm] = useState<ServerFormState>(() => {
         const asked = store.get().serverKind;
-        const first = kinds.find((each) => each.id === (asked ?? "neo4j")) ?? kinds[0];
-        return freshForm(first);
+        const opened = kinds.find((each) => each.id === asked) ?? kinds[0];
+        const settings = editing === null ? undefined : session?.data.sourceSettings(editing);
+        return settings === undefined ? freshForm(opened) : formFromSettings(opened, settings);
     });
+    const loading = useRef<AbortController | null>(null);
+    useEffect(() => () => loading.current?.abort(), []);
     const [preview, setPreview] = useState<SourcePreview | null>(null);
     const [failure, setFailure] = useState<CodedFact | null>(null);
     const [busy, setBusy] = useState<"test" | "load" | null>(null);
     const entry = kinds.find((each) => each.id === form.kind);
     if (entry === undefined) {
-        return <div className="sv-form" />;
+        return <Stack gap={4} />;
     }
     const { descriptor } = entry;
     const modes = descriptor.params.find((p) => p.name === "mode")?.values ?? [];
-    const samples = descriptor.samples ?? [];
     const change = (next: Partial<ServerFormState>): void => {
         setForm((was) => ({ ...was, ...next }));
-        setPreview(null);
-        setFailure(null);
-    };
-    const refill = (next: ServerFormState): void => {
-        setForm(next);
         setPreview(null);
         setFailure(null);
     };
@@ -388,13 +405,14 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
         if (session === null || busy !== null || !ready) {
             return;
         }
-        const { input, options } = serverRequest(entry, form);
-        const credential = formCredential(entry, form);
+        const { input, options, credential } = serverLoad(entry, form);
         setBusy("test");
         setFailure(null);
         session.data
             .previewSource(input, {
                 maxNodes: 25,
+                // Load's cap: what Test refuses, Load would too.
+                ...(options.limits === undefined ? {} : { limits: options.limits }),
                 ...(options.endpoint === undefined ? {} : { endpoint: options.endpoint }),
                 ...(credential === undefined ? {} : { credential }),
             })
@@ -411,21 +429,41 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
         if (session === null || busy !== null || !ready) {
             return;
         }
-        const { input, options } = serverRequest(entry, form);
-        const credential = formCredential(entry, form);
-        const endpoint = options.endpoint ?? descriptor.defaultEndpoint ?? undefined;
+        const { input, options, credential, endpoint } = serverLoad(entry, form);
         setBusy("load");
         setFailure(null);
+        loading.current = new AbortController();
         try {
             // Remembered in memory, never in the file, so Load more, Refresh and Expand find it.
             if (credential !== undefined && element !== null && endpoint !== undefined) {
                 await element.credentials.remember({ source: entry.id, endpoint }, credential);
             }
-            await session.data.import(input, {
-                ...options,
-                ...(credential === undefined ? {} : { credential }),
-                ...(session.data.sources().length > 0 ? { mode: "merge" as const } : {}),
-            });
+            const edited = session.data.sources().find((each) => each.key === editing);
+            if (edited === undefined) {
+                await session.data.import(input, {
+                    ...options,
+                    signal: loading.current.signal,
+                    ...(session.data.sources().length > 0 ? { mode: "merge" as const } : {}),
+                });
+            } else {
+                // A read that changed is named as a new load from the form is; else the source keeps its name.
+                const before = session.data.sourceSettings(edited.key);
+                const same =
+                    before !== undefined &&
+                    JSON.stringify(before.config) === JSON.stringify(input.config) &&
+                    (options.endpoint ?? before.endpoint) === before.endpoint;
+                const { name: _name, ...unnamed } = input;
+                await replaceWith(
+                    store,
+                    session,
+                    edited.key,
+                    same ? { source: unnamed, name: sourceName(edited) } : { source: input, name: input.name ?? "" },
+                    {
+                        ...options,
+                        signal: loading.current.signal,
+                    },
+                );
+            }
             onClose();
         } catch (error) {
             setFailure(failureOf(error));
@@ -435,169 +473,167 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
     };
 
     return (
-        <form
-            className="sv-form"
-            aria-label="Server"
+        <form // NOSONAR(S6847): the handler only marks an Escape the dropdown inside already used
+            aria-label="Network data"
             onSubmit={(event) => {
                 event.preventDefault();
                 void load();
             }}
+            onKeyDown={(event) => {
+                // Escape in an open dropdown closes only the dropdown: the pop-over leaves a used
+                // Escape alone, and compact-mantine's select (Figma-locked) does not mark its own (#6356).
+                if (event.key === "Escape" && (event.target as HTMLElement).ariaExpanded === "true") {
+                    event.preventDefault();
+                }
+            }}
         >
-            <Row label="Kind">
-                <Select
-                    size="xs"
-                    aria-label="Kind"
-                    allowDeselect={false}
-                    comboboxProps={IN_PLACE}
-                    data={kinds.map((each) => ({ value: each.id, label: kindName(each) }))}
-                    value={form.kind}
-                    onChange={(id) => {
-                        const next = kinds.find((each) => each.id === id);
-                        if (next !== undefined) {
-                            setForm(freshForm(next));
-                            setPreview(null);
-                            setFailure(null);
-                        }
-                    }}
-                />
-            </Row>
-            {samples.length === 0 ? null : (
-                <Row label="Example">
-                    <Select
-                        size="xs"
-                        aria-label="Example"
-                        placeholder="none"
-                        clearable
-                        clearButtonProps={{ "aria-label": "Clear Example" }}
-                        comboboxProps={IN_PLACE}
-                        data={samples.map((each) => ({ value: each.id, label: each.plainName }))}
-                        value={samples.find((each) => each.plainName === form.example)?.id ?? null}
-                        onChange={(id) => {
-                            refill(withExample(entry, form, id));
-                        }}
-                    />
-                </Row>
-            )}
-            <Row label="Endpoint">
-                <TextInput
-                    size="xs"
-                    aria-label="Endpoint"
-                    placeholder={descriptor.defaultEndpoint ?? "https://"}
-                    value={form.endpoint}
-                    onChange={(event) => {
-                        // A new endpoint is another server: the example, and what it filled, go.
-                        refill({ ...withoutExample(entry, form), endpoint: event.currentTarget.value });
-                    }}
-                />
-            </Row>
-            <SignInRow
-                entry={entry}
-                user={form.user}
-                secret={form.secret}
-                onChange={(next) => {
-                    change(next);
-                }}
-            />
-            <ApiKeyRow
-                entry={entry}
-                value={form.apiKey}
-                onChange={(apiKey) => {
-                    change({ apiKey });
-                }}
-            />
-            {modes.length === 0 ? null : (
-                <Row label="Start">
-                    <SegmentedControl
-                        size="xs"
-                        aria-label="Start"
-                        fullWidth
-                        data={modes.map((each) => ({
-                            value: each.value,
-                            label: START_WORDS[each.value] ?? each.label,
-                        }))}
-                        value={typeof form.params.mode === "string" ? form.params.mode : (modes[0]?.value ?? "")}
-                        onChange={(mode) => {
-                            change({ params: withStart(entry, form, mode).params });
-                        }}
-                    />
-                </Row>
-            )}
-            {shownParams(entry, form.params.mode, false).map((param) => (
-                <ParamRow
-                    key={param.name}
-                    param={param}
-                    value={form.params[param.name]}
-                    onChange={(value) => {
-                        setParam(param.name, value);
-                    }}
-                />
-            ))}
-            <Row label="Limit">
-                <NumberInput
-                    size="xs"
-                    aria-label="Limit"
-                    min={0}
-                    placeholder="none"
-                    value={form.limit === 0 ? "" : form.limit}
-                    onChange={(limit) => {
-                        change({ limit: Number(limit) || 0 });
-                    }}
-                />
-            </Row>
-            {entry.features.expand ? (
-                <>
-                    <Row label="Expand">
-                        <Checkbox
-                            size="xs"
-                            label="on double-click"
-                            checked={form.expand}
-                            onChange={(event) => {
-                                change({ expand: event.currentTarget.checked });
+            <PanelLabelsProvider showLabels>
+                <Stack gap={4}>
+                    <FieldRow>
+                        <PanelField
+                            label="Kind"
+                            kind="select"
+                            disabled={editing !== null}
+                            data={kinds.map((each) => ({ value: each.id, label: kindName(each) }))}
+                            value={form.kind}
+                            onChange={(id) => {
+                                const next = kinds.find((each) => each.id === id);
+                                if (next !== undefined) {
+                                    setForm(freshForm(next));
+                                    setPreview(null);
+                                    setFailure(null);
+                                }
                             }}
                         />
-                    </Row>
-                    <ExpandFields
-                        value={form.expandWith}
-                        onChange={(expandWith) => {
-                            change({ expandWith });
+                    </FieldRow>
+                    <FieldRow>
+                        <PanelField
+                            label="Endpoint"
+                            placeholder={descriptor.defaultEndpoint ?? "https://"}
+                            value={form.endpoint}
+                            onChange={(endpoint) => {
+                                change({ endpoint: String(endpoint) });
+                            }}
+                        />
+                    </FieldRow>
+                    <SignInRow
+                        entry={entry}
+                        user={form.user}
+                        secret={form.secret}
+                        onChange={(next) => {
+                            change(next);
                         }}
                     />
-                </>
-            ) : null}
-            {advanced.map((param) => (
-                <ParamRow
-                    key={param.name}
-                    param={param}
-                    value={form.params[param.name]}
-                    onChange={(value) => {
-                        setParam(param.name, value);
-                    }}
-                />
-            ))}
-            <div className="sv-actions">
-                {failure === null ? null : <CodeChip fact={failure} />}
-                {/* aria-disabled while busy, not disabled, so the pressed button keeps focus. */}
-                <Button
-                    size="xs"
-                    variant="default"
-                    disabled={!ready}
-                    aria-disabled={busy !== null}
-                    leftSection={busy === "test" ? <Loader size={10} /> : null}
-                    onClick={test}
-                >
-                    Test
-                </Button>
-                <Button
-                    size="xs"
-                    type="submit"
-                    disabled={!ready}
-                    aria-disabled={busy !== null}
-                    leftSection={busy === "load" ? <Loader size={10} color="white" /> : null}
-                >
-                    Load
-                </Button>
-            </div>
-            {preview === null ? null : <PreviewRows preview={preview} />}
+                    <ApiKeyRow
+                        entry={entry}
+                        value={form.apiKey}
+                        onChange={(apiKey) => {
+                            change({ apiKey });
+                        }}
+                    />
+                    {modes.length === 0 ? null : (
+                        <Input.Wrapper label="Start" size="xs" w={PANEL_GRID.BODY}>
+                            <SegmentedControl
+                                size="xs"
+                                aria-label="Start"
+                                fullWidth
+                                data={modes.map((each) => ({
+                                    value: each.value,
+                                    label: START_WORDS[each.value] ?? each.label,
+                                }))}
+                                value={
+                                    typeof form.params.mode === "string" ? form.params.mode : (modes[0]?.value ?? "")
+                                }
+                                onChange={(mode) => {
+                                    change({ params: withStart(entry, form, mode).params });
+                                }}
+                            />
+                        </Input.Wrapper>
+                    )}
+                    {shownParams(entry, form.params.mode, false).map((param) => (
+                        <ParamRow
+                            key={param.name}
+                            param={param}
+                            value={form.params[param.name]}
+                            onChange={(value) => {
+                                setParam(param.name, value);
+                            }}
+                        />
+                    ))}
+                    <FieldRow>
+                        <PanelField
+                            label="Limit"
+                            kind="number"
+                            min={0}
+                            decimalScale={0}
+                            placeholder="none"
+                            value={form.limit === 0 ? null : form.limit}
+                            onChange={(limit) => {
+                                change({ limit: numberOf(limit) ?? 0 });
+                            }}
+                        />
+                    </FieldRow>
+                    {entry.features.expand ? (
+                        <>
+                            <ToggleRow
+                                label="Expand on double-click"
+                                checked={form.expand}
+                                onChange={(expand) => {
+                                    change({ expand });
+                                }}
+                            />
+                            {form.expand ? (
+                                <ExpandFields
+                                    value={form.expandWith}
+                                    onChange={(expandWith) => {
+                                        change({ expandWith });
+                                    }}
+                                />
+                            ) : null}
+                        </>
+                    ) : null}
+                    {[...advanced, ...undeclaredParams(entry, form.params)].map((param) => (
+                        <ParamRow
+                            key={param.name}
+                            param={param}
+                            value={form.params[param.name]}
+                            onChange={(value) => {
+                                setParam(param.name, value);
+                            }}
+                        />
+                    ))}
+                    <ActionRow
+                        state={failure === null ? null : <CodeChip fact={failure} />}
+                        stateTitle={failure === null ? undefined : codeWords(failure)}
+                        busy={busy !== null}
+                        actions={
+                            <>
+                                {/* aria-disabled while busy, not disabled, so the pressed button keeps focus. */}
+                                <Button
+                                    size="xs"
+                                    variant="default"
+                                    disabled={!ready}
+                                    aria-disabled={busy !== null}
+                                    leftSection={busy === "test" ? <Loader size={10} /> : null}
+                                    onClick={test}
+                                >
+                                    Test
+                                </Button>
+                                <Button
+                                    size="xs"
+                                    type="submit"
+                                    disabled={!ready}
+                                    aria-disabled={busy !== null}
+                                    leftSection={busy === "load" ? <Loader size={10} color="white" /> : null}
+                                >
+                                    Load
+                                </Button>
+                            </>
+                        }
+                    />
+                    {preview === null ? null : <PreviewRows preview={preview} />}
+                </Stack>
+            </PanelLabelsProvider>
         </form>
     );
 }
@@ -658,16 +694,23 @@ function WaitingLoads(): React.JSX.Element | null {
 
 /**
  * The server place in the left sidebar: the loads waiting for approval, and the anchor the
- * server form opens beside, as a pop-over, while the dialog is `"server"`.
- * @returns the place.
+ * network data form opens beside, as a pop-over, while the dialog is `"server"`. Nothing until the
+ * session is up.
+ * @returns the place, or nothing.
  */
-export function ServerPlace(): React.JSX.Element {
-    const { store } = useWorkspace();
+export function ServerPlace(): React.JSX.Element | null {
+    const { store, session } = useWorkspace();
     const anchor = useRef<HTMLDivElement>(null);
     const opened = useWorkspaceState((state) => state.dialog === SERVER_DIALOG);
+    const formKey = useWorkspaceState((state) => state.serverEdit ?? state.serverKind ?? "");
     const close = (): void => {
-        store.set((state) => (state.dialog === SERVER_DIALOG ? { dialog: null } : {}));
+        if (store.get().dialog === SERVER_DIALOG) {
+            store.set({ dialog: null });
+        }
     };
+    if (session === null) {
+        return null;
+    }
     return (
         <>
             <WaitingLoads />
@@ -684,15 +727,15 @@ export function ServerPlace(): React.JSX.Element {
                     }}
                 >
                     <Popout.Panel
-                        width={320}
-                        header={{ variant: "title", title: "Server" }}
-                        closeLabel="Close Server"
+                        width={240}
+                        header={{ variant: "title", title: "Network data" }}
+                        closeLabel="Close Network data"
                         anchorX={anchor}
                         anchorY={anchor}
                         placement="right"
                         alignment="start"
                     >
-                        <Popout.Content>{opened ? <ServerForm onClose={close} /> : null}</Popout.Content>
+                        <Popout.Content>{opened ? <ServerForm key={formKey} onClose={close} /> : null}</Popout.Content>
                     </Popout.Panel>
                 </Popout>
             </PopoutManager>

@@ -23,6 +23,7 @@ import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graph-samples";
 import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
+import type { ChannelDescriptor } from "../session/styles/channels";
 import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { TransitionDescriptor } from "../transitions/registry";
 import type { LabelStyle } from "./label-style";
@@ -718,6 +719,11 @@ export type Channel =
     | "node.raisedBorderWidth"
     | "node.raisedBorderLightColor"
     | "node.raisedBorderDarkColor"
+    | "node.shadowColor"
+    | "node.shadowOpacity"
+    | "node.shadowBlur"
+    | "node.shadowOffsetX"
+    | "node.shadowOffsetY"
     | "node.underlayColor"
     | "node.underlayOpacity"
     | "node.underlayPadding"
@@ -739,6 +745,8 @@ export type Channel =
     | "node.shapeTexts"
     | "node.labelTable"
     | "node.shapeLineWidth"
+    | "node.shapeLineHaloColor"
+    | "node.shapeLineHaloWidth"
     | "node.labelFit"
     | "node.labelPaddingX"
     | "node.labelPaddingY"
@@ -848,6 +856,8 @@ export type Channel =
     | "edge.patternCount"
     | "edge.waveAmplitude"
     | "edge.wavePeriod"
+    | "edge.dashLength"
+    | "edge.dashGap"
     | "edge.curvature"
     | "edge.bends"
     | "edge.fanSpacing"
@@ -973,6 +983,7 @@ export type Channel =
     | "edge.labelOutlineOpacity"
     | "edge.labelBorderOpacity"
     | "edge.labelPadding"
+    | "edge.labelTable"
     | "edge.labelCornerRadius"
     | "edge.labelLineHeight"
     | "edge.labelOffsetX"
@@ -1280,10 +1291,11 @@ export type Selector =
      * edges), under the pointer (`"hovered"`, one node at most), or drawn outside the time window
      * (`"ghosted"`, while `session.time.settings.outside` is `"ghost"`), or pinned in place
      * (`"pinned"`, nodes only, as `session.positions.pinned` holds them). View state: the layer
-     * follows each change with no step.
+     * follows each change with no step. The same elements as a rule: a {@link StateLeaf}, which
+     * `selectorRule` reads this selector as with its `states` option.
      * @since 3.26.0
      */
-    | { match: "state"; state: "selected" | "hovered" | "ghosted" | "pinned" }
+    | { match: "state"; state: ElementState }
     /**
      * What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),
      * or that node, its neighbors and the edges that touch it (`reach: "neighbors"`). With
@@ -1328,6 +1340,7 @@ export interface LayerSpec {
      * Where a layer made from a file's styles came from: the element's facts about it, set when
      * a load makes the layer, saved and restored with it, and read with `fileStyleOf(layer)`.
      * Absent on every other layer. An update that does not name it keeps it.
+     * @experimental file-styles
      */
     fileStyle?: FileStyleOrigin;
     /**
@@ -1563,6 +1576,7 @@ export interface FormatDescriptor {
      * styles (`styles: "file"` on a load), and what its writer keeps of a graph's styles --
      * `"rules"` (the layers come back as layers when the file is read again), `"values"` (only
      * each element's values) or `"none"`. Absent means `{ read: false, write: "none" }`.
+     * @experimental file-styles
      */
     styles?: FormatStyles;
     /**
@@ -1576,7 +1590,10 @@ export interface FormatDescriptor {
     description?: string;
 }
 
-/** What a format's files keep of a graph's styles. See {@link FormatDescriptor.styles}. */
+/**
+ * What a format's files keep of a graph's styles. See {@link FormatDescriptor.styles}.
+ * @experimental file-styles
+ */
 export interface FormatStyles {
     /** Whether the reader can draw a file's own styles. */
     readonly read: boolean;
@@ -2129,6 +2146,7 @@ export type RuleTree =
      */
     | { readonly kind: "repeated-edge" }
     | { readonly kind: "edges"; readonly where: Query }
+    | StateLeaf
     /**
      * The members of a scope, usually a kept set: `{ kind: "member", of: { set: id } }`. A removed
      * set is read from its kept record, so removing a set never changes what a rule holds.
@@ -2224,6 +2242,28 @@ export type RuleTree =
     | { readonly kind: "not"; readonly of: RuleTree };
 
 /**
+ * What a reader is doing to an element now: selected, under the pointer, drawn outside the time
+ * window, or pinned in place.
+ * @since 3.36.0
+ */
+export type ElementState = "selected" | "hovered" | "ghosted" | "pinned";
+
+/**
+ * The elements in a state now, as a calculated value: what `{ match: "state", state }` paints,
+ * written as a condition, so it sits beside others in an `all`, a `not` or a union step (Add, Keep,
+ * Except). Speaks nodes and edges, each half on its own: a selected edge stays held whether or not
+ * its ends are selected. `"hovered"` and `"pinned"` hold no edge. Live: a layer reading it repaints
+ * as the state moves, with no undo step, so a kept set or a visibility filter, which do not follow
+ * the reader, refuse it.
+ * @since 3.36.0
+ */
+export interface StateLeaf {
+    readonly kind: "state";
+    /** Which state. */
+    readonly state: ElementState;
+}
+
+/**
  * Whether an element with no value for a leaf's path (absent, NaN or infinite) passes the leaf.
  * Experimental: may change or be removed in a minor release.
  * @beta
@@ -2267,6 +2307,14 @@ export interface UnionLeaf {
      * loaded). A visibility filter condition must read `"graph"`.
      */
     readonly within: "graph" | "visible";
+    /**
+     * Narrows the base to the nodes and edges these loads supplied (`session.data.sources()`
+     * keys, what `session.data.sourcesOf(id)` lists): a branch that starts with `"all"` starts
+     * with theirs, a step adds only theirs, and a reading's totals count only theirs. Absent:
+     * every load's. A load that is gone supplies nothing.
+     * @since 3.36.0
+     */
+    readonly sources?: readonly SourceKey[];
     /** The branches, in order. */
     readonly branches: readonly UnionBranch[];
 }
@@ -2523,6 +2571,19 @@ export interface FilterCondition {
      * @since 3.36.0
      */
     readonly name?: string;
+    /**
+     * The load the condition belongs to (`session.data.sources()` key): it judges only the nodes
+     * and edges that load supplied (`session.data.sourcesOf(id)`) and leaves every other load's
+     * elements as they are. A keep condition hides only that load's elements its rule does not
+     * match, an exclude condition hides only that load's matches, and a select condition selects
+     * only among that load's elements; `conditionCounts()` counts it over that load's elements.
+     * An element two loads supplied belongs to both. Absent: the condition judges every element.
+     * A load that is gone supplies nothing, so its conditions then do nothing. The `steps` view
+     * shows such a condition's rule without its load. To have a selection's totals read the same
+     * load, narrow its `union` leaf with {@link UnionLeaf.sources}.
+     * @since 3.36.0
+     */
+    readonly source?: SourceKey;
 }
 
 /**
@@ -2748,6 +2809,17 @@ export interface CatalogApi {
     algorithms(): readonly AlgorithmDescriptor[];
     layouts(): readonly LayoutDescriptor[];
     formats(): readonly FormatDescriptor[];
+    /**
+     * The style channels this session offers for nodes or for edges, in table order. With the
+     * `file-styles` experiment on it is the same array `channelsFor(target)` returns; with it off it
+     * leaves out the channels the experiment added and the values it added to the rest (node shapes,
+     * arrowheads, line patterns, a size mode). A style editor builds its pickers from it. A layer that
+     * writes a value it leaves out is still accepted and drawn.
+     * @param target - Nodes or edges.
+     * @returns The channels, the same array on every call with the same target.
+     * @since 3.36.0
+     */
+    channels(target: "node" | "edge"): readonly ChannelDescriptor[];
     palettes(): readonly PaletteDescriptor[];
     cameras(): readonly CameraDescriptor[];
     logSinks(): readonly LogSinkDescriptor[];

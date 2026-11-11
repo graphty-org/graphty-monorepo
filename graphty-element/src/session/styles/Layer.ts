@@ -178,6 +178,7 @@ export interface Layer {
      * Where a layer made from a file's styles came from, read with `fileStyleOf(layer)`; absent
      * on every other layer. The element's own facts, kept apart from `userData` so a consumer's
      * bag is never shared with them. Never used to paint.
+     * @experimental file-styles
      */
     readonly fileStyle?: FileStyleOrigin;
 }
@@ -424,6 +425,11 @@ export interface RepaintContext {
      * @param progress - What changed.
      */
     report(progress: RunProgressReport): void;
+    /**
+     * True when the elements named are all that changed, so the renderer places what is painted
+     * and visits nothing else: a time window's slide.
+     */
+    readonly rowsOnly?: boolean;
 }
 
 /** How much a repaint actually painted, which is what the change announcement carries. */

@@ -535,6 +535,16 @@ describe("the Style tab's sections", () => {
         await session.styles.settled();
         await openStyle("Over degree");
         await userEvent.click(within(section("node", "fill")).getByRole("button", { name: "Add to node fill" }));
+        // Fill offers Color alone and adds it at once, or Color and Picture in a menu with the node
+        // models experiment on.
+        const color = await waitFor(() => {
+            const item = screen.queryByRole("menuitem", { name: "Color" });
+            assert.isTrue(item !== null || section("node", "fill").querySelector('[data-line="node.color"]') !== null);
+            return item;
+        });
+        if (color !== null) {
+            await userEvent.click(color);
+        }
         await waitFor(() => {
             assert.isNotNull(section("node", "fill").querySelector('[data-line="node.color"]'));
         });
@@ -635,7 +645,7 @@ describe("the Style tab's sections", () => {
         });
     });
 
-    it("shows every eye at rest, names a hidden row's eye 'Show', and keeps Everything in place", async () => {
+    it("shows every eye at rest, names a hidden row's eye 'Show', and deletes Everything like any row", async () => {
         const { session } = await openScene();
         const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.unhover(tree);
@@ -651,9 +661,9 @@ describe("the Style tab's sections", () => {
         await userEvent.click(within(tree).getByRole("treeitem", { name: /^Everything, / }));
         await userEvent.keyboard("{Delete}");
         await session.styles.settled();
-        assert.isDefined(
+        assert.isUndefined(
             session.styles.tree().find((row) => row.name === "Everything"),
-            "Delete leaves Everything in place",
+            "Delete takes Everything away",
         );
     });
 });

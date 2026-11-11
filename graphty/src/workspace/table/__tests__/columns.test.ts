@@ -51,7 +51,8 @@ describe("one role list", () => {
         // Fields does.
         assert.notIncludeMembers(headerRoles("node", false), ["key", "kind"]);
         assert.deepEqual(headerRoles("edge", false), ["weight", "time"]);
-        // Fields lists the same roles: its fixed rows, then its "+" entries that are roles.
+        // Fields lists the same roles: its fixed rows, then its "+" entries that are roles. The kind
+        // a whole file names (Kind of node) and an edge's end kinds are load choices, not a column's.
         for (const [side, kind] of [
             ["nodes", "node"],
             ["edges", "edge"],
@@ -59,7 +60,7 @@ describe("one role list", () => {
             const fields = [
                 ...FIELD_ROWS.filter((row) => row.side === side).map((row) => row.label),
                 ...FIELD_ENTRIES[side]
-                    .filter((entry) => entry.load !== "sourceKind" && entry.load !== "targetKind")
+                    .filter((entry) => !["sourceKind", "targetKind", "kindName"].includes(entry.load ?? ""))
                     .map((entry) => entry.name),
             ];
             assert.deepEqual(fields, words(kind));

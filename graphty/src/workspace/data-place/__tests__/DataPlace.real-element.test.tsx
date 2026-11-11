@@ -12,11 +12,17 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it, onTestFinished } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import football from "../../../../public/samples/football.gml?raw";
+import { withFeatures } from "../../../test/features";
 import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { AUTH_LOG_CSV, HOSTS_CSV } from "../fixtures";
+
+// The Data place without the Sources tab: its Fields section is one "Attributes" group, so the
+// `selection-workspace` experiment stays off here (DataPlaceSources and DataPlaceTabs test it on).
+withFeatures([]);
 
 /**
  * Renders the workspace on the Data place with a project open and waits for the session.
@@ -140,6 +146,47 @@ describe("the Data place's sidebar on the real element", () => {
         assert.isNull(fields.querySelector('[data-kind="node"]'));
         within(fields).getByRole("button", { name: "Add to edge attributes" });
         assert.isNull(within(fields).queryByRole("button", { name: "Add to node attributes" }));
+    });
+
+    it("labels a graph file's node and edge pills Nodes and Edges, with Edges there though its edges carry no columns", async () => {
+        const session = await openDataPlace();
+        await session.data.import({ type: "gml", name: "football.gml", config: { data: football } });
+        const [source] = session.data.sources();
+        assert.isAbove(source.counts.edges, 0);
+        // College football's edges have no columns of their own.
+        assert.isFalse(session.data.attributes().some((a) => a.kind === "edge"));
+        await waitFor(() => {
+            within(fieldsGroup()).getByText("Nodes", { exact: true });
+            within(fieldsGroup()).getByText("Edges", { exact: true });
+        });
+        const nodes = within(fieldsGroup()).getByText("Nodes", { exact: true });
+        const edges = within(fieldsGroup()).getByText("Edges", { exact: true });
+        const nodeChip = fieldsGroup().querySelector<HTMLElement>('[data-kind="node"]');
+        const edgeChip = fieldsGroup().querySelector<HTMLElement>('[data-kind="edge"]');
+        assert.isNotNull(nodeChip);
+        assert.isNotNull(edgeChip);
+        assert.strictEqual(
+            nodeChip?.querySelector(".cm-entity-text")?.textContent,
+            String(source.counts.nodes),
+            "the element's node count",
+        );
+        assert.strictEqual(
+            edgeChip?.querySelector(".cm-entity-text")?.textContent,
+            String(source.counts.edges),
+            "the element's edge count",
+        );
+        // Each word sits before its pill, on its row.
+        for (const [word, chip] of [
+            [nodes, nodeChip],
+            [edges, edgeChip],
+        ] as const) {
+            const w = word.getBoundingClientRect();
+            const c = chip?.getBoundingClientRect() ?? w;
+            assert.isAtMost(w.right, c.left, "the word before the pill");
+            assert.isBelow(Math.abs(w.top + w.height / 2 - (c.top + c.height / 2)), 4, "on one row");
+        }
+        within(fieldsGroup()).getByRole("button", { name: "Add to node attributes" });
+        within(fieldsGroup()).getByRole("button", { name: "Add to edge attributes" });
     });
 
     it("reads an event table as nodes until the reader says its rows are edges, one undo step", async () => {
@@ -444,13 +491,13 @@ describe("the Data place's sidebar on the real element", () => {
         const items = await screen.findAllByRole("menuitem");
         assert.deepEqual(
             items.map((item) => item.textContent),
-            ["File...Ctrl+O", "Samples...", "Server...", "Network data...", "PasteCtrl+V"],
+            ["File...Ctrl+O", "Samples...", "Network data...", "PasteCtrl+V"],
         );
         for (const item of items) {
             assert.isNotNull(item.querySelector("svg"), `${item.textContent ?? ""} has a glyph`);
         }
         assert.equal(items[0]?.getAttribute("aria-keyshortcuts"), "Control+O");
-        assert.equal(items[4]?.getAttribute("aria-keyshortcuts"), "Control+V");
+        assert.equal(items[3]?.getAttribute("aria-keyshortcuts"), "Control+V");
         await userEvent.keyboard("{Escape}");
     });
 

@@ -210,8 +210,8 @@ Other choices `report`, `load` and `import` take:
 ## Styles in the file
 
 `draft.styles` says, before anything loads, whether the file carries styles a load with
-`styles: "file"` would draw. It is null when the format cannot carry styles or the file holds none,
-and otherwise `{ declared, summary }`:
+`styles: "file"` would draw. It is null when the format cannot carry styles, the file holds none or
+the `file-styles` experiment is off, and otherwise `{ declared, summary }`:
 
 - `declared`: true when reading the file's styles found rules to draw;
 - `summary.nodeRules` and `summary.edgeRules`: how many rules there are for nodes and for edges;
@@ -319,6 +319,16 @@ reader changes the key or the options:
 | `clash`        | Per column the graph already has: `"keep"`, `"overwrite"` or `"both"` (default)       |
 | `repeated`     | Several rows with one key: `"first"` (default) or `"both"` (a list, or one edge each) |
 | `via`          | A joined mapping table whose columns translate the incoming keys to the graph's       |
+
+A table whose two columns name edges the graph already holds (at least 80% of its rows) reads as
+values for those edges: its keys are `{ file: "from", graph: "source" }` and
+`{ file: "to", graph: "target" }`, and on an undirected graph a pair matches either way round.
+
+A row of a `"node-values"` join that matches no node is left out. Pass `unmatchedRows: "add"` (on one
+key, with no `via`) to make it a new node; the report's `newNodes` counts them, and undoing, editing
+or removing the join takes them back.
+
+A node table can give every row one kind with `mapping: { rowsAre: "nodes", key: "id", kindName: "people" }`.
 
 `load({ join })` is one undoable step. The table stays a source: `data.sources()` lists it with
 `kind: "join"` and `joinedOnto`, and `data.joins()` lists the join with its choices and counts. The

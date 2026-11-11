@@ -1,7 +1,8 @@
 import type { Column, GraphSnapshot } from "@graphty/graph-format";
 import { gexfImporter } from "@graphty/graph-io/gexf";
 
-import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
+import type { TimeField, TimeSource } from "../session/time/TimeApi";
+import { BaseDataSourceConfig, DataSource, DataSourceChunk, TIMELINE_READERS } from "./DataSource.js";
 import {
     aggregateErrors,
     attributeKey,
@@ -121,6 +122,48 @@ function timeText(value: number, text: string | null, timeFormat: string | null)
     }
 }
 
+/** The column roles that time a GEXF node or edge. */
+const TIME_ROLES = ["start", "end", "timestamp", "spells", "timestamps"] as const;
+
+/**
+ * The time field a dynamic GEXF graph declares: on each kind with times, its `start`, `end` and
+ * `spells` for interval representation (`start` named even when only spells are present), or its
+ * `timestamp` and `timestamps` for timestamp representation. Dates read as milliseconds, numbers
+ * as ordinal values.
+ * @param snapshot - the imported graph
+ * @returns the field, or null for a graph that is not dynamic or holds no times
+ */
+function declaredTimeOf(snapshot: GraphSnapshot): TimeField | null {
+    const { mode, timeFormat, timeRepresentation } = snapshot.meta;
+    if (mode !== "dynamic") {
+        return null;
+    }
+
+    const unit = timeFormat === "date" || timeFormat === "dateTime" ? "ms" : "ordinal";
+    const source: TimeSource =
+        timeRepresentation === "timestamp"
+            ? { start: "timestamp", spells: "timestamps", unit }
+            : { start: "start", end: "end", spells: "spells", unit };
+    const timed = (table: GraphSnapshot["nodes"], rows: number): boolean =>
+        TIME_ROLES.some((role) => {
+            const column = table.byRole(role);
+            for (let row = 0; column !== null && row < rows; row++) {
+                if (column.isSet(row)) {
+                    return true;
+                }
+            }
+
+            return false;
+        });
+    const nodes = timed(snapshot.nodes, snapshot.nodeCount);
+    const edges = timed(snapshot.edges, snapshot.edgeCount);
+    if (!nodes && !edges) {
+        return null;
+    }
+
+    return { ...(nodes ? { nodes: source } : {}), ...(edges ? { edges: source } : {}) };
+}
+
 /**
  * The columns of one row that state an interval: its bounds (start / end / timestamp roles), the
  * original text of each bound by the bound's name, and its open bits.
@@ -206,9 +249,15 @@ function intervalKeys(table: Iterable<Column>, row: number, timeFormat: string |
  * @param snapshot - the imported graph
  * @param graphDirected - the direction declared for the whole graph
  * @param fileStyles - whether the load draws the file's styles, so no viz color or size is copied
+ * @param readTimes - whether the timeline reads the load, so each list of instants is kept as `timestamps`
  * @returns the mapping
  */
-function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean, fileStyles: boolean): RecordMapping {
+function gexfMapping(
+    snapshot: GraphSnapshot,
+    graphDirected: boolean,
+    fileStyles: boolean,
+    readTimes: boolean,
+): RecordMapping {
     // Deprecated (removed in the next major): the viz color and size copied into the records.
     const vizKeys = fileStyles ? VIZ_POSITION : VIZ_KEYS;
     const { timeFormat } = snapshot.meta;
@@ -282,6 +331,10 @@ function gexfMapping(snapshot: GraphSnapshot, graphDirected: boolean, fileStyles
                     : slices;
             } else if (column.meta.role === "spells" && column.isSet(row)) {
                 record.spells = spellsOf(column, spellsOpen.get(table) ?? null, row, timeFormat);
+            } else if (readTimes && column.meta.role === "timestamps" && column.isSet(row)) {
+                record.timestamps = Array.from(column.value(row) as ArrayLike<number>, (at) =>
+                    timeText(at, null, timeFormat),
+                );
             } else if (column.isSet(row)) {
                 copyAttribute(kind, column, row, record);
             }
@@ -473,7 +526,12 @@ function copyAttribute(kind: "node" | "edge", column: Column, row: number, recor
  *   `startOpen` / `endOpen` set for an open bound, and its `<spells>` go onto `spells` as a list of
  *   `{ start, end }` intervals;
  * - an attribute with time-sliced `attvalue`s becomes a list of `{ value, start, end }` slices
- *   instead of a single value. An attribute with no timed `attvalue` keeps its plain value.
+ *   instead of a single value. An attribute with no timed `attvalue` keeps its plain value;
+ * - with the timeline experiment on, a GEXF 1.3 `timestamps` list goes onto `timestamps` as text.
+ *
+ * With the timeline experiment on, a `mode="dynamic"` graph designates its time field on load
+ * (`session.time.field`): `start`, `end` and `spells`, or `timestamp` and `timestamps` for
+ * `timerepresentation="timestamp"`, unless a time field is already set.
  *
  * An edge that names a node the file never declared is kept, and the node is created for it.
  *
@@ -549,9 +607,17 @@ export class GEXFDataSource extends DataSource {
         // The resolved direction is declared BEFORE the first chunk is yielded, so that it reaches
         // the builder while it is still empty -- which is the only moment the builder accepts one.
         this.declareDirection(direction.directed, direction.statedBy, direction.conflicts);
+        const time = declaredTimeOf(snapshot);
+        if (time !== null) {
+            this.declareTime(time);
+        }
 
         const fileStyles = this.config.styles === "file";
-        const { nodes, edges } = toRecords(imported, gexfMapping(snapshot, direction.directed, fileStyles), this);
+        const { nodes, edges } = toRecords(
+            imported,
+            gexfMapping(snapshot, direction.directed, fileStyles, TIMELINE_READERS.has(this)),
+            this,
+        );
         yield* this.chunkData(nodes, edges);
     }
 

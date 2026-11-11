@@ -76,7 +76,7 @@ describe("CLI", () => {
         });
 
         test("should use defaults when no arguments", () => {
-            const result = parseArgs([]);
+            const result = parseArgs([], {});
             expect(result.options.port).toBeUndefined();
             expect(result.options.host).toBeUndefined();
             expect(result.options.certPath).toBeUndefined();
@@ -94,7 +94,7 @@ describe("CLI", () => {
         });
 
         test("refuses a non-numeric --port instead of listening on NaN", () => {
-            const result = parseArgs(["--port", "90a0"]);
+            const result = parseArgs(["--port", "90a0"], {});
             expect(result.error).toBe('--port must be an integer from 1 to 65535, got "90a0"');
             expect(result.options.port).toBeUndefined();
         });

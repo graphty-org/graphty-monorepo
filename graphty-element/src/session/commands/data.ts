@@ -36,6 +36,7 @@ import type { DeclaredDirection } from "../../data/DataSource";
 import { searchRecord } from "../../data/endpoints";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { featureOff } from "../../features/resolve";
 import { GRAPHVIZ_ENGINES, graphvizLayoutId } from "../../layout/graphviz/engines";
 import { POINTS_PER_UNIT } from "../../layout/graphviz/toDot";
 import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
@@ -45,11 +46,12 @@ import type { Draft } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
 import type { CodedFact } from "../shared";
 import { type Provenance, PROVENANCE_VALUE } from "../sources/provenance";
-import { applyFileStyles, type ImportOutcome } from "../styles/fileStyles/apply";
+import { applyFileStyles, asksFileStyles, type ImportOutcome } from "../styles/fileStyles/apply";
 import { FILE_STYLES_VALUE, type FileStyleLoadValues, fileStyleStoreOf } from "../styles/fileStyles/store";
 import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
 import type { Selector } from "../styles/selector";
+import { designateDeclaredTime } from "../time/declared";
 import type {
     HistoryCode,
     JoinRecord,
@@ -254,6 +256,8 @@ export interface ImportSource {
     readonly name?: string;
     /** The file's size in bytes, when a file was read. */
     readonly size?: number;
+    /** The name of the file it was read from. */
+    readonly fileName?: string;
 }
 
 /** `data.import`. */
@@ -299,9 +303,13 @@ export interface DataImportCommand {
     /**
      * `"file"` draws the file's own styles as layers, in the same step; `"none"` leaves them out.
      * Absent, the source's `styles` option decides, and without one the file's styles are left out.
+     * @experimental file-styles
      */
     readonly styles?: "file" | "none";
-    /** How the file's styles are turned into layers; the source's `styleOptions` when absent. */
+    /**
+     * How the file's styles are turned into layers; the source's `styleOptions` when absent.
+     * @experimental file-styles
+     */
     readonly styleOptions?: FileStyleOptions;
     /** Where the load came from, for its `data.sources()` entry; read from the source's type when absent. */
     readonly origin?: LoadedSourceKind;
@@ -346,6 +354,8 @@ export interface HeldRows {
     readonly weight?: string | null;
     /** What a row naming a pair the graph already holds does; `data.knownFields.repeatedEdges` when absent. */
     readonly repeated?: DuplicatePolicy;
+    /** `"held"`: `repeated` covers only pairs held before this load; its own repeats follow the configuration. */
+    readonly repeatedScope?: "held";
 }
 
 /** The load choices a `data.import` command carries. */
@@ -448,8 +458,9 @@ interface DataLabelCommand {
 /**
  * `data.setFileStyles`: replace the per-element style values the layers made from files read, one
  * entry per load. An empty list removes them all.
+ * @experimental file-styles
  */
-export interface DataSetFileStylesCommand {
+interface DataSetFileStylesCommand {
     readonly op: "data.setFileStyles";
     readonly loads: readonly FileStyleLoadValues[];
 }
@@ -602,10 +613,12 @@ export function describeSource(source: ImportSource): ImportSource {
                   Object.fromEntries(Object.entries(source.config).filter(([key]) => key !== "data" && key !== "file")),
               );
 
+    const fileName = (source.config?.file as { readonly name?: unknown } | undefined)?.name;
     return Object.freeze({
         ...(source.type === undefined ? {} : { type: source.type }),
         ...(source.name === undefined ? {} : { name: source.name }),
         ...(source.size === undefined ? {} : { size: source.size }),
+        ...(typeof fileName === "string" ? { fileName } : {}),
         ...(config === undefined ? {} : { config }),
     });
 }
@@ -919,6 +932,11 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
     byReference: ["config", "held", "measure"],
     closesBaseline: true,
     execute: async (command, ctx) => {
+        // Refused before anything is read: drawing a file's styles is the file styles experiment.
+        if (asksFileStyles(command) && ctx.services.fileStyles?.() === false) {
+            throw featureOff("file-styles", "styles");
+        }
+
         // The scene units one unit of the file's lengths is drawn as, once its styles are drawn:
         // the stored drawing a recommended fixed layout keeps takes the same unit (issue #2322).
         let sceneScale: number | null = null;
@@ -933,6 +951,8 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
             await repickEdges(picked, ctx);
         }
 
+        // The time field the file declares, designated in this same step.
+        await designateDeclaredTime(outcome?.reader?.declaredTime, ctx);
         // The file's styles, and the previous file's layers swept, in this same step.
         sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
         if (layoutChoiceOf(command) === "recommended") {
@@ -1198,6 +1218,12 @@ const dataSetFileStyles: UndoableDefinition<DataSetFileStylesCommand> = {
     keys: () => [`graph/v:${FILE_STYLES_VALUE}`],
     lane: { kind: "immediate" },
     execute: (command, ctx) => {
+        // Writing a file's style values is the file styles experiment; only a project open restores
+        // saved ones with it off, so reopening and saving a project keeps them.
+        if (ctx.services.fileStyles?.() === false && ctx.services.restoringFileStyles !== true) {
+            throw featureOff("file-styles", "data.setFileStyles");
+        }
+
         // Checked before anything is written: the values may come from a file anyone edited.
         const store = fileStyleStoreOf(command.loads);
         const service = serviceOf(ctx.services.data);

@@ -121,6 +121,7 @@ import {
     type TimePlayback,
     type TimeWindow,
     windowBounds,
+    windowInstants,
     windowNeedsTimeline,
     windowReadsRecords,
 } from "./filter";
@@ -646,8 +647,11 @@ export interface VisibilitySources extends FilterSources {
      * @param change - The counts, the unresolved paths, and what produced the change.
      */
     readonly onChange?: (change: VisibilityChange) => void;
-    /** Told after the drawn masks moved without a step: the time cursor slid them, or a condition is held. */
-    readonly onSlide?: () => void;
+    /**
+     * Told after the drawn masks moved without a step: the time cursor slid them, or a condition is held.
+     * @param moved - What a slide changed; absent when a held condition moved the masks.
+     */
+    readonly onSlide?: (moved?: SlideCounts) => void;
     /** Called on every version bump of either mask, which is what advances the session input tick. */
     readonly onMaskVersion?: () => void;
     /**
@@ -675,7 +679,7 @@ export interface VisibilitySources extends FilterSources {
 }
 
 /** The selection as select conditions reach it. */
-export interface ConditionSelection {
+interface ConditionSelection {
     /**
      * The ids selected now.
      * @returns The ids.
@@ -1577,6 +1581,35 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         null;
 
     /**
+     * Bring the kept ghosts forward by the rows a slide moved, in place: with the drawn masks
+     * unmoved, those are the only rows that can have become or stopped being ghosts.
+     * @param key - The key of what is asked for.
+     * @returns The ghosts, or null when more than that moved.
+     */
+    const ghostsAfterSlide = (key: readonly unknown[]): typeof ghostCache => {
+        if (ghostCache === null || key.slice(2).some((part, at) => part !== ghostCache?.key[at + 2])) {
+            return null;
+        }
+
+        const { key: kept, node, edge } = ghostCache;
+        const nodeRows = nodeMaskValue.changedSince(kept[0] as number);
+        const edgeRows = edgeMaskValue.changedSince(kept[1] as number);
+        if (nodeRows === null || edgeRows === null) {
+            return null;
+        }
+
+        for (const row of nodeRows) {
+            node[row] = nodeMaskValue.has(row) ? 0 : 1;
+        }
+
+        for (const row of edgeRows) {
+            edge[row] = edgeMaskValue.has(row) ? 0 : 1;
+        }
+
+        return { key, node, edge };
+    };
+
+    /**
      * One byte per element, 1 for a ghost, or null while not ghosting. Kept until a mask, the
      * graph, the filter or the runs it reads move, so a repaint asking per element walks once.
      * @returns The bytes, or null.
@@ -1598,6 +1631,12 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             sources.snapshot(),
         ];
         if (ghostCache?.key.length === key.length && ghostCache.key.every((part, at) => part === key[at])) {
+            return ghostCache;
+        }
+
+        const carried = ghostsAfterSlide(key);
+        if (carried !== null) {
+            ghostCache = carried;
             return ghostCache;
         }
 
@@ -2012,34 +2051,44 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @param active - The frame.
      * @param rule - The rule.
      * @param drawn - What is drawn, to count among; null for the whole graph.
+     * @param source - The load to count over (a condition's `source`); every element when absent.
      * @returns The count, without an id.
      */
     const countRule = (
         active: VisibilityFrame,
         rule: RuleTree,
         drawn: Drawn | null,
+        source?: SourceKey,
     ): Omit<FilterConditionCount, "id"> => {
         const compiled = compiledOver(active, rule);
+        // A condition of one load is counted over that load's elements.
+        const mine = source === undefined ? null : compiledOver(active, { kind: "source", sources: [source] });
         const tally = (
             test: ((index: number) => boolean) | null,
             count: number,
             among: ElementMask<NodeId> | ElementMask<EdgeId> | undefined,
+            within: ((index: number) => boolean) | null,
         ): FilterConditionMatches | null => {
             if (test === null) {
                 return null;
             }
 
             let matched = 0;
+            let total = 0;
             for (let at = 0; at < count; at++) {
-                matched += (among === undefined || among.has(at)) && test(at) ? 1 : 0;
+                if (within === null || within(at)) {
+                    total++;
+                    matched += (among === undefined || among.has(at)) && test(at) ? 1 : 0;
+                }
             }
 
-            // One basis for every condition: the whole graph's count, so a Select card and a Filter
-            // to card beside it are read against the same number.
-            return Object.freeze({ matched, total: count });
+            // One basis for every condition: the whole graph's count (its load's, for a condition
+            // of one load), so a Select card and a Filter to card beside it are read against the
+            // same number.
+            return Object.freeze({ matched, total });
         };
-        const nodes = tally(compiled.node, active.graph.nodeCount, drawn?.nodes);
-        const edges = tally(compiled.edge, active.graph.edgeCount, drawn?.edges);
+        const nodes = tally(compiled.node, active.graph.nodeCount, drawn?.nodes, mine?.node ?? null);
+        const edges = tally(compiled.edge, active.graph.edgeCount, drawn?.edges, mine?.edge ?? null);
 
         return Object.freeze({ nodes, edges, unresolved: compiled.unresolvedPaths() });
     };
@@ -2090,11 +2139,17 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 const signature = each[at];
                 // A rule reading a set whose inputs cannot be enumerated is counted every time.
                 // By id too, so a condition nothing changed hands back the same object.
+                // A condition of one load reads provenance, which has no revision: counted every time.
                 const key =
-                    signature === null ? null : `${condition.id}\n${JSON.stringify(condition.rule)}\n${signature}`;
+                    signature === null || condition.source !== undefined
+                        ? null
+                        : `${condition.id}\n${JSON.stringify(condition.rule)}\n${signature}`;
                 const drawn = inPicture(condition) ? { nodes: nodeMaskValue, edges: edgeMaskValue } : null;
                 let count = key === null ? undefined : bucket.byRule.get(key);
-                count ??= Object.freeze({ id: condition.id, ...countRule(active, condition.rule, drawn) });
+                count ??= Object.freeze({
+                    id: condition.id,
+                    ...countRule(active, condition.rule, drawn, condition.source),
+                });
 
                 if (key !== null) {
                     kept.set(key, count);
@@ -2140,7 +2195,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @returns True when an index alone cannot say what the window keeps.
      */
     const readsRecords = (graph: GraphSnapshot, window: TimeWindow, instants: SlideTarget["instants"]): boolean => {
-        const key = [graph, window.attribute, instants?.node, instants?.edge];
+        const key = [graph, window.attribute, window.end, window.spells, instants?.node, instants?.edge];
         if (recordsRead === null || !sameInputs(recordsRead.key, key)) {
             recordsRead = { key, reads: windowReadsRecords(graph, window, sources) };
         }
@@ -2199,20 +2254,13 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         return {
             directed: graph.directed,
             move(window) {
-                target ??= slideTarget(
-                    graph,
-                    rule,
-                    nodes,
-                    edges,
-                    sources.instants?.(window.attribute) ?? null,
-                    (moved) => {
-                        slideCounters.full++;
-                        nodes.clear();
-                        edges.clear();
-                        const compiled = compileVisibility(graph, rule, moved, passSources(graph));
-                        runPass({ compiled, edges, graph, nodes });
-                    },
-                );
+                target ??= slideTarget(graph, rule, nodes, edges, windowInstants(window, sources), (moved) => {
+                    slideCounters.full++;
+                    nodes.clear();
+                    edges.clear();
+                    const compiled = compileVisibility(graph, rule, moved, passSources(graph));
+                    runPass({ compiled, edges, graph, nodes });
+                });
                 counter = counter === undefined ? WindowCounter.open(target, window) : counter;
                 if (counter !== null) {
                     return counter.move(window, target);
@@ -2579,7 +2627,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             };
 
             const startedAt = performance.now();
-            const instants = sources.instants?.(window.attribute) ?? null;
+            const instants = windowInstants(window, sources);
             let passed = false;
             const counts = slider.move(
                 slideTarget(active.graph, rule, nodeMaskValue, edgeMaskValue, instants, (moved) => {
@@ -2593,7 +2641,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 unresolvedValue = unresolvedOfSlide(window, instants);
             }
 
-            sources.onSlide?.();
+            sources.onSlide?.(counts);
 
             return { ...counts, graph: active.graph };
         },

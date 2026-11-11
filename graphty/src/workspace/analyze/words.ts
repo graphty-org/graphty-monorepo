@@ -599,7 +599,7 @@ function hopWords(hops: number): string {
  * @param run - the path run.
  * @returns the words, or undefined.
  */
-export function pathLengthWords(run: Pick<Run, "result" | "caveats">): string | undefined {
+function pathLengthWords(run: Pick<Run, "result" | "caveats">): string | undefined {
     const { hops, cost } = run.result?.graph ?? {};
     const { weight } = run.caveats;
     if (weight?.meaning === "distance" && typeof cost === "number") {
@@ -674,13 +674,13 @@ export function topAnnouncement(session: GraphSession, run: Run, name: string): 
  * @returns the line, or null for a run whose result has no groups.
  */
 export function groupsAnnouncement(session: GraphSession, run: Run, name: string): string | null {
-    const groups = run.result?.summary().groups;
-    if (groups === undefined) {
+    const groupCount = run.result?.summary().groupCount;
+    if (groupCount === undefined) {
         return null;
     }
     const layer = session.runs.layers(run.id)?.present[0];
     const folder = layer === undefined ? undefined : findTreeRow(session.styles.tree(), layer)?.folders.at(-1);
-    const found = `${name} finished: ${count(groups.length, "group")}`;
+    const found = `${name} finished: ${count(groupCount, "group")}`;
     return folder === undefined ? found : `${found}, each a layer in the ${folder.name} folder of Style layers`;
 }
 

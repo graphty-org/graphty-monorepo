@@ -8,6 +8,7 @@
 import { formatDescriptor } from "@graphty/graphty-element/catalog";
 import {
     type ColumnRole,
+    type DraftColumn,
     type DraftTable,
     LOAD_ROLES,
     type LoadChoices,
@@ -47,10 +48,11 @@ export const INITIAL_CHOICES: PageChoices = { tables: {}, unmatched: "leave-out"
 
 /**
  * The choices a new draft starts with: the defaults, with the reader's import-styles preference.
+ * @param fileStyles - whether the element's file styles experiment is on; off, no styles are drawn.
  * @returns the choices.
  */
-export function initialChoices(): PageChoices {
-    return { ...INITIAL_CHOICES, styles: fileStylesChoice() };
+export function initialChoices(fileStyles = false): PageChoices {
+    return { ...INITIAL_CHOICES, styles: fileStyles ? fileStylesChoice() : "none" };
 }
 
 /**
@@ -106,6 +108,19 @@ export function elementRole(
         return undefined;
     }
     return table.columns.find((each) => each.name === column)?.suggested ?? "attribute";
+}
+
+/**
+ * Whether a column should say it looks like time: graphty-element found it so, and the reader has
+ * not made it the time column yet.
+ * @param draft - the draft.
+ * @param table - the table.
+ * @param column - the column.
+ * @param choices - the page's choices.
+ * @returns true when the mark shows.
+ */
+export function timeMarked(draft: LoadDraft, table: DraftTable, column: DraftColumn, choices: PageChoices): boolean {
+    return column.looksLike === "time" && roleOf(draft, table, column.name, choices) !== "time";
 }
 
 /**
@@ -223,6 +238,29 @@ export function setRowsAre(
 }
 
 /**
+ * The mapping of a table whose roles the file sets: only the time column the reader picked.
+ * @param draft - the draft.
+ * @param table - the table.
+ * @param edits - the reader's edits to it.
+ * @param choices - the page's choices.
+ * @returns the mapping, or undefined when the reader picked none.
+ */
+function fixedTableMapping(
+    draft: LoadDraft,
+    table: DraftTable,
+    edits: TableEdits,
+    choices: PageChoices,
+): TableMapping | undefined {
+    const time = table.columns.find(
+        (column) => column.looksLike === "time" && roleOf(draft, table, column.name, choices) === "time",
+    );
+    if (time === undefined) {
+        return undefined;
+    }
+    return { time: time.name, ...(edits.timeUnit === undefined ? {} : { timeUnit: edits.timeUnit }) };
+}
+
+/**
  * One table's mapping from the reader's edits: each role the reader placed, and `null` for a role
  * the element had placed on a column the reader took it from.
  * @param draft - the draft.
@@ -232,8 +270,11 @@ export function setRowsAre(
  */
 function tableMapping(draft: LoadDraft, table: DraftTable, choices: PageChoices): TableMapping | undefined {
     const edits = choices.tables[table.id];
-    if (edits === undefined || table.fixed) {
+    if (edits === undefined) {
         return undefined;
+    }
+    if (table.fixed) {
+        return fixedTableMapping(draft, table, edits, choices);
     }
     const kind = rowsAreOf(draft, table, choices);
     const mapping: Record<string, string | null> = {};
@@ -265,9 +306,15 @@ function tableMapping(draft: LoadDraft, table: DraftTable, choices: PageChoices)
  * @param draft - the draft.
  * @param choices - the page's choices.
  * @param mode - "replace" for a new graph, "merge" to add to the open project.
+ * @param fileStyles - whether the element's file styles experiment is on; off, no styles are asked for.
  * @returns the choices `report` and `load` take.
  */
-export function loadChoices(draft: LoadDraft, choices: PageChoices, mode: "replace" | "merge"): LoadChoices {
+export function loadChoices(
+    draft: LoadDraft,
+    choices: PageChoices,
+    mode: "replace" | "merge",
+    fileStyles = false,
+): LoadChoices {
     const tables: Record<string, TableMapping> = {};
     for (const table of draft.tables) {
         const mapping = tableMapping(draft, table, choices);
@@ -279,8 +326,7 @@ export function loadChoices(draft: LoadDraft, choices: PageChoices, mode: "repla
         mode,
         unmatched: choices.unmatched,
         directed: choices.directed,
-        styles: choices.styles,
-        styleOptions: FILE_STYLE_OPTIONS,
+        ...(fileStyles ? { styles: choices.styles, styleOptions: FILE_STYLE_OPTIONS } : {}),
         ...(Object.keys(tables).length > 0 ? { mapping: { tables } } : {}),
     };
 }

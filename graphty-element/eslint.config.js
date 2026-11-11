@@ -13,8 +13,16 @@
 import rootConfig from "../eslint.config.js";
 import tseslint from "typescript-eslint";
 
+import { aiEngineBoundary } from "./eslint-rules/ai-engine-boundary.mjs";
 import nodeMeshFunnel from "./eslint-rules/node-mesh-funnel.mjs";
 import nodePositionFunnel from "./eslint-rules/node-position-funnel.mjs";
+
+/** Prevent architectural violations - don't mutate layers directly. */
+const LAYERS_MUTATION = {
+    selector:
+        'MemberExpression[property.name="layers"] CallExpression[callee.property.name=/^(push|splice|unshift|pop|shift)$/]',
+    message: "Do not mutate layers directly. Use StyleManager.addLayer() or StyleManager.insertLayer().",
+};
 
 const local = { rules: { "node-mesh-funnel": nodeMeshFunnel, "node-position-funnel": nodePositionFunnel } };
 
@@ -56,19 +64,24 @@ export default tseslint.config(
     // ============================================
     // PACKAGE-SPECIFIC RULES
     // ============================================
+    // The layers guard, and the AI engine boundary: AI frameworks and provider SDKs only in the
+    // adapter folder, loaded only by src/ai/engine/load.ts (eslint-rules/ai-engine-boundary.mjs).
+    // Each block of the boundary repeats the layers guard, since ESLint keeps one setting per rule.
+    ...aiEngineBoundary(rootConfig, [LAYERS_MUTATION]),
+
+    // The AI adapter and its fake provider APIs speak each provider's own wire vocabulary
+    // (tool_choice, max_output_tokens, stop_reason), whose quotes Prettier removes. Names graphty
+    // declares itself are still checked.
     {
-        files: ["**/*.ts", "**/*.tsx"],
+        files: [
+            "src/ai/engine/tanstack/**/*.ts",
+            "test/ai/engine/providerApiFixtures.ts",
+            "test/ai/engine/providerApi.test.ts",
+            "test/ai/engine/reasoningOptions.test.ts",
+            "test/ai/engine/live.test.ts",
+        ],
         rules: {
-            // Prevent architectural violations - don't mutate layers directly
-            "no-restricted-syntax": [
-                "error",
-                {
-                    selector:
-                        'MemberExpression[property.name="layers"] CallExpression[callee.property.name=/^(push|splice|unshift|pop|shift)$/]',
-                    message:
-                        "Do not mutate layers directly. Use StyleManager.addLayer() or StyleManager.insertLayer().",
-                },
-            ],
+            camelcase: ["error", { properties: "never" }],
         },
     },
 
@@ -88,13 +101,20 @@ export default tseslint.config(
     // NOTHING REACHES THROUGH A NODE TO ITS MESH
     // ============================================
     // The row renderer draws a node with no mesh of its own, so readers use Node's drawn*
-    // accessors. Edge.ts keeps its reads until getInterceptPoints works with no mesh (#3247). The
-    // rule and its reasons: eslint-rules/node-mesh-funnel.mjs.
+    // accessors, and Node itself its private field. The rule and its reasons:
+    // eslint-rules/node-mesh-funnel.mjs.
     {
         files: ["src/**/*.ts"],
-        ignores: ["src/Node.ts", "src/Edge.ts"],
         plugins: { local },
         rules: { "local/node-mesh-funnel": ["error", { allow: ["Graph.getNodeMesh"] }] },
+    },
+    {
+        // Stories and shared test helpers: a read of Node.mesh holds that node off the batch, so a
+        // play function or helper that read it would quietly turn a batched run into an objects one.
+        files: ["stories/**/*.ts", "test/helpers/*.ts"],
+        // Not "local": the root config already names its test-timing plugin that for test files.
+        plugins: { element: local },
+        rules: { "element/node-mesh-funnel": "error" },
     },
 
     // ============================================

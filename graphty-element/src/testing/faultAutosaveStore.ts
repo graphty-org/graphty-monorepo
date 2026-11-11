@@ -15,7 +15,7 @@ import {
 } from "../autosave/types";
 
 /** A commit stopped by {@link FaultAutosaveStore.hold} until the test releases it. */
-export interface HeldCommit {
+interface HeldCommit {
     /** Resolves once a commit has arrived and is waiting. */
     readonly reached: Promise<readonly AutosaveWrite[]>;
     /** Lets the waiting commit go on to the real store, which judges its fence then. */

@@ -277,14 +277,15 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_GRAPHML_HYPEREDGE_SKIPPED"></a>`W_GRAPHML_HYPEREDGE_SKIPPED`: Hyperedges skipped under `hyperedges: "skip"`. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_KEY_DECLARED_LATE"></a>`W_GRAPHML_KEY_DECLARED_LATE`: A `<key>` declared after `<data>` that used it; those values were already reported and dropped. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_KEY_DOMAIN"></a>`W_GRAPHML_KEY_DOMAIN`: A `<data>` whose key is declared for another domain. Import: [graphml](./formats/graphml.md).
-- <a id="W_GRAPHML_KEY_DOMAIN_UNSUPPORTED"></a>`W_GRAPHML_KEY_DOMAIN_UNSUPPORTED`: A key declared for hyperedges, ports or endpoints (never used). Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_KEY_DOMAIN_UNSUPPORTED"></a>`W_GRAPHML_KEY_DOMAIN_UNSUPPORTED`: A key declared for hyperedges, ports or endpoints (never used), other than a yFiles port key. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_LOCATOR_DROPPED"></a>`W_GRAPHML_LOCATOR_DROPPED`: A `<locator>` element. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_NAMESPACE"></a>`W_GRAPHML_NAMESPACE`: The `<graphml>` root is in a namespace other than GraphML's; it is read as GraphML. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_NESTED_GRAPH_DATA"></a>`W_GRAPHML_NESTED_GRAPH_DATA`: Data of a nested `<graph>`; only the top-level graph has attributes. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_ORIGINAL_ID_IGNORED"></a>`W_GRAPHML_ORIGINAL_ID_IGNORED`: A `graphty:originalId` value that is not text, or arrives after the node was added (after its nested graph). Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_PARENT_CYCLE"></a>`W_GRAPHML_PARENT_CYCLE`: Nodes whose parent chain never reaches a root are written at the top level. Save: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_PARSE_HINT_IGNORED"></a>`W_GRAPHML_PARSE_HINT_IGNORED`: A GraphML `parse.*` attribute (`parse.nodeids`, `parse.order`, ...) that graph-io does not act on; the file is read normally. Import: [graphml](./formats/graphml.md).
-- <a id="W_GRAPHML_PORT_DECLARATION"></a>`W_GRAPHML_PORT_DECLARATION`: `<port>` declarations (and their data) are not kept; sourceport / targetport edge attributes are. Import: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_PORTS_DROPPED"></a>`W_GRAPHML_PORTS_DROPPED`: Port values of a node's `ports` column a save cannot write back as `<port>` data: a value under a name with no yFiles key type in the column's `extra.portKeys`, a value that is not an XML tree, or an entry with no name. Save: [graphml](./formats/graphml.md).
+- <a id="W_GRAPHML_PORT_DECLARATION"></a>`W_GRAPHML_PORT_DECLARATION`: `<port>` declarations are not kept as ports; sourceport / targetport edge attributes are, and a port's yFiles data is kept in its node's `ports` column. Import: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_YFILES_GRAPHICS_STALE"></a>`W_GRAPHML_YFILES_GRAPHICS_STALE`: A `yfiles.*` graphics column that no longer matches its yFiles tree: only the tree is written. Save: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_YFILES_JSON"></a>`W_GRAPHML_YFILES_JSON`: YFiles nested XML kept as a JSON tree: structure preserved, not byte-exact. Save: [graphml](./formats/graphml.md).
 - <a id="W_GRAPHML_YFILES_SKIPPED"></a>`W_GRAPHML_YFILES_SKIPPED`: A yFiles key under `yfiles: "skip"`. Import: [graphml](./formats/graphml.md).

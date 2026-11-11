@@ -132,7 +132,7 @@ export const ReturningReader: Story = {
     },
 };
 
-/** Open network data: the sources on the way, and Open from a link. */
+/** Open network data: the chooser of the kinds of network, over the start page. */
 export const NetworkData: Story = {
     beforeEach: () => {
         answerUsageData("declined");
@@ -161,6 +161,24 @@ export const NetworkData: Story = {
             setTimeout(resolve, 0);
         });
         focused.blur();
+    },
+};
+
+/** The sample library's network samples, one tile for each kind of network source. */
+export const NetworkSamples: Story = {
+    beforeEach: () => {
+        answerUsageData("declined");
+    },
+    play: async ({ canvasElement }) => {
+        await heroDrawn(canvasElement);
+        const section = await waitFor(() => {
+            const found = canvasElement.querySelector('section[aria-label="Load network data"]');
+            if (found === null) {
+                throw new Error("the network samples have not drawn yet");
+            }
+            return found;
+        });
+        section.scrollIntoView();
     },
 };
 

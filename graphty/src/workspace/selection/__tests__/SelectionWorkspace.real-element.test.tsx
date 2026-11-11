@@ -110,10 +110,11 @@ function unionOf(session: GraphSession, id: string): UnionLeaf | undefined {
 }
 
 /**
- * The sidebar outline's Edit button.
+ * The sidebar outline's Edit button, waited for: the sidebar draws it only while the workspace is
+ * closed, and Done or Cancel closes it once the canvas has painted.
  * @returns it.
  */
-const editButton = (): HTMLElement => screen.getByRole("button", { name: /^Edit Which nodes/ });
+const editButton = (): Promise<HTMLElement> => screen.findByRole("button", { name: /^Edit Which nodes/ });
 
 /**
  * Picks a value in the open value picker by typing its name.
@@ -213,7 +214,7 @@ describe("the sidebar outline at rest and the workspace (check 39)", () => {
             controls.map((each) => each.getAttribute("aria-label") ?? each.textContent),
             ["Edit Which nodes"],
         );
-        await userEvent.click(editButton());
+        await userEvent.click(await editButton());
         const ws = await opened();
         assert.include(screen.getAllByRole("region"), ws, "a region, its role implicit in its section");
         assert.isNull(document.querySelector(".mantine-Overlay-root, [data-scrim]"), "no scrim");
@@ -241,7 +242,7 @@ describe("the sidebar outline at rest and the workspace (check 39)", () => {
     it("at 1280 x 800 the preview is 420 px wide, the strip 180 px tall, the properties 320 px", async () => {
         const { session } = await openSample({ width: 1280, height: 800 });
         await openLayer(session, "Sized", TWO_GROUPS);
-        await userEvent.click(editButton());
+        await userEvent.click(await editButton());
         const ws = await opened();
         await userEvent.click(within(ws).getByRole("treeitem", { name: /^Degree min 10/ }));
         await waitFor(() => {
@@ -280,7 +281,7 @@ describe("one workspace for every rule (check 40)", () => {
                 ],
             },
         });
-        await userEvent.click(editButton());
+        await userEvent.click(await editButton());
         const ws = await screen.findByRole("region", { name: "Which nodes -- Owner" });
         // A step selected, its pane's And... adds to its group.
         await userEvent.click(within(ws).getByRole("treeitem", { name: /^Degree min 10/ }));
@@ -341,7 +342,7 @@ describe("Done, Cancel and Escape (checks 41 and fix 4)", () => {
                 ),
             );
         const before = said();
-        await userEvent.click(editButton());
+        await userEvent.click(await editButton());
         const ws = await opened();
         // 1 and 2: two steps turned off with Space on their rows; 3: a step added.
         for (const name of [/^Degree min 10/, /^Degree max 1/]) {
@@ -368,7 +369,7 @@ describe("Done, Cancel and Escape (checks 41 and fix 4)", () => {
     it("Escape with a list open closes only the list; Escape in the pane goes to its row; then it is Done", async () => {
         const { session } = await openSample();
         const layer = await openLayer(session, "Escape", TWO_GROUPS);
-        await userEvent.click(editButton());
+        await userEvent.click(await editButton());
         const ws = await opened();
         await userEvent.click(within(ws).getByRole("treeitem", { name: /^Degree min 10/ }));
         // A list: the value picker of the step.
@@ -403,7 +404,7 @@ describe("scoping by links inside the editor (check 42, fix 1)", () => {
         const { session } = await openSample();
         const layer = await openLayer(session, "Core");
         const expected = coreNumbers(session, (weight) => weight >= 2).filter((core) => core >= 3).length;
-        await userEvent.click(editButton());
+        await userEvent.click(await editButton());
         const ws = await opened();
         // A selection with no step opens on its new step's pane: its value field opens the picker.
         await userEvent.click(await within(ws).findByRole("button", { name: "Value" }));
@@ -463,7 +464,7 @@ describe("starting over (check 44, fix 3)", () => {
         const { session } = await openSample();
         const layer = await openLayer(session, "Clear", TWO_GROUPS);
         const before = JSON.stringify(unionOf(session, layer.id));
-        await userEvent.click(editButton());
+        await userEvent.click(await editButton());
         const ws = await opened();
         await userEvent.click(within(ws).getByRole("button", { name: "Clear" }));
         await waitFor(() => {
@@ -482,7 +483,7 @@ describe("starting over (check 44, fix 3)", () => {
     it("deleting A leaves no row selected, B's group row under the pointer, and a second Delete deletes nothing", async () => {
         const { session } = await openSample();
         const layer = await openLayer(session, "Delete", TWO_GROUPS);
-        await userEvent.click(editButton());
+        await userEvent.click(await editButton());
         const ws = await opened();
         const a = within(ws).getByRole("treeitem", { name: /^A, / });
         await userEvent.click(a);
@@ -504,7 +505,7 @@ describe("plain words (check 45, fix 5)", () => {
     it("Degree says edges at a node and is found by links and connections; While says what it holds", async () => {
         const { session } = await openSample();
         await openLayer(session, "Words");
-        await userEvent.click(editButton());
+        await userEvent.click(await editButton());
         const ws = await opened();
         await userEvent.click(await within(ws).findByRole("button", { name: "Value" }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
@@ -545,7 +546,7 @@ describe("By position switches only on an explicit choice (check 46, fix 6)", ()
                 },
             ],
         });
-        await userEvent.click(editButton());
+        await userEvent.click(await editButton());
         const ws = await opened();
         await userEvent.click(within(ws).getByRole("treeitem", { name: /Degree min 3/ }));
         const mode = await within(ws).findByRole("combobox", { name: "Degree test" });
@@ -583,7 +584,7 @@ describe("a test's mode is the step's own", () => {
     it("By position on a Results value picked in the editor stays, by click and by Enter, and takes a number", async () => {
         const { session } = await openSample();
         const layer = await openLayer(session, "Top");
-        await userEvent.click(editButton());
+        await userEvent.click(await editButton());
         const ws = await opened();
         // A layer that paints everything opens on its new step's Value field.
         await userEvent.click(await within(ws).findByRole("button", { name: "Value" }));
@@ -631,7 +632,7 @@ describe("the workspace as a region (check 47)", () => {
     it("is named by its title, sits in the F6 ring, is announced, and Cancel is a Tab from Clear", async () => {
         const { session, heard } = await openSample();
         await openLayer(session, "Ring", TWO_GROUPS);
-        await userEvent.click(editButton());
+        await userEvent.click(await editButton());
         const ws = await screen.findByRole("region", { name: "Which nodes -- Ring" });
         await waitFor(() => {
             assert.isTrue(ws.contains(document.activeElement), "focus is in the workspace");
@@ -657,7 +658,11 @@ describe("the workspace as a region (check 47)", () => {
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.isUndefined(workspace());
-            assert.strictEqual(document.activeElement, editButton(), "focus is back on Edit");
+            assert.strictEqual(
+                document.activeElement,
+                screen.getByRole("button", { name: /^Edit Which nodes/ }),
+                "focus is back on Edit",
+            );
         });
         assert.include(heard, "Cancelled");
         assert.lengthOf(

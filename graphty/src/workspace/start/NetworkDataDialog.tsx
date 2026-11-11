@@ -4,40 +4,44 @@ import type React from "react";
 
 import { GLYPHS } from "../glyphs";
 import { ariaKey, formatKey } from "../keys/keys";
-import { openServerForm } from "../server/commands";
+import { openServerForm, serverKinds } from "../server/commands";
+import { kindName } from "../server/words";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { addUrl, openFiles } from "./open";
+import NETWORK_SAMPLES from "./network-samples.json";
+import { openFiles, openUrl } from "./open";
 
 /** The workspace dialog id of Open network data. */
 export const NETWORK_DIALOG = "network";
 
-/**
- * The network sources the server form connects to: a badge, the name, what each is, and the
- * source the form opens on.
- */
-const SOURCES = [
-    { badge: "ND", name: "NDEx", what: "Public biology networks", kind: "ndex" },
-    { badge: "N4j", name: "Neo4j", what: "Run a Cypher query", kind: "neo4j" },
-    { badge: "API", name: "Web API", what: "JSON results as nodes and edges", kind: "rest" },
-] as const;
+/** The badge on each kind of network's card, and what the kind is. */
+const CARD_WORDS: Readonly<Record<string, { readonly badge: string; readonly what: string }>> = {
+    ndex: { badge: "ND", what: "Public biology networks" },
+    neo4j: { badge: "N4j", what: "Run a Cypher query" },
+    sparql: { badge: "SP", what: "Run a SPARQL query" },
+    rest: { badge: "API", what: "JSON results as nodes and edges" },
+};
 
 /**
- * Open network data, the one door to data on the network: the start screen's "Open network data"
- * and the Sources "+" item Network data... both open it. Each network source opens the server
- * form on that source; a web address (or a file from this computer) is taken in as the start
- * screen's new project, or as the open project's next source. Open a file, with its key, is there
- * for a reader who came here with a file on this computer.
+ * Open network data, the start page's door to data on the network: one card for each kind of
+ * network the start page has a sample of, a web address box and Open a file. A card opens the app
+ * on an empty project with the network form popped up on that kind.
  * @returns The chooser, open while the workspace dialog is "network"
  */
 export function NetworkDataDialog(): React.JSX.Element {
     const ctx = useWorkspace();
-    const scheme = useComputedColorScheme("dark");
+    const { store } = ctx;
     const openDoor = useCommand("file.open");
     const openFileKey = openDoor?.command.keys?.[0];
+    const scheme = useComputedColorScheme("dark");
     const opened = useWorkspaceState((state) => state.dialog === NETWORK_DIALOG);
     const close = (): void => {
-        ctx.store.set((state) => (state.dialog === NETWORK_DIALOG ? { dialog: null } : {}));
+        store.set((state) => (state.dialog === NETWORK_DIALOG ? { dialog: null } : {}));
     };
+    const cards = NETWORK_SAMPLES.flatMap(({ source }) => {
+        const entry = serverKinds().find((each) => each.id === source);
+        const words = CARD_WORDS[source];
+        return entry === undefined || words === undefined ? [] : [{ source, name: kindName(entry), ...words }];
+    });
     return (
         <Modal.Root opened={opened} onClose={close} centered size={520} radius={16} padding={0}>
             <Modal.Overlay color="#0a0c12" backgroundOpacity={0.45} />
@@ -51,20 +55,20 @@ export function NetworkDataDialog(): React.JSX.Element {
                     </header>
                     <div className="ws-land-net-body">
                         <div className="ws-land-net-sources">
-                            {SOURCES.map((source) => (
+                            {cards.map((card) => (
                                 <UnstyledButton
-                                    key={source.name}
+                                    key={card.source}
                                     className="ws-land-net-source"
                                     onClick={() => {
                                         close();
-                                        openServerForm(ctx.store, source.kind);
+                                        openServerForm(store, card.source);
                                     }}
                                 >
                                     <span className="ws-land-net-badge" aria-hidden>
-                                        {source.badge}
+                                        {card.badge}
                                     </span>
-                                    <b>{source.name}</b>
-                                    <small>{source.what}</small>
+                                    <b>{card.name}</b>
+                                    <small>{card.what}</small>
                                 </UnstyledButton>
                             ))}
                         </div>
@@ -80,7 +84,7 @@ export function NetworkDataDialog(): React.JSX.Element {
                             openLabel="Open"
                             onUrl={(url) => {
                                 close();
-                                addUrl(ctx, url);
+                                openUrl(store, url);
                             }}
                             onFiles={(files) => {
                                 close();

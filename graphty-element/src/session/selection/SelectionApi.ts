@@ -340,6 +340,21 @@ export interface SelectionApi {
      */
     count(target: SelectionTarget): Promise<{ readonly nodes: number; readonly edges: number }>;
     /**
+     * Which nodes and edges `apply(target)` would select, without changing the selection: the ids
+     * behind {@link SelectionApi.count}, read the same way, so a consumer can list or narrow to a
+     * target's elements (a table showing only an answer's rows) and leave the selection alone.
+     *
+     * ```ts
+     * const { nodes } = await session.selection.members({ where: "data.group == `3`" });
+     * session.data.nodePage({ scope: { nodes } });
+     * ```
+     * @param target - What `apply` would select.
+     * @returns The node ids and edge ids it names, before the selection's cap.
+     * @throws The same `GraphtyError` as `apply` for a target it refuses.
+     * @since 3.36.0
+     */
+    members(target: SelectionTarget): Promise<{ readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] }>;
+    /**
      * Which paths a rule reads that nothing in this session answers, before it is applied: a rule
      * over a misspelt column matches nothing, which reads like a correct answer of zero. Each
      * unknown path carries the readable values whose name it is, and when each has exactly one,
@@ -400,6 +415,28 @@ export interface SelectionApi {
      */
     previewHover(on: boolean): void;
     /**
+     * The elements a {@link SelectionApi.peek} is showing now, or null.
+     * @experimental assistant
+     */
+    readonly peeked: { readonly nodes: number; readonly edges: number } | null;
+    /**
+     * Point at some elements for a moment: a neutral halo on them, drawn by a style layer the element
+     * holds above every other, while the rest of the picture stays as it is. It adds no undo step,
+     * changes neither the selection nor the camera, and is never saved. `null` clears it; so does a
+     * change to the graph, and the session's end.
+     *
+     * ```ts
+     * await session.selection.peek({ where: "data.group == `3`" });
+     * await session.selection.peek(null);
+     * ```
+     * @param target - What to point at, read as `apply` reads it; null for nothing.
+     * @returns How many nodes and edges it names.
+     * @throws A `GraphtyError` coded `E_FEATURE_OFF` while the `assistant` experiment is off, or the
+     *   same error as `apply` for a target it refuses.
+     * @experimental assistant
+     */
+    peek(target: SelectionTarget | null): Promise<{ readonly nodes: number; readonly edges: number }>;
+    /**
      * Keep this selection under a name, as a kept set created from the selection, so it can be
      * named as `{ set: id }` later.
      *
@@ -455,6 +492,8 @@ export interface SelectionOwner extends SelectionApi {
      * @returns True when it would change nothing.
      */
     edgeRemovalChangesNothing(ids?: readonly EdgeId[]): boolean;
+    /** Clear a peek without a promise or a check: the session's end. */
+    endPeek(): void;
     /**
      * The node mask itself, for the scope resolver's `selection` source.
      * @returns The live mask, which the caller must not mutate.
@@ -530,6 +569,8 @@ export interface SelectionSources {
     readonly note?: TargetContext["note"];
     /** What a style layer's rule matches. Absent refuses a `layer` target. */
     readonly layer?: TargetContext["layer"];
+    /** The drawn nodes inside a polygon on the canvas. Absent refuses a `region` target. */
+    readonly region?: TargetContext["region"];
     /** Where the attribute bags are read. Absent leaves the attribute statistics empty. */
     readonly records?: SessionRecordSource;
     /**
@@ -560,6 +601,19 @@ export interface SelectionSources {
      * @param after - The node hovered now, or null.
      */
     readonly onHover?: (before: NodeId | null, after: NodeId | null) => void;
+    /**
+     * Called when a peek starts, ends or moves, with the elements whose peeked state moved.
+     * @param dirty - Their dense indices, by kind.
+     * @param dirty.node - Nodes.
+     * @param dirty.edge - Edges.
+     * @param peeked - What it shows now, or null.
+     */
+    readonly onPeek?: (
+        dirty: { readonly node: readonly number[]; readonly edge: readonly number[] },
+        peeked: { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] } | null,
+    ) => void;
+    /** Whether peeking is on: the `assistant` experiment. Absent, it is off. */
+    readonly canPeek?: () => boolean;
     /**
      * Called when the hover preview turns on or off, with the nodes whose hovered state it moved.
      * @param nodes - The selected nodes.
@@ -770,6 +824,8 @@ class Selection implements SelectionOwner {
     /** The node under the pointer. */
     #hovered: NodeId | null = null;
     #hoverPreview = false;
+    /** What a peek is showing, as masks over the frame it was read against. */
+    #peek: { readonly nodes: ElementMask<NodeId>; readonly edges: ElementMask<EdgeId> } | null = null;
 
     /** The target the selection is exactly, while nothing else has changed it. */
     #origin: SelectionTarget | null = null;
@@ -965,6 +1021,7 @@ class Selection implements SelectionOwner {
      * @param count - The new node count.
      */
     remapNodes(remap: U32, count: number): void {
+        this.#movePeek(null);
         this.#nodes.remap(remap, count);
         this.#frameStale = true;
         this.#origin = null;
@@ -976,6 +1033,7 @@ class Selection implements SelectionOwner {
      * @param count - The new edge count.
      */
     remapEdges(remap: U32, count: number): void {
+        this.#movePeek(null);
         this.#edges.remap(remap, count);
         this.#frameStale = true;
         this.#origin = null;
@@ -1065,6 +1123,18 @@ class Selection implements SelectionOwner {
         return Promise.resolve({ nodes: members.nodes.size, edges: members.edges.size });
     }
 
+    members(
+        target: SelectionTarget,
+    ): Promise<{ readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] }> {
+        try {
+            this.#sync();
+            const members = resolveTarget(target, this.#context());
+            return Promise.resolve({ nodes: members.nodes.ids(), edges: members.edges.ids() });
+        } catch (error) {
+            return Promise.reject(error);
+        }
+    }
+
     checkRule(where: Query): RuleCheck {
         return this.#sources.checkRule?.(where) ?? NOTHING_UNKNOWN;
     }
@@ -1127,6 +1197,58 @@ class Selection implements SelectionOwner {
         this.#sync();
         this.#hoverPreview = on;
         this.#sources.onHoverPreview?.(this.#nodes.ids());
+    }
+
+    get peeked(): { readonly nodes: number; readonly edges: number } | null {
+        const peek = this.#peek;
+        return peek === null ? null : { nodes: peek.nodes.size, edges: peek.edges.size };
+    }
+
+    peek(target: SelectionTarget | null): Promise<{ readonly nodes: number; readonly edges: number }> {
+        if (this.#sources.canPeek?.() !== true) {
+            return Promise.reject(
+                new GraphtyError({
+                    code: "E_FEATURE_OFF",
+                    message: `Peeking needs the "assistant" experiment.`,
+                    source: "run",
+                    details: { feature: "assistant", key: "selection.peek" },
+                }),
+            );
+        }
+
+        try {
+            this.#sync();
+            const members = target === null ? null : resolveTarget(target, this.#context());
+            this.#movePeek(members === null ? null : { nodes: members.nodes, edges: members.edges });
+            return Promise.resolve({ nodes: members?.nodes.size ?? 0, edges: members?.edges.size ?? 0 });
+        } catch (error) {
+            return Promise.reject(error);
+        }
+    }
+
+    endPeek(): void {
+        this.#movePeek(null);
+    }
+
+    /**
+     * Show a peek in place of the one showing.
+     * @param next - What to show, or null.
+     */
+    #movePeek(next: { readonly nodes: ElementMask<NodeId>; readonly edges: ElementMask<EdgeId> } | null): void {
+        const before = this.#peek;
+        if (before === null && next === null) {
+            return;
+        }
+
+        this.#peek = next;
+        const node: number[] = [];
+        const edge: number[] = [];
+        for (const peek of [before, next]) {
+            peek?.nodes.forEachMember((index) => node.push(index));
+            peek?.edges.forEachMember((index) => edge.push(index));
+        }
+
+        this.#sources.onPeek?.({ node, edge }, next && { nodes: next.nodes.ids(), edges: next.edges.ids() });
     }
 
     clear(options?: SelectionApplyOptions): SelectionDelta {
@@ -1242,6 +1364,7 @@ class Selection implements SelectionOwner {
             this.#frame = frameOf(graph);
             // The target may name something else in the changed graph: a neighborhood that grew.
             this.#origin = null;
+            this.#movePeek(null);
         }
 
         this.#frameStale = false;
@@ -1266,7 +1389,7 @@ class Selection implements SelectionOwner {
      * @returns The context, built around the frame the selection is synchronised to.
      */
     #context(): TargetContext {
-        const { scope, results, match, find, note, layer } = this.#sources;
+        const { scope, results, match, find, note, layer, region } = this.#sources;
 
         return {
             graph: this.#frame.graph,
@@ -1280,6 +1403,7 @@ class Selection implements SelectionOwner {
             ...(find === undefined ? {} : { find }),
             ...(note === undefined ? {} : { note }),
             ...(layer === undefined ? {} : { layer }),
+            ...(region === undefined ? {} : { region }),
         };
     }
 

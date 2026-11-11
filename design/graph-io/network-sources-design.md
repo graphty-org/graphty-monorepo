@@ -2,10 +2,34 @@
 
 > The Mergify merge queue, the `hold` label and per-change pull requests were retired on 2026-10-18; changes now land through one integration branch (design/ci/golden-local.md). Read the merge-queue parts below as history.
 
-Status: design, 2026-10-17. Nothing here is implemented. Tracking issue: #2907. Browser and Node
-behavior was measured on 2026-10-17 (section 7 says how), the Cypher path was run against a live
-Memgraph 2.22.1 (section 12.3), OpenAlex was checked live (section 13.3) and every sample source in
-section 12.5 was read from a browser page; everything marked unverified was not.
+Status (2026-11-09): implemented, experimental in its API, and always on: the `network-data`
+experiment switch (issue #6211) was removed and its id is now graduated. Built: graph-io's source
+contract, registry and built-in sources NDEx, Cypher (with the `neo4j` and `neptune` presets, over
+the Neo4j Query API, Bolt, Neptune Database and Neptune Analytics), SPARQL, and REST (with the
+`openalex` preset); graphty-element's source verbs on `session.data` (`import` with a `source`,
+`testSource`, `listSource`, `previewSource`, `readExample`, `checkSource`, `refresh`,
+`more`, `expand`, `collapse`, `loadExample`, `pendingSourceLoads`, `runPendingSourceLoad`), the
+credential store and
+the `graphty-sources` project member; the graphty app's Network data form. Not built: the Gremlin
+source (#6212), a file-host source (#6213), more REST presets (#6214), and Memgraph run locally
+(#3408). Tracking issue: #2907. Each built-in source's examples are loaded live every week
+(section 12.5, "Live check").
+
+Samples and network data are separate (section 12.5): a sample is a graph-samples dataset, shown
+as a thumbnail on the graphty app's start page and loaded with `session.data.loadDataset`; it is
+not a network source and never creates a load that waits for approval. Network data is reached
+only through the Network data form and the start page's network tiles, which show one of each
+kind of source's public `examples`.
+Reopening: a project opened with `session.project.open(file, { ownWork: true })` (the reader's
+own autosave or a project kept in this browser) keeps its loads live, and only the loads its
+`graphty-sources` member lists as `waiting` wait for approval; any other project file waits for
+every load.
+
+The rest of this document is the design as written on 2026-10-17, kept for its reasoning. Browser
+and Node behavior was measured then (section 7 says how), the Cypher path was run against a live
+Memgraph 2.22.1 (section 12.3), OpenAlex was checked live (section 13.3) and every example source
+in section 12.5 was read from a browser page; everything marked unverified was not. Where it says
+"sample" for a source's public servers, read "example" (section 12.5).
 
 ## The problem in one paragraph
 
@@ -180,7 +204,7 @@ export interface SourceDescriptor {
     readonly rateLimit?: { requests: number; perMs: number; concurrent?: number }; // paces ctx.fetch
     readonly features?: readonly SourceFeature[]; // default: from the methods present
     readonly migrateParams?: (params: Record<string, unknown>, fromVersion: number) => Record<string, unknown>;
-    readonly samples?: readonly SourceSample[]; // public examples to offer (section 12.5)
+    readonly examples?: readonly SourceExample[]; // public servers to offer (section 12.5)
 }
 
 export interface SourceParamDescriptor {
@@ -1024,15 +1048,74 @@ endpoint ignores `bindings`). Neptune SPARQL goes through the SPARQL source, fro
 Neptune exists to sample; AWS's examples load air-routes, a GraphML file graph-io reads straight
 from `raw.githubusercontent.com/krlawrence/graph/master/sample-data/air-routes.graphml` (CORS `*`).
 
-### 12.5 Sample sources for each adapter
+### 12.5 Example servers for each adapter
 
-Each was read from an `http://localhost` page in Chromium 143 on 2026-10-17 (Firefox and Safari
-unverified). A source lists its samples on its descriptor (`samples?: readonly SourceSample[]`,
-catalog data), so `listSources()` and the element's `sourceDescriptors()` offer them beside
-graph-samples' datasets (section 20) without loading code:
+**Samples and examples are separate.** A _sample_ is one of graph-samples' datasets: a file
+graphty.app hosts, loaded with `session.data.loadDataset` and shown as a thumbnail on the graphty
+app's start page and in its Samples dialog. A sample never creates a network load, so it is never
+saved in `graphty-sources` and never waits for approval. An _example_ is a public server and the
+params that load a known graph from it, listed on its source's descriptor (`examples`), loaded with
+`session.data.loadExample(source, id)` (which applies the endpoint, the published login and the
+first page) and offered only as tiles on the start page, never in the network form. Example ids
+are unique within their source.
+
+**Where the graphty app shows them.** The start page has a
+"Load network data" section immediately before "Generate a graph", with one tile for each kind of
+network: NDEx (`ndex-wp5483`), Neo4j (`neo4j-movies`), SPARQL endpoint (`uniprot-tp53`) and Web API
+(`deps-dev-webpack`). Which example fills a tile is the app's choice and lives in
+`graphty/src/workspace/start/network-samples.json`. Neptune has no tile because it has no public
+server, and OpenAlex has none because it is one service reached through the REST source, not a kind
+of network. A tile calls `session.data.readExample` on a session with no canvas while the tile shows
+as busy, so a failure leaves the reader on the start page with a notice and no project. A successful
+read opens a new project on the graph, with the Style panel open on the row that paints the whole
+graph.
+
+Open network data on the start page pops up a chooser with one card per kind of network (NDEx,
+Neo4j, SPARQL endpoint, Web API), a Web address box and an Open a file button. A card opens the app
+on an empty project with the `ServerForm` popped up on that kind, with no example or sample in it.
+Closing the form with nothing loaded returns to the start page, and closing it during a Load aborts
+the Load.
+
+**What the app says about a load.** A click on a row in the Data place's Sources list shows that
+load in the right panel: its type, file or address, format, size, when it was retrieved, node and
+edge counts, open issues and, for a joined table, how it was joined. These come from
+`session.data.sources()`: `LoadedSource.loadedAt` is the time of the last read and is saved with the
+project (absent for a project saved before it was kept), `url` is the address with no credential in
+it, and `fileName` is the file it came from.
+
+**The dependable set (2026-11-07).** Every one loaded live that day with the counts shown, from
+Node (`scripts/live-examples.ts`) and from the graphty app in Chromium through
+`session.data.loadExample` (another origin, so CORS was exercised; the Bolt examples over
+`wss://`); none needs a secret:
+
+| Source     | Example                                                                                                | Server (login)                                                         | Nodes / edges                  |
+| ---------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- | ------------------------------ |
+| `ndex`     | `ndex-wp5483`, `ndex-nci-pid`, `ndex-huri`, `ndex-signor`, `ndex-dgidb`, `ndex-wikipathways-landscape` | `https://www.ndexbio.org/` (none)                                      | 57 / 34 up to 32,077 / 74,109  |
+| `neo4j`    | `neo4j-movies`, `neo4j-northwind`, `neo4j-gameofthrones`, `neo4j-fincen` (`mode: "all"`)               | `https://demo.neo4jlabs.com:7473` (database name as user and password) | 171 / 253 up to 7,524 / 40,835 |
+| `neo4j`    | `neo4j-movies-bolt`                                                                                    | `bolt+s://demo.neo4jlabs.com:7687` (movies)                            | 171 / 253                      |
+| `neo4j`    | `hetionet` (end-of-life Neo4j 3.5; Metformin's neighbors)                                              | `bolt+s://neo4j.het.io:7687` (none)                                    | 230 / 229                      |
+| `sparql`   | `uniprot-tp53`                                                                                         | `https://sparql.uniprot.org/sparql` (none)                             | 375 / 746                      |
+| `sparql`   | `dbpedia-philosophers`                                                                                 | `https://dbpedia.org/sparql` (none)                                    | 575 / 669                      |
+| `sparql`   | `wikidata-einstein` (Q937's links, LIMIT 500)                                                          | `https://query.wikidata.org/sparql` (none)                             | 232 / 246                      |
+| `rest`     | `string-tp53` (pinned to STRING 12.5), `deps-dev-webpack`                                              | `https://version-12-5.string-db.org`, `https://api.deps.dev` (none)    | 21 / 113, 84 / 121             |
+| `openalex` | `openalex-watts-strogatz` (first page)                                                                 | `https://api.openalex.org` (optional free key)                         | about 16,000 / 24,000          |
+
+Amazon Neptune has no public server, so it has no example; its source is tested against recorded
+answers. Dropped from the 2026-10-17 list: PCNet (cannot load whole; its summary recording stays
+for the size cap test) and the Wikidata advisors query (near the query service's 60 s limit, and
+it used up the per-client budget).
+
+**Live check.** `graph-io/scripts/live-examples.ts` loads every example from its server and fails
+on an error or an empty graph (a count that drifts is a warning). The `network-examples` job of
+`.github/workflows/links-weekly.yml` runs it weekly and keeps one issue labelled
+`dead-network-examples` open while any example fails. `test/sources/examples.test.ts` checks every
+example's catalog data offline and loads the SPARQL examples from recordings.
+
+The rest of this section is the 2026-10-17 survey. Each was read from an `http://localhost` page in
+Chromium 143 (Firefox and Safari unverified). The shape it proposed, now `SourceExample`:
 
 ```ts
-export interface SourceSample {
+export interface SourceExample {
     readonly id: string; // "neo4j-movies"
     readonly plainName: string;
     readonly params: Readonly<Record<string, unknown>>;
@@ -1378,6 +1461,25 @@ Each call takes `credential` and `endpoint` options and, missing a needed creden
 These are capabilities, so they live in the element; what to show while they run is the
 application's.
 
+Seeing and changing what a load fetches:
+
+- `data.sourceSettings(key)` returns a `SourceSettings`: the load's `source`, `endpoint`, `config`,
+  `limits` and `expand`, redacted as a saved project holds them. Params whose names mark a
+  credential are left out, and a query source reports the `mode` it read in. It is `undefined` for
+  anything that is not a network load. Never show a load's in-memory config instead: its URLs are
+  not redacted.
+- `data.replaceSource(key, { source, config }, options)` reads that load again with new settings.
+  The key, the name (unless the caller passes one), styles and filters stay, and it is one undo
+  step. A value sent back as `sourceSettings` showed it keeps the original it stood for, a URL to
+  the same address keeps its secret query keys, and with no `credential` the one remembered for
+  the endpoint is used.
+- When loads overlap, each `sources()` row is matched to one load: the load most of its nodes
+  carry, among loads no earlier row took, the newest on a tie.
+
+In the graphty app, a network source's details panel shows these
+settings as rows and its Edit control opens the network form filled with them (password fields
+empty). A file or sample file source has no Edit control. Closing the form never leaves the app.
+
 ### 14.4 Click-to-expand
 
 **What exists.** A double-click on a node calls two host hooks, `fetchEdges(node, graph)` then
@@ -1645,11 +1747,14 @@ against the effort ("Browser" is CORS, checked 2026-10-17):
 
 `fetchDataset(name, { baseUrl, fetch, signal })` downloads a wire file from graphty.app. It needs
 no importer, auth, paging or query, from a fixed trusted host; folding it into the registry would
-make graph-samples depend on graph-io for nothing. Decision: **two mechanisms, one catalogue.**
-graphty-element, which depends on both, registers a `graph-samples` source built with the public
-`defineSource`, so its catalogue lists datasets and sources together and the dataset source is the
-dogfood third-party source. It maps `fetchDataset`'s plain `Error` to `E_FETCH` /
-`E_SOURCE_NOT_FOUND`; graph-samples adopting codes is a separate additive change.
+make graph-samples depend on graph-io for nothing.
+
+Decision (revised 2026-11-07): **two mechanisms, two catalogues.** graph-samples' datasets are
+samples, loaded with `session.data.loadDataset` and listed by the element's `DATASET_DESCRIPTORS`;
+they are not a network source. The `graph-samples` source the first build registered made every
+dataset load a network load, saved in `graphty-sources` and offered for approval on reopen, and put
+datasets beside servers in the network form, which mixed two things readers keep apart. It is
+removed; no capability went with it, since `loadDataset` loads every dataset.
 
 ---
 
@@ -1686,7 +1791,12 @@ dependencies for graph-io are fine"). These still publish contracts that are har
 
 ---
 
-## Appendix A. Sub-issues (drafted, not filed)
+## Appendix A. Sub-issues (drafted, not filed; built)
+
+Status (2026-11-07): A.1 to A.9 are built (#6211) and were
+never filed as separate issues. What remains is filed: the Gremlin source (#6212), a file-host
+source (#6213), more REST presets (#6214), Cypher neighborhoods without `idProperty` (#6215),
+`neo4j+s://` endpoints (#6216), a default User-Agent in Node (#6217) and local Memgraph (#3408). The drafts below are kept for their scope.
 
 One framework issue, one per initial source, one per further source. All carry `enhancement`, a
 priority and an effort, and say `Refs #2907`.

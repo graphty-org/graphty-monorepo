@@ -30,7 +30,16 @@ import {
 import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
-import { ASSETS_MEMBER, assetsMember, restoreAssets, withAcceptedAssetIds } from "./assets/projectMember";
+import type { AssetsApiInternal } from "./assets/AssetsApi";
+import {
+    assetChoices,
+    ASSETS_MEMBER,
+    assetsMember,
+    type AssetStorage,
+    type ProjectAssetChoice,
+    restoreAssets,
+    withAcceptedAssetIds,
+} from "./assets/projectMember";
 import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
 import type { SessionData } from "./data";
 import { ISSUES_VALUE, type IssueState } from "./issues";
@@ -133,6 +142,8 @@ const EXTENSION_NAME = /^(?!graphty(\.|$))[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
  */
 export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
 
+export type { AssetStorage, ProjectAssetChoice } from "./assets/projectMember";
+
 /** How `project.save` writes the file. */
 export interface ProjectSaveOptions {
     /** Members to leave out of the file. Default: none. */
@@ -154,9 +165,12 @@ export interface ProjectSaveOptions {
      * files into the project (the default), so it opens offline; `"url"` writes only the URL and
      * the file's digest, so the file is fetched again when the project opens (after the reader
      * allows it) and reported with `W_MODEL_CHANGED` when it is no longer the same file.
-     * `session.assets.list()` gives each asset's `url`.
+     * `session.assets.list()` gives each asset's `url`, and `project.assetChoices()` lists the ones
+     * to ask about. A URL with no entry is embedded; with the `node-models` experiment on, it is
+     * kept as the project last kept it (as the file it was opened from, or the last written save
+     * that had an entry for it), else embedded.
      */
-    readonly assets?: Readonly<Record<string, "embed" | "url">>;
+    readonly assets?: Readonly<Record<string, AssetStorage>>;
 }
 
 /** What the session lends the project file for the loads. */
@@ -165,8 +179,9 @@ interface NetworkSourceRecords {
      * Take what an opened project's `graphty-sources` member held; its network loads wait until
      * they are run.
      * @param read - what the member held, or undefined when the file holds none
+     * @param autosave - whether the file is the reader's own work (`ProjectOpenOptions.ownWork`)
      */
-    restore(read: SourcesRead | undefined): void;
+    restore(read: SourcesRead | undefined, autosave: boolean): void;
 }
 
 /** The versions of a member kind this element reads, where they are not just {@link VERSION}. */
@@ -246,6 +261,14 @@ export interface ProjectOpenOptions {
      * @since 3.34.0
      */
     readonly draft?: { readonly onto?: "graph"; readonly guess?: "names" | "values" };
+    /**
+     * The file is the reader's own work coming back: a project this application saved to storage
+     * only it writes (its autosave, its own list of projects saved in the browser), never a file
+     * that came from anywhere else. Its network loads that already ran stay live, and only those
+     * still waiting when it was saved wait again. Default false: a file cannot approve its own
+     * fetches, so every network load it records waits for `session.data.runPendingSourceLoad`.
+     */
+    readonly ownWork?: boolean;
     readonly limits?: {
         /** The largest file to read, in bytes. Default 256 MiB. */
         readonly fileBytes?: number;
@@ -324,6 +347,22 @@ export interface ProjectApi {
      *     is not reverse-domain or a value over 64 KB.
      */
     save(options?: ProjectSaveOptions): Promise<SavedProject>;
+    /**
+     * The models and pictures a layer names by URL that a save can either embed or keep by URL,
+     * each with its size, the layers naming it and what a save without a choice for it does:
+     * what to ask the reader before `save({ assets })`. Samples and assets added from files are
+     * not listed; a save always embeds them.
+     * @returns One entry per URL, in the order the layers first name them; empty when there is
+     *     nothing to ask.
+     * @example
+     * ```typescript
+     * const assets = Object.fromEntries(
+     *     session.project.assetChoices().map((choice) => [choice.url, choice.urlRefused ? "embed" : "url"]),
+     * );
+     * await session.project.save({ assets });
+     * ```
+     */
+    assetChoices(): ProjectAssetChoice[];
     /**
      * Record that a file `save({ markSaved: false })` produced has been written. `dirty` clears
      * unless something changed since that save, and undo returns to it as the save point.
@@ -1584,6 +1623,10 @@ interface Opening {
     readonly restored: Set<ProjectSlice>;
     /** The timeline settings the session held before this open, which it clears. */
     readonly playback?: unknown;
+    /** The dispatcher's services, which let this open restore saved file style values. */
+    readonly services: Dispatcher["services"];
+    /** Marks a restored run as one whose id the element minted. */
+    readonly restoreDerived: (id: RunId) => void;
 }
 
 /**
@@ -1705,9 +1748,16 @@ async function readProject(
     // Before the styles, so a layer reading a `graphty.style.` path binds to what it reads.
     if (Array.isArray(state.fileStyles)) {
         const loads = state.fileStyles as unknown[];
-        await attempt(opening, "graph", () =>
-            tx.execute({ op: "data.setFileStyles", loads: fileStylesInto(loads, nodeIds, edgeIds) }),
-        );
+        // ponytail: a flag, not a per-command grant; a command another caller sends while this one
+        // awaits is let through too. Pass a grant through the dispatch if that ever matters.
+        opening.services.restoringFileStyles = true;
+        try {
+            await attempt(opening, "graph", () =>
+                tx.execute({ op: "data.setFileStyles", loads: fileStylesInto(loads, nodeIds, edgeIds) }),
+            );
+        } finally {
+            opening.services.restoringFileStyles = false;
+        }
     }
 
     const layout = state.layout as
@@ -1811,7 +1861,7 @@ async function readProject(
                 canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
                 const { algorithm, params, scope, seed, sample, exact } = remap(run);
                 try {
-                    await tx.runs.start(algorithm, params, {
+                    const restoring = tx.runs.start(algorithm, params, {
                         as: run.id,
                         style: false,
                         ...(scope === undefined ? {} : { scope }),
@@ -1819,6 +1869,12 @@ async function readProject(
                         ...(sample === undefined ? {} : { sample }),
                         ...(exact === undefined ? {} : { exact }),
                     });
+                    // Before it is recorded: a minted id stays minted, so a later start of the
+                    // same question answers to it rather than minting a second one (#6227).
+                    if (run.derived === true) {
+                        opening.restoreDerived(run.id);
+                    }
+                    await restoring;
                 } finally {
                     canned.delete(run.id);
                 }
@@ -2070,6 +2126,8 @@ function edgeOf(at: unknown, edgeIds: readonly (EdgeId | undefined)[]): EdgeId |
 /** One finished run as a results member keeps it. */
 interface SavedRun {
     readonly id: RunId;
+    /** Whether the element minted the id rather than the author naming it. */
+    readonly derived?: boolean;
     readonly algorithm: string;
     readonly params?: Readonly<Record<string, unknown>>;
     readonly scope?: never;
@@ -2199,6 +2257,7 @@ function projectIdOf(value: unknown): string | undefined {
  * @param hooks - What the session lends it.
  * @param hooks.announce - Publishes `project:status`.
  * @param hooks.isDerived - Whether the element minted a run's id.
+ * @param hooks.restoreDerived - Marks a restored run's id as minted by the element.
  * @param hooks.sources - Writes and restores the loads from network sources.
  * @param hooks.projectChanged - Called once an open has read the project's id, before anything is
  *     fetched, and again once its source loads are restored.
@@ -2211,11 +2270,12 @@ export function projectOf(
     hooks: {
         readonly announce: (change: ProjectStatus) => void;
         readonly isDerived: (id: RunId) => boolean;
+        readonly restoreDerived: (id: RunId) => void;
         readonly sources?: NetworkSourceRecords;
         readonly projectChanged?: () => void;
     },
 ): ProjectApi {
-    const { announce, isDerived, sources: networkSources, projectChanged } = hooks;
+    const { announce, isDerived, restoreDerived, sources: networkSources, projectChanged } = hooks;
     let id = newProjectId();
     // Clean means: the history's cursor is on the save point's step (null: the baseline), and
     // nothing has been merged into that step or cleared from under it. A save made with
@@ -2225,6 +2285,8 @@ export function projectOf(
     // only weakly, so a write that failed and is never marked keeps no copy of the file alive.
     const waiting = new Set<SavePoint>();
     const pointOf = new WeakMap<SavedProject, SavePoint>();
+    // An unmarked save's asset choices, remembered when it is marked saved.
+    const rememberOf = new WeakMap<SavedProject, () => void>();
     let seq = 0;
     let top: string | null = null;
     let last: ProjectStatus = { name: null, dirty: false };
@@ -2315,6 +2377,7 @@ export function projectOf(
      * @param discard - whether unsaved changes may be lost
      * @param problems - collects what could not be restored
      * @param restored - collects the slices that were
+     * @param ownWork - whether the file is the reader's own work (`ProjectOpenOptions.ownWork`)
      */
     const openProject = async (
         doc: ReadDocument,
@@ -2322,6 +2385,7 @@ export function projectOf(
         discard: boolean,
         problems: ProjectProblem[],
         restored: Set<ProjectSlice>,
+        ownWork: boolean,
     ): Promise<void> => {
         refuseUnsaved(isDirty(), discard);
 
@@ -2337,6 +2401,8 @@ export function projectOf(
         if (state?.network !== undefined) {
             problems.push({ code: "W_NETWORK_POLICY_IGNORED", params: { kind: "graphty-session" } });
         }
+        // How the project it replaces kept its URLs is not this project's.
+        (session.assets as AssetsApiInternal).forgetProjectStorage();
         await restoreAssetsOf(session, doc, problems);
         const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
         // A project opens with a fresh history: its opened state is the baseline, and the steps
@@ -2346,7 +2412,7 @@ export function projectOf(
             fact: { code: "project.open", params: { name: name ?? null } },
             starts: true,
         };
-        const loads = readSourcesMember(member, {
+        const loads: SourcesRead = readSourcesMember(member, {
             pointer: `/members/${String(member === undefined ? -1 : doc.positions.get(member))}`,
             data,
             nodes: graph.nodes,
@@ -2370,7 +2436,14 @@ export function projectOf(
                 "Open project",
                 (tx) =>
                     readProject(
-                        { tx, problems, restored, playback: dispatcher.state.visibility.playback },
+                        {
+                            tx,
+                            problems,
+                            restored,
+                            playback: dispatcher.state.visibility.playback,
+                            services: dispatcher.services,
+                            restoreDerived,
+                        },
                         doc,
                         graph,
                         name,
@@ -2385,7 +2458,7 @@ export function projectOf(
             throw error;
         }
         // The network loads wait, fetching nothing, until the application runs them.
-        networkSources?.restore(member === undefined ? undefined : loads);
+        networkSources?.restore(member === undefined ? undefined : loads, ownWork);
         // Its restored source loads on the hosts remembered for it run now.
         projectChanged?.();
         fresh = false;
@@ -2414,7 +2487,7 @@ export function projectOf(
         await session.transaction(
             "Open document",
             async (tx) => {
-                const opening = { tx, problems, restored };
+                const opening = { tx, problems, restored, services: dispatcher.services, restoreDerived };
                 if (graph !== undefined) {
                     await importInto(tx, graph, data?.source, data?.sources);
                     restored.add("graph");
@@ -2451,8 +2524,20 @@ export function projectOf(
         rename(name) {
             return session.config.set({ name });
         },
+        assetChoices() {
+            return assetChoices(session);
+        },
         save(options = {}) {
             const { document, leftOut } = write({ session, dispatcher, isDerived }, options);
+            // What this save was told is how the next save without a choice keeps the same URL,
+            // once its file is written: now, or at `markSaved` for a save that waits on its write.
+            // A copy that is never marked saved, or a write that failed, changes nothing.
+            const remember = (): void => {
+                for (const [url, storage] of Object.entries(options.assets ?? {})) {
+                    (session.assets as AssetsApiInternal).rememberStorage(url, storage);
+                }
+            };
+
             const text = JSON.stringify(document);
             const saved: SavedProject = Object.freeze({
                 text,
@@ -2467,13 +2552,17 @@ export function projectOf(
                 const waited = pointNow();
                 waiting.add(waited);
                 pointOf.set(saved, waited);
+                rememberOf.set(saved, remember);
             } else {
                 adopt(pointNow());
+                remember();
             }
 
             return Promise.resolve(saved);
         },
         markSaved(saved) {
+            rememberOf.get(saved)?.();
+            rememberOf.delete(saved);
             const waited = pointOf.get(saved);
             if (waited !== undefined && waiting.has(waited)) {
                 adopt(waited);
@@ -2517,7 +2606,7 @@ export function projectOf(
 
             await line.opening(turn, () =>
                 isProject
-                    ? openProject(doc, fileName, options.discard === true, problems, restored)
+                    ? openProject(doc, fileName, options.discard === true, problems, restored, options.ownWork === true)
                     : openDocument(doc, problems, restored, options.history === "start"),
             );
 

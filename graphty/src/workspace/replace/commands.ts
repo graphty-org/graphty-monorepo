@@ -11,6 +11,7 @@ import type {
     ReplaceReport,
     ReplaceUnboundCode,
     SourceKey,
+    SourceLoadOptions,
 } from "@graphty/graphty-element/session";
 import React from "react";
 
@@ -18,6 +19,7 @@ import { type CommandContext, defineRegistration } from "../commands/registry";
 import { sourceName } from "../data-place/words";
 import { type Incoming, incomingFiles, pickFiles } from "../start/open";
 import type { WorkspaceStore } from "../state/store";
+import { panelsInView } from "../time/timeActions";
 import { ReplaceReceipt } from "./ReplaceReceipt";
 import { countWords, unboundWords } from "./words";
 
@@ -29,11 +31,11 @@ import { countWords, unboundWords } from "./words";
 export function showUnbound(workspace: WorkspaceStore, fact: CodedFact<ReplaceUnboundCode>): void {
     const { layer, join } = fact.params as { layer?: unknown; join?: unknown };
     if (fact.code === "style-layer" && typeof layer === "string") {
-        workspace.set({ place: "graph", inspected: { kind: "layer-row", id: layer }, notice: null });
+        workspace.set({ place: "graph", inspected: { kind: "layer-row", id: layer }, notice: null, ...panelsInView() });
     } else if (fact.code === "join" && typeof join === "string") {
         workspace.set({ editingJoin: join, joining: null, notice: null });
     } else {
-        workspace.set({ place: "data", notice: null });
+        workspace.set({ place: "data", notice: null, ...panelsInView() });
     }
 }
 
@@ -69,7 +71,7 @@ export async function replaceWith(
     session: GraphSession,
     key: SourceKey,
     incoming: Incoming,
-    choices?: LoadChoices,
+    choices?: LoadChoices & SourceLoadOptions,
 ): Promise<void> {
     const replaced = session.data.sources().find((each) => each.key === key);
     const before = replaced === undefined ? key : sourceName(replaced);
@@ -98,27 +100,6 @@ export async function replaceWith(
             },
         },
     });
-}
-
-/**
- * Where a source the reader brought goes when graphty-element says it is a copy of a loaded one
- * (`data.matchesSource`): it replaces that source.
- * @param workspace - the workspace store.
- * @param session - the project's session.
- * @param incoming - the source.
- * @returns true when it replaced a source, false when it matches none.
- */
-export async function routeToReplace(
-    workspace: WorkspaceStore,
-    session: GraphSession,
-    incoming: Incoming,
-): Promise<boolean> {
-    const key = await session.data.matchesSource(incoming.source);
-    if (key === null) {
-        return false;
-    }
-    await replaceWith(workspace, session, key, incoming);
-    return true;
 }
 
 /**

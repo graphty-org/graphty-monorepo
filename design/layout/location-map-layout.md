@@ -811,7 +811,7 @@ here are prototype names and open (15.1).
 - **Camera**: a new map is faced (the orbit turned to look at -z) and framed with the map's extent,
   the tray and the view insets; Fit with the whole graph includes the map, and a kept angle that
   sees the map from behind is not kept; on the globe the camera's distance from the center never
-  drops below 1.02 radii (wheel or pinch), world data opens at the equator, north up; Top, Side and
+  drops below 1.0001 radii, about 640 m above the earth (wheel or pinch), world data opens at the equator, north up; Top, Side and
   Isometric look at the map's face, from the south and from its front while a map layout is active.
 - **Tiles**: the level is chosen by texel size on screen with edge tiles sized as whole tiles;
   failed tiles retry with backoff (1 s doubling to 60 s) and on `online`; a failed tile's parent

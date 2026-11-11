@@ -51,7 +51,7 @@ registerSource(
             defaultEndpoint: ENDPOINT,
             params: [{ name: "size", plainName: "Size", type: "integer", required: true }],
             features: ["expand"],
-            samples: SIZES.map((size) => ({
+            examples: SIZES.map((size) => ({
                 id: `scaling-path-${String(size)}`,
                 plainName: `Path of ${String(size)}`,
                 params: { size },
@@ -135,12 +135,12 @@ interface Case {
 
 const CASES: readonly Case[] = [
     {
-        method: "SessionDataApi.loadSample",
+        method: "SessionDataApi.loadExample",
         prepare: (size) => {
             const session = fresh();
             return Promise.resolve({
                 session,
-                call: () => session.data.loadSample(`scaling-path-${String(size)}`),
+                call: () => session.data.loadExample("scaling-path", `scaling-path-${String(size)}`),
                 check: () => {
                     assert.strictEqual(session.data.snapshot().nodeCount, size);
                 },

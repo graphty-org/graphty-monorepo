@@ -10,7 +10,7 @@
 
 import "../../src/graphty-element";
 
-import { Matrix } from "@babylonjs/core";
+import { type FreeCamera, Matrix, Vector3 } from "@babylonjs/core";
 import { raySphere } from "babylonjs-map/projection";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
@@ -63,6 +63,29 @@ afterEach(() => {
 async function applied(element: Graphty): Promise<void> {
     await drawnFrames(element.graph.getScene(), 1);
     await element.waitForStableFrame();
+}
+
+/**
+ * Press W once and wait for the whole step it zooms by. A tap zooms over several frames, and a
+ * stable frame does not wait for the reader's own camera motion, so a slow machine that drew one
+ * frame per press would count presses rather than steps.
+ * @param element - The element.
+ */
+async function pressW(element: Graphty): Promise<void> {
+    const scene = element.graph.getScene();
+    const camera = (): Vector3 => scene.activeCamera?.globalPosition.clone() ?? Vector3.Zero();
+    await userEvent.keyboard("w");
+    // A drawn frame has zoomed by part of the step; the step is over on a frame that holds still.
+    await applied(element);
+    let last = camera();
+    for (;;) {
+        await drawnFrames(scene, 1);
+        const now = camera();
+        if (now.equals(last)) {
+            return;
+        }
+        last = now;
+    }
 }
 
 /**
@@ -228,14 +251,22 @@ describe("the camera on a location map", () => {
             await drawnFrames(element.graph.getScene(), 1);
         }
         await applied(element);
+        // The surface fills the view: the map's picture, shaded across it, not the one flat colour
+        // of the background a clipped surface would leave. Lower down one texel of the bundled
+        // picture fills this square; the street tile tests below cover that depth.
+        assert.isAbove(await colorsAround(element, CENTER, 40), 1, "the map is drawn, not clipped");
+        // One wheel event is one notch at most, a share of the height: it takes this many to land.
+        for (let notch = 0; notch < 100; notch++) {
+            await wheel(element, CENTER, -400);
+            await drawnFrames(element.graph.getScene(), 1);
+        }
+        await applied(element);
         const camera = element.graph.getScene().activeCamera?.globalPosition;
         assert.isDefined(camera);
-        assert.isAtLeast(camera.length(), radius * 1.02 - 1e-3, "the camera is outside the globe");
+        assert.isAtLeast(camera.length(), radius * 1.0001 - 1e-3, "the camera is outside the globe");
+        assert.isBelow(camera.length(), radius * 1.001, "and comes down to street level");
         const near = element.graph.getScene().activeCamera?.minZ ?? Infinity;
         assert.isBelow(near, camera.length() - radius, "the near clip plane stops short of the surface");
-        // The surface fills the view: the map's picture, shaded across it, not the one flat colour
-        // of the background a clipped surface would leave.
-        assert.isAbove(await colorsAround(element, CENTER, 40), 1, "the map is drawn, not clipped");
     });
 
     it("turns the globe under the hand: the place grabbed stays under the pointer", async () => {
@@ -267,6 +298,19 @@ describe("the camera on a location map", () => {
         await applied(element);
         const after = at(element, "CHI");
         assert.isBelow(Math.hypot(after.x - chicago.x, after.y - chicago.y), 4, "Chicago stayed under the pointer");
+    });
+
+    it("glides to a node picked on a tilted 2D map and comes to rest, no farther from the map", async () => {
+        const element = await mounted("3d", { mapDimension: "2d" });
+        element.layoutBehavior = { camera: { pivotOnSelection: true } };
+        const camera = element.graph.getScene().activeCamera as FreeCamera;
+        const before = Math.abs(camera.globalPosition.z);
+        await click(element, at(element, "DEN"));
+        await applied(element);
+        assert.deepStrictEqual(element.session.selection.nodes.map(String), ["DEN"]);
+        assert.closeTo(Math.abs(camera.globalPosition.z) / before, 1, 0.02, "the camera kept its height");
+        const den = at(element, "DEN");
+        assert.isBelow(Math.hypot(den.x - CENTER.x, den.y - CENTER.y), 12, "Denver came to the view's center");
     });
 
     it("pans a 2D drag on empty canvas with a node selected, and keeps the pan", async () => {
@@ -315,6 +359,33 @@ describe("the camera on a location map", () => {
             assert.strictEqual(element.mapFrame?.mapDimension, "2d");
             assert.closeTo(spread() / flat, 1, 0.25, "the flat map is framed again");
         });
+    });
+
+    it("holds node sizes on screen over a tilted 2D map, its arcs above it, and comes down to the map", async () => {
+        const element = await mounted("3d", { mapDimension: "2d", nodeScale: "screen" });
+        const camera = element.graph.getScene().activeCamera as FreeCamera;
+        const size = (): number => {
+            const node = element.graph.getNode("CHI");
+            assert.isDefined(node);
+            const view = camera.getViewMatrix();
+            const depth = Vector3.TransformCoordinates(node.mesh.getAbsolutePosition(), view).z;
+            return node.drawnRadius / depth;
+        };
+        const first = size();
+        const onMap = at(element, "CHI");
+        for (let step = 0; step < 6; step++) {
+            await wheel(element, onMap, -200);
+            await applied(element);
+            assert.closeTo(size() / first, 1, 0.2, `step ${String(step)}`);
+        }
+        for (let step = 0; step < 120; step++) {
+            await wheel(element, at(element, "CHI"), -400);
+            await drawnFrames(element.graph.getScene(), 1);
+        }
+        await applied(element);
+        const frame = element.mapFrame;
+        const across = frame?.mapDimension === "2d" ? frame.size : 0;
+        assert.isBelow(Math.abs(camera.globalPosition.z), across * 0.001, "the camera comes down to the map");
     });
 
     it("holds node sizes on screen with nodeScale: screen as the view zooms", async () => {
@@ -442,6 +513,28 @@ function edgeLines(element: Graphty): ({ x: number; y: number; z: number }[] | n
     return [...element.graph.getDataManager().edges.values()].map(
         (edge) => edge.drawnCurve?.map((v) => ({ x: v.x, y: v.y, z: v.z })) ?? null,
     );
+}
+
+/**
+ * How far from its node each end of each edge's line is drawn, in units of the node's own scale:
+ * the same at any zoom for an edge cut back to its node, and off by the drift for one left cut at
+ * an older scale.
+ * @param element - The element.
+ * @returns Each edge's source reach, then its target reach.
+ */
+function edgeReaches(element: Graphty): number[] {
+    return [...element.graph.getDataManager().edges.values()].flatMap((edge) => {
+        const line = edge.drawnCurve;
+        assert.isNotNull(line, "the edge is drawn as a curve");
+        const start = line?.at(0);
+        const end = line?.at(-1);
+        assert.isDefined(start);
+        assert.isDefined(end);
+        return [
+            Vector3.Distance(start, edge.srcNode.drawnPosition) / edge.srcNode.mesh.scaling.x,
+            Vector3.Distance(end, edge.dstNode.drawnPosition) / edge.dstNode.mesh.scaling.x,
+        ];
+    });
 }
 
 describe("the map's dimension and the view", () => {
@@ -652,6 +745,11 @@ describe("zooming a map whose nodes keep their size on screen", () => {
     // back to its nodes' new surfaces on each one: on the OpenFlights sample's 36,906 routes that
     // was about 300 ms a step, so the wheel and W zoomed slow and choppy while turning stayed
     // smooth. The work is counted: edges cut per zoom step.
+    //
+    // A view that holds still is cut exactly, and a notch the browser is slow to deliver holds it
+    // still between two notches. So when the cuts fall depends on the machine: a late notch can move
+    // the last cut onto the last notch, or finish it before the zoom's loop ends, with nothing left
+    // to cut afterwards. What does not depend on it is where the edges end once the view is at rest.
     it("cuts edges back to the nodes only as the scale drifts, then exactly where the zoom stops", async () => {
         const element = await mounted("3d", { mapDimension: "3d", nodeScale: "screen" });
         const stats = element.getStatsManager();
@@ -659,30 +757,49 @@ describe("zooming a map whose nodes keep their size on screen", () => {
         cleanups.push(() => {
             stats.disableProfiling();
         });
+        const scene = element.graph.getScene();
+        let frames = 0;
+        const counting = scene.onAfterRenderObservable.add(() => {
+            frames++;
+        });
+        cleanups.push(() => {
+            counting.remove();
+        });
         const counter = "edges.retrimmedForNodeScale";
         const edges = element.graph.getDataManager().edges.size;
         const scale = (): number => element.graph.getNode("CHI")?.mesh.scaling.x ?? Number.NaN;
+        const reachAtRest = edgeReaches(element);
         stats.resetCounter(counter);
         const steps = 12;
+        // A notch's own two drawn frames, and the two its delivery takes on a free machine.
+        const framesANotch = 4;
         let scaledSteps = 0;
+        let lateNotches = 0;
         for (let step = 0; step < steps; step++) {
             const before = scale();
+            const started = frames;
             await wheel(element, CENTER, -100);
             // Two drawn frames a notch, as a wheel's notches come: far fewer than a held view's.
-            await drawnFrames(element.graph.getScene(), 2);
+            await drawnFrames(scene, 2);
             scaledSteps += scale() === before ? 0 : 1;
+            lateNotches += frames - started > framesANotch ? 1 : 0;
         }
 
         const whileZooming = stats.getCounter(counter);
         assert.isAtLeast(scaledSteps, steps - 1, "every notch scaled the nodes");
-        // Cut on every step, the zoom cut every edge each time: steps * edges.
-        assert.isAtMost(whileZooming, (steps * edges) / 2, "edges are cut at most every other step");
+        // Cut on every step, the zoom cut every edge each time: steps * edges. A late notch may add
+        // one round of its own, since the view really did hold still for it.
+        assert.isAtMost(whileZooming, (steps / 2 + lateNotches) * edges, "edges are cut at most every other step");
 
         await applied(element);
-        assert.isAbove(stats.getCounter(counter), whileZooming, "the edges are cut again once the zoom stops");
+        assert.isBelow(scale(), 1, "the zoom shrank the nodes");
+        const reachAfter = edgeReaches(element);
+        reachAtRest.forEach((reach, i) => {
+            assert.closeTo(reachAfter[i], reach, 1e-3, `edge end ${String(i)} meets its node where the zoom stopped`);
+        });
         const held = stats.getCounter(counter);
         await applied(element);
-        assert.strictEqual(stats.getCounter(counter), held, "and not again while the view holds still");
+        assert.strictEqual(stats.getCounter(counter), held, "the edges are not cut again while the view holds still");
     });
 });
 
@@ -759,8 +876,7 @@ describe("the globe's map near its surface", () => {
         const height = (): number => (scene.activeCamera?.globalPosition.length() ?? Number.NaN) / radius - 1;
         let presses = 0;
         while (height() > 0.021) {
-            await userEvent.keyboard("w");
-            await applied(element);
+            await pressW(element);
             presses++;
             assert.isBelow(presses, 200, "W keeps moving the camera toward the surface");
         }
@@ -842,8 +958,7 @@ describe("the globe's layers near its surface", () => {
         const counts: Record<string, number> = {};
         for (const stop of [0.3, 0.15, 0.08, 0.04, 0.02]) {
             while (height() > stop) {
-                await userEvent.keyboard("w");
-                await applied(element);
+                await pressW(element);
                 presses++;
                 assert.isBelow(presses, 200, "W keeps moving the camera toward the surface");
             }

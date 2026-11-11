@@ -1,3 +1,13 @@
+## 1.5.1 (2026-11-10)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.5.0 (2026-11-09)
+
+### 🚀 Features
+
+- **graph-format:** share the text grammar, the seeded generator and the plain-object check ([#736](https://github.com/graphty-org/graphty-monorepo/issues/736))
+
 ## 1.4.12 (2026-11-02)
 
 ### 🩹 Fixes

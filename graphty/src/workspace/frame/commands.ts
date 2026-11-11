@@ -2,6 +2,7 @@ import { defineRegistration } from "../commands/registry";
 import { selectionClearedWords } from "../inspector/words";
 import { unlessUnsaved } from "../project/actions";
 import { newProjectId } from "../state/store";
+import { panelsInView } from "../time/timeActions";
 import { nothingDrawn } from "../toolbar/useSessionVersion";
 import { cyclePanel } from "./focus";
 import { historyTip, undoOrRedo } from "./historyWords";
@@ -23,7 +24,7 @@ export const registration = defineRegistration({
             run: (ctx) => {
                 unlessUnsaved(ctx, () => {
                     ctx.workspace.set((state) => ({
-                        project: { name: "Untitled", id: newProjectId(state) },
+                        project: { name: "Untitled", id: newProjectId(state), blank: true },
                         page: "panels",
                         place: "graph",
                         inspected: null,
@@ -51,10 +52,8 @@ export const registration = defineRegistration({
             tooltip: ({ session }) => historyTip(session, true),
             run: async ({ session, workspace }) => {
                 // Undo names the step it took back (tier2-design.md section 1).
-                const message = session === null ? null : await undoOrRedo(session, true);
-                if (message !== null) {
-                    // The notice is spoken once, by the status line.
-                    workspace.set({ notice: { message } });
+                if (session !== null) {
+                    await undoOrRedo(session, true, workspace);
                 }
             },
         },
@@ -66,10 +65,8 @@ export const registration = defineRegistration({
             disabled: ({ session }) => (session?.canRedo === true ? null : "Nothing to redo"),
             tooltip: ({ session }) => historyTip(session, false),
             run: async ({ session, workspace }) => {
-                const message = session === null ? null : await undoOrRedo(session, false);
-                if (message !== null) {
-                    // The notice is spoken once, by the status line.
-                    workspace.set({ notice: { message } });
+                if (session !== null) {
+                    await undoOrRedo(session, false, workspace);
                 }
             },
         },
@@ -78,7 +75,7 @@ export const registration = defineRegistration({
             label: "Graph",
             group: "Go to",
             run: ({ workspace }) => {
-                workspace.set({ page: "panels", place: "graph" });
+                workspace.set({ page: "panels", place: "graph", ...panelsInView() });
             },
         },
         {
@@ -86,7 +83,7 @@ export const registration = defineRegistration({
             label: "Data",
             group: "Go to",
             run: ({ workspace }) => {
-                workspace.set({ page: "panels", place: "data" });
+                workspace.set({ page: "panels", place: "data", ...panelsInView() });
             },
         },
         {

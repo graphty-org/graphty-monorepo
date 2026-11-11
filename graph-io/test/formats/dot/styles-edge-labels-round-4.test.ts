@@ -52,6 +52,21 @@ describe("DOT styles: an edge label Graphviz places itself", () => {
         expect(await edges(doc, "labelPosition")).toEqual(["center", null]);
     });
 
+    it("hangs it from the middle of the line Graphviz draws, which stops short of each arrowhead", async () => {
+        const nodes = `node [shape=circle, width=0.1667, fixedsize=true]; a [pos="0,0!"]; b [pos="76,0!"]`;
+        const offset = async (kind: string, attrs: string): Promise<readonly unknown[]> =>
+            edges(
+                `${kind} { layout=neato; ${nodes}; a ${kind === "digraph" ? "->" : "--"} b [label="l"${attrs}] }`,
+                "labelOffsetX",
+            );
+        // from the outline at 6 to the head's arrow at 70 - 10: its middle 5 short of the centers' 38
+        expect(await offset("digraph", "")).toEqual([-5]);
+        expect(await offset("digraph", ", arrowsize=2")).toEqual([-10]);
+        expect(await offset("digraph", ", dir=back, arrowtail=tee")).toEqual([2.5]);
+        expect(await offset("digraph", ", dir=both")).toEqual([null]);
+        expect(await offset("graph", "")).toEqual([null]);
+    });
+
     it("hangs a loop's label outside the loop, its box's left side on the loop's far point (selfRight)", async () => {
         const doc = `digraph { a -> a [label="lbl"]; b -> b; c -> c [label="lbl", tailport=n]; d [pos="0,0"];
             d -> d [label="lbl", pos="e,0,0 1,1 2,2 3,3 4,4"] }`;
@@ -102,12 +117,29 @@ describe("DOT styles: an edge label that is an HTML-like table", () => {
         expect(await edges(doc, "labelBackground")).toEqual(["#ffd700", "#0000ff", null, null, null, null]);
     });
 
-    it("outlines it in the table's color, else the edge's, as wide as its BORDER", async () => {
-        expect(await edges(doc, "labelBorderColor")).toEqual(["#505050", "#ff0000", null, null, null, null]);
+    it("outlines it and its cells in the table's color, else the edge's, as wide as its BORDER", async () => {
+        expect(await edges(doc, "labelBorderColor")).toEqual(["#505050", "#ff0000", "#000000", null, null, null]);
         expect(await edges(doc, "labelBorderWidth")).toEqual([1, 2, null, null, null, null]);
     });
 
     it("keeps the words as far in as its border, spacing, cell border and padding put them", async () => {
         expect(await edges(doc, "labelPadding")).toEqual([6, 7, 2 + 2, null, null, null]);
+    });
+
+    it("hands the table itself over as labelTable, its lines set as Graphviz sets them", async () => {
+        const tables = (await edges(doc, "labelTable")).map((t) =>
+            typeof t === "string" ? (JSON.parse(t) as unknown) : t,
+        );
+        expect(tables.slice(2)).toEqual([expect.objectContaining({ border: 0, cellBorder: 0 }), null, null, null]);
+        expect(tables[0]).toMatchObject({
+            border: 1,
+            cellBorder: 1,
+            cellSpacing: 2,
+            cellPadding: 2,
+            fill: "#ffd700",
+            lineHeight: "font",
+            baseline: 0.95,
+            rows: [{ cells: [{ lines: [{ runs: [expect.objectContaining({ text: "t" })] }] }] }],
+        });
     });
 });

@@ -11,9 +11,6 @@ import type { RuleTree, UnionBranch, UnionLeaf, UnionStep } from "@graphty/graph
 /** A step's verb: Add (Figma's union), Keep (intersect), Except (subtract). */
 export type Verb = UnionStep["op"];
 
-/** The verbs in Figma's boolean menu order: Union, Subtract, Intersect. */
-export const VERBS: readonly Verb[] = ["add", "except", "keep"];
-
 let made = 0;
 
 /**
@@ -44,7 +41,7 @@ export function newSelection(side: UnionLeaf["side"], within: UnionLeaf["within"
  * @param branch - the group.
  * @returns the verbs, in the order the Add row draws them.
  */
-export function verbsFor(branch: UnionBranch): readonly Verb[] {
+function verbsFor(branch: UnionBranch): readonly Verb[] {
     if (branch.steps.length > 0) {
         return ["add", "keep", "except"];
     }

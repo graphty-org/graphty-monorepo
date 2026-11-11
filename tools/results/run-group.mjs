@@ -41,14 +41,39 @@ import {
     activeList,
     closedIssues,
     committedList,
+    DEADLINE_ENV,
     emptyState,
     fileIssue,
     PASSES_TO_LEAVE,
     quarantined,
     runShard,
 } from "../test-quarantine.mjs";
-import { call, config, flushHealth, postInvocation, readPlan, sendHealth } from "./client.mjs";
+import { call, config, fetchPlan, flushHealth, postInvocation, sendHealth } from "./client.mjs";
 import { envString, inputsKey } from "./inputs.mjs";
+
+/**
+ * How long ci.yml's test job gives its tests, from the first shard's start: its timeout-minutes (30), less the
+ * 100 s the job takes to reach them at most (88 s in the run of #5845) and two minutes for stopping the run and the
+ * steps after it. The longest shard takes 21 minutes (p90, 2026-11). GitHub keeps no log of a job it cancels, so
+ * a hang that reaches the job's own limit is never named (#5845), and a test guard (tools/test-wait-guard.mjs) cannot
+ * end it: the guard starts with the test, so its 25 minutes do not fit in what is left of a group's job.
+ * tools/ci-workflows.test.mjs holds this under the job's limit.
+ */
+export const TEST_STEP_LIMIT_MS = 1_560_000;
+
+/**
+ * The environment with the deadline of ci.yml's test job (its job id is `test`). Every other job, with its own
+ * limit, gets none. The first shard of the job starts the clock; the group's other shards keep it through a file
+ * in RUNNER_TEMP, which is the job's own.
+ * @param env the environment
+ * @returns the environment to run with
+ */
+export function withTestDeadline(env) {
+    if (env.GITHUB_JOB !== "test" || !env.RUNNER_TEMP) return env;
+    const file = join(env.RUNNER_TEMP, "test-step-deadline");
+    if (!existsSync(file)) writeFileSync(file, String(Date.now() + TEST_STEP_LIMIT_MS));
+    return { ...env, [DEADLINE_ENV]: readFileSync(file, "utf8") };
+}
 
 /**
  * The group's invocation id without its try: `<run>.<attempt>.<job>.<shard>` in GitHub Actions, else `local.*`.
@@ -213,10 +238,14 @@ export async function refreshPlan(plan, { cfg, sha, family, variant }) {
     if (!cfg || !plan?.base) return plan;
     const variants = [...new Set([`${family}|flags=off|whole`, `${family}|flags=off|selected`, variant])];
     try {
-        const fresh = await readPlan(cfg, { sha, base: plan.base, variants, inputs: variants.map(() => "-") });
-        if (!fresh) return plan;
-        return { ...plan, quarantine: fresh.quarantine ?? [], failingOnBase: fresh.failingOnBase ?? [] };
-    } catch {
+        const r = await fetchPlan(cfg, { sha, base: plan.base, variants, inputs: variants.map(() => "-") });
+        if (!r.ok || !r.data) {
+            console.log(`run-group: plan not read again (${r.why ?? "no plan"}): the first attempt's plan stands`);
+            return plan;
+        }
+        return { ...plan, quarantine: r.data.quarantine ?? [], failingOnBase: r.data.failingOnBase ?? [] };
+    } catch (e) {
+        console.log(`run-group: plan not read again (${e.message.split("\n")[0]}): the first attempt's plan stands`);
         return plan;
     }
 }
@@ -240,10 +269,18 @@ export async function shotsPlan({ cfg, sha, base, family, variant }) {
         // the shard's own family too, as plan-read.mjs asks: judgeRules() carries its quarantine over to `-shots`
         const own = family.replace(/-shots$/, "");
         const variants = [`${own}|flags=off|whole`, `${own}|flags=off|selected`, variant];
-        const fresh = await readPlan(cfg, { sha, base: base ?? undefined, variants, inputs: variants.map(() => "-") });
-        if (!fresh || fresh.unavailable) return null;
+        const r = await fetchPlan(cfg, { sha, base: base ?? undefined, variants, inputs: variants.map(() => "-") });
+        const fresh = r.ok ? r.data : null;
+        if (!fresh || fresh.unavailable) {
+            const why = r.why ?? fresh?.unavailable ?? "no plan";
+            console.log(`run-group: no screenshot plan (${why}): the committed quarantine list stands`);
+            return null;
+        }
         return { ...fresh, ...(base ? { base } : {}), families: [family] };
-    } catch {
+    } catch (e) {
+        console.log(
+            `run-group: no screenshot plan (${e.message.split("\n")[0]}): the committed quarantine list stands`,
+        );
         return null;
     }
 }
@@ -511,6 +548,9 @@ export function recordsOf(o) {
     const { result } = o;
     const common = { id: o.id, head: o.head, variant: o.variant, inputs: o.inputs, env: o.env };
     const firstEnd = result.retried ? result.retryAt : o.endedAt;
+    // a run stopped at its deadline wrote no report of what hung: test-quarantine.mjs names it (#6374)
+    const junit = junitOf(o.dir, o.runId);
+    const hung = result.hung ?? [];
     const recs = [
         recordOf({
             ...common,
@@ -518,7 +558,7 @@ export function recordsOf(o) {
             outcome: firstOutcome(o.code, result),
             startedAt: o.startedAt,
             ms: firstEnd - o.startedAt,
-            junit: junitOf(o.dir, o.runId),
+            junit: hung.length ? { files: junit?.files ?? [], failures: [...(junit?.failures ?? []), ...hung] } : junit,
         }),
     ];
     if (result.retried) {
@@ -618,8 +658,9 @@ function judgeRules({ root, env, plan, touchedPlan, shardName, family, variant, 
 export async function runGroup(
     shardName,
     command = undefined,
-    { root = process.cwd(), env = process.env, gh = ghCli, storeMs = {} } = {},
+    { root = process.cwd(), env: given = process.env, gh = ghCli, storeMs = {} } = {},
 ) {
+    const env = withTestDeadline(given);
     const { SHARDS, STORY_PROJECTS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
     const shard = SHARDS.find((s) => s.shard === shardName);
     const cmd = command ?? shard?.["test-command"];

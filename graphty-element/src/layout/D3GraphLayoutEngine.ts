@@ -1,4 +1,4 @@
-import type { NodeMask } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, type NodeMask } from "@graphty/graph-format";
 import {
     Edge as D3Edge,
     forceCenter,
@@ -14,6 +14,7 @@ import {
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import type { ElementPositions } from "../data/positions";
 import type { Edge } from "../Edge";
 import type { Node, NodeIdType } from "../Node";
 import {
@@ -77,6 +78,12 @@ const d3LayoutOptionsSchema = defineOptions({
     },
 });
 
+/** Where a row drawn with no `Node` finds its row, and the element's array its body publishes into. */
+export interface D3RowSource {
+    getSnapshot(): GraphSnapshot;
+    readonly positions: ElementPositions;
+}
+
 interface D3InputNode extends Partial<D3Node> {
     id: NodeIdType;
 }
@@ -111,6 +118,8 @@ const MAX_FINAL_SWEEPS = 256;
 
 /** d3's own many-body strength, which every node that is not a following group keeps. */
 const DEFAULT_CHARGE = -30;
+/** How hard a link pulls its two ends together. */
+const LINK_STRENGTH = 0.9;
 
 /** The share of the way to its centroid a node's velocity takes per tick at strength 1, d3's own `forceX` default. */
 const CLUSTER_RATE = 0.1;
@@ -199,6 +208,15 @@ export class D3GraphEngine extends LayoutEngine {
     /** The mapping's edges as an array, rebuilt after the mapping changes. See {@link edges}. */
     private edgeList: Edge[] | null = null;
     newNodeMap = new Map<Node, D3InputNode>();
+    /**
+     * The bodies of rows drawn with no `Node`, under renderPath "batched", keyed by node id: a freeze
+     * renumbers rows, an id stays. See {@link D3GraphEngine.addRows}.
+     */
+    private readonly rowBodies = new Map<NodeIdType, D3InputNode>();
+    /** Where a row body finds its row and publishes, once rows were added. */
+    private rowSource: D3RowSource | null = null;
+    /** Rows were added since the last refresh. */
+    private rowsAdded = false;
     newEdgeMap = new Map<Edge, D3InputEdge>();
     /** Each node id's edges, so removing a node visits only its own edges (issue #1425). */
     private readonly edgesByNode = new Map<Edge["srcId"], Set<Edge>>();
@@ -219,7 +237,7 @@ export class D3GraphEngine extends LayoutEngine {
      * @returns True if the graph needs to be refreshed
      */
     get graphNeedsRefresh(): boolean {
-        return !!this.newNodeMap.size || !!this.newEdgeMap.size;
+        return !!this.newNodeMap.size || !!this.newEdgeMap.size || this.rowsAdded;
     }
 
     /**
@@ -242,7 +260,7 @@ export class D3GraphEngine extends LayoutEngine {
 
         // https://github.com/vasturiano/d3-force-3d?tab=readme-ov-file#links
         this.linkForce = forceLink()
-            .strength(0.9)
+            .strength(LINK_STRENGTH)
             .id((d) => (d as D3InputNode).id);
         this.d3ForceLayout = forceSimulation()
             .numDimensions(this.dim)
@@ -280,7 +298,8 @@ export class D3GraphEngine extends LayoutEngine {
         if (this.graphNeedsRefresh || this.reheat) {
             // update nodes
             let nodeList: (D3Node | D3InputNode)[] = [...this.nodeMapping.values()];
-            nodeList = nodeList.concat([...this.newNodeMap.values()]);
+            nodeList = nodeList.concat([...this.newNodeMap.values()], [...this.rowBodies.values()]);
+            this.rowsAdded = false;
             this.d3ForceLayout
                 .alpha(1) // re-heat the simulation
                 .nodes(nodeList)
@@ -346,6 +365,15 @@ export class D3GraphEngine extends LayoutEngine {
         }
 
         collideForce.radius((d) => radii.get((d as D3InputNode).id) ?? 0);
+    }
+
+    /**
+     * Whether `nodeGap` is set.
+     * @returns True when the engine spaces nodes by their drawn size.
+     * @internal
+     */
+    override get spacesBySize(): boolean {
+        return this.nodeGap !== null;
     }
 
     /**
@@ -449,7 +477,7 @@ export class D3GraphEngine extends LayoutEngine {
         for (let sweep = 0; collideForce !== null && sweep < MAX_FINAL_SWEEPS; sweep++) {
             collideForce(1);
             let moved = false;
-            for (const d3node of this.nodeMapping.values()) {
+            for (const d3node of this.bodies()) {
                 moved = this.moveAlong(d3node) || moved;
             }
 
@@ -487,6 +515,98 @@ export class D3GraphEngine extends LayoutEngine {
         for (const [node, d3node] of this.nodeMapping) {
             this.writeNodePosition(node, d3node.x, d3node.y, d3node.z);
         }
+
+        const source = this.rowSource;
+        if (source === null || this.rowBodies.size === 0) {
+            return;
+        }
+
+        const snapshot = source.getSnapshot();
+        const { rows, coords } = this.publishScratch(this.rowBodies.size);
+        let count = 0;
+        for (const [id, body] of this.rowBodies as Map<NodeIdType, D3Node>) {
+            const row = snapshot.ids.indexOf(id);
+            if (row === INVALID_INDEX) {
+                continue;
+            }
+
+            rows[count] = row;
+            coords[3 * count] = body.x;
+            coords[3 * count + 1] = body.y;
+            coords[3 * count + 2] = body.z;
+            count++;
+        }
+
+        this.publishColumn(source.positions, rows, coords, count);
+    }
+
+    /**
+     * Fix each held row body where it is and free the rest, and note each follower row's id.
+     * @param followers - The follower ids, which this adds to.
+     */
+    private holdRowBodies(followers: Set<NodeIdType>): void {
+        const snapshot = this.rowBodies.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
+            const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
+            if (row === INVALID_INDEX) {
+                continue;
+            }
+
+            if (this.isFollower(row)) {
+                followers.add(id);
+            }
+
+            if (this.isHeld(row)) {
+                fixAt(body as D3Node);
+            } else {
+                body.fx = undefined;
+                body.fy = undefined;
+                body.fz = undefined;
+            }
+        }
+    }
+
+    /**
+     * Every body: each `Node`'s, then each row's drawn with no `Node`.
+     * @yields Each body, settled by the last refresh.
+     */
+    private *bodies(): Iterable<D3Node> {
+        yield* this.nodeMapping.values();
+        yield* this.rowBodies.values() as Iterable<D3Node>;
+    }
+
+    /**
+     * Under renderPath "batched", give the simulation a body for each row drawn with no `Node`.
+     * Such a row is unsized (no collision radius), in no `clusterBy` community and never pinned,
+     * since each of those is read from a `Node`; a hold reaches it by its row. A third party's
+     * engine is handed `Node`s only.
+     * @param ids - The rows' node ids.
+     * @param source - Where a body finds its row at publish, and the element's array it publishes into.
+     * @internal
+     */
+    addRows(ids: readonly NodeIdType[], source: D3RowSource): void {
+        this.rowSource = source;
+        for (const id of ids) {
+            this.rowBodies.set(id, this.dim === 2 ? { id, z: 0, vz: 0 } : { id });
+        }
+
+        this.rowsAdded = ids.length > 0 || this.rowsAdded;
+    }
+
+    /**
+     * Under renderPath "batched", take out the bodies of rows that leave the graph with no `Node`;
+     * otherwise each would stay in the simulation and keep pushing the others. Their edges have
+     * already gone through {@link D3GraphEngine.removeEdge}.
+     * @param ids - The rows' node ids; an id with no row body is skipped.
+     * @internal
+     */
+    removeRows(ids: Iterable<NodeIdType>): void {
+        for (const id of ids) {
+            if (this.rowBodies.delete(id)) {
+                this.clustersStale = true;
+                this.reheat = true;
+            }
+        }
     }
 
     /**
@@ -507,8 +627,24 @@ export class D3GraphEngine extends LayoutEngine {
      * @param n - The node to add
      */
     addNode(n: Node): void {
+        // A row's `Node` built late takes over the row's body, where it already is.
+        const body = this.rowBodies.get(n.id);
+        this.rowBodies.delete(n.id);
+        // Already in the simulation: it keeps its place in the node list, and a settled simulation
+        // stays settled, since nothing it steps changed.
+        // ponytail: the next refresh lists it among the Nodes, ahead of the rows still with no Node,
+        // so a reheat after a mixed load orders bodies differently from the object path.
+        if (body !== undefined && isD3Node(body)) {
+            this.nodeMapping.set(n, body);
+            if (this.isHeld(n.index)) {
+                fixAt(body);
+            }
+
+            return;
+        }
+
         // A 2D simulation never initialises or moves z, so it starts, and stays, at 0.
-        this.newNodeMap.set(n, this.dim === 2 ? { id: n.id, z: 0, vz: 0 } : { id: n.id });
+        this.newNodeMap.set(n, body ?? (this.dim === 2 ? { id: n.id, z: 0, vz: 0 } : { id: n.id }));
     }
 
     /**
@@ -601,6 +737,17 @@ export class D3GraphEngine extends LayoutEngine {
     override loadArrangement(): void {
         this.refresh();
         super.loadArrangement();
+        // and each row's body with no `Node`, which a `Node` built later takes where it is
+        const snapshot = this.rowBodies.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const at = { x: 0, y: 0, z: 0 };
+        for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
+            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at)) {
+                body.x = at.x;
+                body.y = at.y;
+                body.z = this.dim === 2 ? 0 : at.z;
+                this.reheat = true;
+            }
+        }
     }
 
     /**
@@ -678,7 +825,34 @@ export class D3GraphEngine extends LayoutEngine {
             }
         }
 
+        this.holdRowBodies(followers);
+
         this.chargeForce.strength((d) => (followers.has((d as D3InputNode).id) ? 0 : DEFAULT_CHARGE));
+        // A link to a node the layout leaves out, or one the filter hides, pulls nothing (see
+        // `LayoutEngine.setLeftOut`).
+        const leftOut = new Set<NodeIdType>();
+        for (const node of this.nodeMapping.keys()) {
+            if (this.isLeftOut(node.index)) {
+                leftOut.add(node.id);
+            }
+        }
+
+        const hiddenLinks = new Set<unknown>();
+        for (const [edge, link] of [...this.edgeMapping, ...this.newEdgeMap]) {
+            if (this.isEdgeLeftOut(edge)) {
+                hiddenLinks.add(link);
+            }
+        }
+
+        const endId = (end: unknown): unknown =>
+            typeof end === "object" && end !== null ? (end as D3InputNode).id : end;
+        this.linkForce.strength((l) =>
+            hiddenLinks.has(l) ||
+            leftOut.has(endId(l.source) as NodeIdType) ||
+            leftOut.has(endId(l.target) as NodeIdType)
+                ? 0
+                : LINK_STRENGTH,
+        );
         for (const [node, d3node] of this.nodeMapping) {
             if (this.isHeld(node.index)) {
                 fixAt(d3node);
@@ -739,7 +913,7 @@ export class D3GraphEngine extends LayoutEngine {
      */
     protected override edgeProblems(drawn: ReadonlyMap<string, Edge>): string[] {
         const problems = heldEdgeProblems([...this.edgeMapping.keys(), ...this.newEdgeMap.keys()], drawn);
-        const nodes = new Set<unknown>(this.nodeMapping.values());
+        const nodes = new Set<unknown>(this.bodies());
         for (const [edge, link] of this.edgeMapping) {
             if (!nodes.has(link.source) || !nodes.has(link.target)) {
                 problems.push(`edge ${edge.id} links a node the simulation no longer holds`);

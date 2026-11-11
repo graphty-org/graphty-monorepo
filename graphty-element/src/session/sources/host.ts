@@ -4,6 +4,7 @@
  */
 
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
+import type { DefaultableLimits } from "../limits";
 import type { SessionCommand } from "../planning";
 import type { SessionEventMap } from "../types";
 import type { SourceLedger } from "./ledger";
@@ -18,7 +19,7 @@ export interface HostEdge {
 }
 
 /** Where a node is drawn, and whether a reader pinned it. */
-export interface HostPlacement {
+interface HostPlacement {
     /** Scene units; null while no layout has placed it. */
     readonly at: { readonly x: number; readonly y: number; readonly z: number } | null;
     readonly pinned: boolean;
@@ -34,6 +35,11 @@ export interface SourceHost {
     readonly owner: object;
     /** What expansions keep beside the graph: the ones running, and the rows each wrote. */
     readonly expansions: ExpansionState;
+    /**
+     * The ceilings a load is refused above, when the session's differ from the defaults.
+     * @returns the ceilings, or undefined while the defaults stand
+     */
+    ceilings?(): Readonly<Pick<DefaultableLimits, "renderCeiling" | "edgesDrawn">> | undefined;
     /**
      * The load records the graph still holds rows of: `data.loads()`.
      * @returns the records, in load order
@@ -59,7 +65,7 @@ export interface SourceHost {
     dispatch(command: SessionCommand): Promise<unknown>;
     /**
      * Waits for every load asked for before this one to dispatch, for a load that holds a
-     * place in line (`session.data.import`, `loadSample`); unset, or undefined, when none is ahead.
+     * place in line (`session.data.import`, `loadExample`); unset, or undefined, when none is ahead.
      * @returns the wait
      */
     waitTurn?(): Promise<void> | undefined;

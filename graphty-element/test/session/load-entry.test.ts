@@ -22,7 +22,7 @@ import { createGraphSession, defineSource, type GraphSession, registerSource } f
 import { type Door, DOOR_ROOTS, type DoorCall, LOAD_ORDER } from "../../src/session/commands/doors";
 import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
 import { loadLineOf } from "../../src/session/loadLine";
-import { callOf } from "./history/door-harness";
+import { callOf, pinLoadedAt } from "./history/door-harness";
 
 /** The ops that write the graph's rows. */
 const GRAPH_OPS = new Set([
@@ -342,7 +342,11 @@ describe("every ordered door, called while a load is held in line", () => {
                 reading.leave();
                 await result;
                 if (door.kind === "dispatches") {
-                    assert.deepEqual(seen, door.expect, `${label} dispatched something other than its row expects`);
+                    assert.deepEqual(
+                        pinLoadedAt(seen),
+                        door.expect,
+                        `${label} dispatched something other than its row expects`,
+                    );
                 } else {
                     assert.isNotEmpty(seen, `${label} dispatched nothing once the load ahead of it left`);
                 }
@@ -359,20 +363,6 @@ describe("a clear cancels a session load that is still reading (issue #3524)", (
         readonly start: (session: GraphSession) => Promise<{ load: Promise<unknown>; read: Held }>;
     }[] = [
         { name: "import from a network source", start: (session) => heldLoad(session, 4) },
-        {
-            name: "loadSample",
-            start: async (session) => {
-                const read = hold("sample");
-                const fetch = async (): Promise<Response> => {
-                    await heldRead("sample");
-                    return new Response(KARATE, { headers: { "content-type": "application/gzip" } });
-                };
-                const load = session.data.loadSample("graph-samples-karate", { fetch });
-                load.catch(() => undefined);
-                await read.started;
-                return { load, read };
-            },
-        },
         {
             name: "loadDataset",
             start: async (session) => {

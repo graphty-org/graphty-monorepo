@@ -97,8 +97,115 @@ export interface CostEstimate {
      * @since 3.17.0
      */
     readonly refusal?: CodedFact<EstimateRefusalCode>;
-    /** Where the number came from, in a sentence: the sizes, the work term and the provenance. */
+    /**
+     * Where the number came from, in a sentence: the sizes, the work term and the provenance.
+     * @deprecated Read {@link CostEstimate.basisFacts} and word it in the application. Removed at
+     * the next major release.
+     */
     readonly basis: string;
+    /**
+     * Where the number came from, as facts with no words: the sizes, the work term and the
+     * provenance.
+     * @since 3.38.0
+     */
+    readonly basisFacts: CostBasis;
+}
+
+/**
+ * Where an estimate's number came from, as {@link CostEstimate.basisFacts} reports it.
+ * @since 3.38.0
+ */
+export interface CostBasis {
+    /** Nodes in scope, or null when the graph's size is not known yet. */
+    readonly nodes: number | null;
+    /** Edges in scope, or null when the graph's size is not known yet. */
+    readonly edges: number | null;
+    /** Whether `nodes` and `edges` were scaled from the whole graph rather than counted. */
+    readonly sizesScaled: boolean;
+    /**
+     * Which work term the seconds were computed from: the cost class's (`"class"`, see
+     * {@link CostEstimate.costClass}), the algorithm's own model (`"algorithm"`), or the plugin's
+     * own work units (`"units"`). Null when no number was computed.
+     */
+    readonly term: "class" | "algorithm" | "units" | null;
+    /** The iteration bound the run would use, or null when no number was computed. */
+    readonly iterations: number | null;
+    /** Whether no iteration bound is declared, so `iterations` is assumed. */
+    readonly iterationsAssumed: boolean;
+    /** The sample size, when the run is sampled, or null. */
+    readonly sample: number | null;
+    /** Seconds added to derive the scope's subgraph; 0 when none. */
+    readonly derivationSeconds: number;
+    /** Where the seconds came from. See {@link CostProvenanceCode} for each code's parameters. */
+    readonly provenance: CodedFact<CostProvenanceCode>;
+}
+
+/**
+ * Where an estimate's seconds came from, as {@link CostBasis.provenance} reports it. Each code's
+ * parameters:
+ *
+ * - `cost.measured` -- `at`: when the run it was scaled from was measured on this device.
+ * - `cost.extrapolated` -- `at`; `ratio`: how far it was scaled; `limit`: the ratio a measurement
+ *   is trusted over.
+ * - `cost.declared-model` -- the algorithm's own declared cost model.
+ * - `cost.calibrated` -- `at`: when this device was calibrated; `memorySpeed`: its memory speed
+ *   against the reference, or null; `stretch`: how much the work was charged for it (1 for none).
+ * - `cost.built-in` -- `calibratedAt`: when a calibration that could not measure this device ran,
+ *   or null when it was never calibrated.
+ * - `cost.no-throughput` -- no throughput is known for the cost class.
+ * - `cost.size-unknown` -- the graph's size is not known yet.
+ * - `cost.unbounded` -- the running time cannot be bounded before it runs.
+ * - `cost.refused` -- it cannot run; see {@link CostEstimate.refusal}.
+ * - `cost.layout` -- the layout model; `layout`: the layout id; `engine`: the engine drawing it.
+ *
+ * New codes may be added in a minor release.
+ * @since 3.38.0
+ */
+export type CostProvenanceCode =
+    | "cost.measured"
+    | "cost.extrapolated"
+    | "cost.declared-model"
+    | "cost.calibrated"
+    | "cost.built-in"
+    | "cost.no-throughput"
+    | "cost.size-unknown"
+    | "cost.unbounded"
+    | "cost.refused"
+    | "cost.layout";
+
+/**
+ * Basis facts with no number behind them: an estimate that is unknown or refused.
+ * @param code - Why there is no number.
+ * @param nodes - Nodes in scope, when known.
+ * @param edges - Edges in scope, when known.
+ * @returns The facts, frozen.
+ */
+export function bareBasis(
+    code: CostProvenanceCode,
+    nodes: number | null = null,
+    edges: number | null = null,
+): CostBasis {
+    return Object.freeze({
+        nodes,
+        edges,
+        sizesScaled: false,
+        term: null,
+        iterations: null,
+        iterationsAssumed: false,
+        sample: null,
+        derivationSeconds: 0,
+        provenance: Object.freeze({ code, params: Object.freeze({}) }),
+    });
+}
+
+/**
+ * A provenance fact.
+ * @param code - The code.
+ * @param params - Its parameters.
+ * @returns The fact, frozen.
+ */
+function provenanceOf(code: CostProvenanceCode, params: CodedFact["params"] = {}): CodedFact<CostProvenanceCode> {
+    return Object.freeze({ code, params: Object.freeze({ ...params }) });
 }
 
 /**
@@ -834,6 +941,7 @@ function termFor(costClass: CostClass, iterations: number): string {
  * @param available - Whether the algorithm could run at all, which is a separate question from
  * whether its cost is knowable.
  * @param refusal - Why it cannot run, when `available` is false.
+ * @param basisFacts - The facts behind `reason`.
  * @returns The estimate.
  */
 function unknownEstimate(
@@ -841,7 +949,8 @@ function unknownEstimate(
     chunked: boolean,
     reason: string,
     available: boolean,
-    refusal?: EstimateRefusal,
+    refusal: EstimateRefusal | undefined,
+    basisFacts: CostBasis,
 ): CostEstimate {
     const estimate: CostEstimate = {
         seconds: Number.POSITIVE_INFINITY,
@@ -851,6 +960,7 @@ function unknownEstimate(
         cancellable: chunked,
         available,
         basis: reason,
+        basisFacts,
     };
 
     return Object.freeze(available ? estimate : { ...estimate, reason, refusal: refusal?.refusal });
@@ -864,6 +974,8 @@ interface ModelledSeconds {
     readonly confidence: CostConfidence;
     /** Where it came from, for the basis line. */
     readonly provenance: string;
+    /** Where it came from, as a fact. */
+    readonly source: CodedFact<CostProvenanceCode>;
 }
 
 /**
@@ -902,7 +1014,12 @@ function fromMeasurement(
     const withinBand = ratio <= MEASUREMENT_EXTRAPOLATION_LIMIT && ratio >= 1 / MEASUREMENT_EXTRAPOLATION_LIMIT;
 
     if (sameMachine && withinBand) {
-        return { seconds, confidence: "measured", provenance: `measured ${measurement.at} on this device` };
+        return {
+            seconds,
+            confidence: "measured",
+            provenance: `measured ${measurement.at} on this device`,
+            source: provenanceOf("cost.measured", { at: measurement.at }),
+        };
     }
 
     if (!sameMachine) {
@@ -913,6 +1030,11 @@ function fromMeasurement(
         seconds,
         confidence: "modelled",
         provenance: `extrapolated ${ratio.toPrecision(2)}x from a run measured ${measurement.at}, which is past the ${MEASUREMENT_EXTRAPOLATION_LIMIT}x band a measurement is trusted over`,
+        source: provenanceOf("cost.extrapolated", {
+            at: measurement.at,
+            ratio,
+            limit: MEASUREMENT_EXTRAPOLATION_LIMIT,
+        }),
     };
 }
 
@@ -936,7 +1058,7 @@ export function estimateCost(input: CostInput): CostEstimate {
         const unknown = refused(`No algorithm is registered under "${input.algorithm}".`, "algorithm.unknown", {
             algorithm: input.algorithm,
         });
-        return unknownEstimate("unbounded", chunked, unknown.reason, false, unknown);
+        return unknownEstimate("unbounded", chunked, unknown.reason, false, unknown, bareBasis("cost.refused"));
     }
 
     const { costClass } = descriptor;
@@ -949,6 +1071,8 @@ export function estimateCost(input: CostInput): CostEstimate {
             chunked,
             "The graph's size is not known yet, so nothing can be estimated.",
             true,
+            undefined,
+            bareBasis("cost.size-unknown"),
         );
     }
 
@@ -967,6 +1091,7 @@ export function estimateCost(input: CostInput): CostEstimate {
             reason,
             refusal,
             basis: `${sizes}; ${reason}`,
+            basisFacts: bareBasis("cost.refused", nodes, edges),
         });
     }
 
@@ -976,6 +1101,8 @@ export function estimateCost(input: CostInput): CostEstimate {
             chunked,
             `${sizes}; this algorithm's running time cannot be bounded before it runs.`,
             true,
+            undefined,
+            bareBasis("cost.unbounded", nodes, edges),
         );
     }
 
@@ -1090,6 +1217,20 @@ function basisNotes(
 }
 
 /**
+ * Which work term a run's seconds come from.
+ * @param descriptor - The algorithm's descriptor.
+ * @param ownUnits - The plugin's own work units, when it declares them.
+ * @returns The term's kind.
+ */
+function termKind(descriptor: AlgorithmDescriptor, ownUnits: number | undefined): CostBasis["term"] {
+    if (ownUnits !== undefined) {
+        return "units";
+    }
+
+    return OWN_COST_MODELS[descriptor.key] === undefined ? "class" : "algorithm";
+}
+
+/**
  * The estimate of a run whose size is known and whose cost class can be bounded.
  * @param input - The cost input.
  * @param descriptor - The algorithm's descriptor.
@@ -1135,6 +1276,17 @@ function availableEstimate(input: CostInput, descriptor: AlgorithmDescriptor, ru
         cancellable: chunked,
         available: true,
         basis: basisNotes(input, descriptor, run, work, modelled.provenance).join("; "),
+        basisFacts: Object.freeze({
+            nodes,
+            edges,
+            sizesScaled: input.scope?.exact === false,
+            term: termKind(descriptor, ownUnits),
+            iterations,
+            iterationsAssumed: work.iterationsAreGuessed,
+            sample: work.sample ?? null,
+            derivationSeconds: derivation,
+            provenance: modelled.source,
+        } satisfies CostBasis),
     });
 }
 
@@ -1191,6 +1343,7 @@ function modelFromRates(
                 seconds: declared * sampleFactor,
                 confidence: "modelled",
                 provenance: "the algorithm's own declared cost model",
+                source: provenanceOf("cost.declared-model"),
             };
         }
     }
@@ -1204,6 +1357,7 @@ function modelFromRates(
             seconds: Number.POSITIVE_INFINITY,
             confidence: "unknown",
             provenance: "no throughput is known for this cost class",
+            source: provenanceOf("cost.no-throughput"),
         };
     }
 
@@ -1226,6 +1380,11 @@ function modelFromRates(
                 stretch > 1
                     ? `calibrated ${calibration.at} on this device, whose memory reads ${calibration.memorySpeed?.toFixed(2) ?? ""}x the reference, so the work is charged ${stretch.toFixed(2)}x`
                     : `calibrated ${calibration.at} on this device`,
+            source: provenanceOf("cost.calibrated", {
+                at: calibration.at,
+                memorySpeed: calibration.memorySpeed ?? null,
+                stretch,
+            }),
         };
     }
 
@@ -1236,6 +1395,7 @@ function modelFromRates(
             calibration === undefined
                 ? "built-in rates; this device has not been calibrated"
                 : `built-in rates; the calibration of ${calibration.at} could not measure this device`,
+        source: provenanceOf("cost.built-in", { calibratedAt: calibration?.at ?? null }),
     };
 }
 
@@ -1636,7 +1796,9 @@ export function gateRun(input: CostInput, options: CostGateOptions = {}): CostGa
             algorithm: input.algorithm,
             estimateSeconds: exactEstimate.seconds,
             confidence: exactEstimate.confidence,
+            // eslint-disable-next-line @typescript-eslint/no-deprecated -- the deprecated sentence stays in details until the major
             basis: exactEstimate.basis,
+            basisFacts: exactEstimate.basisFacts,
             capSeconds: cap,
             graph: { nodes, edges },
             approximable: approximable !== undefined,

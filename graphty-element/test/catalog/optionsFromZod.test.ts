@@ -264,6 +264,7 @@ describe("optionsFromZod", () => {
 
             assert.strictEqual(selection.type, "unknown");
             assert.include(selection.unsupportedReason, "object or record");
+            assert.deepEqual(selection.unsupported, { code: "option.object", params: {} });
         });
 
         it("keeps a union of objects, typed unknown, with a reason", () => {
@@ -271,6 +272,8 @@ describe("optionsFromZod", () => {
 
             assert.strictEqual(background.type, "unknown");
             assert.include(background.unsupportedReason, "union");
+            assert.strictEqual(background.unsupported?.code, "option.union");
+            assert.isNotEmpty(background.unsupported?.params.types);
         });
 
         it("drops no option from a schema of nested objects", () => {
@@ -307,8 +310,10 @@ describe("optionsFromZod", () => {
             for (const option of options) {
                 if (option.type === "unknown") {
                     assert.ok(option.unsupportedReason);
+                    assert.ok(option.unsupported);
                 } else {
                     assert.isUndefined(option.unsupportedReason);
+                    assert.isUndefined(option.unsupported);
                 }
             }
         });
@@ -343,6 +348,7 @@ describe("optionsFromZod", () => {
 
             assert.strictEqual(options[0].type, "unknown");
             assert.include(options[0].unsupportedReason, "recursive");
+            assert.strictEqual(options[0].unsupported?.code, "option.recursive");
         });
 
         it("types a heterogeneous union unknown, naming the arms", () => {

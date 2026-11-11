@@ -357,6 +357,8 @@ export interface WrapOptions {
     anywhere?: boolean;
     /** How many blanks a blank counts as against the width (`wrapSpaceCount`); unset, one. */
     spaceCount?: number;
+    /** The most lines kept; the last one kept ends in an ellipsis when more were cut (`maxLines`). Unset, all. */
+    maxLines?: number;
 }
 
 /** How wide a piece of text is in a style, in a canvas's pixels. */
@@ -381,9 +383,17 @@ export function wrapLines(
         ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
         return ctx.measureText(text).width;
     };
-    return options.ellipsis === true
-        ? lines.map((line) => ellipsize(line, width, measure))
-        : lines.flatMap((line) => wrapLine(line, width, measure, options));
+    const wrapped =
+        options.ellipsis === true
+            ? lines.map((line) => ellipsize(line, width, measure))
+            : lines.flatMap((line) => wrapLine(line, width, measure, options));
+    const { maxLines } = options;
+    if (maxLines === undefined || maxLines < 1 || wrapped.length <= maxLines) {
+        return wrapped;
+    }
+    const kept = wrapped.slice(0, maxLines);
+    kept[maxLines - 1] = ellipsize(kept[maxLines - 1], width, measure, true);
+    return kept;
 }
 
 const ELLIPSIS = "\u2026";
@@ -394,10 +404,11 @@ const ELLIPSIS = "\u2026";
  * @param line - The line's styled segments.
  * @param width - The widest it may be, in the canvas's pixels.
  * @param measure - How wide a piece of text is in a style.
+ * @param always - End the line in an ellipsis even when it fits: the last line kept of a label cut to `maxLines`.
  * @returns The line, cut.
  */
-function ellipsize(line: TextSegment[], width: number, measure: Measure): TextSegment[] {
-    if (line.reduce((sum, seg) => sum + measure(seg.text, seg.style), 0) < width) {
+function ellipsize(line: TextSegment[], width: number, measure: Measure, always = false): TextSegment[] {
+    if (!always && line.reduce((sum, seg) => sum + measure(seg.text, seg.style), 0) < width) {
         return line;
     }
     const out: TextSegment[] = [];
@@ -415,7 +426,11 @@ function ellipsize(line: TextSegment[], width: number, measure: Measure): TextSe
         pushKept(out, kept, seg.style);
         used += measure(kept, seg.style);
     }
-    // every letter fit beside an ellipsis: Cytoscape.js then draws none
+    // every letter fit beside an ellipsis: Cytoscape.js then draws none, but a label cut to its line cap shows the cut
+    const last = line.at(-1);
+    if (always && last !== undefined) {
+        out.push({ text: ELLIPSIS, style: last.style });
+    }
     return out;
 }
 

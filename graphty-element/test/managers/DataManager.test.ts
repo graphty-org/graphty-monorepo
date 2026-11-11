@@ -3,6 +3,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import type { AdHocData } from "../../src/config";
 import type { Graph } from "../../src/Graph";
 import { type DataManager, dataManagerInternals } from "../../src/managers/DataManager";
+import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 describe("DataManager", () => {
@@ -546,6 +547,19 @@ describe("DataManager", () => {
             assert.isDefined(edge);
             assert.equal(dataManager.drawnBundle(edge).count, 2);
             assert.equal(dataManagerInternals.edgesBuilt(dataManager), 2, "the pair's two, not the lone b-c edge");
+        });
+
+        // The element's own walks of the edges outside the data manager (a pick, a selection
+        // restyle) visit the built Edges only.
+        it("picks at a point without building one", () => {
+            assert.isNull(graph.elementAt({ x: 0, y: 0 }));
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+        });
+
+        it("restyles the selection without building one", async () => {
+            graph.setSelectionStyle({ edgeScale: 3 });
+            await dispatcherOf(graph.getSession()).lane.settled();
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
         });
     });
 });

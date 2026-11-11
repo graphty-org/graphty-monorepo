@@ -420,6 +420,9 @@ export { BUILTIN_PRESETS } from "./src/camera/presets";
 export type {
     AccelerationErrorCode,
     GraphtyErrorCode,
+    GraphtyErrorDetails,
+    GraphtyErrorDetailsMap,
+    GraphtyErrorFor,
     GraphtyErrorInit,
     GraphtyErrorJson,
     GraphtyErrorSource,

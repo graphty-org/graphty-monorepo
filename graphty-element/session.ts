@@ -589,11 +589,13 @@ export type {
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
 export { isAlgorithmRunCommand } from "./src/session";
 export type {
+    CostBasis,
     CostConfidence,
     CostEstimate,
     CostGateDecision,
     CostGateLimits,
     CostMeasurement,
+    CostProvenanceCode,
     EstimateRefusalCode,
     MachineCalibration,
 } from "./src/session/cost";
@@ -803,6 +805,9 @@ export { DEFAULT_LIMITS } from "./src/session";
 export type {
     AccelerationErrorCode,
     GraphtyErrorCode,
+    GraphtyErrorDetails,
+    GraphtyErrorDetailsMap,
+    GraphtyErrorFor,
     GraphtyErrorInit,
     GraphtyErrorJson,
     GraphtyErrorSource,

@@ -93,7 +93,8 @@ function externalDependencies(): RegExp[] {
 }
 
 /**
- * Writes `build/chunks.json`: for every chunk of the library build, its file, whether it is an
+ * Writes `build/chunks.json`: for every chunk of the library build (and no other build that loads
+ * this config, such as Storybook's), its file, whether it is an
  * entry, the modules built into it, and the chunks and packages it imports statically and with
  * `import()`. `test/packaging/ai-lazy-chunks.test.ts` reads it to prove that what an entry point
  * loads up front holds no AI framework or provider SDK (design/ai/tanstack-ai-harness-design.md,
@@ -101,10 +102,21 @@ function externalDependencies(): RegExp[] {
  * @returns The plugin.
  */
 function chunkMeta(): Plugin {
+    let library = false;
     return {
         name: "graphty-chunk-meta",
         apply: "build",
+        configResolved(config): void {
+            library = config.build.lib !== false;
+        },
         writeBundle(_options, bundle): void {
+            // Only the library build's chunks. Storybook's build loads this config too, and nx runs
+            // it beside this one (`build-storybook` waits only for the other packages' builds): its
+            // chunks written here were cached as this build's output and failed the test (#6665).
+            if (!library) {
+                return;
+            }
+
             const chunks = Object.values(bundle).flatMap((output) =>
                 output.type === "chunk"
                     ? [

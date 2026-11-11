@@ -204,6 +204,39 @@ describe("estimateCost: the synchronous answer", () => {
         assert.include(estimate.basis, "n + m");
         assert.include(estimate.basis, "has not been calibrated");
     });
+
+    it("gives the same basis as facts with no words", () => {
+        const estimate = estimateCost({
+            algorithm: "degree",
+            descriptor: algorithmByKey("degree"),
+            statistics: statistics({ nodeCount: 70000, edgeCount: 350000 }),
+        });
+
+        assert.deepEqual(estimate.basisFacts, {
+            nodes: 70000,
+            edges: 350000,
+            sizesScaled: false,
+            term: "algorithm",
+            iterations: estimate.basisFacts.iterations,
+            iterationsAssumed: false,
+            sample: null,
+            derivationSeconds: 0,
+            provenance: { code: "cost.built-in", params: { calibratedAt: null } },
+        });
+    });
+
+    it("gives the sample and the refusal as facts", () => {
+        const input = {
+            algorithm: "closeness",
+            descriptor: algorithmByKey("closeness"),
+            statistics: statistics({ nodeCount: 10000, edgeCount: 50000 }),
+        };
+        assert.strictEqual(estimateCost({ ...input, params: { k: 100 } }).basisFacts.sample, 100);
+
+        const unknown = estimateCost({ algorithm: "acme:missing", descriptor: undefined, statistics: statistics() });
+        assert.strictEqual(unknown.basisFacts.provenance.code, "cost.refused");
+        assert.isNull(unknown.basisFacts.term);
+    });
 });
 
 describe("estimateCost: the iteration bound comes from the algorithm's own schema", () => {

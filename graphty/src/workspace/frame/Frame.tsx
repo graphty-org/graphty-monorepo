@@ -10,7 +10,6 @@ import { useLeftPanel } from "../assistant-door/leftPanel";
 import { AutosaveChip } from "../autosave/AutosaveChip";
 import { CanvasMenu } from "../canvas/CanvasMenu";
 import { CanvasOverlays } from "../canvas/CanvasOverlays";
-import { useCanvasDrop } from "../canvas/useCanvasDrop";
 import { DataPage } from "../data-page/DataPage";
 import { DataPlace } from "../data-place/DataPlace";
 import { selectionWorkspaceOn } from "../features";
@@ -60,7 +59,6 @@ interface FrameProps {
  */
 export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Element {
     const { store, element, session } = useWorkspace();
-    const canvasDrop = useCanvasDrop();
     const projectId = useWorkspaceState((state) => state.project?.id ?? 0);
     const page = useWorkspaceState((state) => state.page);
     const place = useWorkspaceState((state) => state.place);
@@ -159,7 +157,6 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         className="ws-canvas"
                         aria-label="Graph drawing"
                         data-testid="canvas"
-                        {...canvasDrop}
                         inert={dockOpen && dockMaximized}
                     >
                         <CanvasMenu>

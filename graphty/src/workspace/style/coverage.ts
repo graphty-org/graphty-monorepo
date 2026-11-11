@@ -462,6 +462,7 @@ export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
     wrapEllipsis: NOT_PLACED,
     wrapAnywhere: NOT_PLACED,
     wrapSpaceCount: NOT_PLACED,
+    maxLines: NOT_PLACED,
     keepBlankLines: NOT_PLACED,
     runAlign: NOT_PLACED,
     rotation: NOT_PLACED,

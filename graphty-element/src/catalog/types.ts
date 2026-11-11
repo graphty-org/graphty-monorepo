@@ -29,7 +29,7 @@ import type { TransitionDescriptor } from "../transitions/registry";
 import type { LabelStyle } from "./label-style";
 import type { ModelDescriptor } from "./models";
 import type { ScreenshotPreset } from "./screenshotPresets";
-import type { ShaderDescriptor, ShaderText, ShaderUse } from "./shaders";
+import type { ShaderDescriptor, ShaderProblem, ShaderText, ShaderUse } from "./shaders";
 
 /**
  * Every error code the element reports. Codes are the contract; messages are not.
@@ -1395,11 +1395,22 @@ export interface StyleDocument {
      */
     tree?: readonly StyleDocumentRow[];
     /**
-     * The text of each pasted shader the layers name, verbatim in the shader text format, so a
-     * document copied alone keeps its shaders. Absent when the layers name none.
+     * The project's shaders, each `{ id, text }` with the complete shader text (header, parameter
+     * declarations and defaults, body, low-detail body), built-ins copied in included. An `id` is a
+     * key into this list and nothing more: a layer's use, an encode key
+     * `<target>.shaders.<id>.<param>` and the background name a shader by it, and a reader resolves
+     * them here, never against its own catalog, so a file opens the same on a build that no longer
+     * ships a shader it used. Absent when the project holds none.
      * @since 3.36.0
      */
     shaders?: readonly { readonly id: string; readonly text: ShaderText }[];
+    /**
+     * What `toDocument` found wrong while writing: `shader.not-saved` with `id`, a shader a layer,
+     * an encode key or the background names that the document does not carry. An element bug,
+     * never expected; ignored on reading. Absent when nothing is wrong.
+     * @since 3.36.0
+     */
+    problems?: readonly ShaderProblem[];
 }
 
 /** One row of a saved style tree: a layer, by its place in the document, or a folder. */

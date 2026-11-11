@@ -59,3 +59,12 @@ const SOURCES: Readonly<Record<MapSourceId, Omit<BasemapSourceDescriptor, "id">>
 export const BASEMAP_SOURCE_DESCRIPTORS: readonly BasemapSourceDescriptor[] = Object.freeze(
     (Object.keys(SOURCES) as MapSourceId[]).map((id) => Object.freeze({ id, ...SOURCES[id] })),
 );
+
+/**
+ * The built-in basemap sources, for the saved-name scan: a save file that names one by id depends on this
+ * build still shipping it (design/architecture/self-contained-save-files.md, section 2.2).
+ * @returns The kind and its ids.
+ */
+export function builtInIdsForTesting(): { kind: string; ids: readonly string[] } {
+    return { kind: "basemaps", ids: BASEMAP_SOURCE_DESCRIPTORS.map((each) => each.id) };
+}

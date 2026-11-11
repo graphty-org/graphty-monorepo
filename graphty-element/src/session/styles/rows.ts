@@ -498,3 +498,21 @@ export function retargetSelector(
     });
     return changed ? { ...rule, where } : selector;
 }
+
+/**
+ * The built-in row templates code branches on, for the saved-name scan: a save file that names one by id depends on this
+ * build still shipping it (design/architecture/self-contained-save-files.md, section 2.2).
+ * @returns The kind and its ids.
+ */
+export function builtInIdsForTesting(): { kind: string; ids: readonly string[] } {
+    return {
+        kind: "rowTemplates",
+        ids: [
+            "graphty:starting-everything",
+            "graphty:starting-selected",
+            "graphty:starting-hovered",
+            PINNED_ROW_ID,
+            GHOST_ROW_ID,
+        ],
+    };
+}

@@ -14,6 +14,7 @@ import rootConfig from "../eslint.config.js";
 import tseslint from "typescript-eslint";
 
 import nodeMeshFunnel from "./eslint-rules/node-mesh-funnel.mjs";
+import { savedFormatLint } from "./test/saved-format/eslint-saved-format.js";
 import nodePositionFunnel from "./eslint-rules/node-position-funnel.mjs";
 
 const local = { rules: { "node-mesh-funnel": nodeMeshFunnel, "node-position-funnel": nodePositionFunnel } };
@@ -31,10 +32,8 @@ export default tseslint.config(
         ignores: [
             "index.d.ts",
             "index.js",
-            // Ad-hoc debugging scripts, never run by a test or a gate. Not linted yet: the test block
-            // below applies @typescript-eslint rules to test/**/*.js, where that plugin is not
-            // registered, so ESLint refuses these files outright. Scope that block to .ts and fix
-            // the findings to remove this line.
+            // Ad-hoc debugging scripts, never run by a test or a gate. Not linted yet: fix their
+            // findings to remove this line.
             "test/helpers/scripts/**/*.js",
             // The lifecycle tests' Chrome extension: a service worker Chrome loads, two lines.
             "test/lifecycle/discard-extension/**",
@@ -85,6 +84,13 @@ export default tseslint.config(
     },
 
     // ============================================
+    // NOTHING READS THE PRESET CATALOG BY A SHADER ID
+    // ============================================
+    // A save file carries its shaders, so a shader id is a key into the project's own shaders.
+    // The rule and the files allowed to read the catalog: test/saved-format/eslint-saved-format.js.
+    savedFormatLint,
+
+    // ============================================
     // NOTHING REACHES THROUGH A NODE TO ITS MESH
     // ============================================
     // The row renderer draws a node with no mesh of its own, so readers use Node's drawn*
@@ -118,7 +124,7 @@ export default tseslint.config(
     // TEST FILES - ALLOW TS-EXPECT-ERROR
     // ============================================
     {
-        files: ["**/*.test.ts", "test/**/*.ts", "test/**/*.js"],
+        files: ["**/*.test.ts", "test/**/*.ts"],
         rules: {
             // Allow ts-expect-error in tests
             "@typescript-eslint/ban-ts-comment": [

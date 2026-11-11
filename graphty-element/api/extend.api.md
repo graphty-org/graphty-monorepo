@@ -2777,6 +2777,7 @@ export interface ShaderDescriptor {
     readonly blend?: "over" | "add";
     readonly bloom?: boolean;
     readonly categories?: readonly string[];
+    readonly copyOf?: string;
     readonly cost: ShaderCost;
     readonly form?: "field" | "sphere";
     readonly hash?: string;
@@ -2793,6 +2794,7 @@ export interface ShaderDescriptor {
     readonly reachParam?: string;
     readonly reads: readonly ShaderInput[];
     readonly requires?: readonly ShaderRequirement[];
+    readonly tags?: readonly string[];
     readonly target: ShaderTarget;
     readonly thumbnail?: string;
     readonly webgpu: ShaderWebGpu;

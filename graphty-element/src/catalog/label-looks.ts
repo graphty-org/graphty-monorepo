@@ -149,3 +149,12 @@ export function withLabelLook(style: LabelStyle): LabelStyle {
 
     return full;
 }
+
+/**
+ * The built-in label looks, for the saved-name scan: a save file that names one by id depends on this
+ * build still shipping it (design/architecture/self-contained-save-files.md, section 2.2).
+ * @returns The kind and its ids.
+ */
+export function builtInIdsForTesting(): { kind: string; ids: readonly string[] } {
+    return { kind: "labelLooks", ids: LABEL_LOOKS.map((each) => each.id) };
+}

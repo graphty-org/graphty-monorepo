@@ -43,9 +43,10 @@ const EDGE_BODY = "vec4 shade(EdgeInput e) { return e.color; }\n";
 
 describe("every preset round-trips through shader text", () => {
     // Pasted text may not take a bare id, so each preset is written under a namespaced copy of its
-    // id, as "Duplicate" writes it; every other fact must come back unchanged.
+    // id, as "Duplicate" writes it; every other fact must come back unchanged. Search tags are
+    // catalog data, kept out of the text.
     it.each(SHADER_PRESETS.map((preset) => [preset.id, preset] as const))("%s", async (id, preset) => {
-        const { origin: _origin, ...facts } = preset;
+        const { origin: _origin, tags: _tags, ...facts } = preset;
         const descriptor = { ...facts, id: `element/${id}` };
         const low = Object.hasOwn(SHADER_PRESET_LOW_DETAIL, id) ? await SHADER_PRESET_LOW_DETAIL[id]() : undefined;
         const registration: ShaderRegistration = {

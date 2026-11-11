@@ -225,7 +225,14 @@ function admit(
     }
 
     const { descriptor: given, glsl, wgsl, lowDetail } = registration;
-    const { webgpu, ...facts } = given;
+    const { webgpu, tags, ...facts } = given;
+    if (
+        tags !== undefined &&
+        !(Array.isArray(tags) && tags.length <= 16 && tags.every((tag) => typeof tag === "string" && tag !== ""))
+    ) {
+        refuse(given.id, "descriptor.tags", [{ code: "shader.header-key", params: { key: "tags" } }]);
+    }
+
     const native = webgpu === "native";
     checkBackendFacts(given.id, native, wgsl);
 
@@ -269,6 +276,7 @@ function admit(
         cost: given.cost ?? costClass,
         webgpu: webgpu ?? (wgsl === undefined ? "translate" : "native"),
         origin,
+        ...(tags === undefined ? {} : { tags: Object.freeze([...tags]) }),
     });
 
     return {
@@ -304,9 +312,7 @@ export function registerShader(registration: ShaderRegistration, options?: Regis
     if (typeof id === "string" && builtIns.has(id)) {
         throw new GraphtyError({
             code: "E_DUPLICATE_PLUGIN",
-            message:
-                `"${id}" is the id of a shader the element ships, and a built-in id may not be taken: ` +
-                "a saved document that named it yesterday has to mean the same thing today",
+            message: `"${id}" is the id of a shader the element ships, and a built-in id may not be taken by a registration.`,
             source: "registry",
             details: { kind: "shader", name: id, builtIn: true },
         });
@@ -484,14 +490,19 @@ export function addPastedShaderSource(source: PastedShaderSource): () => void {
 /**
  * The descriptor of a pasted shader, built exactly as a registered one is.
  * @param registration - What `parseShaderText` read from the text.
- * @param hash - The SHA-256 of the text.
+ * @param hash - The content hash of the text.
+ * @param namespaced - Whether its id must carry a namespace; a project's own shaders may be bare.
  * @returns The descriptor, origin `"pasted"`.
  * @throws A `GraphtyError` with `E_BAD_COMMAND` when the registration does not pass the checks.
  */
-export function describePastedShader(registration: ShaderRegistration, hash: string): ShaderDescriptor {
+export function describePastedShader(
+    registration: ShaderRegistration,
+    hash: string,
+    namespaced = true,
+): ShaderDescriptor {
     // A pasted text's picture is drawn from its own code, never fetched from a URL it names.
     const { thumbnail: _thumbnail, ...facts } = registration.descriptor;
-    const { descriptor } = admit({ ...registration, descriptor: facts }, "pasted", true);
+    const { descriptor } = admit({ ...registration, descriptor: facts }, "pasted", namespaced);
 
     return Object.freeze({ ...descriptor, hash });
 }
@@ -541,6 +552,36 @@ export function shaderDescriptor(id: string): ShaderDescriptor | undefined {
 }
 
 /**
+ * One of an open project's own shaders by id. A layer's use, an encode key and the background name
+ * a project shader, never a preset or a page-registered one, so this is the lookup for everything
+ * but the gallery: a bare id such as `pearl` is a key into the project's shaders, and its being
+ * equal to a catalog id means nothing.
+ * @param id - The id.
+ * @returns Its descriptor, or undefined when no open project holds it.
+ */
+export function projectShaderDescriptor(id: string): ShaderDescriptor | undefined {
+    for (const source of pastedSources) {
+        const held = source.descriptor(id);
+        if (held !== undefined) {
+            return held;
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * A shader to plan a write with: the open project's own, else the catalog entry a write that names
+ * it copies in. For a proposal or a description read before the write (an encoding plan, a vary
+ * picker), never for resolving a saved reference: the write itself resolves against the project.
+ * @param id - The id.
+ * @returns Its descriptor, or undefined.
+ */
+export function plannedShaderDescriptor(id: string): ShaderDescriptor | undefined {
+    return projectShaderDescriptor(id) ?? shaderDescriptor(id);
+}
+
+/**
  * The ids of every shader a layer's shader list of one target can use (a node list takes node and
  * group shaders), for a refusal that lists what would have been right.
  * @param target - The list's target.
@@ -567,4 +608,13 @@ export function shaderIdsFor(target: "node" | "edge"): readonly string[] {
  */
 export function clearRegisteredShadersForTesting(): void {
     registry.clearForTesting();
+}
+
+/**
+ * The shader ids this build lists, for the saved-name scan and the catalog census. The session's
+ * static catalog tables leave shaders out, since a project's list is its own.
+ * @returns The kind and the ids.
+ */
+export function builtInIdsForTesting(): { kind: string; ids: readonly string[] } {
+    return { kind: "shaders", ids: shaderDescriptors().map((each) => each.id) };
 }

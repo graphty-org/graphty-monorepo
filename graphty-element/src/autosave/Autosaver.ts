@@ -442,6 +442,8 @@ export class Autosaver {
     };
     /** The page's settings, digested, as written with every meta. */
     #pageConfig: Record<string, string> = {};
+    /** An entry an open read with losses, kept as it was until the reader saves the project. */
+    #kept: string | null = null;
     /** The restored entry, until the first change or the first page load after the restore. */
     #absorb: AutosaveEntryMeta | null = null;
     #restored: AutosaveRestored | null = null;
@@ -1518,7 +1520,14 @@ export class Autosaver {
         }
 
         this.#absorb = current;
-        if (Number(current.formatVersion) < AUTOSAVE_FORMAT_VERSION) {
+        if (report.problems.some((problem) => problem.code === "shader.unknown")) {
+            // The open dropped shader uses the entry could not resolve. The entry stays as it was
+            // read, until the reader saves, and the work goes to a new entry, so a lossy open is
+            // never written over the only copy.
+            this.#kept = current.id;
+            this.#conflict(entry.id);
+            this.#kick();
+        } else if (Number(current.formatVersion) < AUTOSAVE_FORMAT_VERSION) {
             // Rewritten whole in the current format, flushed to disk.
             this.#strict = true;
             EVERY_PART.forEach((tag) => entry.unwritten.add(tag));
@@ -1840,6 +1849,13 @@ export class Autosaver {
 
                 if (entry === this.#entry) {
                     this.#saved = { at: meta.savedAt as string, revision: meta.revision as number };
+                }
+
+                const kept = this.#kept;
+                if (kept !== null && meta.dirty === false) {
+                    // The reader saved the project: what the lossy open left out is theirs to drop.
+                    this.#kept = null;
+                    this.#store.remove(kept).catch(() => undefined);
                 }
             });
             job.undo.push(() => {

@@ -3662,6 +3662,7 @@ export interface StyleDocument {
     layers: readonly LayerSpec[];
     // (undocumented)
     palettes?: readonly PaletteDescriptor[];
+    problems?: readonly ShaderProblem[];
     shaders?: readonly {
         readonly id: string;
         readonly text: ShaderText;

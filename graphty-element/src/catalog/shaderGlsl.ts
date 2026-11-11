@@ -1493,3 +1493,12 @@ export function entryTargetOf(body: string): ShaderTarget | undefined {
 
     return entry === null || !Object.hasOwn(TARGET_OF_INPUT, entry[1]) ? undefined : TARGET_OF_INPUT[entry[1]];
 }
+
+/**
+ * The built-in helpers every shader body may call, for the saved-name scan: a save file that names one by id depends on this
+ * build still shipping it (design/architecture/self-contained-save-files.md, section 2.2).
+ * @returns The kind and its ids.
+ */
+export function builtInIdsForTesting(): { kind: string; ids: readonly string[] } {
+    return { kind: "shaderLibrary", ids: SHADER_HELPERS };
+}

@@ -173,6 +173,60 @@ describe("prIntegrity", () => {
         assert.deepEqual(prIntegrity(r.dir, pr(r, { reviews: [review("owner", "APPROVED", head)] })).problems, []);
     });
 
+    for (const path of [
+        "graphty-element/test/saved-format/saved-format-lists.json",
+        "tools/check-saved-format-allowlist.mjs",
+        "graphty-element/eslint.config.js",
+        "graphty-element/src/catalog/shipped-shader-hashes.json",
+    ]) {
+        it(`fails a change to ${path} unless a code owner approved the head`, () => {
+            const r = repo();
+            r.git("switch", "-q", "-c", "b");
+            const widened = '{"exceptions":[{"kind":"palette","paths":["a.palette"],"catalogs":["palettes"]}]}\n';
+            const head = r.commit("test: widen the save-file checks", {
+                [path]: path.endsWith("saved-format-lists.json") ? widened : "{}\n",
+            });
+            assert.match(prIntegrity(r.dir, pr(r)).problems.join(), /^Saved format: /);
+            assert.match(prIntegrity(r.dir, pr(r, { author: DEPENDABOT })).problems.join(), /^Saved format: /);
+            assert.deepEqual(prIntegrity(r.dir, pr(r, { reviews: [review("owner", "APPROVED", head)] })).problems, []);
+        });
+    }
+
+    it("lets a change that only narrows the exception lists and adds a kind's row through", () => {
+        const lists = "graphty-element/test/saved-format/saved-format-lists.json";
+        const kinds = "graphty-element/test/saved-format/kinds.ts";
+        const r = repo();
+        r.commit("test: the lists", {
+            [lists]:
+                '{"selfContained":["shaders"],"exceptions":[{"kind":"palette","paths":["a"],"catalogs":["palettes"]}]}\n',
+            [kinds]: "export const KINDS = [\n    shaders,\n];\n",
+        });
+        r.git("switch", "-q", "-c", "b");
+        r.commit("test: carry palettes", {
+            [lists]: '{"selfContained":["shaders","palettes"],"exceptions":[]}\n',
+            [kinds]: "export const KINDS = [\n    shaders,\n    palettes,\n];\n",
+        });
+        assert.deepEqual(prIntegrity(r.dir, pr(r)).problems, []);
+        r.commit("test: rewrite a row", { [kinds]: "export const KINDS = [\n    palettes,\n];\n" });
+        assert.match(prIntegrity(r.dir, pr(r)).problems.join(), /^Saved format: .*kinds\.ts/);
+    });
+
+    it("lets a mechanical revert change the save-file checks", () => {
+        const r = repo();
+        r.git("switch", "-q", "-c", "feature");
+        r.commit("test: a saved-format list", { "graphty-element/test/saved-format/saved-format-lists.json": "{}\n" });
+        r.git("switch", "-q", "master");
+        r.git("merge", "-q", "--no-ff", "--no-edit", "feature");
+        const m = r.git("rev-parse", "HEAD");
+        r.git("switch", "-q", "-c", "revert");
+        r.git("revert", "--no-edit", "-m", "1", m);
+        assert.deepEqual(prIntegrity(r.dir, pr(r)).problems, []);
+        // anything else in a saved-format file still needs the owner
+        r.git("switch", "-q", "-c", "other", m);
+        r.commit("test: unrelated", { "graphty-element/test/saved-format/x.test.ts": "x\n" });
+        assert.match(prIntegrity(r.dir, pr(r)).problems.join(), /^Saved format: /);
+    });
+
     it("fails a weakened test, which a code owner's approval clears and Dependabot does not skip", () => {
         const r = repo();
         r.git("switch", "-q", "-c", "b");

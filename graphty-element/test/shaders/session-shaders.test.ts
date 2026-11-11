@@ -19,7 +19,7 @@ import { formatShaderDraft, removeShaderParam, renameShaderParam, splitShaderTex
 import type { LayerSpec, StyleDocument } from "../../src/catalog/types";
 import { ShaderGuard } from "../../src/managers/ShaderGuard";
 import { createGraphSession, type GraphSession } from "../../src/session";
-import { type HostShader, type ShaderHost, shadersControllerOf } from "../../src/session/shaders";
+import { type HostShader, shaderContentHash, type ShaderHost, shadersControllerOf } from "../../src/session/shaders";
 import { defineShader } from "../../src/simple/defineShader";
 import { sha256Hex } from "../../src/utils/sha256";
 
@@ -164,6 +164,15 @@ function documentWithTint(extra: Record<string, unknown> = {}): StyleDocument {
     };
 }
 
+/**
+ * Put pearl and glass-marble on a layer, which copies both presets into the project.
+ * @param s - The session.
+ * @param layer - The layer.
+ */
+async function usePresets(s: GraphSession, layer: string): Promise<void> {
+    await s.styles.update(layer, { set: { "node.shaders": [{ shader: "pearl" }, { shader: "glass-marble" }] } });
+}
+
 describe("session.shaders", () => {
     it("hashes text with the standard SHA-256", () => {
         for (const text of ["", "abc", TINT, "x".repeat(1000)]) {
@@ -178,10 +187,10 @@ describe("session.shaders", () => {
         assert.isTrue(added.ok);
         const [listed] = s.shaders.list();
         assert.strictEqual(listed.id, "user/tint");
-        assert.strictEqual(listed.hash, sha256Hex(TINT));
+        assert.strictEqual(listed.hash, shaderContentHash(TINT));
         // No canvas: only the static checks ran.
         assert.strictEqual(listed.state, "not-checked");
-        assert.deepEqual(seen.approved, [{ id: "user/tint", hash: sha256Hex(TINT) }]);
+        assert.deepEqual(seen.approved, [{ id: "user/tint", hash: shaderContentHash(TINT) }]);
         assert.isTrue(s.catalog.shaders().some((descriptor) => descriptor.id === "user/tint"));
         assert.strictEqual(s.catalog.shaders().find((d) => d.id === "user/tint")?.origin, "pasted");
     });
@@ -442,7 +451,7 @@ vec4 shadeFar(NodeInput n) {
         const approved = await s.shaders.approve("user/tint");
         assert.isTrue(approved.ok);
         assert.strictEqual(s.shaders.status("user/tint").state, "not-checked");
-        assert.deepEqual(seen.approved, [{ id: "user/tint", hash: sha256Hex(TINT) }]);
+        assert.deepEqual(seen.approved, [{ id: "user/tint", hash: shaderContentHash(TINT) }]);
     });
 
     it("opens a style document's shader held, with the layer naming it, and reports it", async () => {
@@ -486,7 +495,7 @@ vec4 shadeFar(NodeInput n) {
         const crashed = await session();
         const controller = shadersControllerOf(crashed.session);
         controller?.configure({ trustedHashes: [sha256Hex(TINT)] });
-        controller?.attach(fakeHost({ crashMarked: [sha256Hex(TINT)] }));
+        controller?.attach(fakeHost({ crashMarked: [shaderContentHash(TINT)] }));
         await crashed.session.styles.applyTemplate(documentWithTint());
         assert.strictEqual(crashed.session.shaders.status("user/tint").state, "held");
     });
@@ -532,7 +541,7 @@ vec4 shadeFar(NodeInput n) {
 
         host.lose([]);
         assert.notStrictEqual(s.shaders.status("user/tint").state, "off");
-        host.lose([sha256Hex(TINT)]);
+        host.lose([shaderContentHash(TINT)]);
         assert.deepEqual(s.shaders.status("user/tint"), {
             state: "off",
             problem: { code: "shader.quarantined", params: { id: "user/tint" } },
@@ -549,7 +558,7 @@ vec4 shadeFar(NodeInput n) {
         await fresh.session.styles.applyTemplate(document, { shaders: "run" });
         assert.deepEqual(
             fresh.session.shaders.list().map((shader) => [shader.id, shader.hash]),
-            [["user/tint", sha256Hex(TINT)]],
+            [["user/tint", shaderContentHash(TINT)]],
         );
     });
 
@@ -644,7 +653,7 @@ vec4 shadeFar(NodeInput n) {
         const host = fakeHost();
         shadersControllerOf(s)?.attach(host);
         await s.shaders.add(TINT);
-        host.lose([sha256Hex(TINT)]);
+        host.lose([shaderContentHash(TINT)]);
         assert.deepEqual(await s.shaders.thumbnail("user/tint"), {
             code: "shader.quarantined",
             params: { id: "user/tint" },
@@ -707,14 +716,15 @@ vec4 shade(NodeInput n) {
     });
 
     it("turns heavy shaders off when the guard does, presets as pasted ones, publishes it, and back on", async () => {
-        const { session: s } = await session();
+        const { session: s, layer } = await session();
         const host = fakeHost();
         const controller = shadersControllerOf(s);
         controller?.attach(host);
         const heavy = TINT.replace('"place": "paint",', '"place": "paint", "cost": "heavy",');
         await s.shaders.add(heavy);
         await s.shaders.add(TINT.replace('"user/tint"', '"user/light"'));
-        // glass-marble is a heavy preset; pearl a light one.
+        // glass-marble is a heavy preset; pearl a light one. A use names the project's copy.
+        await usePresets(s, layer);
         assert.isNotNull(await controller?.drawable("glass-marble"));
         assert.isNotNull(await controller?.drawable("pearl"));
         const statuses = events(s).status;
@@ -772,10 +782,11 @@ vec4 shade(NodeInput n) {
     });
 
     it("freezes a preset that flashed, and turns one off that the GPU was lost under", async () => {
-        const { session: s } = await session();
+        const { session: s, layer } = await session();
         const host = fakeHost();
         const controller = shadersControllerOf(s);
         controller?.attach(host);
+        await usePresets(s, layer);
         const pearl = await controller?.drawable("pearl");
         const marble = await controller?.drawable("glass-marble");
         assert.ok(pearl && marble);
@@ -805,10 +816,14 @@ vec4 shade(NodeInput n) {
             assert.ok(carried, "the registered shader's text is in the document");
             assert.include(carried.text, HEAT_BODY.trim().split("\n")[0]);
 
-            // With the id registered on this page too, the page's version draws: nothing joins the project.
+            // With the id registered on this page too, the file's copy joins the project, trusted
+            // because its text is the registration's.
             const here = await session();
             await here.session.styles.applyTemplate(document);
-            assert.lengthOf(here.session.shaders.list(), 0);
+            assert.deepEqual(
+                here.session.shaders.list().map((shader) => shader.id),
+                ["acme/heat"],
+            );
             assert.notStrictEqual(here.session.shaders.status("acme/heat").state, "held");
 
             // On a page that never registered it, the text arrives as content and is held.
@@ -829,7 +844,7 @@ vec4 shade(NodeInput n) {
         const host = fakeHost();
         shadersControllerOf(s)?.attach(host);
         await s.shaders.add(RING);
-        host.flashing.add(sha256Hex(RING));
+        host.flashing.add(shaderContentHash(RING));
         host.guard.announce();
         assert.deepEqual(s.shaders.status("user/ring"), {
             state: "still",
@@ -903,10 +918,13 @@ vec4 shade(NodeInput n) {
             params: { tint: 0.9 },
         });
 
-        // Pasted back, it is the preset with those values: nothing is added to the project.
+        // Pasted back, it is the preset with those values: the use names the preset's project copy.
         const added = await s.shaders.add(text, { apply: { layer } });
         assert.isTrue(added.ok && added.descriptor.id === "uncertainty-aura");
-        assert.lengthOf(s.shaders.list(), 0);
+        assert.deepEqual(
+            s.shaders.list().map((shader) => shader.id),
+            ["uncertainty-aura"],
+        );
         assert.deepEqual(JSON.parse(JSON.stringify(s.styles.get(layer)?.set?.["node.shaders"])), [
             { shader: "uncertainty-aura", params: { tint: 0.9 } },
         ]);

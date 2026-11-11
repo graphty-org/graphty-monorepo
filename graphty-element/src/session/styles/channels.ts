@@ -885,7 +885,7 @@ export interface ChannelDescriptor {
      * Why the channel cannot be set, as a sentence for a reader beside a disabled control.
      * Present exactly when `renderable` is false; `caveat` is the longer note for an
      * implementer. The same field name as `OptionDescriptor.unsupportedReason`.
-     * @deprecated Read {@link StyleChannelDescriptor.unsupported} and word it in the application.
+     * @deprecated Read {@link ChannelDescriptor.unsupported} and word it in the application.
      * Removed at the next major release.
      */
     readonly unsupportedReason?: string;

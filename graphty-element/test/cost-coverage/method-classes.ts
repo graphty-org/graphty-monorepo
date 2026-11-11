@@ -486,6 +486,7 @@ export const READ_ONLY: readonly string[] = [
     "ApiKeyManager.getStoredItem",
     "ApiKeyManager.hasKey",
     "ApiKeyManager.isPersistenceEnabled",
+    "ApiKeyManager.ready",
     "ApiKeyManager.removeKey",
     "ApiKeyManager.retireOtherStorage",
     "ApiKeyManager.setDefaultProvider",

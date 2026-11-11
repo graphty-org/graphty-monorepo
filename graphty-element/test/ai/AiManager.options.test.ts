@@ -12,9 +12,6 @@ import { VercelAiProvider } from "../../src/ai/providers/VercelAiProvider";
 import type { Graph } from "../../src/Graph";
 import { assistantSession } from "../helpers/assistant";
 
-// The key store's encryption needs a browser global this project has not got; no test here encrypts.
-vi.mock("encrypt-storage", () => ({ EncryptStorage: vi.fn() }));
-
 afterEach(() => {
     vi.restoreAllMocks();
 });

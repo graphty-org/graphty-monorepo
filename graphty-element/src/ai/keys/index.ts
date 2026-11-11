@@ -5,4 +5,3 @@
 
 export type { ApiKeyManagerOptions, PassphrasePersistenceConfig, PersistenceConfig } from "./ApiKeyManager";
 export { ApiKeyManager } from "./ApiKeyManager";
-export { loadEncryptStorage } from "./encryptStorage";

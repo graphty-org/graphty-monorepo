@@ -124,25 +124,27 @@ export class CredentialStore {
         if (ai === undefined) {
             return;
         }
-        if (!(ai instanceof Promise)) {
-            this.#attach(ai);
-            return;
-        }
         let manager: ApiKeyManager;
-        try {
-            manager = await ai;
-        } catch {
-            return; // a rejected promise leaves the store in memory only
+        if (ai instanceof Promise) {
+            try {
+                manager = await ai;
+            } catch {
+                return; // a rejected promise leaves the store in memory only
+            }
+        } else {
+            manager = ai;
         }
-        this.#attach(manager);
+        this.#ai = manager;
+        // The key manager loads what it persisted asynchronously
+        await manager.ready();
+        this.#load(manager);
     }
 
     /**
-     * Take the key manager and the source credentials it persisted.
+     * Take the source credentials the key manager persisted.
      * @param manager - the key manager
      */
-    #attach(manager: ApiKeyManager): void {
-        this.#ai = manager;
+    #load(manager: ApiKeyManager): void {
         const saved = manager.getStoredItem(SOURCE_ITEM);
         for (const entry of Array.isArray(saved) ? (saved as Entry[]) : []) {
             const key = keyOf(entry);
@@ -154,7 +156,7 @@ export class CredentialStore {
 
     /**
      * The `ai` namespace: the AI provider key manager, with its persistence switches. Null until
-     * it has loaded, and when it cannot (the optional `encrypt-storage` peer is missing).
+     * it has loaded, and when its promise rejected.
      * @returns the manager, or null
      */
     get ai(): ApiKeyManager | null {
@@ -277,6 +279,7 @@ export class CredentialStore {
         this.#ai?.clear();
         this.#entries.clear();
         this.#save();
+        await this.#ai?.ready();
     }
 
     /** Hand the source namespace to the key manager, which persists it when persistence is on. */

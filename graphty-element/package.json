@@ -71,7 +71,6 @@
         "./src/algorithms/index.ts",
         "./src/data/index.ts",
         "./src/layout/index.ts",
-        "./src/ai/keys/withEncryptStorage.ts",
         "./index.ts",
         "./src/graphty-element.ts",
         "./docs/examples/**/*.ts"
@@ -206,7 +205,6 @@
         "@vitest/browser-playwright": "catalog:",
         "ajv": "^8.20.0",
         "ajv-formats": "^3.0.1",
-        "encrypt-storage": "^2.14.7",
         "esbuild": "^0.28.2",
         "eslint": "^9.29.0",
         "eslint-plugin-jsdoc": "^50.6.17",
@@ -240,7 +238,6 @@
         "@mlc-ai/web-llm": ">=0.2.0",
         "@types/react": "*",
         "ai": "^5.0.104",
-        "encrypt-storage": "^2.14.7",
         "lit": "^3.0.0",
         "neo4j-driver": "^5.0.0"
     },
@@ -267,9 +264,6 @@
             "optional": true
         },
         "ai": {
-            "optional": true
-        },
-        "encrypt-storage": {
             "optional": true
         },
         "neo4j-driver": {

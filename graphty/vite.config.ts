@@ -92,10 +92,6 @@ export default defineConfig(({ mode }) => {
             // build (.github/workflows/ci.yml, "Upload graphty's source maps to Sentry").
             ...(process.env.SENTRY_RELEASE ? { __SENTRY_RELEASE__: JSON.stringify(process.env.SENTRY_RELEASE) } : {}),
         },
-        // graphty-element's credential store loads encrypt-storage on its first use. Found that late,
-        // the dev server optimizes it then and reloads the page under the reader; listed here, it
-        // is optimized at startup. Dev server only.
-        optimizeDeps: { include: ["encrypt-storage"] },
         server: {
             host: true,
             fs: {

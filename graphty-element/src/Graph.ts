@@ -971,15 +971,28 @@ export class Graph implements GraphContext {
     readonly antialias: boolean;
 
     /**
+     * Whether the WebGL canvas keeps each drawn frame, as the engine was built: the constructor's
+     * `preserveDrawingBuffer`. Fixed for the life of the graph.
+     */
+    readonly preserveDrawingBuffer: boolean;
+
+    /**
      * Creates a new Graph instance and initializes the rendering engine and managers.
      * @param element - DOM element or element ID to attach the graph canvas to
      * @param useMockInput - Whether to use mock input for testing (defaults to false)
      * @param options - How the engine is built; read once, here.
      * @param options.antialias - Whether the canvas multisamples (4x). Left out, true.
+     * @param options.preserveDrawingBuffer - Whether the WebGL canvas keeps each drawn frame, so
+     *     the page can read it between frames. Left out, true.
      */
-    constructor(element: Element | string, useMockInput = false, options: { readonly antialias?: boolean } = {}) {
+    constructor(
+        element: Element | string,
+        useMockInput = false,
+        options: { readonly antialias?: boolean; readonly preserveDrawingBuffer?: boolean } = {},
+    ) {
         this.useMockInput = useMockInput;
         this.antialias = options.antialias ?? true;
+        this.preserveDrawingBuffer = options.preserveDrawingBuffer ?? true;
         // Initialize EventManager first as other components depend on it
         this.eventManager = new EventManager();
 
@@ -1027,6 +1040,7 @@ export class Graph implements GraphContext {
             flushesFrameFence: this.#batchedFrames,
             pacesWebGpuFrames: this.#batchedFrames,
             antialias: this.antialias,
+            preserveDrawingBuffer: this.preserveDrawingBuffer,
         });
 
         this.basemapManager = new BasemapManager(

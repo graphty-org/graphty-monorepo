@@ -39,6 +39,21 @@ export interface ScreenshotOptions {
     strictAspectRatio?: boolean;
     transparentBackground?: boolean;
     /**
+     * A solid color painted behind the graph in place of the canvas background, in any CSS color
+     * syntax (`"#ffffff"`, `"white"`, `"rgb(255 255 255)"`). Honored by every format. Takes
+     * precedence over `transparentBackground`. Left out, the image has the canvas's background.
+     * A color that cannot be read fails the capture with `INVALID_BACKGROUND_COLOR`.
+     * @example
+     * backgroundColor: "#ffffff"
+     */
+    backgroundColor?: string;
+    /**
+     * Cancels the capture. Aborted while the capture waits (for earlier captures and operations,
+     * or for the layout to settle), it rejects with `CAPTURE_ABORTED` and draws, downloads and
+     * copies nothing. Aborted once the picture has been read, it changes nothing.
+     */
+    signal?: AbortSignal;
+    /**
      * Enable quality enhancement for the screenshot.
      * Can be a boolean (true = default settings) or an object with specific settings.
      *
@@ -76,6 +91,17 @@ export interface ScreenshotOptions {
          * fails with `LAYOUT_SETTLE_TIMEOUT`, in milliseconds. Default 30,000.
          */
         settleTimeoutMs?: number;
+        /**
+         * Abort this signal to stop waiting and capture the frame on screen now: a capture still
+         * queued behind earlier work starts at once, and one waiting for the layout to settle stops
+         * waiting. Already aborted, the capture waits for nothing.
+         * @example
+         * const now = new AbortController();
+         * const shot = graph.captureScreenshot({ timing: { captureNow: now.signal } });
+         * // later, from a "Capture now" button:
+         * now.abort();
+         */
+        captureNow?: AbortSignal;
     };
     /**
      * A key drawn into the image at its top left, sized as it would be on the canvas. The element

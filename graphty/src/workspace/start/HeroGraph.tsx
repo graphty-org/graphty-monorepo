@@ -311,12 +311,12 @@ function cardFacts(session: GraphSession, id: NodeId, communities: boolean): Car
     };
     const louvain = communities ? session.runs.get("louvain")?.result : undefined;
     const group = louvain?.node(id)?.group;
-    const groups = louvain?.summary().groups;
+    const { groups, groupCount } = louvain?.summary() ?? {};
     const rank = groups?.find((each) => each.group === group)?.rank;
-    if (groups !== undefined && rank !== undefined) {
+    if (groupCount !== undefined && rank !== undefined) {
         // The color the element drew the node in, for the dot beside its community.
         const color = session.styles.explain({ node: id }).merged["node.color"]?.hex;
-        facts.community = { rank, of: groups.length, color };
+        facts.community = { rank, of: groupCount, color };
     }
     return facts;
 }
@@ -520,7 +520,7 @@ function HeroGraphBody({
             onSession?.(next);
             const communities = await finished(next.runs.start("louvain"));
             if (live && communities !== null) {
-                setSaid((before) => ({ ...before, communities: communities.summary().groups?.length }));
+                setSaid((before) => ({ ...before, communities: communities.summary().groupCount }));
             }
         })().catch((error: unknown) => {
             // Unmounted mid-load: the element aborts the import it no longer needs, which is no
@@ -621,7 +621,7 @@ function HeroGraphBody({
             neutral.current = null;
         }
         const run = await finished(session.runs.start("louvain"));
-        setSaid((before) => ({ ...before, communities: run?.summary().groups?.length, flipped: undefined }));
+        setSaid((before) => ({ ...before, communities: run?.summary().groupCount, flipped: undefined }));
     }, [session, shown.communities, scheme]);
 
     const togglePick = useCallback(

@@ -59,7 +59,7 @@ afterEach(() => {
  * @returns the session
  */
 function fresh(): GraphSession {
-    const session = createGraphSession({ features: ["network-data"] });
+    const session = createGraphSession();
     sessions.push(session);
     return session;
 }
@@ -824,6 +824,14 @@ describe("the sources member: reading version 1", () => {
             credentialSlot: "default",
         });
         assert.deepEqual(nodeRecords(doc).get("javert")?.["_source.loads"], ["s2/x1"]);
+    });
+
+    it("a version 1 file load has no retrieved time, after a save and reopen too", async () => {
+        const { session } = await open(JSON.stringify(version1File()));
+        assert.isUndefined(session.data.sources()[0].loadedAt);
+        const { doc } = await save(session);
+        const reopened = await open(JSON.stringify(doc));
+        assert.isUndefined(reopened.session.data.sources()[0].loadedAt);
     });
 
     it("src-34: a version 1 credential becomes the default slot and leaves no user name or origin", async () => {

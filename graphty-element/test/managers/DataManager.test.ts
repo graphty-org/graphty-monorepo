@@ -391,6 +391,37 @@ describe("DataManager", () => {
         });
     });
 
+    // The count the lazy-edge stage of design/rendering/row-renderer.md drives toward zero under
+    // "batched". Under "objects", the default, every edge a load stores is built once, when both ends are.
+    describe("edges built", () => {
+        it("counts one Edge per stored edge, a deferred one once its ends arrive, and none for a read", () => {
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+
+            dataManager.addNodes([{ id: "a" }, { id: "b" }]);
+            dataManager.addEdges([
+                { src: "a", dst: "b" },
+                { src: "b", dst: "c" },
+            ]);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 1, "b -> c waits for c");
+
+            dataManager.addNodes([{ id: "c" }]);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 2);
+
+            assert.equal([...dataManager.edges.values()].length, 2);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 2);
+        });
+
+        it("counts an edge removed and added again as a second build", () => {
+            dataManager.addNodes([{ id: "a" }, { id: "b" }]);
+            dataManager.addEdge({ src: "a", dst: "b" });
+            dataManager.removeNodeAndIncidentEdges("b");
+            dataManager.addNodes([{ id: "b" }]);
+            dataManager.addEdge({ src: "a", dst: "b" });
+
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 2);
+        });
+    });
+
     // An edge reaches its ends through accessors (the lazy-node stage of design/rendering/row-renderer.md):
     // on the "batched" path each end's Node is looked up when first read, not when the edge is built. Under
     // "objects" both are resolved as the edge is built, as before.
@@ -403,9 +434,10 @@ describe("DataManager", () => {
             dataManager.addEdge({ src: "a", dst: "b" });
             assert.equal(dataManager.edges.size, 1);
             // Master read each end twice: once to check it exists and once more for the edge. Now the check
-            // asks only whether the id is stored, and the one read left is the line's pull check (an end
-            // drawn behind edges, a group or a 2D node below z-index 0, keeps its line off the pull).
-            assert.equal(reads.mock.calls.length, 2, "each end is read once, by the line's pull check");
+            // asks only whether the id is stored, and the line's pull check (an end drawn behind edges, a
+            // group or a 2D node below z-index 0, keeps its line off the pull) reads an end stored with
+            // no Node from its row, which is never behind edges before it is painted: no end is read.
+            assert.equal(reads.mock.calls.length, 0, "no end's Node is read to build the edge");
 
             const [edge] = dataManager.edges.values();
             assert.strictEqual(edge.srcNode, dataManager.getNode("a"));

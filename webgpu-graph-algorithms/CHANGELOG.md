@@ -1,3 +1,27 @@
+## 0.6.68 (2026-11-10)
+
+### 🚀 Features
+
+- **graphty-element:** fill the row table on the card from the layout's drawn ring ([#3248](https://github.com/graphty-org/graphty-monorepo/issues/3248))
+- **webgpu-graph-algorithms:** write a layout's drawn positions into a ring on the device ([#3248](https://github.com/graphty-org/graphty-monorepo/issues/3248))
+- **graphty-element:** share the WebGPU device between renderer and layout ([#3248](https://github.com/graphty-org/graphty-monorepo/issues/3248))
+- **layout:** add a cluster force that pulls communities together ([#3257](https://github.com/graphty-org/graphty-monorepo/issues/3257))
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** adopt a device that has no adapterInfo ([#3248](https://github.com/graphty-org/graphty-monorepo/issues/3248))
+- **tools:** stop a hung test run before the CI job limit and name what hung ([#5845](https://github.com/graphty-org/graphty-monorepo/issues/5845), [#5816](https://github.com/graphty-org/graphty-monorepo/issues/5816))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.5.1
+- Updated algorithms to 3.4.21
+- Updated layout to 2.7.0
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
 ## 0.6.67 (2026-11-09)
 
 ### 🚀 Features

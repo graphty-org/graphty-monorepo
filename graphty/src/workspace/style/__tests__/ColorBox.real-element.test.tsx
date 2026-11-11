@@ -15,6 +15,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { nodeModelsOn } from "../../features";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
@@ -50,6 +51,10 @@ async function openColorLine(): Promise<{ session: GraphSession; line: HTMLEleme
     await screen.findByTestId("style-tab");
     await showKind("node");
     await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
+    if (nodeModelsOn(session)) {
+        // With the node-models experiment on, Fill also offers Picture, so its "+" opens a menu.
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
+    }
     const line = await waitFor(() => {
         const found = document.querySelector<HTMLElement>('[data-testid="style-tab"] .ws-row[data-line="node.color"]');
         assert.isNotNull(found);

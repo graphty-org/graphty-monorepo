@@ -84,7 +84,7 @@ describe("sourceDescriptors()", () => {
 
 describe("session.data.loadExample", () => {
     it("uses the example's endpoint and its published login, which a caller's options override", async () => {
-        const session = createGraphSession({ features: ["network-data"] });
+        const session = createGraphSession();
         try {
             const { fetch, asked } = people();
             await session.data.loadExample("example-login", "example-login-demo", { fetch });
@@ -108,7 +108,7 @@ describe("session.data.loadExample", () => {
     });
 
     it("a refresh of an example reaches its server with that example's login, not another's there", async () => {
-        const session = createGraphSession({ features: ["network-data"] });
+        const session = createGraphSession();
         try {
             const { fetch, asked } = people();
             await session.data.loadExample("example-login", "example-login-other", { fetch });
@@ -123,7 +123,7 @@ describe("session.data.loadExample", () => {
     });
 
     it("an example load that starts the history drops the steps before it", async () => {
-        const session = createGraphSession({ features: ["network-data"] });
+        const session = createGraphSession();
         try {
             const { fetch } = people();
             await session.data.addNodes([{ id: "before" }]);
@@ -137,7 +137,7 @@ describe("session.data.loadExample", () => {
     });
 
     it("refuses an id the source does not list with E_SOURCE_UNKNOWN, naming the ids it knows", async () => {
-        const session = createGraphSession({ features: ["network-data"] });
+        const session = createGraphSession();
         try {
             const error = await session.data.loadExample("example-login", "no-such-example").then(
                 () => null,

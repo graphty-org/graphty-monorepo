@@ -17,12 +17,8 @@ import { Autosaver } from "../../src/autosave/Autosaver";
 import { memoryAutosaveStore } from "../../src/autosave/memoryStore";
 import { reassemble } from "../../src/autosave/parts";
 import type { AutosaveStore, AutosaveWrite } from "../../src/autosave/types";
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { sessionWithRuns } from "../helpers/project-session";
 import { FakeClock, FakeLocks } from "./fakes";
-
-// Network sources sit behind the network-data experiment.
-setDefaultFeatures(["network-data"]);
 
 const KEY = "test.autosave-sources";
 const SOURCE = "autosave-people";

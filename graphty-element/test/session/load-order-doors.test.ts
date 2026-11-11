@@ -114,7 +114,7 @@ afterEach(() => {
  * @returns The session.
  */
 function fresh(): GraphSession {
-    const session = createGraphSession({ features: ["network-data"] });
+    const session = createGraphSession();
     sessions.push(session);
     return session;
 }

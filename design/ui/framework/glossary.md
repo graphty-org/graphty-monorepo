@@ -372,6 +372,7 @@ edges beyond the first; the import policy reads "Parallel edges: Allow / Merge i
 | **main menu**, **chevron menu** | Docs | The first rail button with Figma's slots, and the menu on the project's name. | "hamburger menu", "project menu", "name-row menu" |
 | **File**, **Edit**, **View**, **Selection**, **Algorithms**, **Recipes**, **Preferences**, **Help** | Screen | The main menu's submenus. | "Object", "Plugins", "Libraries" |
 | **Graph**, **Results**, **Notes**, **Assistant** | Screen | The rail buttons and the collections their panels list. | "Layers", "Assets", activity names |
+| **chat**, **Chats**, **New chat** | Screen | One saved exchange with the Assistant, titled by the reader's name for it or else their first words; graphty-element publishes it as a conversation (`listAiConversations`, `renameAiConversation`). | "conversation" on screen, "thread", "session" |
 | **Graphs**, **Sets and paths**, **Styles**, **Views**, **In this project**, **Catalog** | Screen | The Graph panel's sections and the Results panel's two halves; Styles is the style stack's list. | "Pages", "Objects", "My results", "Layers" |
 | **object list** | Docs | The kept sets and paths in the Graph panel. | "Layers" |
 | **table**, **Nodes**, **Edges**, **Type** | Screen | The dock's many-rows representation, its first two tabs, and the facet a declared type role adds. | "data grid", "spreadsheet" |

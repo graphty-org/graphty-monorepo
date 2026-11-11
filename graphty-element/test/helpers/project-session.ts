@@ -10,10 +10,12 @@ import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 
 /**
  * A session whose runs count each node's links, and give each edge its source.
+ * @param features - Experiments to switch on, as `createGraphSession({ features })` takes them.
  * @returns The session.
  */
-export function sessionWithRuns(): GraphSession {
+export function sessionWithRuns(features?: readonly string[]): GraphSession {
     const session: GraphSession = createGraphSession({
+        ...(features === undefined ? {} : { features }),
         runs: {
             execute: (context: RunExecutionContext): Promise<RunOutcome> => {
                 const snapshot = session.data.snapshot();
@@ -63,10 +65,11 @@ export function sessionWithRuns(): GraphSession {
 
 /**
  * A session holding a small graph and nothing else.
+ * @param features - Experiments to switch on.
  * @returns The session.
  */
-export async function baseSession(): Promise<GraphSession> {
-    const session = sessionWithRuns();
+export async function baseSession(features?: readonly string[]): Promise<GraphSession> {
+    const session = sessionWithRuns(features);
     await session.data.addNodes([
         { id: "a", dept: 1 },
         { id: "b", dept: 2 },

@@ -15,6 +15,8 @@ export interface EnabledFeatures {
     readonly enabled: readonly FeatureId[];
     /** Requested ids that are neither declared nor graduated; the consumer decides whether to show them. */
     readonly unknown: readonly string[];
+    /** Whether an experiment is switched on: the one gate code inside the element uses. */
+    has(id: FeatureId): boolean;
 }
 
 let pageDefault: readonly string[] = Object.freeze([]);
@@ -60,7 +62,10 @@ export function resolveFeatures(requested?: readonly string[]): EnabledFeatures 
     const enabled = FEATURES.filter((feature) => all || asked.has(feature.id)).map((feature) => feature.id);
     const known = new Set<string>([...FEATURES.map((feature) => feature.id), ...GRADUATED_FEATURES, "all"]);
     const unknown = [...asked].filter((id) => !known.has(id));
-    return Object.freeze({ enabled: Object.freeze(enabled), unknown: Object.freeze(unknown) });
+    const features = { enabled: Object.freeze(enabled), unknown: Object.freeze(unknown) };
+    // Not enumerable, so the object stays plain data for a comparison or an event's detail.
+    Object.defineProperty(features, "has", { value: (id: FeatureId) => enabled.includes(id) });
+    return Object.freeze(features as EnabledFeatures);
 }
 
 /**

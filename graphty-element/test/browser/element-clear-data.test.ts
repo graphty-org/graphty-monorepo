@@ -12,12 +12,8 @@ import { afterEach, assert, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { defineSource, registerSource } from "../../session";
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { loadLineOf } from "../../src/session/loadLine";
-
-// Loads from a registered source sit behind the network-data experiment.
-setDefaultFeatures(["network-data"]);
 
 /** Lets the held source's read go on; set by each read. */
 let openHeldRead = (): void => undefined;
@@ -202,6 +198,9 @@ describe("graphty-element.clearData", () => {
         await settled;
 
         // The old engine kept the first graph's two disposed nodes beside the three new ones.
+        // Under renderPath "batched" a row has no `Node` until one is asked for, and the engine
+        // lists only `Node`s: asking builds each, on the body the engine already holds for it.
+        assert.strictEqual([...graph.getDataManager().nodes.keys()].length, 3);
         const layoutNodes = [...graph.getLayoutManager().nodes].map((node) => node.id).sort();
         assert.deepStrictEqual(layoutNodes, ["x", "y", "z"]);
         assert.isTrue(graph.getLayoutManager().isSettled);

@@ -32,14 +32,16 @@
  * THE SUBSET IS REFUSED AT ITS EDGE, NEVER NARROWED IN SILENCE. Everything JMESPath can express
  * that this file does not implement -- projections, slices, functions, pipes, multi-selects,
  * wildcards, the current-node reference -- is rejected where it was typed, by name, with the
- * offset. A selector that is accepted means exactly what JMESPath means by it. A wrong picture
- * is worse than a refusal, so there is no branch that guesses.
+ * offset. A selector that is accepted means exactly what JMESPath means by it, with one stated
+ * exception: a lone `true`, `false` or `null` word is that value (see `VALUE_WORDS`). A wrong
+ * picture is worse than a refusal, so there is no branch that guesses.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
 import { maskTest, type U32 } from "@graphty/graph-format";
 
+import type { AiRule, AiRuleTerm } from "../../catalog/ai";
 import type { EdgeId, NodeId, Path, Query, RuleTree, Scope, TopTies } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
@@ -512,6 +514,17 @@ interface Token {
     readonly at: number;
 }
 
+/**
+ * The words a rule reads as values when they stand alone. JMESPath spells these values in backticks
+ * and reads the bare word as a field, but every value here sits under `data.` or `results.`, so
+ * that field never exists and `trained == false` would answer nothing for a column of nine falses.
+ */
+const VALUE_WORDS: ReadonlyMap<string, boolean | null> = new Map([
+    ["true", true],
+    ["false", false],
+    ["null", null],
+]);
+
 /** The operators the subset reads, longest first so `<=` is never lexed as `<` then `=`. */
 const OPERATORS = ["&&", "||", "==", "!=", "<=", ">=", "!", "<", ">", ".", "(", ")"] as const;
 
@@ -734,13 +747,38 @@ function tokenize(where: Query): readonly Token[] {
 
         rejectUnsupported(where, at, character);
         const lexed = lexToken(where, at, character) ?? rejectCharacter(where, at, character);
-        tokens.push(lexed.token);
+        tokens.push(loneValue(where, lexed, tokens.at(-1)) ?? lexed.token);
         at = lexed.next;
     }
 
     tokens.push({ kind: "end", text: "", at: where.length });
 
     return tokens;
+}
+
+/**
+ * The value a lone `true`, `false` or `null` word stands for. A word inside a path (`data.false`,
+ * `false.x`), a function's name and a quoted name (`"false"`) stay names.
+ * @param where - The expression as it was typed.
+ * @param lexed - The token and the offset after it.
+ * @param lexed.token - The token.
+ * @param lexed.next - The offset after it.
+ * @param previous - The token before it.
+ * @returns The literal, or undefined when the token is not a lone value word.
+ */
+function loneValue(
+    where: Query,
+    { token, next }: { token: Token; next: number },
+    previous: Token | undefined,
+): Token | undefined {
+    const value = VALUE_WORDS.get(token.text);
+    const quoted = where.charAt(token.at) === '"';
+    const inPath = previous?.kind === "operator" && previous.text === ".";
+    if (value === undefined || quoted || inPath || /^\s*[.(]/.test(where.slice(next))) {
+        return undefined;
+    }
+
+    return { kind: "literal", text: "", value, at: token.at };
 }
 
 /**
@@ -1318,6 +1356,89 @@ export function expressionRule(where: Query, comparisons = false): RuleTree | un
     }
 }
 
+/** A literal a rule term can state. */
+type TermValue = AiRuleTerm["values"][number];
+
+/**
+ * The comparisons of one `&&` or `||` chain, flattened through groups.
+ * @param node - The node.
+ * @param join - The chain's operator.
+ * @returns The comparisons, or undefined when the chain holds anything else.
+ */
+function chainOf(node: ExpressionNode, join: "and" | "or"): ExpressionNode[] | undefined {
+    if (node.kind === "group") {
+        return chainOf(node.inner, join);
+    }
+
+    if (node.kind === join) {
+        const left = chainOf(node.left, join);
+        const right = chainOf(node.right, join);
+        return left === undefined || right === undefined ? undefined : [...left, ...right];
+    }
+
+    return node.kind === "compare" ? [node] : undefined;
+}
+
+/**
+ * One comparison as a term: a path on one side, a literal on the other.
+ * @param node - The comparison.
+ * @returns The term, or undefined for any other comparison.
+ */
+function termOf(node: ExpressionNode): AiRuleTerm | undefined {
+    if (node.kind !== "compare") {
+        return undefined;
+    }
+
+    const literal = pickLiteral(node.left, node.right);
+    const other = node.left.kind === "literal" ? node.right : node.left;
+    const { value } = literal ?? {};
+    const plain = value === null || ["string", "number", "boolean"].includes(typeof value);
+    if (literal === null || other.kind !== "path" || !plain) {
+        return undefined;
+    }
+
+    const op = node.left.kind === "literal" ? FLIPPED[node.operator] : node.operator;
+    return { column: other.path, op, values: [value as TermValue] };
+}
+
+/**
+ * A rule in parts, for an application to word: each comparison of a column with a value, and
+ * whether all or any must pass. Comparisons of one column by `==` joined by `||` (or by `!=` joined
+ * by `&&`) fold into one term with several values.
+ * @param where - The expression.
+ * @returns The parts, or undefined for an expression they cannot state (`!`, a mix of `&&` and
+ *     `||`, a comparison of two columns).
+ */
+export function ruleParts(where: Query): AiRule | undefined {
+    let tree: ExpressionNode;
+    try {
+        tree = parseExpression(where);
+    } catch {
+        return undefined;
+    }
+
+    const either = chainOf(tree, "or");
+    const join = either !== undefined && either.length > 1 ? "any" : "all";
+    const chain = chainOf(tree, join === "any" ? "or" : "and");
+    const terms = chain?.map(termOf);
+    if (terms === undefined || terms.includes(undefined)) {
+        return undefined;
+    }
+
+    const folding = join === "any" ? "==" : "!=";
+    const folded: AiRuleTerm[] = [];
+    for (const term of terms as AiRuleTerm[]) {
+        const same = folded.find((each) => each.column === term.column && each.op === folding && term.op === folding);
+        if (same === undefined) {
+            folded.push(term);
+        } else {
+            folded[folded.indexOf(same)] = { ...same, values: [...same.values, ...term.values] };
+        }
+    }
+
+    return { join: folded.length === 1 ? "all" : join, terms: folded };
+}
+
 /**
  * An expression with some of the paths it reads written another way, everything else kept as it
  * was typed: what a refusal or a check offers as the reader's own rule, corrected, or a rule
@@ -1603,7 +1724,7 @@ export function quotePath(path: Path): Query {
  */
 export function rulePath(path: Path): Query {
     const bare = path.startsWith("data.") ? path.slice("data.".length) : "";
-    return isUnquotedName(bare) ? bare : quotePath(path);
+    return isUnquotedName(bare) && !VALUE_WORDS.has(bare) ? bare : quotePath(path);
 }
 
 /**

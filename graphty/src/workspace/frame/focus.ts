@@ -263,13 +263,18 @@ export function cyclePanel(step: 1 | -1): void {
 }
 
 /**
- * Where focus lands in a panel: the control that last had it there, else the drawing itself for
+ * Where focus lands in a panel: where it always lands, else the control that last had it there, else the drawing itself for
  * the canvas, else the panel's first Tab stop.
  * @param selector - the panel's selector.
  * @param element - the panel.
  * @returns the control, or undefined when the panel has none.
  */
 function panelTarget(selector: string, element: HTMLElement): HTMLElement | undefined {
+    // A panel can name where focus always lands (the Assistant's composer).
+    const always = element.querySelector<HTMLElement>("[data-panel-always]");
+    if (always !== null) {
+        return tabStops(always)[0];
+    }
     const last = lastInPanel.get(selector);
     if (last !== undefined && element.contains(last) && canFocus(last) && !last.matches(NOT_A_LANDING)) {
         return last;

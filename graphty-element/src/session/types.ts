@@ -42,6 +42,7 @@ import type {
     LayoutId,
     MeasurementDeclaration,
     Path,
+    Query,
     ReadableValue,
     RuleTree,
     RunId,
@@ -110,7 +111,9 @@ import type {
     SourceMoreOptions,
     SourcePreview,
     SourcePreviewOptions,
+    SourceRead,
     SourceRefreshReport,
+    SourceSettings,
 } from "./sources/types";
 import type { ElementPaint, SessionStylesApi, StyleBatchChange, StyleChange, StyleRefusal, StylesApi } from "./styles";
 import type { FileStyleOptions } from "./styles/fileStyles/translate";
@@ -295,6 +298,18 @@ export interface RecordPageOptions {
          */
         readonly names?: boolean;
     };
+    /**
+     * Only the records an expression matches, read the way a style layer's selector reads it: a
+     * node page tests each node, an edge page each edge, so `data.weight > \`0.5\`` pages the
+     * heavy edges where `scope: { where }` names nodes only. Combines with every other option;
+     * `total` counts the matches. Selects nothing. An expression that does not parse is refused
+     * with `E_BAD_SELECTOR`.
+     *
+     * ```ts
+     * session.data.edgePage({ where: "data.weight > `0.5`", limit: 0 }).total; // how many heavy edges
+     * ```
+     */
+    readonly where?: Query;
     /**
      * Only the records an open issue is on: one issue's id, or the word `"any"` for every open
      * issue (no issue id is `"any"`).
@@ -1171,10 +1186,15 @@ export interface SessionDataApi {
      *     `status: "ignored"` (default false)
      * @param options.includeFixed - list the issues `data.fix` settled too, after the rest, each with
      *     `status: "fixed"` and `fixedBy`, as they stood then (default false)
+     * @param options.source - list only this load's issues
      * @returns the issues, those a load saw first
      * @since 3.30.0
      */
-    issues(options?: { readonly includeIgnored?: boolean; readonly includeFixed?: boolean }): readonly DataIssue[];
+    issues(options?: {
+        readonly includeIgnored?: boolean;
+        readonly includeFixed?: boolean;
+        readonly source?: SourceKey;
+    }): readonly DataIssue[];
     /**
      * Apply one of an issue's fixes, as one undoable step: `session.undo()` puts the data back.
      *
@@ -1287,13 +1307,20 @@ export interface SessionDataApi {
      * }
      * ```
      * @param key - The load's key, from {@link SessionDataApi.sources}.
-     * @param source - The newer copy, as `import` takes it.
-     * @param choices - How to read it, as `draft.load` takes them; `mode` is ignored.
+     * @param source - The newer copy, as `import` takes it. A network source (`source: "<id>"`) is read with the options below and replaces the load under the
+     *     same key and name; with no credential given, the one remembered for the endpoint is used.
+     *     See {@link SessionDataApi.sourceSettings} for what such a load holds now.
+     * @param choices - How to read it, as `draft.load` takes them; `mode` is ignored. For a network
+     *     source, the same load options `import` takes (`endpoint`, `limits`, `credential`, `signal`).
      * @returns What was added, removed and changed, and what no longer matches anything.
      * @throws A `GraphtyError` (as a rejection) with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
      * @since 3.30.0
      */
-    replaceSource(key: SourceKey, source: DataSourceInput, choices?: LoadChoices): Promise<ReplaceReport>;
+    replaceSource(
+        key: SourceKey,
+        source: DataSourceInput,
+        choices?: LoadChoices & SourceLoadOptions,
+    ): Promise<ReplaceReport>;
     /**
      * Read one load again from what it was read from, with changed choices -- another id, source
      * or target column, the kinds of its ends, kept or scoped ids -- as one undoable step that
@@ -1711,6 +1738,19 @@ export interface SessionDataApi {
      *     source holds more, the server's facts and the read's issues; rejects with the source's code.
      */
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
+
+    /**
+     * Read one of a source's examples and change nothing, for what `loadExample` loads, with the
+     * example's endpoint, published login and first page. Pass the result to `import`, on this
+     * session or another, and it loads without reading the service again.
+     * Experimental.
+     * @param source - The source id, such as `"neo4j"`.
+     * @param example - The example's id within that source, such as `"neo4j-movies"`.
+     * @param options - Anything `import` takes; the import that takes the read keeps them.
+     * @returns The read and how many nodes and edges it holds; rejects with `E_SOURCE_UNKNOWN`
+     *     when the source lists no such example.
+     */
+    readExample(source: string, example: string, options?: SourceLoadOptions): Promise<SourceRead>;
     /**
      * Ask a load's source whether its data changed since the load, loading nothing. Experimental.
      * @param load - The load's key, from `sources()` or `loads()`.
@@ -1742,14 +1782,13 @@ export interface SessionDataApi {
      * public server and the params that load a known graph from it), as one undoable step: the
      * example's params, its endpoint, the login its service publishes and, for one too big to
      * load whole, its first page, so `loadExample("neo4j", "neo4j-movies")` is the whole call.
-     * graph-samples' datasets are not examples: load those with `loadDataset`. Needs the
-     * `network-data` experiment. Experimental.
+     * graph-samples' datasets are not examples: load those with `loadDataset`. Experimental.
      * @param source - The source id, such as `"neo4j"`.
      * @param example - The example's id within that source, such as `"neo4j-movies"`.
      * @param options - Anything `import` takes; a `credential` or `endpoint` given here wins.
      * @returns Settles once the example is in the graph; rejects with `E_SOURCE_UNKNOWN`
      *     (`{ source, id, known }`, `known` listing the source's example ids) when the source lists
-     *     no such example, and with `E_FEATURE_OFF` while the `network-data` experiment is off.
+     *     no such example.
      */
     loadExample(source: string, example: string, options?: LoadChoices & SourceLoadOptions): Promise<void>;
     /**
@@ -1758,6 +1797,15 @@ export interface SessionDataApi {
      * @returns The records.
      */
     loads(): readonly SourceLoadRecord[];
+    /**
+     * What a network source connects to and fetches, for showing it or filling a form to edit it:
+     * its source id, address, params, limits and expand behavior. The params are redacted as a
+     * saved file has them and no credential is in it, so it is safe to display; a query source's
+     * params say the `mode` it read in. Experimental.
+     * @param key - The entry's key, from {@link SessionDataApi.sources}.
+     * @returns The settings, or undefined for a source that is not a network load.
+     */
+    sourceSettings(key: SourceKey): SourceSettings | undefined;
     /**
      * The source loads an opened project holds but has not run: nothing fetches by itself.
      * Experimental.
@@ -2178,6 +2226,8 @@ export interface TableMapping {
     readonly edgeId?: string | null;
     /** The column naming each row's kind, which loads as the node's or edge's `kind` attribute. */
     readonly kind?: string | null;
+    /** A node table's kind: a kind name every row takes, as its `kind` attribute. Wins over `kind`. */
+    readonly kindName?: string | null;
     /**
      * An edge table's source nodes' kind: a kind name every source node takes, or `{ column }`
      * whose values name each row's. The node loads with it as its `kind` attribute. Unlike every
@@ -2211,6 +2261,11 @@ export interface LoadMappingRead {
 
 /** What `import` and `LoadDraft.load` take. */
 export interface LoadChoices extends ImportOptions {
+    /**
+     * Say a load read from a URL is one of the application's own samples, so `data.sources()`
+     * lists it as `"sample"` rather than `"url"`. @since 3.38.0
+     */
+    readonly origin?: "sample";
     /** The column roles; a role left out is the element's own reading. */
     readonly mapping?: LoadMapping;
     /**
@@ -2302,6 +2357,8 @@ export interface DataSourceDescriptor {
     readonly name?: string;
     /** The file's size in bytes, when a file was read. */
     readonly size?: number;
+    /** The name of the file it was read from; `name` is the reader's and can change. */
+    readonly fileName?: string;
     /** The source's options, without `data` and `file`: the `url`, and what the source reads besides. */
     readonly config?: Readonly<Record<string, unknown>>;
 }
@@ -2351,6 +2408,17 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly tableRows?: readonly ("nodes" | "edges")[];
     /** How many nodes and edges the load added to the graph. */
     readonly added: { readonly nodes: number; readonly edges: number };
+    /**
+     * When this load last read its data, as RFC 3339. Absent in a project saved before it was kept.
+     * @since 3.38.0
+     */
+    readonly loadedAt?: string;
+    /**
+     * Where it was read from, without credentials: a URL load's address, or a network load's origin
+     * and path. Absent for anything else.
+     * @since 3.38.0
+     */
+    readonly url?: string;
     /**
      * Edge rows the load left out because they named a node no node row held (`unmatched:
      * "leave-out"`), and how many distinct such names, as `LoadReport.unmatched` counts them.
@@ -2529,7 +2597,10 @@ export interface JoinLookup {
 export interface JoinKey {
     /** The incoming table's column. */
     readonly file: string;
-    /** The graph value: `"id"` (the node id, or the edge id) or `"data.<column>"`. */
+    /**
+     * The graph value: `"id"` (the node id, or the edge id), an edge's `"source"` or `"target"`, or
+     * `"data.<column>"`.
+     */
     readonly graph: Path;
 }
 
@@ -2552,6 +2623,11 @@ export interface JoinSuggestion {
      * @since 3.37.0
      */
     readonly link?: JoinLink;
+    /**
+     * For `"edges"`: `"both"` when rows naming the same source and target say different things, so
+     * each is its own event. Absent otherwise. @since 3.38.0
+     */
+    readonly repeated?: "both";
 }
 
 /**
@@ -2688,6 +2764,13 @@ export interface JoinChoices {
      * @since 3.37.0
      */
     readonly split?: Readonly<Record<string, string>>;
+    /**
+     * For `"node-values"` on one key with no `via`: a row matching no node is `"leave-out"`, left
+     * out of the join (the default), or `"add"`ed as a new node named by its key. Undone, edited
+     * and removed with the join.
+     * @since 3.38.0
+     */
+    readonly unmatchedRows?: "leave-out" | "add";
 }
 
 /**
@@ -2695,7 +2778,8 @@ export interface JoinChoices {
  *
  * - `"joined"`: its values reach the elements it matches, or (for `"edges"`) it becomes an edge
  *   between two nodes the graph holds.
- * - `"new-end"`: (`"edges"`) it becomes an edge, and an end the graph lacks becomes a new node.
+ * - `"new-end"`: (`"edges"`) it becomes an edge, and an end the graph lacks becomes a new node; or
+ *   (`"node-values"` with `unmatchedRows: "add"`) it matches no node and becomes a new one.
  * - `"repeat"`: its key repeats another row's and `repeated` keeps the other one.
  * - `"left-out"`: the join leaves it out: its key matches nothing, a key value is blank, (for
  *   `"edges"` with `unknownEnds: "leave-out"`) an end is not in the graph, (for `"merge"` with
@@ -2790,6 +2874,12 @@ export interface JoinReport {
     readonly regions?: {
         readonly nodes: Readonly<Record<JoinRegion, number>>;
     };
+    /**
+     * Rows of the file its reader could not read (a line with too many or too few fields), so the
+     * join never saw them.
+     * @since 3.38.0
+     */
+    readonly unreadRows: number;
 }
 
 /**
@@ -2825,6 +2915,8 @@ export interface JoinRecord {
         readonly name: string;
         readonly columns: readonly string[];
         readonly rows: readonly Readonly<Record<string, unknown>>[];
+        /** Rows of the file its reader could not read. Absent when there were none. @since 3.38.0 */
+        readonly unreadRows?: number;
     };
     /**
      * For values: each element's values before the join wrote over them, by id, null for a value
@@ -3118,6 +3210,11 @@ export interface RemoveSourceResult {
     readonly removed: { readonly nodes: number; readonly edges: number };
     /** The load's nodes and edges that stayed, because another load also supplied them. */
     readonly kept: { readonly nodes: number; readonly edges: number };
+    /**
+     * The joins that went with it: joined onto it, through it as a mapping table, or keyed on a column it wrote.
+     * @since 3.38.0
+     */
+    readonly alsoRemoved: readonly SourceKey[];
 }
 
 /**
@@ -3679,6 +3776,8 @@ export interface SessionEventMap {
     "source:expanded": SourceExpanded;
     /** An expansion failed: the source's code and params. Mirrored as `graphty-source-expand-failed`. Experimental. */
     "source:expand-failed": SourceExpandFailed;
+    /** A network load read its source again (More or Refresh), so its `loadedAt` moved. Experimental. */
+    "source:refreshed": { readonly load: string };
     /**
      * The project's name or whether it has unsaved changes (`session.project.name`, `.dirty`)
      * changed. Mirrored on the element as `graphty-project-status`.

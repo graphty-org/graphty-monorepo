@@ -95,7 +95,8 @@ async function layerFromSelection(session: GraphSession, workspace: CommandConte
 /**
  * The Style tab package's commands. "Add label line" (Quick actions, and the attribute menu's
  * door: Data > Attributes, the attribute inspector, a table column) adds the Text "+" label line
- * on the inspected layer row or Everything.
+ * on the inspected layer row or Everything. "Custom model..." opens the Load custom model dialog.
+ * @experimental node-models
  */
 export const registration = defineRegistration({
     owner: "style",

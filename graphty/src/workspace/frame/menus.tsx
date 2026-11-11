@@ -203,7 +203,11 @@ export function MainMenu({ start = false }: Readonly<{ start?: boolean }>): Reac
                     sections={
                         start
                             ? [["settings.open", "help.shortcuts"]]
-                            : [FILE_LIST, ["model.custom", "shader.add", "project.rename"], ["settings.open", "help.shortcuts"]]
+                            : [
+                                  FILE_LIST,
+                                  ["model.custom", "shader.add", "project.rename"],
+                                  ["settings.open", "help.shortcuts"],
+                              ]
                     }
                 />
                 <Menu.Sub>

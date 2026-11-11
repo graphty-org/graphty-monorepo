@@ -771,6 +771,8 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number): Promise<void
     c.o("ci.jobs_queued", use.queued);
     // Only the jobs waiting for a runner, by the not-assigned flag's own rule: the runners page's count and gate.
     c.o("ci.jobs_waiting_runner", use.queuedOver2);
+    // Jobs our own workflows hold back (max-parallel) while runners are free: not GitHub's runner limit.
+    c.o("ci.jobs_held_by_run", use.heldByRun);
     c.o("ci.longest_queued_ms", use.longestQueuedMs);
     c.o("ci.saturated_ms", saturated ? elapsed : 0);
     c.o("ci.unassigned_ms", unassigned ? c.now - start : 0);

@@ -90,9 +90,9 @@ Both ship inside the installed package, so they can be read from `node_modules` 
   `detail`. `package.json` points at it through the standard `customElements` field, so editors
   and manifest-aware tooling find it on their own. It is also reachable through the exports map,
   at `@graphty/graphty-element/custom-elements.json`.
-- `dist/graphty-catalog.json` -- every algorithm, layout, file format, palette and scale the
-  element offers, with each one's options, defaults, ranges and result fields, plus the list of
-  error codes. Reachable through the exports map, at
+- `dist/graphty-catalog.json` -- every algorithm, layout, file format, palette, scale and style
+  channel the element offers, with each one's options, values, defaults, ranges and result fields,
+  plus the list of error codes. Reachable through the exports map, at
   `@graphty/graphty-element/graphty-catalog.json`. This is the file to
   read when deciding what to offer a user; it is the same data `@graphty/graphty-element/catalog`
   exports, so nothing has to parse TypeScript.

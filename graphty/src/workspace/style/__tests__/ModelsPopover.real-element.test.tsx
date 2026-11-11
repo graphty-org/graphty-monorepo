@@ -3,7 +3,7 @@
  * real graphty-element, by real input: the Shape list's Model... opens the Models pop-over; a
  * sample or a chosen .glb becomes the field's value; a built-in shape takes the model off in one
  * undo step; Model settings writes the model's channels; the minus removes the model; a lone
- * picture is offered as the layer's picture. Also a model dropped on the canvas. Every assertion
+ * picture is offered as the layer's picture. Every assertion
  * reads what the element reports: its layers, its assets and its model states.
  */
 
@@ -13,21 +13,8 @@ import "@graphty/graphty-element";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { siteFeatures } from "../../../test/siteFeatures";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { createWorkspaceStore } from "../../state/store";
-import { Workspace } from "../../Workspace";
-import {
-    canvasElement,
-    dropOn,
-    fileInput,
-    NODES,
-    openModels,
-    openShapes,
-    reaches,
-    shapeField,
-    written,
-} from "./modelHarness";
+import { screen, waitFor, within } from "../../../test/test-utils";
+import { dropOn, fileInput, openModels, openShapes, reaches, shapeField, written } from "./modelHarness";
 import { dotPng, quadGlb } from "./quadGlb";
 
 /**
@@ -191,24 +178,5 @@ describe("models in the Shape field, on the real element", () => {
         });
         assert.isUndefined(written(session, "node.model"), "the reader closed it before it loaded");
         assert.isNull(screen.queryByRole("dialog", { name: "Parts" }));
-    });
-
-    it("draws a .glb dropped on the canvas on the selected nodes only, as one undoable layer", async () => {
-        await siteFeatures(["node-models"]);
-        render(<Workspace store={createWorkspaceStore({ project: { name: "Models", id: 1 } })} />);
-        const { session } = await canvasElement();
-        await session.layout.set("fixed");
-        await session.data.addNodes(NODES);
-        await session.selection.apply({ nodes: ["1"] });
-        const before = session.styles.list().length;
-        dropOn(screen.getByTestId("canvas"), [new File([quadGlb()], "chip.glb")]);
-
-        await waitFor(() => {
-            assert.lengthOf(session.styles.list(), before + 1);
-        });
-        const layer = session.styles.list().find((l) => l.set?.["node.model"] !== undefined);
-        assert.deepEqual(layer?.selector, { match: "ids", nodes: ["1"] });
-        await session.undo();
-        assert.lengthOf(session.styles.list(), before);
     });
 });

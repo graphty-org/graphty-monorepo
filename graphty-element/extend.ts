@@ -67,7 +67,14 @@ export type { OptionContext } from "./src/catalog/options";
 export { resolveOptionValues } from "./src/catalog/options";
 export type { OptionsFromZodOptions, OptionsSource, OptionUiMeta } from "./src/catalog/optionsFromZod";
 export { optionsFromZod } from "./src/catalog/optionsFromZod";
-export type { OptionBound, OptionChoice, OptionDescriptor, OptionType } from "./src/catalog/types";
+export type {
+    OptionBound,
+    OptionChoice,
+    OptionDescriptor,
+    OptionType,
+    OptionUnsupported,
+    OptionUnsupportedCode,
+} from "./src/catalog/types";
 export { isOptionType, OPTION_TYPES } from "./src/catalog/types";
 
 // ---------------------------------------------------------------------------------------------
@@ -479,7 +486,15 @@ export { assistantReach } from "./src/ai/tools/reach";
 // Network sources (experimental): graph-io's source contract and the element's load types
 // ---------------------------------------------------------------------------------------------
 
-export type { GraphtyErrorCode, GraphtyErrorInit, GraphtyErrorSource, GraphtyErrorTarget } from "./src/errors";
+export type {
+    GraphtyErrorCode,
+    GraphtyErrorDetails,
+    GraphtyErrorDetailsMap,
+    GraphtyErrorFor,
+    GraphtyErrorInit,
+    GraphtyErrorSource,
+    GraphtyErrorTarget,
+} from "./src/errors";
 export { GraphtyError, isGraphtyError } from "./src/errors";
 export * from "./src/session/sources/public";
 

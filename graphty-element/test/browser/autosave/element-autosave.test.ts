@@ -369,6 +369,51 @@ describe("events", () => {
         assert.strictEqual(restored[0]?.revision, 1);
         assert.deepStrictEqual(statuses, [], "a restore at connect fires no status event");
     });
+
+    it("tell the page about work written while the element was still starting", async () => {
+        // The element's start waits at its listing until the test lets it through; a change made
+        // meanwhile is written at once, as a page's setup right after connect is on a slow disk.
+        const memory = memoryAutosaveStore();
+        let changed = false;
+        let letListingThrough = (): void => undefined;
+        const listingOpen = new Promise<void>((resolve) => {
+            letListingThrough = resolve;
+        });
+        let listingAsked = (): void => undefined;
+        const asked = new Promise<void>((resolve) => {
+            listingAsked = resolve;
+        });
+        const store: AutosaveStore = {
+            list: async (key) => {
+                if (!changed) {
+                    listingAsked();
+                    await listingOpen;
+                }
+                return memory.list(key);
+            },
+            read: (id) => memory.read(id),
+            remove: (id) => memory.remove(id),
+            commit: (writes, options) => memory.commit(writes, options),
+        };
+        const statuses: AutosaveStatus[] = [];
+        const element = mount(keyFor("starting"), (each) => {
+            each.autosaveOptions = { store, restore: "manual" };
+            each.addEventListener("graphty-autosave-status", (event) => statuses.push(event.detail));
+        });
+
+        await asked;
+        changed = true;
+        await element.session.config.set({ name: "Set up at connect" });
+        await element.autosaver.flush();
+        const { entry, savedAt } = element.autosaver.status;
+        assert.isNotNull(entry, "the change was written before the start finished");
+
+        letListingThrough();
+        await element.autosaver.ready;
+        const told = statuses.at(-1);
+        assert.strictEqual(told?.entry, entry, "the page heard which entry holds the work");
+        assert.strictEqual(told?.savedAt, savedAt);
+    });
 });
 
 describe("this tab's own entry", () => {

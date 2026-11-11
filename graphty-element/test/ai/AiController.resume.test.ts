@@ -135,6 +135,49 @@ describe("approvals that survive a reload", () => {
         }
     });
 
+    it("tells the host nothing of a held request, by status or list, until it is saved", async () => {
+        // A save the test lets land: before it does, a reload would not find the request.
+        class SlowStore extends MemoryStore {
+            holding = false;
+            land: () => void = () => undefined;
+            private readonly landed = new Promise<void>((resolve) => {
+                this.land = resolve;
+            });
+            override async save(record: Parameters<MemoryStore["save"]>[0]): ReturnType<MemoryStore["save"]> {
+                if (record.pending.length > 0) {
+                    this.holding = true;
+                    await this.landed;
+                }
+                return super.save(record);
+            }
+        }
+        const store = new SlowStore();
+        const assistant = new ScriptedAssistant(await assistantSession(), {
+            history: "memory",
+            approvals: "writes",
+            store,
+        });
+        const told: number[] = [];
+        assistant.controller.onStatusChange((status) => {
+            told.push(status.pending?.approvals ?? 0);
+        });
+
+        const said = assistant.say("add f", [ADD_F]);
+        await vi.waitFor(() => {
+            assert.isTrue(store.holding);
+        });
+        assert.deepStrictEqual(assistant.controller.getPendingApprovals(), [], "listed before it is saved");
+        assert.notInclude(told, 1, "counted in the status before it is saved");
+
+        store.land();
+        const { result } = await said;
+        assert.deepStrictEqual(
+            assistant.controller.getPendingApprovals().map((pending) => pending.id),
+            [String(result.params?.request)],
+        );
+        assert.include(told, 1);
+    });
+
     it("asks again after a reload, after enableAiControl resolves, and lists the request at once", async () => {
         const { json, request } = await heldRecord();
         const { assistant } = await reopened(json);

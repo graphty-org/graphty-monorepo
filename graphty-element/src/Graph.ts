@@ -6676,9 +6676,6 @@ export class Graph implements GraphContext {
      * error names what was still moving. A wait for a final frame that quietly gives up and
      * returns a moving one is worse than no wait at all: the caller cannot tell the two apart.
      * @param options - How the wait is bounded.
-     * @param options.timeoutMs - Deprecated: how long to wait before giving up; 30 seconds by default.
-     *   Leave it out. To ask whether the picture is final now, without waiting, read
-     *   {@link Graph.isFrameStable}.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
      * It also rejects, at once, when the graph is shut down -- the element was removed from the page
      * -- before the picture came to rest, or had been already when the wait started: a graph that

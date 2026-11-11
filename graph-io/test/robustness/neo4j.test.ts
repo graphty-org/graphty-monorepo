@@ -99,9 +99,20 @@ describe("Neo4j robustness: headers and wrong formats", () => {
         expect(codes(report)).toEqual([]);
     });
 
-    it("neo4j-apoc-export-csv: an apoc.export.csv file is E_NEO4J_HEADER naming the APOC layout", async () => {
-        const error = await fail('"_id","_labels","name","_start","_end","_type"\n"0",":Person","Ann",,,\n');
+    it("neo4j-apoc-export-csv: an apoc.export.csv file is read as its node and relationship rows", async () => {
+        const { s, report } = await load('"_id","_labels","name","_start","_end","_type"\n"0",":Person","Ann",,,\n');
+        expect(ids(s)).toEqual([0]);
+        expect(codes(report)).toEqual([]);
+    });
+
+    it("neo4j-apoc-start-only: an APOC header with _start but no _end is E_NEO4J_HEADER naming the APOC layout", async () => {
+        const error = await fail("_start,_type\n1,KNOWS\n");
         expect(issue(error.report, NEO4J_ISSUE.HEADER).message).toMatch(/apoc\.export\.csv/);
+    });
+
+    it("neo4j-apoc-json-bad-line: a JSON Lines line that is not JSON is E_SYNTAX on its line", async () => {
+        const error = await fail('{"type":"node","id":"1"}\n{"type":"node",\n');
+        expect(issue(error.report, NEO4J_ISSUE.SYNTAX).line).toBe(2);
     });
 
     it("neo4j-browser-export-csv: a Browser export is E_NEO4J_HEADER naming the columns it needs", async () => {
@@ -139,11 +150,13 @@ describe("Neo4j robustness: headers and wrong formats", () => {
         expect(codes(error.report)).toEqual([NEO4J_ISSUE.HEADER]);
     });
 
-    // the record reader meets the JSON quoting before any header is parsed: fatal all the same
-    it("neo4j-json-in-csv: a JSON document sniffs 0 and is a fatal CSV quote error", async () => {
+    // JSON is read as an APOC export; one without any APOC record says to read it as json
+    it("neo4j-json-in-csv: a JSON graph document sniffs 0 and is E_NEO4J_HEADER naming the json format", async () => {
         const text = '{"nodes":[{"id":"a"}],"links":[]}';
         expect(neo4jImporter.sniff?.(new TextEncoder().encode(text))).toBe(0);
-        expect(codes((await fail(text)).report)).toEqual([NEO4J_ISSUE.CSV_QUOTE]);
+        const error = await fail(text);
+        expect(codes(error.report)).toEqual([NEO4J_ISSUE.HEADER]);
+        expect(issue(error.report, NEO4J_ISSUE.HEADER).message).toMatch(/format "json"/);
     });
 
     it("neo4j-midfile-bom: a BOM before a later section's header is stripped and reported", async () => {

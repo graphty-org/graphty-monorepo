@@ -15,7 +15,7 @@
         "nodes": 3,
         "edges": 1
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "sniffAs": "neo4j"
     },
     {
       "file": "apoc-json/all_array.json",
@@ -30,7 +30,7 @@
         "nodes": 3,
         "edges": 1
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "sniffAs": "neo4j"
     },
     {
       "file": "apoc-json/all_fields.json",
@@ -45,7 +45,7 @@
         "nodes": 3,
         "edges": 1
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "sniffAs": "neo4j"
     },
     {
       "file": "apoc-json/all_id_as_keys.json",
@@ -60,7 +60,7 @@
         "nodes": 3,
         "edges": 1
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "sniffAs": "neo4j"
     },
     {
       "file": "apoc-json/all_withoutNodeProps_withoutRelProps.json",
@@ -75,7 +75,7 @@
         "nodes": 3,
         "edges": 1
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "sniffAs": "neo4j"
     },
     {
       "file": "apoc-json/multiLabels.json",
@@ -90,7 +90,7 @@
         "nodes": 16,
         "edges": 4
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "sniffAs": "neo4j"
     },
     {
       "file": "apoc-json/nodes_without_labels.json",
@@ -105,7 +105,7 @@
         "nodes": 1,
         "edges": 0
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "sniffAs": "neo4j"
     },
     {
       "file": "apoc-json/relationship_type_injection.json",
@@ -120,7 +120,7 @@
         "nodes": 2,
         "edges": 1
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "sniffAs": "neo4j"
     },
     {
       "file": "apoc-json/importPointValues.json",
@@ -135,7 +135,7 @@
         "nodes": 4,
         "edges": 0
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "sniffAs": "neo4j"
     },
     {
       "file": "apoc-json/query_nodes.json",
@@ -150,7 +150,7 @@
         "nodes": 3,
         "edges": 0
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "sniffAs": "neo4j"
     },
     {
       "file": "apoc-json/query_nodes_path.json",
@@ -165,7 +165,7 @@
         "nodes": 2,
         "edges": 1
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "sniffAs": "neo4j"
     },
     {
       "file": "apoc-json/MapPath.json",
@@ -180,7 +180,7 @@
         "nodes": 4,
         "edges": 2
       },
-      "knownFailure": "APOC JSON exports are not read (sources.md 9.4)"
+      "sniffAs": "neo4j"
     },
     {
       "file": "apoc-csv/export-all.csv",
@@ -195,7 +195,7 @@
         "edges": 1,
         "directed": true
       },
-      "knownFailure": "APOC CSV exports are not read (sources.md 9.4)"
+      "sniffAs": "neo4j"
     },
     {
       "file": "apoc-csv/multi-labels.csv",
@@ -210,7 +210,7 @@
         "edges": 2,
         "directed": true
       },
-      "knownFailure": "APOC CSV exports are not read (sources.md 9.4)"
+      "sniffAs": "neo4j"
     },
     {
       "file": "apoc-csv/quotes-none.csv",
@@ -225,7 +225,7 @@
         "edges": 1,
         "directed": true
       },
-      "knownFailure": "APOC CSV exports are not read (sources.md 9.4)"
+      "sniffAs": "neo4j"
     },
     {
       "file": "admin/manual-movies-actors.csv",

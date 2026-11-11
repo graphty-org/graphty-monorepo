@@ -17,10 +17,10 @@ the expectation today; the reference points into
 | cys | 53 | 53 | 0 | 40 | 0 |
 | dot | 196 | 191 | 5 | 173 | 2 |
 | gexf | 110 | 107 | 3 | 104 | 1 |
-| gml | 109 | 100 | 9 | 90 | 4 |
+| gml | 109 | 98 | 11 | 88 | 4 |
 | graphml | 148 | 145 | 3 | 131 | 5 |
 | json | 427 | 420 | 7 | 102 | 0 |
-| neo4j | 45 | 26 | 19 | 25 | 0 |
+| neo4j | 45 | 41 | 4 | 40 | 0 |
 | obo | 102 | 102 | 0 | 101 | 0 |
 | pajek | 117 | 117 | 0 | 115 | 0 |
 | xgmml | 77 | 77 | 0 | 75 | 0 |
@@ -265,6 +265,16 @@ No known failures.
 - `netzschleuder/lesmis.gml`: threw: GraphFormatError: node column "_pos" is not a GML key; pass sanitizeKeys: "mangle" to rewrite it
 - `authored/underscore-keys.gml`: threw: GraphFormatError: node column "_pos" is not a GML key; pass sanitizeKeys: "mangle" to rewrite it
 
+### graph-io reads OGDF's rootcluster block as a group node (id cluster<id>) holding its vertices, which networkx ignores (ISSUES.md, Specimen sheets: GML) (2)
+
+- `ogdf/cluster_malformed-node-index.gml`: nodes: expected 3, got 4
+- `ogdf/cluster_node-in-two-clusters.gml`: nodes: expected 3, got 4
+
+### round trip: the group node's id cluster<id> is not a GML integer id, so the GML export throws E_INVALID_ID unless sanitizeIds is set (ISSUES.md, Specimen sheets: GML) (2)
+
+- `ogdf/cluster_malformed-node-index.gml`: (no detail)
+- `ogdf/cluster_node-in-two-clusters.gml`: (no detail)
+
 ### no nesting depth guard (sources.md 4.4) (1)
 
 - `authored/deep-nesting-5000.gml`: imported (1 nodes) where a failure was expected
@@ -326,27 +336,6 @@ No known failures.
 
 
 ## neo4j
-
-### APOC JSON exports are not read (sources.md 9.4) (12)
-
-- `apoc-json/all.json`: failed: E_CSV_QUOTE: "all.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_array.json`: failed: E_CSV_QUOTE: "all_array.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_fields.json`: failed: E_CSV_QUOTE: "all_fields.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_id_as_keys.json`: failed: E_CSV_QUOTE: "all_id_as_keys.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/all_withoutNodeProps_withoutRelProps.json`: failed: E_CSV_QUOTE: "all_withoutNodeProps_withoutRelProps.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/multiLabels.json`: failed: E_CSV_QUOTE: "multiLabels.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/nodes_without_labels.json`: failed: E_CSV_QUOTE: "nodes_without_labels.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/relationship_type_injection.json`: failed: E_CSV_QUOTE: "relationship_type_injection.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/importPointValues.json`: failed: E_CSV_QUOTE: "importPointValues.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/query_nodes.json`: failed: E_CSV_QUOTE: "query_nodes.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/query_nodes_path.json`: failed: E_CSV_QUOTE: "query_nodes_path.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-- `apoc-json/MapPath.json`: failed: E_CSV_QUOTE: "MapPath.json" could not be read as neo4j: line 1: text after the closing quote of quoted field 2 (a quote inside a quoted field is written as two quotes)
-
-### APOC CSV exports are not read (sources.md 9.4) (3)
-
-- `apoc-csv/export-all.csv`: failed: E_NEO4J_HEADER: "export-all.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _e
-- `apoc-csv/multi-labels.csv`: failed: E_NEO4J_HEADER: "multi-labels.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, 
-- `apoc-csv/quotes-none.csv`: failed: E_NEO4J_HEADER: "quotes-none.csv" could not be read as neo4j: line 1: a header needs an :ID column (nodes) or :START_ID and :END_ID columns (relationships); this is the apoc.export.csv layout (_id, _labels, _start, _
 
 ### an unreadable typed cell drops the whole row instead of warning and leaving it unset (sources.md 9.4) (1)
 

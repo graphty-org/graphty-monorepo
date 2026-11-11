@@ -186,9 +186,10 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > holds the commands you ran and what they showed; keep it in tmp/<name>/, because an untracked file in the worktree
 > is refused), write `pipeline-round: opened <branch> <url>` on the issue, and
 > stop. Unless your job is master's fix or revert, first check master yourself, just before opening:
-> `gh run list -R graphty-org/graphty-monorepo --workflow release.yml --status completed --limit 1 --json conclusion`
-> (the newest full run) and the same for `ci.yml --branch master --event push`; while either is `failure`, master is
-> red: stop after the commit, the push and `pipeline-round: ready <branch> <full sha>` on every issue of the group,
+> `gh run list -R graphty-org/graphty-monorepo --workflow release.yml --status completed --limit 10 --json conclusion
+--jq '[.[]|select(.conclusion=="success" or .conclusion=="failure")][0].conclusion'` (the newest full run that
+> reached a verdict: a cancelled run says nothing) and the same for `ci.yml --branch master --event push`; while
+> either is `failure`, master is red: stop after the commit, the push and `pipeline-round: ready <branch> <full sha>` on every issue of the group,
 > without `pr-open.sh` (a later round opens it once master is green). Always: never wait for CI, never merge, never push to master; never git stash, reset, restore, clean or check out
 > files, nor write a tracked file back from git any other way (`git show HEAD:<file> > <file>`): if a run rewrites a
 > tracked file, leave it uncommitted and say so in your report; never cherry-pick or rebase (merge instead); read issues only with `node tools/issue-queue.mjs show <n>`, never

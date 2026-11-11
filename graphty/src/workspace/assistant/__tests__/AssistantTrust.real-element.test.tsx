@@ -814,11 +814,23 @@ describe("checking what the Assistant says", () => {
             assert.isTrue(model.held);
         });
         await userEvent.click(screen.getByRole("button", { name: "Close" }));
-        const counted = store.get().announced;
+        // Only its own words are counted: the status line also says other things meanwhile (Working,
+        // once the run has gone a second).
+        const said: string[] = [];
+        store.subscribe(() => {
+            const { announcement } = store.get();
+            if (announcement !== said.at(-1)) {
+                said.push(announcement);
+            }
+        });
         model.release();
         const slot = await waitFor(notice);
         await within(slot).findByText("Colored 3 nodes");
-        assert.strictEqual(store.get().announced, counted + 1, "its words go through the status line once");
+        assert.lengthOf(
+            said.filter((line) => line === "Colored 3 nodes"),
+            1,
+            "its words go through the status line once",
+        );
         await userEvent.click(within(slot).getByRole("button", { name: "Undo" }));
         await waitFor(() => {
             assert.strictEqual(session.styles.list().length, layers);

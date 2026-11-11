@@ -637,6 +637,17 @@ export function featuresFrom(graph: Graph, read: () => readonly string[] | undef
     requestedFeatures.set(graph, read);
 }
 
+/** How {@link Graph.waitForStableFrame} and `element.waitForStableFrame()` wait. */
+export interface StableFrameOptions {
+    /**
+     * How long to wait before the wait rejects; 30 seconds by default.
+     * @deprecated Since 3.33. Leave it out: a per-call deadline makes a wait fail on a busy
+     * machine while the picture is still on its way. To ask whether the picture is final
+     * now, without waiting, read {@link Graph.isFrameStable}. Still honored.
+     */
+    timeoutMs?: number;
+}
+
 /**
  * Where one node is drawn on screen. Pixels count from the element's top-left corner, the same
  * pixels `worldToScreen` returns and a pointer event's `offsetX` / `offsetY` on the canvas use.
@@ -6694,17 +6705,7 @@ export class Graph implements GraphContext {
      * const screenshot = await graph.captureScreenshot();
      * ```
      */
-    async waitForStableFrame(
-        options: {
-            /**
-             * How long to wait before the wait rejects; 30 seconds by default.
-             * @deprecated Since 3.33. Leave it out: a per-call deadline makes a wait fail on a busy
-             * machine while the picture is still on its way. To ask whether the picture is final
-             * now, without waiting, read {@link Graph.isFrameStable}. Still honored.
-             */
-            timeoutMs?: number;
-        } = {},
-    ): Promise<void> {
+    async waitForStableFrame(options: StableFrameOptions = {}): Promise<void> {
         // Read through a plain type: the option is deprecated for callers, not for its own implementation.
         const bound: { timeoutMs?: number } = options;
         const timeoutMs = bound.timeoutMs ?? defaultStableFrameTimeoutMs();

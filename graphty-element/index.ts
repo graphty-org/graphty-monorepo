@@ -45,7 +45,7 @@ import "./src/graphty-element";
 // Core classes
 // =============================================================================
 export { Edge, type EdgeCapEnd } from "./src/Edge";
-export type { NodeScreenPosition } from "./src/Graph";
+export type { NodeScreenPosition, StableFrameOptions } from "./src/Graph";
 export { Graph } from "./src/Graph";
 export type {
     GraphtyCapabilitiesChangeDetail,

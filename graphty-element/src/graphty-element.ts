@@ -48,7 +48,15 @@ import {
     nodeEventDetail,
 } from "./events";
 import { type EnabledFeatures, featureOff, resolveFeatures } from "./features/resolve";
-import { featuresFrom, Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf, waitFirstFor } from "./Graph";
+import {
+    featuresFrom,
+    Graph,
+    loadSourcePair,
+    type NodeScreenPosition,
+    operationQueueOf,
+    type StableFrameOptions,
+    waitFirstFor,
+} from "./Graph";
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
@@ -5121,15 +5129,7 @@ export class Graphty extends LitElement {
      * const shot = await element.captureScreenshot();
      * ```
      */
-    async waitForStableFrame(options?: {
-        /**
-         * How long to wait before the wait rejects; 30 seconds by default.
-         * @deprecated Since 3.33. Leave it out: a per-call deadline makes a wait fail on a busy
-         * machine while the picture is still on its way. To ask whether the picture is final
-         * now, without waiting, read {@link Graphty.isFrameStable}. Still honored.
-         */
-        timeoutMs?: number;
-    }): Promise<void> {
+    async waitForStableFrame(options?: StableFrameOptions): Promise<void> {
         return this.#graph.waitForStableFrame(options);
     }
 

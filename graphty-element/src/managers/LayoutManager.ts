@@ -672,6 +672,11 @@ export class LayoutManager implements Manager {
     #building = 0;
     /** Moves at every restore of the arrangement; pre-steps computed before one are dropped. */
     #generation = 0;
+    /**
+     * The generation a filter relayout is queued under and has not started yet, or null. Further
+     * filter changes before it starts ask for nothing more: it reads what the filter shows when it starts.
+     */
+    #relayoutQueued: number | null = null;
     /** Whether the last restore of the arrangement was the reader's (undo, redo, a history jump). */
     #restoredByReader = false;
 
@@ -2387,8 +2392,15 @@ export class LayoutManager implements Manager {
         }
 
         const generation = this.#generation;
+        // A play changes the filter every frame: one relayout waiting to start covers them all.
+        if (this.#relayoutQueued === generation) {
+            return;
+        }
+
+        this.#relayoutQueued = generation;
         this.#building++;
         const rebuild = this.#applying.then(async () => {
+            this.#relayoutQueued = null;
             const running = this.layoutEngine;
             if (running === undefined || this.#generation !== generation) {
                 return;

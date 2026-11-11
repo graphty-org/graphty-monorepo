@@ -483,7 +483,8 @@ vec4 shadeFar(NodeInput n) {
 
         const refused = await session();
         await refused.session.styles.applyTemplate(documentWithTint(), { shaders: "refuse" });
-        assert.lengthOf(refused.session.shaders.list(), 0);
+        // Refused text is kept, held, so a save still carries it.
+        assert.strictEqual(refused.session.shaders.status("user/tint").state, "held");
     });
 
     it("trusts the hashes the application remembered, except one a crash marked", async () => {

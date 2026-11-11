@@ -1103,7 +1103,9 @@ the GPU layout: none is needed. Every engine that runs on a frame, the GPU sprin
 its rows through one `LayoutEngine.publishColumn` loop over the scene coordinates it already computes (the GPU driver from
 the landed read-back, mapped through the transform its batch drew with), so that loop measures the box for free
 (`LayoutEngine.publishedBounds`; ngraph and the simulation engines answer it, d3 and the one-shot engines do not). A
-pinned or held row counts where it is kept. The walk still runs for a framing asked for, the framing a layout settles on,
+pinned or held row counts where it is kept: `publishColumn` takes in a kept row it is handed, and the simulation engines,
+which leave their pinned and dragged rows out of the publish, add them after it (`LayoutEngine.keepInPublishedBox`, a loop
+over those rows only). The walk still runs for a framing asked for, the framing a layout settles on,
 a node drawn as an object, any hidden row (`RowTable.hiddenRows`), a layout transition and an engine that holds rows
 outside its publish (a scope or followers). Labels and bent edges are not framed while the layout moves.
 

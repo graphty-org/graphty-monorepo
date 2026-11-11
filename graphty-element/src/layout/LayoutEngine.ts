@@ -1228,6 +1228,29 @@ export abstract class LayoutEngine {
     }
 
     /**
+     * Take rows an engine left out of its last {@link LayoutEngine.publishColumn} (rows it keeps
+     * itself, such as pinned or dragged ones) into {@link LayoutEngine.publishedBounds}, where they
+     * are drawn now. An unplaced row is not drawn and does not count.
+     * @param n - The element's array, or a node of its graph.
+     * @param rows - The kept rows.
+     * @internal
+     */
+    protected keepInPublishedBox(n: Node | ElementPositions, rows: Iterable<number>): void {
+        const positions = this.positionsFor(n);
+        const live = positions.count;
+        const array = positions.view(live);
+        const box = this.publishedBox;
+        for (const row of rows) {
+            const base = POSITION_COMPONENTS * row;
+            if (row < live && isStorableCoordinate(array[base])) {
+                grow(box, array[base], array[base + 1], array[base + 2]);
+            }
+        }
+
+        this.publishedBoxHolds = box[0] <= box[3];
+    }
+
+    /**
      * {@link LayoutEngine.publishedBounds} for an engine that publishes in one
      * {@link LayoutEngine.publishColumn}.
      * @returns The box, or null.

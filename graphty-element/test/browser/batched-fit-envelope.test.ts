@@ -51,16 +51,18 @@ async function mounted(path: "objects" | "batched"): Promise<Graphty> {
 }
 
 /**
- * Run ngraph and count, for each of the next framings taken while it moves, the rows the framing
+ * Run a layout and count, for each of the next framings taken while it moves, the rows the framing
  * visited: each `Node.framingBounds` and each batched row's `RowTable.isHidden`, which only a
  * framing's walk asks.
  * @param element - The element.
  * @param framings - How many moving framings to count.
+ * @param layout - The layout to run.
  * @returns The rows visited per framing, and the boxes framed.
  */
 async function countMovingFramings(
     element: Graphty,
     framings: number,
+    layout = "ngraph",
 ): Promise<{ visits: number[]; boxes: { min: Vector3; max: Vector3 }[] }> {
     const nodeWalk = vi.spyOn(Node.prototype, "framingBounds");
     const rowWalk = vi.spyOn(RowTable.prototype, "isHidden");
@@ -95,7 +97,7 @@ async function countMovingFramings(
             }
         });
     });
-    await graph.setLayout("ngraph", { dim: 3 });
+    await graph.setLayout(layout, { dim: 3 });
     await done;
     nodeWalk.mockRestore();
     rowWalk.mockRestore();
@@ -121,6 +123,20 @@ describe("zoom-to-fit while a layout runs", () => {
                 assert.isAtLeast(at[axis], last.min[axis] - size * 0.1, `node ${node.id} ${axis}`);
                 assert.isAtMost(at[axis], last.max[axis] + size * 0.1, `node ${node.id} ${axis}`);
             }
+        }
+    });
+
+    it("frames a pinned node a ForceAtlas2 run leaves out of its publish, visiting no row", async () => {
+        const element = await mounted("batched");
+        const session = element.graph.getSession();
+        await session.positions.set([{ id: 0, x: 500, y: -400, z: 300 }]);
+        await session.positions.pin([0]);
+        const { visits, boxes } = await countMovingFramings(element, 3, "forceatlas2");
+        assert.deepEqual(visits, [0, 0, 0], "no row walked by a moving framing");
+        for (const { min, max } of boxes) {
+            assert.isAtLeast(max.x, 500, "the pinned node's x is framed");
+            assert.isAtMost(min.y, -400, "the pinned node's y is framed");
+            assert.isAtLeast(max.z, 300, "the pinned node's z is framed");
         }
     });
 

@@ -3368,6 +3368,21 @@ function labelTree(get: GetValue, node: boolean, approximate: Approximate): Tree
 const GRADIENT_PROPERTIES = ["fillGradient", "fillGradientAngle", "fillGradientColors", "fillGradientStops"] as const;
 
 /**
+ * Records a node's gradient values as approximated when it has no fill color: a y:Fill's color2 needs its color, so
+ * the gradient is not written.
+ * @param get - the node's values
+ * @param approximate - records approximations
+ */
+function noteUnwrittenGradient(get: GetValue, approximate: Approximate): void {
+    for (const property of GRADIENT_PROPERTIES) {
+        const had = get(property);
+        if (had !== null) {
+            approximate(property, had);
+        }
+    }
+}
+
+/**
  * A node's `y:ShapeNode` from its values.
  * @param get - the node's values
  * @param at - the node's position from the graphics it had, or null
@@ -3391,13 +3406,7 @@ function shapeNodeTree(get: GetValue, at: readonly [string, string] | null, appr
         }
         noteGradientRamp(get, { fill, second, shape: yedShape ?? "rectangle" }, approximate);
     } else {
-        // a y:Fill's color2 needs its color: with no string fill the gradient is not written
-        for (const property of GRADIENT_PROPERTIES) {
-            const had = get(property);
-            if (had !== null) {
-                approximate(property, had);
-            }
-        }
+        noteUnwrittenGradient(get, approximate);
         if (fillOpacity === 0) {
             node["y:Fill"] = { "@_hasColor": "false", "@_transparent": "false" };
         }

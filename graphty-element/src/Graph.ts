@@ -199,6 +199,7 @@ import {
 } from "./managers/RenderManager";
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
+import { EdgeRowLines } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
@@ -828,6 +829,8 @@ export class Graph implements GraphContext {
     readonly #limits = new RenderLimits(this.#renderPath === "batched");
     /** The node batches, once the renderer is open on the `"batched"` path. */
     #nodeBatches: NodeBatches | null = null;
+    /** Edge rows drawn with no `Edge`, on the `"batched"` path (`EdgeRowLines`). */
+    #edgeRowLines: EdgeRowLines | null = null;
     /** What hover reads on the `"batched"` path. */
     #nodeIds: NodeIdTarget | null = null;
     #edgeIds: EdgeIdTarget | null = null;
@@ -4712,6 +4715,15 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The edge rows drawn with no `Edge`, on the `"batched"` path.
+     * @returns They, or null.
+     * @internal
+     */
+    getEdgeRowLines(): EdgeRowLines | null {
+        return this.#edgeRowLines;
+    }
+
+    /**
      * The node ID target hover reads, on the `"batched"` path.
      * @returns The target, or null.
      * @internal
@@ -4883,6 +4895,15 @@ export class Graph implements GraphContext {
                 },
                 this.scene,
             );
+            this.#edgeRowLines = new EdgeRowLines({
+                scene: this.scene,
+                cache: this.dataManager.meshCache,
+                rows: places,
+                lean: () => this.leansLines(),
+                requestFrame: () => {
+                    this.renderManager.requestFrame();
+                },
+            });
             const batches = this.#nodeBatches;
             const target = new NodeIdTarget(this.scene, {
                 positionTexture: () => places.positionTexture,
@@ -4912,6 +4933,8 @@ export class Graph implements GraphContext {
             useNodeIdTarget(this.scene, null);
             this.#nodeIds?.dispose();
             this.#nodeIds = null;
+            this.#edgeRowLines?.clear();
+            this.#edgeRowLines = null;
             this.#nodeBatches.dispose();
             this.#nodeBatches = null;
         }

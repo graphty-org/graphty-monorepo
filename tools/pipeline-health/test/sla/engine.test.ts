@@ -345,9 +345,9 @@ describe("data states", () => {
 
     it("a 7-day window carries its also metrics as facts: net new flaky's new and resolved counts", async () => {
         const store = await world([
-            obs("flaky.net_change", -1, T0 - HOUR),
-            obs("flaky.net_added", 2, T0 - HOUR),
-            obs("flaky.net_resolved", 3, T0 - HOUR),
+            obs("flaky.net_change", -1, T0 - 10 * MIN),
+            obs("flaky.net_added", 2, T0 - 10 * MIN),
+            obs("flaky.net_resolved", 3, T0 - 10 * MIN),
         ]);
         expect(await member(store, "flaky.net_new")).toMatchObject({
             value: -1,

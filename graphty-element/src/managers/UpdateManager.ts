@@ -918,7 +918,7 @@ export class UpdateManager implements Manager {
         // A pulled line carries no age (`Edge.pullsLine`): on "batched", turning the fade on or
         // off moves the plain edges between the pulled and the placed line.
         if (state.on !== was && (this.graphContext.getNodeBatches?.() ?? null) !== null) {
-            for (const edge of this.dataManager.edges.values()) {
+            for (const edge of this.builtEdges()) {
                 edge.updateStyle();
             }
 
@@ -1327,7 +1327,7 @@ export class UpdateManager implements Manager {
         let revealed = false;
         this.drawnSelectedEdges.clear();
 
-        for (const edge of this.dataManager.edges.values()) {
+        for (const edge of this.builtEdges()) {
             const { index } = edge;
             // `!placed` now means only "this edge is mid-teardown", which is a state lasting
             // less than one statement. It used to mean "this edge outlived the node it was
@@ -1735,7 +1735,17 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Each node's edges, built once for a repaint rather than on each frame that resizes a node.
+     * The `Edge`s built so far, building none: an edge stored with no `Edge` has no line object
+     * to restyle, mask, retrim or renumber. Every edge while all are built.
+     * @returns They.
+     */
+    private builtEdges(): MapIterator<Edge> {
+        return dataManagerInternals.builtEdges(this.dataManager).values();
+    }
+
+    /**
+     * Each node's built edges, built once for a repaint rather than on each frame that resizes a
+     * node. Building an `Edge` moves `edgeVersion`, so a later build rebuilds the map.
      * @returns The edges at each node, by its id.
      */
     private edgesByNode(): ReadonlyMap<NodeIdType, Edge[]> {
@@ -1753,7 +1763,7 @@ export class UpdateManager implements Manager {
                 }
             };
 
-            for (const edge of this.dataManager.edges.values()) {
+            for (const edge of this.builtEdges()) {
                 // By id: reading an end's `Node` would build one for a row drawn with none.
                 add(edge.srcId, edge);
                 add(edge.dstId, edge);
@@ -2370,8 +2380,11 @@ export class UpdateManager implements Manager {
             this.trimmedAt = new WeakMap();
             this.retrimPending = false;
             if (scaled) {
-                this.statsManager.incrementCounter(UpdateManager.RETRIM_COUNTER, this.dataManager.edges.size);
-                for (const edge of this.dataManager.edges.values()) {
+                this.statsManager.incrementCounter(
+                    UpdateManager.RETRIM_COUNTER,
+                    dataManagerInternals.builtEdges(this.dataManager).size,
+                );
+                for (const edge of this.builtEdges()) {
                     edge.invalidatePositionCache();
                 }
                 this.forceEdgeWalk();
@@ -3111,7 +3124,7 @@ export class UpdateManager implements Manager {
         }
 
         this.pulledRowsMoved = false;
-        for (const edge of this.dataManager.edges.values()) {
+        for (const edge of this.builtEdges()) {
             if (edge.isPulled) {
                 edge.followRenumberedRows();
             }
@@ -3492,7 +3505,7 @@ export class UpdateManager implements Manager {
         const tolerance = moving ? UpdateManager.RETRIM_BAND : 0;
         let cut = 0;
         this.retrimPending = false;
-        for (const edge of this.dataManager.edges.values()) {
+        for (const edge of this.builtEdges()) {
             if (!onScreen.has(edge.srcNode) && !onScreen.has(edge.dstNode)) {
                 continue;
             }
@@ -3855,7 +3868,7 @@ export class UpdateManager implements Manager {
         // crossed one of the ring's 1/16-doubling steps.
         // By id: reading an end's `Node` would build one for a row drawn with none.
         const ids = new Set([...resized].map((node) => node.id));
-        for (const edge of this.dataManager.edges.values()) {
+        for (const edge of this.builtEdges()) {
             if (ids.has(edge.srcId) || ids.has(edge.dstId)) {
                 edge.invalidatePositionCache();
             }

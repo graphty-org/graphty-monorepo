@@ -72,8 +72,8 @@ and on a 403 rate limit stop; act as graphty-agent only and never read the owner
 poll; never git stash, reset, restore, clean or check out files. Report the issue, what you found and what you wrote."
 
 **Before saying nothing is left to take**, count every open `bug` by why it is not taken (critical, `in-progress`,
-`needs-decision` or blocked, ci-budget, owner-only paths such as `visual-review/trusted/` or compact-mantine, the
-held major, free; count from labels, `gh issue list -l bug --json number,labels`, never titles or bodies) and put
+`needs-decision` or blocked, ci-budget, owner-only paths such as `visual-review/trusted/` or compact-mantine,
+free; count from labels, `gh issue list -l bug --json number,labels`, never titles or bodies) and put
 the counts in the round's last line. Every free bug must have a reason, a job or a diagnosis. On
 2026-11-01 a round reported an empty queue while 33 open bugs were unclaimed and six of them were takeable.
 
@@ -139,7 +139,8 @@ Create either label if it is missing, as "Markers" in the shared file does for `
 branch not yet on master (`git log --remotes --not origin/master --grep='#<n>\b' --oneline | head`) whose issue has a
 live `taken` marker, a live owner in its progress note, or an open pull request. A hit on an abandoned branch is
 pipeline-round's stranded-branch material, not in flight. An issue master already names gets a verify-and-close
-subagent instead of a new fix. Skip breaking changes and anything under `design/brand`.
+subagent instead of a new fix. Skip anything under `design/brand`. A breaking change is taken like any other: it
+lands as an ordinary `feat`/`fix` commit with no `!` (CLAUDE.md "Public API and breaking changes").
 
 An issue whose last marker is `released -- 2 fix attempts failed ... branch <b> kept` is picked like any other; its job
 continues on that branch, with the evidence on the issue. The new `taken` marker starts the fix-attempt count from
@@ -245,8 +246,8 @@ Each: signal, meaning, action. Add to this list (see the next section).
   route. The owner decides whether to adopt it; he can re-file it.
 - **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, `ci-budget`, the Release
   status issue, `Release held:`, `Nightly held on` and `Nightly missed slot` issues and `lane red on master` issues
-  (pipeline-round's alarms; the tool drops them). An issue held for a major or waiting on owner-only code carries
-  `hold` or `blocked` with a comment saying why, so the tool's list is what a round can take.
+  (pipeline-round's alarms; the tool drops them). An issue waiting on owner-only code carries `hold` or `blocked`
+  with a comment saying why (nothing is held for a major any more), so the tool's list is what a round can take.
 
 ## How this skill improves
 

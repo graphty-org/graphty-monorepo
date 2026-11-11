@@ -1841,6 +1841,45 @@ export type GraphtyErrorCode =
 | "E_IMAGE_LOAD" | "E_INTERNAL";
 
 // @public
+export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
+
+// @public
+export interface GraphtyErrorDetailsMap {
+    E_DUPLICATE_ID: {
+        readonly id?: string | number;
+    };
+    E_PARSE_FAILED: {
+        readonly format?: string;
+        readonly line?: number;
+    };
+    E_TOO_LARGE: {
+        readonly limit?: number;
+        readonly count?: number;
+        readonly of?: string;
+        readonly graph?: {
+            readonly nodes: number;
+            readonly edges: number;
+        };
+    };
+    E_UNKNOWN_ATTRIBUTE: {
+        readonly candidates?: readonly string[];
+        readonly available?: readonly string[];
+        readonly run?: string;
+        readonly field?: string;
+    };
+    E_UNKNOWN_LAYOUT: {
+        readonly layout?: string;
+        readonly available?: readonly string[];
+    };
+}
+
+// @public
+export type GraphtyErrorFor<C extends GraphtyErrorCode = GraphtyErrorCode> = C extends GraphtyErrorCode ? GraphtyError & {
+    readonly code: C;
+    readonly details: GraphtyErrorDetails<C>;
+} : never;
+
+// @public
 export interface GraphtyErrorInit {
     cause?: unknown;
     code: GraphtyErrorCode;
@@ -1917,7 +1956,7 @@ export { ImportIssue }
 export function isAutosaveConflict(error: unknown): error is AutosaveConflict;
 
 // @public
-export function isGraphtyError(value: unknown): value is GraphtyError;
+export function isGraphtyError(value: unknown): value is GraphtyErrorFor;
 
 // @public
 export function isOptionType(value: unknown): value is OptionType;
@@ -2463,6 +2502,8 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
     technicalName?: string;
     // (undocumented)
     type: OptionType;
+    unsupported?: OptionUnsupported;
+    // @deprecated
     unsupportedReason?: string;
     // (undocumented)
     values?: readonly OptionChoice[];
@@ -2507,6 +2548,19 @@ export type OptionType = (typeof OPTION_TYPES)[number];
 
 // @public
 export type OptionUiMeta = OptionsSchema_2[string]["meta"];
+
+// @public
+export interface OptionUnsupported {
+    // (undocumented)
+    readonly code: OptionUnsupportedCode;
+    // (undocumented)
+    readonly params: {
+        readonly types?: readonly string[];
+    };
+}
+
+// @public
+export type OptionUnsupportedCode = "option.recursive" | "option.only-null" | "option.no-type" | "option.union" | "option.array" | "option.object" | "option.untyped" | "option.not-convertible";
 
 // @public
 export class OptionValidationError extends Error {
@@ -3239,6 +3293,16 @@ export interface TransitionRegistration {
     readonly drawable?: TransitionDrawable;
     readonly move: (t: number, from: Vec3, to: Vec3, node: TransitionNode, params: Readonly<Record<string, unknown>>) => Vec3;
 }
+
+// @public
+export interface TwoHandGestureDelta {
+    readonly angle: number;
+    readonly axis: Vec3 | null;
+    readonly zoom: number;
+}
+
+// @public
+export function twoHandGestureDelta(previousDistance: number, previousDirection: Vec3, distance: number, direction: Vec3): TwoHandGestureDelta;
 
 // @public
 export function validateOption(key: string, value: unknown, def: OptionDefinition): void;

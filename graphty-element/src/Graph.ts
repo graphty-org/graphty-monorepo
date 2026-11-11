@@ -1291,7 +1291,7 @@ export class Graph implements GraphContext {
 
             // A selected edge's halo is drawn from the selection style: redraw it.
             if (changed("selectionStyle") || changed("startingRows")) {
-                for (const edge of this.dataManager.edges.values()) {
+                for (const edge of this.builtEdges()) {
                     if (edge.isSelected()) {
                         edge.updateStyle();
                     }
@@ -4663,7 +4663,9 @@ export class Graph implements GraphContext {
         const problems = this.dataManager.sliceProblems(slice);
         const engine = this.layoutManager.layoutEngine;
         if (engine !== undefined && !this.layoutManager.building) {
-            problems.push(...layoutEngineInternals.edgeProblems(engine, this.dataManager.edges));
+            problems.push(
+                ...layoutEngineInternals.edgeProblems(engine, dataManagerInternals.builtEdges(this.dataManager)),
+            );
         }
 
         if (problems.length > 0) {
@@ -4852,16 +4854,17 @@ export class Graph implements GraphContext {
      */
     get rowCounts(): RowCounts {
         const batchedNodes = this.#nodeBatches?.batchedNodes ?? 0;
-        let pulledEdges = 0;
-        for (const edge of this.dataManager.edges.values()) {
-            pulledEdges += edge.isPulled ? 1 : 0;
+        // An edge stored with no `Edge` is drawn from the row tables (`EdgeRowLines`), never as an object.
+        let objectEdges = 0;
+        for (const edge of this.builtEdges()) {
+            objectEdges += edge.isPulled ? 0 : 1;
         }
 
         return {
             batchedNodes,
             objectNodes: this.dataManager.nodes.size - batchedNodes,
-            pulledEdges,
-            objectEdges: this.dataManager.edges.size - pulledEdges,
+            pulledEdges: this.dataManager.edges.size - objectEdges,
+            objectEdges,
         };
     }
 
@@ -4928,7 +4931,7 @@ export class Graph implements GraphContext {
             });
             this.#edgeIds = new EdgeIdTarget(this.scene, {
                 positionTexture: () => places.positionTexture,
-                edges: () => this.dataManager.edges.values(),
+                edges: () => this.builtEdges(),
                 root: () => this.scene.getTransformNodeByName("graph-root"),
                 requestFrame: () => {
                     this.renderManager.requestFrame();
@@ -4952,7 +4955,7 @@ export class Graph implements GraphContext {
         const pulls = this.#nodeBatches !== null;
         if (pulls !== this.#edgesPulled) {
             this.#edgesPulled = pulls;
-            for (const edge of this.dataManager.edges.values()) {
+            for (const edge of this.builtEdges()) {
                 edge.updateStyle();
             }
 
@@ -5308,7 +5311,7 @@ export class Graph implements GraphContext {
             };
             const edgeId = hoverEdgeAt(
                 this.scene,
-                () => this.dataManager.edges.values(),
+                () => this.builtEdges(),
                 this.scene.pointerX,
                 this.scene.pointerY,
                 (point) => this.worldToScreen(point),
@@ -5567,7 +5570,7 @@ export class Graph implements GraphContext {
             rebuilt = node.refreshFonts(families) || rebuilt;
         }
 
-        for (const edge of this.dataManager.edges.values()) {
+        for (const edge of this.builtEdges()) {
             rebuilt = edge.refreshFonts(families) || rebuilt;
         }
 
@@ -6104,7 +6107,7 @@ export class Graph implements GraphContext {
         // are instances of.
         dataManagerInternals.flushReleasing(this.dataManager);
         const nodes = [...this.getNodes()];
-        const edges = [...this.dataManager.edges.values()];
+        const edges = [...this.builtEdges()];
 
         // Every mesh goes in one bulk teardown, then every mesh is built again. Disposed one
         // element at a time, each mesh, action manager and drag handler left scene-wide lists by
@@ -6162,7 +6165,7 @@ export class Graph implements GraphContext {
 
         // Now update edges to connect to the updated node positions. Each one aims its own
         // ray when it needs it, so there is nothing to prime here.
-        for (const edge of this.dataManager.edges.values()) {
+        for (const edge of this.builtEdges()) {
             edge.update();
         }
 
@@ -6548,8 +6551,18 @@ export class Graph implements GraphContext {
      * @param y - Y in CSS pixels from the canvas's top edge.
      * @returns The edge's id, or `undefined` when no drawn edge is that close.
      */
+    /**
+     * The `Edge`s built so far, building none: the element's own walks (a pick, a hover, a
+     * restyle, a dimension switch) visit these, since an edge stored with no `Edge` has no line
+     * object of its own to pick, restyle or rebuild. Every edge while all are built.
+     * @returns They.
+     */
+    private builtEdges(): MapIterator<Edge> {
+        return dataManagerInternals.builtEdges(this.dataManager).values();
+    }
+
     private pickEdgeId(x: number, y: number): EdgeId | undefined {
-        return pickEdgeId(this.scene, this.dataManager.edges.values(), x, y, (point) => this.worldToScreen(point));
+        return pickEdgeId(this.scene, this.builtEdges(), x, y, (point) => this.worldToScreen(point));
     }
 
     /**

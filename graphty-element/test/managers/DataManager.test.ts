@@ -3,6 +3,8 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import type { AdHocData } from "../../src/config";
 import type { Graph } from "../../src/Graph";
 import { type DataManager, dataManagerInternals } from "../../src/managers/DataManager";
+import type { UpdateManager } from "../../src/managers/UpdateManager";
+import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 describe("DataManager", () => {
@@ -454,6 +456,127 @@ describe("DataManager", () => {
             assert.equal(dataManager.edges.size, 1);
             const [edge] = dataManager.edges.values();
             assert.strictEqual(edge.dstNode, dataManager.getNode("b"));
+        });
+    });
+
+    // The lazy-edge stage of design/rendering/row-renderer.md: an edge can be stored with no `Edge`, and the
+    // edge map answers for it, building its `Edge` only when it is read. Nothing turns this on yet, so the
+    // test turns it on through `dataManagerInternals.storeEdgesUnbuilt`.
+    describe("edges stored with no Edge", () => {
+        beforeEach(() => {
+            dataManagerInternals.storeEdgesUnbuilt(dataManager, true);
+            dataManager.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+            dataManager.addEdges([
+                { src: "a", dst: "b" },
+                { src: "b", dst: "c" },
+            ]);
+        });
+
+        it("counts and finds them with no Edge, and builds one Edge per edge read", () => {
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+            assert.equal(dataManager.edges.size, 2);
+            assert.isTrue(dataManager.edges.has("0"));
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0, "has builds none");
+
+            const edge = dataManager.getEdge("1");
+            assert.strictEqual(dataManager.getEdge("1"), edge, "the same Edge is handed out again");
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 1);
+            assert.equal(edge?.srcId, "b");
+            assert.equal(edge?.dstId, "c");
+            assert.strictEqual(dataManager.edgesByIndex[1], edge);
+
+            assert.equal([...dataManager.edges.values()].length, 2);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 2, "a walk builds the rest");
+        });
+
+        it("drops one whose node is removed without building it", () => {
+            dataManager.removeNodeAndIncidentEdges("a");
+
+            assert.equal(dataManager.edges.size, 1);
+            assert.isFalse(dataManager.edges.has("0"));
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+        });
+
+        it("moves one to its new row on a freeze", () => {
+            dataManager.removeEdge("0");
+            assert.equal(dataManager.getSnapshot().edgeCount, 1);
+
+            const edge = dataManager.getEdge("1");
+            assert.equal(edge?.index, 0);
+            assert.strictEqual(dataManager.edgesByIndex[0], edge);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 1);
+        });
+
+        it("forgets them when the data is cleared", () => {
+            dataManager.clear();
+
+            assert.equal(dataManager.edges.size, 0);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+        });
+
+        // Undo and redo reconcile the drawn maps with the slice (a node going takes its edges back
+        // to waiting), and the strict-state check after each pass compares the drawn edges with
+        // the slice and the layout engine's hold. None of it may build an Edge.
+        it("goes through undo and redo of a node's removal without building one", async () => {
+            const session = graph.getSession();
+            await session.data.removeNodes(["a"]);
+            assert.equal(dataManager.edges.size, 1);
+
+            await session.undo();
+            assert.equal(dataManager.edges.size, 2);
+            assert.isTrue(dataManager.edges.has("0"));
+
+            await session.redo();
+            assert.equal(dataManager.edges.size, 1);
+            assert.isFalse(dataManager.edges.has("0"));
+
+            await session.undo();
+            assert.equal(dataManager.edges.size, 2);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+        });
+
+        it("bundles a built edge with no other edge built for a lone pair", () => {
+            const edge = dataManager.getEdge("0");
+            assert.isDefined(edge);
+            assert.equal(dataManager.drawnBundle(edge).count, 1);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 1);
+        });
+
+        it("builds the other edges of a built edge's pair, which it fans with", () => {
+            dataManager.addEdges([{ src: "b", dst: "a" }]);
+            const edge = dataManager.getEdge("0");
+            assert.isDefined(edge);
+            assert.equal(dataManager.drawnBundle(edge).count, 2);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 2, "the pair's two, not the lone b-c edge");
+        });
+
+        // The element's own walks of the edges outside the data manager (a pick, a selection
+        // restyle) visit the built Edges only.
+        it("picks at a point without building one", () => {
+            assert.isNull(graph.elementAt({ x: 0, y: 0 }));
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+        });
+
+        it("restyles the selection without building one", async () => {
+            graph.setSelectionStyle({ edgeScale: 3 });
+            await dispatcherOf(graph.getSession()).lane.settled();
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+        });
+
+        it("counts the rows without building one", () => {
+            assert.deepInclude(graph.rowCounts, { pulledEdges: 2, objectEdges: 0 });
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+        });
+
+        // The frame's own walks of the edges (the masks, the incident edges of a resized node,
+        // the screen-scale retrim, the rows a freeze renumbered) visit the built Edges only.
+        it("runs frames without building one", () => {
+            const { updateManager } = graph as unknown as { updateManager: UpdateManager };
+            updateManager.update();
+            dataManager.removeEdge("0");
+            dataManager.getSnapshot();
+            updateManager.update();
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
         });
     });
 });

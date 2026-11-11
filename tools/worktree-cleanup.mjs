@@ -14,7 +14,8 @@
 // every check passes; otherwise it is kept and counted by the first reason, in this order:
 //
 // - not the main checkout, a live tool's worktree (tools/live-tools.json), golden-local, golden-cut,
-//   this tool's own checkout, or the working directory of any servherd server;
+//   this tool's own checkout, or the working directory of a servherd server that is online (a live
+//   pid in servherd's pm2 pid files; a stopped server's registry entry protects nothing);
 // - not locked;
 // - not named by a `taken` marker (tmp/pipeline-round and tmp/issue-round state) and its branch not
 //   reverted from golden (a fix is due on it);
@@ -22,11 +23,14 @@
 //   Claude session (~/.claude/sessions) has its cwd there;
 // - no git activity (index, HEAD, HEAD reflog) in the last --recent hours;
 // - every commit on its HEAD is on a remote;
-// - `git status --porcelain` is empty (ignored build output does not count).
+// - `git status --porcelain` is empty. Ignored build output does not count, judged by the branch's
+//   own ignore rules and by origin/master's root .gitignore (an old branch lacks newer rules).
 //
-// Removal: a non-empty ignored tmp/ is first moved to <main>/tmp/worktree-tmp/<name>/ (scratch is
-// not rebuildable), then `git worktree remove` without --force, then `git branch -d` (never -D), at
-// idle IO priority. Every removal and refusal is appended to <main>/tmp/worktree-cleanup/log.jsonl.
+// Removal: a non-empty tmp/ is first moved to <main>/tmp/worktree-tmp/<name>/ (scratch is not
+// rebuildable). That move also takes any tracked file under tmp/, so status is read again: if the
+// only changes left are those deleted tmp/ files, `git worktree remove --force` (the files are in
+// git, and the untracked rest is output master ignores); any other change moves tmp/ back and keeps
+// the worktree. Then `git branch -d` (never -D), at idle IO priority. Every removal and refusal is appended to <main>/tmp/worktree-cleanup/log.jsonl.
 // It never runs git stash, reset, checkout, clean or rebase.
 import { spawnSync } from "node:child_process";
 import {
@@ -39,6 +43,7 @@ import {
     renameSync,
     statfsSync,
     statSync,
+    writeFileSync,
 } from "node:fs";
 import { homedir, setPriority } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
@@ -121,8 +126,32 @@ function protectedDirs(root, home) {
             if (t?.worktree) dirs.push(resolve(root, t.worktree));
         }
     }
-    for (const s of readJson(join(home, ".servherd/registry.json"))?.servers ?? []) if (s?.cwd) dirs.push(s.cwd);
+    const pids = join(home, ".servherd/pm2/pids");
+    const running = listDir(pids).filter((f) => alive(Number(readText(join(pids, f)))));
+    for (const s of readJson(join(home, ".servherd/registry.json"))?.servers ?? []) {
+        if (s?.cwd && serverOnline(s, running)) dirs.push(s.cwd);
+    }
     return dirs;
+}
+
+const readText = (file) => {
+    try {
+        return readFileSync(file, "utf8");
+    } catch {
+        return "";
+    }
+};
+
+/**
+ * Whether a servherd server is online: pm2 keeps `<pm2Name>-<id>.pid` while it runs.
+ * @param s the server's registry entry
+ * @param running the pid files whose process is alive
+ * @returns true when online, or when the entry names no pm2 process (unknown, so kept)
+ */
+function serverOnline(s, running) {
+    if (!s.pm2Name) return true;
+    const prefix = `${s.pm2Name}-`;
+    return running.some((f) => f.startsWith(prefix) && /^\d+\.pid$/.test(f.slice(prefix.length)));
 }
 
 /**
@@ -305,10 +334,45 @@ function finishedTrees(trees, root, env) {
     );
     const inBases = (sha) =>
         Boolean(sha) && git(root, ["rev-list", "--count", sha, "--not", ...bases], env).out.trim() === "0";
-    return trees.filter((t) => {
-        if (!t.branch) return inBases(t.head);
-        return gone.has(t.branch) || (!firstParent.has(t.head) && inBases(t.head));
-    });
+    const why = (t) => {
+        if (!t.branch) return inBases(t.head) ? "detached at a merged commit" : null;
+        if (gone.has(t.branch)) return "branch gone from origin";
+        return !firstParent.has(t.head) && inBases(t.head) ? "merged" : null;
+    };
+    return trees.filter((t) => (t.finished = why(t)));
+}
+
+/**
+ * Writes origin/master's root .gitignore where `git -c core.excludesFile` can read it, so untracked
+ * output that only master's newer rules ignore is not counted as dirt.
+ * ponytail: the root .gitignore only; nested .gitignore files would need path rewriting.
+ * @param root the main checkout
+ * @param env git's environment
+ * @returns the file, or null when origin/master has none
+ */
+function masterExcludes(root, env) {
+    const r = git(root, ["show", "origin/master:.gitignore"], env);
+    if (r.code !== 0) return null;
+    const file = join(root, "tmp/worktree-cleanup/master.gitignore");
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, r.out);
+    return file;
+}
+
+/**
+ * The worktree's uncommitted changes and untracked files, ignoring tracked files deleted under tmp/
+ * (moving tmp/ aside takes them, and git still has them).
+ * @param dir the worktree
+ * @param env git's environment
+ * @param excludes origin/master's root .gitignore, or null
+ * @returns the porcelain status lines that count, or null when status failed
+ */
+function dirt(dir, env, excludes) {
+    const ex = excludes ? ["-c", `core.excludesFile=${excludes}`] : [];
+    // No index refresh: --no-optional-locks keeps this a read.
+    const st = git(dir, [...ex, "--no-optional-locks", "status", "--porcelain"], env);
+    if (st.code !== 0) return null;
+    return st.out.split("\n").filter((l) => l && !/^ D "?tmp\//.test(l));
 }
 
 const WAIT = "wait";
@@ -317,7 +381,8 @@ const WAIT = "wait";
  * Why a finished worktree is kept, if it is.
  * @param t the worktree
  * @param c the checks: `prot` protected directories, `busy` busy directories with their reasons, `held`
- *   whether a branch is held, `recentMs` the activity window, `env` git's environment
+ *   whether a branch is held, `recentMs` the activity window, `env` git's environment, `excludes`
+ *   origin/master's root .gitignore
  * @param full whether this run's batch is already full
  * @returns a `KEEP` key, `WAIT` when it waits for a later run, or null to remove it
  */
@@ -330,22 +395,19 @@ function keepReason(t, c, full) {
     if (full) return WAIT;
     const n = git(t.dir, ["rev-list", "--count", "HEAD", "--not", "--remotes"], c.env);
     if (n.code !== 0 || n.out.trim() !== "0") return "unpushed";
-    // No index refresh: --no-optional-locks keeps this a read.
-    const st = git(t.dir, ["--no-optional-locks", "status", "--porcelain"], c.env);
-    return st.code !== 0 || st.out.trim() !== "" ? "dirty" : null;
+    return dirt(t.dir, c.env, c.excludes)?.length === 0 ? null : "dirty";
 }
 
 /**
  * Removes one worktree (its non-empty tmp/ moved to the main checkout's tmp/worktree-tmp first) and,
  * when merged, its branch.
  * @param t the worktree
- * @param root the main checkout
- * @param env git's environment
- * @param record appends an entry to the log
- * @param say prints a line
+ * @param c `root` the main checkout, `env` git's environment, `excludes` origin/master's root
+ *   .gitignore, `record` appends an entry to the log, `say` prints a line
  * @returns whether it was removed
  */
-function removeTree(t, root, env, record, say) {
+function removeTree(t, c) {
+    const { root, env, record, say } = c;
     const scratch = join(t.dir, "tmp");
     let movedTmp = null;
     if (existsSync(scratch) && readdirSync(scratch).length) {
@@ -354,10 +416,14 @@ function removeTree(t, root, env, record, say) {
         mkdirSync(dirname(movedTmp), { recursive: true });
         renameSync(scratch, movedTmp);
     }
-    const r = git(root, ["worktree", "remove", t.dir], env);
-    if (r.code !== 0) {
-        record({ kind: "worktree-remove-failed", dir: t.dir, branch: t.branch, movedTmp, error: r.err.trim() });
-        say(`refused: ${t.dir}: ${r.err.trim()}`);
+    const left = dirt(t.dir, env, c.excludes);
+    // --force only once status shows nothing but tmp/'s tracked files gone with the move.
+    const r = left?.length === 0 ? git(root, ["worktree", "remove", "--force", t.dir], env) : null;
+    if (r?.code !== 0) {
+        if (movedTmp && existsSync(t.dir) && !existsSync(scratch)) renameSync(movedTmp, scratch);
+        const error = r ? r.err.trim() : `changed while removed: ${(left ?? ["status failed"]).join(", ")}`;
+        record({ kind: "worktree-remove-failed", dir: t.dir, branch: t.branch, error });
+        say(`refused: ${t.dir}: ${error}`);
         return false;
     }
     const branchDeleted = t.branch ? git(root, ["branch", "-d", t.branch], env).code === 0 : null;
@@ -375,31 +441,34 @@ function removeTree(t, root, env, record, say) {
  * @param checks the checks `keepReason` takes
  * @param max the most to put in the batch
  * @param bump counts one kept worktree under a reason
- * @returns `{ batch, waiting }`
+ * @returns `{ batch, waiting, keptTrees }`, each kept worktree with its reason as `why`
  */
 function pickBatch(finished, checks, max, bump) {
     const batch = [];
+    const keptTrees = [];
     let waiting = 0;
     for (const t of finished) {
         const why = keepReason(t, checks, batch.length >= max);
         if (why === WAIT) waiting++;
-        else if (why) bump(KEEP[why]);
-        else batch.push(t);
+        else if (why) {
+            bump(KEEP[why]);
+            keptTrees.push({ ...t, why: KEEP[why] });
+        } else batch.push(t);
     }
-    return { batch, waiting };
+    return { batch, waiting, keptTrees };
 }
 
 /**
  * Removes every worktree of the batch; a refused one is counted through `bump`.
  * @param batch the worktrees
- * @param c `root` the main checkout, `env` git's environment, `record` the log, `say` prints a line
+ * @param c the options `removeTree` takes
  * @param bump counts one kept worktree under a reason
  * @returns the removed directories
  */
 function removeBatch(batch, c, bump) {
     const removed = [];
     for (const t of batch) {
-        if (removeTree(t, c.root, c.env, c.record, c.say)) removed.push(t.dir);
+        if (removeTree(t, c)) removed.push(t.dir);
         else bump(KEEP.refused);
     }
     if (removed.length) git(c.root, ["worktree", "prune"], c.env);
@@ -410,8 +479,9 @@ function removeBatch(batch, c, bump) {
  * One pass: finds the finished worktrees and, with `apply`, removes up to `max` that pass every check.
  * @param o the options: `root` the main checkout, `apply` whether to remove, `max` the most to remove,
  *   `recentHours` the activity window; for tests `env`, `home`, `procDir`, `fetch` and `log`
- * @returns the removed directories, the ones a dry run would remove (`would`), the kept counts by
- *   reason, how many wait for a later run, the bytes freed and a one-line summary
+ * @returns the removed directories, the ones a dry run would remove (`would`, and as worktrees with
+ *   their `finished` reason in `wouldTrees`), the kept counts by reason and the kept worktrees with
+ *   their reason `why` (`keptTrees`), how many wait for a later run, the bytes freed and a summary
  */
 export function cleanup(o) {
     const { root, apply, max, recentHours } = o;
@@ -433,7 +503,9 @@ export function cleanup(o) {
     const bump = (k) => {
         kept[k] = (kept[k] ?? 0) + 1;
     };
-    const { batch, waiting } = pickBatch(finished, { prot, busy, held, recentMs, env }, max, bump);
+    const excludes = masterExcludes(root, env);
+    const checks = { prot, busy, held, recentMs, env, excludes };
+    const { batch, waiting, keptTrees } = pickBatch(finished, checks, max, bump);
 
     const logFile = join(root, "tmp/worktree-cleanup/log.jsonl");
     const record = (e) => {
@@ -441,7 +513,7 @@ export function cleanup(o) {
         appendFileSync(logFile, JSON.stringify({ at: new Date().toISOString(), ...e }) + "\n");
     };
     const start = freeBytes(root);
-    const removed = apply ? removeBatch(batch, { root, env, record, say }, bump) : [];
+    const removed = apply ? removeBatch(batch, { root, env, excludes, record, say }, bump) : [];
     const freedBytes = Math.max(0, freeBytes(root) - start);
     const done = apply
         ? `removed ${removed.length} (${(freedBytes / 1e9).toFixed(1)} GB freed)`
@@ -457,7 +529,8 @@ export function cleanup(o) {
     if (keptTotal) parts.push(`kept ${keptTotal}: ${keptList}`);
     const text = `worktree-cleanup: ${parts.join("; ")}`;
     if (apply) record({ kind: "pass", text });
-    return { removed, would: apply ? [] : batch.map((t) => t.dir), kept, waiting, freedBytes, text };
+    const wouldTrees = apply ? [] : batch;
+    return { removed, would: wouldTrees.map((t) => t.dir), wouldTrees, kept, keptTrees, waiting, freedBytes, text };
 }
 
 function mainCheckout(cwd) {

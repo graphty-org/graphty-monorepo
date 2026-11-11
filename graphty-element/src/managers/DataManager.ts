@@ -368,11 +368,13 @@ export const dataManagerInternals = {} as {
      * of design/rendering/row-renderer.md drives toward zero under `"batched"`.
      */
     edgesBuilt(manager: DataManager): number;
+    /** The `Edge`s built so far by id, building none: what a check of the drawn edges walks. */
+    builtEdges(manager: DataManager): ReadonlyMap<string, Edge>;
     /** A stored node id's row in the store, read with no `Node`; `INVALID_INDEX` for an id it does not hold. */
     rowOf(manager: DataManager, id: NodeIdType): number;
     /** The `Node`s built so far, walked without building one for a row that has none. */
     builtNodes(manager: DataManager): IterableIterator<Node>;
-    /** The rows stored with no `Node` yet (see `NodeView`), by row number. */
+    /** The rows stored with no `Node` yet (see `LazyView`), by row number. */
     unbuiltRows(manager: DataManager): number[];
     /**
      * How much of {@link DataManager.nodeVersion} came from building the `Node` of a row already
@@ -402,6 +404,11 @@ export const dataManagerInternals = {} as {
      * snapshot), or null for an engine that lays out only `Node`s, for which every row gets one.
      */
     setLayoutRows(manager: DataManager, rows: ((ids: readonly NodeIdType[]) => void) | null): void;
+    /**
+     * Store each edge whose ends are stored with no `Edge`, building one only when the edge maps
+     * are read. Off until the lazy-edge stage of design/rendering/row-renderer.md switches it on.
+     */
+    storeEdgesUnbuilt(manager: DataManager, on: boolean): void;
 };
 
 /** No layout engine yet: a row stored with no `Node` needs no hand-over. */
@@ -409,7 +416,6 @@ function noLayoutRows(): void {
     // Nothing to hand over.
 }
 
-/** The rows stored with no `Node` yet, as a {@link NodeView} reads them. */
 /** A row with no `Node` that a reconcile keeps on another row. */
 interface UnbuiltMove {
     readonly id: NodeIdType;
@@ -418,38 +424,40 @@ interface UnbuiltMove {
     readonly to: number;
 }
 
-interface UnbuiltRows {
-    has(id: NodeIdType): boolean;
+/** The rows stored with no render object yet, as a {@link LazyView} reads them. */
+interface UnbuiltRows<K, V> {
+    has(id: K): boolean;
     count(): number;
     /** Their ids, as a fresh array. */
-    ids(): NodeIdType[];
-    build(id: NodeIdType): Node | undefined;
+    ids(): K[];
+    build(id: K): V | undefined;
 }
 
 /**
- * A map of `Node`s by id that also answers for the rows stored under `"batched"` with no `Node`
- * yet: it counts and finds them, and builds a row's `Node` the first time it is read, or every
- * missing one when it is walked. The `Node` is kept, so the same one is handed out until removal.
- * Internal walks that only want what is drawn as an object use {@link NodeView.built}.
+ * A map of render objects (`Node`s or `Edge`s) by id that also answers for the rows stored under
+ * `"batched"` with no render object yet: it counts and finds them, and builds a row's object the
+ * first time it is read, or every missing one when it is walked. The object is kept, so the same
+ * one is handed out until removal. Internal walks that only want what is drawn as an object use
+ * {@link LazyView.built}.
  */
-class NodeView extends Map<NodeIdType, Node> {
-    #rows: UnbuiltRows | null = null;
+class LazyView<K, V> extends Map<K, V> {
+    #rows: UnbuiltRows<K, V> | null = null;
 
     /**
      * Answer for unbuilt rows too.
      * @param rows - The rows with no `Node` yet.
      * @returns This.
      */
-    lazy(rows: UnbuiltRows): this {
+    lazy(rows: UnbuiltRows<K, V>): this {
         this.#rows = rows;
         return this;
     }
 
-    override get(id: NodeIdType): Node | undefined {
+    override get(id: K): V | undefined {
         return super.get(id) ?? (this.#rows?.has(id) === true ? this.#rows.build(id) : undefined);
     }
 
-    override has(id: NodeIdType): boolean {
+    override has(id: K): boolean {
         return super.has(id) || this.#rows?.has(id) === true;
     }
 
@@ -458,20 +466,46 @@ class NodeView extends Map<NodeIdType, Node> {
     }
 
     /**
-     * A node's `Node` if it was built, building none.
-     * @param id - The node.
-     * @returns Its `Node`, or undefined.
+     * An id's object if it was built, building none.
+     * @param id - The id.
+     * @returns Its object, or undefined.
      */
-    builtOf(id: NodeIdType): Node | undefined {
+    builtOf(id: K): V | undefined {
         return super.get(id);
     }
 
     /**
-     * The `Node`s built so far, building none.
+     * The objects built so far, building none.
      * @returns They.
      */
-    built(): MapIterator<Node> {
+    built(): MapIterator<V> {
         return super.values();
+    }
+
+    #builtView: ReadonlyMap<K, V> | undefined;
+
+    /**
+     * The objects built so far as a read-only map, building none: a live view, not a copy.
+     * @returns It.
+     */
+    builtView(): ReadonlyMap<K, V> {
+        const entries = (): MapIterator<[K, V]> => super.entries();
+        const size = (): number => super.size;
+        this.#builtView ??= readonlyMapView<K, V>({
+            get size() {
+                return size();
+            },
+            get: (id) => super.get(id),
+            has: (id) => super.has(id),
+            keys: () => super.keys(),
+            values: () => super.values(),
+            entries,
+            forEach: (callback, thisArg) => {
+                super.forEach(callback, thisArg);
+            },
+            [Symbol.iterator]: entries,
+        });
+        return this.#builtView;
     }
 
     #buildAll(): void {
@@ -483,29 +517,26 @@ class NodeView extends Map<NodeIdType, Node> {
         }
     }
 
-    override keys(): MapIterator<NodeIdType> {
+    override keys(): MapIterator<K> {
         this.#buildAll();
         return super.keys();
     }
 
-    override values(): MapIterator<Node> {
+    override values(): MapIterator<V> {
         this.#buildAll();
         return super.values();
     }
 
-    override entries(): MapIterator<[NodeIdType, Node]> {
+    override entries(): MapIterator<[K, V]> {
         this.#buildAll();
         return super.entries();
     }
 
-    override [Symbol.iterator](): MapIterator<[NodeIdType, Node]> {
+    override [Symbol.iterator](): MapIterator<[K, V]> {
         return this.entries();
     }
 
-    override forEach(
-        callback: (value: Node, key: NodeIdType, map: Map<NodeIdType, Node>) => void,
-        thisArg?: unknown,
-    ): void {
+    override forEach(callback: (value: V, key: K, map: Map<K, V>) => void, thisArg?: unknown): void {
         this.#buildAll();
         super.forEach(callback, thisArg);
     }
@@ -548,14 +579,28 @@ export class DataManager implements Manager {
     /** The rows of {@link unbuilt} by id, so a removal finds its row once the store has let it go. */
     private readonly unbuiltIds = new Map<NodeIdType, number>();
     /** {@link unbuilt} as the node maps read it. */
-    private readonly unbuiltRows: UnbuiltRows = {
+    private readonly unbuiltRows: UnbuiltRows<NodeIdType, Node> = {
         has: (id) => this.unbuiltRowOf(id) !== INVALID_INDEX,
         count: () => this.unbuilt.size,
         ids: () => [...this.unbuilt.values()].map((row) => row.id),
         build: (id) => this.buildRow(id),
     };
-    private readonly nodeMap = new NodeView().lazy(this.unbuiltRows);
-    private readonly edgeMap = new Map<string, Edge>();
+    private readonly nodeMap = new LazyView<NodeIdType, Node>().lazy(this.unbuiltRows);
+    /**
+     * Edges stored with no `Edge`, by row: what each `Edge` is built from when one is asked for.
+     * Only while {@link edgesUnbuilt} is on, which nothing in the element turns on yet.
+     */
+    private readonly unbuiltEdges = new Map<number, StoredEdge>();
+    /** The rows of {@link unbuiltEdges} by edge id. */
+    private readonly unbuiltEdgeIds = new Map<EdgeId, number>();
+    /** Whether an edge whose ends are stored is stored with no `Edge` (`dataManagerInternals.storeEdgesUnbuilt`). */
+    private edgesUnbuilt = false;
+    private readonly edgeMap = new LazyView<string, Edge>().lazy({
+        has: (id) => this.unbuiltEdgeIds.has(id),
+        count: () => this.unbuiltEdges.size,
+        ids: () => [...this.unbuiltEdgeIds.keys()],
+        build: (id) => this.buildEdgeRow(this.unbuiltEdgeIds.get(id) ?? INVALID_INDEX),
+    });
     private readonly edgeRows: (Edge | undefined)[] = [];
     /** Who else holds rows by index (the session's selection), told after the render objects. */
     private readonly renumberFollowers = new Set<FreezeFollower>();
@@ -567,6 +612,7 @@ export class DataManager implements Manager {
     static {
         dataManagerInternals.nodesBuilt = (manager) => manager.builtNodes;
         dataManagerInternals.edgesBuilt = (manager) => manager.builtEdges;
+        dataManagerInternals.builtEdges = (manager) => manager.edgeMap.builtView();
         dataManagerInternals.rowOf = (manager, id) => manager.store.builder.indexOf(id);
         dataManagerInternals.builtNodes = (manager) => manager.nodeMap.built();
         dataManagerInternals.unbuiltRows = (manager) => [...manager.unbuilt.keys()];
@@ -591,6 +637,9 @@ export class DataManager implements Manager {
         };
         dataManagerInternals.setLayoutRows = (manager, rows) => {
             manager.layoutRows = rows;
+        };
+        dataManagerInternals.storeEdgesUnbuilt = (manager, on) => {
+            manager.edgesUnbuilt = on;
         };
         dataManagerInternals.followRenumbering = (manager, follower) => {
             manager.renumberFollowers.add(follower);
@@ -651,7 +700,7 @@ export class DataManager implements Manager {
     nodeVersion = 0;
     /** See `dataManagerInternals.lateNodeVersions`. */
     private lateNodeVersions = 0;
-    nodeCache: Map<NodeIdType, Node> = new NodeView().lazy(this.unbuiltRows);
+    nodeCache: Map<NodeIdType, Node> = new LazyView<NodeIdType, Node>().lazy(this.unbuiltRows);
     /** See `dataManagerInternals.setLayoutRows`; no engine yet needs no hand-over. */
     private layoutRows: ((ids: readonly NodeIdType[]) => void) | null = noLayoutRows;
     /** The ids of this arrival's rows stored with no `Node`, handed to the layout when it ends. */
@@ -1185,7 +1234,8 @@ export class DataManager implements Manager {
             }
         }
 
-        for (const id of this.edges.keys()) {
+        // Building no `Edge`: the check must not change what it checks.
+        for (const id of [...this.edgeMap.builtView().keys(), ...this.unbuiltEdgeIds.keys()]) {
             if (!slice.edges.has(id)) {
                 problems.push(`edge ${JSON.stringify(id)} is drawn but not in the slice`);
             }
@@ -1357,6 +1407,10 @@ export class DataManager implements Manager {
         removedEdges: EdgeId[],
     ): number {
         const record = slice.edges.get(id);
+        if (this.reconcileUnbuiltEdge(id, record, removedEdges)) {
+            return 0;
+        }
+
         const edge = this.edges.get(id);
         const counter = edgeCounterOf(id);
         const pending = waiting.get(counter);
@@ -1401,6 +1455,47 @@ export class DataManager implements Manager {
     }
 
     /**
+     * Bring an edge stored with no `Edge` in line with the slice, building none: forget it, or
+     * hand it its record and move it to its row in the store now, queued to be painted there.
+     * @param id - The edge.
+     * @param record - Its record in the slice, or undefined when the slice no longer holds it.
+     * @param removedEdges - Receives the edge when it is forgotten.
+     * @returns False when the edge is not one stored with no `Edge`.
+     */
+    private reconcileUnbuiltEdge(
+        id: EdgeId,
+        record: Record<string | number, unknown> | undefined,
+        removedEdges: EdgeId[],
+    ): boolean {
+        const from = this.unbuiltEdgeIds.get(id);
+        const stored = from === undefined ? undefined : this.unbuiltEdges.get(from);
+        if (from === undefined || stored === undefined) {
+            return false;
+        }
+
+        const row = this.store.edgeIndexOf(stored.edgeId);
+        if (record === undefined || row === INVALID_INDEX) {
+            this.forgetUnbuiltEdge(from);
+            removedEdges.push(id);
+            return true;
+        }
+
+        if (row !== from) {
+            // An edge moved here earlier in this reconcile keeps its place.
+            if (this.unbuiltEdges.get(from) === stored) {
+                this.unbuiltEdges.delete(from);
+            }
+
+            this.graphContext?.getStylePainter?.()?.queue("edge", row);
+        }
+
+        this.unbuiltEdges.set(row, { ...stored, record, edgeIndex: row });
+        this.unbuiltEdgeIds.set(id, row);
+
+        return true;
+    }
+
+    /**
      * Put a render object the slice keeps back on its row, and queue it to be drawn from that row's
      * paint. Undoing a replacing load puts the graph it replaced back as a new builder, whose walk
      * from the old rows names none of them, so a node or edge drawn in both graphs (a file opened
@@ -1435,8 +1530,10 @@ export class DataManager implements Manager {
      * @returns The ids of the edges torn down with them and not left waiting.
      */
     private dropRenderNodes(ids: ReadonlySet<NodeIdType>, slice: GraphSlice): EdgeId[] {
-        const removed: EdgeId[] = [];
-        const edges = [...this.edges.values()];
+        // An edge stored with no `Edge` goes the same way, with nothing to tear down: reading it
+        // would build one.
+        const removed = this.dropUnbuiltEdgesOf(ids, slice);
+        const edges = [...this.edgeMap.built()];
         disposeReleased(
             // Built ones only: a row removed with no `Node` has none to release, and is not given one.
             [...ids].flatMap((id) => this.nodeMap.builtOf(id) ?? []),
@@ -1482,12 +1579,50 @@ export class DataManager implements Manager {
     }
 
     /**
+     * {@link dropRenderNodes} for the edges stored with no `Edge`: one the slice still holds goes
+     * back to waiting for its ends, any other is forgotten. Builds none.
+     * @param ids - The nodes going.
+     * @param slice - The slice being drawn.
+     * @returns The ids of the edges forgotten.
+     */
+    private dropUnbuiltEdgesOf(ids: ReadonlySet<NodeIdType>, slice: GraphSlice): EdgeId[] {
+        const removed: EdgeId[] = [];
+        for (const [row, stored] of [...this.unbuiltEdges]) {
+            if (!ids.has(stored.sourceId) && !ids.has(stored.targetId)) {
+                continue;
+            }
+
+            this.forgetUnbuiltEdge(row);
+            const id = edgeIdOf(stored.edgeId);
+            const record = slice.edges.get(id);
+            if (record === undefined || this.store.edgeIndexOf(stored.edgeId) === INVALID_INDEX) {
+                removed.push(id);
+                continue;
+            }
+
+            const pending: PendingEdge = { ...stored, record, edgeIndex: this.store.edgeIndexOf(stored.edgeId) };
+            this.pendingEdges.push(pending);
+            this.rememberPending(pending);
+        }
+
+        return removed;
+    }
+
+    /**
      * Tear down what draws rows a forward removal took out of the store: the edges first, since an
      * edge reads its endpoints' meshes while it goes, then the nodes. One `elements-removed`.
      * @param nodes - The node ids removed.
      * @param edges - The edge ids removed, including every edge attached to a removed node.
      */
     private dropRendered(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void {
+        // An edge with no `Edge` goes with nothing to tear down: reading it would build one.
+        for (const id of edges) {
+            const row = this.unbuiltEdgeIds.get(id);
+            if (row !== undefined) {
+                this.forgetUnbuiltEdge(row);
+            }
+        }
+
         // The edges go now. The nodes leave every map now too, but their meshes leave the scene at
         // the end of the run, with every other node removed in it: see `releaseLater`.
         disposeReleased(
@@ -1539,7 +1674,9 @@ export class DataManager implements Manager {
         // The layout lets go of them too, as it does of a node removed one at a time: an engine
         // still holding the old nodes would lay out a graph that no longer exists and write their
         // old rows into the position array, growing it under the snapshot it is lent to.
-        for (const edge of this.edges.values()) {
+        this.unbuiltEdges.clear();
+        this.unbuiltEdgeIds.clear();
+        for (const edge of this.edgeMap.built()) {
             if (this.layoutEngine) {
                 layoutEngineInternals.removeEdge(this.layoutEngine, edge);
             }
@@ -1856,8 +1993,19 @@ export class DataManager implements Manager {
      * @param remap - the freeze report's edgeRemap: old index -> new index, or INVALID_INDEX
      */
     private walkEdgeRemap(remap: U32): void {
+        const unbuilt = [...this.unbuiltEdges.values()];
+        this.unbuiltEdges.clear();
+        this.unbuiltEdgeIds.clear();
+        for (const stored of unbuilt) {
+            const moved = remap[stored.edgeIndex] ?? INVALID_INDEX;
+            if (moved !== INVALID_INDEX) {
+                this.unbuiltEdges.set(moved, { ...stored, edgeIndex: moved });
+                this.unbuiltEdgeIds.set(edgeIdOf(stored.edgeId), moved);
+            }
+        }
+
         this.edgeRows.length = 0;
-        for (const edge of this.edges.values()) {
+        for (const edge of this.edgeMap.built()) {
             const moved = remap[edge.index] ?? INVALID_INDEX;
             placeEdgeRow(edge, moved);
             if (moved !== INVALID_INDEX) {
@@ -1953,6 +2101,8 @@ export class DataManager implements Manager {
      */
     private resetStore(): void {
         this.edgeRows.length = 0;
+        this.unbuiltEdges.clear();
+        this.unbuiltEdgeIds.clear();
         this.pendingEdges = [];
         this.pendingByPair.clear();
         this.ingest.reset();
@@ -2020,8 +2170,8 @@ export class DataManager implements Manager {
      */
     private disposeNodesAndEdges(): void {
         this.flushReleasing();
-        disposeReleased(this.nodeMap.built(), this.edges.values(), () => {
-            for (const edge of this.edges.values()) {
+        disposeReleased(this.nodeMap.built(), this.edgeMap.built(), () => {
+            for (const edge of this.edgeMap.built()) {
                 edge.dispose();
             }
 
@@ -2042,6 +2192,8 @@ export class DataManager implements Manager {
         // Clear all collections
         this.nodeMap.clear();
         this.edgeMap.clear();
+        this.unbuiltEdges.clear();
+        this.unbuiltEdgeIds.clear();
         this.nodeVersion++;
         this.edgeVersion++;
         this.nodeCache.clear();
@@ -2721,6 +2873,30 @@ export class DataManager implements Manager {
             return;
         }
 
+        if (this.edgesUnbuilt && edgeIndex !== INVALID_INDEX) {
+            this.unbuiltEdges.set(edgeIndex, stored);
+            this.unbuiltEdgeIds.set(edgeIdOf(edgeId), edgeIndex);
+            this.builtUnpainted(`e:${edgeIdOf(edgeId)}`, "edge", edgeIndex);
+            this.edgeVersion++;
+        } else {
+            this.makeEdge(stored);
+        }
+
+        // Emit edge added event
+        this.eventManager.emitEdgeEvent("edge-add-before", {
+            srcNodeId,
+            dstNodeId,
+            metadata: edge,
+        });
+    }
+
+    /**
+     * Build the `Edge` of an edge whose ends are stored, and register it.
+     * @param stored - The edge, its ends and its row.
+     * @returns The `Edge`.
+     */
+    private makeEdge(stored: StoredEdge): Edge {
+        const { record: edge, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId } = stored;
         const opts = {};
         if (!this.graphContext) {
             throw new Error("GraphContext not set. Call setGraphContext before adding edges.");
@@ -2743,12 +2919,37 @@ export class DataManager implements Manager {
             layoutEngineInternals.addEdge(this.layoutEngine, e);
         }
 
-        // Emit edge added event
-        this.eventManager.emitEdgeEvent("edge-add-before", {
-            srcNodeId,
-            dstNodeId,
-            metadata: edge,
-        });
+        return e;
+    }
+
+    /**
+     * Build the `Edge` of an edge stored with no `Edge`, which then draws it.
+     * @param row - Its row.
+     * @returns The `Edge`, or undefined for a row with no such edge.
+     */
+    private buildEdgeRow(row: number): Edge | undefined {
+        const stored = this.unbuiltEdges.get(row);
+        if (stored === undefined) {
+            return undefined;
+        }
+
+        this.forgetUnbuiltEdge(row);
+        return this.makeEdge(stored);
+    }
+
+    /**
+     * Forget an edge stored with no `Edge`.
+     * @param row - Its row.
+     */
+    private forgetUnbuiltEdge(row: number): void {
+        const stored = this.unbuiltEdges.get(row);
+        this.unbuiltEdges.delete(row);
+        // Only while the id still names this row.
+        if (stored !== undefined && this.unbuiltEdgeIds.get(edgeIdOf(stored.edgeId)) === row) {
+            this.unbuiltEdgeIds.delete(edgeIdOf(stored.edgeId));
+        }
+
+        this.edgeVersion++;
     }
 
     /**
@@ -2757,7 +2958,7 @@ export class DataManager implements Manager {
      * @returns the existing edge, or null when the row is not one this manager holds
      */
     private existingAt(edgeIndex: number): ExistingEdge | null {
-        const edge = this.edgesByIndex[edgeIndex];
+        const edge = this.edgesByIndex[edgeIndex] ?? this.buildEdgeRow(edgeIndex);
         if (edge) {
             return { edgeIndex, edge, pending: null };
         }
@@ -2791,23 +2992,34 @@ export class DataManager implements Manager {
         if (this.bundles?.version !== this.edgeVersion) {
             const byEdge = new Map<Edge, EdgeBundle>();
             // By id, not by `Node`: reading an end's `Node` would build one for a row drawn with none.
-            const pairs = new Map<NodeIdType, Map<NodeIdType, Edge[]>>();
-            for (const each of this.edgeMap.values()) {
-                const { srcId: a, dstId: b } = each;
+            // An edge stored with no `Edge` joins by its row, and is built only when it shares its
+            // pair with another edge: a fan is drawn by `Edge`s, a lone edge needs none.
+            const pairs = new Map<NodeIdType, Map<NodeIdType, (Edge | number)[]>>();
+            const join = (a: NodeIdType, b: NodeIdType, each: Edge | number): void => {
                 let group = pairs.get(a)?.get(b) ?? pairs.get(b)?.get(a);
                 if (group === undefined) {
                     group = [];
-                    const inner = pairs.get(a) ?? new Map<NodeIdType, Edge[]>();
+                    const inner = pairs.get(a) ?? new Map<NodeIdType, (Edge | number)[]>();
                     inner.set(b, group);
                     pairs.set(a, inner);
                 }
 
                 group.push(each);
+            };
+            for (const each of this.edgeMap.built()) {
+                join(each.srcId, each.dstId, each);
+            }
+
+            for (const [row, stored] of this.unbuiltEdges) {
+                join(stored.sourceId, stored.targetId, row);
             }
 
             for (const inner of pairs.values()) {
-                for (const group of inner.values()) {
-                    if (group.length > 1) {
+                for (const joined of inner.values()) {
+                    if (joined.length > 1) {
+                        const group = joined.flatMap((each) =>
+                            typeof each === "number" ? (this.buildEdgeRow(each) ?? []) : each,
+                        );
                         group.forEach((each, rank) => {
                             byEdge.set(each, { rank, count: group.length, first: group[0], members: group });
                         });

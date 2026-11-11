@@ -18,6 +18,7 @@ import type { CommandContext } from "../../../src/ai/commands/types";
 import { FakeEngine, FakeLiveConnection } from "../../../src/ai/engine/FakeEngine";
 import { ENGINE_OVERRIDE } from "../../../src/ai/engine/load";
 import type { LiveToolCall } from "../../../src/ai/engine/types";
+import { MAX_ASSISTANT_TOOL_TURNS } from "../../../src/ai/runConversation";
 import { installAssistantTools } from "../../../src/ai/tools/install";
 import { LiveTurnEngine, READER_CONTEXT } from "../../../src/ai/voice/liveTurns";
 import type { AiEvent } from "../../../src/events";
@@ -528,5 +529,79 @@ describe("an open connection hears that it no longer knows the conversation", ()
         await live.controller.clearHistory();
         const next = await liveFacts(live.controller)?.session();
         assert.notInclude(next?.instructions, "make n3 red");
+    });
+});
+
+describe("an empty response after tool results is not an answer (#6712)", () => {
+    /**
+     * A search, then an empty response after its results, as Gemini Live gives about one message
+     * in six for "make all the nodes red".
+     * @param live - The harness.
+     */
+    async function searchThenNothing(live: LiveHarness): Promise<void> {
+        const search = { id: "s1", name: "catalog", arguments: { action: "search", text: "node color" } };
+        await live.sayAndRun("make all the nodes red", search);
+        live.connection.emit({ type: "usage", inputTokens: 6650, outputTokens: 2 });
+        live.connection.emit({ type: "response-end" });
+        await vi.waitFor(() => {
+            assert.lengthOf(live.connection.sentTexts, 1);
+        });
+    }
+
+    it("asks the model once to go on, and what it does then is the message", async () => {
+        const live = await harness();
+        await searchThenNothing(live);
+        assert.include(live.connection.sentTexts[0], "Go on", "graphty's words went to the model");
+        assert.lengthOf(live.answered, 0, "the message did not end on the empty response");
+
+        live.connection.emit({ type: "tool-calls", calls: [paint("c1", "n1", "n2", "n3", "n4", "n5")] });
+        live.connection.emit({ type: "response-end" });
+        await live.results(2);
+        live.connection.emit({ type: "answer-text", delta: "All five are red." });
+        live.connection.emit({ type: "response-end" });
+        await live.messages(1);
+
+        assert.deepStrictEqual(redNodes(live.session, NODES), ["n1", "n2", "n3", "n4", "n5"]);
+        assert.strictEqual(live.answered[0].code, "AI_COMPLETED");
+        assert.deepStrictEqual(live.saved().assistant, ["All five are red."]);
+        assert.notInclude(JSON.stringify(live.controller.getConversation()), "Go on", "the ask is not saved");
+    });
+
+    it("an empty response again ends the message AI_NO_RESPONSE, never a silent success", async () => {
+        const live = await harness();
+        await searchThenNothing(live);
+        live.connection.emit({ type: "response-end" });
+        await live.messages(1);
+
+        assert.strictEqual(live.answered[0].code, "AI_NO_RESPONSE");
+        assert.deepStrictEqual(live.answered[0].params, { toolCalls: 1 });
+        assert.lengthOf(live.connection.sentTexts, 1, "asked to go on only once");
+    });
+
+    it("a call past the message's tool turns is answered not run, with the ask to answer, and the answer ends it", async () => {
+        const live = await harness();
+        const search = (n: number): LiveToolCall => ({
+            id: `s${String(n)}`,
+            name: "catalog",
+            arguments: { action: "search", text: "node color" },
+        });
+        await live.sayAndRun("make all the nodes red", search(1));
+        for (let n = 2; n <= MAX_ASSISTANT_TOOL_TURNS + 1; n++) {
+            live.connection.emit({ type: "tool-calls", calls: [search(n)] });
+            live.connection.emit({ type: "response-end" });
+            await live.results(n);
+        }
+
+        const last = live.connection.sentResults.at(-1)?.[0];
+        assert.strictEqual(last?.callId, `s${String(MAX_ASSISTANT_TOOL_TURNS + 1)}`);
+        assert.strictEqual(last?.code, "AI_TOOL_NOT_RUN", "the call made when it could only answer did not run");
+        assert.include(last?.content, "No more tools can run", "the ask to answer went with it");
+        assert.lengthOf(live.answered, 0);
+
+        live.connection.emit({ type: "answer-text", delta: "I could not find how to paint them." });
+        live.connection.emit({ type: "response-end" });
+        await live.messages(1);
+        assert.strictEqual(live.answered[0].code, "AI_COMPLETED");
+        assert.strictEqual(live.answered[0].llmText, "I could not find how to paint them.");
     });
 });

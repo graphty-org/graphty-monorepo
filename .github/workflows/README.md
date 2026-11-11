@@ -78,6 +78,9 @@ every tracked Markdown, MDX, HTML and package.json, `github.com/graphty-org` lin
 `https://graphty.app` link against the site the next deploy would publish (`tools/assemble-pages-site.sh`),
 including every Storybook deep link. VitePress fails on a dead link in Markdown, and graphty-element's TypeDoc
 run on a broken `{@link}`. `links-weekly.yml` checks every external link and files an issue, never a red build.
+The AI provider pages the graphty app links to (key and billing pages, in
+`graphty/src/workspace/assistant/providerPages.ts`) are checked by `tools/check-provider-links.mjs`: every pull
+request checks that each has a recorded landing, and the weekly run fails when one now lands somewhere else.
 A link to graphty.app must point at something `tools/assemble-pages-site.sh` publishes: a package's docs are at
 `https://graphty.app/docs/<package>/`, graphty-element's Storybook at `/storybook/graphty-element/`.
 

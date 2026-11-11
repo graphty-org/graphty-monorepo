@@ -4,6 +4,191 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-11-05 -- Decided: tier 6's Gemini request cap goes from 3,000 to 5,000 (study tool)
+
+The dry runs spent all 3,000 requests before a session ran. The cap was set for this run, not by the
+owner, so it is raised to 5,000: about $10 more at about $0.005 a request, inside the $150 monthly LLM
+budget. A second round folder runs the 12 sessions on the same frozen build.
+
+## 2026-11-06 -- Decided by the team: a typed answer to a question (graphty-element)
+
+- `answerAiQuestion(id, answer, options?)`, with `AiAnswerOptions { typed?: boolean }`, on the
+  element, `Graph`, `AiManager` and `AiController`. With `typed: true`, a non-blank text outside the
+  choices goes to the model as written; a text naming a choice still picks that choice. Additive: the
+  default keeps `AI_ANSWER_INVALID`, which a host offering only its choices still wants.
+- The name says how the answer was given, not what to do with it, so a host decides per answer and
+  buttons never need it. A list stays invalid: only a text is the reader's own words.
+- A question's answer is no longer capped at 1,500 characters in its tool result, since the cap
+  dropped a long typed answer whole and left the model an empty answer. A reader's message has no
+  such cap. Choices fit the old cap, so no existing answer changes.
+
+## 2026-11-06 -- Decided by the team: an effect for a removed run (graphty-element)
+
+- `AI_EFFECT_RUN_REMOVED`, a new code in `AI_EFFECT_CODES` on `./catalog`, `{ run, algorithm,
+removedLayers }`. The `results` tool's `remove` action returns it, where it used to fall to
+  `AI_EFFECT_OTHER`, so an application can word what left the graph. Additive: the union is open,
+  as its documentation says. `run` is there because a later run of the same algorithm and options
+  takes the same id, so a consumer needs it to tell which of a turn's runs is gone.
+
+## 2026-11-05 -- Decided by the team: an export scope can name nodes, and the export tool takes a target (graphty-element)
+
+`ExportScope` gains `{ nodes }`: these nodes and the edges between them. It is additive; every form an
+existing caller passes reads as before. The assistant's `export_graph` takes `where`, `ids` and `result`
+like every other tool and settles them the same way: a named target, else all of a bound message's
+selection, else the whole graph. A rule's `nodes` leaf option is no clash, since every rule has a `kind`.
+A narrowed CSV call that names no table writes the node table: the tool's call is about nodes, and the
+default edge table left a list of five people as one edge row under a reply that said it held them.
+`exportGraph`'s own default stays the edge table.
+
+**Why settled here.** `tier6/decided.md`, "What the Assistant exports is what the message is about", says
+what the tool must do, and `{ nodes }` is the form `Scope` already has. The project format needed no
+change: it already refuses every option, `scope` included, with `E_UNKNOWN_OPTION`, so a narrowed call
+never writes the whole project. A selection holding only edges is refused as an empty match, because an
+export scope's edges are always the edges between its nodes.
+
+## 2026-11-05 -- Decided by the team: a message's scope ends with its selection (graphty-element)
+
+**What.** A message sent with `scope: "selection"` is limited to that selection only while the
+selection holds something. Once it is empty the message is about the whole graph for the rest of its
+run, an answer included, and the `select` result that emptied it carries `messageScope: "whole-graph"`
+for the model. A batch the reader approved stays limited to what its request named. No public type
+changed.
+
+**Why.** `tier6/decided.md`, "A message is limited to its selection only while that selection holds
+something". `scope` is `@experimental` and has not reached master, so no published consumer changes.
+
+## 2026-11-05 -- Decided by the team: what a conversation snapshot's text holds (graphty-element)
+
+**What.** An assistant message's `text` in `AiConversationSnapshot` now holds a question the model
+asked once the question no longer waits, and, beside an `outcome`, what the model had said before
+the message failed or was taken back. No field was added, and the saved format did not change.
+
+**Why.** `decided.md`, "A turn keeps the words the reader read". The snapshot type has not reached
+master, so no published reader of `text` changes. The words beside a failure are never sent back to
+the model, because what they claim was taken back.
+
+## 2026-11-05 -- Decided by the team: what a rule reads, and how many groups a run found (graphty-element)
+
+**What.** Three changes, none of them for the owner.
+
+- A lone `true`, `false` or `null` word in a selector or a rule reads as that value. `data.false` still names a
+  column.
+- In the query engine, a `{ where }` half whose kind answers none of the expression's paths matches nothing, so a rule
+  about a node column no longer selects every edge.
+- `summary()` gains `groupCount`, the number of groups before the list stops at ten. Additive.
+
+**Why not breaking.** The first two change what an expression returns, so they were checked as breaking first.
+Neither takes a working result away. Before, `x == false` compared `x` with a value no element can hold, since every
+value sits under `data.` or `results.`, and it matched every edge. `query.ts` already states that a path nothing
+answers matches nothing, so the second brings the engine to its own promise. Bringing a shipped API to its written
+contract is a fix, not a break (2026-10-28, the location map's `mapDimension`).
+
+**Alternatives.** Refusing the bare word with a suggestion, as a bare number is refused: it leaves Find failing on
+what a reader naturally types. Counting only nodes in the Assistant's chips: it fixes one consumer and leaves Find,
+peek and selection wrong.
+
+## 2026-11-05 -- Decided by the team: what an application no longer does for the assistant (graphty-element)
+
+All additive, tagged `@experimental assistant` where new. Each replaces code the app held:
+
+- `forgetAiKeys({ provider?, prefix? })` on the graph and the element, and `ApiKeyManager.forgetKeys()`:
+  forget keys from memory and both storages with no assistant running.
+  `Graph.createApiKeyManager` takes the constructor's options.
+- `clearAiHistory({ database? })` works with no assistant running.
+- `ApiKeyManager.retireOtherStorage()`, called by `enableAiControl` when `keyPersistence` is on: a
+  change of `storage` moves the keys and leaves none behind.
+- `calledAlgorithm(tool, args)` in `./catalog`: the algorithm a tool call runs, by the element's own
+  resolver, so an application reads neither a private tool's arguments nor its name spellings.
+- `undone?: true` on a reader's message and on its saved text part (format v1 has not been
+  released): the fact survives a later edit and a reload, which drop the steps.
+
+Behavior: an empty open conversation reopens the saved one when a graph loads after
+`enableAiControl`; `answerAiQuestion` matches a choice with case, punctuation and spacing ignored,
+as a spoken answer already was, and takes a comma list on a question that takes several; a new or
+opened conversation resets the status, so no words of the last run stay on it; `dispose` emits
+`ai-pending-resolved` with `reason: "disposed"`; `new AiController` refuses what `enableAiControl`
+refuses (`tools`, `approvals` and the rest are unreleased, so no consumer depends on them).
+
+A message bound to a selection: `style.encode` draws on the selection, `edit_data` update writes
+only records it holds and reports `outsideSelection`, and `delete_all` and `apply_suggestion`, which
+can only reach the whole graph, refuse with `AI_NOT_AVAILABLE`, `requirement: "whole-graph"`. A
+`style.update` naming a layer and no target still changes that layer as it stands: narrowing it
+would unpaint elements outside the selection, and refusing would break "make them bigger" on the
+layer the message just made.
+
+## 2026-11-04 -- Decided by the team: effects, targets, peek, a message's scope and a reviewed transcript (graphty-element)
+
+All additive, all `@experimental assistant`, active only with the `assistant` experiment on; asking
+for one while it is off is refused with the new `E_FEATURE_OFF` `{ feature, key }`.
+
+- `AI_EFFECT_CODES`, `AiEffect` `{ code, params, target? }`, `AiTarget`, on `./catalog`. An assistant
+  message gains `effects?`, saved on its tool results (`tool-result.effects`), under
+  `toolset: "generated"`. Codes: style, layout, filter, run, data, selection, view, found, empty,
+  other. One style effect per channel a layer writes. A batch taken back or held reports none. A
+  write refused with `AI_EMPTY_MATCH` reports empty, as a read does.
+- `AiTarget` is the JSON subset of `SelectionTarget`: `{ where }`, `{ text }`, `{ layer }`,
+  `{ range: { run, field? } }`, `{ top }`, `{ scope: "graph" | "visible" }`, and `{ ids }` only when
+  ids are what the call named. A style effect targets its layer, a run its range, a filter what is
+  visible now. `session.selection.count(target)` is the live read, already public; a layer or run
+  that is gone rejects, a rule that finds nothing counts zero.
+- `AiApprovalPreview.target`, on a `large` hold: the one call's target, or several rules joined or
+  several id lists joined. A rule beside an id list names none (`ids` stays).
+- `selection.peek(target | null)` and `selection.peeked`. The look is element layers painted above
+  the stack only while a peek shows, never in it (`transient` on the stack's sources), naming the
+  peeked ids: slate `#334155`, halo and band. No new `{ match: "state" }` value, since a wider
+  `ElementState` breaks a consumer's exhaustive table, as it broke the app's. A change to the
+  graph and the session's end clear it. `styles.drawnCount(id)`, the matched elements a filter
+  leaves drawn, gives an effect's `hidden`.
+- `AiCommandOptions.scope?: "selection" | "graph"`; the reader's message reports `scope`
+  (`AiMessageScope`). A selection is read when `aiCommand` is called, and bound by reference: the
+  tool executor hands it to `settleTarget`, where `"all"`, `"selection"` and a missing required
+  target name all of it, and any other target is cut to what the selection holds. It is saved with
+  a held change or a question (`bound`), so a reload cannot widen `where: "all"` to the whole graph.
+  Under `toolset: "commands"` a scope is `AI_CONFIG_INVALID` (`"needs-generated-toolset"`).
+- A reader's message gains `provenance?`: the id its history steps carry. `step.provenance.message`
+  is the run's own id, which no snapshot message showed, so the app could not tell whether the next
+  undo takes a message back. No `undoAiMessage`: this is the missing read, and the undo stays shared.
+- With the experiment on, a run still going when its assistant is disposed ends `AI_DISPOSED`
+  rather than `AI_CANCELLED`; off, it stays `AI_CANCELLED`, as today.
+- `AiVoiceOptions.review?: boolean`; `ai-voice-transcript` gains `pointing?`. Under `review` a press
+  has exactly one final transcript, when it ends. `mode: "live"` beside it is `AiConfigError`
+  (field `"voice.review"`, reason `"needs-turns"`).
+
+## 2026-11-04 -- Decided by the team: the assistant's tools are a choice, and four small additions (graphty-element)
+
+Landing the Assistant changes nothing for a consumer of graphty-element that does not ask for it.
+
+- `AiManagerConfig.toolset?: "commands" | "generated"`, default `"commands"`: the hand-written
+  commands, each result read as `{ success, message, data }`, five tool rounds, a batch that keeps
+  what ran before a failure, and no gate, exactly as before. `"generated"` is the catalog's tools.
+  An option, not an experiment, since a change to existing behavior is never a flag; the app passes
+  `"generated"`. `toolProfile`, `gate`, `approvals`, `agents`, `tools` and `instructions` apply only
+  under `"generated"`, and `enableAiControl` rejects them otherwise (`AiConfigError`, reason
+  `"needs-generated-toolset"`): `approvals` left unread would run writes unasked. `agents` joins
+  the list because a helper's commands can only name the generated tools.
+- `AiManagerConfig.instructions?: string`, text added to the system prompt.
+  `@experimental assistant`.
+- `ApiKeyManager.forgetKey(provider)`: removes a provider's key from memory and from both
+  storages. `removeKey` reaches only the storage in use, so a key moved between them, or left by an
+  earlier page, stayed behind. `@experimental assistant`.
+- `AiCallRecord.durationMs?: number`, how long a call ran, saved on its tool result, under the
+  generated tools with the experiment on. `@experimental assistant`.
+- A fix, not a new option: `enableAiControl` with `keyPersistence` and no `apiKey` now hands the key
+  storage brought back to the provider. It restored the key into the key store and never told the
+  provider, so a fresh element answered `AI_KEY_MISSING` with the key sitting in storage.
+- `GraphCommand.plainName?: string`, the name an application may show for an extension tool, default
+  its `name`. Built-in tools already carry theirs in `ASSISTANT_TOOLS`. `@experimental assistant`.
+- `AiConversationSummary.firstWords: string | null`, the reader's own first message, on the
+  plain-string allowlist because it is the reader's data. `@experimental assistant`.
+- `KeyPersistenceConfig.encryptionKey` is optional, with the built-in key `ApiKeyManager` already
+  defaults to. `@experimental assistant`.
+- `EnabledFeatures.has(id)`, the gate features.md names, not enumerable so the object stays plain
+  data for a comparison or an event's detail.
+- `Message.readerText?: string`: the reader's own words on a message that also carries facts. The
+  mock provider matches it when present, so with no facts it matches `content` as before.
+- A saved tool result's `origin` takes `"command"`, the marker that a model reads the result as it
+  is, in no envelope.
+
 ## 2026-11-02 -- Decided by the team: going back in the history with nothing left to redo (graphty-element)
 
 **What.** Additive. `session.history.restoreTo(step, { redo: "drop" })` (new optional
@@ -3683,6 +3868,56 @@ to hide it.
 
 **Why.** Code comments in `EdgeMesh.ts` and `CustomLineRenderer.ts` call the width pixels, which
 it is not, and the app's Width control shows the bare number with no unit.
+
+## 2026-11-05 -- Decided by the team: an Assistant export takes a target, and a message's selection binding ends with the selection
+
+Both sit behind the `assistant` experiment. `export_graph` gains the target fields every other tool
+has, and `ExportScope` gains `{ nodes }` so that a scope can name ids. Both are additive. A message
+sent with `scope: "selection"` stops being limited once the selection is empty; while the selection
+holds anything it behaves as before.
+
+**Why settled here.** Additive changes are the team's (CLAUDE.md, "Non-breaking API changes need no
+owner approval"); the binding is `@experimental assistant`, which may change in a minor release
+(owner, 2026-10-25/26), and `tier6/decided.md`, "The scope line always states what a message is
+about", already says what the reads must match. Evidence and reasons: `tier6/dry-run-r1-2.md`.
+
+## 2026-11-05 -- Decided by the team: an approval closes the gate's count, and a whole-graph message after a selection one is told so
+
+Both sit behind the `assistant` experiment. The gate's running totals restart after a batch the reader
+approved, so a read or a small write after an approved removal is not held again. The scope line of a
+whole-graph message gains a sentence when an earlier message in the conversation was about a selection.
+
+**Why settled here.** Neither is a change a consumer could rely on. `AssistantGateLimits` says these are
+"the limits past which the assistant's changes are held", and a read after an approval is no change, so
+today's second request contradicts its own promise, as the rule-language fixes did. The assistant is
+`@experimental assistant`, which may change in a minor release (owner, 2026-10-25/26), and
+`tier6/decided.md`, "The scope line always states what a message is about", already says what the reply
+must match. Evidence and reasons: `tier6/dry-run-r1-2.md`.
+
+## 2026-11-05 -- Decided by the team: five facts the Assistant's results gain for round 3
+
+All five are additive and sit behind the `assistant` experiment, so none is breaking, and the names are
+chosen here so the builders need not choose them.
+
+- `AI_EFFECT_RUN` and a run's tool result gain `painted`: how many of the run's suggestions were added,
+  omitted at 0. `session.runs.painting(id)` already holds this; the assistant's results did not carry it.
+  `apply_suggestion` returns the run's effects as `run_algorithm` does. Two readings of "added" are settled
+  here, because `painting(id)` is a snapshot of the run's first completion: `painted` leaves out a suggestion
+  the reader has since removed (`runs.layers(id).missing`), since asking the same run again must not claim a
+  color that is gone; and `apply_suggestion` reports the suggestions it applied, since a run started with
+  `style: false` first decided to paint nothing.
+- A new effect code, `AI_EFFECT_RUN_REMOVED`, with `algorithm` and `removedLayers`, for `results` `remove`.
+- `AI_CANCELLED` gains `steps`: how many steps were taken back, omitted at 0.
+- `AI_TOOL_FAILED` carries `cause` on every path, as `runConversation` already does.
+- The element's answer call gains an optional `typed: true`: an answer outside the choices goes to the model
+  as written. Without it, today's `AI_ANSWER_INVALID` stands.
+
+**Why settled here.** A new parameter whose default keeps today's behavior is the team's call (owner,
+2026-10-08), and the assistant is `@experimental assistant` (owner, 2026-10-25/26). Each is a neutral fact
+or option: the app writes the words. `params` stay numbers and strings, the type `AiResultParams` already
+is. Also decided, and not a public change: a message taken back drops its steps from the redo side and
+restores the selection it found, because a failed message did not happen (`tier6/decided.md`). Evidence
+and reasons: `tier6/rounds/round-2/decisions.md`.
 
 ## 2026-11-01 -- For the owner: two compact-mantine targets below 24 px
 

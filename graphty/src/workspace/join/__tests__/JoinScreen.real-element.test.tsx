@@ -155,7 +155,13 @@ describe("the join screen on the real element", () => {
         const join = await joinScreenFor("tumor-expression.tsv");
         assert.strictEqual(valueOf(join, "Match column"), "symbol");
         assert.strictEqual(valueOf(join, "Match graph value"), "Id");
-        assert.deepEqual(chips(join), ["52 matched", "10 not in graph", "8 no value", "1 repeated key"]);
+        assert.deepEqual(chips(join), [
+            "52 matched",
+            "10 not in graph",
+            "Leave those rows out",
+            "8 no value",
+            "1 repeated key",
+        ]);
         // The Match row's boxes count the matches they would add, in sentence case.
         within(join).getByRole("checkbox", { name: "Ignore spaces +1" });
         // The section and its button have different names, and the screen is described by its counts.
@@ -210,7 +216,7 @@ describe("the join screen on the real element", () => {
         const [joined] = session.data.joins();
         assert.strictEqual(joined.matched, 58);
         // The Sources row names its join ratio with its unit (tier 4 R11).
-        await screen.findByText("58 of 70 rows joined");
+        await screen.findByText("58 nodes matched, 70 table rows");
 
         // The header's Undo names the step it undoes ("Undo joining ...").
         await userEvent.click(
@@ -431,6 +437,12 @@ describe("the join screen on the real element", () => {
         await projectWith(new File([GAUGES], "gauges.csv"), 11);
         drop(new File([FLOWS], "deliveries.csv"));
         const join = await screen.findByRole("region", { name: "Join deliveries.csv" });
+        // Leave the row naming G12 out, so not every row is read and the ratio is drawn.
+        await userEvent.click(await within(join).findByRole("button", { name: "1 unknown end" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Leave those rows out" }));
+        await waitFor(() => {
+            assert.notInclude(chips(join), "1 new node");
+        });
         await userEvent.click(within(join).getByRole("button", { name: "Join" }));
         const row = await screen.findByRole("listitem", { name: "deliveries.csv" });
         await waitFor(() => {
@@ -456,6 +468,118 @@ describe("the join screen on the real element", () => {
             if (icon !== null) {
                 assert.isAtMost(Math.abs(middle(icon) - middle(name)), 4, "the icon is on the name's line");
             }
+        });
+    });
+});
+
+describe("every kind of joining, from the sample files", () => {
+    beforeAll(async () => {
+        await page.viewport(1366, 768);
+    });
+
+    /**
+     * Presses Join and waits for the screen to close.
+     * @param join - the join screen.
+     */
+    async function pressJoin(join: HTMLElement): Promise<void> {
+        await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: /^Join / }));
+        });
+    }
+
+    it("writes contract values onto September's edges by their two ends", async () => {
+        const { session } = await projectWith("suppliers.csv", 40);
+        await pressJoin(await joinScreenFor("ships-to-2024-09.csv"));
+        const join = await joinScreenFor("contracts-2024-09.csv");
+        assert.strictEqual(valueOf(join, "Rows are"), "Edge values");
+        assert.strictEqual(valueOf(join, "Match graph value"), "Source");
+        assert.strictEqual(valueOf(join, "Match 2 graph value"), "Target");
+        assert.deepEqual(chips(join).slice(0, 3), ["140 matched", "3 not in graph", "10 no value"]);
+        await pressJoin(join);
+        await waitFor(() => {
+            const valued = session.data.edges().filter((edge) => "contract_value" in edge);
+            assert.lengthOf(valued, 140);
+        });
+        assert.lengthOf(session.data.edges(), 150);
+    });
+
+    it("merges a second supplier list, adding the rows the graph lacks, and Undo takes them back", async () => {
+        const { session } = await projectWith("suppliers.csv", 40);
+        const join = await joinScreenFor("suppliers-erp.csv");
+        assert.strictEqual(valueOf(join, "Rows are"), "Node values");
+        await userEvent.click(within(join).getByRole("button", { name: "Leave those rows out" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Add as new nodes" }));
+        await pressJoin(join);
+        await waitFor(() => {
+            assert.strictEqual(session.data.nodes().length, 43);
+        });
+        assert.strictEqual(session.data.node("s41")?.rating !== undefined, true);
+        await userEvent.click(
+            within(screen.getByRole("banner", { name: "Project" })).getByRole("button", { name: /^Undo/ }),
+        );
+        await waitFor(() => {
+            assert.strictEqual(session.data.nodes().length, 40);
+        });
+    });
+
+    it("joins people to buildings through door entries, and names each file's kind of node", async () => {
+        const { session } = await projectWith("people.csv", 24);
+        const buildings = await joinScreenFor("buildings.csv");
+        assert.isNotNull(within(buildings).getByRole("button", { name: "Add as rows" }));
+        // The preview says nothing is left out: every row is added.
+        await within(buildings).findByText("b1");
+        assert.isNull(within(buildings).queryByText("Left out"));
+        await userEvent.click(within(buildings).getByRole("button", { name: "Add as rows" }));
+        await waitFor(() => {
+            assert.strictEqual(session.data.nodes().length, 30);
+        });
+        const entries = await joinScreenFor("door-entries.csv");
+        assert.strictEqual(valueOf(entries, "Rows are"), "Edges");
+        assert.strictEqual(valueOf(entries, "Source column"), "person_id");
+        assert.strictEqual(valueOf(entries, "Target column"), "building_id");
+        await pressJoin(entries);
+        await waitFor(() => {
+            assert.isAbove(session.data.edges().length, 100);
+        });
+        assert.isTrue(
+            session.data
+                .edges()
+                .every((edge) => String(edge.source).startsWith("p") && String(edge.target).startsWith("b")),
+        );
+
+        const place = screen.getByRole("region", { name: "Data place" });
+        for (const [row, node, kind] of [
+            ["people.csv", "p01", "people"],
+            ["buildings.csv", "b1", "buildings"],
+        ] as const) {
+            await userEvent.click(within(within(place).getByRole("listitem", { name: row })).getAllByRole("button")[0]);
+            await userEvent.click(await within(place).findByRole("button", { name: "Add to node attributes" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Kind of node" }));
+            await userEvent.click(await screen.findByRole("option", { name: kind }));
+            await waitFor(() => {
+                assert.strictEqual(session.data.node(node)?.kind, kind);
+            });
+        }
+    });
+
+    it("adds October after September from the join screen, which opens on Replace", async () => {
+        const { session } = await projectWith("ships-to-2024-09.csv", 40);
+        const october = await joinScreenFor("ships-to-2024-10.csv");
+        within(october).getByRole("button", { name: "Replace ships-to-2024-09.csv" });
+        await userEvent.click(within(october).getByRole("button", { name: "Join choices" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Add as rows" }));
+        await waitFor(() => {
+            assert.strictEqual(session.data.edges().length, 309);
+        });
+    });
+
+    it("still replaces September with October from the same screen", async () => {
+        const { session } = await projectWith("ships-to-2024-09.csv", 40);
+        const october = await joinScreenFor("ships-to-2024-10.csv");
+        await userEvent.click(within(october).getByRole("button", { name: "Replace ships-to-2024-09.csv" }));
+        await waitFor(() => {
+            assert.strictEqual(session.data.edges().length, 159);
         });
     });
 });

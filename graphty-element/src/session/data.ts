@@ -34,6 +34,7 @@ import type {
     Measurement,
     MeasurementDeclaration,
     Path,
+    Query,
     ReadableValue,
     RunId,
     ScopeInput,
@@ -140,10 +141,18 @@ import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
 import type { CodedFact, ColumnRef, ProgressChange } from "./shared";
 import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
-import { isSourceFactKey, sourceFactsOf, sourceLoadsOf } from "./sources/ids";
+import { isSourceFactKey, SOURCE_ATTR, sourceFactsOf, sourceLoadsOf } from "./sources/ids";
 import { SourceLedger } from "./sources/ledger";
-import { type LoadFacts, type SourcesRead, type SourcesWrite, writeSourcesMember } from "./sources/member";
-import { pendingSourceLoads } from "./sources/pending";
+import {
+    type LoadFacts,
+    redactedParams,
+    redactUrl,
+    type SourcesRead,
+    type SourcesWrite,
+    withKeptSecrets,
+    writeSourcesMember,
+} from "./sources/member";
+import { pendingSourceLoads, targetOf } from "./sources/pending";
 import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource, withSupplied } from "./sources/provenance";
 import type {
     CollapseResult,
@@ -159,7 +168,9 @@ import type {
     SourceMoreOptions,
     SourcePreview,
     SourcePreviewOptions,
+    SourceRead,
     SourceRefreshReport,
+    SourceSettings,
 } from "./sources/types";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import { asksFileStyles } from "./styles/fileStyles/apply";
@@ -232,6 +243,8 @@ interface DataWrites {
      * runs in -- held for a verb that dispatches it after an await.
      */
     importer(): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
+    /** The ceilings in force, which a read-first load is refused above. */
+    readonly ceilings?: RenderLimits;
     /** The `graph` slice now. */
     slice(): GraphSlice;
     /** Runs an import in a scratch session with this data configuration and returns its report. */
@@ -300,6 +313,13 @@ interface PageSources {
         only?: readonly Path[],
     ): (index: number) => boolean;
     /**
+     * The ids an expression matches: a page's `where`, over the query engine.
+     * @param where - The expression
+     * @param target - Nodes or edges
+     * @returns The matching ids
+     */
+    matchWhere(where: Query, target: "node" | "edge"): ReadonlySet<NodeId | EdgeId>;
+    /**
      * One run, for a page's result columns and result sort.
      * @param id - the run id
      * @returns the run, or undefined when the session holds none with that id
@@ -331,11 +351,6 @@ interface PageSources {
      * @returns true when it is
      */
     timeline?(): boolean;
-    /**
-     * Whether the network-data experiment is on; absent reads on.
-     * @returns true when it is
-     */
-    network?(): boolean;
     /**
      * Whether the file styles experiment is on; absent reads on.
      * @returns true when it is
@@ -740,6 +755,25 @@ function typedFields(each: AttributeDescriptor, type: ValueType): Partial<Attrib
 }
 
 /**
+ * A query source's params with the `mode` it read in, when they leave it out: graph-io's Cypher and
+ * SPARQL sources read the query when one is given and everything otherwise.
+ * @param source - The source id.
+ * @param config - The params.
+ * @returns The params, with `mode` when the source declares one.
+ */
+function withStartMode(source: string, config: Record<string, unknown>): Record<string, unknown> {
+    const declared = sourceDescriptors()
+        .find((entry) => entry.id === source)
+        ?.descriptor.params.find((param) => param.name === "mode");
+    if (declared === undefined || typeof config.mode === "string") {
+        return config;
+    }
+
+    const asked = typeof config.query === "string" && config.query.trim() !== "" ? "query" : "all";
+    return declared.values?.some((each) => each.value === asked) === true ? { ...config, mode: asked } : config;
+}
+
+/**
  * The session's view of the graph data.
  *
  * It reads a store it does not own the lifetime of, so every answer starts from
@@ -958,9 +992,6 @@ export class SessionData implements SessionDataApi {
      */
     async import(source: DataSourceInput, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("import");
-        if (source.source !== undefined) {
-            this.requireNetwork("import");
-        }
 
         // Refused before anything is read, a network source's fetch included.
         if (asksFileStyles({ ...options, source }) && this.pages.fileStyles?.() === false) {
@@ -1142,6 +1173,7 @@ export class SessionData implements SessionDataApi {
         sampleLabel?: string,
     ): Promise<void> {
         let resolvedConfig: Readonly<Record<string, unknown>> = source.config;
+        const chosenOrigin = origin ?? options.origin;
         const noted = this.noting(
             dispatch,
             () => (sample === undefined ? bytesFacts(resolvedConfig) : Promise.resolve({ sample })),
@@ -1183,7 +1215,7 @@ export class SessionData implements SessionDataApi {
         await turn.take(() => {
             const step: DataImportCommand = {
                 ...importCommand(resolved, options),
-                ...(origin === undefined ? {} : { origin }),
+                ...(chosenOrigin === undefined ? {} : { origin: chosenOrigin }),
             };
             // A new graph does not inherit the last one's weight meaning (as `Draft.plan` does).
             // ponytail: only this door and the draft reset it; another replace route keeps the old one.
@@ -1261,10 +1293,6 @@ export class SessionData implements SessionDataApi {
      */
     testSource(source: SourceInput, options: SourceLoadOptions = {}): Promise<SourceProbe> {
         this.requireLive("testSource");
-        const off = this.networkOff("testSource");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.testSource(host, source, options));
@@ -1283,10 +1311,6 @@ export class SessionData implements SessionDataApi {
         options: SourceLoadOptions = {},
     ): Promise<SourceListing> {
         this.requireLive("listSource");
-        const off = this.networkOff("listSource");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.listSource(host, source, query, options));
@@ -1300,10 +1324,6 @@ export class SessionData implements SessionDataApi {
      */
     expand(ids: readonly NodeId[], options: ExpandOptions = {}): Promise<SourceExpandResult> {
         this.requireLive("expand");
-        const off = this.networkOff("expand");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         // In line, as a load: its rows are dispatched after every load asked for before it, and a
         // load asked for after it waits for all of them, so it never adds to the graph that load
@@ -1351,10 +1371,6 @@ export class SessionData implements SessionDataApi {
      */
     collapse(id: NodeId): Promise<CollapseResult> {
         this.requireLive("collapse");
-        const off = this.networkOff("collapse");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         // In line, as an edit: it removes what the graph holds once the loads ahead of it landed.
         // A clear asked for while it waits cancels it: it removes nothing, and the clear removes all.
@@ -1377,10 +1393,6 @@ export class SessionData implements SessionDataApi {
      */
     more(options: SourceMoreOptions = {}): Promise<void> {
         this.requireLive("more");
-        const off = this.networkOff("more");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         return this.inLine(options.signal, (host) =>
             import("./sources/load").then((module) => module.more(host, options)),
@@ -1395,13 +1407,26 @@ export class SessionData implements SessionDataApi {
      */
     previewSource(source: SourceInput, options: SourcePreviewOptions = {}): Promise<SourcePreview> {
         this.requireLive("previewSource");
-        const off = this.networkOff("previewSource");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.previewSource(host, source, options));
+    }
+
+    /**
+     * Read one of a source's examples and change nothing: nothing is drawn, recorded or added to
+     * history. Pass the result to `import`, on this session or another, and
+     * it loads without reading the service again. Refuses what the renderer could not draw
+     * (`E_TOO_LARGE`) here, before anything is opened for it.
+     * @param source - The source id.
+     * @param example - The example's id within that source.
+     * @param options - Anything `import` takes; the import that takes the read keeps them.
+     * @returns The read and how many nodes and edges it holds.
+     */
+    readExample(source: string, example: string, options: SourceLoadOptions = {}): Promise<SourceRead> {
+        this.requireLive("readExample");
+
+        const host = this.sourceHost();
+        return import("./sources/load").then((module) => module.readExample(host, source, example, options));
     }
 
     /**
@@ -1412,10 +1437,6 @@ export class SessionData implements SessionDataApi {
      */
     checkSource(load: string, options: SourceLoadOptions = {}): Promise<SourceCheck> {
         this.requireLive("checkSource");
-        const off = this.networkOff("checkSource");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.checkSource(host, load, options));
@@ -1429,10 +1450,6 @@ export class SessionData implements SessionDataApi {
      */
     refresh(load: string, options: SourceLoadOptions = {}): Promise<SourceRefreshReport> {
         this.requireLive("refresh");
-        const off = this.networkOff("refresh");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         const host = this.sourceHost();
         return import("./sources/load").then((module) => module.refreshSource(host, load, options));
@@ -1447,13 +1464,35 @@ export class SessionData implements SessionDataApi {
      */
     async loadExample(source: string, example: string, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("loadExample");
-        this.requireNetwork("loadExample");
         const turn = this.loadLine.join(options.signal);
         try {
             await (await import("./sources/load")).loadExample(this.hostInTurn(turn), source, example, options);
         } finally {
             turn.leave();
         }
+    }
+
+    /**
+     * What a network load connects to and fetches, for showing it or filling a form to edit it.
+     * The params are redacted as a saved file has them; no credential is in it.
+     * @param key - the `sources()` entry's key
+     * @returns the settings, or undefined for a source that is not a network load.
+     */
+    sourceSettings(key: SourceKey): SourceSettings | undefined {
+        const load = this.sources().find((each) => each.key === key)?.loadKey;
+        const record = this.ledger.loads().find((each) => each.key === load);
+        if (record === undefined) {
+            return undefined;
+        }
+
+        const { limits } = record.options as Pick<SourceSettings, "limits">;
+        return frozen({
+            source: record.source,
+            endpoint: targetOf(record),
+            config: withStartMode(record.source, redactedParams(record.config)),
+            ...(record.expand === undefined ? {} : { expand: record.expand }),
+            ...(limits === undefined ? {} : { limits }),
+        });
     }
 
     /**
@@ -1487,7 +1526,7 @@ export class SessionData implements SessionDataApi {
      * @returns One entry per waiting load.
      */
     pendingSourceLoads(): readonly PendingSourceLoad[] {
-        return this.networkOn ? pendingSourceLoads(this.sourceHost()) : [];
+        return pendingSourceLoads(this.sourceHost());
     }
 
     /**
@@ -1498,10 +1537,6 @@ export class SessionData implements SessionDataApi {
      */
     runPendingSourceLoad(id: string, options: SourceLoadOptions = {}): Promise<void> {
         this.requireLive("runPendingSourceLoad");
-        const off = this.networkOff("runPendingSourceLoad");
-        if (off !== null) {
-            return Promise.reject(off);
-        }
 
         return this.inLine(options.signal, (host) =>
             import("./sources/load").then((module) => module.runPendingSourceLoad(host, id, options)),
@@ -1654,6 +1689,7 @@ export class SessionData implements SessionDataApi {
             pending: this.pendingLoads,
             owner: this,
             expansions: this.expansions,
+            ceilings: () => writes.ceilings?.overrides,
             loads: () => this.loads(),
             sourceKeyOf: (load) => this.sources().find((each) => each.loadKey === load)?.key,
             labelPath: () => this.readConfig().knownFields.nodeLabelPath,
@@ -2320,12 +2356,13 @@ export class SessionData implements SessionDataApi {
                 names = [labelPath];
             }
         }
-        const { issue } = options;
+        const { where, issue } = options;
         if (
             scope === undefined &&
             touching === undefined &&
             sort === undefined &&
             matching === undefined &&
+            where === undefined &&
             issue === undefined
         ) {
             return null;
@@ -2339,7 +2376,7 @@ export class SessionData implements SessionDataApi {
         // resolved to, never by the run handle it was given.
         const sortKey =
             result === undefined ? sort : { run: result.run, field: result.field, descending: sort?.descending };
-        const key = JSON.stringify([target, scope, sortKey, touching, matching, issueKey, names]);
+        const key = JSON.stringify([target, scope, sortKey, touching, matching, where, issueKey, names]);
         return this.orders.get(key, () => {
             const space = edgeSpaceOf(snapshot);
             const order =
@@ -2355,11 +2392,7 @@ export class SessionData implements SessionDataApi {
                                         )
                                   : rowReader(resultSortValue(result, target), snapshot, target),
                       };
-            const text =
-                matching === undefined ? null : this.pages.textTest(matching.text, matching.mode, target, names);
-            const flagged = issue === undefined ? null : this.issueRows(snapshot, target, issue);
-            const matches =
-                flagged === null ? text : (index: number): boolean => flagged(index) && (text === null || text(index));
+            const matches = this.rowFilter(snapshot, target, matching, issue, where, names);
             return this.computeOrder(snapshot, target, scope, touching, order, matches);
         });
     }
@@ -2532,6 +2565,8 @@ export class SessionData implements SessionDataApi {
         const catalog = new Map(sourceDescriptors().map((entry) => [entry.id, entry.features]));
 
         const space = edgeSpaceOf(snapshot);
+        // Each load belongs to one entry: a node two loads share names both, or only the first.
+        const taken = new Set<string>();
         // An entry saved before loads had keys gets one by its place in the list.
         const result = Object.freeze(
             stored.map((each, at) => {
@@ -2539,8 +2574,16 @@ export class SessionData implements SessionDataApi {
                 const supplied = provenance?.[key];
                 const kind = (each as Partial<LoadedSource>).kind ?? "file";
                 // An opened project's network load keeps its entry's key; one loaded here is found by its rows.
-                const found = records.has(key) ? key : this.networkLoadOf(supplied?.nodes ?? []);
+                // The rows say which load they are now (after an edit, a newer record than the entry's key).
+                let found: string | undefined;
+                if (kind === "server") {
+                    found = this.networkLoadOf(supplied?.nodes ?? [], [...records.keys()], taken);
+                    found ??= records.has(key) && !taken.has(key) ? key : undefined;
+                }
                 const loadKey = kind === "server" && found !== undefined && records.has(found) ? found : undefined;
+                if (loadKey !== undefined) {
+                    taken.add(loadKey);
+                }
                 const { input, ...entry } = each as LoadedSource & { readonly input?: string };
                 return Object.freeze({
                     ...entry,
@@ -2549,6 +2592,7 @@ export class SessionData implements SessionDataApi {
                     ...(input !== undefined && this.kept.has(input) ? { reloadable: true as const } : {}),
                     ...(loadKey === undefined ? {} : { loadKey }),
                     ...loadFacts(records.get(loadKey ?? ""), catalog),
+                    ...addressOf(kind, each.config, records.get(loadKey ?? "")),
                     counts: Object.freeze(
                         supplied === undefined
                             ? { ...each.added }
@@ -2634,6 +2678,47 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * The test a page's rows must pass: its text match, its issue and its expression, each only when asked.
+     * @param snapshot - the current snapshot
+     * @param target - nodes or edges
+     * @param matching - the text match, if any
+     * @param issue - the issue filter, if any
+     * @param where - the expression, if any
+     * @param names - the columns a text match reads, when only names are searched
+     * @returns The test, or null when the page asks none of them
+     */
+    private rowFilter(
+        snapshot: GraphSnapshot,
+        target: "node" | "edge",
+        matching: ReturnType<typeof matchingOf>,
+        issue: IssueId | undefined,
+        where: Query | undefined,
+        names: readonly Path[] | undefined,
+    ): ((index: number) => boolean) | null {
+        const tests: ((index: number) => boolean)[] = [];
+        if (issue !== undefined) {
+            tests.push(this.issueRows(snapshot, target, issue));
+        }
+
+        if (matching !== undefined) {
+            tests.push(this.pages.textTest(matching.text, matching.mode, target, names));
+        }
+
+        if (where !== undefined) {
+            const wanted = this.pages.matchWhere(where, target);
+            const space = edgeSpaceOf(snapshot);
+            const idOf = (index: number): unknown => (target === "node" ? snapshot.ids.idOf(index) : space.idOf(index));
+            tests.push((index) => wanted.has(idOf(index) as NodeId | EdgeId));
+        }
+
+        if (tests.length === 0) {
+            return null;
+        }
+
+        return tests.length === 1 ? tests[0] : (index) => tests.every((test) => test(index));
+    }
+
+    /**
      * Whether each row of one kind is affected by an open issue: one, or any.
      * @param snapshot - the current snapshot
      * @param target - nodes or edges
@@ -2691,9 +2776,16 @@ export class SessionData implements SessionDataApi {
      * @param options.includeIgnored - list the ignored issues too (default false)
      * @param options.includeFixed - list the issues `data.fix` settled too, after the rest, as they
      *     stood then (default false); one the data has again is listed open instead
+     * @param options.source - list only this load's issues
      * @returns the issues, load issues first; never one with a zero count
      */
-    issues(options: { readonly includeIgnored?: boolean; readonly includeFixed?: boolean } = {}): readonly DataIssue[] {
+    issues(
+        options: {
+            readonly includeIgnored?: boolean;
+            readonly includeFixed?: boolean;
+            readonly source?: SourceKey;
+        } = {},
+    ): readonly DataIssue[] {
         this.requireLive("issues");
         const found = this.foundIssues();
         const state = this.issueState();
@@ -2703,11 +2795,12 @@ export class SessionData implements SessionDataApi {
                 const isIgnored = ignored.has(issue.id);
                 return Object.freeze({ ...issue, ignored: isIgnored, status: isIgnored ? "ignored" : "open" });
             })
-            .filter((issue) => options.includeIgnored === true || !issue.ignored);
+            .filter((issue) => options.includeIgnored === true || !issue.ignored)
+            .filter((issue) => options.source === undefined || issue.source === options.source);
         if (options.includeFixed === true) {
             const open = new Set(found.map(({ issue }) => issue.id));
             for (const record of state.fixed ?? []) {
-                if (!open.has(record.id)) {
+                if (!open.has(record.id) && (options.source === undefined || record.source === options.source)) {
                     listed.push(Object.freeze({ ...record, fixes: [], ignored: false, status: "fixed" }));
                 }
             }
@@ -2899,15 +2992,22 @@ export class SessionData implements SessionDataApi {
         }
 
         const provenance = this.provenance();
-        const index = provenanceIndex(provenance);
         const snapshot = this.current();
         const space = edgeSpaceOf(snapshot);
-        const shared = (keys: readonly SourceKey[] | undefined): boolean => keys?.some((k) => k !== key) === true;
-        const nodes = (provenance?.[key]?.nodes ?? []).filter((id) => snapshot.ids.has(id));
-        const edges = (provenance?.[key]?.edges ?? []).filter((id) => space.indexOf(id) !== INVALID_INDEX);
-        const goingNodes = nodes.filter((id) => !shared(index.nodes.get(id)));
-        const goingEdges = edges.filter((id) => !shared(index.edges.get(id)));
-        const left = sources.filter((each) => each.key !== key);
+        const going = withJoinsResting(sources, key);
+        const left = sources.filter((each) => !going.includes(each));
+        const staying = broughtBy(left, provenance);
+        const brought = broughtBy(going, provenance);
+        const nodes = [...brought.nodes].filter((id) => snapshot.ids.has(id));
+        const edges = [...brought.edges].filter((id) => space.indexOf(id) !== INVALID_INDEX);
+        const goingNodes = nodes.filter((id) => !staying.nodes.has(id));
+        const goingEdges = edges.filter((id) => !staying.edges.has(id));
+        // Each join's values back, newest join first, so the oldest join's "before" is what remains.
+        const restored = new Map<string, Readonly<Record<string, unknown>>>();
+        const valuesBack = going
+            .filter((each) => each.join !== undefined && each.join.shape !== "edges")
+            .flatMap((each) => this.unjoin(each, restored).steps)
+            .filter((step) => step.op === "data.apply" && step.mutation.kind === "update-rows");
         const last = left.at(-1);
         if (this.writes.send === undefined) {
             throw new GraphtyError({
@@ -2917,24 +3017,20 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        // A joined table's values go with it: what it wrote is removed, what it overwrote comes back.
-        // What a join added is the provenance removal below, so only the values it wrote are put back.
-        const joined = this.storedSources().find((each) => each.key === key);
-        const unjoin = joined === undefined ? [] : this.restoreValues(joined).steps;
         const before = { nodes: snapshot.nodeCount, edges: snapshot.edgeCount };
         await this.writes.send({
             op: "batch",
             label: `Removed ${entry.name ?? key}`,
             fact: { code: "data.remove-source", params: { key, name: entry.name ?? null } },
             steps: [
-                ...unjoin,
+                ...valuesBack,
                 { op: "data.apply", mutation: { kind: "remove-edges", ids: goingEdges } },
                 { op: "data.apply", mutation: { kind: "remove-nodes", ids: goingNodes } },
                 {
                     op: "data.setSource",
                     source: last === undefined ? (this.source() ?? {}) : describeLoaded(last),
                     sources: left,
-                    provenance: withoutSource(provenance, key),
+                    provenance: going.reduce((held, each) => withoutSource(held, each.key), provenance),
                 },
             ],
         });
@@ -2946,6 +3042,7 @@ export class SessionData implements SessionDataApi {
                 nodes: nodes.length - goingNodes.length,
                 edges: edges.filter((id) => edgeSpaceOf(after).indexOf(id) !== INVALID_INDEX).length,
             }),
+            alsoRemoved: Object.freeze(going.map((each) => each.key).filter((each) => each !== key)),
         });
     }
 
@@ -2958,8 +3055,13 @@ export class SessionData implements SessionDataApi {
      * @returns what was added, removed and changed, and what no longer matches anything
      * @throws A `GraphtyError` with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
      */
-    async replaceSource(key: SourceKey, source: DataSourceInput, choices: LoadChoices = {}): Promise<ReplaceReport> {
+    async replaceSource(
+        key: SourceKey,
+        source: DataSourceInput,
+        choices: LoadChoices & SourceLoadOptions = {},
+    ): Promise<ReplaceReport> {
         this.requireLive("replaceSource");
+
         return this.afterLoads(() => this.replaceSourceNow(key, source, choices));
     }
 
@@ -2973,7 +3075,7 @@ export class SessionData implements SessionDataApi {
     private async replaceSourceNow(
         key: SourceKey,
         source: DataSourceInput,
-        choices: LoadChoices = {},
+        choices: LoadChoices & SourceLoadOptions = {},
     ): Promise<ReplaceReport> {
         this.requireLive("replaceSource");
         const send = this.sender("replace a load");
@@ -2987,6 +3089,10 @@ export class SessionData implements SessionDataApi {
                 source: "data",
                 details: { key, known: this.sources().map((each) => each.key) },
             });
+        }
+
+        if (source.source !== undefined) {
+            return this.replaceWithNetwork(key, entry, { ...source, source: source.source }, choices);
         }
 
         // The command a draft of the copy would load, held back here: its rows are the copy's rows.
@@ -3009,7 +3115,9 @@ export class SessionData implements SessionDataApi {
         }
 
         const { held } = captured;
-        const merged: HeldRows = { ...held, repeated: "first" };
+        // Only a pair the graph held before this load stays that edge; a pair this load makes first
+        // (ids split by a kind, new rows) keeps its repeats as an ordinary load would.
+        const merged: HeldRows = { ...held, repeated: "first", repeatedScope: "held" };
         // The kinds the draft gave the rows travel with them, so the load's report counts them.
         const kinds = HELD_KINDS.get(held);
         if (kinds !== undefined) {
@@ -3114,6 +3222,168 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * replaceSource with a network source: read outside any command, then one batch that takes
+     * away what the new read lacks and merges the rest under the same key. Every row the load kept
+     * is stamped with the new load, so a refresh goes on recognizing it.
+     * @param key - the load's key
+     * @param entry - its entry
+     * @param source - the network source and its params
+     * @param choices - as replaceSource takes it
+     * @returns what replaceSource returns
+     */
+    private async replaceWithNetwork(
+        key: SourceKey,
+        entry: LoadedSource,
+        source: SourceInput,
+        choices: LoadChoices & SourceLoadOptions,
+    ): Promise<ReplaceReport> {
+        const send = this.sender("replace a load");
+        const old = this.sources().find((each) => each.key === key)?.loadKey;
+        const record = this.ledger.loads().find((each) => each.key === old);
+        const mode = record?.options.mode as SourceLoadOptions["mode"] | undefined;
+        // The settings were shown redacted (sourceSettings): a key the load was read with stays.
+        const config =
+            record?.source === source.source
+                ? (withKeptSecrets(source.config, record.config) as Record<string, unknown>)
+                : source.config;
+        const { networkDraft } = await import("./sources/load");
+        const draft = await networkDraft(
+            this.sourceHost(),
+            // A name the caller gives is the edited load's own (its read changed); else it keeps its name.
+            {
+                ...source,
+                config,
+                ...(source.name === undefined && entry.name !== undefined ? { name: entry.name } : {}),
+            },
+            choices,
+            key,
+            mode ?? "merge",
+        );
+        const snapshot = this.current();
+        const space = edgeSpaceOf(snapshot);
+        const provenance = this.provenance();
+        const index = provenanceIndex(provenance);
+        const supplied = provenance?.[key] ?? { nodes: [], edges: [] };
+        const isOld = (load: string): boolean => load === old || load.startsWith(`${old ?? ""}/`);
+        const others = (keys: readonly SourceKey[] | undefined): boolean => keys?.some((k) => k !== key) === true;
+        // A load's own rows: those it supplied and those its expansions brought, which carry no provenance.
+        const ownNodes = new Set(supplied.nodes.filter((id) => snapshot.ids.has(id)));
+        for (let row = 0; row < snapshot.nodeCount; row++) {
+            const id = snapshot.ids.idOf(row);
+            if (sourceLoadsOf(this.records?.nodeAttributes(row, id)).some(isOld)) {
+                ownNodes.add(id);
+            }
+        }
+
+        const ownEdges = new Set(supplied.edges);
+        for (const { id } of this.edges()) {
+            if (sourceLoadsOf(this.records?.edgeAttributes(space.indexOf(id))).some(isOld)) {
+                ownEdges.add(id);
+            }
+        }
+
+        const nodes = [...ownNodes].map((id) => ({
+            id,
+            data: this.records?.nodeAttributes(snapshot.ids.indexOf(id), id) ?? {},
+        }));
+        const edges = [...ownEdges].flatMap((id) => {
+            const record = this.edge(id);
+            return record === undefined
+                ? []
+                : [
+                      {
+                          id,
+                          source: record.source,
+                          target: record.target,
+                          data: this.records?.edgeAttributes(space.indexOf(id)) ?? {},
+                      },
+                  ];
+        });
+        const plan = planReplace({
+            nodes,
+            edges,
+            shared: {
+                nodes: new Set(nodes.filter((each) => others(index.nodes.get(each.id))).map((each) => each.id)),
+                edges: new Set(edges.filter((each) => others(index.edges.get(each.id))).map((each) => each.id)),
+            },
+            graphPairs: new Set(this.edges().map((each) => pairKey(each.source, each.target, snapshot.directed))),
+            hasNode: (id) => rowOfEitherSpelling(snapshot.ids, id) !== INVALID_INDEX,
+            directed: snapshot.directed,
+            held: draft.held,
+            paths: { nodeId: "id", source: "source", target: "target" },
+        });
+        const unbound = this.unboundBy(key, nodes, edges, draft.held);
+        const readIds = new Set(draft.held.nodes.map((row) => String(row.id)));
+        const pair = (from: unknown, to: unknown): string => pairKey(String(from), String(to), snapshot.directed);
+        const readPairs = new Set(draft.held.edges.map((row) => pair(row.source, row.target)));
+        const loadsAfter = (data: Readonly<Record<string, unknown>>, read: boolean): readonly string[] => [
+            ...(read ? [draft.key] : []),
+            ...sourceLoadsOf(data).filter((load) => !isOld(load)),
+        ];
+        const stampNodes = nodes
+            .filter((each) => !plan.removeNodes.includes(each.id))
+            .map((each) => ({
+                id: each.id,
+                values: {
+                    [SOURCE_ATTR.loads]: loadsAfter(each.data, readIds.has(String(each.id))),
+                    [SOURCE_ATTR.expansion]: "none",
+                },
+            }));
+        const stampEdges = edges
+            .filter((each) => !plan.removeEdges.includes(each.id))
+            .map((each) => ({
+                id: each.id,
+                values: { [SOURCE_ATTR.loads]: loadsAfter(each.data, readPairs.has(pair(each.source, each.target))) },
+            }));
+        const update = <Id extends NodeId | EdgeId>(
+            target: "node" | "edge",
+            rows: readonly RowUpdate<Id>[],
+        ): SessionCommand[] =>
+            rows.length === 0 ? [] : [{ op: "data.apply", mutation: { kind: "update-rows", target, rows: [...rows] } }];
+        try {
+            await send({
+                op: "batch",
+                label: `Replaced ${entry.name ?? key}`,
+                fact: {
+                    code: "data.replace-source",
+                    params: {
+                        key,
+                        name: entry.name ?? null,
+                        added: plan.nodes.added + plan.edges.added,
+                        removed: plan.nodes.removed + plan.edges.removed,
+                        changed: plan.nodes.changed + plan.edges.changed,
+                    },
+                },
+                steps: [
+                    { op: "data.apply", mutation: { kind: "remove-edges", ids: [...plan.removeEdges] } },
+                    { op: "data.apply", mutation: { kind: "remove-nodes", ids: [...plan.removeNodes] } },
+                    ...update("edge", plan.edgeRows),
+                    ...update("node", plan.nodeRows),
+                    ...update("edge", stampEdges),
+                    ...update("node", stampNodes),
+                    {
+                        op: "data.setSource",
+                        source: this.source() ?? describeLoaded(entry),
+                        sources: this.storedSources().filter((each) => each.key !== key),
+                        provenance: withoutSource(provenance, key),
+                    },
+                    {
+                        ...draft.command,
+                        // A pair the graph holds is that edge again: the merge keeps it and notes it supplied.
+                        held: { ...draft.command.held, repeated: "first", repeatedScope: "held" },
+                        origin: entry.kind,
+                    },
+                ],
+            });
+        } catch (error) {
+            draft.rollback();
+            throw error;
+        }
+
+        return frozen({ nodes: plan.nodes, edges: plan.edges, unbound });
+    }
+
+    /**
      * What a replacement leaves matching nothing: style layers, the filter and joins that read a
      * column the load's rows carried and the copy's rows do not, and no other load's rows carry.
      * @param key - the load
@@ -3173,24 +3443,45 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * The network load a load's nodes came from: the first load key a node it supplied carries.
+     * The network load a load's nodes came from: of the loads no earlier entry took, the one most
+     * of the nodes it supplied carry, the newest of those on a tie. A node two loads share can
+     * carry the older load alone, so the first key a node carries can be another entry's.
      * @param nodes - The nodes the load supplied.
+     * @param order - Every load's key, oldest first.
+     * @param taken - The loads earlier entries took.
      * @returns The key in `loads()`, or undefined when none of them is in the graph.
      */
-    private networkLoadOf(nodes: readonly NodeId[]): string | undefined {
+    private networkLoadOf(
+        nodes: readonly NodeId[],
+        order: readonly string[],
+        taken: ReadonlySet<string>,
+    ): string | undefined {
         const snapshot = this.current();
+        const counts = new Map<string, number>();
         for (const id of nodes) {
             const index = snapshot.ids.indexOf(id);
             if (index !== INVALID_INDEX) {
                 // An expansion's key is `<load>/x<n>`: the load is the part before the slash.
-                const [first] = sourceLoadsOf(this.records?.nodeAttributes(index, id));
-                if (first !== undefined) {
-                    return first.split("/")[0];
-                }
+                const loads = new Set(
+                    sourceLoadsOf(this.records?.nodeAttributes(index, id)).map((k) => k.split("/")[0]),
+                );
+                loads.forEach((load) => {
+                    if (!taken.has(load)) {
+                        counts.set(load, (counts.get(load) ?? 0) + 1);
+                    }
+                });
             }
         }
 
-        return undefined;
+        let best: string | undefined;
+        for (const [load, count] of counts) {
+            const most = best === undefined ? -1 : (counts.get(best) ?? 0);
+            if (count > most || (count === most && order.indexOf(load) > order.indexOf(best ?? ""))) {
+                best = load;
+            }
+        }
+
+        return best;
     }
 
     /**
@@ -3234,7 +3525,7 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        return this.replaceSourceNow(key, input, overChoices(entry.choices ?? {}, choices));
+        return this.replaceSourceNow(key, input, overChoices(withReadRoles(entry), choices));
     }
 
     /**
@@ -3335,6 +3626,7 @@ export class SessionData implements SessionDataApi {
                     target,
                     data,
                 })),
+                directed: this.current().directed,
             }),
             sources: () =>
                 this.storedSources()
@@ -3479,7 +3771,12 @@ export class SessionData implements SessionDataApi {
      * @param kind - nodes or edges
      * @returns the rows
      */
-    private joinRows(kind: "node" | "edge"): { readonly id: NodeId | EdgeId; readonly data: SessionAttributes }[] {
+    private joinRows(kind: "node" | "edge"): {
+        readonly id: NodeId | EdgeId;
+        readonly data: SessionAttributes;
+        readonly source?: NodeId;
+        readonly target?: NodeId;
+    }[] {
         const snapshot = this.current();
         if (kind === "node") {
             return Array.from({ length: snapshot.nodeCount }, (_unused, index) => {
@@ -3491,6 +3788,8 @@ export class SessionData implements SessionDataApi {
         const space = edgeSpaceOf(snapshot);
         return Array.from({ length: snapshot.edgeCount }, (_unused, index) => ({
             id: space.idOf(index),
+            source: snapshot.ids.idOf(snapshot.edgeSource(index)),
+            target: snapshot.ids.idOf(snapshot.edgeTarget(index)),
             data: this.records?.edgeAttributes(index) ?? {},
         }));
     }
@@ -3508,8 +3807,13 @@ export class SessionData implements SessionDataApi {
         const read = (kind: "node" | "edge"): JoinGraph["nodes"] =>
             this.joinRows(kind)
                 .filter((row) => !gone.has(`${kind}:${String(row.id)}`))
-                .map((row) => ({ id: row.id, data: restored.get(`${kind}:${String(row.id)}`) ?? row.data }));
-        return { nodes: read("node"), edges: read("edge"), table: (key) => this.loadTable(key) };
+                .map((row) => ({ ...row, data: restored.get(`${kind}:${String(row.id)}`) ?? row.data }));
+        return {
+            nodes: read("node"),
+            edges: read("edge"),
+            table: (key) => this.loadTable(key),
+            directed: this.current().directed,
+        };
     }
 
     /**
@@ -3548,25 +3852,41 @@ export class SessionData implements SessionDataApi {
      * What taking a join back takes: its edges and the nodes only it made removed, the values it
      * wrote put back as they were.
      * @param previous - the joined table's load
+     * @param restored - the values a newer join's taking back has put back already, added to
      * @returns the steps, and the restored values and the elements that go, for planning anew
      */
-    private unjoin(previous: LoadedSource): {
+    private unjoin(
+        previous: LoadedSource,
+        restored = new Map<string, Readonly<Record<string, unknown>>>(),
+    ): {
         steps: SessionCommand[];
         restored: Map<string, Readonly<Record<string, unknown>>>;
         gone: Set<string>;
     } {
-        const values = this.restoreValues(previous);
-        const shape = previous.join?.shape;
-        if (shape !== "edges" && shape !== "link" && shape !== "merge") {
-            return { ...values, gone: new Set() };
-        }
-
-        // What only this join added: its edges and the nodes no other load supplied.
+        const values = this.restoreValues(previous, restored);
         const gone = new Set<string>();
         const provenance = this.provenance();
         const index = provenanceIndex(provenance);
         const only = (keys: readonly SourceKey[] | undefined): boolean =>
             keys?.every((each) => each === previous.key) !== false;
+        const shape = previous.join?.shape;
+        if (shape !== "edges" && shape !== "link" && shape !== "merge") {
+            // The nodes `unmatchedRows: "add"` made, which the rest of the graph did not supply.
+            const made = nodesJoinMade(previous, provenance).filter((id) => only(index.nodes.get(id)));
+            made.forEach((id) => gone.add(`node:${String(id)}`));
+            return {
+                steps: [
+                    ...values.steps,
+                    ...(made.length === 0
+                        ? []
+                        : [{ op: "data.apply" as const, mutation: { kind: "remove-nodes" as const, ids: made } }]),
+                ],
+                restored: values.restored,
+                gone,
+            };
+        }
+
+        // What only this join added: its edges and the nodes no other load supplied.
         const edges = (provenance?.[previous.key]?.edges ?? []).filter((id) => only(index.edges.get(id)));
         const nodes = (provenance?.[previous.key]?.nodes ?? []).filter((id) => only(index.nodes.get(id)));
         edges.forEach((id) => gone.add(`edge:${id}`));
@@ -3585,15 +3905,18 @@ export class SessionData implements SessionDataApi {
     /**
      * The values a join wrote over, put back as they were: what its record's `before` holds.
      * @param previous - the joined table's load
+     * @param restored - the values a newer join's taking back has put back already, added to
      * @returns the step, and the restored values by `<kind>:<id>`
      */
-    private restoreValues(previous: LoadedSource): {
+    private restoreValues(
+        previous: LoadedSource,
+        restored = new Map<string, Readonly<Record<string, unknown>>>(),
+    ): {
         steps: SessionCommand[];
         restored: Map<string, Readonly<Record<string, unknown>>>;
     } {
         const { join } = previous;
-        const restored = new Map<string, Readonly<Record<string, unknown>>>();
-        const kind = join?.shape === "edge-values" ? "edge" : "node";
+        const kind: "node" | "edge" = join?.shape === "edge-values" ? "edge" : "node";
         const held = new Map(
             join?.before === undefined ? [] : this.joinRows(kind).map((row) => [String(row.id), row] as const),
         );
@@ -3605,7 +3928,9 @@ export class SessionData implements SessionDataApi {
             }
 
             const record = Object.fromEntries(
-                Object.entries({ ...row.data, ...values }).filter(([name]) => values[name] !== null),
+                Object.entries({ ...(restored.get(`${kind}:${id}`) ?? row.data), ...values }).filter(
+                    ([name]) => values[name] !== null,
+                ),
             );
 
             rows.push({ id: row.id, values: record });
@@ -3669,7 +3994,12 @@ export class SessionData implements SessionDataApi {
             matched: planned.matched,
             joinedRows: planned.joinedRows,
             columns: plan.columns,
-            table: { name: table.name, columns: [...table.columns], rows: [...table.rows] },
+            table: {
+                name: table.name,
+                columns: [...table.columns],
+                rows: [...table.rows],
+                ...(table.unreadRows ? { unreadRows: table.unreadRows } : {}),
+            },
             ...(plan.kind === "values" || Object.keys(plan.before).length > 0 ? { before: plan.before } : {}),
         });
         const left = stored.filter((each) => each.key !== key);
@@ -3777,7 +4107,19 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        const nodes = plan.target === "node" ? (plan.matchedIds as NodeId[]) : [];
+        if (plan.newNodes.length > 0) {
+            steps.push({
+                op: "data.apply",
+                mutation: {
+                    kind: "add-nodes",
+                    idPath: "id",
+                    records: plan.newNodes.map((row) => ({ ...row.values, id: row.id })),
+                },
+            });
+        }
+
+        const nodes =
+            plan.target === "node" ? [...(plan.matchedIds as NodeId[]), ...plan.newNodes.map((row) => row.id)] : [];
         const edges = plan.target === "edge" ? plan.matchedIds.map(String) : [];
         const entry: LoadedSource = frozen({
             ...described,
@@ -3787,7 +4129,8 @@ export class SessionData implements SessionDataApi {
             join: record,
             tables: [table.name],
             tableRows: [plan.target === "node" ? ("nodes" as const) : ("edges" as const)],
-            added: { nodes: 0, edges: 0 },
+            added: { nodes: plan.newNodes.length, edges: 0 },
+            loadedAt: new Date().toISOString(),
             counts: { nodes: nodes.length, edges: edges.length },
         });
         steps.push({
@@ -3937,34 +4280,6 @@ export class SessionData implements SessionDataApi {
      */
     private get timelineOn(): boolean {
         return this.pages.timeline?.() !== false;
-    }
-
-    /**
-     * Whether the network-data experiment is on; a session built without the switch reads on.
-     * @returns True when it is on.
-     */
-    private get networkOn(): boolean {
-        return this.pages.network?.() !== false;
-    }
-
-    /**
-     * The refusal of a network-source verb while the network-data experiment is off.
-     * @param verb - The verb.
-     * @returns `E_FEATURE_OFF` naming the network-data experiment and `data.<verb>`, or null when it is on.
-     */
-    private networkOff(verb: string): GraphtyError | null {
-        return this.networkOn ? null : featureOff("network-data", `data.${verb}`);
-    }
-
-    /**
-     * Throw the refusal of a network-source verb while the network-data experiment is off.
-     * @param verb - The verb.
-     */
-    private requireNetwork(verb: string): void {
-        const off = this.networkOff(verb);
-        if (off !== null) {
-            throw off;
-        }
     }
 
     /**
@@ -5319,6 +5634,32 @@ function movesRows(
 }
 
 /**
+ * The choices a load is read again with: its own, or, for a load given no mapping (a file added as
+ * rows), what its one table's rows were read as, so a role laid over them does not read them anew.
+ * @param entry - The load.
+ * @returns The choices.
+ */
+function withReadRoles(entry: LoadedSource): LoadChoices {
+    const choices = entry.choices ?? {};
+    const tables = Object.values(entry.mapping?.tables ?? {});
+    const [read] = tables;
+    if (choices.mapping !== undefined || read === undefined || tables.length !== 1) {
+        return choices;
+    }
+
+    const { rowsAre, key, source, target } = read;
+    return {
+        ...choices,
+        mapping: {
+            rowsAre,
+            ...(key === undefined || key === null ? {} : { key }),
+            ...(source === undefined ? {} : { source }),
+            ...(target === undefined ? {} : { target }),
+        },
+    };
+}
+
+/**
  * Choices laid over the ones a load was read with: each choice given wins, and a mapping's roles
  * are laid over the earlier mapping's role by role (per table when either names tables).
  * @param earlier - What the load was read with.
@@ -5396,6 +5737,66 @@ function recordsSource(graph: SampleGraph | GraphSnapshot, name: string): DataSo
 function sampleLabelOf(graph: SampleGraph | GraphSnapshot): string | undefined {
     const { nodes } = toElementData(graph) as { nodes: readonly Readonly<Record<string, unknown>>[] };
     return LABEL_COLUMNS.find((column) => nodes.some((node) => typeof node[column] === "string"));
+}
+
+/**
+ * A load and every join resting on it (joined onto it, through it as a mapping table, or keyed on
+ * a column it wrote), newest first. A join has nothing to stand on without them, so it goes with them.
+ * @param sources - the loads, oldest first
+ * @param key - the load being removed
+ * @returns the loads that go
+ */
+function withJoinsResting(sources: readonly LoadedSource[], key: SourceKey): LoadedSource[] {
+    const going = new Set([key]);
+    const columns = new Set<string>();
+    for (const { join, key: each } of sources) {
+        const keyed = join?.choices.keys.some(({ graph }) => columns.has(graph.replace(/^data\./, ""))) === true;
+        if (each === key || going.has(join?.onto ?? "") || going.has(join?.choices.via ?? "") || keyed) {
+            going.add(each);
+            join?.columns.forEach((column) => columns.add(column));
+        }
+    }
+
+    return sources.filter((each) => going.has(each.key)).reverse();
+}
+
+/**
+ * The nodes a values join made with `unmatchedRows: "add"`: what it supplied that it wrote no
+ * value over.
+ * @param load - the joined table's load
+ * @param provenance - what each load supplied
+ * @returns the node ids
+ */
+function nodesJoinMade(load: LoadedSource, provenance: Provenance | undefined): NodeId[] {
+    const { join } = load;
+    return join?.choices.unmatchedRows === "add"
+        ? (provenance?.[load.key]?.nodes ?? []).filter((id) => join.before?.[String(id)] === undefined)
+        : [];
+}
+
+/**
+ * What some loads brought into the graph. A values join only wrote onto what it matched, so of
+ * that it brought just the nodes it made; a join of edges, a link or a merge brought what it supplied.
+ * @param loads - the loads
+ * @param provenance - what each load supplied
+ * @returns the node ids and the edge ids
+ */
+function broughtBy(
+    loads: readonly LoadedSource[],
+    provenance: Provenance | undefined,
+): { readonly nodes: Set<NodeId>; readonly edges: Set<EdgeId> } {
+    const nodes = new Set<NodeId>();
+    const edges = new Set<EdgeId>();
+    for (const load of loads) {
+        const supplied = provenance?.[load.key];
+        const values = load.join?.shape === "node-values" || load.join?.shape === "edge-values";
+        (values ? nodesJoinMade(load, provenance) : (supplied?.nodes ?? [])).forEach((id) => nodes.add(id));
+        if (!values) {
+            supplied?.edges.forEach((id) => edges.add(id));
+        }
+    }
+
+    return { nodes, edges };
 }
 
 /**
@@ -5942,6 +6343,26 @@ function choiceOptions(
 }
 
 /**
+ * Where a load was read from, without credentials.
+ * @param kind - the load's kind
+ * @param config - its options
+ * @param record - its network record, when it has one
+ * @returns the address, or nothing for a load read from neither
+ */
+function addressOf(
+    kind: LoadedSource["kind"],
+    config: LoadedSource["config"],
+    record: SourceLoadRecord | undefined,
+): Pick<LoadedSource, "url"> {
+    const url = config?.url;
+    if (kind === "url" && typeof url === "string") {
+        return { url: redactUrl(url).address };
+    }
+
+    return record?.endpoint === undefined || record.endpoint === null ? {} : { url: record.endpoint };
+}
+
+/**
  * What a network load can do now and how big its source says it is, for its `sources()` entry.
  * @param record - the load's record, when the entry has one
  * @param catalog - each source's features, by source id
@@ -5950,13 +6371,14 @@ function choiceOptions(
 function loadFacts(
     record: SourceLoadRecord | undefined,
     catalog: ReadonlyMap<string, SourceFeatures>,
-): Pick<LoadedSource, "features" | "total" | "totalEdges"> {
+): Pick<LoadedSource, "features" | "total" | "totalEdges" | "loadedAt"> {
     if (record === undefined) {
         return {};
     }
 
     const declared = catalog.get(record.source);
     return {
+        loadedAt: record.loadedAt,
         features: Object.freeze({
             expand: declared?.expand === true,
             more: declared?.more === true && record.next !== null,

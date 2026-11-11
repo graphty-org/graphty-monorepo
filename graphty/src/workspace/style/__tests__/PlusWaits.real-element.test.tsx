@@ -14,6 +14,7 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { nodeModelsOn } from "../../features";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -121,7 +122,8 @@ describe("a section's '+' waits for a value", () => {
         const shape = await lineOf("node.shape");
         // The line starts at the cube the node draws now: the field is named for it.
         within(shape).getByRole("combobox", { name: /Box$/ });
-        await plus("fill");
+        // With the node-models experiment on, Fill also offers Picture, so its "+" opens a menu.
+        await plus("fill", nodeModelsOn(session) ? "Color" : undefined);
         const fill = await lineOf("node.color");
         await session.styles.settled();
         assert.strictEqual(drawing(session), before, "the drawing and the key are unchanged");

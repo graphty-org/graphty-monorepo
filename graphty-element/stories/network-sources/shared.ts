@@ -152,8 +152,6 @@ export function render(caption = "", layout = "ngraph"): HTMLElement {
         "margin: 0; padding: 8px 56px 8px 12px; font: 600 15px/1.35 system-ui, sans-serif; color: #1f2933;";
     const element = document.createElement<"graphty-element">("graphty-element");
     element.setAttribute("layout", layout);
-    // Network sources sit behind the network-data experiment.
-    element.setAttribute("features", "network-data");
     element.viewMode = "2d";
     if (layout === "ngraph") {
         element.layoutConfig = { seed: LAYOUT_SEED, dim: 2 };

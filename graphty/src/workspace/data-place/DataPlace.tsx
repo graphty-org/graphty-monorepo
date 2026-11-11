@@ -5,7 +5,6 @@ import { Tabs } from "@mantine/core";
 import React from "react";
 
 import { selectionWorkspaceOn } from "../features";
-import { SOURCE_GLYPHS } from "../glyphs";
 import { useSessionVersion } from "../inspector/hooks";
 import { JoinRow } from "../join-workspace/JoinRow";
 import { ServerPlace } from "../server/ServerForm";
@@ -15,18 +14,6 @@ import { Fields } from "./Fields";
 import { FiltersSection } from "./Filters";
 import { ResultsList } from "./Runs";
 import { Sources } from "./Sources";
-import type { SourceKind } from "./words";
-
-/**
- * A source's icon, which the source inspector's header draws.
- * @param props - Component props
- * @param props.kind - The source's kind
- * @returns The icon
- */
-export function SourceGlyph({ kind }: Readonly<{ kind: SourceKind }>): React.JSX.Element {
-    const { icon: Icon, color } = SOURCE_GLYPHS[kind];
-    return <Icon size={14} color={color} aria-hidden />;
-}
 
 /**
  * The Data place, the left sidebar's data (data prototype spec sections 3.2 to 3.4): the graph's
@@ -55,10 +42,7 @@ export function DataPlace(): React.JSX.Element {
     // A press picks the load for Fields and opens it in the inspector: what it added and what it
     // left out, with Edit source and Replace in its "...".
     const select = (key: SourceKey): void => {
-        const at = sources.findIndex((each) => each.key === key);
-        if (at !== -1) {
-            store.set({ pickedSource: key, inspected: { kind: "source", id: `source:${String(at)}` } });
-        }
+        store.set({ pickedSource: key, inspected: { kind: "source", id: `source:${key}` } });
     };
 
     const tab = useWorkspaceState((state) => state.dataTab);

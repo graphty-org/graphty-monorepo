@@ -1,0 +1,10 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`an assistant without voice > emits no voice event for a typed command 1`] = `
+[
+  "ai-command-complete",
+  "ai-command-start",
+  "ai-status-change",
+  "ai-stream-chunk",
+]
+`;

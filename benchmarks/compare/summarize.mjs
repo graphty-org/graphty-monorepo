@@ -33,8 +33,10 @@ const pick = (cfg) =>
 const COSMOS = { lib: "cosmos" },
     LEAN = { lib: "graphty", mode: "lean" },
     DEF = { lib: "graphty", mode: "default" };
-const hoverMed = (r) => {
-    const x = (r.hover?.latMs ?? []).filter((v) => typeof v === "number");
+// A layout-frame row where no GPU batch landed timed a stalled layout; it is never a figure.
+const layoutRow = (r) => (r.layoutFps?.refused ? undefined : r.layoutFps);
+const hoverMed = (r, stage = "hover") => {
+    const x = (r[stage]?.latMs ?? []).filter((v) => typeof v === "number");
     return x.length ? med(x) : undefined;
 };
 const rss = (r) =>
@@ -50,13 +52,20 @@ const METRICS = [
     ["JavaScript heap", (r) => r.memory?.usedMB, null, "MB"],
     ["Renderer and GPU processes", rss, null, "MB"],
     ["Card memory growth", (r) => r.memory?.gpuMBDelta, null, "MB"],
-    ["Frame while the layout runs", (r) => r.layoutFps?.median, (r) => r.layoutFps?.p95, "ms", (r) => r.layoutFps?.p99],
+    [
+        "Frame while the layout runs",
+        (r) => layoutRow(r)?.median,
+        (r) => layoutRow(r)?.p95,
+        "ms",
+        (r) => layoutRow(r)?.p99,
+    ],
     ["One layout step plus readback", stepRead, null, "ms"],
     ["Layout step in a batch", batched, null, "ms"],
     // Last, because `OLD` is read by position and has no figure for it.
     ["Drag frame", (r) => r.drag?.median, (r) => r.drag?.p95, "ms", (r) => r.drag?.p99],
     // The still frame's GPU time, beside the still frame: a still frame below it was stamped early.
     ["GPU still frame", (r) => r.gpuFrame?.median, (r) => r.gpuFrame?.p95, "ms", (r) => r.gpuFrame?.p99],
+    ["Hover while the layout runs", (r) => hoverMed(r, "hoverLayout"), null, "ms"],
 ];
 const values = (rs, f) => rs.map(f).filter((v) => typeof v === "number");
 const cell = (cfg, [, f, p95, unit, p99]) => {
@@ -125,7 +134,7 @@ for (const [name, c] of [
 console.log(
     "\n## Every run\n\n| Library | Mode | Accel | Nodes | Ratio | Labels | Flags | Stages reached | Failure | Runs | Load when each began |\n|---|---|---|---|---|---|---|---|---|---|---|",
 );
-const stages = ["load", "still", "orbit", "memory", "hover", "layoutFps", "layoutSteps"];
+const stages = ["load", "still", "orbit", "memory", "hover", "layoutFps", "hoverLayout", "layoutSteps"];
 const groups = new Map();
 for (const r of all) {
     const reached = stages.filter((s) => r[s] && !r[s].error).join(" ");

@@ -40,6 +40,17 @@ const SHRUNK = 4;
 /** Measured at least once since it took this row. */
 const KNOWN = 8;
 
+/** What {@link RowTable.measure} reads of a row: a `Node`, or a row drawn with no `Node` (`ColumnRow`). */
+export interface RowMeasure {
+    readonly index: number;
+    readonly drawnScale: number;
+    readonly roundRadius: number | null;
+    readonly borderReach: number;
+    readonly drawnHalfExtents: Readonly<{ x: number; y: number; z: number }>;
+    readonly drawnBoundingRadius: number;
+    readonly outlineHalfExtents: Readonly<{ x: number; y: number; z: number }>;
+}
+
 /** What {@link RowTable.extentOf} reads. */
 /** Where a layout on the drawing device fills `rowPosition` (design/rendering/row-renderer.md 4.5). */
 export interface DrawnTarget {
@@ -352,6 +363,17 @@ export class RowTable {
     }
 
     /**
+     * Send a row's CPU copy at the next flush, over the landing just copied: the layout's ring held
+     * something else for the row when that batch landed.
+     * @param row - The row.
+     */
+    resend(row: number): void {
+        if (row < this.rows) {
+            this.positions.touch(row);
+        }
+    }
+
+    /**
      * A layout published by upload after a landing was copied and before the repack: the copy no
      * longer holds the lane, so the next repack sends every row it writes. Without this a settling
      * batch that landed in the same frame as the last copy never went up, and the texture rested
@@ -492,10 +514,10 @@ export class RowTable {
     }
 
     /**
-     * Write a node's `rowExtent` row and its bounding radius. Paint calls it, never a move.
-     * @param node - The node.
+     * Write a row's `rowExtent` row and its bounding radius. Paint calls it, never a move.
+     * @param node - The node, or the row drawn with no `Node` (`ColumnRow`).
      */
-    measure(node: Node): void {
+    measure(node: RowMeasure): void {
         const row = node.index;
         const flags = this.flags[row] ?? SHRUNK;
         if (row >= this.rows || (flags & SHRUNK) !== 0) {

@@ -136,7 +136,7 @@ const EDGE_ENDS: readonly EdgeEnd[] = ["source", "target"];
 
 /** The keys a table's mapping takes: `rowsAre` and its roles. */
 const ROLES: Readonly<Record<"nodes" | "edges", ReadonlySet<string>>> = {
-    nodes: new Set(["rowsAre", ...LOAD_ROLES.nodes.takes]),
+    nodes: new Set(["rowsAre", ...LOAD_ROLES.nodes.takes, "kindName"]),
     edges: new Set(["rowsAre", ...LOAD_ROLES.edges.takes, "sourceKind", "targetKind"]),
 };
 
@@ -1165,6 +1165,7 @@ export class Draft implements LoadDraft {
         const starts = historyMark(choices);
         const command: DataImportCommand = {
             ...importCommand(read.source, choices, plan.held),
+            ...(choices.origin === undefined ? {} : { origin: choices.origin }),
             tables: [...named.keys()],
             // A graph file's one name holds both kinds, so it says nothing of what it held.
             ...(read.tables.every((held) => held.table.fixed) ? {} : { tableRows: [...named.values()] }),
@@ -1333,6 +1334,7 @@ export class Draft implements LoadDraft {
             {
                 key: key ?? ROW_ID,
                 nodeKind: nodeRoles?.kind ?? null,
+                kindName: nodeRoles?.kindName ?? null,
                 edges: edgeRoles,
                 synthesize: nodeTable === undefined,
                 scoped: choices.kindIds === "scoped",
@@ -1440,7 +1442,7 @@ export class Draft implements LoadDraft {
 }
 
 /** A graph with nothing in it, for a host that lends none. */
-const NO_GRAPH: JoinGraph = { nodes: [], edges: [], table: () => undefined };
+const NO_GRAPH: JoinGraph = { nodes: [], edges: [], table: () => undefined, directed: true };
 
 /**
  * The table a join reads: the first table with rows, a table of the reader's own before a
@@ -1460,11 +1462,13 @@ function joinedHeld(read: ReadSource): HeldTable {
  * @returns The table.
  */
 function tableOf(read: ReadSource, held: HeldTable): JoinedTable {
+    const unreadRows = read.errors.filter((each) => each.params?.issue === "E_CSV_FIELD_COUNT").length;
     return {
         name: read.source.name ?? held.table.name,
         columns: held.order,
         rows: held.rows,
         source: read.source,
+        ...(unreadRows === 0 ? {} : { unreadRows }),
     };
 }
 
@@ -1738,7 +1742,7 @@ function checkedRole(held: HeldTable, rowsAre: "nodes" | "edges", role: string, 
     }
 
     // A bare string is a kind name, not a column.
-    if ((role === "sourceKind" || role === "targetKind") && typeof value === "string") {
+    if ((role === "sourceKind" || role === "targetKind" || role === "kindName") && typeof value === "string") {
         return value;
     }
 
@@ -1859,6 +1863,8 @@ interface KindRoles {
     readonly key: string;
     /** The node table's kind column, or null. */
     readonly nodeKind: string | null;
+    /** The kind every row of the node table takes, or null. */
+    readonly kindName: string | null;
     /** The edge table's roles, when there is one. */
     readonly edges: TableMappingRead | undefined;
     /** Whether the edges' nodes come from the edges alone, so their kinds need node rows of their own. */
@@ -1907,7 +1913,9 @@ function withKinds(
     edges: readonly Record<string, unknown>[];
     report?: LoadReport["kinds"];
 } {
-    const { key, nodeKind } = roles;
+    const { key, nodeKind, kindName } = roles;
+    const rowKind = (row: Readonly<Record<string, unknown>>): string | undefined =>
+        kindName ?? kindOf(row, nodeKind, false);
     const source = roles.edges?.source?.column;
     const target = roles.edges?.target?.column;
     const ends = [
@@ -1918,7 +1926,7 @@ function withKinds(
             end.column !== undefined && end.kind !== undefined && end.kind !== null,
     );
     const edgeKind = roles.edges?.kind ?? null;
-    if (nodeKind === null && ends.length === 0 && edgeKind === null) {
+    if (nodeKind === null && kindName === null && ends.length === 0 && edgeKind === null) {
         return { nodes, edges };
     }
 
@@ -1937,7 +1945,7 @@ function withKinds(
         kindsOf.set(id, seen);
     };
     for (const row of nodes) {
-        note(row[key], kindOf(row, nodeKind, false));
+        note(row[key], rowKind(row));
     }
 
     for (const row of edges) {
@@ -1950,7 +1958,7 @@ function withKinds(
         roles.scoped && kind !== undefined && (kindsOf.get(id)?.length ?? 0) > 1 ? `${kind}:${String(id)}` : id;
     // ponytail: a node row with no kind of its own takes the first kind an edge gave its id.
     const outNodes = nodes.map((row) => {
-        const kind = kindOf(row, nodeKind, false) ?? kindsOf.get(row[key])?.[0];
+        const kind = rowKind(row) ?? kindsOf.get(row[key])?.[0];
         return kind === undefined ? row : { ...row, [key]: idOf(row[key], kind), [KIND]: kind };
     });
     const made = new Set<unknown>();
@@ -1975,7 +1983,7 @@ function withKinds(
         return out;
     });
 
-    if (nodeKind === null && ends.length === 0) {
+    if (nodeKind === null && kindName === null && ends.length === 0) {
         return { nodes: outNodes, edges: outEdges };
     }
 

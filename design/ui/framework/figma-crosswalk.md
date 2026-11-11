@@ -336,7 +336,8 @@ Canvas marks (`design/ui/figma/canvas-selection/README.md`); graphty's forms are
 | Marquee: blue stroke and translucent fill | adapt | a two-tone loop, no fill |
 | Resize, radius and size badges; distance hints and smart guides | reject | nodes are sized by channels; positions are computed |
 | Frame name labels | adapt | hull and group labels |
-| Component purple, Agents sparkle, multiplayer cursors | reject | a second hue would read as data; no multiplayer |
+| Agents sparkle glyph | adopt, in rail ink | the Assistant's rail glyph, lucide `Sparkle`; only its purple is rejected |
+| Component purple, the Agents sparkle's purple, multiplayer cursors | reject | a second hue would read as data; no multiplayer |
 
 States: each state's verdict (adopt, adapt with its row in 4.1 or 4.3, or none with its reason)
 is the Figma column of `state-matrix.md` 2, and this ledger holds the rows it cites.

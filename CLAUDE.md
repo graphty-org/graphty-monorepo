@@ -365,8 +365,9 @@ the 6-hour full run to nightly.graphty.app and npm `next`; only the owner's `pro
   servherd (the status broker, the review server, the watchers) still use the owner's gh login.
 - **Nothing tests master itself between full runs**: two pull requests that each pass can break the tests together;
   the 6-hour full run catches that, bisects and files it.
-- **Red master first.** While master's build is red, the only pull request to open is its fix or its revert (close
-  and reopen master-guard's revert as graphty-agent before arming it). Taking a change out of master is
+- **Red master first.** While master is red (its build or its newest full run), the only pull request to open is its
+  fix or its revert (close and reopen master-guard's revert as graphty-agent before arming it); other work still
+  commits, pushes and marks itself `ready`, and opens once master is green. Taking a change out of master is
   `git revert -m 1 <merge sha>` on a branch, then `pr-open.sh`.
 - Every pull request names its issue (`Fixes #N`, `Refs #N`, ...) or has the line `No issue`; put what a
   description must say (a breaking change's list, an API report change) in the commit message.

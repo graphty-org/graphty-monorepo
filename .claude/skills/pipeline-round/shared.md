@@ -40,7 +40,9 @@ origin/master` (merged), the issue's state, what npm lists.
 - **Every branch belongs to an issue and is on GitHub.** `./tools/worktree-new.sh` requires the issue and pushes the
   branch; every commit pushes it again.
 - **Never** stash, `checkout` files, `reset`, `restore` or `clean`; never `--no-verify` on a push; never
-  `git worktree remove --force` or `git branch -D`; never dispatch `release.yml`; never merge a pull request past a
+  `git worktree remove --force` or `git branch -D`; never dispatch `release.yml` except pipeline-round's `restart` and
+  `promote-nightly` rules; cancel a GitHub Actions run only when it is doomed or superseded (owner, 2026-11-11; never a
+  `ci.yml` master build or a `promote-nightly` run); never merge a pull request past a
   check or with `--admin`; never approve screenshots, call the review page's API or touch `visual-baselines/`; never
   arm auto-merge on a breaking (`!`) change without the owner's go, on a pull request `tools/pr-open.sh` left it off
   for, or on one opened by anyone but graphty-agent, dependabot or a master-guard revert; never label anything

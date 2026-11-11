@@ -31,8 +31,41 @@ admin bypass; never touch the screenshot gate's trusted files.
 
 ## Every round, before the steps
 
-Two checks run in EVERY round, before step 1, even when a step below ends the round early. Their results lead the
+Three checks run in EVERY round, before step 1, even when a step below ends the round early. Their results lead the
 round's last line.
+
+### Master onto nightly
+
+The standing goal (owner, 2026-11-11: "you should ALWAYS try to get master on to nightly"): drive the newest green
+master onto nightly. A round does not only react to each red full run; it moves master forward.
+
+- **Name the run that moves it.** When nightly's commit (its build stamp, below) is behind master's newest green
+  build, the round's last line names the `release.yml` run that will move nightly (id, commit, running or pending)
+  and what could stop it: a failure that happens on every run with no merged fix, a hold, a lane red on master.
+  No such run: dispatch one (the restart rule below).
+- **Check master between full runs.** As soon as a fix for a red full run's failure merges, test the newest master
+  for the next blocker in minutes, not at the next full run (about 80 minutes):
+    - each test file that failed in the red run, on a hosted runner:
+      `gh workflow run base-check.yml --ref master -f base=<newest master sha> -f file=<path> -f variant=<variant> -f repeat=1`
+      (`<variant>` as the red job printed it; an experiments-on lane is `<family>|flags=on|selected`). A failure files
+      its `Failing on master` issue.
+    - every experiments-on shard (`./tools/run-tests.sh --list | grep features-on`), locally, in the background, in a
+      detached worktree of that commit (`git worktree add --detach .worktrees/master-check-<sha7> <sha>`, then
+      `pnpm install --frozen-lockfile` and `tools/low-priority.sh pnpm exec nx run-many -t build`):
+      `for s in $(./tools/run-tests.sh --list | grep features-on); do tools/low-priority.sh ./tools/run-tests.sh "$s"; done > tmp/pipeline-round/master-check-<sha7>.log 2>&1`.
+      Each shard waits for a machine test slot by itself. Start it once and read the log next round.
+    - A new failure is the next blocker: a `priority:critical` issue with `Refs #<red issue>` and a fix subagent the
+      same round.
+- **Cancel doomed runs.** When a fix for a red full run's failure merges, list the running and pending `release.yml`
+  runs (`gh run list --workflow release.yml --status in_progress` and `--status pending`). A run whose commit lacks a
+  merged fix for a failure that happens on every run is doomed: cancel it (`gh run cancel <id>`) and comment the
+  run id and the missing fix on the red issue. Agents may cancel any GitHub Actions run that is doomed or superseded
+  (owner, 2026-11-11), except a master build of `ci.yml` (CLAUDE.md). Never cancel a run whose failures were only
+  flaky or unknown, and never a `promote-nightly` run.
+- **Dispatch the restart.** When master's newest build is green and holds the fixes for every failure that happens
+  on every run, and no running or pending `release.yml` run has them, dispatch
+  `gh workflow run release.yml --ref master -f mode=restart` (owner-approved 2026-11-11). It tests the commit it
+  starts on and replaces any pending release run (Known situations).
 
 ### Nightly every slot
 
@@ -172,8 +205,8 @@ version` (409) means it is propagating (minutes); otherwise re-run the failed pu
 - **Red deploy run:** the newest `deploy-pages.yml` run failed and no open issue names its run id: open one,
   `Red run: deploy-pages.yml <run id> on <sha7>` (`bug`, `priority:high`, `effort:medium`), with the failed job and
   the end of its log, then classify it as above.
-- Never dispatch `promote.yml` (production) or `release.yml` in any mode but the `promote-nightly` fallback in step 6,
-  and never release the grouped major (#676, #702, #843, #1370 have no entry in `release-approvals.json` and stay
+- Never dispatch `promote.yml` (production) or `release.yml` in any mode but `restart` ("Master onto nightly") and
+  the `promote-nightly` fallback in step 6, and never release the grouped major (#676, #702, #843, #1370 have no entry in `release-approvals.json` and stay
   held).
 
 ### 6. Held nightly candidate
@@ -316,6 +349,10 @@ Each: signal, meaning, action. Add to this list (see the next section).
   so a fix re-creates through the publish path, never by uploading to an existing release.
 - **The nightly site did not deploy** while npm `next` moved: the site job is `nightly-site.yml`; re-dispatch it
   for the promoted commit.
+- **One pending release run.** `release.yml`'s concurrency group `release-train` keeps one running and one pending
+  run; a newer dispatch replaces the pending one (on 2026-11-10 a restart dispatch replaced a doomed same-commit
+  retry). A fix merged with `Refs #<red issue>` starts a restart after its master build (`release-due`); an agent
+  may also dispatch one ("Master onto nightly").
 - **A workflow fix and a re-run.** `gh run rerun` keeps the original run's workflow file, so a merged workflow fix
   takes effect only in a new dispatch.
 - **"rate limit exceeded"** on the agent account (5,000 an hour, every session) or the Actions token budget

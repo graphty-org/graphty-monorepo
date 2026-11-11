@@ -7,12 +7,14 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import type { EdgePaint } from "../../src/managers/StylePainter";
+import { drawnFrames } from "../helpers/drawn-frames";
 import { edgeBetween } from "../helpers/testSetup";
 import { pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
 
@@ -431,6 +433,38 @@ describe("an edge loaded with no switch", () => {
         assert.isDefined(edge);
         assert.equal(dataManagerInternals.edgesBuilt(dm), 1);
         assert.equal(element.graph.getEdgeRowLines()?.count, 0);
+    });
+
+    // A repaint makes the next frame visit every edge once. It used to leave the edge count and the node positions
+    // unrecorded, so the two frames after it walked every edge again, and a stable frame could end between them: a
+    // drag counted after it paid for a walk of every edge (drag-walks-incident-edges on fixed, forced-batched).
+    it("visits every built Edge once for a repaint", async () => {
+        const element = await lazyLoaded(
+            [
+                { src: 0, dst: 1 },
+                { src: 1, dst: 2 },
+                { src: 2, dst: 3 },
+            ],
+            false,
+        );
+        const built = dataManagerInternals.edgesBuilt(element.graph.getDataManager());
+        assert.equal(built, 3);
+        await drawnFrames(element.graph.scene, 3);
+        const update = vi.spyOn(Edge.prototype, "update");
+        try {
+            await element.session.styles.add({
+                name: "wide",
+                target: "edge",
+                selector: { match: "everything" },
+                set: { "edge.width": 3 },
+            } as never);
+            await element.waitForStableFrame();
+            await drawnFrames(element.graph.scene, 3);
+
+            assert.equal(update.mock.calls.length, built);
+        } finally {
+            update.mockRestore();
+        }
     });
 
     // Graphviz keys its routes by `Edge` and builds its graph from the `Edge`s it holds: an edge stored with none

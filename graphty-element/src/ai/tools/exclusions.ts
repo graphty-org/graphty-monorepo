@@ -204,7 +204,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     ...(["Graphty", "Graph"] as const).flatMap((root): Exclusion[] => [
-        { root, members: ["nodeThumbnail"], reason: "raw-data", kind: BY_DESIGN },
+        { root, members: ["nodeThumbnail", "modelThumbnail"], reason: "raw-data", kind: BY_DESIGN },
     ]),
     {
         root: "Graph",

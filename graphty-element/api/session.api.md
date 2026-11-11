@@ -174,7 +174,9 @@ export interface AssetRecord {
     readonly format: ModelFormat;
     readonly id: AssetId;
     readonly kind: "model" | "image";
+    readonly parts?: readonly ModelPart[];
     readonly path?: string;
+    readonly plainName?: string;
     readonly problems: readonly CodedFact[];
     readonly skipped?: readonly string[];
     readonly state: AssetState;
@@ -197,6 +199,7 @@ export interface AssetsApi {
         readonly signal?: AbortSignal;
     }): Promise<AssetRecord>;
     remove(id: string): void;
+    rename(ref: string, plainName?: string): AssetRecord;
     setLimits(limits: Partial<ModelLimits>): void;
     states(): readonly ModelChange[];
     supply(ref: string, answer: PartAnswer, options?: {
@@ -3374,6 +3377,22 @@ export interface ModelLimits {
 }
 
 // @public
+export interface ModelPart {
+    readonly file?: string;
+    readonly name: string;
+    // (undocumented)
+    readonly role: ModelPartRole;
+    // (undocumented)
+    readonly state: ModelPartState;
+}
+
+// @public
+export type ModelPartRole = "model" | "geometry" | "materials" | "texture" | "other";
+
+// @public
+export type ModelPartState = "found" | "substituted" | "missing" | "ambiguous" | "skipped" | "unused";
+
+// @public
 export type ModelState = "pending" | "accepted" | "drawn" | "rejected" | "failed";
 
 // @public
@@ -3728,7 +3747,12 @@ export type PartAnswer =
     readonly name?: string;
     readonly file: NamedBlob | Uint8Array;
 }
-/** Use a file the set already holds for an ambiguous reference (`E_MODEL_PART_AMBIGUOUS`). */
+/**
+* Use a file the set already holds: one of an ambiguous reference's candidates
+* (`E_MODEL_PART_AMBIGUOUS`), or any file of the set for a missing part (`E_MODEL_MISSING_FILE`),
+* as when a picture's name differs from the one the model names. A file nothing else names is
+* moved to the part's name.
+*/
 | {
     readonly name: string;
     readonly use: string;

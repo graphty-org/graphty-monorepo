@@ -40,7 +40,7 @@ interface SavedFile {
 
 /** The members an entry and a file may have; anything else refuses the entry. */
 const MEMBER_KEYS = new Set(["kind", "version", "assets", "extensions"]);
-const ENTRY_KEYS = new Set(["id", "sha256", "format", "main", "source", "stored", "files", "skipped"]);
+const ENTRY_KEYS = new Set(["id", "sha256", "format", "main", "source", "stored", "files", "skipped", "plainName"]);
 const FILE_KEYS = new Set(["path", "mediaType", "byteLength", "data"]);
 
 /** Media types by file ending; anything else is application/octet-stream. */
@@ -335,6 +335,7 @@ function embedEntry(build: MemberBuild, record: AssetRecord, key: string, source
         main: record.path ?? "",
         ...(source === undefined ? {} : { source }),
         ...(record.skipped === undefined ? {} : { skipped: [...record.skipped] }),
+        ...(record.plainName === undefined ? {} : { plainName: record.plainName }),
         // Later entries with the same digest share the first one's files.
         ...(first ? { files: savedFiles(build.assets, record.id) } : {}),
     });
@@ -379,6 +380,7 @@ function addRef(build: MemberBuild, ref: string, layerIds: LayerId[]): void {
             main: record.path ?? "",
             source: ref,
             stored: "url",
+            ...(record.plainName === undefined ? {} : { plainName: record.plainName }),
         });
         return;
     }
@@ -501,6 +503,7 @@ interface Entry {
     readonly stored?: "url";
     readonly files?: readonly SavedFile[];
     readonly skipped?: readonly string[];
+    readonly plainName?: string;
 }
 
 /**
@@ -598,6 +601,10 @@ function checkEntry(entry: unknown): Entry | string {
 
     if (!storedOk(entry.stored, source, files)) {
         return "/stored";
+    }
+
+    if (entry.plainName !== undefined && (typeof entry.plainName !== "string" || entry.plainName.length > 256)) {
+        return "/plainName";
     }
 
     return filesPointer(files) ?? (entry as unknown as Entry);
@@ -719,6 +726,10 @@ async function restoreEntry(
     }
 
     decoded.set(entry.sha256, given);
+    if (entry.plainName !== undefined) {
+        assets.rename(record.id, entry.plainName);
+    }
+
     if (entry.source !== undefined) {
         assets.bindUrl(entry.source, record.id);
         assets.rememberStorage(entry.source, "embed");

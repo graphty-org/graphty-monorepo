@@ -25,6 +25,7 @@ interface AssetEntry {
     stored?: "url"; // kept by URL: no files; source is required
     files?: AssetFile[]; // absent (and not stored by URL): the files of the earlier entry with the same sha256
     skipped?: string[]; // parts drawn without: pictures and .mtl files, by path in the set; not in the digest
+    plainName?: string; // the reader's name for it (assets.rename), at most 256 characters; not in the digest
 }
 
 interface AssetFile {

@@ -2842,6 +2842,8 @@ export class Graph implements GraphContext {
     getEdgeCount(): number;
     // @internal
     getEdgeIdTarget(): EdgeIdTarget | null;
+    // @internal
+    getEdgeRowLines(): EdgeRowLines | null;
     getEdges(): Edge[];
     getEventManager(): EventManager;
     getGlobeLook(): GlobeLook;

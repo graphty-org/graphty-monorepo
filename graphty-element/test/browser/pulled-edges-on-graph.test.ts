@@ -14,6 +14,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import type { Graphty } from "../../index.js";
 import { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
+import { dataManagerInternals } from "../../src/managers/DataManager";
 import { poolGrowths } from "../../src/meshes/poolReserve";
 import { pulledEdgesDefault } from "../../src/meshes/PulledLineBatch";
 import { drag } from "../helpers/real-input";
@@ -253,6 +254,34 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
         // the capped edge is placed on each frame the rows move; the placed edges are listed once per change to
         // which edges are pulled, so no frame asks a pulled line anything
         assert.isAtLeast(visits.placed, 10, "the layout moved the rows over many frames");
+        assert.strictEqual(visits.pulled, 0, "no pulled edge was placed");
+        assert.isAtMost(asked.pulled, 2 * (EDGES.length - 1), "each pulled line was asked a fixed number of times");
+    });
+
+    it("are not asked about by the frame's full walk while a layout moves every node", async () => {
+        const element = await loaded(renderer, false, "2d", { renderPath: "batched" });
+        assert.deepInclude(element.graph.rowCounts, { pulledEdges: EDGES.length - 1, objectEdges: 1 });
+        assert.strictEqual(
+            dataManagerInternals.nodesBuilt(element.graph.getDataManager()),
+            NODES.length,
+            "the view switch built every row's Node",
+        );
+        const visits = countVisits();
+        const asked = { pulled: 0 };
+        const followsRows = Object.getOwnPropertyDescriptor(Edge.prototype, "followsRows")?.get;
+        assert.isDefined(followsRows);
+        vi.spyOn(Edge.prototype, "followsRows", "get").mockImplementation(function (this: Edge) {
+            const follows = followsRows.call(this) as boolean;
+            asked.pulled += follows ? 1 : 0;
+            return follows;
+        });
+
+        await element.graph.setLayout("force", { seed: 1 });
+        await element.waitForStableFrame();
+
+        // every node has a Node here, so a moving frame walks every edge the engine holds; the edges it must place
+        // are listed once per change to which lines follow their rows, so no frame asks a pulled line anything
+        assert.isAtLeast(visits.placed, 10, "the layout moved the nodes over many frames");
         assert.strictEqual(visits.pulled, 0, "no pulled edge was placed");
         assert.isAtMost(asked.pulled, 2 * (EDGES.length - 1), "each pulled line was asked a fixed number of times");
     });

@@ -93,7 +93,7 @@ export function chronicJobs(histories: JobHistory[], now: number): ChronicJob[] 
             !newest ||
             now - newest.at > activeFor(h.runs) ||
             AGGREGATORS.has(shortName(h.job)) ||
-            h.workflow === "bisect.yml"
+            (h.workflow === "bisect.yml" && shortName(h.job).startsWith("Point "))
         ) {
             continue;
         }

@@ -539,7 +539,7 @@ export interface OptionBound {
  *
  * "unknown" is not a control. It is what the Zod emitter records when a schema uses a
  * construct it cannot classify: the option is still published, still carries its name and its
- * default, and says why it could not be typed in `unsupportedReason`. Dropping the option or
+ * default, and says why it could not be typed in `unsupported`. Dropping the option or
  * throwing would both hide a real gap, so neither is allowed.
  */
 export const OPTION_TYPES = [
@@ -615,8 +615,51 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
     /**
      * Why `type` is "unknown", in a sentence naming the construct that could not be
      * classified. Present only when `type` is "unknown".
+     * @deprecated Read {@link OptionDescriptor.unsupported} and word it in the application.
+     * Removed at the next major release.
      */
     unsupportedReason?: string;
+    /**
+     * Why `type` is "unknown", as a code with no words. Present on every "unknown" option the
+     * element derives from a schema; a descriptor written by hand may leave it out. See {@link OptionUnsupportedCode} for the codes.
+     * @since 3.38.0
+     */
+    unsupported?: OptionUnsupported;
+}
+
+/**
+ * Why an option's schema has no control, as {@link OptionDescriptor.unsupported} reports it:
+ *
+ * - `option.recursive` -- the schema refers to itself, so it has no single value type.
+ * - `option.only-null` -- the only value the schema accepts is null.
+ * - `option.no-type` -- the schema declares no value type.
+ * - `option.union` -- the schema is a union with no single control; `params.types` names its arms'
+ *   types.
+ * - `option.array` -- an array option; give it a type with an override.
+ * - `option.object` -- an object or record option; give it a type with an override.
+ * - `option.untyped` -- the construct has no JSON Schema type, so its values cannot be classified.
+ * - `option.not-convertible` -- the schema could not be converted to JSON Schema at all.
+ *
+ * New codes may be added in a minor release.
+ * @since 3.38.0
+ */
+export type OptionUnsupportedCode =
+    | "option.recursive"
+    | "option.only-null"
+    | "option.no-type"
+    | "option.union"
+    | "option.array"
+    | "option.object"
+    | "option.untyped"
+    | "option.not-convertible";
+
+/**
+ * Why an option's schema has no control: a code, and for `option.union` the arms' types.
+ * @since 3.38.0
+ */
+export interface OptionUnsupported {
+    readonly code: OptionUnsupportedCode;
+    readonly params: { readonly types?: readonly string[] };
 }
 
 // ---------------------------------------------------------------------------------------------

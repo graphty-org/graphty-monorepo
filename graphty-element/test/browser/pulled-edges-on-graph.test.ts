@@ -15,6 +15,7 @@ import type { Graphty } from "../../index.js";
 import { Edge, pulledLooks } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
+import { setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
 import { poolGrowths } from "../../src/meshes/poolReserve";
 import { pulledEdgesDefault } from "../../src/meshes/PulledLineBatch";
 import { drag } from "../helpers/real-input";
@@ -217,6 +218,7 @@ async function loadGrowths(
 describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
     afterEach(() => {
         vi.restoreAllMocks();
+        setMinimumWorkPerFrame(false);
     });
 
     it("are never placed by the frame's walk, at load, at a drag or after a renumbering freeze", async () => {
@@ -249,6 +251,9 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
             return pulled;
         });
 
+        // One layout round a frame however long a frame takes, so the layout moves over a fixed
+        // number of frames (a slow frame otherwise catches up with several rounds).
+        setMinimumWorkPerFrame(true);
         await element.graph.setLayout("force", { seed: 1 });
         await element.waitForStableFrame();
 
@@ -277,6 +282,9 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
             return follows;
         });
 
+        // One layout round a frame however long a frame takes, so the layout moves over a fixed
+        // number of frames (a slow frame otherwise catches up with several rounds).
+        setMinimumWorkPerFrame(true);
         await element.graph.setLayout("force", { seed: 1 });
         await element.waitForStableFrame();
 
@@ -304,6 +312,9 @@ describe.each(RENDERERS)("pulled edges on a graph on %s", (renderer) => {
             return original.apply(this, args);
         });
 
+        // One layout round a frame however long a frame takes, so the layout moves over a fixed
+        // number of frames (a slow frame otherwise catches up with several rounds).
+        setMinimumWorkPerFrame(true);
         await element.graph.setLayout("force", { seed: 1 });
         await element.waitForStableFrame();
 

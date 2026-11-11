@@ -151,14 +151,10 @@ export class EdgeRowLines {
             () => rows.positionTexture,
             { route: "straight", lean: this.host.lean() },
         );
-        const piece = batch.acquire();
         // as `Edge.pullLine` gives its piece the look: in 2D a world width
-        batch.setLook(
-            piece,
-            Color3.FromHexString(color),
-            EdgeMesh.opacityOf(style),
-            EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20,
-        );
+        const drawnWidth = EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20;
+        const piece = batch.acquire(drawnWidth);
+        batch.setLook(piece, Color3.FromHexString(color), EdgeMesh.opacityOf(style), drawnWidth);
         batch.setRows(piece, source, target);
         this.lines.set(row, { batch, piece, source, target });
         this.host.requestFrame();

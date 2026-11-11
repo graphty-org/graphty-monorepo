@@ -380,6 +380,18 @@ function hexOf(value: unknown, fallback: string): { hex: string; alpha: number }
 }
 
 /**
+ * A batched row's measure as the CPU took it, when the row table's 32-bit copy is that measure rounded: the
+ * object path works in the doubles it measured, and a last bit of difference moves a trimmed edge end by a
+ * pixel (#6287).
+ * @param stored - What the row table holds.
+ * @param measured - What the node measured when it wrote the row, or null.
+ * @returns The measure, or what the table holds when it holds something else (a shrink part of the way).
+ */
+function exactOf(stored: number, measured: number | null): number {
+    return measured !== null && Math.fround(measured) === stored ? measured : stored;
+}
+
+/**
  * Represents a node in the graph visualization with its mesh, label, and associated data.
  * Manages node rendering, styling, drag behavior, and interactions with the layout engine.
  */
@@ -869,7 +881,8 @@ export class Node implements ModelUser {
     get roundRadius(): number | null {
         const batched = this.batchTable;
         if (batched !== null) {
-            return batched.extentOf(this.row).round;
+            const { round } = batched.extentOf(this.row);
+            return round === null ? null : exactOf(round, this.roundRadiusValue);
         }
 
         // The scale too: `layoutBehavior.node.depthIndependentSize` rescales a node mesh as the
@@ -1884,7 +1897,7 @@ export class Node implements ModelUser {
     get drawnScaling(): Readonly<Vector3> {
         const batched = this.batchTable;
         if (batched !== null) {
-            const { scale } = batched.extentOf(this.row);
+            const scale = exactOf(batched.extentOf(this.row).scale, this.#anchor.scaling.x);
             return new Vector3(scale, scale, scale);
         }
 
@@ -1897,7 +1910,8 @@ export class Node implements ModelUser {
      * @internal
      */
     get drawnScale(): number {
-        return this.batchTable?.extentOf(this.row).scale ?? this.#anchor.scaling.x;
+        const scale = this.batchTable?.extentOf(this.row).scale;
+        return scale === undefined ? this.#anchor.scaling.x : exactOf(scale, this.#anchor.scaling.x);
     }
 
     /**
@@ -3460,7 +3474,9 @@ export class Node implements ModelUser {
     get drawnHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
         const batched = this.batchTable;
         if (batched !== null) {
-            return batched.extentOf(this.row).half;
+            const { half } = batched.extentOf(this.row);
+            const measured = this.halfExtentsValue;
+            return { x: exactOf(half.x, measured.x), y: exactOf(half.y, measured.y), z: exactOf(half.z, measured.z) };
         }
 
         const own = this.#anchor.scaling;

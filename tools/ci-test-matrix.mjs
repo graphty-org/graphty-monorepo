@@ -462,7 +462,8 @@ export const FEATURES_ON_SHARDS = [
         shard: `graphty-element-default-${ON_SUFFIX}`,
         package: "graphty-element",
         "test-command": `cd graphty-element && ${ON_ENV}=1 pnpm exec vitest run ${on("default", "mesh")} ${ELEMENT_REPORTERS}`,
-        "needs-browser": false,
+        // As its Off twin: test/packaging/program-wasm.test.ts runs the pages it builds in Chromium.
+        "needs-browser": true,
     },
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-element-browser-${ON_SUFFIX}-${n}`,

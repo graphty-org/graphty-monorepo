@@ -600,7 +600,21 @@ export class D3GraphEngine extends LayoutEngine {
     addRows(ids: readonly NodeIdType[], source: D3RowSource): void {
         this.rowSource = source;
         for (const id of ids) {
-            this.rowBodies.set(id, this.dim === 2 ? { id, z: 0, vz: 0 } : { id });
+            const fresh: D3InputNode = this.dim === 2 ? { id, z: 0, vz: 0 } : { id };
+            const held = this.rowBodies.get(id);
+            if (held === undefined) {
+                this.rowBodies.set(id, fresh);
+                continue;
+            }
+
+            // A row added again (an undo that brings it back) keeps its body OBJECT, reset: a link
+            // d3 has already resolved points at that object, and a new one would leave the link
+            // pulling on a body the simulation no longer holds.
+            for (const key of Object.keys(held)) {
+                Reflect.deleteProperty(held, key);
+            }
+
+            Object.assign(held, fresh);
         }
 
         this.rowsAdded = ids.length > 0 || this.rowsAdded;

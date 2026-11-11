@@ -3715,6 +3715,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             clusterColumn: READ,
             // A node's community changed, so a layout pulling communities together starts again.
             wakeForClusters: TRANSPORT,
+            // The box the last publish left the rows in, read by the batched fit; walks no row.
+            publishedBounds: READ,
         },
     },
     {

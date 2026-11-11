@@ -656,19 +656,7 @@ export class ElementAutosave {
         // session storage kept across a reload or a discard.
         const own = ownEntries.get(key) ?? this.#readOwn(key);
         if (own !== null) {
-            const leaving = departing.get(own);
-            if (leaving !== undefined) {
-                await leaving;
-                await this.#env.locks.wait(lockName(key, own));
-            }
-
-            // A reload: the page before it may still hold the lock for its final write.
-            if (takeLeaving(this.#env, key) === own) {
-                await this.#env.locks.own?.(lockName(key, own), LEAVING_WAIT_MS);
-            }
-
-            // After a reload with no leaving mark, the page it replaced may not have let go yet.
-            await this.#env.locks.handoff?.(lockName(key, own));
+            await this.#waitForOwn(key, own);
         }
 
         saver.setFacts(await this.#gatherFacts(), true);
@@ -711,6 +699,27 @@ export class ElementAutosave {
 
         this.#finish(restored);
         this.#checkAtRisk(saver.status);
+    }
+
+    /**
+     * Wait until the page or element that last wrote this tab's own entry has let go of it.
+     * @param key - The autosave key.
+     * @param own - This tab's own entry.
+     */
+    async #waitForOwn(key: string, own: string): Promise<void> {
+        const leaving = departing.get(own);
+        if (leaving !== undefined) {
+            await leaving;
+            await this.#env.locks.wait(lockName(key, own));
+        }
+
+        // A reload: the page before it may still hold the lock for its final write.
+        if (takeLeaving(this.#env, key) === own) {
+            await this.#env.locks.own?.(lockName(key, own), LEAVING_WAIT_MS);
+        }
+
+        // After a reload with no leaving mark, the page it replaced may not have let go yet.
+        await this.#env.locks.handoff?.(lockName(key, own));
     }
 
     /**

@@ -84,8 +84,27 @@ export interface D3RowSource {
     readonly positions: ElementPositions;
 }
 
+/**
+ * An edge stored with no `Edge`, under renderPath "batched": its id and its two nodes' ids. A
+ * freeze renumbers rows, the ids stay.
+ */
+export interface EdgeRow {
+    readonly key: string;
+    readonly source: NodeIdType;
+    readonly target: NodeIdType;
+}
+
 interface D3InputNode extends Partial<D3Node> {
     id: NodeIdType;
+}
+
+/**
+ * The node id a link end names: d3 swaps the id for the body once it resolves the link.
+ * @param end - The end.
+ * @returns The id.
+ */
+function endIdOf(end: unknown): NodeIdType {
+    return (typeof end === "object" && end !== null ? (end as D3InputNode).id : end) as NodeIdType;
 }
 
 function isD3Node(n: unknown): n is D3Node {
@@ -218,6 +237,10 @@ export class D3GraphEngine extends LayoutEngine {
     /** Rows were added since the last refresh. */
     private rowsAdded = false;
     newEdgeMap = new Map<Edge, D3InputEdge>();
+    /** The links of edges stored with no `Edge`, by edge id. See {@link D3GraphEngine.addEdgeRows}. */
+    private readonly rowLinks = new Map<string, D3InputEdge>();
+    /** Each node id's edge rows, by edge id. */
+    private readonly rowLinksByNode = new Map<NodeIdType, Set<string>>();
     /** Each node id's edges, so removing a node visits only its own edges (issue #1425). */
     private readonly edgesByNode = new Map<Edge["srcId"], Set<Edge>>();
     reheat = false;
@@ -323,7 +346,7 @@ export class D3GraphEngine extends LayoutEngine {
 
             // update edges
             let linkList: (D3Edge | D3InputEdge)[] = [...this.edgeMapping.values()];
-            linkList = linkList.concat([...this.newEdgeMap.values()]);
+            linkList = linkList.concat([...this.newEdgeMap.values()], [...this.rowLinks.values()]);
             this.linkForce.links(linkList);
 
             // copy over new edges
@@ -602,10 +625,56 @@ export class D3GraphEngine extends LayoutEngine {
      */
     removeRows(ids: Iterable<NodeIdType>): void {
         for (const id of ids) {
+            this.removeEdgeRows([...(this.rowLinksByNode.get(id) ?? [])]);
             if (this.rowBodies.delete(id)) {
                 this.clustersStale = true;
                 this.reheat = true;
             }
+        }
+    }
+
+    /**
+     * Under renderPath "batched", give the simulation a link for each edge stored with no `Edge`.
+     * Such a link is never left out by an edge filter, which reads an `Edge`; an end left out still
+     * lets it go. A third party's engine is handed `Edge`s only.
+     * @param rows - The edges.
+     * @internal
+     */
+    addEdgeRows(rows: readonly EdgeRow[]): void {
+        for (const { key, source, target } of rows) {
+            this.rowLinks.set(key, { source, target });
+            for (const id of [source, target]) {
+                let keys = this.rowLinksByNode.get(id);
+                if (keys === undefined) {
+                    keys = new Set();
+                    this.rowLinksByNode.set(id, keys);
+                }
+
+                keys.add(key);
+            }
+        }
+
+        this.rowsAdded = rows.length > 0 || this.rowsAdded;
+    }
+
+    /**
+     * Take out the links of edges that leave the graph with no `Edge`.
+     * @param keys - The edges' ids; one with no link is skipped.
+     * @internal
+     */
+    removeEdgeRows(keys: Iterable<string>): void {
+        for (const key of keys) {
+            const link = this.rowLinks.get(key);
+            if (link === undefined) {
+                continue;
+            }
+
+            this.rowLinks.delete(key);
+            for (const end of [link.source, link.target]) {
+                this.rowLinksByNode.get(endIdOf(end))?.delete(key);
+            }
+
+            this.reheat = true;
         }
     }
 
@@ -887,6 +956,7 @@ export class D3GraphEngine extends LayoutEngine {
         }
 
         this.edgesByNode.delete(n.id);
+        this.removeEdgeRows([...(this.rowLinksByNode.get(n.id) ?? [])]);
         this.nodeMapping.delete(n);
         this.newNodeMap.delete(n);
         this.reheat = true;
@@ -917,6 +987,15 @@ export class D3GraphEngine extends LayoutEngine {
         for (const [edge, link] of this.edgeMapping) {
             if (!nodes.has(link.source) || !nodes.has(link.target)) {
                 problems.push(`edge ${edge.id} links a node the simulation no longer holds`);
+            }
+        }
+
+        // A link d3 has not resolved yet names its ends by id.
+        const ids = this.rowLinks.size > 0 ? new Set([...this.bodies()].map((body) => endIdOf(body))) : null;
+        for (const [key, link] of this.rowLinks) {
+            const ends = [link.source, link.target];
+            if (ends.some((end) => (typeof end === "object" ? !nodes.has(end) : ids?.has(endIdOf(end)) !== true))) {
+                problems.push(`edge row ${key} links a node the simulation no longer holds`);
             }
         }
 

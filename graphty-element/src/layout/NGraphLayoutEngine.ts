@@ -17,7 +17,7 @@ import {
     readCommunities,
     sameCommunities,
 } from "./clusterForce";
-import type { D3RowSource } from "./D3GraphLayoutEngine";
+import type { D3RowSource, EdgeRow } from "./D3GraphLayoutEngine";
 import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
 import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
 
@@ -124,9 +124,13 @@ function cellKey(x: number, y: number, z: number): number {
     return (Math.imul(x, 73856093) ^ Math.imul(y, 19349663) ^ Math.imul(z, 83492791)) >>> 0;
 }
 
-/** What this engine keeps on each ngraph link: every edge between its pair, and the pair's key. */
+/**
+ * What this engine keeps on each ngraph link: every edge between its pair, `Edge` or edge row
+ * (by edge id), and the pair's key.
+ */
 interface PairData {
     edges: Set<Edge>;
+    rows: Set<string>;
     row: Map<NodeIdType, NGraphLink>;
     key: NodeIdType;
 }
@@ -169,6 +173,8 @@ export class NGraphEngine extends LayoutEngine {
     /** Where a row body finds its row and publishes, once rows were added. */
     private rowSource: D3RowSource | null = null;
     edgeMapping = new Map<Edge, NGraphLink>();
+    /** The link carrying each edge stored with no `Edge`, by edge id. See {@link NGraphEngine.addEdgeRows}. */
+    private readonly rowLinks = new Map<string, NGraphLink>();
     /** The one link between two nodes, keyed by both ids in the order the first edge gave them. */
     private readonly pairLinks = new Map<NodeIdType, Map<NodeIdType, NGraphLink>>();
     _settled = true;
@@ -803,28 +809,92 @@ export class NGraphEngine extends LayoutEngine {
      * @param e - The edge to add
      */
     addEdge(e: Edge): void {
-        // ONE link, and so one spring, per pair of nodes, carrying every edge between them. A link
-        // per edge made thirteen parallel emails thirteen springs while ngraph's damping stayed
-        // the same, and a dense multigraph oscillated until the step budget stopped it.
-        let link = this.pairLinks.get(e.srcId)?.get(e.dstId) ?? this.pairLinks.get(e.dstId)?.get(e.srcId);
-        if (link === undefined) {
-            let row = this.pairLinks.get(e.srcId);
-            if (row === undefined) {
-                row = new Map();
-                this.pairLinks.set(e.srcId, row);
-            }
-
-            const data: PairData = { edges: new Set(), row, key: e.dstId };
-            link = this.ngraph.addLink(e.srcId, e.dstId, data);
-            row.set(e.dstId, link);
-        }
-
+        const link = this.pairLink(e.srcId, e.dstId);
         pairOf(link).edges.add(e);
         this.edgeMapping.set(e, link);
         this.slacken(link);
+        this.unsettle();
+    }
+
+    /**
+     * Under renderPath "batched", put each edge stored with no `Edge` on its pair's link. Such an
+     * edge is never left out by an edge filter, which reads an `Edge`; an end left out still
+     * slackens the link. A third party's engine is handed `Edge`s only.
+     * @param rows - The edges.
+     * @internal
+     */
+    addEdgeRows(rows: readonly EdgeRow[]): void {
+        for (const { key, source, target } of rows) {
+            const link = this.pairLink(source, target);
+            pairOf(link).rows.add(key);
+            this.rowLinks.set(key, link);
+            this.slacken(link);
+        }
+
+        if (rows.length > 0) {
+            this.unsettle();
+        }
+    }
+
+    /**
+     * Take edges that leave the graph with no `Edge` off their links, and drop a link left carrying none.
+     * @param keys - The edges' ids; one on no link is skipped.
+     * @internal
+     */
+    removeEdgeRows(keys: Iterable<string>): void {
+        for (const key of keys) {
+            const link = this.rowLinks.get(key);
+            if (link !== undefined) {
+                this.rowLinks.delete(key);
+                pairOf(link).rows.delete(key);
+                this.dropIfEmpty(link);
+            }
+        }
+    }
+
+    /**
+     * The one link, and so one spring, between two nodes, made when they have none. A link per
+     * edge made thirteen parallel emails thirteen springs while ngraph's damping stayed the same,
+     * and a dense multigraph oscillated until the step budget stopped it.
+     * @param source - One node's id.
+     * @param target - The other's.
+     * @returns The link.
+     */
+    private pairLink(source: NodeIdType, target: NodeIdType): NGraphLink {
+        let link = this.pairLinks.get(source)?.get(target) ?? this.pairLinks.get(target)?.get(source);
+        if (link === undefined) {
+            let row = this.pairLinks.get(source);
+            if (row === undefined) {
+                row = new Map();
+                this.pairLinks.set(source, row);
+            }
+
+            const data: PairData = { edges: new Set(), rows: new Set(), row, key: target };
+            link = this.ngraph.addLink(source, target, data);
+            row.set(target, link);
+        }
+
+        return link;
+    }
+
+    /** Step again from the start. */
+    private unsettle(): void {
         this._settled = false;
         this._stepCount = 0;
         this._lastMoves = [];
+    }
+
+    /**
+     * Drop a link that carries no edge any more.
+     * @param link - The link.
+     */
+    private dropIfEmpty(link: NGraphLink): void {
+        const { edges, rows, row, key } = pairOf(link);
+        if (edges.size === 0 && rows.size === 0) {
+            this.ngraph.removeLink(link);
+            row.delete(key);
+            this._settled = false;
+        }
     }
 
     /**
@@ -987,7 +1057,9 @@ export class NGraphEngine extends LayoutEngine {
                 const node = (this.ngraph.getNode(id)?.data as { parentNode?: Node } | undefined)?.parentNode;
                 return node !== undefined && this.isLeftOut(node.index);
             }) ||
-            (pairOf(link).edges.size > 0 && [...pairOf(link).edges].every((edge) => this.isEdgeLeftOut(edge)));
+            (pairOf(link).edges.size > 0 &&
+                pairOf(link).rows.size === 0 &&
+                [...pairOf(link).edges].every((edge) => this.isEdgeLeftOut(edge)));
         if (leftOut) {
             spring.coefficient = FOLLOWER_MASS;
         } else if (spring.coefficient === FOLLOWER_MASS) {
@@ -1038,9 +1110,13 @@ export class NGraphEngine extends LayoutEngine {
 
         // The node's own links, not every link: each carries the edges between its pair.
         for (const link of ngraphNode.links ?? []) {
-            const { edges, row, key } = pairOf(link);
+            const { edges, rows, row, key } = pairOf(link);
             for (const edge of edges) {
                 this.edgeMapping.delete(edge);
+            }
+
+            for (const edgeRow of rows) {
+                this.rowLinks.delete(edgeRow);
             }
 
             row.delete(key);
@@ -1061,13 +1137,8 @@ export class NGraphEngine extends LayoutEngine {
         }
 
         this.edgeMapping.delete(e);
-        const { edges, row, key } = pairOf(link);
-        edges.delete(e);
-        if (edges.size === 0) {
-            this.ngraph.removeLink(link);
-            row.delete(key);
-            this._settled = false;
-        }
+        pairOf(link).edges.delete(e);
+        this.dropIfEmpty(link);
     }
 
     /**
@@ -1085,6 +1156,12 @@ export class NGraphEngine extends LayoutEngine {
 
             if (this.ngraph.getLinkById(link.id) !== link) {
                 problems.push(`edge ${edge.id} maps to a link its graph no longer holds`);
+            }
+        }
+
+        for (const [key, link] of this.rowLinks) {
+            if (!pairOf(link).rows.has(key) || this.ngraph.getLinkById(link.id) !== link) {
+                problems.push(`edge row ${key} maps to a link that does not carry it`);
             }
         }
 

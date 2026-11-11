@@ -172,7 +172,9 @@ found it. pipeline-round's step 10 finishes it or records why not.
 **A worktree holding a file that must never be committed** (for example a fidelity record run's output) makes
 `pr-open.sh` refuse. Continue on a new branch made from the old one in a new worktree
 (`./tools/worktree-new.sh <new-branch> origin/<old-branch> <name> --issue <N>`); never restore the file, delete it
-from git's view or force-remove the old worktree.
+from git's view or force-remove the old worktree. The script records the old branch as the new one's stacked base,
+so then run `git config branch.<new-branch>.prBase master`, or the sonar gate and pr-open compare against the old
+branch (#4247).
 
 ## Subagent rules
 

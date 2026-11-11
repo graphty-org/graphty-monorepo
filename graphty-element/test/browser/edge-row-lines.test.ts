@@ -111,6 +111,34 @@ describe("an edge row with no Edge", () => {
         assert.equal(lines.count, 0);
     });
 
+    it("follows a freeze that renumbers the rows, and goes with its edge row", async () => {
+        const element = await loaded("batched", [
+            { src: 0, dst: 2 },
+            { src: 1, dst: 2 },
+        ]);
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        const gone = edgeBetween(element.graph, 0, 2);
+        const kept = edgeBetween(element.graph, 1, 2);
+        assert.isDefined(gone);
+        assert.isDefined(kept);
+        const paint = { meshKey: "plain", style: { line: { color: "#ff0000" } } };
+        assert.isTrue(lines.paintRow(gone.index, rowOf(element, 0), rowOf(element, 2), paint));
+        assert.isTrue(lines.paintRow(kept.index, rowOf(element, 1), rowOf(element, 2), paint));
+        const before = { edge: kept.index, ends: [rowOf(element, 1), rowOf(element, 2)] };
+
+        // Node 0 and its edge go, and the freeze moves every row after them down.
+        await element.session.data.removeNodes([0]);
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        const after = { edge: kept.index, ends: [rowOf(element, 1), rowOf(element, 2)] };
+        assert.notDeepEqual(after, before, "the freeze renumbered the rows");
+
+        assert.equal(lines.count, 1, "the line of the edge row the freeze dropped is gone");
+        assert.isTrue(lines.has(after.edge), "the kept line is on its edge's new row");
+        assert.deepEqual(lines.endsOf(after.edge), after.ends, "and is pulled from its nodes' new rows");
+    });
+
     it("has no row lines on the objects path", async () => {
         const element = await loaded("objects", [{ src: 0, dst: 1 }]);
         assert.isNull(element.graph.getEdgeRowLines());

@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { defineConfig, type HeadConfig } from "vitepress";
+import { type DefaultTheme, defineConfig, type HeadConfig } from "vitepress";
 import { loadEnv } from "vite";
 import { FAVICON_PACKAGES, packageOf } from "./theme/package-brand";
 
@@ -40,7 +40,57 @@ function graphIoFormatPages(): Array<{ text: string; link: string }> {
         }));
 }
 
-export default defineConfig({
+// Every page carries its sidebar in its own HTML, and a package's API sidebar lists up to ~1,500 pages. Rendered on
+// each of ~2,500 pages, that made the published site 2.8 GB, which GitHub Pages took over 10 minutes to sync (#6498).
+// So a page under one API module gets a sidebar where only that module lists its members, and every other page gets
+// one that lists the modules alone; each module's own page lists all of its members.
+type Sidebar = Record<string, DefaultTheme.SidebarItem[]>;
+
+function apiLinks(item: DefaultTheme.SidebarItem): string[] {
+    const own = item.link === undefined ? [] : [item.link.replace(/^(\/\.\.)*\/docs\//, "/")];
+    return [...own, ...(item.items ?? []).flatMap(apiLinks)];
+}
+
+// the directory every link of a module shares, as a sidebar key: /graphty-element/api/generated/ai/
+function moduleKey(module: DefaultTheme.SidebarItem): string {
+    const dirs = apiLinks(module).map((link) => link.slice(0, link.lastIndexOf("/") + 1));
+    return dirs.reduce((common, dir) => {
+        while (!dir.startsWith(common)) {
+            common = common.slice(0, common.lastIndexOf("/", common.length - 2) + 1);
+        }
+        return common;
+    });
+}
+
+function splitApiSidebars(sidebar: Sidebar, apis: DefaultTheme.SidebarItem[][]): Sidebar {
+    const split: Sidebar = {};
+    const withApi = (
+        sections: DefaultTheme.SidebarItem[],
+        open?: DefaultTheme.SidebarItem,
+    ): DefaultTheme.SidebarItem[] =>
+        sections.map((section) =>
+            section.items !== undefined && apis.includes(section.items)
+                ? {
+                      ...section,
+                      items: section.items.map((module) =>
+                          module === open ? module : { ...module, items: undefined },
+                      ),
+                  }
+                : section,
+        );
+    for (const [key, sections] of Object.entries(sidebar)) {
+        split[key] = withApi(sections);
+        const api = sections.find((section) => section.items !== undefined && apis.includes(section.items));
+        for (const module of api?.items ?? []) {
+            if (module.items !== undefined && module.items.length > 0) {
+                split[moduleKey(module)] = withApi(sections, module);
+            }
+        }
+    }
+    return split;
+}
+
+const config = defineConfig({
     vite: {
         resolve: {
             // the nav bar shows the lockup of the package a page documents (theme/NavBarTitle.vue)
@@ -66,6 +116,8 @@ export default defineConfig({
     title: "graphty",
     description: "Modular graph visualization ecosystem",
     base: "/docs/",
+    // the site data (with every sidebar) and the page hash map load once as a script, not inline in every page
+    metaChunk: true,
 
     // head hrefs are not rewritten by `base`, so they carry /docs/ themselves
     head: [
@@ -405,3 +457,13 @@ export default defineConfig({
         },
     },
 });
+
+config.themeConfig!.sidebar = splitApiSidebars(config.themeConfig!.sidebar as Sidebar, [
+    graphtyTypedoc,
+    algorithmsTypedoc,
+    layoutTypedoc,
+    cytoscapeTypedoc,
+    graphIoTypedoc,
+]);
+
+export default config;

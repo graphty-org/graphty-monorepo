@@ -98,7 +98,7 @@ describe("pipeline-round skill", () => {
         assert.ok(prs >= 0);
         const body = flat.slice(prs, step("Finished branches with no pull request"));
         assert.match(body, /opened by graphty-agent \(its `author`\)/);
-        assert.match(body, /#1677/);
+        assert.match(body, /A pull request anyone else opened -- the owner's/);
     });
 
     it("reopens a master-guard revert as graphty-agent before arming it, and keeps the main checkout on master", () => {

@@ -3,7 +3,8 @@
 // rollup (distinct tests seen flaky in CI, live and backfilled), the RUNTESTS index of test rows (items.ts), the
 // open pull requests' checks, and the flaky issue searches (read to their last page) per cycle.
 
-import { DAY, floorTo, skTime } from "../model/items.js";
+import { type Agg, type Bucket, DAY, floorTo, skTime } from "../model/items.js";
+import { fileRunKey } from "../model/metrics.js";
 import { loadSeries } from "../model/rollup.js";
 import { isLive, type Store } from "../model/store.js";
 import type { GitHub } from "./github.js";
@@ -15,6 +16,10 @@ export interface FlakySeen {
     file: string;
     name: string;
     days: number[];
+    /** The families it was seen flaky in. */
+    families: string[];
+    /** Its flaky events over the days read. */
+    events: number;
 }
 
 export const testKey = (file: string, name: string): string => JSON.stringify([file, name]);
@@ -36,13 +41,17 @@ export async function flakyHistory(store: Store, now: number, days = 28): Promis
             if (!a.sum) {
                 continue;
             }
-            const [, file, name] = JSON.parse(dim) as [string, string, string];
+            const [fam, file, name] = JSON.parse(dim) as [string, string, string];
             const k = testKey(file, name);
-            const s = out.get(k) ?? { file, name, days: [] };
+            const s = out.get(k) ?? { file, name, days: [], families: [], events: 0 };
             out.set(k, s);
             if (s.days.at(-1) !== start) {
                 s.days.push(start);
             }
+            if (!s.families.includes(fam)) {
+                s.families.push(fam);
+            }
+            s.events += a.sum;
         }
     }
     return out;
@@ -143,38 +152,72 @@ export async function issuesNaming(
     return out;
 }
 
-/** Days with no detection after which a flaky test counts as resolved (see netChange). */
-export const QUIET_DAYS = 7;
+/** How sure the clean runs since a test's last detection must make us that its old failure rate is gone. */
+export const RESOLVE_CONFIDENCE = 0.95;
 
 /**
- * Net new flaky over the last 7 days (section 4.4): tests first seen flaky in the window, minus tests resolved in
- * it. A test is resolved when an issue naming it was closed as fixed after its last detection, or when it has gone
- * QUIET_DAYS without one. ponytail: the design's "10 clean runs" is read as 7 quiet days, since clean runs per test
- * are not stored; count them from the shard runs' file rows if quiet days prove too coarse.
+ * Clean runs a test needs before it counts as resolved: enough that, at its old failure rate, at least one failure
+ * would have shown with RESOLVE_CONFIDENCE (1 in 10 needs 29, 1 in 50 needs 149).
+ * @param rate - the share of its runs it failed, 0 to 1
+ * @returns the clean runs needed, at least 1
+ */
+export function cleanRunsNeeded(rate: number): number {
+    if (rate >= 1) {
+        return 1;
+    }
+    return rate <= 0 ? Infinity : Math.ceil(Math.log(1 - RESOLVE_CONFIDENCE) / Math.log(1 - rate));
+}
+
+/**
+ * Net new flaky over the last 7 days (section 4.4): tests first seen flaky in the window (`added`), and tests resolved
+ * in it (`resolved`). A test is resolved when an issue naming it was closed as fixed after its last detection, or on
+ * the day its file's clean runs since that detection reach cleanRunsNeeded at its failure rate (its flaky events over
+ * its file's runs, both over the days read up to the last detection). A test whose file stopped running is removed,
+ * not resolved: it never gathers clean runs. ponytail: runs are its file's (flaky.file_runs), not the test's own, so a
+ * test renamed inside a file that still runs counts as resolved; store per-test runs if that proves common.
  * Detections are known by day here; flakyMembers leaves out of `fixedAt` a close that a later event on its day undid.
  * @param history - 28 days of flakyHistory
  * @param fixedAt - when an issue naming the test was closed as fixed, by testKey
+ * @param fileRuns - the flaky.file_runs daily buckets over the same days, by bucket start
  * @param now - the current time, in ms
- * @returns tests newly flaky minus tests resolved, over the window
+ * @returns the tests newly flaky and the tests resolved, over the window
  */
-export function netChange(history: Map<string, FlakySeen>, fixedAt: Map<string, number>, now: number): number {
+export function netChange(
+    history: Map<string, FlakySeen>,
+    fixedAt: Map<string, number>,
+    fileRuns: Map<number, Bucket>,
+    now: number,
+): { added: number; resolved: number } {
     const today = floorTo(now, "1d");
     const windowStart = today - 6 * DAY;
-    let net = 0;
+    const days = [...fileRuns.keys()].sort((a, b) => a - b);
+    let added = 0;
+    let resolved = 0;
     for (const [k, s] of history) {
         const last = s.days.at(-1) ?? s.days[0];
         if (s.days[0] >= windowStart) {
-            net++;
+            added++;
         }
-        const quietSince = today - last;
         const fixed = fixedAt.get(k);
-        const wentQuiet = quietSince >= QUIET_DAYS * DAY && quietSince < (QUIET_DAYS + 7) * DAY;
-        const fixedSince = last >= windowStart && fixed !== undefined && fixed >= last;
-        if (wentQuiet || fixedSince) {
-            net--;
+        if (last >= windowStart && fixed !== undefined && fixed >= last) {
+            resolved++;
+            continue;
+        }
+        const keys = [...new Set(s.families.map((f) => fileRunKey(f, s.file)))];
+        const runsOn = (d: number): Agg[] => keys.map((key) => fileRuns.get(d)?.dims?.[key] ?? { n: 0, sum: 0 });
+        const before = days.filter((d) => d <= last).flatMap(runsOn);
+        const runs = before.reduce((t, a) => t + a.n, 0);
+        const needed = cleanRunsNeeded(s.events / Math.max(runs, s.events));
+        let clean = 0;
+        for (const d of days.filter((x) => x > last)) {
+            clean += runsOn(d).reduce((t, a) => t + a.sum, 0);
+            if (clean >= needed) {
+                resolved += d >= windowStart ? 1 : 0;
+                break;
+            }
         }
     }
-    return net;
+    return { added, resolved };
 }
 
 const RUN_OF = /\/actions\/runs\/(\d+)\//;
@@ -328,6 +371,8 @@ export async function flakyMembers(
     now: number,
 ): Promise<Record<string, number>> {
     const history = await flakyHistory(store, now);
+    const today = floorTo(now, "1d");
+    const fileRuns = await loadSeries(store, "flaky.file_runs", "1d", today - 27 * DAY, today, now);
     const weekStart = floorTo(now, "1d") - 6 * DAY;
     const week = [...history.values()].filter((s) => (s.days.at(-1) ?? 0) >= weekStart);
     const issues = await issuesNaming(gh, repo, week, weekStart);
@@ -340,6 +385,7 @@ export async function flakyMembers(
         }
     }
     const blocked = await blockedPrs(store, open, new Set(history.keys()), now);
+    const net = netChange(history, fixedAt, fileRuns, now);
     return {
         // A test is filed while an issue naming it is open, or once one was closed as fixed after its last flaky event.
         "flaky.no_issue": week.filter((s) => {
@@ -348,6 +394,8 @@ export async function flakyMembers(
         }).length,
         "flaky.blocked_prs": blocked.prs.length,
         "flaky.blocked_oldest_ms": blocked.oldestMs,
-        "flaky.net_change": netChange(history, fixedAt, now),
+        "flaky.net_change": net.added - net.resolved,
+        "flaky.net_added": net.added,
+        "flaky.net_resolved": net.resolved,
     };
 }

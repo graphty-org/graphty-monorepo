@@ -28,6 +28,16 @@ import type { Node, NodeIdType } from "../Node";
 import type { ReadonlyElementPositions } from "../session/types";
 import type { ClusterColumn } from "./clusterForce";
 
+/**
+ * An edge stored with no `Edge`, under renderPath "batched": its id and its two nodes' ids. A
+ * freeze renumbers rows, the ids stay.
+ */
+export interface EdgeRow {
+    readonly key: string;
+    readonly source: NodeIdType;
+    readonly target: NodeIdType;
+}
+
 export interface Position {
     x: number;
     y: number;

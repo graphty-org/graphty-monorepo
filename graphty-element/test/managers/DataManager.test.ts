@@ -579,4 +579,55 @@ describe("DataManager", () => {
             assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
         });
     });
+
+    // The layout is handed an edge stored with no `Edge` as an edge row (its id and its two node ids), as d3 and
+    // ngraph take them (`addEdgeRows`), and told when it goes; an engine that lays out `Edge`s only gets an `Edge`.
+    describe("edges stored with no Edge, handed to the layout", () => {
+        let added: string[];
+        let removed: string[];
+
+        beforeEach(() => {
+            added = [];
+            removed = [];
+            dataManagerInternals.storeEdgesUnbuilt(dataManager, true);
+            dataManagerInternals.setLayoutEdgeRows(dataManager, {
+                add: (rows) => added.push(...rows.map((r) => `${r.key}:${String(r.source)}-${String(r.target)}`)),
+                remove: (keys) => removed.push(...keys),
+            });
+            dataManager.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+            dataManager.addEdges([
+                { src: "a", dst: "b" },
+                { src: "b", dst: "c" },
+            ]);
+        });
+
+        it("hands each edge's row over, building none", () => {
+            assert.deepEqual(added, ["0:a-b", "1:b-c"]);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+            assert.deepEqual(
+                dataManagerInternals.unbuiltEdgeRows(dataManager).map((r) => r.key),
+                ["0", "1"],
+            );
+        });
+
+        it("takes a row back when its edge is removed, built, or cleared", () => {
+            dataManager.removeEdge("0");
+            assert.deepEqual(removed, ["0"]);
+
+            dataManager.getEdge("1");
+            assert.deepEqual(removed, ["0", "1"], "a built Edge reaches the engine in its row's place");
+
+            dataManager.addEdges([{ src: "a", dst: "c" }]);
+            dataManager.clear();
+            assert.deepEqual(removed, ["0", "1", "2"]);
+        });
+
+        it("builds every Edge for an engine that lays out Edges only", () => {
+            dataManagerInternals.setLayoutEdgeRows(dataManager, null);
+            dataManager.addEdges([{ src: "a", dst: "c" }]);
+
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 1);
+            assert.deepEqual(added, ["0:a-b", "1:b-c"], "the built edge is handed as an Edge, not a row");
+        });
+    });
 });

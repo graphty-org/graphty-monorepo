@@ -342,3 +342,58 @@ describe("a masked edge stored with no Edge", () => {
         assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 2);
     });
 });
+
+// A force engine is handed an edge stored with no `Edge` as an edge row (`addEdgeRows`), so the edge pulls its nodes
+// with no `Edge` built, to the picture its `Edge` draws: when the engine is set over stored edges, and when an edge
+// arrives under it.
+describe("an edge stored with no Edge under a force layout", () => {
+    /**
+     * How far apart nodes 0 and 1 settle under a layout.
+     * @param layout - The force layout.
+     * @param lazy - Whether the edges are stored with no `Edge`.
+     * @param later - Whether edge 0-1 is added after the layout is set, not before.
+     * @returns The distance, and how many `Edge`s were built.
+     */
+    async function settled(
+        layout: "d3" | "ngraph",
+        lazy: boolean,
+        later: boolean,
+    ): Promise<{ distance: number; built: number }> {
+        const first = { src: 0, dst: 1 };
+        const element = await lazyLoaded(later ? [{ src: 1, dst: 2 }] : [first, { src: 1, dst: 2 }], true, {
+            before: async (el) => {
+                dataManagerInternals.storeEdgesUnbuilt(el.graph.getDataManager(), lazy);
+                await Promise.resolve();
+            },
+        });
+        element.autoFrame = false;
+        await element.graph.setLayout(layout, layout === "ngraph" ? { dim: 3, seed: 7 } : { dim: 3 });
+        if (later) {
+            await element.session.data.addEdges([first]);
+            await operationQueueOf(element.graph).waitForCompletion();
+        }
+
+        await element.waitForStableFrame();
+        const built = dataManagerInternals.edgesBuilt(element.graph.getDataManager());
+        const p = element.graph.getNode(0)?.drawnPosition;
+        const q = element.graph.getNode(1)?.drawnPosition;
+        assert.isDefined(p);
+        assert.isDefined(q);
+        const distance = Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z);
+        element.remove();
+        return { distance, built };
+    }
+
+    for (const layout of ["d3", "ngraph"] as const) {
+        for (const later of [false, true]) {
+            const when = later ? "arriving under" : "stored before";
+            it(`pulls its nodes ${when} ${layout} as its Edge does, building no Edge`, async () => {
+                const lazy = await settled(layout, true, later);
+                const built = await settled(layout, false, later);
+                assert.equal(lazy.built, 0);
+                assert.equal(built.built, 2);
+                assert.closeTo(lazy.distance, built.distance, 1e-3 * built.distance);
+            });
+        }
+    }
+});

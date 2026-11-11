@@ -1616,21 +1616,32 @@ export class SimulationLayoutEngine extends LayoutEngine {
             }
         }
 
-        // A row with no `Node` (renderPath "batched") is spaced by how it is drawn.
-        const ofRow = this.#rowSpacingRadius;
-        for (let row = 0; ofRow !== undefined && row < nodeCount; row++) {
-            if (!maskTest(byNode, row) && !this.isFollower(row)) {
-                const radius = ofRow(row, dimensions === 2);
-                if (radius !== null) {
-                    radii[row] = radius + gap / 2;
-                }
-            }
-        }
-
+        this.#rowRadii(radii, byNode, dimensions === 2, gap);
         this.#radii = radii;
         this.#radiiStale = false;
         this.#packedRadius = packedRadius(radii, dimensions);
         return radii;
+    }
+
+    /**
+     * Writes the `nodeGap` radius of every row with no `Node` (renderPath "batched"), spaced by how it is drawn.
+     * @param radii - The radii, written in place.
+     * @param byNode - The rows a `Node` already answered for.
+     * @param flat - Whether depth does not count.
+     * @param gap - The `nodeGap`.
+     */
+    #rowRadii(radii: F32, byNode: NodeMask, flat: boolean, gap: number): void {
+        const ofRow = this.#rowSpacingRadius;
+        if (ofRow === undefined) {
+            return;
+        }
+
+        for (let row = 0; row < radii.length; row++) {
+            const radius = maskTest(byNode, row) || this.isFollower(row) ? null : ofRow(row, flat);
+            if (radius !== null) {
+                radii[row] = radius + gap / 2;
+            }
+        }
     }
 
     /**

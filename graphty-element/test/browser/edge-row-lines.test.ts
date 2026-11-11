@@ -139,6 +139,28 @@ describe("an edge row with no Edge", () => {
         assert.deepEqual(lines.endsOf(after.edge), after.ends, "and is pulled from its nodes' new rows");
     });
 
+    it("goes when the data is cleared, and a new load draws again", async () => {
+        const element = await loaded("batched", [{ src: 0, dst: 1 }]);
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        const paint = { meshKey: "plain", style: { line: { color: "#ff0000" } } };
+        assert.isTrue(lines.paintRow(0, rowOf(element, 0), rowOf(element, 1), paint));
+        assert.isTrue(lines.paintRow(1, rowOf(element, 1), rowOf(element, 2), paint));
+
+        // The empty graph is frozen lazily, so no freeze names the dropped rows: the clear itself lets them go.
+        element.graph.clearData();
+        assert.equal(lines.count, 0, "no line outlives the data");
+        await operationQueueOf(element.graph).waitForCompletion();
+
+        // The batches the old lines took went with the mesh cache: a new line takes a live one.
+        await element.session.data.addNodes(NODES);
+        await operationQueueOf(element.graph).waitForCompletion();
+        assert.isTrue(lines.paintRow(0, rowOf(element, 0), rowOf(element, 1), paint));
+        assert.equal(lines.count, 1);
+        lines.unpaintRow(0);
+        assert.equal(lines.count, 0);
+    });
+
     it("has no row lines on the objects path", async () => {
         const element = await loaded("objects", [{ src: 0, dst: 1 }]);
         assert.isNull(element.graph.getEdgeRowLines());

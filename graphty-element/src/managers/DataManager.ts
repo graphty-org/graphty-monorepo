@@ -1548,6 +1548,9 @@ export class DataManager implements Manager {
         for (const index of [...this.unbuilt.keys()]) {
             this.dropUnbuilt(index);
         }
+        // Before the mesh cache lets their batches go: the empty graph is frozen lazily, so no
+        // freeze would name these rows dropped (`EdgeRowLines.rowsMoved`).
+        this.graphContext?.getEdgeRowLines?.()?.clear();
 
         for (const node of this.nodeMap.built()) {
             placeNodeRow(node, INVALID_INDEX);

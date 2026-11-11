@@ -28,7 +28,7 @@ import { BufferUsage } from "../device/webgpu-constants.js";
 import { WebGpuGraphError } from "../errors.js";
 import { type PlanCaps } from "../types/context.js";
 import { type ArcWindow, type Binding } from "../types/memory.js";
-import { planUpload, type UploadPlan } from "./upload-plan.js";
+import { planUpload, planWindowLayout, type UploadPlan } from "./upload-plan.js";
 
 /** The core arrays a kernel binds by default (spec 4.1); the cold segments are named explicitly by the caller. */
 const DEFAULT_NEED: readonly CoreArrayName[] = Object.freeze(["rowPtr", "colIdx", "weights"]);
@@ -167,6 +167,8 @@ interface ResidencyRecord {
     windows: readonly ArcWindow[] | null;
     /** The window buffers of every arc-indexed array uploaded so far (windowed plan only). */
     readonly arcBuffers: Map<CoreArrayName, GPUBuffer[]>;
+    /** Memo of reverseWindowed(): the directed reverse adjacency as a windowed core, or null until asked for. */
+    reverseWindowed: CoreBinding | null;
     released: boolean;
 }
 
@@ -545,6 +547,68 @@ export class GraphResidency {
             bindings,
             scalars: Object.freeze({ arcCount: [rev.arcCount], directed: [1] }),
         });
+    }
+
+    /**
+     * The reverse adjacency of a DIRECTED snapshot as a windowed core (issue #471): its own rowPtr whole and its colIdx
+     * split into arc windows exactly as core() splits the forward colIdx, so a frontier-walking kernel dispatches once
+     * per window (`coreWindows`). Null when the reverse colIdx fits one binding and one buffer: the caller binds
+     * view(s, "reverse") whole then. Carries colIdx only (`weights` null): the bottom-up sweep reads no weight.
+     * Memoised per record, so a second call uploads nothing.
+     * @param s - a directed snapshot
+     * @returns the windowed core of the reverse adjacency, or null when it needs no windows
+     */
+    reverseWindowed(s: GraphSnapshot): CoreBinding | null {
+        this.assertLive();
+        assertAttached(s);
+        this.assertNotReleased(s);
+        this.assertNonEmpty(s);
+        if (!s.directed) {
+            throw invalid("snapshot", s.serial, "a directed snapshot (an undirected reverse is the core)");
+        }
+        const { limits } = this.caps;
+        const bytes = 4 * s.arcCount;
+        if (bytes <= limits.maxStorageBufferBindingSize && bytes <= limits.maxBufferSize) {
+            return null;
+        }
+        const record = this.ensureRecord(s);
+        const memo = record.reverseWindowed;
+        if (memo !== null) {
+            return memo;
+        }
+        const rev = s.reverse();
+        const { buffers: ranges, windows } = planWindowLayout(rev.rowPtr, rev.arcCount, this.caps.limits);
+        const label = `residency:view:${record.serial}:reverse`;
+        const rowPtr = this.upload(record, rev.rowPtr, rev.rowPtr, `${label}:rowPtr`);
+        const colIdx = ranges.map(
+            (range, index) =>
+                this.upload(
+                    record,
+                    this.windowKey(record, `reverse:colIdx:${index}`),
+                    new Uint8Array(rev.colIdx.buffer, rev.colIdx.byteOffset + range.byteOffset, range.byteLength),
+                    `${label}:colIdx:w${index}`,
+                ).buffer,
+        );
+        const first = windows[0];
+        const built: CoreBinding = Object.freeze({
+            serial: record.serial,
+            plan: "windowed" as const,
+            rowPtr: { buffer: rowPtr.buffer, offset: 0, size: rowPtr.byteLength, window: null },
+            colIdx: {
+                buffer: colIdx[first.bufferIndex],
+                offset: first.offset,
+                size: 4 * (first.end - first.start),
+                window: first,
+            },
+            weights: null,
+            arcToEdge: null,
+            edgeToArc: null,
+            windows,
+            arcBuffers: Object.freeze({ colIdx: Object.freeze(colIdx), weights: [], arcToEdge: [] }),
+            hasWeights: false,
+        });
+        record.reverseWindowed = built;
+        return built;
     }
 
     /**
@@ -1007,6 +1071,7 @@ export class GraphResidency {
         record.windowKeys.clear();
         record.arcBuffers.clear();
         record.windows = null;
+        record.reverseWindowed = null;
         record.arena = null;
         record.plan = null;
         this.bySerial.delete(record.serial);
@@ -1038,6 +1103,7 @@ export class GraphResidency {
                 windowKeys: new Map<string, object>(),
                 windows: null,
                 arcBuffers: new Map<CoreArrayName, GPUBuffer[]>(),
+                reverseWindowed: null,
                 released: false,
             };
             this.bySerial.set(s.serial, record);

@@ -15,6 +15,7 @@ import {
     POOL_MIN_CLASS_BYTES,
 } from "../constants.js";
 import { type AllocationTracker } from "../device/error-scope.js";
+import { BufferUsage } from "../device/webgpu-constants.js";
 import { WebGpuGraphError } from "../errors.js";
 import { Lease } from "./lease.js";
 
@@ -36,6 +37,15 @@ function classKey(sizeClass: number, usage: number): string {
 
 /** Size-class pool of GPUBuffers by usage (spec 4.4). */
 export class BufferPool {
+    /**
+     * Test seam (issue #95): when true, a RECYCLED buffer whose usage includes COPY_DST is filled with 0xFF bytes
+     * (u32 0xFFFFFFFF, f32 NaN) before acquire() hands it out, so a kernel that leaves part of its output unwritten
+     * reads a loud pattern on every run instead of zeros on the first and the previous user's numbers on later ones.
+     * A recycled buffer without COPY_DST cannot be written and is handed out as it is.
+     * @internal
+     */
+    poisonRecycled = false;
+    private readonly device: GPUDevice;
     private readonly allocator: AllocationTracker;
     private readonly maxBufferSize: number;
     private readonly maxIdlePerClass: number;
@@ -47,19 +57,19 @@ export class BufferPool {
 
     /**
      * Creates an empty pool.
-     * @param _device - the device (buffers are created through the allocator, which owns it; the parameter keeps
-     *   the contract's constructor shape)
+     * @param device - the device (buffers are created through the allocator; the queue poisons recycled buffers)
      * @param allocator - the context's OOM-scoped allocator
      * @param maxBufferSize - the device's maxBufferSize (classes above it are never created)
      * @param options - pool options
      * @param options.maxIdlePerClass - idle buffers kept per (class, usage); default POOL_MAX_IDLE_PER_CLASS
      */
     constructor(
-        _device: GPUDevice,
+        device: GPUDevice,
         allocator: AllocationTracker,
         maxBufferSize: number,
         options?: { readonly maxIdlePerClass?: number | undefined },
     ) {
+        this.device = device;
         this.allocator = allocator;
         this.maxBufferSize = maxBufferSize - (maxBufferSize % 4);
         this.maxIdlePerClass = options?.maxIdlePerClass ?? POOL_MAX_IDLE_PER_CLASS;
@@ -91,6 +101,11 @@ export class BufferPool {
     /**
      * Acquires a buffer of at least byteLength (an idle one of the class and usage, else a new one through the
      * allocator); E_TOO_LARGE above maxBufferSize.
+     *
+     * Contents are UNDEFINED (issue #95): a new buffer is zero-filled by WebGPU, a recycled one holds whatever its
+     * previous user left in it, and acquire() never clears it. A caller that reads any word before writing it must
+     * clear it first (a `fill` dispatch, `queue.writeBuffer` or `encoder.clearBuffer`). Tests set `poisonRecycled`
+     * so a missing write fails loudly instead of depending on which run got a fresh buffer.
      * @param byteLength - the bytes needed
      * @param usage - the GPUBufferUsage flags
      * @param label - the buffer label (a reused buffer is relabelled)
@@ -117,6 +132,9 @@ export class BufferPool {
         } else {
             this.idleBytesValue -= sizeClass;
             buffer.label = label;
+            if (this.poisonRecycled && (usage & BufferUsage.COPY_DST) !== 0) {
+                this.device.queue.writeBuffer(buffer, 0, new Uint8Array(sizeClass).fill(0xff));
+            }
         }
         this.live.set(buffer, { sizeClass, usage });
         this.liveBytesValue += sizeClass;

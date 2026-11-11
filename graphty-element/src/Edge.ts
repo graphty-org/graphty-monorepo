@@ -179,6 +179,43 @@ function noCap(cap: EdgeStyleConfig["arrowHead"]): boolean {
     return cap === undefined || ((cap.type ?? "none") === "none" && cap.text === undefined);
 }
 
+/**
+ * Counts every time a look is judged for whether it can be pulled ({@link pulledLook}), so a test can count it.
+ * @internal
+ */
+export const pulledLooks = { judged: 0 };
+
+/**
+ * What {@link pulledLook} answered for each style. A paint's style is shared by every edge drawn in that look
+ * (`StylePainter.edgePaint`) and never changed once handed out, so it is judged once, not once per edge.
+ */
+const pulledLookOf = new WeakMap<EdgeStyleConfig, boolean>();
+
+/**
+ * The part of `Edge.pullsLine` that reads the style alone: it sets only keys a pulled line draws, a solid line,
+ * no words, no cap and no band.
+ * @param style - The resolved style.
+ * @returns True when the look can be pulled.
+ */
+function pulledLook(style: EdgeStyleConfig): boolean {
+    let pulls = pulledLookOf.get(style);
+    if (pulls === undefined) {
+        pulledLooks.judged++;
+        const line = style.line ?? {};
+        pulls =
+            setsOnly(style, PULLED_STYLE_KEYS) &&
+            setsOnly(line, PULLED_LINE_KEYS) &&
+            (line.type ?? "solid") === "solid" &&
+            drawnText(style.label) === undefined &&
+            noCap(style.arrowHead) &&
+            noCap(style.arrowTail) &&
+            style.band?.color === undefined;
+        pulledLookOf.set(style, pulls);
+    }
+
+    return pulls;
+}
+
 /** Which of an edge's caps an entry of {@link Edge.drawnCaps} is: an end's, or one drawn part-way along the line. */
 /**
  * How far behind the line, along the 2D camera's view (+z), an edge's outline band is drawn: far
@@ -2707,22 +2744,16 @@ export class Edge {
         const line = style.line ?? {};
         return (
             (pulledEdgesDefault.value || (this.context.getNodeBatches?.() ?? null) !== null) &&
+            pulledLook(style) &&
             // a group, or a 2D node below z-index 0, ends the line at its outline (`Edge.groupEnd`), not its centre
             !this.endBehindEdges("source") &&
             !this.endBehindEdges("target") &&
             // in 2D only a straight line, with its width in world units (`EdgeMesh.pulledBatch`)
             !(EdgeMesh.drawsFlat(this.context.getScene()) && this.pullsCurve(style)) &&
-            setsOnly(style, PULLED_STYLE_KEYS) &&
-            setsOnly(line, PULLED_LINE_KEYS) &&
             (this.pullsCurve(style) || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&
-            (line.type ?? "solid") === "solid" &&
             (!line.animationSpeed || this.pullsAnimated(style)) &&
             // a line through bends is pulled straight, not rounded or round a self-loop's ring
             (parseBends(line.bends) === null || (line.bezier !== true && !this.isLoop)) &&
-            drawnText(style.label) === undefined &&
-            noCap(style.arrowHead) &&
-            noCap(style.arrowTail) &&
-            style.band?.color === undefined &&
             !batchUploadFrames.edgeAges(this.context.getScene()).on
         );
     }

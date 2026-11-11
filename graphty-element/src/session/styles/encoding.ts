@@ -3061,7 +3061,9 @@ function prepareParamBinding(address: ShaderParamTarget, options: PrepareBinding
 /**
  * The built-in node shapes and edge line patterns an overflow policy steps through, for the saved-name scan: a save file that names one by id depends on this
  * build still shipping it (design/architecture/self-contained-save-files.md, section 2.2).
+ * Exported, and so tagged public, because test/saved-format/builtInIds.ts finds and loads it by reading the source.
  * @returns The kind and its ids.
+ * @public
  */
 export function builtInIdsForTesting(): { kind: string; ids: readonly string[] } {
     return { kind: "overflowLists", ids: [...OVERFLOW_SHAPES, ...OVERFLOW_PATTERNS] };

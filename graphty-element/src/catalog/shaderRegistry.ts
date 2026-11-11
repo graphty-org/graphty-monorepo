@@ -613,7 +613,9 @@ export function clearRegisteredShadersForTesting(): void {
 /**
  * The shader ids this build lists, for the saved-name scan and the catalog census. The session's
  * static catalog tables leave shaders out, since a project's list is its own.
+ * Exported, and so tagged public, because test/saved-format/builtInIds.ts finds and loads it by reading the source.
  * @returns The kind and the ids.
+ * @public
  */
 export function builtInIdsForTesting(): { kind: string; ids: readonly string[] } {
     return { kind: "shaders", ids: shaderDescriptors().map((each) => each.id) };

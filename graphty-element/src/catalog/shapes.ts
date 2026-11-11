@@ -304,7 +304,9 @@ export const EDGE_LINE_DESCRIPTORS: readonly GlyphDescriptor<EdgeLinePattern>[] 
 /**
  * The built-in node shapes, edge arrowheads and edge line patterns, for the saved-name scan: a save file that names one by id depends on this
  * build still shipping it (design/architecture/self-contained-save-files.md, section 2.2).
+ * Exported, and so tagged public, because test/saved-format/builtInIds.ts finds and loads it by reading the source.
  * @returns Each kind and its ids.
+ * @public
  */
 export function builtInIdsForTesting(): readonly { kind: string; ids: readonly string[] }[] {
     return [

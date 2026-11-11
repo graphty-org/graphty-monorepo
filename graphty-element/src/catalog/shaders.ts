@@ -622,7 +622,7 @@ export type ShaderProblemCode =
     | "shader.revoked"
     // Open: a code may be added or retired in a minor release, and a build without shaders
     // reads a file that names one.
-    | (string & {});
+    | (string & {}); // NOSONAR(S4335): the open-union idiom
 
 /** One shader problem: a code and its values. @since 3.36.0 */
 export interface ShaderProblem {

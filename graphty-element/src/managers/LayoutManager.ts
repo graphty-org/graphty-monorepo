@@ -1567,6 +1567,8 @@ export class LayoutManager implements Manager {
                         this.reportLayoutFailure(type, error, "stepped");
                     },
                     dataManager: this.dataManager,
+                    // An edge stored with no `Edge` is simulated by row and drawn by its row line.
+                    builtEdges: () => dataManagerInternals.builtEdges(this.dataManager).values(),
                     fromSeed: how.fromSeed,
                     weightMeaning: this.weightMeaningFor(type),
                     drawnTarget: () => this.graphContext?.getDrawnTarget?.() ?? null,

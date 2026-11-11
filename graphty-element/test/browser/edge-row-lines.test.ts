@@ -580,3 +580,27 @@ describe("a pulled edge under a moving layout", () => {
         });
     }
 });
+
+// A simulation engine (forceatlas2, and every layout the accelerator runs) holds no edges of its own: it read the
+// store's edges each frame, which built an `Edge` for every edge stored with none. At 100,000 nodes and 300,000
+// edges on WebGPU that ran the tab out of memory the moment the layout started.
+describe("an edge stored with no Edge under a simulation layout", () => {
+    it("gets no Edge from the frames that move it", async () => {
+        const element = await lazyLoaded(
+            [
+                { src: 0, dst: 1 },
+                { src: 1, dst: 2 },
+                { src: 2, dst: 0 },
+            ],
+            true,
+            { switched: false },
+        );
+        const dm = element.graph.getDataManager();
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 0);
+        await element.graph.setLayout("forceatlas2", { seed: 1 });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await drawnFrames(element.graph.scene, 5);
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 0);
+        assert.equal(element.graph.getEdgeRowLines()?.count, 3);
+    });
+});

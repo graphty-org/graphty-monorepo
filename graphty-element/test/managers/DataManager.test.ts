@@ -456,4 +456,60 @@ describe("DataManager", () => {
             assert.strictEqual(edge.dstNode, dataManager.getNode("b"));
         });
     });
+
+    // The lazy-edge stage of design/rendering/row-renderer.md: an edge can be stored with no `Edge`, and the
+    // edge map answers for it, building its `Edge` only when it is read. Nothing turns this on yet, so the
+    // test turns it on through `dataManagerInternals.storeEdgesUnbuilt`.
+    describe("edges stored with no Edge", () => {
+        beforeEach(() => {
+            dataManagerInternals.storeEdgesUnbuilt(dataManager, true);
+            dataManager.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+            dataManager.addEdges([
+                { src: "a", dst: "b" },
+                { src: "b", dst: "c" },
+            ]);
+        });
+
+        it("counts and finds them with no Edge, and builds one Edge per edge read", () => {
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+            assert.equal(dataManager.edges.size, 2);
+            assert.isTrue(dataManager.edges.has("0"));
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0, "has builds none");
+
+            const edge = dataManager.getEdge("1");
+            assert.strictEqual(dataManager.getEdge("1"), edge, "the same Edge is handed out again");
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 1);
+            assert.equal(edge?.srcId, "b");
+            assert.equal(edge?.dstId, "c");
+            assert.strictEqual(dataManager.edgesByIndex[1], edge);
+
+            assert.equal([...dataManager.edges.values()].length, 2);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 2, "a walk builds the rest");
+        });
+
+        it("drops one whose node is removed without building it", () => {
+            dataManager.removeNodeAndIncidentEdges("a");
+
+            assert.equal(dataManager.edges.size, 1);
+            assert.isFalse(dataManager.edges.has("0"));
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+        });
+
+        it("moves one to its new row on a freeze", () => {
+            dataManager.removeEdge("0");
+            assert.equal(dataManager.getSnapshot().edgeCount, 1);
+
+            const edge = dataManager.getEdge("1");
+            assert.equal(edge?.index, 0);
+            assert.strictEqual(dataManager.edgesByIndex[0], edge);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 1);
+        });
+
+        it("forgets them when the data is cleared", () => {
+            dataManager.clear();
+
+            assert.equal(dataManager.edges.size, 0);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+        });
+    });
 });

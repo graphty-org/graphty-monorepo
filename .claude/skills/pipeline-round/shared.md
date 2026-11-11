@@ -168,7 +168,10 @@ when nothing is.
 (`git merge-base --is-ancestor origin/<b> origin/master` fails), no open pull request and no claim holding it (no
 `in-progress` label, or a claim that is stale or idle and unanswered) is stranded, whatever else its labels or markers
 say, a `released` marker included: #4247 was released with a finished, pushed branch and no pull request, and nothing
-found it. pipeline-round's step 10 finishes it or records why not.
+found it. A branch named for a closed issue whose commits are not in master and that has no pull request is
+stranded too, when its last commit is newer than the issue's closing: the follow-up loading log work on
+`feat/6479-loading-log-progress` sat unopened because #6479 closed when an earlier change merged (#6637). File or
+reopen an issue for it. pipeline-round's step 10 finishes it or records why not.
 
 **A worktree holding a file that must never be committed** (for example a fidelity record run's output) makes
 `pr-open.sh` refuse. Continue on a new branch made from the old one in a new worktree

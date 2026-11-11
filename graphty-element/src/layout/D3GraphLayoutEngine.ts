@@ -24,7 +24,7 @@ import {
     readCommunities,
     sameCommunities,
 } from "./clusterForce";
-import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
+import { EdgePosition, type EdgeRow, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
 import { nodeGapOption } from "./nodeGapOptions";
 
 /**
@@ -82,16 +82,6 @@ const d3LayoutOptionsSchema = defineOptions({
 export interface D3RowSource {
     getSnapshot(): GraphSnapshot;
     readonly positions: ElementPositions;
-}
-
-/**
- * An edge stored with no `Edge`, under renderPath "batched": its id and its two nodes' ids. A
- * freeze renumbers rows, the ids stay.
- */
-export interface EdgeRow {
-    readonly key: string;
-    readonly source: NodeIdType;
-    readonly target: NodeIdType;
 }
 
 interface D3InputNode extends Partial<D3Node> {

@@ -17,8 +17,8 @@ import {
     readCommunities,
     sameCommunities,
 } from "./clusterForce";
-import type { D3RowSource, EdgeRow } from "./D3GraphLayoutEngine";
-import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
+import type { D3RowSource } from "./D3GraphLayoutEngine";
+import { EdgePosition, type EdgeRow, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
 import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
 
 /**

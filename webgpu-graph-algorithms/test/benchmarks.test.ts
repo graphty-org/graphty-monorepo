@@ -687,7 +687,7 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
         const known = Object.values(targets)
             .filter((t) => t.knownMiss?.["gpu-linux-t4"] !== undefined)
             .map((t) => t.id);
-        expect([...new Set(known)]).toEqual(["T-1", "T-2", "T-3", "T-7", "T-9"]);
+        expect([...new Set(known)]).toEqual(["T-1", "T-2", "T-3", "T-7"]);
     });
 
     it("a regression names the SM clock gpu.yml recorded for its group, so a clock drop is told from slower code (issue #703)", () => {

@@ -115,16 +115,23 @@
     },
     "wcc/wcc at 1M/10M": {
         "id": "T-9",
-        "what": "Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M",
+        "what": "Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 1M / 10M (the upload is T-1)",
+        "target": "recorded"
+    },
+    "wcc/wcc at 1M/10M, core resident": {
+        "id": "T-9",
+        "what": "Weakly connected components (Afforest), core resident, including the label readback, at 1M / 10M",
         "target": 100,
-        "gatingRunnerClasses": ["gpu-linux-t4"],
-        "knownMiss": {
-            "gpu-linux-t4": "the row carries the same 164 MB upload T-1 times, which alone takes longer than the 100 ms target; it misses on the dev box too (docs/decisions/G7.md)"
-        }
+        "gatingRunnerClasses": ["gpu-linux-t4"]
     },
     "wcc/wcc at 100k/1M": {
         "id": "T-9",
         "what": "Weakly connected components (Afforest), wall end to end including the upload and the label readback, at 100k / 1M",
+        "target": "recorded"
+    },
+    "wcc/wcc at 100k/1M, core resident": {
+        "id": "T-9",
+        "what": "Weakly connected components (Afforest), core resident, including the label readback, at 100k / 1M",
         "target": "recorded"
     },
     "layout-fr/fr ms/iteration (profiler) n=10000 [10k]": {

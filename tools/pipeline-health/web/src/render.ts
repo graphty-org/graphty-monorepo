@@ -1191,6 +1191,7 @@ function issuesHead(id: string, subText: string): [string, string] | undefined {
     const stock = `${subText}; open at the start of each ${bucketWord()} and now`;
     const heads: Record<string, [string, string]> = {
         open: ["Open now, by type and priority", "a row opens GitHub's search for it"],
+        "by-type": ["All open issues by type", stock.replace("; open", "; stacked, bugs at the bottom; open")],
         bugs: ["Open bugs by priority", stock.replace("; open", "; stacked, critical at the bottom; open")],
         "bug-flow": ["Bugs opened vs closed", per],
         flow: ["All issues opened vs closed", per],

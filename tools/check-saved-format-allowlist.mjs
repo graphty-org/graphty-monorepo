@@ -130,6 +130,9 @@ export function problems({ cwd, base }) {
         return new Set(json(merge, SHIPPED, []).filter((hash) => !had.has(hash)));
     };
     const out = [];
+    // The pull request that first adds the lists has nothing to ratchet against: its starting list is
+    // approved by PR Integrity's code-owner review. Once the lists are in the base, every commit is judged.
+    const bootstrap = json(base, LISTS, null) === null;
     const commits = git(["rev-list", "--reverse", "--no-merges", `${base}..HEAD`])
         .split("\n")
         .filter(Boolean);
@@ -164,7 +167,8 @@ export function problems({ cwd, base }) {
         const subject = git(["log", "-1", "--format=%h %s", sha]).trim();
         const approved = git(["log", "-1", `--format=%(trailers:key=${TRAILER},valueonly)`, sha]).trim() !== "";
         out.push(...forbidden.map((p) => `${subject}: ${p}`));
-        if (!approved) out.push(...needsOwner.map((p) => `${subject}: ${p} (needs the owner's ${TRAILER} trailer)`));
+        if (!approved && !bootstrap)
+            out.push(...needsOwner.map((p) => `${subject}: ${p} (needs the owner's ${TRAILER} trailer)`));
     }
     return out;
 }

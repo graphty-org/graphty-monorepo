@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import { problems, REVOKED, SHIPPED } from "./check-saved-format-allowlist.mjs";
+import { LISTS, problems, REVOKED, SHIPPED } from "./check-saved-format-allowlist.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 
 // the code under test runs git itself, so the whole process gets the isolated config
@@ -56,5 +56,30 @@ describe("shipped shader hashes", () => {
         assert.deepEqual(problems({ cwd: r.dir, base: "master" }), []);
         r.commit("fix: drop a too", { [SHIPPED]: "[]\n" });
         assert.match(problems({ cwd: r.dir, base: "master" }).join(), /removes the shipped shader hash a/);
+    });
+});
+
+describe("the first lists", () => {
+    const one = JSON.stringify({ exceptions: [{ kind: "palette", finding: "f", paths: [], catalogs: [], issue: 1 }] });
+    const two = JSON.stringify({
+        exceptions: [
+            { kind: "palette", finding: "f", paths: [], catalogs: [], issue: 1 },
+            { kind: "shape", finding: "g", paths: [], catalogs: [], issue: 2 },
+        ],
+    });
+
+    it("lets the branch that first adds the lists start with exceptions", () => {
+        const r = repo();
+        r.git("switch", "-q", "-c", "b");
+        r.commit("feat: the checks", { [LISTS]: `${one}\n` });
+        assert.deepEqual(problems({ cwd: r.dir, base: "master" }), []);
+    });
+
+    it("needs the trailer once the lists are in the base", () => {
+        const r = repo();
+        r.commit("feat: the checks", { [LISTS]: `${one}\n` });
+        r.git("switch", "-q", "-c", "b");
+        r.commit("fix: another", { [LISTS]: `${two}\n` });
+        assert.match(problems({ cwd: r.dir, base: "master" }).join(), /needs the owner/);
     });
 });

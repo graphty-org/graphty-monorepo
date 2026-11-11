@@ -1155,15 +1155,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 if (error.held !== undefined) {
                     // Missing parts only: held, so the reader can supply them (design 12.4).
                     entry.held = { ...error.held, skipped: [], options: shared, url: named };
-                    const intakeModule = await loadIntake();
-                    const main = intakeModule.mainPathOf(error.held.given, { main: error.held.main });
-                    const parts = intakeModule.partsOf(error.held.given, { main: error.held.main }, limits);
-                    settled = record({
-                        ...settled,
-                        url: named,
-                        ...(main === undefined ? {} : { path: main }),
-                        ...(parts === undefined ? {} : { parts: Object.freeze(parts) }),
-                    });
+                    settled = await heldRecord(settled, error.held, named);
                     entry.record = settled;
                     settled = await fillFromProject(entry);
                 }
@@ -1471,6 +1463,41 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
     };
 
     /**
+     * The record of a model fetched by URL that waits for parts: its address, its main file and
+     * its parts, as `assets.parts` lists them.
+     * @param settled - The refusal's record.
+     * @param held - The files fetched so far.
+     * @param url - The address it was added by.
+     * @returns The record.
+     */
+    const heldRecord = async (
+        settled: AssetRecord,
+        held: NonNullable<Refusal["held"]>,
+        url: string,
+    ): Promise<AssetRecord> => {
+        const intakeModule = await loadIntake();
+        const main = intakeModule.mainPathOf(held.given, { main: held.main });
+        const parts = intakeModule.partsOf(held.given, { main: held.main }, limits);
+        return record({
+            ...settled,
+            url,
+            ...(main === undefined ? {} : { path: main }),
+            ...(parts === undefined ? {} : { parts: Object.freeze(parts) }),
+        });
+    };
+
+    /**
+     * Why a part handed over was refused, naming the part it was for when the reason does not.
+     * @param why - The refusal.
+     * @param part - The part's name, when the answer named one.
+     * @returns The fact.
+     */
+    const partRefusal = (why: CodedFact, part: string | undefined): CodedFact =>
+        part === undefined || why.params.part !== undefined
+            ? why
+            : { code: why.code, params: { ...why.params, part: cut(part) } };
+
+    /**
      * One `supply` call, run in its model's turn.
      * @param entry - The held model.
      * @param answer - The part.
@@ -1528,13 +1555,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         if (settled.state === "rejected" && !onlyParts(settled.problems)) {
             // The part itself was refused (a picture that is not one, a size over a limit): keep
             // what was held, and say why beside what is still missing, naming the part it was for.
-            const [why] = settled.problems;
-            const part = step.part?.[0];
-            return refused(
-                part === undefined || why.params.part !== undefined
-                    ? why
-                    : { code: why.code, params: { ...why.params, part: cut(part) } },
-            );
+            return refused(partRefusal(settled.problems[0], step.part?.[0]));
         }
 
         entry.assembled = true;

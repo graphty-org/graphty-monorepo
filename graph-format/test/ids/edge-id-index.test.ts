@@ -37,6 +37,7 @@ function meta(name: string, dtype: Dtype, components = 1): ColumnMeta {
         origin: null,
         dynamic: false,
         extra: {},
+        coordinates: null,
     };
 }
 

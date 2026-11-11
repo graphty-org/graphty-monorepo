@@ -36,6 +36,7 @@ import {
     type ColumnMeta,
     type ColumnOrigin,
     type ColumnOriginInput,
+    type CoordinateSystemInput,
     type CoreArrayName,
     type Dtype,
     type F32,
@@ -894,6 +895,7 @@ class WireDecoder {
             origin: optional("origin", (v) => v as ColumnOriginInput),
             dynamic: optional("dynamic", asBoolean),
             extra: optional("extra", (v, p) => decodeJsonValue(v, p) as Readonly<Record<string, unknown>>),
+            coordinates: optional("coordinates", (v) => v as CoordinateSystemInput),
         };
         try {
             return resolveColumnMeta(name, domain, decl);

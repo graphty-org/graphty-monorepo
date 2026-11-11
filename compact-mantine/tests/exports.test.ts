@@ -461,6 +461,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "useActualColorScheme",
     "useDirection",
     "usePanelLabels",
+    "usePopout",
     "usePopoutManager",
     "usePopoutRegion",
 

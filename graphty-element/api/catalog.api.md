@@ -618,6 +618,11 @@ export interface ChannelDescriptor {
     readonly step?: number;
     readonly stylePath: string;
     readonly target: "node" | "edge";
+    readonly unsupported?: {
+        readonly code: "channel.not-drawn";
+        readonly params: Readonly<Record<string, never>>;
+    };
+    // @deprecated
     readonly unsupportedReason?: string;
     readonly values?: readonly string[];
 }
@@ -1688,6 +1693,9 @@ export const LABEL_LOOKS: readonly LabelLookDescriptor[];
 export const LABEL_STYLE_DEFAULTS: Readonly<LabelStyle>;
 
 // @public
+export const LABEL_STYLE_DESCRIPTORS: readonly LabelStyleFieldDescriptor[];
+
+// @public
 export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[];
 
 // @public
@@ -1698,6 +1706,9 @@ export type LabelBadge = "notification" | "label" | "label-success" | "label-war
 
 // @public
 export type LabelDeclutterOrder = "degree" | "size";
+
+// @public
+export type LabelFieldValueKind = "color" | "colors" | "number" | "text" | "boolean" | "enum";
 
 // @public
 export type LabelGradientDirection = "vertical" | "horizontal" | "diagonal";
@@ -1773,6 +1784,7 @@ export interface LabelStyle {
     marginLeft?: number;
     marginRight?: number;
     marginTop?: number;
+    maxLines?: number;
     maxNumber?: number;
     minNodeScreenSize?: number;
     minScreenSize?: number;
@@ -1819,6 +1831,19 @@ export interface LabelStyle {
     wrapSpaceCount?: number;
     wrapTrailingSpace?: boolean;
     wrapWidth?: number;
+}
+
+// @public
+export interface LabelStyleFieldDescriptor {
+    readonly accepts: LabelFieldValueKind;
+    readonly default?: string | number | boolean | readonly string[];
+    readonly exclusiveMin?: boolean;
+    readonly field: keyof LabelStyle;
+    readonly integer?: boolean;
+    readonly max?: number;
+    readonly min?: number;
+    readonly plainName: string;
+    readonly values?: readonly string[];
 }
 
 // @public
@@ -2172,6 +2197,8 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
     technicalName?: string;
     // (undocumented)
     type: OptionType;
+    unsupported?: OptionUnsupported;
+    // @deprecated
     unsupportedReason?: string;
     // (undocumented)
     values?: readonly OptionChoice[];
@@ -2194,6 +2221,19 @@ export type OptionType = (typeof OPTION_TYPES)[number];
 
 // @public
 export type OptionUiMeta = OptionsSchema[string]["meta"];
+
+// @public
+export interface OptionUnsupported {
+    // (undocumented)
+    readonly code: OptionUnsupportedCode;
+    // (undocumented)
+    readonly params: {
+        readonly types?: readonly string[];
+    };
+}
+
+// @public
+export type OptionUnsupportedCode = "option.recursive" | "option.only-null" | "option.no-type" | "option.union" | "option.array" | "option.object" | "option.untyped" | "option.not-convertible";
 
 // @public
 export const PALETTE_DESCRIPTORS: readonly PaletteDescriptor[];

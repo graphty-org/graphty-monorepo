@@ -816,10 +816,13 @@ describe("checking what the Assistant says", () => {
         await userEvent.click(screen.getByRole("button", { name: "Close" }));
         // Only its own words are counted: the status line also says other things meanwhile (Working,
         // once the run has gone a second).
+        // Each write is a reading, the same words twice included.
         const said: string[] = [];
+        let counted = store.get().announced;
         store.subscribe(() => {
-            const { announcement } = store.get();
-            if (announcement !== said.at(-1)) {
+            const { announcement, announced } = store.get();
+            if (announced !== counted) {
+                counted = announced;
                 said.push(announcement);
             }
         });

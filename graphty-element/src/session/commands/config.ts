@@ -35,6 +35,9 @@ export interface ConfigSetCommand {
 
 /**
  * Whether a value is a plain object, which a patch recurses into.
+ *
+ * Twin of `utils/isPlainObject`, kept apart on purpose: that one also accepts a null-prototype
+ * object, and a config patch does not, so merging them would change what `config.set` accepts.
  * @param value - The value.
  * @returns True for `{...}`.
  */

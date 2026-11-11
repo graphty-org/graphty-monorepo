@@ -552,7 +552,13 @@ export class GraphStore {
      * cache key. graph-format counts every change that makes the next freeze differ, so no write
      * path has to remember to invalidate the cache.
      */
-    private cachedFrom: { readonly builder: GraphBuilder; readonly count: number } | null = null;
+    private cachedFrom: {
+        readonly builder: GraphBuilder;
+        readonly count: number;
+        readonly records: number;
+    } | null = null;
+    /** Moved by {@link GraphStore.recordsChanged}: record writes the builder cannot count. */
+    private records = 0;
     /** The edge-id column, mirrored by builder row: what {@link GraphStore.edgeIdAt} reads. */
     private edgeIdByIndex: number[] = [];
     /**
@@ -842,12 +848,13 @@ export class GraphStore {
             this.cache !== null &&
             from !== null &&
             from.builder === this.current &&
-            from.count === this.current.mutationCount
+            from.count === this.current.mutationCount &&
+            from.records === this.records
         );
     }
 
     /**
-     * Whether dispose() has run. A disposed store is TERMINAL: `nextEdgeId()`,
+     * Whether dispose() has run. A disposed store is TERMINAL: `recordsChanged()`, `nextEdgeId()`,
      * `getSnapshot()` and `undirected()` throw afterwards, so a caller may guard with this and
      * trust the answer. `stale` and the readonly fields stay readable; see `dispose()`.
      * @returns true once dispose() ran
@@ -874,6 +881,21 @@ export class GraphStore {
      */
     audit(): void {
         this.drift = this.mutationDrift;
+        this.account();
+    }
+
+    /**
+     * Say that node, edge or graph records changed. Records live in the session's graph slice, not
+     * in the builder, so `mutationCount` cannot see a write that changes only a record (an
+     * attribute edit, a merge of a known id, the undo of either); this makes the next read freeze
+     * again, so every reader keyed on the snapshot, and every set watch, asks again. Builder
+     * writes need no call: the cache follows `mutationCount` by itself. Accounts as
+     * {@link GraphStore.account} does.
+     * @throws Error when the store has been disposed
+     */
+    recordsChanged(): void {
+        this.requireAlive("recordsChanged");
+        this.records++;
         this.account();
     }
 
@@ -1134,7 +1156,7 @@ export class GraphStore {
         // rather than a step up here.
         this.cache = snapshot;
         // Read after the freeze, which does not count, so the identity pass's writes are in it.
-        this.cachedFrom = { builder: this.current, count: this.current.mutationCount };
+        this.cachedFrom = { builder: this.current, count: this.current.mutationCount, records: this.records };
         this.pending = { replacement: { previous, next: snapshot, report }, stage: "node-remap" };
         this.pendingPositions = { snapshot, nodeRemap: report.nodeRemap, stage: "remap" };
         // Allocation-free, so it cannot throw between the commit and the resumable stages.
@@ -1935,7 +1957,7 @@ export class GraphStore {
     }
 
     /**
-     * Drop the cached snapshot and make the store TERMINAL: `getSnapshot()`,
+     * Drop the cached snapshot and make the store TERMINAL: `getSnapshot()`, `recordsChanged()`,
      * `nextEdgeId()` and `undirected()` throw afterwards.
      *
      * Terminal rather than merely cache-dropping because the callbacks in `options` point into a

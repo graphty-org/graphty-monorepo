@@ -600,6 +600,15 @@ describe("GraphStore lifecycle", () => {
         assert.strictEqual(turned.directed, store.builder.directed);
     });
 
+    it("freezes again after a record change the builder cannot count", () => {
+        const { store } = makeStore();
+        store.builder.addNode("a");
+        const first = store.getSnapshot();
+        store.recordsChanged();
+        assert.strictEqual(store.stale, true);
+        assert.notStrictEqual(store.getSnapshot(), first);
+    });
+
     it("serves the same snapshot to two reads with no write between, after the identity pass", () => {
         const { store, events } = makeStore();
         store.openLoad();
@@ -622,6 +631,7 @@ describe("GraphStore lifecycle", () => {
         store.dispose();
         assert.strictEqual(store.isDisposed, true);
         assert.throws(() => store.getSnapshot(), /after dispose/);
+        assert.throws(() => store.recordsChanged(), /after dispose/);
         assert.throws(() => store.nextEdgeId(), /after dispose/);
         // Otherwise it builds and caches a fresh DerivedGraph over a snapshot the store has just
         // told the world it released, with the DataManager behind `options` already torn down.

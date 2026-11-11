@@ -6,7 +6,6 @@ import { CAPACITY_COLUMN, GraphStore } from "../../src/data/GraphStore";
 import { readSeedPosition } from "../../src/data/seedPosition";
 import { GraphOps, resolveEdgeCapacity } from "../../src/session/project/graphOps";
 import { resolveEdgeWeight } from "../../src/session/project/ingest";
-import type { MovedInput } from "../../src/session/sets/notify";
 
 /**
  * Add one node record through the graph primitives, as ingest does.
@@ -69,38 +68,16 @@ describe("ingestNode", () => {
         assert.strictEqual(store.getSnapshot().nodeCount, 2);
     });
 
-    it("keeps the cached snapshot through a merge that leaves the builder as it was", () => {
-        // The store keys its cache on builder.mutationCount. A record lives in the session's
-        // slice, not in the builder, so a merge of a known id with no seed changes nothing a
-        // freeze would hold; its fields reach readers through their field revisions instead.
+    it("invalidates the cached snapshot on a merge, which builder.mutationCount alone would not", () => {
+        // A merge of a known id may change only the record, which lives in the session's slice and
+        // not in the builder, so the store is told its records changed and freezes again.
         const store = makeStore();
         ingestNode(store, "a", { id: "a" });
         const before = store.getSnapshot();
         assert.strictEqual(store.stale, false);
         ingestNode(store, "a", { id: "a", label: "two" });
-        assert.strictEqual(store.stale, false, "nothing a freeze holds changed");
-        assert.strictEqual(store.getSnapshot(), before);
-        ingestNode(store, "b", { id: "b" });
-        assert.strictEqual(store.stale, true, "a new row does");
+        assert.strictEqual(store.stale, true, "the merge invalidated the cache");
         assert.notStrictEqual(store.getSnapshot(), before);
-    });
-
-    it("announces the fields of a merge that froze nothing, and not those of a write that will freeze", () => {
-        // A live set re-resolves on a freeze or on an attribute announcement. A merge that left the
-        // builder as it was freezes nothing, so it must announce; a new row will freeze, which
-        // re-queues every watch, so it announces nothing.
-        const store = makeStore();
-        ingestNode(store, "a", { id: "a" });
-        store.getSnapshot();
-        const heard: MovedInput[] = [];
-        store.inputs.tick.listen((input) => heard.push(input));
-
-        ingestNode(store, "a", { id: "a", label: "two" });
-        assert.deepInclude(heard, { kind: "attributes", element: "node", fields: ["id", "label"] });
-
-        heard.length = 0;
-        ingestNode(store, "b", { id: "b", label: "three" });
-        assert.deepStrictEqual(heard, [], "the freeze that follows tells every watch");
     });
 
     it("refuses an id graph-format will not take, instead of throwing mid-load", () => {

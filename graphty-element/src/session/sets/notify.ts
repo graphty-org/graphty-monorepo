@@ -14,10 +14,9 @@
  *   owner's input tick;
  * - a snapshot replacement, announced on the same tick once a freeze has been delivered.
  *
- * Ingest writes attributes too, but announces nothing when it also moved the builder: the freeze
- * that follows re-queues every watch, and announcing would make a watch resolve mid-load and force
- * a freeze per ingested chunk. A merge that changed only a record moves no builder state and
- * freezes nothing, so it is announced like an edit, against the snapshot already cached.
+ * Ingest writes attributes too, but announces nothing: it also tells the store its records
+ * changed, and the freeze that follows re-queues every watch. Announcing it would make a watch
+ * resolve mid-load and force a freeze per ingested chunk.
  *
  * On the SAME snapshot a notification is synchronous: every watch whose signature moved resolves
  * at once and is handed the new resolution with the inputs that moved, so a layer can repaint the

@@ -860,7 +860,7 @@ class GraphEntry implements OpLogEntry {
             this.graph.touch(ROWS_MOVED);
         }
 
-        store.account();
+        store.recordsChanged();
         if (rollback) {
             this.graph.retoken();
         } else {
@@ -1071,7 +1071,7 @@ class GraphEntry implements OpLogEntry {
             this.graph.touch(ROWS_MOVED);
         }
 
-        store.account();
+        store.recordsChanged();
         this.graph.restoreToken(this.tokenAfter);
     }
 
@@ -1177,10 +1177,7 @@ class GraphEntry implements OpLogEntry {
  * @param next - The record after, or undefined.
  * @param seen - The fields this batch (one command, one undo or redo of a step) bumped already.
  * @param announce - Whether to tell the sets that watch attributes, as an edit after load does.
- * By default only when the store is not stale: a write that also moved the builder (a row added
- * or removed) announces nothing, because the freeze that follows re-queues every watch, while a
- * write that left the builder as it was (a merge that only changed the record) freezes nothing,
- * so it announces, and a watch resolves against the snapshot already cached.
+ * A row added or removed announces nothing: the freeze that follows re-queues every watch.
  */
 function bumpFields(
     store: GraphStore,
@@ -1188,7 +1185,7 @@ function bumpFields(
     prior: GraphRecord | undefined,
     next: GraphRecord | undefined,
     seen: Bumped,
-    announce = !store.stale,
+    announce = false,
 ): void {
     const fields = new Set<string>();
     for (const key of [...Object.keys(prior ?? {}), ...Object.keys(next ?? {})]) {
@@ -1300,7 +1297,8 @@ class Writer implements GraphWriter {
                 this.store.builder.setNodeValue(this.store.seedColumn, index, seed);
             }
 
-            this.store.account();
+            // A merge may change only the record, which the builder does not hold.
+            this.store.recordsChanged();
         }
 
         // A record holding only the id, as a node an edge made is given, puts nothing in the row.
@@ -1333,7 +1331,7 @@ class Writer implements GraphWriter {
         const edgeId = this.store.nextEdgeId();
         this.store.stampEdgeId(index, edgeId);
         this.store.recordIngestedEdge(index, edgeId, fileId);
-        this.store.account();
+        this.store.recordsChanged();
         (this.graph.slice.edges as Map<EdgeId, GraphRecord>).set(edgeIdOf(edgeId), record);
         // A new row already reads the column default, 1: only another capacity costs a write.
         if (resolveEdgeCapacity(record) !== 1) {
@@ -1356,7 +1354,7 @@ class Writer implements GraphWriter {
         const edgeId = this.store.edgeIdAt(edgeIndex);
         const prior = this.store.builder.edgeWeight(edgeIndex);
         this.store.builder.setEdgeWeight(edgeIndex, weight);
-        this.store.account();
+        this.store.recordsChanged();
         this.record({ kind: "weight", edgeId, prior, next: weight }, edgeKey(edgeIdOf(edgeId)), null);
         if (record !== null) {
             const edges = this.graph.slice.edges as Map<EdgeId, GraphRecord>;
@@ -1407,6 +1405,8 @@ class Writer implements GraphWriter {
         }
 
         bumpFields(this.store, target, prior, next, this.bumped, true);
+        // A layer or a filter may read any value just written, and the builder holds no record.
+        this.store.recordsChanged();
         this.record(
             { kind: "record", target, id: key, prior, next },
             target === "node" ? nodeKey(key) : edgeKey(String(key)),

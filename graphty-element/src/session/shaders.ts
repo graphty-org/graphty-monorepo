@@ -720,6 +720,8 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     const read = new Map<string, ReadText | readonly ShaderProblem[]>();
     /** The hashes approved in this session: the reader's own, and those `approve` ran. */
     const approved = new Set<string>();
+    /** The hashes a call refused (`applyTemplate(..., { shaders: "refuse" })`): held until `approve`, whatever the settings. */
+    const refused = new Set<string>();
     /** The hashes whose shader was drawing when the GPU was lost while the page was visible. */
     const quarantined = new Set<string>();
     /** What compiling and testing each hash found: pending, null for a pass, or the problem. */
@@ -902,16 +904,22 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
      * @param hash - Its content hash.
      * @param text - Its stored text, when known: an application may remember the SHA-256 of the
      *   whole text, the trust key before content hashes, and that still trusts it.
+     * @param runAll - Whether the settings' `untrusted: "run"` counts; a refusing call's trust leaves it out.
      * @returns True when the reader approved it here; else when the application trusts it and no
-     *   crash marked it. An explicit approval outranks a crash marker, never a revocation.
+     *   crash marked it and no call refused it. An explicit approval outranks a crash marker and a
+     *   refusal, never a revocation.
      */
-    const trusted = (hash: string, text?: string): boolean => {
+    const trusted = (hash: string, text?: string, runAll = true): boolean => {
         if (REVOKED.has(hash)) {
             return false;
         }
 
         if (approved.has(hash)) {
             return true;
+        }
+
+        if (refused.has(hash)) {
+            return false;
         }
 
         if (host?.crashMarked.has(hash) === true) {
@@ -924,7 +932,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
 
         const remembered = settings.trustedHashes ?? [];
         return (
-            settings.untrusted === "run" ||
+            (runAll && settings.untrusted === "run") ||
             remembered.includes(hash) ||
             (text !== undefined && remembered.includes(sha256Hex(text)))
         );
@@ -951,9 +959,17 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     setShaderTrust(styles, {
         mode: () => settings.untrusted ?? "hold",
         readable: (id, text) => entryHash(id, text) !== undefined,
-        trusted: (id, text) => {
+        trusted: (id, text, refusing = false) => {
             const hash = entryHash(id, text);
-            return hash !== undefined && trusted(hash, text);
+            return hash !== undefined && trusted(hash, text, !refusing);
+        },
+        refuse: (entries) => {
+            for (const { id, text } of entries) {
+                const hash = entryHash(id, text);
+                if (hash !== undefined && !trusted(hash, text, false)) {
+                    refused.add(hash);
+                }
+            }
         },
         trust: (entries) => {
             for (const { id, text } of entries) {

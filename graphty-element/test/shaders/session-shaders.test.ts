@@ -487,6 +487,16 @@ vec4 shadeFar(NodeInput n) {
         assert.strictEqual(refused.session.shaders.status("user/tint").state, "held");
     });
 
+    it("holds a refused document's shader even when the settings run untrusted text, until approved", async () => {
+        const { session: s } = await session();
+        shadersControllerOf(s)?.configure({ untrusted: "run" });
+        const report = await s.styles.applyTemplate(documentWithTint(), { shaders: "refuse" });
+        assert.deepEqual(report.shaders, [{ code: "shader.held", params: { ids: ["user/tint"] } }]);
+        assert.strictEqual(s.shaders.status("user/tint").state, "held");
+        assert.isTrue((await s.shaders.approve("user/tint")).ok);
+        assert.notStrictEqual(s.shaders.status("user/tint").state, "held");
+    });
+
     it("trusts the hashes the application remembered, except one a crash marked", async () => {
         const trusted = await session();
         shadersControllerOf(trusted.session)?.configure({ trustedHashes: [sha256Hex(TINT)] });

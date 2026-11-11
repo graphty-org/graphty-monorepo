@@ -4010,7 +4010,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
 
             // Trust is the entry's content hash, read as the project stores it; never its id.
-            const trusted = trust?.trusted(id, text) === true;
+            const trusted = trust?.trusted(id, text, mode === "refuse") === true;
             const existing = dispatcher.state.shaders.get(id);
             if (existing !== undefined) {
                 // The first loaded wins; a second text under the id is reported, not swapped in.
@@ -4875,6 +4875,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 const { mode, writes } = documentShaders(command.document, command.shaders);
                 if (mode === "run") {
                     SHADER_TRUST.get(api)?.trust(writes);
+                } else if (mode === "refuse") {
+                    SHADER_TRUST.get(api)?.refuse(writes);
                 }
 
                 for (const { id, text } of writes) {
@@ -6173,12 +6175,17 @@ type ShaderTrustMode = "run" | "hold" | "refuse";
 interface ShaderTrust {
     /** The trust a document gets when its call names none. */
     readonly mode: () => ShaderTrustMode;
-    /** Whether a document's entry may run without asking, by its content hash as the project stores it. */
-    readonly trusted: (id: string, text: string) => boolean;
+    /**
+     * Whether a document's entry may run without asking, by its content hash as the project stores it.
+     * A refusing call leaves out the settings' `untrusted: "run"`.
+     */
+    readonly trusted: (id: string, text: string, refusing?: boolean) => boolean;
     /** Whether a document's entry reads as a shader under its id; one that does not is never written. */
     readonly readable: (id: string, text: string) => boolean;
     /** Approve documents' entries for this session. */
     readonly trust: (entries: readonly { readonly id: string; readonly text: string }[]) => void;
+    /** Hold documents' entries a call refused, until the reader approves one, whatever the settings. */
+    readonly refuse: (entries: readonly { readonly id: string; readonly text: string }[]) => void;
 }
 
 /** Each stack's shader trust, by the API that owns it. */

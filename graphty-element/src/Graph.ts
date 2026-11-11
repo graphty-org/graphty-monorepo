@@ -6930,7 +6930,7 @@ export class Graph implements GraphContext {
      */
     async modelThumbnail(ref: string, options: ModelThumbnailOptions = {}): Promise<string> {
         const { assets } = this.getSession();
-        const held = assets.find(ref); // NOSONAR(typescript:S7754): the session's find, not Array.find
+        const held = assets.find(ref); // NOSONAR(S7754): the session's find, not Array.find
         if (held === undefined && !ref.startsWith("asset:sample/")) {
             throw new GraphtyError({
                 code: "E_MODEL_UNKNOWN_ASSET",

@@ -53,6 +53,17 @@ describe("modelThumbnail", () => {
         assert.notEqual(tinted, first, "the tint is drawn");
     });
 
+    it("draws a model added again after it was removed", async () => {
+        const element = await mount();
+        const bytes = sphereGlb(8, 4);
+        const ball = await element.session.assets.add({ files: new Map([["ball.glb", bytes]]) });
+        assert.isAbove(await drawnPixels(await element.modelThumbnail(ball.id, { size: 64 })), 0);
+        element.session.assets.remove(ball.id);
+        const again = await element.session.assets.add({ files: new Map([["ball.glb", bytes]]) });
+        assert.equal(again.state, "accepted");
+        assert.isAbove(await drawnPixels(await element.modelThumbnail(again.id, { size: 64 })), 0, "drawn again");
+    });
+
     // police.glb's one primitive has no indices, as glTF allows: drawn in vertex order.
     it("draws a textured model from a set (police.glb and its colormap.png)", async () => {
         const element = await mount();

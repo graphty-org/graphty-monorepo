@@ -391,6 +391,37 @@ describe("DataManager", () => {
         });
     });
 
+    // The count the lazy-edge stage of design/rendering/row-renderer.md drives toward zero under
+    // "batched". Under "objects", the default, every edge a load stores is built once, when both ends are.
+    describe("edges built", () => {
+        it("counts one Edge per stored edge, a deferred one once its ends arrive, and none for a read", () => {
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+
+            dataManager.addNodes([{ id: "a" }, { id: "b" }]);
+            dataManager.addEdges([
+                { src: "a", dst: "b" },
+                { src: "b", dst: "c" },
+            ]);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 1, "b -> c waits for c");
+
+            dataManager.addNodes([{ id: "c" }]);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 2);
+
+            assert.equal([...dataManager.edges.values()].length, 2);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 2);
+        });
+
+        it("counts an edge removed and added again as a second build", () => {
+            dataManager.addNodes([{ id: "a" }, { id: "b" }]);
+            dataManager.addEdge({ src: "a", dst: "b" });
+            dataManager.removeNodeAndIncidentEdges("b");
+            dataManager.addNodes([{ id: "b" }]);
+            dataManager.addEdge({ src: "a", dst: "b" });
+
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 2);
+        });
+    });
+
     // An edge reaches its ends through accessors (the lazy-node stage of design/rendering/row-renderer.md):
     // on the "batched" path each end's Node is looked up when first read, not when the edge is built. Under
     // "objects" both are resolved as the edge is built, as before.

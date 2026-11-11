@@ -10,7 +10,7 @@ import {
 import type { WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { openFilterDraft, selectRule } from "./filterCards";
-import { remap } from "./words";
+import { remap, sourceName } from "./words";
 
 /** One network load, as `data.loads()` records it. */
 type LoadRecord = ReturnType<GraphSession["data"]["loads"]>[number];
@@ -163,7 +163,21 @@ const SOURCE_ROW_COMMANDS: readonly SourceRowCommand[] = [
         id: "source.remove",
         label: "Remove",
         order: 90,
-        run: (ctx, source) => attempt(ctx, (session) => session.data.removeSource(source.key), "Not removed"),
+        run: (ctx, source) =>
+            attempt(
+                ctx,
+                async (session) => {
+                    const sources = session.data.sources();
+                    const { alsoRemoved } = await session.data.removeSource(source.key);
+                    const names = sources.filter((each) => alsoRemoved.includes(each.key)).map(sourceName);
+                    if (names.length > 0) {
+                        ctx.workspace.set({
+                            notice: { message: `Also removed what was joined to it: ${names.join(", ")}` },
+                        });
+                    }
+                },
+                "Not removed",
+            ),
     },
 ];
 

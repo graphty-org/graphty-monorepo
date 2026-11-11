@@ -5,44 +5,37 @@ density and polish. I ask whether the most important thing on each screen is the
 and whether one idea always looks one way. Read this file at the start of every session; update it
 as decisions land.
 
-Last updated: 2026-11-03 (tier 5 round 1 closed). Summarized on 2026-10-21: the tier 2
-rounds (2026-10-09 to 2026-10-11) and the bulk-edit iterations are condensed below; the full text is
-in git history of this file.
+Last updated: 2026-11-06 (tier 6 round 2 closed). Summarized on 2026-10-21, 2026-11-05 and
+2026-11-06; the full text is in git history of this file.
 
 ## Top of mind
 
-1. (2026-11-03, round 1 close) Tier 5 stopped at the 1-round cap with bars 1, 3, 4, 8 and 9
-   failing. Every severity 3 was behavior (speech from a hidden panel, a picker entry bound to a
-   different run), never pure look. Visual weight alone did not move a bar.
-2. The visual findings that counted were legibility of meaning: an untouched range drawn full while
-   it reads "0 so far" (Or group first state), By position's box with no direction or unit and a
-   9 px "of all nodes", an empty Fill color box with no cue. Rule: an empty or default state must
-   look empty and say what it wants.
-3. A control's drawing must never contradict its count or its text (full range bar vs 0 so far; the
-   "highest 10" error vs 24 of 24). Check drawn state against the count on every first state.
-4. Small helper text carrying the unit is a defect source: if the unit decides the answer, it is
-   not 9 px caption text.
-5. Bar 9 counts elements named by two sessions on different halves; the editor's Or group, the
-   Condition.../Or... words and By position's box are my share. Re-walk each on the next frozen
-   build.
-6. Skeptic checks weaken findings the fixture or task wording causes (orange in an orange ramp,
-   "top N" sending everyone to one box). Before rating, ask whether the fixture made it.
-7. compact-mantine's swatches and color input are Figma-locked: "no orange" was dropped; an
-   empty-box click bug in the shared color input goes to compact-mantine, not a local fix.
-8. Bar 7 consistency still open at sev 2: value picker jumping over its field and Done
-   (`decided.md` 734), Clear renaming a card "a selection" (631-632), a two-step card resting as
-   one row with no caret.
-9. 900 x 700: the preview is a 44 px sliver and the title loses the rule name; propose the
-   small-width rule rather than rate a gap as 3.
-10. Measure, then rate; cite a `decided.md` line or name the gap. Hover fakes theme defects.
-11. A visual finding keeps sev 3 only with a paying reader or a scripted repro.
-12. Same frozen build: replay old routes (`real.mjs --replay`) instead of re-walking.
-13. Known and still open: Table "on" and Done share green (Figma lock), blank band under the
-    preview, key over a node, 1 px focus ring, Except column 1226 vs 1247.
-14. Open from tiers 3 and 4: `colorWord` hue names, the purple "Layer" token, the link glyph doing
-    two jobs.
-15. Tool habits: `--click "role=option:<name>"`; `--click "Edit#1"`; a diverged replay stays open:
-    look, `--step`, then `--end`.
+1. (2026-11-06) Round 2 closed: 11 of 12 succeeded, 0 confirmed sev 3, 15 units for round 3. The shape
+   of what is left: the screen says less than the graph did, or says it where the reader is not looking.
+2. Round 3 rule: one change per problem, so each fix can be credited. Do not propose a second form of a
+   fix already chosen; riders on a line under measurement are refused.
+3. Words at rest do not rise: no new row per turn, no new panel sentence. A fact joins an existing line.
+4. Watch `reply-end-in-view`: step (a) is `position: relative` on `.ws-assistant-log` alone, then measure
+   `.ws-panel-body`. Only if the log still stops short does the ResizeObserver step follow. Verify one
+   scrollbar, the reply's foot in view, Jump to newest when scrolled up.
+5. Watch `question-at-body-size`: `<Text span size="sm" fw={600}>` as the Radio/Checkbox group label,
+   text ink, like the approval title; never `size` on the group, never CSS over the locked class.
+6. Watch `composer-says-its-scope`: placeholder "Ask about this selection" keyed on `scope.kind`; the
+   x makes it Whole graph. Check the placeholder and scope line never disagree.
+7. Watch `disabled-looks-disabled`: Send and Answer get `data-disabled` beside `aria-disabled` so the
+   shared compact-mantine disabled look shows. No bespoke style.
+8. Refused and not to re-raise without new evidence: `size="sm"` on the scope words, a warning glyph on
+   the failure row, the blank line between replies, a separate Colored row, pointer cursor on chips.
+9. A reader paying changes what a fix must do: ask whether a fix would have changed that reader's path.
+10. Name a cause only after tracing it to the rendered CSS; a visual finding needs a paying reader or a
+    scripted repro to hold sev 3.
+11. Chip-hover and tooltip evidence is void when hovering is a tool command.
+12. compact-mantine is Figma-locked; nothing in round 3 touches it.
+13. Read `decided.md` and the round's refused list before rating. Unfinished decisions are not findings.
+14. Open from earlier tiers: join preview tags, clipped join ratio, focus visibility, `colorWord` hue
+    names, the purple "Layer" token.
+15. Tool habits: `REAL_SLOT_WAIT_SECONDS=500` on `--start`; crop with PIL in `tmp/<task>/`; `--hover-at`
+    on the name text; check a point still holds its control after the log grew.
 
 ## Priorities and values
 
@@ -66,6 +59,44 @@ in git history of this file.
 
 ## Decisions (dated, with reasons)
 
+- **2026-11-06 (tier 6 round 2 closed):** Accepted the Director's one-change-per-problem rule and the
+  refusals of my own riders (`size="sm"` on the scope words, the failure-row glyph, the reply gap).
+  Reason: round 3 must credit each fix; a rider on a line under measurement makes neither creditable,
+  and no reader paid for the looks. My scrollbar trace became unit `reply-end-in-view` with a
+  measure-first gate, and my question-card trace became `question-at-body-size` unchanged.
+- **2026-11-06 (summary of the tier 5 close list):** Every tier 5 sev 3 was behavior, never pure look;
+  what counted visually was legibility of meaning: an empty or default state must look empty and say
+  what it wants; a drawing never contradicts its count or text; a unit that decides the answer is not
+  9 px caption text; ask whether the fixture or task wording caused a finding before rating.
+
+- **2026-11-05 (tier 6 round 2 critique):** Merged insights 7's two halves. Reason: the insights call the
+  scrollbars cosmetic and the cut reply a separate cost, but `r2-s01/18.png` shows the log about 75 px
+  short of its foot (by the thumb) with no Jump to newest, which is what a late rewrap would give.
+- **2026-11-05:** Dropped size as the fix for scope finding 5, kept it for design 8. Reason: Dev read the
+  line. Proposed the placeholder agreeing with the line, not a warning that fires on every selection.
+- **2026-11-05:** Said yes to a Colored row on the open ruling: the key shows the paint while the turn
+  says only Computed (`r2-s10/05.png`). It is the existing row, so no new look.
+- **2026-11-05:** Challenged the Autosave label's 2 as a separate look defect: after Undo "saved" is true.
+
+- **2026-11-05 (tier 6 round 1 closed):** Withdrew "fix the marks first". Reason: `decided.md` says a turn
+  with a real change keeps its line alone, 6.6 draws no chip, and the line sits on the Open run and Undo
+  row, so "cannot be told" overstated it. It stays a question for the sessions.
+- **2026-11-05:** Accepted the 9 px claim as a hypothesis, and the alignment items at severity 1. The
+  one-word `size="sm"` fix still stands for the scope and microphone lines, where design 8 clearly
+  applies.
+
+- **2026-11-05 (tier 6 round 1 walk):** Rated nothing 3. The change line looking like prose and the
+  scope line at 9 px are the likeliest to rise, but no reader has paid yet; marked "watch" with T92,
+  T95 and T92 A.
+- **2026-11-05:** Rated the failure row 2 though the design's text sizes allow body ink for errors:
+  the design also names error ink for danger, and a failure left in the log reads as a reply. Proposed
+  reusing the empty result's warning row, so a problem has one look.
+- **2026-11-05:** Rated the provider section's 64 words 2 because the criteria say so, and recommended
+  keeping them: the disclosure is what bar 3 measures. Size is the fix, not fewer words.
+- **2026-11-05:** Did not report the key over a node, the model label as text or the sparse rail dot:
+  `decided.md` settles them.
+- **2026-11-05:** Stopped spending Gemini requests once the shared count neared 3,000 and listed the
+  unreached states as not clean, rather than use `REAL_GEMINI_COUNT` to get past a spending cap.
 - 2026-11-03 (tier 5 round 1 close): Empty and default states must look empty and name what they
   want (a range not yet set is not drawn full; an empty color box shows a cue). Reason: the Or
   group's first state and the Fill color box were the two most repeated sev 2 visual findings,
@@ -143,6 +174,11 @@ in git history of this file.
 
 - **2026-10-14, round 6:** Round 6: per-group chits show the group's whole look (shape in its color); when a palette runs out, color and shape cycles are offset so no two groups share both; clamped histogram ranges hatched; degree histogram bins chosen by the element with a budget so large graphs never draw thousands of slivers.
 
+- **Tier 3 pause and iterations 1 to 3 (2026-10-12 to 2026-10-13), condensed:** settings moved to one
+  button per kind section, freeing the name column; the painted-over mark sits inside the field as a dimmed
+  value; cut names, the raw query, Label settings' unreachable half and "no starting rows" rated 3, stacked
+  fields and new labels 2; one Add strip per kind; visibility follows the rule, not the count; shape icons
+  should come from the element; severity follows what misleads, not how much was fixed.
 - **Tier 3 iterations 1 to 4 (2026-10-12 to 2026-10-13), condensed:** cut property names rated 3
   (the name is a row's only identifier; the gear moved to the right-hand columns); painted-over
   mark as a dimmed value plus tooltip, not a glyph; Verdana fallback owned by graphty-element;
@@ -167,6 +203,28 @@ in git history of this file.
 
 ## Tried: worked / did not work
 
+- 2026-11-06 worked: tracing the overflow and the 9 px label to source and CSS; both became units as
+  written. Did not work: proposing several forms of one fix; only one survives, so lead with the one.
+
+- 2026-11-05 worked: reading a cited screen for what is absent (no Jump to newest) and the scrollbar thumb
+  for what is below the fold; it joined two findings the insights kept apart.
+- 2026-11-05 worked: reading other experts' round 1 reports; the engineer already held the hidden span.
+- 2026-11-05 did not work: my round 1 scope fix, tested against what Dev actually did.
+
+- 2026-11-05 did not work: proposing a prop without tracing it to the rendered CSS (starters); the prop
+  was already set and did nothing.
+- 2026-11-05 did not work: quoting the design's drawing without its table and `decided.md` (change-line
+  chip); the three sources differ, and the drawing was the weakest.
+- 2026-11-05 worked: "watch" instead of sev 3, and listing unreached states as not clean. The check
+  found no overclaim in the ratings; the overclaims were in the mechanism and the wording.
+
+- 2026-11-05 worked: three sessions (light 1440, dark 1440, 900 x 700 light then dark) in 76 steps and
+  29 Gemini calls. Reaching failure through the OpenAI key and no provider through Forget key cost
+  nothing.
+- 2026-11-05 did not work: a hover whose point came from an older screenshot; opening the steps had
+  moved Open run, so its `cursor: auto` was void and I dropped the claim.
+- 2026-11-05 did not work: `--wait` under about 20 s after a change request; 8 steps ran past 20 s, so
+  look at `session.log` before judging a screen as stuck.
 - 2026-11-03 worked: replaying the void walk's routes on the same build; every check point matched
   but one click that landed on the closing workspace (the table's Close button sits under the
   pane while it closes). Carried on by hand from the open session.
@@ -252,6 +310,15 @@ in git history of this file.
 
 ## Thinking
 
+- (2026-11-05) A round with no reader shows the limit of my walk: I can say what is smallest or
+  alike, not what misleads. Without readers, a claim like "decides" or "reads as prose" is a
+  hypothesis and should be written as one, with the task that would test it.
+- (2026-11-05) My "no hue, so each state needs a shape" still stands as a thought, but needs a reader
+  confusing a change line with prose before it becomes a proposal.
+
+- (2026-11-05) "No hue" and "three marks" pull against each other: with no hue, the marks must come from
+  shape (a chip, a glyph), so any line without one reads as prose. Each state needs a shape of its own.
+
 - (2026-10-21) The picker repeats the closed/open problem I saw in tier 2's key: a
   summary written per part reads as the whole. Any summary of combined conditions should print
   the combined result once and the parts without numbers.
@@ -263,6 +330,15 @@ in git history of this file.
 
 ## Sources
 
+- `design/ui/studio/tier6/rounds/round-2/insights.md`, `scores.md`, `sessions/r2-s01/18.png`, `r2-s07/05.png`, `09.png`;
+  `graphty/src/workspace/frame/frame.css:97`; `compact-mantine/src/theme/css/00-foundation.css.ts:201`
+- `design/ui/studio/tier6/rounds/round-1/insights.md` (settled findings 5, 9, 10, 11, 12 are the visual ones)
+- `design/ui/studio/tier6/rounds/round-1/expert/visual.md` (tier 6 round 1 walkthrough, 23 findings);
+  sessions in `expert/visual/v1-light`, `v2-sources-dark`, `v3-yeast-900`
+- `design/ui/studio/tier6/design.md` sections 4 and 8; `tier6/decided.md`
+- `graphty/src/workspace/assistant/` at 3b2a7f0649: `assistant.css`, `Conversation.tsx`, `Checks.tsx`,
+  `Composer.tsx`, `AiProviderSection.tsx`, `AssistantPanel.tsx`, `ConversationList.tsx`;
+  `compact-mantine/src/theme/tokens.ts:395` (xs 9 px, sm 11 px)
 - `design/ui/studio/tier5/rounds/round-1/expert/visual.md` (tier 5 round 1 rerun, 23 findings);
   sessions `expert/visual/v1..v4` (v1-v3 replay the void walk on 1e123d7d33); crops in
   `tmp/visual-t5/r1/`; `decided.md` 519 (pane controls 24 px), 523, 734, 768, 774, 786, 877

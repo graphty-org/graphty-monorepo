@@ -10,7 +10,10 @@
  * places nobody tests -- JMESPath truthiness, a column default, an edge's endpoints.
  *
  * A path nothing answers matches nothing and is REPORTED through `unresolvedPathsOf`, never
- * swallowed: "0 matched" and "you misspelled the attribute" must not look the same.
+ * swallowed: "0 matched" and "you misspelled the attribute" must not look the same. The same holds
+ * per kind: `data.phone == \`null\`` is about nodes, so when no edge can carry the column no edge
+ * matches, though every edge lacks the value. A layer's own selector is compiled for one kind and
+ * does not pass through here.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -196,6 +199,30 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
         return hits;
     };
 
+    // Answered by the directory, or carried by some element: a run's field need not be declared,
+    // and a rule may read a file column by its bare name ("minutes").
+    const halfTest = ({ paths, test }: ReturnType<typeof compile>, target: SelectorTarget): typeof test => {
+        const { answers } = parts;
+        if (answers === undefined) {
+            return test;
+        }
+
+        const graph = parts.snapshot();
+        const count = target === "node" ? graph.nodeCount : graph.edgeCount;
+        const { has } = columnsFor(elements, target);
+        const carried = (path: Path): boolean => {
+            for (let index = 0; index < count; index++) {
+                if (has(index, path)) {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+
+        return paths.some((path) => answers(path, target) || carried(path)) ? test : () => false;
+    };
+
     const nodesOf = (test: (index: number) => boolean): NodeId[] =>
         matching(test, "node").map((index) => elements.nodeIdOf(index));
     const edgesOf = (test: (index: number) => boolean): EdgeId[] =>
@@ -279,15 +306,15 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
     };
 
     return {
-        nodes: (where) => nodesOf(compile(where, "node").test),
-        edges: (where) => edgesOf(compile(where, "edge").test),
+        nodes: (where) => nodesOf(halfTest(compile(where, "node"), "node")),
+        edges: (where) => edgesOf(halfTest(compile(where, "edge"), "edge")),
         // One compile per target: the node compile's paths are the expression's paths.
         select: (where) => {
             const node = compile(where, "node");
 
             return {
-                nodes: nodesOf(node.test),
-                edges: edgesOf(compile(where, "edge").test),
+                nodes: nodesOf(halfTest(node, "node")),
+                edges: edgesOf(halfTest(compile(where, "edge"), "edge")),
                 unresolvedPaths: unresolvedOf(node.paths),
             };
         },

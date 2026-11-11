@@ -19,7 +19,7 @@ import type { CameraManager } from "../cameras/CameraManager";
 import { type FramingSpot, OrbitCameraController } from "../cameras/OrbitCameraController";
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
-import { Edge } from "../Edge";
+import { Edge, pulledLines } from "../Edge";
 import { drawnCurveInWorld } from "../edgeWorldCurve";
 import { mapDepth, screenNodeScale } from "../layout/locationMap/nodeScale";
 import type { LocationMapFrame } from "../layout/locationMap/place";
@@ -30,6 +30,7 @@ import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { withoutEyeLine } from "../meshes/labelEyeLine";
 import { screenFitFrames } from "../meshes/labelScreenFit";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
+import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesFreeing, texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
@@ -1488,6 +1489,9 @@ export class UpdateManager implements Manager {
     /** Whether the repaint under way has painted an edge with a support point. */
     private paintedSupportPoint = false;
 
+    /** Whether this paint run has told the edge pools its size ({@link UpdateManager.syncEdgeStyles}). */
+    private edgePoolsArmed = false;
+
     /** What a repaint looks up on each of its frames, kept until it ends; a version says when it went stale. */
     private paintIndex: {
         rows: { version: number; map: Map<number, Node> } | null;
@@ -1514,6 +1518,13 @@ export class UpdateManager implements Manager {
         this.sceneChanged = true;
         let painted = 0;
         const least = minimumWorkPerFrame() ? 0 : Math.ceil(this.dataManager.edges.size / REPAINT_FRAMES);
+        // A paint run's first frame tells the edge pools how many edges it will paint, so a pool that
+        // must grow grows once ("batched" only: `poolReserve.ts`).
+        const scene = this.graphContext.getScene();
+        if (!this.edgePoolsArmed && (this.graphContext.getNodeBatches?.() ?? null) !== null) {
+            armPoolReserve(scene, painter.pendingEdgeCount);
+            this.edgePoolsArmed = true;
+        }
 
         do {
             painted += this.paintEdgeBatch(painter);
@@ -1525,6 +1536,11 @@ export class UpdateManager implements Manager {
         // places is all of it, unless it painted an edge with a support point: a layer can change
         // who has one and the forces on it.
         if (!painter.hasPendingEdges) {
+            if (this.edgePoolsArmed) {
+                clearPoolReserve(scene);
+                this.edgePoolsArmed = false;
+            }
+
             if (!painter.takeEdgesRowsOnly() || this.paintedSupportPoint) {
                 this.forceEdgeWalk();
             }
@@ -3000,8 +3016,22 @@ export class UpdateManager implements Manager {
     /** How many meshes the scene held last frame, so one appearing or going unfreezes it. */
     private lastMeshCount = -1;
 
+    /** Set by a freeze that renumbered rows, so the next edge pass writes every pulled line's rows again. */
+    private pulledRowsMoved = false;
+
+    /**
+     * Say that a freeze renumbered the rows (`snapshot-replaced` with a `nodeRemap`): a straight pulled line, which
+     * no walk visits ({@link Edge.followsRows}), is told its nodes' new rows at the next edge pass.
+     * @internal
+     */
+    rowsRenumbered(): void {
+        this.pulledRowsMoved = true;
+    }
+
     private updateEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
+
+        this.followRenumberedRows();
 
         // No frame is drawn while a load holds the draw, so asking whether anything moved, a walk of
         // every node on each of a load's thousands of frames, waits for the first frame it releases.
@@ -3020,11 +3050,14 @@ export class UpdateManager implements Manager {
             centers.set(node, center);
             return center;
         };
+        // Under "batched" only a placed edge can have a support point: one that follows its rows is a straight pulled
+        // line, and a curve is pulled with a span of its own, so the walk asks the placed list, not every edge.
+        const batched = this.dataManager.renderLimits?.batched() === true;
         const bowed =
             !this.dataManager.drawHeld &&
             this.dataManager.supportPoints.update(
                 () => Array.from(this.layoutManager.nodes, centerOf),
-                this.layoutManager.edges,
+                batched ? this.placedEdges() : this.layoutManager.edges,
                 (edge) => edge.supportEdge(centerOf),
                 // Only a walk of every edge finds an edge newly bowed, so nothing bowed means a drag
                 // need not read every edge to ask.
@@ -3034,14 +3067,17 @@ export class UpdateManager implements Manager {
         if (everyEdge || bowed) {
             // Each edge aims its own ray, inside the branch that fires it, so an edge that has not
             // moved costs nothing here. A pass over the whole graph used to aim all of them first.
-            for (const edge of this.layoutManager.edges) {
-                edge.update();
+            // Under "batched" the list of edges to place is kept between walks; "objects" walks every edge as before.
+            if (batched) {
+                for (const edge of this.placedEdges()) {
+                    edge.update();
+                }
+            } else {
+                UpdateManager.placeEdges(this.layoutManager.edges);
             }
         } else {
             this.updateEdgesOf(walk === false ? [] : walk);
-            for (const edge of this.edgesToPlace) {
-                edge.update();
-            }
+            UpdateManager.placeEdges(this.edgesToPlace);
             this.placedEdgesAtRows();
         }
 
@@ -3052,26 +3088,103 @@ export class UpdateManager implements Manager {
         this.statsManager.edgeUpdate.endMonitoring();
     }
 
+    /**
+     * Place some edges, leaving out each line the shader draws from its rows ({@link Edge.followsRows}).
+     * @param edges - The edges.
+     */
+    private static placeEdges(edges: Iterable<Edge>): void {
+        for (const edge of edges) {
+            if (!edge.followsRows) {
+                edge.update();
+            }
+        }
+    }
+
+    /**
+     * Tell every pulled line its nodes' rows after a freeze renumbered them ({@link rowsRenumbered}).
+     * ponytail: a walk of every edge per renumbering freeze (a removal); a list of the pulled edges if removals at a
+     * million edges need it.
+     */
+    private followRenumberedRows(): void {
+        if (!this.pulledRowsMoved || this.dataManager.drawHeld) {
+            return;
+        }
+
+        this.pulledRowsMoved = false;
+        for (const edge of this.dataManager.edges.values()) {
+            if (edge.isPulled) {
+                edge.followRenumberedRows();
+            }
+        }
+    }
+
     /** Whether the row table moved a row since the last edge walk while some row has no Node. */
     private unbuiltRowsMoved = false;
 
     /**
-     * Update the placed edges -- every edge whose line is not pulled from the row table -- after the table moved its
-     * rows while some row has no Node: such a row is in no walk of the nodes, so its edges are found by asking every
-     * placed edge, and one whose ends stayed exits at once. A pulled line follows its rows in its shader.
-     * ponytail: a walk of every edge on each table move; a list of the rows the lane moved, if a running layout over
-     * a million rows with no Node and placed edges needs the frame back.
+     * Update the placed edges -- every edge whose line does not follow its rows ({@link Edge.followsRows}) -- after
+     * the table moved its rows while some row has no Node: such a row is in no walk of the nodes, so its edges are
+     * found by asking every placed edge, and one whose ends stayed exits at once. A straight pulled line follows its
+     * rows in its shader.
+     * ponytail: every placed edge on each table move; a list of the rows the lane moved, if a running layout over
+     * a million rows with no Node and many placed edges needs the frame back.
      */
     private placedEdgesAtRows(): void {
         if (!this.unbuiltRowsMoved) {
             return;
         }
 
-        for (const edge of this.layoutManager.edges) {
-            if (!edge.isPulled) {
-                edge.update();
+        for (const edge of this.placedEdges()) {
+            edge.update();
+        }
+    }
+
+    /** The engine's edges whose line does not follow its rows, and what they were listed from; see {@link placedEdges}. */
+    private placedList: {
+        edges: readonly Edge[];
+        engine: unknown;
+        count: number;
+        edgeVersion: number;
+        pulledVersion: number;
+        flat: boolean;
+        geoFrame: unknown;
+    } | null = null;
+
+    /**
+     * The layout engine's edges whose line does not follow its rows ({@link Edge.followsRows}), listed again only
+     * when the engine, the store's edges, the engine's array of them, some edge's pulled line, the view or the
+     * engine's map frame changed (the last two pick a pulled line's route): a walk of a million edges asking each was
+     * most of a layout frame. An engine that hands back an iterator holds every edge the moment it is told, which
+     * bumps the store's version (see {@link edgesNeedWalking}).
+     * @returns The placed edges.
+     */
+    private placedEdges(): readonly Edge[] {
+        const { edges: from, layoutEngine: engine } = this.layoutManager;
+        const count = Array.isArray(from) ? from.length : -1;
+        const { edgeVersion } = this.dataManager;
+        const flat = this.graphContext.is2D();
+        const geoFrame = (engine as { geoFrame?: unknown } | undefined)?.geoFrame;
+        const known = this.placedList;
+        if (
+            known !== null &&
+            known.engine === engine &&
+            known.count === count &&
+            known.edgeVersion === edgeVersion &&
+            known.pulledVersion === pulledLines.version &&
+            known.flat === flat &&
+            known.geoFrame === geoFrame
+        ) {
+            return known.edges;
+        }
+
+        const edges: Edge[] = [];
+        for (const edge of from) {
+            if (!edge.followsRows) {
+                edges.push(edge);
             }
         }
+        this.placedList = { edges, engine, count, edgeVersion, pulledVersion: pulledLines.version, flat, geoFrame };
+        return edges;
     }
 
     /** Edges a move left with an end on its node's bounding radius, see {@link endsByRadius}. */
@@ -3124,7 +3237,10 @@ export class UpdateManager implements Manager {
     private updateEdgesOf(nodes: readonly Node[]): void {
         for (const node of nodes) {
             for (const id of this.dataManager.incidentEdgeIds(node)) {
-                this.dataManager.edges.get(id)?.update();
+                const edge = this.dataManager.edges.get(id);
+                if (edge !== undefined && !edge.followsRows) {
+                    edge.update();
+                }
             }
         }
     }

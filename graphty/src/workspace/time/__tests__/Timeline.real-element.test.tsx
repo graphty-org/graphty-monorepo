@@ -369,7 +369,7 @@ describe("the timeline on the real element", () => {
         await designateSent(session);
         await userEvent.click(screen.getByRole("button", { name: /^Undo/ }));
         await waitFor(() => {
-            assert.equal(store.get().announcement, "Undid setting the time field.");
+            assert.equal(store.get().announcement, "Undid setting the time field");
         });
         await userEvent.click(screen.getByRole("button", { name: /^Redo/ }));
         // The dock went with the field and came back with it.

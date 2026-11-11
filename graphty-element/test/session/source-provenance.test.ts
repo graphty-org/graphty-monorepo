@@ -106,7 +106,11 @@ describe("source provenance", () => {
         const before = session.history.steps.length;
         const result = await session.data.removeSource("s2");
 
-        assert.deepStrictEqual(result, { removed: { nodes: 2, edges: 3 }, kept: { nodes: 2, edges: 0 } });
+        assert.deepStrictEqual(result, {
+            removed: { nodes: 2, edges: 3 },
+            kept: { nodes: 2, edges: 0 },
+            alsoRemoved: [],
+        });
         assert.sameMembers(
             session.data.nodes().map((each) => each.id),
             ["Ava", "Ben", "Cara"],
@@ -140,7 +144,11 @@ describe("source provenance", () => {
         assert.deepStrictEqual(session.data.sourcesOf(shared, { kind: "edge" }), ["s1", "s2"]);
 
         const result = await session.data.removeSource("s1");
-        assert.deepStrictEqual(result, { removed: { nodes: 1, edges: 2 }, kept: { nodes: 2, edges: 1 } });
+        assert.deepStrictEqual(result, {
+            removed: { nodes: 1, edges: 2 },
+            kept: { nodes: 2, edges: 1 },
+            alsoRemoved: [],
+        });
         assert.deepStrictEqual(session.data.sourcesOf(shared, { kind: "edge" }), ["s2"]);
         assert.isUndefined(session.data.node("Cara"));
         session.dispose();

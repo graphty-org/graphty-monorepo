@@ -1,164 +1,154 @@
-import * as ai from "ai";
-import { assert, describe, expect, it, vi } from "vitest";
+/**
+ * VercelAiProvider: the built-in OpenAI, Anthropic and Google provider, on the provider-API engine,
+ * against each provider's HTTP API faked at `fetch` (test/ai/engine/providerApiFixtures.ts).
+ * @module test/ai/providers/VercelAiProvider.test
+ */
+
+import { afterEach, assert, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import type { StreamCallbacks } from "../../../src/ai/providers/types";
-import { VercelAiProvider } from "../../../src/ai/providers/VercelAiProvider";
+import { LlmProviderEngine } from "../../../src/ai/engine/LlmProviderEngine";
+import { engineFor } from "../../../src/ai/engine/load";
+import { ProviderApiEngine } from "../../../src/ai/engine/ProviderApiEngine";
+import type { LlmResponse, Message, StreamCallbacks, ToolDefinition } from "../../../src/ai/providers/types";
+import { VercelAiProvider, type VercelProviderType } from "../../../src/ai/providers/VercelAiProvider";
+import { KEYS, providerApiFixture, type SentRequest } from "../engine/providerApiFixtures";
 
-// generateText passes through to the real SDK unless a test queues a response, so a test can
-// read the model the provider built without a network call.
-vi.mock("ai", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("ai")>();
-    return { ...actual, generateText: vi.fn(actual.generateText) };
-});
+const PROVIDERS = ["openai", "anthropic", "google"] as const;
 
-/** Create a StreamCallbacks object with no-op defaults and optional overrides */
-function createCallbacks(overrides?: Partial<StreamCallbacks>): StreamCallbacks {
+const FIND: ToolDefinition = {
+    name: "findNodes",
+    description: "Find nodes",
+    parameters: z.object({ selector: z.string() }),
+};
+
+/**
+ * The key a request carried, in the provider's own header.
+ * @param request - The request.
+ * @returns The key, or undefined.
+ */
+function sentKey(request: SentRequest): string | undefined {
+    const { headers } = request;
+    return headers["x-api-key"] ?? headers["x-goog-api-key"] ?? headers.authorization?.replace(/^Bearer /, "");
+}
+
+/**
+ * The model a request asked for.
+ * @param request - The request.
+ * @returns The model id.
+ */
+function sentModel(request: SentRequest): string {
+    return typeof request.body.model === "string"
+        ? request.body.model
+        : (/\/models\/([^:]+):/.exec(request.url)?.[1] ?? "");
+}
+
+/**
+ * Callbacks that record what they were told, in order.
+ * @param log - Where each call is recorded.
+ * @returns The callbacks.
+ */
+function recording(log: string[]): StreamCallbacks {
     return {
-        onChunk: () => {
-            /* no-op */
-        },
-        onToolCall: () => {
-            /* no-op */
-        },
-        onToolResult: () => {
-            /* no-op */
-        },
-        onComplete: () => {
-            /* no-op */
-        },
-        onError: () => {
-            /* no-op */
-        },
-        ...overrides,
+        onChunk: (text) => log.push(`chunk:${text}`),
+        onToolCall: (name) => log.push(`tool:${name}`),
+        onToolResult: (name) => log.push(`result:${name}`),
+        onComplete: (response) => log.push(`complete:${response.toolCalls.length}`),
+        onError: (error) => log.push(`error:${error.name}`),
     };
 }
 
-/** Get API key from environment with type safety */
-function getApiKey(name: string): string {
-    const key = process.env[name];
-    if (!key) {
-        throw new Error(`${name} not found`);
-    }
-
-    return key;
-}
+afterEach(() => {
+    vi.unstubAllGlobals();
+});
 
 describe("VercelAiProvider", () => {
-    describe("OpenAI", () => {
+    describe.each(PROVIDERS)("%s", (type: VercelProviderType) => {
         it("initializes correctly", () => {
-            const provider = new VercelAiProvider("openai");
-            assert.strictEqual(provider.name, "openai");
+            const provider = new VercelAiProvider(type);
+            assert.strictEqual(provider.name, type);
             assert.strictEqual(provider.supportsStreaming, true);
             assert.strictEqual(provider.supportsTools, true);
         });
 
-        it("throws without API key", async () => {
-            const provider = new VercelAiProvider("openai");
+        it("throws without API key, and sends nothing", async () => {
+            const { requests } = providerApiFixture(type);
+            const provider = new VercelAiProvider(type);
             await expect(provider.generate([{ role: "user", content: "test" }], [])).rejects.toThrow(/API key/);
+            await expect(
+                provider.generateStream([{ role: "user", content: "test" }], [], recording([])),
+            ).rejects.toThrow(/API key/);
+            assert.strictEqual(requests.length, 0);
         });
 
-        // These tests require actual API keys - run manually or in integration tests
-        it.skipIf(!process.env.OPENAI_API_KEY)("generates text response", async () => {
-            const provider = new VercelAiProvider("openai");
-            provider.configure({ apiKey: getApiKey("OPENAI_API_KEY"), model: "gpt-4o-mini" });
-
-            const response = await provider.generate([{ role: "user", content: "Say 'hello' and nothing else" }], []);
-
-            assert.ok(response.text.toLowerCase().includes("hello"));
-        });
-
-        it.skipIf(!process.env.OPENAI_API_KEY)("handles tool calls", async () => {
-            const provider = new VercelAiProvider("openai");
-            provider.configure({ apiKey: getApiKey("OPENAI_API_KEY"), model: "gpt-4o-mini" });
-
-            const response = await provider.generate(
-                [{ role: "user", content: "Get the current weather in Paris" }],
-                [
-                    {
-                        name: "getWeather",
-                        description: "Get weather for a city",
-                        parameters: z.object({ city: z.string() }),
-                    },
-                ],
-            );
-
-            assert.ok(response.toolCalls.length > 0);
-            assert.strictEqual(response.toolCalls[0].name, "getWeather");
-        });
-    });
-
-    describe("Anthropic", () => {
-        it("initializes correctly", () => {
-            const provider = new VercelAiProvider("anthropic");
-            assert.strictEqual(provider.name, "anthropic");
-            assert.strictEqual(provider.supportsStreaming, true);
-            assert.strictEqual(provider.supportsTools, true);
-        });
-
-        it("throws without API key", async () => {
-            const provider = new VercelAiProvider("anthropic");
-            await expect(provider.generate([{ role: "user", content: "test" }], [])).rejects.toThrow(/API key/);
-        });
-
-        it.skipIf(!process.env.ANTHROPIC_API_KEY)("generates text response", async () => {
-            const provider = new VercelAiProvider("anthropic");
-            provider.configure({ apiKey: getApiKey("ANTHROPIC_API_KEY") });
-
-            const response = await provider.generate([{ role: "user", content: "Say 'hello' and nothing else" }], []);
-
-            assert.ok(response.text.toLowerCase().includes("hello"));
-        });
-    });
-
-    describe("Google", () => {
-        it("initializes correctly", () => {
-            const provider = new VercelAiProvider("google");
-            assert.strictEqual(provider.name, "google");
-            assert.strictEqual(provider.supportsStreaming, true);
-            assert.strictEqual(provider.supportsTools, true);
-        });
-
-        it("throws without API key", async () => {
-            const provider = new VercelAiProvider("google");
-            await expect(provider.generate([{ role: "user", content: "test" }], [])).rejects.toThrow(/API key/);
-        });
-
-        it.skipIf(!process.env.GOOGLE_API_KEY)("generates text response", async () => {
-            const provider = new VercelAiProvider("google");
-            provider.configure({ apiKey: getApiKey("GOOGLE_API_KEY") });
-
-            const response = await provider.generate([{ role: "user", content: "Say 'hello' and nothing else" }], []);
-
-            assert.ok(response.text.toLowerCase().includes("hello"));
-        });
-    });
-
-    describe("configure", () => {
-        it("allows setting all options", () => {
-            const provider = new VercelAiProvider("openai");
-            provider.configure({
-                apiKey: "sk-test",
-                model: "gpt-4",
-                baseUrl: "https://custom.api.com",
-                maxTokens: 2000,
-                temperature: 0.5,
+        it("answers with the text, the tool calls and the usage", async () => {
+            const { reply } = providerApiFixture(type);
+            reply({
+                text: "Looking.",
+                toolCalls: [{ id: "c1", name: "findNodes", arguments: { selector: "a" } }],
+                usage: { input: 9, output: 4 },
             });
-            // No assertion needed - just verify it doesn't throw
+            const provider = new VercelAiProvider(type);
+            provider.configure({ apiKey: KEYS[type] });
+
+            const response: LlmResponse = await provider.generate([{ role: "user", content: "find a" }], [FIND]);
+
+            assert.strictEqual(response.text, "Looking.");
+            assert.deepStrictEqual(response.toolCalls, [{ id: "c1", name: "findNodes", arguments: { selector: "a" } }]);
+            assert.deepStrictEqual(response.usage, { promptTokens: 9, completionTokens: 4 });
         });
 
-        it("allows reconfiguring", () => {
-            const provider = new VercelAiProvider("openai");
-            provider.configure({ apiKey: "sk-first" });
-            provider.configure({ apiKey: "sk-second", model: "gpt-4o" });
-            // Should not throw
+        it("streams the text, then each tool call, then completes", async () => {
+            const { reply } = providerApiFixture(type);
+            reply({ text: "Looking.", toolCalls: [{ id: "c1", name: "findNodes", arguments: { selector: "a" } }] });
+            const provider = new VercelAiProvider(type);
+            provider.configure({ apiKey: KEYS[type] });
+            const log: string[] = [];
+
+            await provider.generateStream([{ role: "user", content: "find a" }], [FIND], recording(log));
+
+            assert.deepStrictEqual(log, ["chunk:Looking.", "tool:findNodes", "complete:1"]);
+        });
+
+        it("validates a key: true when the provider answers, false when it refuses, throws otherwise", async () => {
+            const { reply, failOnce, fail } = providerApiFixture(type);
+            const provider = new VercelAiProvider(type);
+            assert.isFalse(await provider.validateApiKey(), "no key configured");
+            provider.configure({ apiKey: KEYS[type] });
+            reply({ text: "hi" });
+            assert.isTrue(await provider.validateApiKey());
+            failOnce(401);
+            assert.isFalse(await provider.validateApiKey());
+            fail(500);
+            await expect(provider.validateApiKey()).rejects.toMatchObject({ statusCode: 500 });
+        });
+
+        it("fails a turn whose stream ends without finishing, rather than answer with what it cut", async () => {
+            const { respondOnce } = providerApiFixture(type);
+            // A stream that stops before the provider's end-of-answer event.
+            respondOnce(200, "", { "content-type": "text/event-stream" });
+            const provider = new VercelAiProvider(type);
+            provider.configure({ apiKey: KEYS[type] });
+            await expect(provider.generate([{ role: "user", content: "a" }], [])).rejects.toThrow();
+        });
+
+        it("sends the configuration as it is at each call: a later configure() reaches the next request", async () => {
+            const { requests } = providerApiFixture(type);
+            const provider = new VercelAiProvider(type);
+            provider.configure({ apiKey: "first-key-0123456789" });
+            await provider.generate([{ role: "user", content: "a" }], []);
+            provider.configure({ apiKey: "second-key-0123456789", model: "some-other-model" });
+            await provider.generate([{ role: "user", content: "b" }], []);
+
+            assert.deepStrictEqual(requests.map(sentKey), ["first-key-0123456789", "second-key-0123456789"]);
+            assert.strictEqual(sentModel(requests[1]), "some-other-model");
         });
     });
 
     /**
      * A retired default model fails every request of a consumer who names no model: Anthropic
-     * retired claude-3-haiku-20240307 and Google retired gemini-2.0-flash. The live tests above
-     * (with keys) call each provider's default; these pin which model id each default is.
+     * retired claude-3-haiku-20240307 and Google retired gemini-2.0-flash. These pin which model
+     * id each default is.
      */
     describe("default models", () => {
         it.each([
@@ -166,18 +156,13 @@ describe("VercelAiProvider", () => {
             ["anthropic", "claude-haiku-4-5-20251001"],
             ["google", "gemini-3.8-flash"],
         ] as const)("%s defaults to %s", async (type, expected) => {
+            const { requests } = providerApiFixture(type);
             const provider = new VercelAiProvider(type);
-            provider.configure({ apiKey: "test-key" });
-            const spy = vi.mocked(ai.generateText).mockResolvedValueOnce({
-                text: "",
-                toolCalls: [],
-                usage: {},
-            } as unknown as Awaited<ReturnType<typeof ai.generateText>>);
+            provider.configure({ apiKey: KEYS[type] });
 
             await provider.generate([{ role: "user", content: "hi" }], []);
 
-            const { model } = spy.mock.lastCall?.[0] as unknown as { model: { modelId: string } };
-            assert.strictEqual(model.modelId, expected);
+            assert.strictEqual(sentModel(requests[0]), expected);
         });
     });
 
@@ -185,65 +170,43 @@ describe("VercelAiProvider", () => {
         it("names each tool result after the call it answers", async () => {
             // Google refuses a function response with an empty name, which is what every tool
             // result carried, so a second ask after a tool call always failed there.
+            const { requests } = providerApiFixture("google");
             const provider = new VercelAiProvider("google");
-            provider.configure({ apiKey: "test-key" });
-            const spy = vi.mocked(ai.generateText).mockResolvedValueOnce({
-                text: "",
-                toolCalls: [],
-                usage: {},
-            } as unknown as Awaited<ReturnType<typeof ai.generateText>>);
+            provider.configure({ apiKey: KEYS.google });
+            const messages: Message[] = [
+                { role: "user", content: "find servers" },
+                {
+                    role: "assistant",
+                    content: "",
+                    toolCalls: [{ id: "c1", name: "findNodes", arguments: { selector: "data.type == 'server'" } }],
+                },
+                { role: "tool", toolCallId: "c1", content: "{}" },
+            ];
 
-            await provider.generate(
-                [
-                    { role: "user", content: "find servers" },
-                    {
-                        role: "assistant",
-                        content: "",
-                        toolCalls: [{ id: "c1", name: "findNodes", arguments: { selector: "data.type == 'server'" } }],
-                    },
-                    { role: "tool", toolCallId: "c1", content: "{}" },
-                ],
-                [],
-            );
+            await provider.generate(messages, [FIND]);
 
-            const { messages } = spy.mock.lastCall?.[0] as unknown as {
-                messages: { role: string; content: { toolName?: string }[] }[];
-            };
-            assert.strictEqual(messages[2].content[0].toolName, "findNodes");
+            const contents = requests[0].body.contents as { parts: { functionResponse?: { name: string } }[] }[];
+            assert.strictEqual(contents[2].parts[0].functionResponse?.name, "findNodes");
         });
     });
 
-    describe("generateStream", () => {
-        it("throws without API key", async () => {
-            const provider = new VercelAiProvider("openai");
-
-            await expect(
-                provider.generateStream([{ role: "user", content: "test" }], [], createCallbacks()),
-            ).rejects.toThrow(/API key/);
+    describe("the engine the assistant runs it on", () => {
+        it("is the provider-API engine, reading the provider's configuration", () => {
+            assert.instanceOf(engineFor(new VercelAiProvider("openai")), ProviderApiEngine);
         });
 
-        it.skipIf(!process.env.OPENAI_API_KEY)("streams text response", async () => {
-            const provider = new VercelAiProvider("openai");
-            provider.configure({ apiKey: getApiKey("OPENAI_API_KEY"), model: "gpt-4o-mini" });
+        it("is the provider itself, through generate, for a subclass that overrides generate", () => {
+            class Logged extends VercelAiProvider {
+                override generate(
+                    messages: Message[],
+                    tools: ToolDefinition[],
+                    options?: { signal?: AbortSignal; toolChoice?: "auto" | "none" },
+                ): Promise<LlmResponse> {
+                    return super.generate(messages, tools, options);
+                }
+            }
 
-            const chunks: string[] = [];
-            let completed = false;
-
-            await provider.generateStream(
-                [{ role: "user", content: "Say 'hello' and nothing else" }],
-                [],
-                createCallbacks({
-                    onChunk: (text) => chunks.push(text),
-                    onComplete: () => {
-                        completed = true;
-                    },
-                }),
-            );
-
-            assert.ok(chunks.length > 0);
-            assert.ok(completed);
-            const fullText = chunks.join("");
-            assert.ok(fullText.toLowerCase().includes("hello"));
+            assert.instanceOf(engineFor(new Logged("openai")), LlmProviderEngine);
         });
     });
 });

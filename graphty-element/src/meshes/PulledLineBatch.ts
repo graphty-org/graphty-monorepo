@@ -17,6 +17,7 @@ import {
 } from "./edgeJoinShader";
 import { markEdgeLineBatchMesh } from "./EdgeLineBatch";
 import { batchUploadFrames } from "./FrameRoster";
+import { takePoolReserve } from "./poolReserve";
 import { curveShape, type CurveSpan } from "./pulledCurve";
 
 /**
@@ -452,9 +453,15 @@ export class PulledLineBatch {
         return table;
     }
 
-    /** Double the table, keeping every piece where it is. */
+    /**
+     * Double the table, or make room for every piece a load's paint run still expects (`poolReserve.ts`) when that is
+     * more, in whole table lines, keeping every piece where it is.
+     */
     private grow(): void {
-        const grown = this.emptyTable((this.rows.length / this.pieceFloats) * 2);
+        const doubled = (this.rows.length / this.pieceFloats) * 2;
+        const reserved = this.highWater + takePoolReserve(this.scene, "lines");
+        const pieces = Math.max(doubled, Math.ceil(reserved / this.piecesPerLine) * this.piecesPerLine);
+        const grown = this.emptyTable(pieces);
         grown.set(this.rows);
         this.rows = grown;
         this.table.dispose();

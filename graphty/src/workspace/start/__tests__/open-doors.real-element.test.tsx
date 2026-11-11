@@ -56,6 +56,14 @@ const EXPECTED: Readonly<Record<string, { nodes: number; edges: number; dock: Do
     "accounts.csv": { nodes: 298, edges: 0, dock: "docked" },
     "transfers.csv": { nodes: 316, edges: 449, dock: "docked" },
     "auth-log.csv": { nodes: 19, edges: 400, dock: "docked" },
+    "biogrid-interactions.tsv": { nodes: 58, edges: 80, dock: "closed" },
+    "symbol-ensembl.tsv": { nodes: 54, edges: 0, dock: "closed" },
+    "expression-ensembl.tsv": { nodes: 50, edges: 0, dock: "closed" },
+    "contracts-2024-09.csv": { nodes: 40, edges: 143, dock: "closed" },
+    "suppliers-erp.csv": { nodes: 15, edges: 0, dock: "closed" },
+    "people.csv": { nodes: 24, edges: 0, dock: "closed" },
+    "buildings.csv": { nodes: 6, edges: 0, dock: "closed" },
+    "door-entries.csv": { nodes: 31, edges: 200, dock: "docked" },
 };
 
 /**
@@ -269,11 +277,12 @@ describe("the loading doors on the real element", () => {
         );
     });
 
-    it("replaces a loaded file with its newer copy at once, and Undo brings the old one back", async () => {
+    it("offers Replace for a file with the same columns, and Undo brings the old one back", async () => {
         const { session } = await emptyProject();
         await chooseSample("ships-to-2024-09.csv");
         await holds(session, 40, 150);
         drop(await fixture("ships-to-2024-10.csv"));
+        await userEvent.click(await screen.findByRole("button", { name: "Replace ships-to-2024-09.csv" }));
         const receipt = await screen.findByText("Replaced ships-to-2024-09.csv with ships-to-2024-10.csv", {});
         await holds(session, 40, 159);
         // The receipt's own Undo, not the header's.

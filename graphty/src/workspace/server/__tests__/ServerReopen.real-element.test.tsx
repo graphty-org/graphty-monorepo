@@ -1,6 +1,6 @@
 /**
  * A network load reopened from the reader's own autosave just loads (issue #6210): Open network
- * data on the start page, NDEx's WikiPathways WP5483 example, Load, then a reload, which reopens
+ * data on the start page, NDEx's WikiPathways WP5483 by its UUID, Load, then a reload, which reopens
  * the work through graphty-element's autosave with every node drawn and no Approve row asking to
  * load it again. Real element, real IndexedDB, real input; NDEx answers from its recording.
  */
@@ -12,7 +12,6 @@ import { type GraphSession, listAutosaves, replayFetch } from "@graphty/graphty-
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { withFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { WORKSPACE_AUTOSAVE_KEY } from "../../autosave/autosave";
@@ -28,6 +27,9 @@ const DATABASE = "graphty-autosave";
 
 /** NDEx's origin, the only one answered from the recording. */
 const NDEX = "https://www.ndexbio.org";
+
+/** WikiPathways WP5483's UUID on NDEx, the network the recording holds. */
+const WP5483 = "86719f5b-1439-11f0-9806-005056ae3c32";
 
 /**
  * Deletes autosave's database and this tab's session storage.
@@ -67,21 +69,7 @@ function openedElement(): { element: ElementUnderTest; session: GraphSession } {
     return { element, session: element.session };
 }
 
-/**
- * Picks an option of a dropdown in the form by clicking it open and clicking the option.
- * @param form - the form.
- * @param label - the dropdown's label.
- * @param option - the option's text.
- */
-async function pick(form: HTMLElement, label: string, option: string): Promise<void> {
-    await userEvent.click(within(form).getByRole("combobox", { name: label }));
-    // The list opens in a portal, outside the form.
-    await userEvent.click(await screen.findByRole("option", { name: option }));
-}
-
 describe("a network load reopened from autosave", () => {
-    withFeatures(["network-data"]);
-
     beforeEach(async () => {
         await forgetAutosave();
         const replay = replayFetch(ndexRecordings);
@@ -101,11 +89,11 @@ describe("a network load reopened from autosave", () => {
     it("draws every node it loaded and asks for no approval", async () => {
         const first = mountWorkspace();
         await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
+        const card = await screen.findByRole("button", { name: /^NDEx/ });
+        await userEvent.click(card);
         const form = await screen.findByRole("form", { name: "Network data" });
-        await pick(form, "Kind", "NDEx");
-        await pick(form, "Example", "WikiPathways WP5483");
+        await userEvent.type(within(form).getByRole("textbox", { name: "Network UUID" }), WP5483);
         await userEvent.click(within(form).getByRole("button", { name: "Load" }));
-        // The form closes once its load is in.
         await waitFor(() => {
             assert.isNull(screen.queryByRole("form", { name: "Network data" }));
         });
@@ -113,6 +101,55 @@ describe("a network load reopened from autosave", () => {
         assert.strictEqual(session.data.statistics().nodeCount, 57);
 
         // Leave once autosave has written the work, as a reload ends the page.
+        await waitFor(() => {
+            assert.strictEqual(element.autosaver.status.state, "saved");
+        });
+        const { entry } = element.autosaver.status;
+        const named = first.store.get().project?.name;
+        first.view.unmount();
+        await waitFor(async () => {
+            const kept = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);
+            assert.isTrue(kept !== undefined && !kept.live, "the work is not kept yet");
+        });
+
+        const second = mountWorkspace();
+        await openBy(second.store, () => Promise.resolve());
+        const reopened = openedElement();
+        assert.strictEqual(reopened.session.data.statistics().nodeCount, 57);
+        assert.strictEqual(second.store.get().project?.name, named, "the header keeps its name");
+        assert.deepEqual(reopened.session.data.pendingSourceLoads(), []);
+        assert.isNull(screen.queryByRole("button", { name: "Approve" }));
+        assert.isNull(screen.queryByRole("list", { name: "Waiting loads" }));
+    });
+
+    it("keeps an edited load's new settings through a reload, with no Approve", async () => {
+        const first = mountWorkspace();
+        await userEvent.click(await screen.findByRole("button", { name: "Open network data" }));
+        await userEvent.click(await screen.findByRole("button", { name: /^NDEx/ }));
+        const form = await screen.findByRole("form", { name: "Network data" });
+        await userEvent.type(within(form).getByRole("textbox", { name: "Network UUID" }), WP5483);
+        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("form", { name: "Network data" }));
+        });
+        const { element, session } = openedElement();
+        const [{ key, name }] = session.data.sources();
+
+        const row = await screen.findByRole("listitem", { name: /NDEx/ });
+        await userEvent.click(row.querySelector(".dp-source-main") ?? row);
+        const panel = await screen.findByRole("complementary", { name: "Inspector" });
+        await userEvent.click(await within(panel).findByRole("button", { name: "Edit source" }));
+        const edit = await screen.findByRole("form", { name: "Network data" });
+        const limit = within(edit).getByLabelText("Limit");
+        await userEvent.clear(limit);
+        await userEvent.type(limit, "100");
+        await userEvent.click(within(edit).getByRole("button", { name: "Load" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("form", { name: "Network data" }));
+        });
+        assert.strictEqual(session.data.sourceSettings(key)?.limits?.maxNodes, 100);
+        assert.strictEqual(session.data.sources()[0].name, name, "a new limit reads the same network: same name");
+
         await waitFor(() => {
             assert.strictEqual(element.autosaver.status.state, "saved");
         });
@@ -126,9 +163,9 @@ describe("a network load reopened from autosave", () => {
         const second = mountWorkspace();
         await openBy(second.store, () => Promise.resolve());
         const reopened = openedElement();
-        assert.strictEqual(reopened.session.data.statistics().nodeCount, 57);
+        const [source] = reopened.session.data.sources();
+        assert.strictEqual(reopened.session.data.sourceSettings(source.key)?.limits?.maxNodes, 100);
         assert.deepEqual(reopened.session.data.pendingSourceLoads(), []);
         assert.isNull(screen.queryByRole("button", { name: "Approve" }));
-        assert.isNull(screen.queryByRole("list", { name: "Waiting loads" }));
     });
 });

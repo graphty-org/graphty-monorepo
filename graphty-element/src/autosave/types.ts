@@ -293,6 +293,12 @@ export interface AutosaveOptions {
     readonly unloadGuard: "pending" | "unexported" | "off";
     /** Where entries are kept; the browser's IndexedDB (database `graphty-autosave`) by default. */
     readonly store: AutosaveStore;
+    /**
+     * Put the camera back where this tab left it when this tab's work reopens after a reload or a
+     * discarded tab, instead of framing the graph; false. The camera is kept for the tab, not with
+     * the work, so work opened in another tab is framed as usual.
+     */
+    readonly keepCamera: boolean;
 }
 
 /** `element.autosaver`: the state of autosave, and what can be done with the saved entries. */

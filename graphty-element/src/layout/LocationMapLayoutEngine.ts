@@ -513,8 +513,7 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
      * @returns The choice; all null leaves the layout to find them.
      */
     #choice(): LocationChoice {
-        const known = this._nodes[0]?.parentGraph?.getStyles?.().config.data.knownFields;
-        return chosenLocation(this.config, known);
+        return chosenLocation(this.config, this.knownFields());
     }
 
     /**

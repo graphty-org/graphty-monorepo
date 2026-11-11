@@ -103,7 +103,7 @@ function fresh(): GraphSession {
     const strict = scope.__GRAPHTY_STRICT_STATE__;
     scope.__GRAPHTY_STRICT_STATE__ = false;
     try {
-        return createGraphSession({ features: ["network-data"] });
+        return createGraphSession();
     } finally {
         scope.__GRAPHTY_STRICT_STATE__ = strict;
     }

@@ -3,7 +3,13 @@
  * @module ai/input/VoiceInputAdapter
  */
 
+import { GraphtyLogger, type Logger } from "../../logging";
 import type { InputAdapter, InputCallback, InputOptions } from "./types";
+
+const logger: Logger = GraphtyLogger.getLogger(["graphty", "ai", "voice"]);
+
+/** How strongly a phrase is favored (Chrome's `SpeechRecognitionPhrase` boost, 0 to 10). */
+const PHRASE_BOOST = 3;
 
 // Web Speech API types (not available in all browsers)
 interface SpeechRecognitionEvent extends Event {
@@ -38,16 +44,27 @@ interface SpeechRecognition extends EventTarget {
     continuous: boolean;
     interimResults: boolean;
     lang: string;
+    /** Chrome: recognize on the device (`SpeechRecognition.available` says whether it can). */
+    processLocally?: boolean;
     onresult: ((event: SpeechRecognitionEvent) => void) | null;
     onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
     onend: (() => void) | null;
     onstart: (() => void) | null;
+    onaudiostart?: (() => void) | null;
+    onspeechstart?: (() => void) | null;
+    onspeechend?: (() => void) | null;
+    onaudioend?: (() => void) | null;
+    /** Chrome: contextual biasing, on-device only. */
+    phrases?: unknown[];
     start(): void;
     stop(): void;
     abort(): void;
 }
 
-type SpeechRecognitionConstructor = new () => SpeechRecognition;
+/** The recognizer's constructor, with Chrome's on-device availability check where it has one. */
+type SpeechRecognitionConstructor = (new () => SpeechRecognition) & {
+    available?: (options: { langs: string[]; processLocally: boolean }) => Promise<string>;
+};
 
 // Global type declaration for browser speech API
 declare global {
@@ -61,7 +78,7 @@ declare global {
  * Get the SpeechRecognition constructor if available.
  * @returns SpeechRecognition constructor or null if not supported
  */
-function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null {
+export function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null {
     if (typeof window === "undefined") {
         return null;
     }
@@ -90,7 +107,10 @@ export class VoiceInputAdapter implements InputAdapter {
     private callbacks: InputCallback[] = [];
     private startCallbacks: VoiceStartCallback[] = [];
     private activeCallbacks: VoiceActiveCallback[] = [];
+    private errorCallbacks: ((error: string) => void)[] = [];
+    private speechEndCallbacks: (() => void)[] = [];
     private failed = false;
+    private ending = false;
     private readonly SpeechRecognitionCtor: SpeechRecognitionConstructor | null = null;
 
     /**
@@ -136,11 +156,39 @@ export class VoiceInputAdapter implements InputAdapter {
         this.recognition.continuous = options?.continuous ?? false;
         this.recognition.interimResults = options?.interimResults ?? true;
         this.recognition.lang = options?.language ?? "en-US";
+        if (options?.processLocally === true) {
+            this.recognition.processLocally = true;
+            this.setPhrases(this.recognition, options.phrases);
+        }
+
+        logger.debug("Recognizer starting", {
+            language: this.recognition.lang,
+            continuous: this.recognition.continuous,
+            processLocally: options?.processLocally === true,
+            phrases: this.recognition.phrases?.length ?? 0,
+        });
 
         // Set up event handlers
         this.failed = false;
+        this.ending = false;
 
+        this.recognition.onaudiostart = () => {
+            logger.debug("Recognizer audiostart");
+        };
+        this.recognition.onspeechstart = () => {
+            logger.debug("Recognizer speechstart");
+        };
+        this.recognition.onaudioend = () => {
+            logger.debug("Recognizer audioend");
+        };
+        this.recognition.onspeechend = () => {
+            logger.debug("Recognizer speechend");
+            for (const callback of this.speechEndCallbacks) {
+                callback();
+            }
+        };
         this.recognition.onstart = () => {
+            logger.debug("Recognizer start");
             this._isActive = true;
             this.notifyActive(true);
             // Notify that recognition started successfully
@@ -152,7 +200,8 @@ export class VoiceInputAdapter implements InputAdapter {
         };
 
         this.recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-            console.error("Speech recognition error:", event.error, event.message);
+            logger.debug("Recognizer error", { error: event.error, message: event.message });
+            this.reportError(event.error, event.message);
             // Some errors (like "no-speech") don't stop recognition
             if (event.error === "aborted" || event.error === "not-allowed") {
                 this._isActive = false;
@@ -163,17 +212,24 @@ export class VoiceInputAdapter implements InputAdapter {
         };
 
         this.recognition.onend = () => {
+            logger.debug("Recognizer end", { stopped: this.ending, failed: this.failed });
             this._isActive = false;
             this.recognition = null;
-            this.notifyActive(false, this.failed ? "error" : "timeout");
+            let reason: VoiceEndReason = this.ending ? "user" : "timeout";
+            if (this.failed) {
+                reason = "error";
+            }
+
+            this.notifyActive(false, reason);
         };
 
         // Start recognition
         try {
             this.recognition.start();
         } catch (error) {
-            console.error("Failed to start speech recognition:", error);
+            logger.debug("Recognizer start threw", { error: error instanceof Error ? error.name : String(error) });
             this._isActive = false;
+            this.reportError("start-failed", error);
         }
     }
 
@@ -196,6 +252,41 @@ export class VoiceInputAdapter implements InputAdapter {
         }
 
         this._isActive = false;
+    }
+
+    /**
+     * Stop listening, but keep the results the recognizer still has to deliver: they arrive through
+     * {@link VoiceInputAdapter.onInput}, and the session ends through
+     * {@link VoiceInputAdapter.onActiveChange} with reason `"user"` once the recognizer has finished.
+     */
+    end(): void {
+        if (this.recognition) {
+            this.ending = true;
+            try {
+                this.recognition.stop();
+            } catch {
+                // Already stopped: its end still arrives.
+            }
+        }
+    }
+
+    /**
+     * Register a callback for every recognizer error, by the recognizer's own error name
+     * (`"network"`, `"not-allowed"`, `"service-not-allowed"`, ...), and `"start-failed"` when the
+     * recognizer threw on start. With one registered, errors are no longer logged to the console.
+     * @param callback - Called with the error's name
+     */
+    onError(callback: (error: string) => void): void {
+        this.errorCallbacks.push(callback);
+    }
+
+    /**
+     * Register a callback for the recognizer hearing speech stop (its `speechend`): the speaker
+     * paused or finished. The session goes on until stopped or ended.
+     * @param callback - Called each time speech stops
+     */
+    onSpeechEnd(callback: () => void): void {
+        this.speechEndCallbacks.push(callback);
     }
 
     /**
@@ -232,6 +323,50 @@ export class VoiceInputAdapter implements InputAdapter {
         this.callbacks = [];
         this.startCallbacks = [];
         this.activeCallbacks = [];
+        this.errorCallbacks = [];
+        this.speechEndCallbacks = [];
+    }
+
+    /**
+     * Favor the phrases, where the recognizer takes them (Chrome's on-device contextual biasing).
+     * @param recognition - The recognizer.
+     * @param phrases - The phrases.
+     */
+    private setPhrases(recognition: SpeechRecognition, phrases: readonly string[] | undefined): void {
+        // Chrome: a phrase recognition favors, with its boost.
+        const Phrase = (globalThis as { SpeechRecognitionPhrase?: new (phrase: string, boost: number) => unknown })
+            .SpeechRecognitionPhrase;
+        if (Phrase === undefined || phrases === undefined || phrases.length === 0 || !("phrases" in recognition)) {
+            return;
+        }
+
+        try {
+            recognition.phrases = phrases.map((phrase) => new Phrase(phrase, PHRASE_BOOST));
+        } catch (error) {
+            // A recognizer that refuses them still recognizes, unbiased.
+            logger.debug("Recognizer refused phrases", { error: error instanceof Error ? error.name : String(error) });
+        }
+    }
+
+    /**
+     * Hand an error to the error callbacks, or log it when there are none.
+     * @param error - The recognizer's error name, or `"start-failed"`
+     * @param detail - The recognizer's message, or what start threw
+     */
+    private reportError(error: string, detail: unknown): void {
+        if (this.errorCallbacks.length === 0) {
+            if (error === "start-failed") {
+                console.error("Failed to start speech recognition:", detail);
+            } else {
+                console.error("Speech recognition error:", error, detail);
+            }
+
+            return;
+        }
+
+        for (const callback of this.errorCallbacks) {
+            callback(error);
+        }
     }
 
     /**
@@ -268,6 +403,7 @@ export class VoiceInputAdapter implements InputAdapter {
             const result = event.results[i];
             const { transcript } = result[0];
             const { isFinal } = result;
+            logger.debug("Recognizer result", { transcript, isFinal });
 
             // Notify all callbacks
             for (const callback of this.callbacks) {

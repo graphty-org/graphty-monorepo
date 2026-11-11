@@ -148,7 +148,31 @@ nodes" is a filter, which the data cards already do: with a "has a value from ex
 condition, or "data source is ...". Exposing six join kinds would import a database idea into a
 graph tool for nobody.
 
-## What graphty-element has today
+## Status of each kind in the app
+
+As of 2026-11-09. Each sample is in the Samples dialog's Join group, reached by New project, then
+Samples... in the empty canvas for the first file and Sources `+`, then Samples... for each later
+file. The files are written by `graphty/scripts/make-prototype-data.mjs`.
+
+| #   | Kind                               | Status  | Sample cards                                                              | What the reader chooses on the join screen                                                                     |
+| --- | ---------------------------------- | ------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 1   | Values onto nodes by a key column  | Built   | Values onto nodes                                                         | The Match columns, Ignore case, Ignore spaces, what to do with repeated keys                                   |
+| 2   | Values onto edges                  | Built   | Values onto edges                                                         | Edge id, or the file's source and target columns against the graph's two ends                                  |
+| 3   | Edges between nodes already held   | Built   | Edges between nodes, Transfers                                            | Each end's column, and whether unknown ends become new nodes or are left out                                   |
+| 4   | The same thing becomes one node    | Built   | Two supplier lists (nodes), Two interaction lists (edge lists)            | Add as new nodes or Leave those rows out, and what to do when a value clashes                                  |
+| 5   | Different sources, different kinds | Built   | Door entries (one node file per kind), Sign-ins (kinds in one event file) | Each file's Kind of node; the Same node or Different nodes chip when an id is held by two kinds                |
+| 6   | Matching through a mapping table   | Built   | Mapping table                                                             | Join the mapping file first, then match on the column it wrote, or pick Id and name the table as Mapping table |
+| 7   | Rows of the same shape added       | Built   | A new month                                                               | Replace is pre-picked for a next-period file; choose Add as rows in the Join menu to keep both months          |
+| 8   | Set operations on two graphs       | Unbuilt | None                                                                      | Tracked by issue #6464. It needs named graphs held side by side, which do not exist.                           |
+
+Limits of the built kinds are in issue #6465: two files naming the same pair keep one edge per
+source with no choice to merge them, Add as rows on ids the graph already holds keeps the graph's
+values, a mapping table must be joined before it can be used, and a join that makes new nodes shows
+an extra id column.
+
+SQL's inner, right and anti joins remain deliberately absent (see above and "Not recommended").
+
+## What graphty-element had before joining was built
 
 - `session.data.import(source, { mode: "merge" })` adds a file to the graph and matches node ids
   exactly. `duplicateIds: "first" | "merge" | "refuse"` decides repeats, and the load report counts

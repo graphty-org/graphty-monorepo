@@ -33,6 +33,10 @@
 # which files an issue instead of failing anyone's pull request.
 #
 # Configuration: lychee.toml and .lycheeignore at the repository root.
+#
+# The AI provider pages the graphty app links to live in TypeScript, where lychee does not look:
+# tools/check-provider-links.mjs checks them. Every form runs its offline half (each link has a
+# recorded landing); --external also requests them and fails when one moved.
 set -u
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -107,7 +111,12 @@ CANARY_REMAP='^https://graphty\.app(.*)$ https://canary.graphty.app$1'
 if [ -n "$REPORT" ]; then
     echo "Checking every link in $(wc -l < "$INPUTS") files (graphty.app against canary)"
     "$LYCHEE" --format markdown --output "$REPORT" --remap "$CANARY_REMAP" --files-from "$INPUTS"
-    exit $?
+    STATUS=$?
+    echo "Checking the AI provider pages the graphty app links to"
+    node tools/check-provider-links.mjs > "$INPUTS.providers" || { STATUS=1; { echo; cat "$INPUTS.providers"; } >> "$REPORT"; }
+    cat "$INPUTS.providers"
+    rm -f "$INPUTS.providers"
+    exit $STATUS
 fi
 
 REPO_REMAP="^https://github\.com/graphty-org/graphty-monorepo/(?:blob|tree)/master/([^?#]*)(?:[?#].*)?$ file://$ROOT_DIR/\$1"
@@ -124,6 +133,9 @@ if [ -n "$SITE" ]; then
 else
     ARGS+=(--exclude '^https://graphty\.app')
 fi
+echo "Checking that every AI provider page the graphty app links to has a recorded landing"
+node tools/check-provider-links.mjs --offline || FAILED=1
+
 echo "Checking relative links, anchors and repository links in $(wc -l < "$INPUTS") files"
 "$LYCHEE" "${ARGS[@]}" --files-from "$INPUTS" || FAILED=1
 

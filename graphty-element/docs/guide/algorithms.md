@@ -140,8 +140,8 @@ layer you add.
 
 #### How big the groups are
 
-`summary().groups` lists the largest groups; a run with hundreds of communities needs their
-spread instead. `result.groupSizes()` bins the groups by size and counts GROUPS, so the counts add
+`summary().groups` lists the ten largest groups and `summary().groupCount` says how many there are
+in all; a run with hundreds of communities needs their spread instead. `result.groupSizes()` bins the groups by size and counts GROUPS, so the counts add
 up to the number of groups. It returns the same `Histogram` `result.histogram(field)` does, so one
 chart draws both: one bar per size when there are few distinct sizes (`binning: "per-value"`),
 bands otherwise (`"banded"`):

@@ -8,7 +8,7 @@ import { useCommand } from "../state/WorkspaceContext";
 
 /**
  * The commands the Sources "+" offers, in menu order (spec section 3.2): File..., Samples...,
- * Network data... (with the network-data experiment on) and Paste, registered by the loading and
+ * Network data... and Paste, registered by the loading and
  * server packages. Each is
  * drawn only once its package registers it. Paste means what it means everywhere (`readPasted`):
  * the clipboard, opened as a web address when it is one, else read as data.

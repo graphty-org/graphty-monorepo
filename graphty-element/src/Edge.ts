@@ -123,6 +123,13 @@ const ARROW_CAPTION_OFFSET = 0.3;
  */
 const DEFAULT_ARC_HEIGHT = { arc: 0.25, "great-circle": 0.1 } as const;
 
+/**
+ * Counts every time some edge's line starts or stops being pulled ({@link Edge.isPulled}), so a list of the placed
+ * edges is built again only when one did (`UpdateManager.placedEdges`).
+ * @internal
+ */
+export const pulledLines = { version: 0 };
+
 /** Style keys a pulled line can carry; any other set keeps the edge an object edge (`Edge.pullsLine`). */
 const PULLED_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
 
@@ -170,6 +177,43 @@ function setsOnly(block: object, keys: ReadonlySet<string>): boolean {
  */
 function noCap(cap: EdgeStyleConfig["arrowHead"]): boolean {
     return cap === undefined || ((cap.type ?? "none") === "none" && cap.text === undefined);
+}
+
+/**
+ * Counts every time a look is judged for whether it can be pulled ({@link pulledLook}), so a test can count it.
+ * @internal
+ */
+export const pulledLooks = { judged: 0 };
+
+/**
+ * What {@link pulledLook} answered for each style. A paint's style is shared by every edge drawn in that look
+ * (`StylePainter.edgePaint`) and never changed once handed out, so it is judged once, not once per edge.
+ */
+const pulledLookOf = new WeakMap<EdgeStyleConfig, boolean>();
+
+/**
+ * The part of `Edge.pullsLine` that reads the style alone: it sets only keys a pulled line draws, a solid line,
+ * no words, no cap and no band.
+ * @param style - The resolved style.
+ * @returns True when the look can be pulled.
+ */
+function pulledLook(style: EdgeStyleConfig): boolean {
+    let pulls = pulledLookOf.get(style);
+    if (pulls === undefined) {
+        pulledLooks.judged++;
+        const line = style.line ?? {};
+        pulls =
+            setsOnly(style, PULLED_STYLE_KEYS) &&
+            setsOnly(line, PULLED_LINE_KEYS) &&
+            (line.type ?? "solid") === "solid" &&
+            drawnText(style.label) === undefined &&
+            noCap(style.arrowHead) &&
+            noCap(style.arrowTail) &&
+            style.band?.color === undefined;
+        pulledLookOf.set(style, pulls);
+    }
+
+    return pulls;
 }
 
 /** Which of an edge's caps an entry of {@link Edge.drawnCaps} is: an end's, or one drawn part-way along the line. */
@@ -1978,8 +2022,9 @@ export class Edge {
             !asSurface;
         // A line moves between a pulled piece and a placed slot when the render path changes.
         // a pulled line that becomes a curve, or stops being one, moves between batches (`EdgeMesh.pullsCurve`)
+        const pulls = this.wantsPull(style);
         const samePull =
-            this.wantsPull(style) === (this.pulled !== null) &&
+            pulls === (this.pulled !== null) &&
             (this.pulled === null || (this.pulled.run !== null) === this.pullsCurve(style));
         const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh && samePull;
         // A surface or a taper keys no source mesh either (`content` channels), but it is drawn
@@ -2024,7 +2069,7 @@ export class Edge {
 
         // recreate edge line mesh; the next update places it, because the endpoint cache was
         // invalidated above
-        this.mesh = this.createLine(meshKey, style);
+        this.mesh = this.createLine(meshKey, style, pulls);
 
         // Nothing is parented to graph-root here. Every line, pattern element and cap is a slot in
         // a batch, and a batch parents its one mesh when it is built, which puts every edge in it
@@ -2599,9 +2644,14 @@ export class Edge {
      * {@link Edge.mesh} points at either way: the batch's mesh, or the pattern's own wrapper.
      * @param meshKey - Which appearance this edge is drawn with.
      * @param style - The resolved style to draw from.
+     * @param pulls - Whether the line is pulled ({@link Edge.wantsPull}), when the caller has asked already.
      * @returns What the line is drawn by.
      */
-    private createLine(meshKey: string, style: EdgeStyleConfig): AbstractMesh | PatternedLineMesh {
+    private createLine(
+        meshKey: string,
+        style: EdgeStyleConfig,
+        pulls = this.wantsPull(style),
+    ): AbstractMesh | PatternedLineMesh {
         const options = {
             styleId: meshKey,
             width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
@@ -2616,7 +2666,7 @@ export class Edge {
             options.width > 0 ? style : { ...style, line: { ...style.line, type: "solid" as const, bezier: false } };
 
         this.lineWanted = flavorOf(style);
-        const pulled = this.wantsPull(style) ? this.pullLine(options, style) : null;
+        const pulled = pulls ? this.pullLine(options, style) : null;
         if (pulled) {
             this.lineBatch = null;
             this.lineSlots = [];
@@ -2694,22 +2744,16 @@ export class Edge {
         const line = style.line ?? {};
         return (
             (pulledEdgesDefault.value || (this.context.getNodeBatches?.() ?? null) !== null) &&
+            pulledLook(style) &&
             // a group, or a 2D node below z-index 0, ends the line at its outline (`Edge.groupEnd`), not its centre
             !this.endBehindEdges("source") &&
             !this.endBehindEdges("target") &&
             // in 2D only a straight line, with its width in world units (`EdgeMesh.pulledBatch`)
             !(EdgeMesh.drawsFlat(this.context.getScene()) && this.pullsCurve(style)) &&
-            setsOnly(style, PULLED_STYLE_KEYS) &&
-            setsOnly(line, PULLED_LINE_KEYS) &&
             (this.pullsCurve(style) || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&
-            (line.type ?? "solid") === "solid" &&
             (!line.animationSpeed || this.pullsAnimated(style)) &&
             // a line through bends is pulled straight, not rounded or round a self-loop's ring
             (parseBends(line.bends) === null || (line.bezier !== true && !this.isLoop)) &&
-            drawnText(style.label) === undefined &&
-            noCap(style.arrowHead) &&
-            noCap(style.arrowTail) &&
-            style.band?.color === undefined &&
             !batchUploadFrames.edgeAges(this.context.getScene()).on
         );
     }
@@ -2800,6 +2844,7 @@ export class Edge {
             batch.setCurve(piece, 0, null);
         }
 
+        pulledLines.version++;
         this.pulled = {
             batch,
             piece,
@@ -2812,6 +2857,8 @@ export class Edge {
             look,
         };
         this.pullRows();
+        // the walk leaves a straight pulled line alone ({@link Edge.followsRows}), so what it last placed is stale
+        this.invalidatePositionCache();
         return batch.mesh;
     }
 
@@ -2978,6 +3025,26 @@ export class Edge {
     }
 
     /**
+     * Whether this edge's line is a straight pulled one, which the shader draws from its nodes' rows wherever they
+     * are, so the frame's walk has nothing to place for it: only a renumbering freeze changes it
+     * ({@link Edge.followRenumberedRows}). A pulled curve writes its span at each placement, and a line the
+     * layout's map would arc is moved to the curve batch by its next placement, so neither follows rows alone.
+     * @returns True when the walk may leave this edge alone.
+     * @internal
+     */
+    get followsRows(): boolean {
+        return this.pulled !== null && this.pulled.run === null && this.route === "straight";
+    }
+
+    /**
+     * Write this edge's pulled rows again after a freeze renumbered them.
+     * @internal
+     */
+    followRenumberedRows(): void {
+        this.pullRows();
+    }
+
+    /**
      * The batch a line with a surface or a taper is drawn from, or null for the plain line's.
      *
      * A SURFACE replaces the line's pattern (`edge.style`), so its line is a solid joined line
@@ -3049,6 +3116,7 @@ export class Edge {
             this.pulled.batch.releaseRoute(this.pulled.route?.at ?? -1);
 
             this.pulled = null;
+            pulledLines.version++;
             return;
         }
 

@@ -7,6 +7,7 @@ import { BoundingBox, Color3, Matrix, type Mesh, Quaternion, type Scene, Vector3
 import { DirtyRuns, sendThinInstanceMatrices } from "./DirtyRuns";
 import { batchUploadFrames, type RangedUploads } from "./FrameRoster";
 import { ParkedSlots } from "./ParkedSlots";
+import { takePoolReserve } from "./poolReserve";
 
 /** Floats in one 4x4 world matrix, which is what every slot holds. */
 const FLOATS_PER_MATRIX = 16;
@@ -859,9 +860,14 @@ export class ArrowCapBatch {
         this.written("matrix", index);
     }
 
-    /** Double every buffer, keeping every slot where it is. */
+    /**
+     * Double every buffer, or make room for every cap a load's paint run still expects (`poolReserve.ts`) when that
+     * is more, keeping every slot where it is.
+     */
     private grow(): void {
-        const grown = new Float32Array(this.matrices.length * 2);
+        const slots = this.matrices.length / FLOATS_PER_MATRIX;
+        const capacity = Math.max(slots * 2, this.highWater + takePoolReserve(this.mesh.getScene(), "caps"));
+        const grown = new Float32Array(capacity * FLOATS_PER_MATRIX);
         grown.set(this.matrices);
         this.matrices = grown;
         this.mesh.thinInstanceSetBuffer("matrix", this.matrices, FLOATS_PER_MATRIX, false);
@@ -872,10 +878,7 @@ export class ArrowCapBatch {
 
         for (const [kind, stride] of Object.entries(BILLBOARD_BUFFERS)) {
             const name = kind as BillboardBuffer;
-            const widened =
-                name === "arrowColor"
-                    ? opaqueRows((this.billboard[name].length / stride) * 2, this.billboard[name].length / stride)
-                    : new Float32Array(this.billboard[name].length * 2);
+            const widened = name === "arrowColor" ? opaqueRows(capacity, slots) : new Float32Array(capacity * stride);
             widened.set(this.billboard[name]);
             this.billboard[name] = widened;
             this.mesh.thinInstanceSetBuffer(kind, widened, stride, false);

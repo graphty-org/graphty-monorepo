@@ -314,6 +314,15 @@ export function workGone(start, end) {
     return gone;
 }
 
+// Why a session's two work lists cannot be read as "nothing gone", or null. A start with no setup can
+// hold no graph (null), but a setup opened one, so a list with nothing in it read nothing.
+export function workUnread(start, end, hadSetup) {
+    const failed = start?.error ?? end?.error;
+    if (failed) return failed;
+    const items = Object.values(start ?? {}).flat().length;
+    return hadSetup && !items ? "the setup opened a graph and the start's list holds nothing" : null;
+}
+
 // Bar 9: the app's own words on screen -- visible light-DOM text outside graphty-element, one entry
 // per word -- with the data's words and numbers left out: ids and values, and the names the session
 // holds for the data (each source's name, its file name without the extension, its tables, the

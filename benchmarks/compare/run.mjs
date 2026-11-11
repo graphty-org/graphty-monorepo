@@ -197,7 +197,19 @@ try {
             ],
         ),
     );
-    const load = await page.evaluate(() => B.load());
+    // BENCH_PROFILE_TIMED names a file prefix: the load and the layout frame stages are then CPU-profiled
+    // while they are timed, into <prefix>-load.cpuprofile and <prefix>-layout.cpuprofile, to read their
+    // garbage collector and per-function time. The profiler slows them, so write those rows to their own file.
+    const profiled = async (stage, run) => {
+        if (!process.env.BENCH_PROFILE_TIMED) return page.evaluate(run);
+        await cdp.send("Profiler.enable");
+        await cdp.send("Profiler.start");
+        const out = await page.evaluate(run);
+        const { profile: p } = await cdp.send("Profiler.stop");
+        writeFileSync(`${process.env.BENCH_PROFILE_TIMED}-${stage}.cpuprofile`, JSON.stringify(p));
+        return out;
+    };
+    const load = await profiled("load", () => B.load());
     log("load", load);
     if (load.error) throw new Error("load failed: " + load.error);
     log("canvas", await page.evaluate(() => B.canvasSize()));
@@ -270,7 +282,7 @@ try {
     await hoverStage(page, "hover");
     if (lib === "graphty") log("lasso", await page.evaluate(() => B.lasso(20)));
     if (!skip) {
-        log("layoutFps", await page.evaluate(() => B.layoutFps(200, 30000)));
+        log("layoutFps", await profiled("layout", () => B.layoutFps(200, 30000)));
         // The layout is still running: a hover reads the node under the pointer back from the GPU,
         // which waits behind every frame queued ahead of it.
         await hoverStage(page, "hoverLayout");

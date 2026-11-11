@@ -414,7 +414,7 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         await waitFor(() => {
             assert.notEqual(session.styles.get(groups[0].id)?.set?.["node.color"], "#0000FF");
         });
-        // The step goes by what it did: Control+Z says "Undid changing node color on 6 layers."
+        // The step goes by what it did: Control+Z says "Undid changing node color on 6 layers"
         await userEvent.click(within(await line("node.color")).getByRole("textbox", { name: /^Node color/ }));
         await userEvent.keyboard("teal{Enter}");
         await waitFor(() => {
@@ -422,7 +422,7 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         });
         await userEvent.keyboard("{Escape}{Control>}z{/Control}");
         await waitFor(() => {
-            assert.equal(store.get().notice?.message, `Undid changing node color on ${String(groups.length)} layers.`);
+            assert.equal(store.get().notice?.message, `Undid changing node color on ${String(groups.length)} layers`);
         });
     });
 

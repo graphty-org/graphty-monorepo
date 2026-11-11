@@ -480,8 +480,6 @@ describe("the Data place's sidebar on the real element", () => {
     });
 
     it("draws the Sources + items with a glyph and their keys, and says it opens a menu", async () => {
-        await siteFeatures(["network-data"]);
-        onTestFinished(() => siteFeatures([]));
         await openDataPlace();
         const add = await place().findByRole("button", { name: "Add source" });
         assert.equal(add.getAttribute("aria-haspopup"), "menu");

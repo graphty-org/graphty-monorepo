@@ -454,8 +454,9 @@ describe("the inspector", () => {
         act(() => {
             store.set({ inspected: { kind: "measure-row", id: run.id } });
         });
-        const bar = await screen.findByRole("status");
-        assert.equal(bar.textContent, "The run failed: it did not settle on an answer");
+        // A failed run has no layer, so it opens on Values, whose table has a live region of its own.
+        const bar = await screen.findByText("The run failed: it did not settle on an answer");
+        assert.equal(bar.getAttribute("role"), "status");
         assert.notInclude(bar.textContent, "E_");
     });
 

@@ -13,16 +13,12 @@ import { ActionManager, ExecuteCodeAction } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
-import { setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
 import type { RenderPath } from "../../src/meshes/NodeBatch";
 import { dragHandlersBuilt } from "../../src/NodeBehavior";
 import type { SourceExpanded } from "../../src/session/sources/types";
 import { loadRecordedSeed, PEOPLE_SEED } from "../../stories/fixtures/expand/source";
 import { click, hover, type Point } from "../helpers/real-input";
-
-// The expand test loads a network source, which sits behind the network-data experiment.
-setDefaultFeatures(["network-data"]);
 
 const WIDTH = 400;
 const HEIGHT = 300;

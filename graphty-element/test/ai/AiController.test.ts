@@ -7,6 +7,7 @@ import { CommandRegistry } from "../../src/ai/commands";
 import type { CommandContext, CommandResult } from "../../src/ai/commands/types";
 import { MockLlmProvider } from "../../src/ai/providers/MockLlmProvider";
 import type { LlmProvider, LlmResponse, Message } from "../../src/ai/providers/types";
+import { assistantSession, callsTurn, ScriptedAssistant, textTurn } from "../helpers/assistant";
 import { createMessageGraph } from "../helpers/message-graph";
 
 describe("AiController", () => {
@@ -554,6 +555,97 @@ describe("AiController", () => {
             assert.strictEqual(result.success, true);
             // Should include both the LLM text and action result
             assert.ok(result.message.includes("Action done") || result.message.includes("help you"));
+        });
+    });
+
+    describe("cancel", () => {
+        it("cancels every message, the one running and the one waiting behind it", async () => {
+            let asks = 0;
+            let firstAsked: () => void = () => undefined;
+            const asked = new Promise<void>((resolve) => {
+                firstAsked = resolve;
+            });
+            // A model that thinks until its request is aborted.
+            const thinking: LlmProvider = {
+                name: "thinking",
+                supportsStreaming: false,
+                supportsTools: true,
+                configure: () => undefined,
+                generate: (_messages, _tools, options) =>
+                    new Promise<LlmResponse>((_, reject) => {
+                        options?.signal?.addEventListener("abort", () => {
+                            reject(new Error("aborted"));
+                        });
+                        if (++asks === 1) {
+                            firstAsked();
+                        }
+                    }),
+                generateStream: () => Promise.reject(new Error("not used")),
+                validateApiKey: () => Promise.resolve(true),
+            };
+            const cancelledInputs: string[] = [];
+            const two = new AiController({
+                provider: thinking,
+                commandRegistry: registry,
+                graph: mockGraph,
+                emitEvent: (event) => {
+                    if (event.type === "ai-command-cancelled") {
+                        cancelledInputs.push(event.input);
+                    }
+                },
+            });
+
+            const first = two.execute("first");
+            const second = two.execute("second");
+            await asked;
+            two.cancel();
+
+            const results = await Promise.all([first, second]);
+            assert.deepEqual(
+                results.map((r) => r.code),
+                ["AI_CANCELLED", "AI_CANCELLED"],
+            );
+            assert.deepEqual(cancelledInputs, ["first", "second"]);
+            // Messages run one at a time: the second never reached the model.
+            assert.strictEqual(asks, 1);
+        });
+
+        it("runs a second message after the first, never inside its transaction", async () => {
+            const session = await assistantSession();
+            const assistant = new ScriptedAssistant(session);
+            assistant.engine.push(
+                callsTurn([{ tool: "edit_data", args: { action: "add_nodes", records: [{ id: "m1" }] } }], 0),
+                textTurn("one"),
+                callsTurn([{ tool: "edit_data", args: { action: "add_nodes", records: [{ id: "m2" }] } }], 1),
+                textTurn("two"),
+            );
+            const [one, two] = await Promise.all([
+                assistant.controller.execute("add m1"),
+                assistant.controller.execute("add m2"),
+            ]);
+            assert.deepEqual([one.code, two.code], ["AI_COMPLETED", "AI_COMPLETED"]);
+            assert.isDefined(session.data.node("m1"));
+            assert.isDefined(session.data.node("m2"));
+        });
+
+        it("reports a provider's failure after a committed batch as the provider's, not as an undo", async () => {
+            const session = await assistantSession();
+            const assistant = new ScriptedAssistant(session);
+            assistant.engine.push(
+                callsTurn([{ tool: "edit_data", args: { action: "add_nodes", records: [{ id: "m1" }] } }], 0),
+                [
+                    {
+                        type: "error",
+                        code: "AI_PROVIDER_ERROR",
+                        params: { provider: "google", status: 429 },
+                        cause: new Error("429"),
+                    },
+                ],
+            );
+            const result = await assistant.controller.execute("add m1");
+            assert.strictEqual(result.code, "AI_PROVIDER_ERROR");
+            assert.deepEqual(result.params, { provider: "google", status: 429 });
+            assert.isUndefined(session.data.node("m1"), "the message's write is taken back");
         });
     });
 

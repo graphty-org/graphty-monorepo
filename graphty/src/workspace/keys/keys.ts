@@ -190,7 +190,8 @@ export function matchesKey(event: KeyPress, combo: string): boolean {
     const mac = isMac();
     const mod = mac ? event.metaKey : event.ctrlKey;
     const otherMod = mac ? event.ctrlKey : event.metaKey;
-    const key = event.key.toLowerCase();
+    // The space bar reports a space, and a key string names it Space.
+    const key = event.key === " " ? "space" : event.key.toLowerCase();
     const letterOrNamed = /^[a-z0-9]$/.test(want.key) || want.key.length > 1;
     if (key !== want.key || mod !== want.mod || otherMod || event.altKey !== want.alt) {
         return false;

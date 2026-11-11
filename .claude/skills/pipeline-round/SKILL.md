@@ -92,8 +92,9 @@ A red master build comes first: it also blocks canary and the build cache every 
   reopen it as graphty-agent (`gh pr close <n> && gh pr reopen <n>`). When master is green again without it, close
   it with a one-line reason. After three failed fix attempts on one problem, keep master green by reverting the
   culprit and start the next attempt from a different approach, with the earlier attempts' evidence in its prompt.
-- **While master's build is red:** no other pull request is opened (steps 8 and 9 wait), and issue-round starts
-  nothing.
+- **While master's build is red:** no other pull request is opened (steps 8 and 9 wait); the same holds while the
+  newest full run is red. Issue jobs keep working and queue `ready` branches, and master's fix takes a test slot
+  first (see "While master is red" in the shared file).
 - **A critical issue no later step owns** is still this skill's alarm (issue-round skips every `priority:critical`
   issue): mark it and start a fix subagent the same way.
 
@@ -122,6 +123,11 @@ first-parent merges since the last green full run.
   `Refs #<red issue>` and a Proof naming the red run (a mechanical revert auto-merges on the light check; its merge
   starts the restart). Comment on the culprit's issue, and start the fix forward on an ordinary branch with a fix
   subagent. Fix forward instead of reverting when the revert conflicts or the fix is smaller.
+- **A full run red twice running** (the two newest completed full runs failed): swarm it. Start one fix subagent
+  per failing test group or job, not one fix job for the whole run, each on its own issue (the `Full run red` issue
+  for the first, one filed per further group), each with step 1's fix prompt plus: reproduce it under `taskset -c 0`,
+  name the mechanism, fix it there, never a longer wait or a raised timeout. Skip a group another session already
+  owns (a live `taken` marker, or an open pull request naming its issue or test).
 - **No culprit** (the bisect names none, a red the last green commit also fails, outcome `infra`, a lost T4 spot
   runner, an advisory with no patched version): one issue, and one `ACTION NEEDED` line only if only the owner can
   act. A red with no culprit that stalls nightly is still this round's to fix forward.
@@ -238,8 +244,11 @@ wait for the owner. A red one is classified like an agent pull request.
 ### 9. Finished branches with no pull request
 
 A branch on GitHub with commits master lacks, whose issue's newest marker is `ready <branch> <sha>` at its tip, and
-no open pull request (a subagent whose `pr-open.sh` failed): open it, oldest first, at most 10 open at once, so
-master is not buried in conflicts. Run, from the branch's worktree (or a new worktree of the branch),
+no open pull request (a subagent whose `pr-open.sh` failed, or a job that stopped at its `ready` marker while master
+was red): open it, oldest first, at most 10 open at once, so master is not buried in conflicts. Only while master is
+green (see "While master is red" in the shared file), and a few per round, as many as CI's runners allow (the
+`pipeline-health` MCP tool `runners`: `ci.saturated` ok and `ci.runner_wait` not red); `pr-open.sh` merges master
+first. Run, from the branch's worktree (or a new worktree of the branch),
 `tools/pr-open.sh --proof tmp/pipeline-round/<branch>-proof.md` with a Proof that cites the `ready` marker and the
 tests the branch ran. Exit 2 (a conflict with master) goes to a fix subagent.
 
@@ -250,11 +259,17 @@ git for-each-ref --no-merged=origin/master --sort=committerdate --format='%(refn
 
 ### 10. Stale issues and stranded branches
 
+Every round, over `marked` in the state file and the branch list above (no extra GitHub calls):
+
 - An `in-progress` issue that is stale (see "Stale" in the shared file) with no commits on its branch: write
-  `released -- <reason>` and remove the label, so issue-round can pick it again.
-- A stranded branch (at most one per round, only when nothing above acted): a branch from the list above with no
-  `ready` marker, no pull request, no commit for a day, whose owner (its progress note, else its `taken` marker) is
-  provably gone and whose worktree is clean with no process inside. Its issue still open and the work still wanted:
+  `released -- <reason>` and remove the label in the same step, so issue-round can pick it again.
+- An idle claim (see "Idle claims" in the shared file): ask its session once, and in a later round with no answer
+  and still no activity, release it or treat its branch as stranded.
+- An issue whose label no longer matches its last marker (see "Label matches the last marker"): remove the label.
+- A stranded branch (see "Stranded" in the shared file; at most one per round, only when nothing above acted): a
+  branch from the list above with no `ready` marker, no pull request, no commit for a day, whose owner is provably
+  gone or idle and unanswered, or whose issue was handed back (`released`) with the branch still unopened, and whose
+  worktree has no process inside. Its issue still open and the work still wanted:
   mark the issue and hand the branch to a fix subagent to merge `origin/master`, finish, and open its pull request.
   Not wanted: a `stranded branch` marker with the reason; never delete the branch. A branch with no issue gets one
   first (`node tools/branch-note.mjs new-issue --title "<what it does>" --branch <b>`).

@@ -1,6 +1,6 @@
 import "./start.css";
 
-import { UnstyledButton } from "@mantine/core";
+import { Loader, UnstyledButton } from "@mantine/core";
 import React, { useSyncExternalStore } from "react";
 
 import { onSiteConfig } from "../../siteConfig";
@@ -34,6 +34,8 @@ export interface SampleCardProps {
     readonly onClick: () => void;
     /** A control in the card's corner, such as the Samples dialog's Open as a separate graph. */
     readonly corner?: React.ReactNode;
+    /** What it opens is being read. */
+    readonly busy?: boolean;
 }
 
 /**
@@ -45,12 +47,19 @@ export interface SampleCardProps {
  * @param props.label - Its name for a screen reader
  * @param props.onClick - What a click does
  * @param props.corner - A control in its corner, or none
+ * @param props.busy - What it opens is being read
  * @returns The card
  */
-export function SampleCard({ card, label, onClick, corner }: SampleCardProps): React.JSX.Element {
+export function SampleCard({ card, label, onClick, corner, busy = false }: SampleCardProps): React.JSX.Element {
     const generated = card.field === GENERATED;
     const button = (
-        <UnstyledButton className="ws-land-sample" aria-label={label} title={card.sentence} onClick={onClick}>
+        <UnstyledButton
+            className="ws-land-sample"
+            aria-label={label}
+            aria-busy={busy || undefined}
+            title={card.sentence}
+            onClick={onClick}
+        >
             <CardPicture address={card.picture} />
             <span className="ws-land-sample-tag">
                 {generated ? <GLYPHS.generated size={11} aria-hidden /> : null}
@@ -59,6 +68,7 @@ export function SampleCard({ card, label, onClick, corner }: SampleCardProps): R
             <span className="ws-land-sample-t">{card.hook}</span>
             <span className="ws-land-sample-m">{generated ? card.sentence : `${card.name} -- ${card.size}`}</span>
             {card.note === undefined ? null : <span className="ws-land-sample-note">{card.note}</span>}
+            {busy ? <Loader size={12} aria-hidden /> : null}
         </UnstyledButton>
     );
     return corner === undefined ? (

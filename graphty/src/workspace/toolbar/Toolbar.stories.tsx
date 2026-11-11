@@ -62,8 +62,8 @@ async function press(canvasElement: HTMLElement, name: string | RegExp): Promise
     await userEvent.click(await within(toolbar).findByRole("button", { name }));
 }
 
-/** The View button, named with the dimension its words show ("View, 2D"). */
-const VIEW = /^View\b/;
+/** The Mode button, named with the mode its icon shows ("Mode, 2D"). */
+const MODE = /^Mode\b/;
 
 /** The body, where popovers render. */
 const body = (): ReturnType<typeof within> => within(document.body);
@@ -77,7 +77,7 @@ const meta: Meta<typeof Workspace> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Nothing drawn: Analyze, Layout, View and Legend grayed; Quick actions live (`#/toolbar/nothing-drawn`). */
+/** Nothing drawn: Analyze, Layout, Camera, Mode and Legend grayed; Quick actions live (`#/toolbar/nothing-drawn`). */
 export const NothingDrawn: Story = { args: { initialState: OPEN } };
 
 /** A graph drawn, nothing open; the legend switch on but no key to draw, so Legend reads not pressed (`#/toolbar/at-rest`). */
@@ -165,23 +165,32 @@ export const LayoutOpen: Story = {
     },
 };
 
-/** The View flyout in 2D: Fit, Frame selection, zoom, Switch (`#/view-flyout/2d`). */
-export const ViewFlyout2D: Story = {
+/** The Camera menu in 2D: Fit, Frame selection, the standard views and Auto-rotate disabled, zoom. */
+export const CameraMenu2D: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
-        await press(canvasElement, VIEW);
+        await press(canvasElement, "Camera");
     },
 };
 
-/** The View flyout in 3D: Fit, Frame selection, the standard views, Switch (`#/view-flyout/3d`). */
-export const ViewFlyout3D: Story = {
+/** The Camera menu in 3D: Fit, Frame selection, the standard views with their keys, Auto-rotate. */
+export const CameraMenu3D: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
         await element.session.layout.setDimension("3d");
         await element.waitForStableFrame();
-        await press(canvasElement, VIEW);
+        await press(canvasElement, "Camera");
+    },
+};
+
+/** The Mode menu in 2D: the square face, 2D checked, 3D with key 5, VR and AR with their reason. */
+export const ModeMenu: Story = {
+    args: { initialState: OPEN },
+    play: async ({ canvasElement }) => {
+        await loadRings(canvasElement);
+        await press(canvasElement, MODE);
     },
 };
 

@@ -256,6 +256,8 @@ export interface ImportSource {
     readonly name?: string;
     /** The file's size in bytes, when a file was read. */
     readonly size?: number;
+    /** The name of the file it was read from. */
+    readonly fileName?: string;
 }
 
 /** `data.import`. */
@@ -352,6 +354,8 @@ export interface HeldRows {
     readonly weight?: string | null;
     /** What a row naming a pair the graph already holds does; `data.knownFields.repeatedEdges` when absent. */
     readonly repeated?: DuplicatePolicy;
+    /** `"held"`: `repeated` covers only pairs held before this load; its own repeats follow the configuration. */
+    readonly repeatedScope?: "held";
 }
 
 /** The load choices a `data.import` command carries. */
@@ -609,10 +613,12 @@ export function describeSource(source: ImportSource): ImportSource {
                   Object.fromEntries(Object.entries(source.config).filter(([key]) => key !== "data" && key !== "file")),
               );
 
+    const fileName = (source.config?.file as { readonly name?: unknown } | undefined)?.name;
     return Object.freeze({
         ...(source.type === undefined ? {} : { type: source.type }),
         ...(source.name === undefined ? {} : { name: source.name }),
         ...(source.size === undefined ? {} : { size: source.size }),
+        ...(typeof fileName === "string" ? { fileName } : {}),
         ...(config === undefined ? {} : { config }),
     });
 }

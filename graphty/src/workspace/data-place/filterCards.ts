@@ -74,7 +74,7 @@ export const PLUS = "+";
 
 /**
  * Goes to the Filters section and opens a new card on a field (`<node|edge>:<path>`, "Filter
- * to..."), or its "+" list (`PLUS`, the toolbar's Filters).
+ * to..."), or its "+" list (`PLUS`, the Filters command).
  * @param store - the chrome store.
  * @param target - `<node|edge>:<path>`, or `PLUS`.
  */

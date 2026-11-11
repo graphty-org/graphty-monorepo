@@ -19,7 +19,12 @@
  *      spec files, tsbuildinfo);
  *   5. the same name in both dependencies and peerDependencies, except `@graphty/graph-format`,
  *      where it is deliberate (design/graph-format/graph-format-design.md, the packaging rule:
- *      the dependency makes an install work, the wider peer lets an application share one copy).
+ *      the dependency makes an install work, the wider peer lets an application share one copy);
+ *   6. in graphty-element, a shipped .js or .d.ts that imports an AI framework or provider package
+ *      (tools/ai-framework-packages.mjs), except what FRAMEWORK_IMPORTS_ALLOWED lists with its
+ *      reason, and a shipped .d.ts that names its adapter folder (engine/tanstack):
+ *      graphty-element keeps every framework behind its engine seam and builds the frameworks it
+ *      uses into its own chunks (design/ai/tanstack-ai-harness-design.md, section 7, rule 1).
  *
  * Why this exists: @graphty/algorithms shipped `pupt` as a runtime dependency for several
  * releases (GitHub issue #1), graphty-element's WebGPU peer range fell four breaking releases
@@ -27,6 +32,8 @@
  *
  * Needs a build first: it packs whatever is in each package's dist/.
  * Usage: node tools/check-published-deps.mjs [package-dir ...]
+ *        node tools/check-published-deps.mjs --self-test   plants one violation of each kind and
+ *                                                           fails unless each is reported
  */
 
 import { execFileSync } from "node:child_process";
@@ -38,6 +45,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import semver from "semver";
 
+import { frameworkFamily, packageName } from "./ai-framework-packages.mjs";
 import { workspaceDirs } from "./workspace-files.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -54,6 +62,56 @@ const FORBIDDEN_FILES = [
     /\.test-d\.ts$/,
     /\.tsbuildinfo$/,
 ];
+
+/**
+ * The packages whose shipped files are scanned for AI framework imports, each with the imports it
+ * may still ship, by family and file, and the reason. Only graphty-element keeps frameworks behind
+ * an engine seam; compact-mantine's TanStack Table is not an AI framework. TanStack AI and the
+ * provider SDKs are built into graphty-element's own chunks, so no shipped file imports them.
+ */
+const FRAMEWORK_IMPORTS_ALLOWED = {
+    "@graphty/graphty-element": [
+        {
+            family: "webllm",
+            files: /\.js$/,
+            reason: "WebLlmProvider loads the optional @mlc-ai/web-llm peer on first use: the in-browser engine",
+        },
+    ],
+};
+
+/**
+ * Declared peer dependencies a package may keep although no shipped file imports them: removing a
+ * peer is a breaking change, so it waits for the next major (tools/check-peer-deps-stable.mjs).
+ */
+const UNUSED_PEERS_ALLOWED = {
+    // The AI SDK 5, which graphty-element no longer imports (its TanStack AI engine replaced it);
+    // the peers stay declared, optional, until the next major.
+    "@graphty/graphty-element": new Set(["ai", "@ai-sdk/anthropic", "@ai-sdk/google", "@ai-sdk/openai"]),
+};
+
+/**
+ * Specifiers a shipped file holds as text that looks like an import but is not one, by file, with
+ * the reason. Each file pattern is as narrow as the code that writes the text.
+ */
+const TEXT_NOT_IMPORTS = {
+    "@graphty/graphty-element": [
+        {
+            files: /^dist\/chunks\/program-[\w-]+\.js$/,
+            names: ["baz", "flow-enums-runtime", "react-hot-loader"],
+            reason:
+                "sucrase, Code Mode's TypeScript stripper in the in-page code chunk, writes these into the code " +
+                "it generates and names them in its comments; nothing loads them",
+        },
+    ],
+    // The app reads graphty-element from source, so its build carries the same in-page code chunk.
+    "@graphty/graphty": [
+        {
+            files: /^dist\/assets\/program-[\w-]+\.js$/,
+            names: ["baz", "flow-enums-runtime", "react-hot-loader"],
+            reason: "graphty-element's in-page code chunk, built into the app: see graphty-element's entry above",
+        },
+    ],
+};
 
 const builtins = new Set(builtinModules.flatMap((m) => [m, `node:${m}`]));
 
@@ -72,11 +130,6 @@ const IMPORT_PATTERNS = [
 ];
 
 const VALID_NAME = /^(@[a-z0-9][\w.-]*\/)?[a-z0-9][\w.-]*$/;
-
-function packageName(specifier) {
-    const parts = specifier.split("/");
-    return specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0];
-}
 
 function walk(dir, out = []) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -101,6 +154,37 @@ function pack(dir, dest) {
     fs.mkdirSync(out, { recursive: true });
     execFileSync("tar", ["-xzf", path.join(dest, tarball), "-C", out]);
     return path.join(out, "package");
+}
+
+/**
+ * The AI framework imports one shipped file of a scanned package holds, and whether a declaration
+ * names the adapter folder.
+ * @param allowed - What the package may still ship, from FRAMEWORK_IMPORTS_ALLOWED.
+ * @param file - The file, relative to the package.
+ * @param text - Its contents.
+ * @returns One message per problem.
+ */
+function frameworkProblems(allowed, file, text) {
+    const problems = [];
+    const declaration = /\.d\.[cm]?ts$/.test(file);
+    if (declaration && (/(^|\/)engine\/tanstack\//.test(file) || /(?:engine\/|["']\.\/)tanstack\//.test(text))) {
+        problems.push(`${file} names the AI adapter folder (engine/tanstack), which ships no declarations`);
+    }
+    const packages = new Set(
+        IMPORT_PATTERNS.flatMap((re) => [...text.matchAll(re)].map((m) => m[1]))
+            .filter((spec) => {
+                const family = frameworkFamily(spec);
+                return family !== undefined && !allowed.some((a) => a.family === family && a.files.test(file));
+            })
+            .map(packageName),
+    );
+    for (const name of packages) {
+        problems.push(
+            `${file} imports "${name}", an AI framework or provider package; only graphty-element's own chunks ` +
+                "may hold one, built in, never imported (tools/ai-framework-packages.mjs)",
+        );
+    }
+    return problems;
 }
 
 /**
@@ -170,9 +254,25 @@ function addImports(imported, text, file, manifest, declared) {
     for (const re of IMPORT_PATTERNS) {
         for (const m of text.matchAll(re)) {
             const name = isPackageSpecifier(m[1]) ? declaredNameOf(m[1], file, manifest, declared) : null;
-            if (name !== null && !imported.has(name)) imported.set(name, file);
+            const textOnly = TEXT_NOT_IMPORTS[manifest.name]?.some((t) => t.files.test(file) && t.names.includes(name));
+            if (name !== null && !textOnly && !imported.has(name)) imported.set(name, file);
         }
     }
+}
+
+/**
+ * The AI framework imports the shipped files of a scanned package hold.
+ * @param packed - The unpacked package's directory.
+ * @param files - The shipped paths.
+ * @param manifest - The package's manifest.
+ * @returns One message per problem.
+ */
+function shippedFrameworkProblems(packed, files, manifest) {
+    const allowed = FRAMEWORK_IMPORTS_ALLOWED[manifest.name];
+    if (!allowed) return [];
+    return files
+        .filter((file) => !file.startsWith("src/") && /\.[cm]?js$|\.d\.[cm]?ts$/.test(file))
+        .flatMap((file) => frameworkProblems(allowed, file, fs.readFileSync(path.join(packed, file), "utf8")));
 }
 
 /**
@@ -180,16 +280,17 @@ function addImports(imported, text, file, manifest, declared) {
  * @param imported - Package name to the first file that imports it.
  * @param declared - Every dependency and peer dependency name.
  * @param deps - The dependencies.
+ * @param manifest - The package's manifest.
  * @returns The problems.
  */
-function importMismatches(imported, declared, deps) {
+function importMismatches(imported, declared, deps, manifest) {
     const problems = [];
     for (const [name, file] of imported) {
         if (!declared.has(name))
             problems.push(`${file} imports "${name}", which is neither a dependency nor a peer dependency`);
     }
     for (const name of declared) {
-        if (!imported.has(name)) {
+        if (!imported.has(name) && !UNUSED_PEERS_ALLOWED[manifest.name]?.has(name)) {
             const kind = name in deps ? "dependency" : "peer dependency";
             problems.push(`declares ${kind} "${name}", which no shipped file imports`);
         }
@@ -233,6 +334,52 @@ function staleRanges(deps, peers, workspaceVersions) {
 }
 
 /**
+ * Plants one violation of the framework rule of each kind in a fake packed package, and fails
+ * unless each is reported and nothing allowed is.
+ */
+function selfTest() {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "check-published-deps-self-test-"));
+    try {
+        const write = (file, text) => {
+            fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
+            fs.writeFileSync(path.join(dir, file), text);
+        };
+        write(
+            "package.json",
+            JSON.stringify({
+                name: "@graphty/graphty-element",
+                peerDependencies: { ai: "*", "@ai-sdk/openai": "*", "@mlc-ai/web-llm": "*" },
+            }),
+        );
+        write("dist/ai.d.ts", 'import type { ChatOptions } from "@tanstack/ai";\n');
+        write("dist/chunks/openai-x.js", 'import OpenAI from "openai";\n');
+        write("dist/src/ai/engine/load.d.ts", 'export type Adapter = typeof import("./tanstack/index.js");\n');
+        write("dist/src/ai/engine/tanstack/index.d.ts", "export {};\n");
+        write("dist/chunks/webllm-x.js", 'await import("@mlc-ai/web-llm");\n');
+        write("dist/chunks/vercel-x.js", 'import { generateText } from "ai";\n');
+        const problems = check(".", dir, new Map());
+        const expected = [
+            /^dist\/ai\.d\.ts imports "@tanstack\/ai"/,
+            /^dist\/chunks\/openai-x\.js imports "openai"/,
+            /^dist\/src\/ai\/engine\/load\.d\.ts names the AI adapter folder/,
+            /^dist\/src\/ai\/engine\/tanstack\/index\.d\.ts names the AI adapter folder/,
+            /^dist\/chunks\/vercel-x\.js imports "ai"/,
+        ];
+        const missing = expected.filter((re) => !problems.some((p) => re.test(p)));
+        const extra = problems.filter((p) => !expected.some((re) => re.test(p)));
+        if (missing.length > 0 || extra.length > 0) {
+            console.error("check-published-deps self-test FAILED");
+            for (const re of missing) console.error(`  not reported: ${re}`);
+            for (const p of extra) console.error(`  reported but allowed: ${p}`);
+            process.exit(1);
+        }
+        console.log(`check-published-deps self-test: each planted violation was reported (${expected.length})`);
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+}
+
+/**
  * Every problem with one unpacked package, in rule order: shipped configuration, import mismatches, names in
  * both sections, stale internal ranges.
  * @param dir - The package's workspace directory.
@@ -249,7 +396,8 @@ export function check(dir, packed, workspaceVersions) {
     const imported = importedPackages(packed, files, manifest, declared);
     return [
         ...forbiddenFiles(files),
-        ...importMismatches(imported, declared, deps),
+        ...shippedFrameworkProblems(packed, files, manifest),
+        ...importMismatches(imported, declared, deps, manifest),
         ...dependencyAndPeer(deps, peers),
         ...staleRanges(deps, peers, workspaceVersions),
     ];
@@ -257,6 +405,11 @@ export function check(dir, packed, workspaceVersions) {
 
 // Run as a script; imported (by its test), only `check` is used.
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+    if (process.argv.includes("--self-test")) {
+        selfTest();
+        process.exit(0);
+    }
+
     const only = process.argv.slice(2);
     const all = workspacePackages();
     const workspaceVersions = new Map(all.map((p) => [p.manifest.name, p.manifest.version]));

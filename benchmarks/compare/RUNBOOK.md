@@ -102,7 +102,10 @@ still-frame stage, and `summarize.mjs` pools rows per measure, so a measure reac
 needed `lean-m-tail` three times and `lean-m-dpr2-tail` twice.
 
 To see where a frame's CPU goes, set `BENCH_PROFILE=<path prefix>`: the run also profiles 60 still and 60 moving
-frames, outside the timed stages, into `<prefix>-still.cpuprofile` and `<prefix>-orbit.cpuprofile`.
+frames, outside the timed stages, into `<prefix>-still.cpuprofile` and `<prefix>-orbit.cpuprofile`. To see where the
+load's and the layout frame's CPU and garbage collector time go, set `BENCH_PROFILE_TIMED=<path prefix>`: those two
+stages are profiled while they are timed, into `<prefix>-load.cpuprofile` and `<prefix>-layout.cpuprofile`. The
+profiler slows them, so give such runs their own `BENCH_RESULTS` file.
 
 The `3d` flag keeps the lean mode's straight edges in 3D, where `batched` pulls them (a 2D line is not pulled), and
 fails the run if any edge is an object edge: the million-edge line program (cosmos-gap.md G12) is measured with it.

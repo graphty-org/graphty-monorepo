@@ -24,6 +24,7 @@ import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import { isEdgeLineBatchMesh } from "../meshes/EdgeLineBatch";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
+import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
 import { SupportPoints } from "../meshes/supportPoints";
 import { adoptNodeRecord, Node, NodeIdType, nodeRebuildsFor, placeNodeRow, releaseNodeMesh } from "../Node";
 import { inputCountersOf } from "../session/attributes";
@@ -362,6 +363,11 @@ export const dataManagerInternals = {} as {
      * of design/rendering/row-renderer.md drives toward zero under `"batched"`.
      */
     nodesBuilt(manager: DataManager): number;
+    /**
+     * How many `Edge` render objects this manager has built, ever: the count the lazy-edge stage
+     * of design/rendering/row-renderer.md drives toward zero under `"batched"`.
+     */
+    edgesBuilt(manager: DataManager): number;
     /** A stored node id's row in the store, read with no `Node`; `INVALID_INDEX` for an id it does not hold. */
     rowOf(manager: DataManager, id: NodeIdType): number;
     /** The `Node`s built so far, walked without building one for a row that has none. */
@@ -555,9 +561,12 @@ export class DataManager implements Manager {
     private readonly renumberFollowers = new Set<FreezeFollower>();
     /** See `dataManagerInternals.nodesBuilt`. */
     private builtNodes = 0;
+    /** See `dataManagerInternals.edgesBuilt`. */
+    private builtEdges = 0;
 
     static {
         dataManagerInternals.nodesBuilt = (manager) => manager.builtNodes;
+        dataManagerInternals.edgesBuilt = (manager) => manager.builtEdges;
         dataManagerInternals.rowOf = (manager, id) => manager.store.builder.indexOf(id);
         dataManagerInternals.builtNodes = (manager) => manager.nodeMap.built();
         dataManagerInternals.unbuiltRows = (manager) => [...manager.unbuilt.keys()];
@@ -1539,6 +1548,9 @@ export class DataManager implements Manager {
         for (const index of [...this.unbuilt.keys()]) {
             this.dropUnbuilt(index);
         }
+        // Before the mesh cache lets their batches go: the empty graph is frozen lazily, so no
+        // freeze would name these rows dropped (`EdgeRowLines.rowsMoved`).
+        this.graphContext?.getEdgeRowLines?.()?.clear();
 
         for (const node of this.nodeMap.built()) {
             placeNodeRow(node, INVALID_INDEX);
@@ -1664,6 +1676,12 @@ export class DataManager implements Manager {
                 this.layOutArrivedRows();
                 this.buildEdge(edge);
             },
+            // On the "batched" path a batch's caps, built with its edges, make room once (`poolReserve.ts`).
+            edgesArriving: (count) => {
+                if (this.graphContext && (this.graphContext.getNodeBatches?.() ?? null) !== null) {
+                    armPoolReserve(this.graphContext.getScene(), count, ["caps"]);
+                }
+            },
             ceilings: () => this.renderLimits?.ceilings(),
             batched: () => this.renderLimits?.batched() ?? false,
             nodesArrived: (count) => {
@@ -1680,6 +1698,10 @@ export class DataManager implements Manager {
                 this.eventManager.emitDataAdded("nodes", count, true, true, this.cause);
             },
             edgesArrived: (count) => {
+                if (this.graphContext && (this.graphContext.getNodeBatches?.() ?? null) !== null) {
+                    clearPoolReserve(this.graphContext.getScene(), ["caps"]);
+                }
+
                 this.shouldStartLayout = true;
                 this.eventManager.emitDataAdded("edges", count, true, false, this.cause);
             },
@@ -2449,6 +2471,7 @@ export class DataManager implements Manager {
      *     endpoint ids graph-format will not store is rejected before it reaches here
      */
     private registerEdge(edge: Edge, edgeIndex: number): void {
+        this.builtEdges++;
         placeEdgeRow(edge, edgeIndex);
         this.edgeRows[edgeIndex] = edge;
         this.edgeMap.set(edge.id, edge);

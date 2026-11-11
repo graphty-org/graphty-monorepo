@@ -100,7 +100,6 @@ import { PNG } from "pngjs";
 import {
     activeInView,
     axeViolations,
-    catalogKeywords,
     bar6Gaps,
     bar10,
     dataState,
@@ -108,8 +107,6 @@ import {
     focusOnPage,
     keyShown,
     LAUNCH,
-    largeLists,
-    layerMembers,
     NAME_CHARS,
     networkCounts,
     nodeColors,
@@ -120,14 +117,26 @@ import {
     styleContent,
     styleTree,
     tier4Gaps,
-    tier5Gaps,
     unplant,
     wordsOnScreen,
     workGone,
+    workUnread,
 } from "./measure.mjs";
-import { checkSession } from "./endstate.mjs";
+import {
+    browserNoise,
+    callsShort,
+    capLine,
+    countFileOf,
+    GEMINI_ROUTE,
+    geminiKey,
+    geminiRouter,
+    scanForKey,
+    sessionSlots,
+    siteFile,
+    TIER6_CAP,
+    usesAssistant,
+} from "./tier6.mjs";
 import { find, refusalFacts, refusedName, resolvedLine, ROLES, TIP } from "./match.mjs";
-import { CORE_BY_TIER, pathSteps } from "./steps.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../../../..");
@@ -217,6 +226,9 @@ function tierOf(dir) {
     const rel = under(d, STUDIO) ? d.slice(STUDIO.length + 1) : under(d, SCRATCH) ? d.slice(SCRATCH.length + 1) : "";
     return rel.match(/^tier(\d+)(?:\/|$)/)?.[1] ?? (process.env.REAL_TIER || "2");
 }
+const tier6 = (dir) => usesAssistant(tierOf(dir));
+// the root .env of the main checkout; REAL_ENV_FILE plants another for --prove
+const ENV_FILE = process.env.REAL_ENV_FILE || join(MAIN, ".env");
 const tierFiles = (dir) => join(here, `../tier${tierOf(dir)}`);
 const setupsOf = (dir) => join(here, `../rounds/tier-${tierOf(dir)}/setups`);
 const frozenSha = (dir) =>
@@ -516,23 +528,24 @@ function transcriptsFor(own) {
             return dirs.some((d) => names(p, d)) && PARTICIPANT_PROMPT.test(p);
         });
 }
-const stringsIn = (v) =>
-    typeof v === "string" ? [v] : v && typeof v === "object" ? Object.values(v).flatMap(stringsIn) : [];
-// A heredoc's body is text being written, not a file being opened; it is dropped unless the shell
-// would run something inside it (an unquoted delimiter with $( or a backtick in the body).
-const withoutHeredocs = (cmd) =>
-    cmd.replace(/<<-?[ \t]*(['"]?)(\w+)\1([^\n]*)\n([\s\S]*?)^[ \t]*\2[ \t]*$/gm, (all, q, tag, rest, body) =>
-        !q && /\$\(|`/.test(body) ? all : `<<${tag}${rest}`,
+// Text a tool call writes, never opens: a file's new content, an edit's strings, a call's description
+const WRITTEN = new Set(["content", "old_string", "new_string", "description"]);
+// The body of a heredoc that cat or tee writes to a file is text, not something opened (a participant
+// appending notes to its transcript); a heredoc fed to anything else is still read, since a script can
+// open files
+const HEREDOC = /([^\n]*<<-?\s*(["']?)(\w+)\2[^\n]*)\n[\s\S]*?\n\s*\3[ \t]*(?=\n|$)/g;
+const writesText = (cmd) =>
+    cmd.replace(HEREDOC, (all, head) =>
+        /^\s*(?:cat\b[^|;&]*>|tee\b)|[|]\s*tee\b/.test(head.replace(/^.*(?:&&|;)\s*/, "")) ? head : all,
     );
-// The strings of a tool call that name what it opens: a writing tool's target, never its content (a
-// participant who quotes the tool's FAIL line into its transcript opened nothing; tier 5 round 1's
-// check voided every session for that), a shell command without its heredoc bodies, anything else whole.
-function openedBy(name, input) {
-    if (/^(Write|Edit|MultiEdit|NotebookEdit)$/.test(name))
-        return [input?.file_path, input?.notebook_path].filter((s) => typeof s === "string");
-    if (name === "Bash" && typeof input?.command === "string") return [withoutHeredocs(input.command)];
-    return stringsIn(input);
-}
+const stringsIn = (v, key) =>
+    typeof v === "string"
+        ? WRITTEN.has(key)
+            ? []
+            : [key === "command" ? writesText(v) : v]
+        : v && typeof v === "object"
+          ? Object.entries(v).flatMap(([k, x]) => stringsIn(x, Array.isArray(v) ? key : k))
+          : [];
 // why one string a tool call was given opens something the participant may not
 function leaksIn(s, allowed) {
     const out = [];
@@ -565,7 +578,7 @@ function leakCheck(own, given = []) {
             for (const b of (l.type === "assistant" && l.message?.content) || []) {
                 if (b?.type !== "tool_use") continue;
                 calls++;
-                const found = openedBy(b.name, b.input).flatMap((s) => leaksIn(s, allowed));
+                const found = stringsIn(b.input).flatMap((s) => leaksIn(s, allowed));
                 // a search with no folder searches wherever the agent runs, the repository included
                 if (/^(Grep|Glob)$/.test(b.name) && !b.input?.path)
                     found.push(["a search outside its folder", b.input?.pattern ?? ""]);
@@ -622,6 +635,20 @@ async function copyBack(own, home) {
     await writeFile(join(home, "leaks.json"), JSON.stringify(l, null, 1) + "\n");
     console.log(`copied to ${home}`);
     for (const line of leakLines(l, own)) console.log(line);
+}
+
+// --end of a tier 6 session: every file of these folders, bytes included, holds no key; a hit names
+// only the file. A check that cannot run fails.
+function keyCheck(dirs) {
+    const key = geminiKey(ENV_FILE);
+    if (!key) {
+        console.log(`FAIL: the key check could not run: no GOOGLE_API_KEY in ${ENV_FILE}`);
+        return false;
+    }
+    const hits = dirs.filter((d) => existsSync(d)).flatMap((d) => scanForKey(d, key).map((f) => join(d, f)));
+    for (const f of hits) console.log(`FAIL: the Gemini key is in ${f}`);
+    if (!hits.length) console.log(`key check: no key in ${dirs.join(" or ")}`);
+    return !hits.length;
 }
 
 // ---------- a round: its leak check and its gate ----------
@@ -699,115 +726,6 @@ function readinessDirs(rd) {
     for (const x of [...passes].sort()) dirs.push(readinessOf(join(dirname(rd), x)));
     return [...new Set(dirs)];
 }
-// Tier 5's own items of "Before the first session" (../tier5/criteria.md), past the walks and the bars:
-//   3. every setup the plan starts from started a walk on the frozen build with no failed setup step;
-//   4. real.mjs --end recorded each layer's painted members on a success walk, and the end-state
-//      check (endstate.mjs) finds no mismatch on any success walk that recorded them;
-//   6. every core task half the plan runs has a "Path steps" number in answers.md (steps.mjs);
-//   7. decided.md lists the approved surfaces' new reference screenshots, each a file that exists;
-//   9. the rating check ran: T70 A and T70 B each walked as "rating-rejected" on the rejected build
-//      the criteria names and as "rating-frozen" on the frozen build, and the calm-first check on the
-//      rejected build is written up in <round>/calm-first-rejected.md.
-// (Item 5's walk is the bars runs, checked with the other tiers' below; item 8 is the studio's call.)
-const SETUP_FAIL =
-    /nothing on screen is called|nothing in the open dialog|ambiguous:|could not \w+ "|stopped after|could not empty the undo history|typed nothing/;
-function tier5Gate(rd, sha, counted, keyText, problems, evidence) {
-    // 3: each setup the plan names, started on the frozen build with every setup step working
-    const setups = [
-        ...new Set(
-            planRows(rd)
-                .map((c) => (c[5] ?? "").match(/setup:([^\s`]+)/)?.[1])
-                .filter(Boolean),
-        ),
-    ];
-    for (const setup of setups) {
-        const ok = counted.find(({ dir }) => {
-            if (!existsSync(join(dir, "route.jsonl"))) return false;
-            const first = readFileSync(join(dir, "route.jsonl"), "utf8").split("\n")[0] ?? "";
-            if (!new RegExp(`setup:[^"]*\\b${setup.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`).test(first)) return false;
-            const sess = JSON.parse(readFileSync(join(dir, "session.json"), "utf8"));
-            const log = existsSync(join(dir, "setup.log")) ? readFileSync(join(dir, "setup.log"), "utf8") : "";
-            return sess.setupOk !== false && !SETUP_FAIL.test(log);
-        });
-        if (ok) evidence.push(`setup ${setup}: started cleanly in ${ok.dir}/`);
-        else problems.push(`setup ${setup}: no walk on build ${sha} started from it with every setup step working`);
-    }
-    // 4: the end-state check on the success walks that recorded each layer's painted members
-    const recorded = counted.filter(({ kind, dir }) => {
-        if (kind !== "success") return false;
-        try {
-            return Boolean(JSON.parse(readFileSync(join(dir, "styles.json"), "utf8")).end?.painted);
-        } catch {
-            return false;
-        }
-    });
-    if (!recorded.length)
-        problems.push(
-            `no success walk on build ${sha} recorded each layer's painted members (styles.json "painted", written by real.mjs --end since 2026-11-02): walk one again`,
-        );
-    for (const { half, dir } of recorded) {
-        const r = checkSession(dir);
-        if (r.problems.length) problems.push(`end-state check on ${half} ${dir}: ${r.problems[0]}`);
-        else if (!r.items) problems.push(`end-state check on ${half} ${dir} read no item`);
-        else evidence.push(`end-state ${half}: ${r.items} items (${r.layers} layers) hold in ${dir}/`);
-    }
-    // 6: a path step count for every core half the plan runs
-    const paths = pathSteps(keyText);
-    const coreHalves = [
-        ...new Set(
-            planRows(rd)
-                .filter((c) => CORE_BY_TIER.tier5.includes(c[2]))
-                .map((c) => c[2] + ((c[3] ?? "").match(/^([AB]):/)?.[1] ?? "A")),
-        ),
-    ].sort();
-    const noPath = coreHalves.filter((h) => paths[h] === undefined);
-    if (noPath.length) problems.push(`answers.md has no "Path steps" number for ${noPath.join(", ")}`);
-    else evidence.push(`path steps: ${coreHalves.map((h) => `${h} ${paths[h]}`).join(", ")}`);
-    // 7: the approved surfaces' reference screenshots listed in decided.md, each on disk
-    const decided = join(tierFiles(rd), "decided.md");
-    const dtext = existsSync(decided) ? readFileSync(decided, "utf8") : "";
-    const section = dtext.match(/^#+ [^\n]*reference screenshots[^\n]*\n([\s\S]*?)(?=\n#+ |$(?![\s\S]))/im)?.[1] ?? "";
-    const shots = [...section.matchAll(/`([^`]+\.png)`/g)].map((m) => m[1]);
-    const gone = shots.filter((f) => ![resolve(dirname(decided), f), resolve(repo, f)].some((p) => existsSync(p)));
-    if (!shots.length)
-        problems.push(
-            `${decided} has no "Reference screenshots" section listing the approved surfaces' new screenshots (\`<file>.png\`)`,
-        );
-    else if (gone.length) problems.push(`${decided} lists reference screenshots that do not exist: ${gone.join(", ")}`);
-    else evidence.push(`reference screenshots: ${shots.length} listed in ${decided}`);
-    // 9: the rating check's four sessions and the calm-first check on the rejected build
-    const crit = readFileSync(join(tierFiles(rd), "criteria.md"), "utf8");
-    const rejected = [
-        crit.match(/build the owner rejected\s*\(([0-9a-f]{7,40})/)?.[1],
-        crit.match(/if it cannot be built,\s*([0-9a-f]{7,40})/)?.[1],
-    ].filter(Boolean);
-    const pds = readinessDirs(rd);
-    for (const half of ["T70A", "T70B"])
-        for (const [name, builds] of [
-            ["rating-rejected", rejected],
-            ["rating-frozen", [sha]],
-        ]) {
-            const hit = pds
-                .map((pd) => join(pd, half, name))
-                .find((d) => {
-                    try {
-                        const sess = JSON.parse(readFileSync(join(d, "session.json"), "utf8"));
-                        const c = sess.commit ?? sess.buildStamp?.split(" ")[0];
-                        return builds.some((b) => sameAppCode(b, c));
-                    } catch {
-                        return false;
-                    }
-                });
-            if (hit) evidence.push(`rating check ${half}: ${hit}/`);
-            else
-                problems.push(
-                    `rating check: no ${half} session "${name}" on ${builds.join(" or ") || "the rejected build (criteria.md names none)"} under ${pds.map((pd) => join(pd, half)).join(", ")}`,
-                );
-        }
-    const calm = join(rd, "calm-first-rejected.md");
-    if (existsSync(calm)) evidence.push(`calm-first check on the rejected build: ${calm}`);
-    else problems.push(`no calm-first check on the rejected build: ${calm} is missing`);
-}
 function gateCheck(rd) {
     const sha = frozenSha(rd);
     if (!sha)
@@ -828,22 +746,9 @@ function gateCheck(rd) {
     if (!halves.size) problems.push(`${join(rd, "plan.md")} lists no session`);
     // an answer key value not yet read off the frozen build grades the walked build, not the frozen one
     const key = join(tierFiles(rd), "answers.md");
-    const keyText = existsSync(key) ? readFileSync(key, "utf8") : "";
-    if (/pilot to confirm/i.test(keyText))
+    if (existsSync(key) && /pilot to confirm/i.test(readFileSync(key, "utf8")))
         problems.push(`${key} still holds "pilot to confirm": read each value off the frozen build first`);
-    if (/the dry run reads/i.test(keyText))
-        problems.push(`${key} still holds "the dry run reads": read each value off the frozen build first`);
-    const tier = tierOf(rd);
-    // tier 5's item 2: each "Build notes" heading names the frozen build or is removed
-    if (tier === "5")
-        for (const m of keyText.matchAll(/^#+ Build notes \(([0-9a-f]{7,40})\)/gm))
-            if (!(m[1].startsWith(sha) || sha.startsWith(m[1])))
-                problems.push(
-                    `${key}: "Build notes (${m[1]})" names a build other than the frozen ${sha}; read it again on ${sha} or remove it`,
-                );
     const pds = readinessDirs(rd);
-    // every walk the gate counted, for tier 5's setup and end-state checks
-    const counted = [];
     for (const [h, keys] of [...halves].sort()) {
         const hd = join(pds[0], h);
         const walks = { success: [], detours: [], keyboard: [] };
@@ -862,8 +767,6 @@ function gateCheck(rd) {
             }
             // a replay that diverged was ended partway: not a whole walk (tool/README.md, "Replaying a route")
             if (w.endsWith("-diverged")) continue;
-            // the rating check's sessions (rating-rejected, rating-frozen) are a participant's, not a walk
-            if (/rating/i.test(w)) continue;
             const kind = walkKind(w);
             if (!sess) why.push(`${w}: unreadable session.json`);
             else if (!readdirSync(wd).some((x) => /^\d+\.png$/.test(x))) why.push(`${w}: no screenshots`);
@@ -881,13 +784,19 @@ function gateCheck(rd) {
                 `${h}: no ${missing.join(", no ")} walk on build ${sha} under ${where}${why.length ? ` (${why.join("; ")})` : ""}`,
             );
         else evidence.push(`pilot ${h}: ${needs.map((k) => `${k} ${walks[k][0]}/`).join(", ")}`);
-        counted.push(...walks.success.map((d) => ({ half: h, kind: "success", dir: d })));
-        counted.push(...[...walks.detours, ...walks.keyboard].map((d) => ({ half: h, kind: "other", dir: d })));
     }
-    if (tier === "5") tier5Gate(rd, sha, counted, keyText, problems, evidence);
+    const tier = tierOf(rd);
     const tier3 = tier === "3";
-    const own = tier === "3" || tier === "4" || tier === "5";
-    for (const name of own ? ["bars", "bars-light"] : ["bars"]) {
+    const own = tier === "3" || tier === "4";
+    if (usesAssistant(tier)) {
+        const short = callsShort(countFileOf(MAIN, tier), planRows(rd).length);
+        if (short) problems.push(short);
+    }
+    // a tier whose criteria say no bar is scored by a script has no bars run to wait for
+    const scripted = !/No bar here is scored by a script/.test(
+        readFileSync(join(tierFiles(rd), "criteria.md"), "utf8"),
+    );
+    for (const name of own ? ["bars", "bars-light"] : scripted ? ["bars"] : []) {
         const bj = join(rd, name, "bars.json");
         let bars = null;
         try {
@@ -910,11 +819,8 @@ function gateCheck(rd) {
                 // tier 4's bar 5 names both themes: bars is the dark run, bars-light the light one
                 if (!tier3 && bars.scheme !== (name === "bars-light" ? "light" : "dark"))
                     bp.push(`${bj} is not a ${name === "bars-light" ? "light" : "dark"}-theme run (--scheme)`);
-                const gaps = (tier3 ? bar6Gaps : tier === "5" ? tier5Gaps : tier4Gaps)(bars.walked ?? {}, [
-                    "1440x900",
-                    "900x700",
-                ]);
-                const bar = tier3 ? "bar 6" : tier === "5" ? "item 5" : "bar 5";
+                const gaps = (tier3 ? bar6Gaps : tier4Gaps)(bars.walked ?? {}, ["1440x900", "900x700"]);
+                const bar = tier3 ? "bar 6" : "bar 5";
                 if (gaps.length) bp.push(`${bj} leaves out ${gaps.length} of ${bar}'s checks, the first: ${gaps[0]}`);
                 const sp = join(rd, name, "spoken.json");
                 let spoken = {};
@@ -1101,6 +1007,10 @@ async function start(dir, how, sr, task, keys) {
         console.log(`FAIL: ${ungated}`);
         return 1;
     }
+    if (tier6(dir) && !geminiKey(ENV_FILE)) {
+        console.error(`a tier 6 session needs GOOGLE_API_KEY in ${ENV_FILE}; nothing started`);
+        return 1;
+    }
     if (existsSync(sockOf(dir))) {
         const alive = await ask(dir, { op: "ping" }).catch(() => null);
         if (alive) {
@@ -1152,6 +1062,7 @@ async function start(dir, how, sr, task, keys) {
     const log = openSync(join(dir, "session.log"), "a");
     let child = null,
         exited = null;
+    if (tier6(dir)) await closeWarm();
     if (!(await claimWarm(dir, sr, keys))) {
         child = spawn(
             gate,
@@ -1162,6 +1073,7 @@ async function start(dir, how, sr, task, keys) {
                 env: {
                     ...process.env,
                     ...(GPU ? { BROWSER_GPU: "1" } : {}),
+                    ...sessionSlots(tierOf(dir), process.env),
                     ...(keys ? { REAL_KEYS_ONLY: "1" } : {}),
                 },
             },
@@ -1206,7 +1118,7 @@ async function start(dir, how, sr, task, keys) {
         waited++;
     }
     child?.unref();
-    topUp();
+    if (!tier6(dir)) topUp();
     const route = {
         start: how || "empty",
         keys: !!keys,
@@ -1216,7 +1128,18 @@ async function start(dir, how, sr, task, keys) {
         dist,
     };
     const r = await ask(dir, { op: "start", setup, task: t && t.task + t.half, followUp, route });
-    return say(r);
+    const failed = say(r);
+    // nobody works in a session whose setup failed: it would keep its browser until the idle timeout
+    if (r.code) {
+        await ask(dir, { op: "end", force: true }).catch(() => {});
+        await socketGone(dir);
+    }
+    return failed;
+}
+// The session process has closed, or will not: its socket goes either way
+async function socketGone(dir) {
+    for (let i = 0; existsSync(sockOf(dir)) && i < 50; i++) await new Promise((ok) => setTimeout(ok, 100));
+    await rm(sockOf(dir), { force: true });
 }
 
 // ---------- the session process: one browser, one page, a socket ----------
@@ -1240,8 +1163,17 @@ async function serve(dir, sr) {
     const { chromium } = await import(join(repo, "node_modules/playwright/index.mjs"));
     if (!existsSync(join(dist, "index.html")))
         throw new Error(`no production build at ${dist}; run pnpm exec nx run graphty:build`);
+    // a warm browser has no tier: it never serves a tier 6 session (claimWarm)
+    const tier = dir ? tierOf(dir) : null;
+    const key = usesAssistant(tier) ? geminiKey(ENV_FILE) : null;
+    if (usesAssistant(tier)) {
+        if (!key) throw new Error(`a tier 6 session needs GOOGLE_API_KEY in ${ENV_FILE}`);
+        delete process.env.GOOGLE_API_KEY; // the browser inherits this process's environment
+    }
     // the app at / (so /samples/*.gml resolve); any path that is not a file is the app's page
     const http = createServer(async (req, res) => {
+        const site = siteFile(tier, new URL(req.url, "http://x").pathname);
+        if (site) return res.writeHead(200, { "content-type": "application/json" }).end(site);
         const f = join(
             dist,
             normalize(decodeURIComponent(new URL(req.url, "http://x").pathname)).replace(/^[/\\]+/, ""),
@@ -1311,6 +1243,18 @@ async function serve(dir, sr) {
         saved: {},
     };
     await answerPickers(s);
+    if (key) {
+        s.gemini = { file: countFileOf(MAIN, tier), capped: false };
+        await context.route(
+            GEMINI_ROUTE,
+            geminiRouter({
+                key,
+                file: s.gemini.file,
+                onRefused: () => (s.gemini.capped = true),
+                log: console.log,
+            }),
+        );
+    }
     // every session records live regions: a notice that times out while a slow step settles is
     // still reported (goneNotices), as a person would have seen it
     await s.context.addInitScript(watchLive);
@@ -1386,8 +1330,11 @@ async function serve(dir, sr) {
                     else if (req.op === "measure") r = await measure(s, req.plant);
                     else if (req.op === "work") r = { out: [], code: 0, data: await s.page.evaluate(openWork) };
                     else if (req.op === "plant-removal") r = await plantRemoval(s);
+                    else if (req.op === "tier-facts") r = { out: [], code: 0, data: await tierFacts(s) };
+                    else if (req.op === "plant-gemini") r = await plantGemini(s);
                     else if (req.op === "plant-dom") r = await plantDom(s, req.kind);
-                    else if (req.op === "end" && s.followUp && !s.followUpGiven) r = await giveFollowUp(s);
+                    else if (req.op === "end" && s.followUp && !s.followUpGiven && !req.force)
+                        r = await giveFollowUp(s);
                     else if (req.op === "end") r = await opEnd(s);
                     else r = { out: [`unknown request ${req.op}`], code: 2 };
                 } catch (e) {
@@ -1414,11 +1361,6 @@ async function serve(dir, sr) {
 // start waits in the queue. A warm browser that waits REAL_WARM_SECONDS (default 600) unclaimed, or
 // sees starts queue for a slot, closes and frees its slot. Its page was opened on a clean profile and
 // never touched, so the session it becomes is the one a cold start makes.
-// REAL_WARM_HOLD=1 (--prove's warm-pool check only) makes a warm browser wait in the queue for its
-// slot and stay up while starts queue: in try mode the check's verdict followed how busy the
-// machine's slots were (8 studio browsers held every spare slot for 152 s and no warm browser came
-// ready), not whether a warm browser is taken over.
-const WARM_HOLD = process.env.REAL_WARM_HOLD === "1";
 const WARM_DIR = "/tmp/graphty-real-warm";
 const WARM_POOL = Number(process.env.REAL_WARM_POOL ?? 2);
 const WARM_MS = (Number(process.env.REAL_WARM_SECONDS) || 600) * 1000;
@@ -1428,15 +1370,10 @@ const warmKey = () =>
         .update(
             JSON.stringify([
                 dist,
-                // the build itself: a rebuild of the same folder is another build, never a warm one
-                existsSync(join(dist, "index.html")) ? statSync(join(dist, "index.html")).mtimeMs : 0,
                 VIEWPORT,
                 process.env.REAL_SCHEME || "",
                 GPU,
-                // and the modules it imports: a change to measure.mjs or match.mjs is a new tool too
-                ...["real.mjs", "measure.mjs", "match.mjs"].map(
-                    (f) => statSync(join(dirname(fileURLToPath(import.meta.url)), f)).mtimeMs,
-                ),
+                statSync(fileURLToPath(import.meta.url)).mtimeMs,
             ]),
         )
         .digest("hex")
@@ -1467,11 +1404,7 @@ function topUp() {
         const child = spawn(gate, [process.execPath, fileURLToPath(import.meta.url), "--warm"], {
             detached: true,
             stdio: ["ignore", log, log],
-            env: {
-                ...process.env,
-                ...(WARM_HOLD ? {} : { BROWSER_SLOT_TRY: "1" }),
-                ...(GPU ? { BROWSER_GPU: "1" } : {}),
-            },
+            env: { ...process.env, BROWSER_SLOT_TRY: "1", ...(GPU ? { BROWSER_GPU: "1" } : {}) },
         });
         writeFileSync(join(WARM_DIR, `${warmKey()}-${child.pid}.warming`), "");
         child.unref();
@@ -1479,7 +1412,8 @@ function topUp() {
 }
 // Takes over a ready warm browser for <dir>: true when one answered the claim
 async function claimWarm(dir, sr, keys) {
-    if (!(WARM_POOL > 0)) return false;
+    // the app reads site.json once, and a warm browser loaded it with no session and no flag
+    if (!(WARM_POOL > 0) || tier6(dir)) return false;
     for (const sock of warmOnes().ready) {
         const r = await askAt(sock, {
             op: "claim",
@@ -1492,6 +1426,26 @@ async function claimWarm(dir, sr, keys) {
         if (r?.ok) return true;
     }
     return false;
+}
+// A tier 6 session never takes a warm browser, and one left by an earlier session stands outside the
+// session cap in a slot above 4, so the tier's starts close them all and wait for them to go. A ready
+// one is asked, not signaled: a claim may be under way, and a signal would kill the session it became.
+async function closeWarm() {
+    for (const f of existsSync(WARM_DIR) ? readdirSync(WARM_DIR) : []) {
+        const pid = Number(f.match(/-(\d+)\.(sock|warming)$/)?.[1]);
+        if (!pid || !alive(pid)) continue;
+        if (f.endsWith(".sock")) {
+            const r = await askAt(join(WARM_DIR, f), { op: "close" }).catch(() => null);
+            if (!r?.ok) continue;
+        } else {
+            try {
+                process.kill(-pid, "SIGTERM");
+            } catch {
+                // already gone
+            }
+        }
+        for (let i = 0; alive(pid) && i < 50; i++) await new Promise((ok) => setTimeout(ok, 100));
+    }
 }
 // In the warm browser: open the app, settle, then wait on the pool's socket for one claim
 async function warmUp(s, browser, http) {
@@ -1522,7 +1476,7 @@ async function warmUp(s, browser, http) {
             if (Date.now() - s.warmSince > WARM_MS) quit(`unclaimed for ${WARM_MS / 1000} s`);
             // starts waiting for a slot (another build's, or one that missed the claim) come first
             queued = existsSync(QUEUE) && readdirSync(QUEUE).length ? queued + 1 : 0;
-            if (queued >= 3 && !WARM_HOLD) quit("starts are queued for a slot");
+            if (queued >= 3) quit("starts are queued for a slot");
         }, 2000);
         let taken = false;
         const server = netServer({ allowHalfOpen: true }, (c) => {
@@ -1532,6 +1486,10 @@ async function warmUp(s, browser, http) {
                 buf += d;
                 if (!buf.includes("\n")) return;
                 const req = JSON.parse(buf.slice(0, buf.indexOf("\n")));
+                if (req.op === "close" && !taken) {
+                    c.end(JSON.stringify({ ok: true }) + "\n");
+                    return quit("a tier 6 start closed it");
+                }
                 // one claim only: the first takes it, any other is told to try the next
                 if (req.op !== "claim" || taken) return c.end(JSON.stringify({ ok: false }) + "\n");
                 taken = true;
@@ -1547,21 +1505,33 @@ async function warmUp(s, browser, http) {
     });
 }
 
+// A build with no site.json is the app's normal case (graphty/src/siteConfig.ts), not an error
+const noSiteFile = (url) => new URL(url, "http://x").pathname === "/site.json";
 // A tab of the session's browser: its errors, file choosers and downloads reported to the session
 async function newTab(s) {
     const page = (s.page = await s.context.newPage());
     s.cdp = null;
     const { origin } = s;
     page.on("pageerror", (e) => s.errors.push(`script error: ${e.message.split("\n")[0]}`));
-    page.on("console", (m) => m.type() === "error" && s.errors.push(`console error: ${m.text().slice(0, 300)}`));
-    // the step's first input reached the page (see INPUT_PROBE); heard here even while the page is busy
-    page.on("console", (m) => m.type() === "debug" && m.text() === INPUT_SEEN && s.onInput?.());
+    page.on(
+        "console",
+        (m) =>
+            m.type() === "error" &&
+            !noSiteFile(m.location().url) &&
+            s.errors.push(`console error: ${m.text().slice(0, 300)}`),
+    );
     page.on(
         "response",
-        (r) => r.status() >= 400 && s.errors.push(`failed request: ${r.status()} ${r.url().replace(origin, "")}`),
+        (r) =>
+            r.status() >= 400 &&
+            !noSiteFile(r.url()) &&
+            s.errors.push(`failed request: ${r.status()} ${r.url().replace(origin, "")}`),
     );
-    page.on("requestfailed", (r) =>
-        s.errors.push(`failed request: ${r.url().replace(origin, "")} (${r.failure()?.errorText})`),
+    page.on(
+        "requestfailed",
+        (r) =>
+            !noSiteFile(r.url()) &&
+            s.errors.push(`failed request: ${r.url().replace(origin, "")} (${r.failure()?.errorText})`),
     );
     page.on("filechooser", (c) => {
         s.chooser = c;
@@ -1923,21 +1893,11 @@ async function opening(s, out) {
             // [data-start-door] was the start page before it)
             () =>
                 document.querySelector("#root")?.children.length > 0 &&
-                document.querySelector("main, [role=main], .ws-land, [data-start-door]"),
+                document.querySelector("main, [role=main], .ws-land, [data-start-door], .ws-land-top"),
             null,
             { timeout: 30000 },
         )
         .catch(() => out.push("the app never drew its window"));
-}
-// In the page, at a setup's end: waits up to 30 s for pending work, then empties the element's
-// history through its public session.history.clear(); returns "" or why it could not
-async function setupHistoryClear() {
-    const h = document.querySelector("graphty-element")?.session?.history;
-    if (!h) return "no graphty-element session on the page";
-    for (let i = 0; i < 300 && h.pending.length; i++) await new Promise((r) => setTimeout(r, 100));
-    if (h.pending.length) return `${h.pending.length} step(s) still pending after 30 s`;
-    h.clear();
-    return h.steps.length ? `${h.steps.length} step(s) left after clear()` : "";
 }
 async function opStart(s, setup, route) {
     const out = [];
@@ -1947,6 +1907,8 @@ async function opStart(s, setup, route) {
     if (!s.warm) await opening(s, out);
     await settle(s, out);
     const commit = commitOf();
+    const hidden = under(s.dir, SCRATCH);
+    s.hadSetup = setup.length > 0;
     await writeFile(
         join(s.dir, "session.json"),
         JSON.stringify(
@@ -1961,7 +1923,9 @@ async function opStart(s, setup, route) {
                 viewport: VIEWPORT,
                 renderer: s.renderer,
                 started: new Date().toISOString(),
-                setup: setup.map((x) => x.join(" ")),
+                // a participant's folder is theirs to read, and a setup's steps can name what the task
+                // measures ("--expect 14 nodes selected"); the setup file holds them for the graders
+                setup: hidden ? setup.length : setup.map((x) => x.join(" ")),
                 task: s.task ?? null,
                 // the follow-up's words stay out of the participant's folder; only whether it was given
                 followUp: s.followUp ? "held until --end" : "none",
@@ -1977,11 +1941,6 @@ async function opStart(s, setup, route) {
         const said = [];
         // a failed request (the start page's remote pictures) is logged, but only a step that does not work fails it
         const r = await run(s, setup, said, SETUP_CLICK_MS, false);
-        // a reopened project has no undo history: the setup's own steps must not be the participant's
-        // to undo (a Ctrl+Z at the start took back the setup's PageRank colors). Pending work (a run
-        // still computing) finishes first, since clear() would cancel it.
-        const left = await s.page.evaluate(setupHistoryClear).catch((e) => e.message.split("\n")[0]);
-        if (left) said.push(`could not empty the undo history after the setup: ${left}`);
         // a reopened project has nothing focused: the last setup step's control must not wear a focus ring,
         // and Tab starts at the top of the page. A blur alone keeps Chromium's starting point for Tab
         // on the last control the setup clicked (round 2's keyboard sessions began in the inspector),
@@ -1997,18 +1956,9 @@ async function opStart(s, setup, route) {
         });
         // nor a hover: the setup's last click left the pointer on a control (a row stays lit in 01.png)
         await s.page.mouse.move(-1, -1);
-        await writeFile(join(s.dir, "setup.log"), said.join("\n") + "\n");
-        // whether the setup worked, for the gate's "every setup starts" (criteria, before the first session)
-        const sj = join(s.dir, "session.json");
-        await writeFile(
-            sj,
-            JSON.stringify(
-                { ...JSON.parse(await readFile(sj, "utf8")), setupOk: !(r.code || r.missed || left) },
-                null,
-                1,
-            ) + "\n",
-        );
-        if (r.code || r.missed || left) {
+        const failed = r.code || r.missed;
+        await writeFile(join(s.dir, "setup.log"), hidden && !failed ? "" : said.join("\n") + "\n");
+        if (failed) {
             out.push(`SETUP FAILED: a setup step did not work (setup.log):`, ...said.map((l) => "  " + l));
             code = 1;
         }
@@ -2019,7 +1969,11 @@ async function opStart(s, setup, route) {
         JSON.stringify(await s.page.evaluate(openWork).catch((e) => ({ error: e.message.split("\n")[0] })), null, 1) +
             "\n",
     );
-    await writeFile(join(s.dir, "styles-start.json"), JSON.stringify(await stylesNow(s.page), null, 1) + "\n");
+    await writeFile(
+        join(s.dir, "styles-start.json"),
+        JSON.stringify(await s.page.evaluate(styleTree).catch((e) => ({ error: e.message.split("\n")[0] })), null, 1) +
+            "\n",
+    );
     s.errors.length = 0; // what loading and setup printed is in session.log, not the participant's view
     if (s.sr) await srReport(s, out);
     out.push(
@@ -2047,14 +2001,6 @@ async function giveFollowUp(s) {
     };
 }
 
-// The style tree with each layer's own counts, and each layer's members as the element paints them
-// (layerMembers: the end-state check holds one against the other, and the start's against the end's)
-async function stylesNow(page) {
-    const tree = await page.evaluate(styleTree).catch((e) => ({ error: e.message.split("\n")[0] }));
-    if (!tree || tree.error) return tree;
-    const painted = await page.evaluate(layerMembers).catch((e) => ({ error: e.message.split("\n")[0] }));
-    return { ...tree, painted };
-}
 // Bar 2: the open work at the end beside the start's, and what is gone, in work.json for the graders
 // (whether each loss was the participant's own choice is theirs to judge); never shown to the participant
 async function opEnd(s) {
@@ -2065,12 +2011,14 @@ async function opEnd(s) {
         end = { error: e.message.split("\n")[0] };
     }
     const start = JSON.parse(await readFile(join(s.dir, "work-start.json"), "utf8").catch(() => "null"));
+    // a list that read nothing reports nothing gone, which reads as a clean session
+    const unread = workUnread(start, end, s.hadSetup);
     await writeFile(
         join(s.dir, "work.json"),
-        JSON.stringify({ start, end, gone: workGone(start, end) }, null, 1) + "\n",
+        JSON.stringify({ start, end, gone: workGone(start, end), ...(unread ? { unread } : {}) }, null, 1) + "\n",
     );
     // the whole style tree at the end beside the start's, and what changed in it, for the graders
-    const stylesEnd = await stylesNow(s.page);
+    const stylesEnd = await s.page.evaluate(styleTree).catch((e) => ({ error: e.message.split("\n")[0] }));
     const stylesStart = JSON.parse(await readFile(join(s.dir, "styles-start.json"), "utf8").catch(() => "null"));
     await writeFile(
         join(s.dir, "styles.json"),
@@ -2086,11 +2034,13 @@ async function opEnd(s) {
     // check (endstate.mjs)
     const data = await s.page.evaluate(dataState).catch((e) => ({ error: e.message.split("\n")[0] }));
     await writeFile(join(s.dir, "data.json"), JSON.stringify(data, null, 1) + "\n");
-    return { out: [`session ended: ${s.dir}`], code: 0, end: true };
+    const capped = s.gemini?.capped ? [capLine(s.gemini.file)] : [];
+    const notRead = unread ? [`FAIL: work.json says nothing about what is gone: ${unread}`] : [];
+    return { out: [...capped, ...notRead, `session ended: ${s.dir}`], code: unread ? 1 : 0, end: true };
 }
 // What the studio's bars read on the page as it is now (bars.mjs): axe, controls sharing a name,
 // focus fallen to the page, the app's words on screen, bar 10's cut text and raw strings. A plant
-// ("img", "twins", "blur", "cut", "raw", "unscroll", "biglist", "wordy") puts a known failure on the page first and
+// ("img", "twins", "blur", "cut", "raw", "unscroll") puts a known failure on the page first and
 // takes it away after, to prove each check can fail.
 async function measure(s, planted) {
     const { page } = s;
@@ -2106,13 +2056,6 @@ async function measure(s, planted) {
                 axe: await axeViolations(page),
                 names: await sameNames(s.cdp),
                 words: await page.evaluate(wordsOnScreen),
-                // the selection workspace's own words, apart from the screen behind it (tier 5's
-                // words at rest), or null when no workspace is open
-                wsWords: await page.evaluate(wordsOnScreen, ".sel-ws"),
-                keywords: await page.evaluate(catalogKeywords).catch(() => []),
-                lists: await page
-                    .evaluate(largeLists)
-                    .catch((e) => [{ list: `unreadable: ${e.message.split("\n")[0]}`, ok: false }]),
                 spoken: await spokenNow(s),
                 ...(await bar10Counts(page)),
             },
@@ -2182,6 +2125,29 @@ async function bar10Counts(page) {
     }
     for (const c of cut) delete c.mark;
     return { cut, raw };
+}
+// --prove only: what decides a session's tier, as the session itself sees it
+async function tierFacts(s) {
+    const children = spawnSync("pgrep", ["-P", String(process.pid)], { encoding: "utf8" }).stdout.split("\n");
+    const environs = children.filter(Boolean).map((p) => readFileSync(`/proc/${p}/environ`, "latin1"));
+    return {
+        siteStatus: await s.page.evaluate(() => fetch("/site.json").then((r) => r.status)),
+        assistant: await s.page.getByRole("button", { name: "Assistant" }).count(),
+        chip: await s.page.getByLabel(/^Site: /).count(),
+        url: s.page.url(),
+        routed: !!s.gemini,
+        children: environs.length,
+        keyInChildEnv: environs.some((e) => e.split("\0").some((v) => v.startsWith("GOOGLE_API_KEY="))),
+    };
+}
+// --prove only: one call to Gemini from the page, with the count already at the cap
+async function plantGemini(s) {
+    const status = await s.page.evaluate(() =>
+        fetch("https://generativelanguage.googleapis.com/v1beta/models", {
+            headers: { "x-goog-api-key": "placeholder" },
+        }).then((r) => r.status),
+    );
+    return { out: [], code: 0, data: status };
 }
 // --prove only: clears the graph through the element, as a lost table would go; says the source's name
 async function plantRemoval(s) {
@@ -2276,31 +2242,14 @@ async function plantDom(s, kind) {
             document.body.append(b);
             return;
         }
-        if (kind === "invisible") {
-            // kept in place, drawn as nothing: what the data table is behind an open workspace
+        if (kind === "going") {
+            // a control the app removes while the click still waits for it to hold still
             const b = document.createElement("button");
-            b.setAttribute("aria-label", "Planted invisible");
-            b.textContent = "Planted invisible";
-            Object.assign(b.style, { position: "fixed", left: "600px", top: "40px", visibility: "hidden" });
+            b.textContent = "Planted going";
+            Object.assign(b.style, { position: "fixed", left: "600px", top: "10px", zIndex: 99999 });
+            b.animate({ left: ["600px", "700px"] }, { duration: 300, iterations: Infinity });
+            setTimeout(() => b.remove(), 1500);
             document.body.append(b);
-            return;
-        }
-        if (kind === "rerender") {
-            // a control the app draws again right after the matcher found it (a pane re-rendered by
-            // the step before): the first handle is gone, the same name is on screen again
-            const make = () => {
-                const b = document.createElement("button");
-                b.textContent = "Planted rerender";
-                Object.assign(b.style, { position: "fixed", left: "600px", top: "10px", zIndex: 99999 });
-                b.onclick = () => (b.textContent = "Planted rerender clicked");
-                return b;
-            };
-            const first = make();
-            new MutationObserver((_, o) => {
-                o.disconnect();
-                first.replaceWith(make());
-            }).observe(first, { attributes: true, attributeFilter: ["data-try-key"] });
-            document.body.append(first);
             return;
         }
         if (kind === "slow") {
@@ -2343,9 +2292,8 @@ async function opStep(s, steps, asRecorded = []) {
     s.ms = {};
     // a replay names the clicks its route recorded as refused: checked by name, never done
     s.asRecorded = new Set(asRecorded);
-    const glance = await watchInput(s, t0);
     const r = await run(s, steps, out).finally(() => (s.asRecorded = null));
-    await glance();
+    if (s.gemini?.capped) out.push(capLine(s.gemini.file));
     const t1 = performance.now();
     const said = await shot(s);
     out.push(said);
@@ -2357,99 +2305,6 @@ async function opStep(s, steps, asRecorded = []) {
     s.ms.total = performance.now() - t0;
     const check = await recordRoute(s, { steps, out, code, missed: r.missed });
     return { out, code, check };
-}
-
-// How soon the page answers an input. Before a step, the page is armed to log INPUT_SEEN at the
-// step's first pointer press or key and to time the first animation frame after it: ms.firstFrame
-// in route.jsonl is the wait from the input to the frame the browser paints next, the frame that
-// shows whether the app said it is working before it blocked. REAL_GLANCE_MS=<ms> on --start also
-// saves NN-glance.png, the last frame the browser drew by that long after the input (the screen a
-// person sees while the step works); ms.glance is when that frame was drawn, from the input.
-const INPUT_SEEN = "real:input";
-function INPUT_PROBE(seen) {
-    window.__realFirstFrame = null;
-    const on = () => {
-        removeEventListener("pointerdown", on, true);
-        removeEventListener("keydown", on, true);
-        const at = performance.now();
-        console.debug(seen);
-        requestAnimationFrame(() => {
-            window.__realFirstFrame = performance.now() - at;
-        });
-    };
-    addEventListener("pointerdown", on, true);
-    addEventListener("keydown", on, true);
-}
-async function watchInput(s, t0) {
-    const glanceMs = Number(process.env.REAL_GLANCE_MS) || 0;
-    s.lastGlance = null;
-    await s.page.evaluate(INPUT_PROBE, INPUT_SEEN).catch(() => {});
-    // REAL_PROFILE=1: a CPU profile of the step's own work, NN.cpuprofile (open it in DevTools)
-    const profile = process.env.REAL_PROFILE === "1";
-    if (profile) {
-        s.cdp ??= await s.context.newCDPSession(s.page);
-        await s.cdp.send("Profiler.enable");
-        await s.cdp.send("Profiler.start");
-    }
-    // s.ms is replaced as the step goes, so these are kept apart and added at the end
-    const got = {};
-    // The glance is taken from the browser's screencast, the frames it actually drew with the time
-    // each was drawn: a screenshot asked for while the page is busy comes back only after it is not.
-    const frames = [];
-    let seenAt = null;
-    const onFrame = ({ data, metadata, sessionId }) => {
-        frames.push({ data, at: metadata.timestamp * 1000 });
-        s.cdp.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
-    };
-    if (glanceMs > 0) {
-        s.cdp ??= await s.context.newCDPSession(s.page);
-        s.cdp.on("Page.screencastFrame", onFrame);
-        await s.cdp.send("Page.startScreencast", { format: "png", everyNthFrame: 1 });
-    }
-    s.onInput = () => {
-        s.onInput = null;
-        seenAt = Date.now();
-        got.input = performance.now() - t0;
-    };
-    return async () => {
-        s.onInput = null;
-        const frame = await s.page.evaluate(() => window.__realFirstFrame).catch(() => null);
-        if (typeof frame === "number") got.firstFrame = frame;
-        if (glanceMs > 0) {
-            await s.cdp.send("Page.stopScreencast").catch(() => {});
-            s.cdp.off("Page.screencastFrame", onFrame);
-            // the screen as it stood glanceMs after the input: the last frame drawn by then
-            const shown = seenAt === null ? [] : frames.filter((f) => f.at <= seenAt + glanceMs);
-            const last = shown[shown.length - 1];
-            if (last) {
-                const n = readdirSync(s.dir).filter((f) => /^\d+\.png$/.test(f)).length + 1;
-                const name = `${String(n).padStart(2, "0")}-glance.png`;
-                await writeFile(join(s.dir, name), Buffer.from(last.data, "base64"));
-                s.lastGlance = name;
-                // when that frame was drawn, from the input (negative: nothing new was drawn by then)
-                got.glance = last.at - seenAt;
-            }
-            // REAL_GLANCE_EVERY_MS=<ms>: also the screen every that long after the input until the
-            // step settled, NN-glance-<ms>.png, to see a sign of work hold through the whole wait
-            const every = Number(process.env.REAL_GLANCE_EVERY_MS) || 0;
-            const end = frames.length > 0 ? frames[frames.length - 1].at : 0;
-            for (let t = every; every > 0 && seenAt !== null && seenAt + t <= end; t += every) {
-                const at = frames.filter((f) => f.at <= seenAt + t).pop();
-                if (!at) continue;
-                const n = readdirSync(s.dir).filter((f) => /^\d+\.png$/.test(f)).length + 1;
-                await writeFile(
-                    join(s.dir, `${String(n).padStart(2, "0")}-glance-${t}.png`),
-                    Buffer.from(at.data, "base64"),
-                );
-            }
-        }
-        if (profile) {
-            const n = readdirSync(s.dir).filter((f) => /^\d+\.png$/.test(f)).length + 1;
-            const { profile: p } = await s.cdp.send("Profiler.stop");
-            await writeFile(join(s.dir, `${String(n).padStart(2, "0")}.cpuprofile`), JSON.stringify(p));
-        }
-        Object.assign(s.ms, got);
-    };
 }
 
 // The screenshot is always saved for graders; a screen-reader participant is not told where. It is
@@ -2487,9 +2342,7 @@ function screenOf() {
         "button,a[href],input,select,textarea,h1,h2,h3,h4,[role=button],[role=link],[role=tab],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=option],[role=treeitem],[role=checkbox],[role=radio],[role=switch],[role=combobox],[role=textbox],[role=searchbox],[role=slider],[role=dialog],[role=alertdialog],[role=heading],[role=row]";
     const out = [];
     for (const e of document.querySelectorAll(sel)) {
-        // visibility: hidden keeps a box in place but draws nothing (the data table behind an open
-        // workspace): a person cannot see it, so it is not on the screen
-        if (!e.checkVisibility({ visibilityProperty: true }) || e.closest("[aria-hidden=true]")) continue;
+        if (!e.checkVisibility() || e.closest("[aria-hidden=true]")) continue;
         const name = (e.getAttribute("aria-label") || e.innerText || e.value || e.placeholder || "")
             .replace(/\s+/g, " ")
             .trim()
@@ -2505,7 +2358,6 @@ async function recordRoute(s, { steps, out, code, missed }) {
         code,
         missed,
         shot: s.lastShot,
-        ...(s.lastGlance ? { glance: s.lastGlance } : {}),
         out: checkLines(out, s.dir),
         screen: await s.page.evaluate(screenOf).catch(() => []),
         ms,
@@ -2526,13 +2378,9 @@ function divergence(rec, now) {
         b = now.out.map(refusalFacts).join("\n");
     if (a !== b)
         return `the step printed other things: recorded ${JSON.stringify(rec.out)}, now ${JSON.stringify(now.out)}`;
-    // a control with no name is left out on both sides: a route recorded before the screen record
-    // dropped controls hidden with visibility: hidden holds them nameless (the data table behind an
-    // open workspace added 21), and a nameless control is axe's to find, not a replay's
-    const named = (xs) => xs.filter((x) => !x.endsWith(" "));
-    const left = named(rec.screen);
+    const left = [...rec.screen];
     const added = [];
-    for (const x of named(now.screen)) {
+    for (const x of now.screen) {
         const i = left.indexOf(x);
         if (i >= 0) left.splice(i, 1);
         else added.push(x);
@@ -2903,28 +2751,27 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
             } else {
                 if (f.at) out.push(`${verb === "hover" ? "hovered" : "clicked"} ${f.desc}`);
                 if (verb === "hover") await Promise.all([forgetTips(page), forgetPops(page)]);
-                await act(page, f, verb, CLICKS[a], clickMs)
-                    // the app drew the control again between finding it and acting on it (a pane
-                    // re-rendered by the step before): find it again by its name and act on that one
-                    .catch(async (e) => {
-                        if (!/not attached to the DOM/.test(e.message)) throw e;
-                        const again = await find(page, v);
-                        if (again.miss || again.at) throw e;
-                        return act(page, again, verb, CLICKS[a], clickMs);
-                    })
-                    .catch((e) => {
-                        // Playwright counts its wait after the click (for navigations it may have started)
-                        // inside the limit: a click its call log says was done landed, and was only slow
-                        if (callLog(e).some((l) => / action done$/.test(l))) {
-                            out.push(
-                                `slow ${verb} (landed): "${v}" was ${verb}ed; the wait after it ran past ${clickMs} ms`,
-                            );
-                            return;
-                        }
-                        // Playwright's call log names the actionability check that failed (covered, not stable, ...)
-                        out.push(`could not ${verb} "${v}": ${e.message.split("\n")[0]}`, ...callLog(e));
+                await act(page, f, verb, CLICKS[a], clickMs).catch(async (e) => {
+                    // the app took the control away between the lookup and the click (a dialog
+                    // closing): to a person it is simply not there
+                    const gone = /not attached to the DOM/.test(e.message) && (await find(page, v)).miss;
+                    if (gone) {
+                        out.push(gone);
                         missed++;
-                    });
+                        return;
+                    }
+                    // Playwright counts its wait after the click (for navigations it may have started)
+                    // inside the limit: a click its call log says was done landed, and was only slow
+                    if (callLog(e).some((l) => / action done$/.test(l))) {
+                        out.push(
+                            `slow ${verb} (landed): "${v}" was ${verb}ed; the wait after it ran past ${clickMs} ms`,
+                        );
+                        return;
+                    }
+                    // Playwright's call log names the actionability check that failed (covered, not stable, ...)
+                    out.push(`could not ${verb} "${v}": ${e.message.split("\n")[0]}`, ...callLog(e));
+                    missed++;
+                });
             }
             if (verb !== "hover") await appIdle(page);
             if (verb === "hover" && !f.miss) out.push(...(await hoverLines(page)));
@@ -3091,8 +2938,14 @@ async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
         for (const line of await Promise.all(s.downloads.splice(0))) out.push(line);
     }
     for (const e of s.errors.splice(0)) {
+        // the browser's own words for a refused cross-origin call reach no reader: the log keeps them
+        if (browserNoise(e)) {
+            console.log(e);
+            continue;
+        }
         out.push(e);
-        if (requestsFail || !e.startsWith("failed request: ")) code = 1;
+        // a blocked remote picture on the start page is logged, and is not this step's failure
+        if (!e.startsWith("failed request: ") || (requestsFail && !e.includes("ERR_BLOCKED_BY_ORB"))) code = 1;
     }
     s.ms = { ...s.ms, act: t1 - t0, settle: t2 - t1, after: performance.now() - t2 };
     return { code, missed };
@@ -3264,10 +3117,6 @@ async function prove() {
     await rm(base, { recursive: true, force: true });
     // the warm pool is off for every check but its own, so each start below is the cold one it tests
     process.env.REAL_WARM_POOL = "0";
-    // its planted rounds and briefings use tier 2's tasks (T18, T20): a REAL_TIER exported for a study
-    // of another tier (tier 5's briefing start command does) would brief and grade them against that
-    // tier's files, which hold no such task
-    process.env.REAL_TIER = "2";
     let bad = 0;
     const node = (args, cwd) =>
         spawnSync(process.execPath, [self, ...args], { encoding: "utf8", env: process.env, ...(cwd && { cwd }) });
@@ -3378,8 +3227,6 @@ async function prove() {
     // a participant's session runs outside the studio's files, from its own briefing; one whose
     // transcript opened a facilitator file is void, by name
     {
-        // the planted round must sit inside the studio's files (that is what a participant's folder is
-        // mirrored out of), so with REAL_PROVE_DIR elsewhere it goes under the studio's own tmp/ (ignored)
         const R = join(under(base, STUDIO) ? base : join(STUDIO, "tmp", basename(base)), "rounds/round-9");
         await rm(R, { recursive: true, force: true });
         await rm(scratchOf(R), { recursive: true, force: true });
@@ -3570,8 +3417,7 @@ async function prove() {
         };
         while (spawnSync("flock", ["-n", join(pool, "slot1"), "true"]).status === 0)
             await new Promise((ok) => setTimeout(ok, 100));
-        // the planted pool takes a machine slot too, so its browser never runs beside the machine's
-        const full = { ...process.env, BROWSER_SLOT_DIR: pool, BROWSER_SLOTS: "1", BROWSER_SLOT_ALSO: dirname(QUEUE) };
+        const full = { ...process.env, BROWSER_SLOT_DIR: pool, BROWSER_SLOTS: "1" };
         r = spawnSync(process.execPath, [self, "--start", own4, "empty"], {
             encoding: "utf8",
             env: { ...full, REAL_SLOT_WAIT_SECONDS: "2" },
@@ -3584,7 +3430,9 @@ async function prove() {
                 !pngs(own4).length,
             `exit ${r.status} ${r.stdout}${r.stderr}`,
         );
-        const later = spawn(process.execPath, [self, "--start", own4, "empty"], {
+        const givenSetup = join(base, "participant-setup.txt");
+        await writeFile(givenSetup, "--click role=button:Samples\n--click A club that split in two\n");
+        const later = spawn(process.execPath, [self, "--start", own4, `setup:${givenSetup}`], {
             env: { ...full, REAL_SLOT_WAIT_SECONDS: "120" },
         });
         let said = "";
@@ -3599,6 +3447,12 @@ async function prove() {
             "the same start, run again, starts the session once the slot frees",
             status === 0 && pngs(own4).includes("01.png") && existsSync(sockOf(own4)),
             `exit ${status} ${said}`,
+        );
+        const rec = JSON.parse(readFileSync(join(own4, "session.json"), "utf8"));
+        check(
+            "a participant's folder does not hold the setup's steps",
+            rec.setup === 2 && readFileSync(join(own4, "setup.log"), "utf8") === "",
+            JSON.stringify(rec.setup),
         );
         node(["--end", own4]);
     }
@@ -3683,22 +3537,12 @@ async function prove() {
             /^slow click \(landed\): "Planted slow"/m.test(x.out) && !/could not click/.test(x.out),
             x.out,
         );
-        // a control drawn again between finding it and clicking it is found again by name, not missed
-        await ask(A, { op: "plant-dom", kind: "rerender" });
-        x = step(A, "--click", "Planted rerender", "--expect", "Planted rerender clicked");
+        await ask(A, { op: "plant-dom", kind: "going" });
+        x = step(A, "--click", "Planted going");
         check(
-            "a click on a control the app drew again after it was found clicks the new one by name",
-            x.code === 0 && !/could not click|not attached/.test(x.out) && !/expected on screen, not there/.test(x.out),
+            "a control the app removes during the click is a plain miss, in no Playwright words",
+            /^nothing on screen is called "Planted going"/m.test(x.out) && !/could not click/.test(x.out),
             x.out,
-        );
-        // a control hidden with visibility: hidden is not on the screen a route records
-        await ask(A, { op: "plant-dom", kind: "invisible" });
-        x = step(A, "--key", "Shift");
-        const lastScreen = readFileSync(join(A, "route.jsonl"), "utf8").trim().split("\n").pop();
-        check(
-            "the screen a route records leaves out a control hidden with visibility: hidden",
-            !lastScreen.includes("Planted invisible") && lastScreen.includes("Planted rerender"),
-            lastScreen.slice(0, 400),
         );
         // a tooltip dismissed by CSS, and an empty one, are no tooltip; Everything has none of its own
         await ask(A, { op: "plant-dom", kind: "hidden-tip" });
@@ -3872,14 +3716,6 @@ async function prove() {
     check("the setup's sample is open when the participant arrives", y.code === 0, y.out);
     const lit = (await ask(B, { op: "hovered" })).out[0];
     check("a setup leaves the pointer over nothing, so no control is lit by a hover", lit === "", lit);
-    // a setup start is a reopened project: no undo history, so the setup's steps cannot be undone
-    const undoOff = step(B, "--hover", "Undo");
-    check(
-        "after a setup start Undo is disabled, with the tooltip Nothing to undo",
-        /^tooltip: "Nothing to undo"$/m.test(undoOff.out),
-        undoOff.out,
-    );
-    step(B, "--key", "Escape");
     // bar 2: the open work at the start is listed, and a planted removal shows up as gone at the end
     const workStart = JSON.parse(readFileSync(join(B, "work-start.json"), "utf8"));
     check(
@@ -3903,12 +3739,11 @@ async function prove() {
         r.status === 1 && /SETUP FAILED/.test(r.stdout),
         `exit ${r.status} ${r.stdout}`,
     );
-    node(["--end", C]);
+    check("a failed setup leaves no session running", !existsSync(sockOf(C)), readdirSync(C).join(" "));
     // a setup click on a control that never becomes clickable (Redo, with nothing to redo) fails the start
     const C2 = join(base, "session-c2");
     await writeFile(setup, "--click role=button:Samples\n--click A club that split in two\n--click Redo\n");
     r = node(["--start", C2, `setup:${setup}`]);
-    node(["--end", C2]);
     check(
         "a setup click on a control that never becomes clickable fails the start",
         r.status === 1 &&
@@ -4043,7 +3878,7 @@ async function prove() {
         x = step(H, "--click", "weight#1");
         check(
             "a position pick among different kinds of control is refused, naming each kind",
-            /ambiguous: "weight#1" picks by position among different kinds of control, so the step did nothing; name it by kind: "role=\w+:weight", "role=\w+:weight"/.test(
+            /ambiguous: "weight#1" picks by position among different kinds of control, so the step did nothing; name it by kind: .*"role=\w+:weight"/.test(
                 x.out,
             ) && pngs(H).length === before + 1,
             x.out,
@@ -4101,7 +3936,7 @@ async function prove() {
     }
     node(["--end", M]);
     await proveRoutes(base, check, node, step);
-    await proveWarm(base, check);
+    await proveWarm(base, check, step);
     const I = join(base, "session-i");
     r = node(["--start", I, "empty", "--task", "T17A"]);
     if (check("a start with a task", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) {
@@ -4203,7 +4038,7 @@ async function proveRoutes(base, check, node, step) {
 }
 // --prove's check of the warm pool, in a pool of its own: a start tops it up, and the next start of
 // the same build takes the warm browser over instead of launching one
-async function proveWarm(base, check) {
+async function proveWarm(base, check, step) {
     const self = fileURLToPath(import.meta.url);
     const pool = join(base, "warm-slots");
     await mkdir(pool, { recursive: true });
@@ -4211,20 +4046,14 @@ async function proveWarm(base, check) {
         ...process.env,
         BROWSER_SLOT_DIR: pool,
         BROWSER_SLOTS: "6",
-        // and a slot of the machine's pool, so the browsers it starts never run beside the machine's 8
-        BROWSER_SLOT_ALSO: dirname(QUEUE),
         REAL_WARM_POOL: "1",
         REAL_WARM_SECONDS: "180",
-        // its warm browser waits for a slot and holds it, so the verdict is the takeover's alone
-        REAL_WARM_HOLD: "1",
     };
     const run = (a) => spawnSync(process.execPath, [self, ...a], { encoding: "utf8", env });
     const [W1, W2] = [join(base, "warm-1"), join(base, "warm-2")];
     let r = run(["--start", W1, "empty"]);
     check("a cold start tops up the warm pool", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`);
-    // until it is ready, while it still waits or warms (a busy machine can hold every slot for minutes)
-    for (let i = 0; i < 1800 && !warmOnes().ready.length && warmOnes().warming; i++)
-        await new Promise((ok) => setTimeout(ok, 500));
+    for (let i = 0; i < 240 && !warmOnes().ready.length; i++) await new Promise((ok) => setTimeout(ok, 500));
     const t = Date.now();
     r = run(["--start", W2, "empty"]);
     const took = Date.now() - t;
@@ -4234,6 +4063,15 @@ async function proveWarm(base, check) {
         r.status === 0 && /took over warm browser/.test(log) && existsSync(join(W2, "01.png")),
         `exit ${r.status} in ${took} ms; ${r.stdout}${r.stderr}; session.log: ${log.slice(0, 300)}`,
     );
+    step(W2, "--click", "New project");
+    const facts = await ask(W2, { op: "tier-facts" }).catch((e) => ({ data: e.message }));
+    check(
+        "a session of another tier is unchanged: production's site.json, no Assistant, no Gemini route",
+        facts.data?.siteStatus === 200 && facts.data.assistant === 0 && facts.data.routed === false,
+        JSON.stringify(facts.data),
+    );
+    for (let i = 0; i < 240 && !warmOnes().ready.length; i++) await new Promise((ok) => setTimeout(ok, 500));
+    await proveTier6(base, check, step, env);
     for (const d of [W1, W2]) spawnSync(process.execPath, [self, "--end", d], { env: { ...env, REAL_WARM_POOL: "0" } });
     // the browsers it warmed after: stopped, so the planted pool leaves nothing running
     for (const f of existsSync(WARM_DIR) ? readdirSync(WARM_DIR) : []) {
@@ -4245,6 +4083,110 @@ async function proveWarm(base, check) {
             // already gone
         }
     }
+}
+// --prove's checks of a tier 6 session, with a warm browser ready and a planted key file, so no check
+// touches the real key or spends a call: the count starts at the cap, and the shell's own
+// GOOGLE_API_KEY stands in for one that must not reach the browser
+async function proveTier6(base, check, step, warmEnv) {
+    const self = fileURLToPath(import.meta.url);
+    const fake = "planted-fake-key-0123456789";
+    const T = join(base, "tier6");
+    const envFile = join(base, "tier6.env");
+    const count = join(base, "tier6.count");
+    await writeFile(envFile, `GOOGLE_API_KEY=${fake}\n`);
+    await writeFile(count, "x".repeat(TIER6_CAP));
+    const env = {
+        ...warmEnv,
+        REAL_TIER: "6",
+        REAL_ENV_FILE: envFile,
+        REAL_GEMINI_COUNT: count,
+        GOOGLE_API_KEY: "planted-in-the-shell",
+    };
+    const run = (a, e = env) => spawnSync(process.execPath, [self, ...a], { encoding: "utf8", env: e });
+
+    let r = run(["--start", join(base, "tier6-nokey"), "empty"], { ...env, REAL_ENV_FILE: join(base, "no-such.env") });
+    check(
+        "a tier 6 start with no key fails with one line that starts nothing",
+        r.status === 1 && r.stderr.trim().split("\n").length === 1 && /GOOGLE_API_KEY/.test(r.stderr),
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+
+    const ready = warmOnes().ready.length;
+    r = run(["--start", T, "empty"]);
+    if (!check("a tier 6 session starts", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) return;
+    const log = readFileSync(join(T, "session.log"), "utf8");
+    check(
+        "a tier 6 start never takes a warm browser, which loaded the app with no flag",
+        ready > 0 && !/took over warm browser/.test(log),
+        `${ready} ready; session.log: ${log.slice(0, 300)}`,
+    );
+    check("a tier 6 start closes the warm browsers it can never take", !warmOnes().ready.length, "still ready");
+    step(T, "--click", "New project");
+    const facts = (await ask(T, { op: "tier-facts" })).data;
+    check(
+        "a tier 6 session has the Assistant, with nothing in the address and no site chip",
+        facts.siteStatus === 200 &&
+            facts.assistant === 1 &&
+            facts.chip === 0 &&
+            facts.routed &&
+            !facts.url.includes("features"),
+        JSON.stringify(facts),
+    );
+    check(
+        "the browser's environment holds no GOOGLE_API_KEY",
+        facts.children > 0 && !facts.keyInChildEnv,
+        JSON.stringify(facts),
+    );
+    const refused = (await ask(T, { op: "plant-gemini" })).data;
+    const x = step(T, "--key", "Escape");
+    check(
+        "at the cap a call is refused, it adds nothing to the count, and the step says so",
+        refused === 429 && statSync(count).size === TIER6_CAP && /the tier's cap of 5000 Gemini requests/.test(x.out),
+        `${refused} ${x.out}`,
+    );
+    r = run(["--end", T]);
+    check(
+        "--end repeats the cap's line and passes the key check",
+        r.status === 0 && /the tier's cap of 5000/.test(r.stdout) && /key check: no key/.test(r.stdout),
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+    await writeFile(join(T, "planted.bin"), Buffer.concat([Buffer.from([0, 255]), Buffer.from(fake)]));
+    r = run(["--end", T]);
+    check(
+        "--end fails on a key in the session's folder, naming the file and not the key",
+        r.status === 1 && /FAIL: the Gemini key is in .*planted\.bin/.test(r.stdout) && !r.stdout.includes(fake),
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+    await rm(join(T, "planted.bin"));
+
+    // the round's copy: a clean session's copy is scanned too, and a key in the session stays out of it
+    const own = join(SCRATCH, "tier6/rounds/prove/sessions/p1");
+    const home = studioOf(own);
+    await mkdir(own, { recursive: true });
+    await mkdir(home, { recursive: true });
+    await writeFile(join(own, "01.png"), "not a picture");
+    await writeFile(join(home, "transcript.md"), fake);
+    r = run(["--end", own]);
+    check(
+        "--end fails on a key in the round's copy",
+        r.status === 1 && r.stdout.includes(`FAIL: the Gemini key is in ${join(home, "transcript.md")}`),
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+    await rm(home, { recursive: true });
+    await writeFile(join(own, "01.png"), fake);
+    r = run(["--end", own]);
+    check(
+        "a key in the session's folder is never copied to the round",
+        r.status === 1 && !existsSync(home),
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+    // only the proof's own round: its neighbors are a study's committed reports and session folders
+    const neighbor = join(STUDIO, "tier6/rounds/prove-neighbor");
+    await mkdir(neighbor, { recursive: true });
+    await rm(join(SCRATCH, "tier6/rounds/prove"), { recursive: true, force: true });
+    await rm(join(STUDIO, "tier6/rounds/prove"), { recursive: true, force: true });
+    check("the proof removes its own round and no other", existsSync(neighbor) && !existsSync(dirname(dirname(home))));
+    await rm(neighbor, { recursive: true });
 }
 function finish(bad, dirs) {
     for (const d of dirs)
@@ -4300,17 +4242,19 @@ if (mode === "--serve") {
             code: 0,
             end: true,
         }));
-        if (r.end) {
-            for (let i = 0; existsSync(sockOf(args[1])) && i < 50; i++) await new Promise((ok) => setTimeout(ok, 100));
-            await rm(sockOf(args[1]), { force: true });
-        }
+        if (r.end) await socketGone(args[1]);
         ended = !!r.end;
         code = say(r);
     }
-    const home = args[1] && studioOf(resolve(args[1]));
-    if (ended && home) await copyBack(resolve(args[1]), home);
+    const own = resolve(args[1] || ".");
+    const home = args[1] && studioOf(own);
+    const keyed = ended && args[1] && tier6(own);
+    // a key in the session's folder stays out of the round's copy, which is in git's reach
+    const clean = !keyed || keyCheck([own]);
+    if (ended && home && clean) await copyBack(own, home);
+    if (!clean || (keyed && home && !keyCheck([home]))) code = 1;
     // a slot just came free: warm the next browser of the build this command names
-    if (ended && process.env.REAL_DIST) topUp();
+    if (ended && process.env.REAL_DIST && !keyed) topUp();
 } else if (mode === "--leaks") {
     const [dir, ...given] = args.slice(1);
     if (!dir) {

@@ -59,15 +59,6 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     source: "Source",
 };
 
-/**
- * The kind line of a Sources row's left-out child, which names its load rather than "Source".
- * @param load - the load's name.
- * @returns such as "Left out of people.csv and messages.csv".
- */
-export function leftOutOf(load: string): string {
-    return `Left out of ${load}`;
-}
-
 /** The kind word of a path run's row, which is a measure row by shape but not a measure to a reader. */
 export const PATH_WORD = "Path";
 
@@ -892,7 +883,7 @@ export function xrReasonWords(reason: XrUnavailableReason, mode: XrRowMode): str
 }
 
 /**
- * The XR rows the View menu draws: one "VR / AR" row when neither mode can be entered for the
+ * The XR rows the Mode menu draws: one "VR / AR" row when neither mode can be entered for the
  * same reason, otherwise one row per mode, each with its reason or null.
  * @param xr - the element's XR facts.
  * @returns the rows, top to bottom.

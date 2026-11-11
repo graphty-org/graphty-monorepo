@@ -126,12 +126,13 @@ function cellValue(value: unknown): string | number | boolean | undefined {
 }
 
 /**
- * The join's key column on the graph side, as the table names it: `id`, or `a:<attribute>`.
+ * The join's key column on the graph side, as the table names it: `id`, an edge's `source` or
+ * `target`, or `a:<attribute>`.
  * @param path - the key's graph value.
  * @returns the column id.
  */
 function graphColumnId(path: string): string {
-    return path === "id" ? "id" : `a:${path.replace(/^data\./, "")}`;
+    return path === "id" || path === "source" || path === "target" ? path : `a:${path.replace(/^data\./, "")}`;
 }
 
 /**
@@ -533,8 +534,10 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
     const incoming = useElementSize();
     const screenRef = useRef<HTMLElement>(null);
     const targets = replaceTargets(workspace);
-    // Replace data names the source it replaces; with one there is nothing to pick.
-    const [target, setTarget] = useState<ReplaceTarget | undefined>(targets.length === 1 ? targets[0] : undefined);
+    // Replace data names the source it replaces: the one the file matches; with one there is nothing to pick.
+    const [target, setTarget] = useState<ReplaceTarget | undefined>(
+        targets.find((each) => each.key === subject.matches) ?? (targets.length === 1 ? targets[0] : undefined),
+    );
     // The screen takes focus as it opens, on its Join button, so Esc and Tab work in it at once.
     useEffect(() => {
         const screenEl = screenRef.current;
@@ -566,6 +569,12 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
     const kind: RecordKind = choices.shape === "edge-values" ? "edge" : "node";
     const graphPaths = [
         { value: "id", label: "Id" },
+        ...(kind === "edge"
+            ? [
+                  { value: "source", label: "Source" },
+                  { value: "target", label: "Target" },
+              ]
+            : []),
         ...session.data
             .attributes()
             .filter((each) => each.kind === kind && each.origin !== "result" && each.hidden !== true)
@@ -581,8 +590,9 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
         .map((values, at): IncomingRow => ({
             at,
             values,
-            match: counts?.rowMatches[at] ?? [],
-            fate: counts?.rowFates[at],
+            // What a row joins to means nothing to Add as rows, Replace or a separate graph.
+            match: (how === "join" ? counts?.rowMatches[at] : undefined) ?? [],
+            fate: how === "join" ? counts?.rowFates[at] : undefined,
         }))
         .filter((row) => {
             if (show === "not-in-graph") {

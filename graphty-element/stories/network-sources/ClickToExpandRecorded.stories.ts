@@ -50,8 +50,6 @@ const MORE_TO_FETCH_LAYER = {
  */
 function render(): HTMLElement {
     const element = document.createElement("graphty-element");
-    // Network sources sit behind the network-data experiment.
-    element.setAttribute("features", "network-data");
     element.style.display = "block";
     element.style.width = "100%";
     element.style.height = "85vh";

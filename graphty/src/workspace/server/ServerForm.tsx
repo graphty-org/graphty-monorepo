@@ -14,25 +14,24 @@ import {
 import type { SourceCatalogEntry } from "@graphty/graphty-element/catalog";
 import { type CodedFact, type SourceParamDescriptor, type SourcePreview } from "@graphty/graphty-element/session";
 import { Button, Input, Loader, PasswordInput, Stack, Textarea } from "@mantine/core";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
-import { networkOn } from "../features";
+import { sourceName } from "../data-place/words";
 import { GLYPHS } from "../glyphs";
 import { useSessionVersion } from "../inspector/hooks";
-import { closeProject } from "../project/actions";
+import { replaceWith } from "../replace/commands";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     EXPAND_DEFAULTS,
-    formCredential,
+    formFromSettings,
     formReady,
     freshForm,
     SERVER_DIALOG,
     type ServerFormState,
     serverKinds,
-    serverRequest,
+    serverLoad,
     START_WORDS,
-    withExample,
-    withoutExample,
+    undeclaredParams,
     withStart,
 } from "./commands";
 import { CodeChip, PreviewRows } from "./PreviewRows";
@@ -42,9 +41,9 @@ import { codeWords, failureOf, kindName } from "./words";
 const OWN_ROWS = new Set(["mode"]);
 
 /** Params few readers change, drawn after the main rows with the source's own advanced ones. */
-const RARE_PARAMS = new Set(["transport", "database"]);
+const RARE_PARAMS = new Set(["transport"]);
 
-/** The choice of a select that means none: an example cleared, an enum left unset. */
+/** The choice of a select that means none: an enum left unset. */
 const NONE = "";
 
 /**
@@ -358,12 +357,12 @@ function SignInRow({
 }
 
 /**
- * The network data form (spec section 3.9): Kind, Example, Endpoint, Sign in, Start, the query or
+ * The network data form (spec section 3.9): Kind, Endpoint, Sign in, Start, the query or
  * the source's own params, Limit and Expand on double-click with what an expansion fetches; Test
  * reads a preview, Load loads. Rows a source cannot use are absent. Built only from compact-mantine
  * rows (FieldRow, PanelField, ToggleRow, ActionRow) with captions above, and themed Mantine inputs
  * as wide as a row's field; as a form that is itself a pop-over, it draws every setting flat
- * (SettingsPopout.tsx).
+ * (SettingsPopout.tsx). Closing it during a Load stops the Load.
  * @param props - Component props
  * @param props.onClose - closes the pop-over.
  * @returns the form.
@@ -371,12 +370,17 @@ function SignInRow({
 function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.Element {
     const { session, element, store } = useWorkspace();
     const kinds = serverKinds();
+    const editing = store.get().serverEdit;
     // Opened on the source the store names, else on the first listed (NDEx, which needs no sign-in).
+    // An edit opens filled in with what the load holds.
     const [form, setForm] = useState<ServerFormState>(() => {
         const asked = store.get().serverKind;
-        const first = kinds.find((each) => each.id === asked) ?? kinds[0];
-        return freshForm(first);
+        const opened = kinds.find((each) => each.id === asked) ?? kinds[0];
+        const settings = editing === null ? undefined : session?.data.sourceSettings(editing);
+        return settings === undefined ? freshForm(opened) : formFromSettings(opened, settings);
     });
+    const loading = useRef<AbortController | null>(null);
+    useEffect(() => () => loading.current?.abort(), []);
     const [preview, setPreview] = useState<SourcePreview | null>(null);
     const [failure, setFailure] = useState<CodedFact | null>(null);
     const [busy, setBusy] = useState<"test" | "load" | null>(null);
@@ -386,14 +390,8 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
     }
     const { descriptor } = entry;
     const modes = descriptor.params.find((p) => p.name === "mode")?.values ?? [];
-    const examples = descriptor.examples ?? [];
     const change = (next: Partial<ServerFormState>): void => {
         setForm((was) => ({ ...was, ...next }));
-        setPreview(null);
-        setFailure(null);
-    };
-    const refill = (next: ServerFormState): void => {
-        setForm(next);
         setPreview(null);
         setFailure(null);
     };
@@ -407,13 +405,14 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
         if (session === null || busy !== null || !ready) {
             return;
         }
-        const { input, options } = serverRequest(entry, form);
-        const credential = formCredential(entry, form);
+        const { input, options, credential } = serverLoad(entry, form);
         setBusy("test");
         setFailure(null);
         session.data
             .previewSource(input, {
                 maxNodes: 25,
+                // Load's cap: what Test refuses, Load would too.
+                ...(options.limits === undefined ? {} : { limits: options.limits }),
                 ...(options.endpoint === undefined ? {} : { endpoint: options.endpoint }),
                 ...(credential === undefined ? {} : { credential }),
             })
@@ -430,21 +429,41 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
         if (session === null || busy !== null || !ready) {
             return;
         }
-        const { input, options } = serverRequest(entry, form);
-        const credential = formCredential(entry, form);
-        const endpoint = options.endpoint ?? descriptor.defaultEndpoint ?? undefined;
+        const { input, options, credential, endpoint } = serverLoad(entry, form);
         setBusy("load");
         setFailure(null);
+        loading.current = new AbortController();
         try {
             // Remembered in memory, never in the file, so Load more, Refresh and Expand find it.
             if (credential !== undefined && element !== null && endpoint !== undefined) {
                 await element.credentials.remember({ source: entry.id, endpoint }, credential);
             }
-            await session.data.import(input, {
-                ...options,
-                ...(credential === undefined ? {} : { credential }),
-                ...(session.data.sources().length > 0 ? { mode: "merge" as const } : {}),
-            });
+            const edited = session.data.sources().find((each) => each.key === editing);
+            if (edited === undefined) {
+                await session.data.import(input, {
+                    ...options,
+                    signal: loading.current.signal,
+                    ...(session.data.sources().length > 0 ? { mode: "merge" as const } : {}),
+                });
+            } else {
+                // A read that changed is named as a new load from the form is; else the source keeps its name.
+                const before = session.data.sourceSettings(edited.key);
+                const same =
+                    before !== undefined &&
+                    JSON.stringify(before.config) === JSON.stringify(input.config) &&
+                    (options.endpoint ?? before.endpoint) === before.endpoint;
+                const { name: _name, ...unnamed } = input;
+                await replaceWith(
+                    store,
+                    session,
+                    edited.key,
+                    same ? { source: unnamed, name: sourceName(edited) } : { source: input, name: input.name ?? "" },
+                    {
+                        ...options,
+                        signal: loading.current.signal,
+                    },
+                );
+            }
             onClose();
         } catch (error) {
             setFailure(failureOf(error));
@@ -454,11 +473,18 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
     };
 
     return (
-        <form
+        <form // NOSONAR(S6847): the handler only marks an Escape the dropdown inside already used
             aria-label="Network data"
             onSubmit={(event) => {
                 event.preventDefault();
                 void load();
+            }}
+            onKeyDown={(event) => {
+                // Escape in an open dropdown closes only the dropdown: the pop-over leaves a used
+                // Escape alone, and compact-mantine's select (Figma-locked) does not mark its own (#6356).
+                if (event.key === "Escape" && (event.target as HTMLElement).ariaExpanded === "true") {
+                    event.preventDefault();
+                }
             }}
         >
             <PanelLabelsProvider showLabels>
@@ -467,6 +493,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                         <PanelField
                             label="Kind"
                             kind="select"
+                            disabled={editing !== null}
                             data={kinds.map((each) => ({ value: each.id, label: kindName(each) }))}
                             value={form.kind}
                             onChange={(id) => {
@@ -479,30 +506,13 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                             }}
                         />
                     </FieldRow>
-                    {examples.length === 0 ? null : (
-                        <FieldRow>
-                            <PanelField
-                                label="Example"
-                                kind="select"
-                                data={[
-                                    { value: NONE, label: "None" },
-                                    ...examples.map((each) => ({ value: each.id, label: each.plainName })),
-                                ]}
-                                value={examples.find((each) => each.plainName === form.example)?.id ?? NONE}
-                                onChange={(id) => {
-                                    refill(withExample(entry, form, id === NONE ? null : String(id)));
-                                }}
-                            />
-                        </FieldRow>
-                    )}
                     <FieldRow>
                         <PanelField
                             label="Endpoint"
                             placeholder={descriptor.defaultEndpoint ?? "https://"}
                             value={form.endpoint}
                             onChange={(endpoint) => {
-                                // A new endpoint is another server: the example, and what it filled, go.
-                                refill({ ...withoutExample(entry, form), endpoint: String(endpoint) });
+                                change({ endpoint: String(endpoint) });
                             }}
                         />
                     </FieldRow>
@@ -582,7 +592,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                             ) : null}
                         </>
                     ) : null}
-                    {advanced.map((param) => (
+                    {[...advanced, ...undeclaredParams(entry, form.params)].map((param) => (
                         <ParamRow
                             key={param.name}
                             param={param}
@@ -638,7 +648,7 @@ function WaitingLoads(): React.JSX.Element | null {
     useSessionVersion(session);
     const [failed, setFailed] = useState<Readonly<Record<string, CodedFact>>>({});
     const waiting = session?.data.pendingSourceLoads() ?? [];
-    if (session === null || !networkOn(session) || waiting.length === 0) {
+    if (session === null || waiting.length === 0) {
         return null;
     }
     const names = new Map(serverKinds().map((each) => [each.id, kindName(each)]));
@@ -684,28 +694,21 @@ function WaitingLoads(): React.JSX.Element | null {
 
 /**
  * The server place in the left sidebar: the loads waiting for approval, and the anchor the
- * network data form opens beside, as a pop-over, while the dialog is `"server"`. Nothing while the
- * network-data experiment is off.
+ * network data form opens beside, as a pop-over, while the dialog is `"server"`. Nothing until the
+ * session is up.
  * @returns the place, or nothing.
  */
 export function ServerPlace(): React.JSX.Element | null {
-    const { store, session, element } = useWorkspace();
+    const { store, session } = useWorkspace();
     const anchor = useRef<HTMLDivElement>(null);
     const opened = useWorkspaceState((state) => state.dialog === SERVER_DIALOG);
+    const formKey = useWorkspaceState((state) => state.serverEdit ?? state.serverKind ?? "");
     const close = (): void => {
-        const { dialog, serverFromStart } = store.get();
-        if (dialog !== SERVER_DIALOG) {
-            return;
+        if (store.get().dialog === SERVER_DIALOG) {
+            store.set({ dialog: null });
         }
-        // The project the start screen's Open network data opened, closed with nothing loaded:
-        // back to the start screen rather than an empty Untitled.
-        if (serverFromStart && (session?.data.sources().length ?? 0) === 0) {
-            closeProject({ session, element, workspace: store });
-            return;
-        }
-        store.set({ dialog: null });
     };
-    if (!networkOn(session)) {
+    if (session === null) {
         return null;
     }
     return (
@@ -732,7 +735,7 @@ export function ServerPlace(): React.JSX.Element | null {
                         placement="right"
                         alignment="start"
                     >
-                        <Popout.Content>{opened ? <ServerForm onClose={close} /> : null}</Popout.Content>
+                        <Popout.Content>{opened ? <ServerForm key={formKey} onClose={close} /> : null}</Popout.Content>
                     </Popout.Panel>
                 </Popout>
             </PopoutManager>

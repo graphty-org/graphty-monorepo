@@ -23,13 +23,16 @@ const LAYOUT_ID = "force";
 const LAYOUT_CONFIG = { seed: LAYOUT_SEED } as const;
 
 /**
- * The workspace's View menu offers VR and AR, so XR is on (graphty-element leaves it off unless a
+ * The workspace's Mode menu offers VR and AR, so XR is on (graphty-element leaves it off unless a
  * page asks) and the element draws no XR buttons of its own on the canvas.
  */
 const XR_CONFIG = { enabled: true, ui: { enabled: false } } as const;
 
 /** The room between the canvas toolbar and the map's credits under it, in pixels. */
 const TOOLBAR_GAP = 12;
+
+/** How fast Camera > Auto-rotate turns the 3D view, in radians per second: the start page's turn. */
+const AUTO_ROTATE_SPEED = 0.15;
 
 /** Props for ElementHost. */
 interface ElementHostProps {
@@ -69,6 +72,7 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
     const labelsAvoid = useWorkspaceState((state) => state.labelsAvoid);
     const sameSize = useWorkspaceState((state) => state.sameSizeAtAnyDepth) ?? sizeBound;
     const lighting = useWorkspaceState((state) => state.lighting);
+    const autoRotate = useWorkspaceState((state) => state.autoRotate);
     const outlineWidth = useWorkspaceState((state) => state.outlineWidth);
     const layoutShownOnly = useWorkspaceState((state) => state.layoutShownOnly);
     const layoutBehavior = useMemo<NonNullable<GraphtyElement["layoutBehavior"]>>(
@@ -187,6 +191,9 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
             layoutConfig={LAYOUT_CONFIG}
             layoutBehavior={layoutBehavior}
             lighting={lighting}
+            // Camera > Auto-rotate at the app's own speed, the start page's; never for a reader who
+            // prefers less motion.
+            autoRotate={autoRotate && !still ? AUTO_ROTATE_SPEED : 0}
             // The app's own Undo and Redo take these keys everywhere, the drawing included, so
             // every step taken back is named in a notice.
             historyKeys={false}

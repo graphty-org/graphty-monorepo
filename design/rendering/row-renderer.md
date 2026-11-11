@@ -1110,6 +1110,17 @@ what the upload path sends, within 1e-6, and a click while the layout copies sel
   frame was already about 1.4 s (under G6's 2.0 s target) and the cache does not move it; what it removes is heap,
   about 58 MB at 100k rows (195 to 137 MB used, RTX, 2026-11-10). The color still reaches the batch buffer through one
   small `Rgba` per row rather than straight from the color column.
+- **A uniform mesh-key fill (cosmos-gap.md G6, second pull request).** Under `"batched"` the element hands the repaint
+  `uniformFill` (`RepaintSources`, from `SessionInternals.batched`, not from the ingest host's `batched` flag as
+  cosmos-gap.md section 3.3 item 3 says: the repaint is built by the session, which never sees the ingest host).
+  When every mesh-keying channel is absent or one value over a pass's dirty set, the pass interns one sequence and
+  only moves each row's retain count; a data-driven size or shape keeps the per-row path, and the keys come out the
+  same either way. The color is still not written straight from the color column; the 2.0 s first-frame target was
+  met without it, so it is not built.
+- **A view switch builds every row's `Node`.** `Graph.enterDimension` reads `getNodes()`, which builds a `Node`
+  (and its transform node) for every row stored without one, so a 2D/3D switch after a batched load gives up the
+  lean rows: at 10k rows, 10,000 transform nodes. A load made after the switch stays lean. The scene-object guard in
+  `test/browser/node-batch.test.ts` enters the view before the load for that reason. Not fixed yet.
 - **The typed door**, the advanced path; `addNodes` and `addEdges` stay the simple one. `session.data.importColumns({ sources, targets,
 nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attributes` are optional. Same ceilings, report and undo step,
   with one range entry in the op log, the only bulk history entry (cosmos-gap.md G4 reuses it). Rows are placed by the element's `layout`, as
@@ -1484,6 +1495,90 @@ becomes an object row with its own `InstancedMesh` on the way to its batch. Meas
 `TransformNode`s; this branch peaks at 249 MB (1,245 B per node, the fixed ~53 MB included) and ends with 2. A 1M-node load now
 completes (peak 1,105 MB, 1.1 KB per node). The proving test counts it at 12 rows: no `InstancedMesh` and no `TransformNode`
 added during a batched load, and no `Node` built.
+
+Correction from stage 27's first pull request: the per-edge placement walk the 2026-11-09 re-profile named (`updateEdges` ->
+`Edge.update` -> `pullRows`, 2.1 s of the 100k + 1M load) went first, alone, since it is the cost lazy `Edge` would otherwise
+carry over to rows. A straight pulled line is drawn from its nodes' rows by its shader, so no walk places it
+(`Edge.followsRows`): not the load's first walk, a moving frame, nor a drag's incident edges. Its rows change only when a
+freeze renumbers them (`snapshot-replaced` with a `nodeRemap`), and the next edge pass then tells every pulled line its
+rows once. A pulled curve still writes its span at each placement, and a straight line a map layout would arc is still
+placed so it can move to the curve batch. A restyle asks `Edge.wantsPull` once. The walk still reads one flag per edge
+of the engine's list; under lazy `Edge` the list it walks must be the placed edges only. A load on the batched path grows
+the pulled line table and the arrow cap pool once, sized from the count it is about to paint or store, instead of by
+doubling. Layout-frame target (WebGPU, paced, 100k + 1M, `lean-m`): a median at most half the merge base's, measured
+interleaved in one session, since the re-profile put 617 ms of a 1,065 ms layout frame in per-edge placement. Measured
+2026-11-10: 1,554 ms before and 472 ms after (medians of three interleaved runs each), with the layout frame's garbage
+collector time down from 3.7 s to 1.5 s of a 30 s stage. The build count, the views and the walk over placed edges only
+are still to come in this stage.
+
+Stage 27's second pull request adds the build count: `dataManagerInternals.edgesBuilt`, every `Edge` a data manager has
+built, counted where both build sites (an edge whose ends are stored, and a pending edge once they are) register it. It
+changes no behavior on either path; under `"objects"` and, until the next pull request, under `"batched"` it equals the
+edges stored, and `test/managers/DataManager.test.ts` pins that. The proving test the row names reads it at 0.
+
+Stage 27's third pull request: on a small batched graph under a moving layout, the per-frame edge walk is not the
+engine's full walk but `UpdateManager.placedEdgesAtRows`. It runs on every frame the row table moves while some row
+has no `Node`, and asked every edge of the engine's list `isPulled`. It now walks a list of the placed edges, built
+again only when one of these changes: the layout engine, the store's edges, the engine's array of them, or some
+edge's pulled line (`pulledLines.version` in `Edge.ts`). `test/browser/pulled-edges-on-graph.test.ts` counts it: a
+moving layout asks each pulled line a fixed number of times, not once a frame. The engine's full walk (`placeEdges`
+over every edge, reading `followsRows`) is unchanged. The harness profile (100k + 1M, WebGPU, batched) says the 59 ms
+the first pull request left was the full walk: at that size every row has a `Node`, so `placedEdgesAtRows` takes no
+sample, and the frame's edge walk is still about 62 ms (`placeEdges`, the per-edge `update`, `edgesNeedWalking`).
+Caching the full walk's list too, keyed also on the route, is what would cut it.
+
+Stage 27's fourth pull request caches the full walk's list. Under `"batched"` the walk over every edge reads one list
+of the edges to place (those whose line does not follow its rows, `Edge.followsRows`), built again only when the
+engine, the store's edges, the engine's array, some edge's pulled line, the view (2D or 3D) or the engine's map frame
+(`geoFrame`) changes; the last two pick a pulled line's route, and a style that changes the route rebuilds the line,
+which counts as a pulled-line change. `placedEdgesAtRows` reads the same list, so a pulled curve at a row with no
+`Node` is now placed when its rows move (it was skipped). Under `"objects"` the walk is unchanged.
+`test/browser/pulled-edges-on-graph.test.ts` counts it on a graph whose rows all have a `Node`. Profiled at 100k + 1M
+(WebGPU, batched, `lean-m`): the frame's edge walk fell from about 87 ms to 45 ms (`placeEdges` 2.2 s to 0.03 s over
+the stage) and layout garbage-collector time from 2.0 s to 1.4 s, but the layout frame median did not move beyond
+run-to-run spread (436 ms before, 442 ms after, three interleaved runs each). What is left in the walk is
+`supportPoints.update`, which still asks every edge `supportEdge` on a walk of every edge (about 1.1 s), and
+`nodesMoved`.
+
+Stage 27's fifth pull request: under `"batched"` the support-point step reads the same list of placed edges, not
+every edge. A line that follows its rows is straight and pulled, so it has no support point (a curve is pulled with
+a span and is placed), and the step got nothing from asking it. `test/browser/pulled-edges-on-graph.test.ts` counts
+it in 2D, where every row has a `Node`: before, a moving layout asked the pulled lines 340 times; now 0. Under
+`"objects"` the step still asks every edge.
+
+Stage 27's sixth pull request: an edge row with no `Edge` can be drawn. `EdgeRowLines` (`Graph.getEdgeRowLines`,
+under `"batched"` only) draws an edge row from its `EdgePaint` as a straight line pulled from its two nodes' rows,
+the piece and look an `Edge`'s plain pulled line takes. `paintRow` returns false for a paint only an `Edge` draws:
+a cap, words, a band, a dash, a curve, bends, a gap, a fan, a support point, an animation, a width of 0, or lines
+fading by age. A self-loop, a route the layout's map arcs, and an end drawn behind edges are the caller's to rule
+out. Nothing calls it yet: ingest still builds every `Edge`, so a row with no `Edge` is one that was removed. The
+next pull request skips `buildEdge` under `"batched"`, paints such rows from the frame's paint loop
+(`UpdateManager.paintEdgeBatch`, as `unbuiltPainted` does for nodes), renumbers them on a freeze, and makes
+`edges` and `edgesByIndex` views. The edge ID target (`EdgeIdTarget`) still reads `Edge`s, so a row line is not
+yet hovered or picked.
+
+Stage 27's seventh pull request: `Edge.pullsLine` ran for every edge twice during a load, once when the `Edge` was
+built from the bootstrap paint and once when its paint arrived. Its style-only part (the keys a style sets, a solid
+line, no words, cap or band) is now judged once per style object (`pulledLook` in `Edge.ts`), which the painter
+shares between every edge drawn in one look; what reads the edge (its ends, its route, a self-loop, the scene) still
+runs per edge. `test/browser/pulled-edges-on-graph.test.ts` counts it: a 3,000-edge batched load judged 6,000 looks
+and now judges 2. Profiled at 100k + 1M (WebGPU, batched, `lean-m`, two interleaved runs each), `pullsLine`'s load
+time fell from about 1.48 s to 0.65 s; what is left is the per-edge part. The objects path never reaches the check.
+
+Stage 27's eighth pull request: a row line follows a freeze. On `snapshot-replaced` the element hands both of the
+report's remaps to `EdgeRowLines.rowsMoved`, which moves each line to its edge's new row and pulls it from its
+nodes' new rows; a line whose edge row or either node row the freeze dropped stops being drawn. A builder put back
+by undo (no old row named) drops the line too, so the data manager that paints row lines must queue such a row's
+paint again, as `walkNodeRemap` does for a node row with no `Node`. `test/browser/edge-row-lines.test.ts` counts
+it: after a node and its edge are removed, the other line is on its edge's new row with its nodes' new rows, and
+the removed edge's line is gone. Nothing paints row lines yet, so neither path draws differently.
+
+Stage 27's ninth pull request: a row line goes when the data is cleared. The eighth pull request's freeze does not
+cover a clear: the emptied graph is frozen lazily, so until something reads it no `snapshot-replaced` names the
+dropped rows, and the lines stayed while the mesh cache disposed the batches they were drawn in. The data manager's
+clear (`dropEverythingRendered`) now clears `EdgeRowLines` itself, before the mesh cache lets the batches go.
+`test/browser/edge-row-lines.test.ts` counts it: two lines are gone when `clearData` returns, and a line painted
+after the next load takes a live batch. Nothing paints row lines yet, so neither path draws differently.
 
 | #   | Stage                               | Issues                          | What it changes                                                                                                                                                                                                                                                                                         | Depends on                                                                                                                                       | R   | Target                                                                                                                                                                                               | Proving test                                                                                                                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

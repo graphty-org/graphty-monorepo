@@ -399,9 +399,6 @@ again" is stored on the reader's machine, never in a project file.
    `waiting` waiting: a load the reader ran stays live, and one they never approved still waits
    after any number of round trips. A writer always writes `waiting` (empty when nothing waits);
    a member without it was written before the list existed, and every entry in it waits.
-6. **With the `network-data` experiment off**, the member is kept exactly as the file held it
-   and written back unchanged, nothing waits, and the open reports `E_FEATURE_OFF` with
-   `{ feature: "network-data", key: "graphty-sources" }`.
 
 ### Rebuilding a steps-only file (reserved)
 

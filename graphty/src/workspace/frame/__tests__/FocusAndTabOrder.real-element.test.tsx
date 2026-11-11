@@ -1,7 +1,7 @@
 /**
  * Where keyboard focus goes in the workspace, on the REAL graphty-element, by real keys: never to
  * the page. Tab rounds the page; F6 crosses from the layer list to the inspector in one press;
- * Shift+T puts focus in the table; View > Frame selection hands focus back to View; a "Why this
+ * Shift+T puts focus in the table; Camera > Frame selection hands focus back to Camera; a "Why this
  * look" link hands it to the inspector's title; the arrow keys on the Node and Edge tabs keep it
  * on the tabs; an info button opens only when pressed; Tab out of a Vary by list closes it and
  * moves on; a section "+" with nothing to add is no Tab stop.
@@ -14,6 +14,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { siteFeatures } from "../../../test/siteFeatures";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -120,12 +121,12 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         });
     });
 
-    it("View > Frame selection hands focus back to View", async () => {
+    it("Camera > Frame selection hands focus back to Camera", async () => {
         const { session } = await openRings();
         await act(async () => {
             await session.selection.apply({ nodes: ["n3"] });
         });
-        const view = screen.getByRole("button", { name: /^View/ });
+        const view = screen.getByRole("button", { name: "Camera" });
         await userEvent.click(view);
         await userEvent.click(await screen.findByRole("menuitem", { name: "Frame selection" }));
         await waitFor(() => {
@@ -222,6 +223,8 @@ describe("focus and Tab order in the workspace, on the real element", () => {
     });
 
     it("a section's + with nothing left to add is no Tab stop and says why", async () => {
+        // Fill full needs the node models experiment off: on, Fill also offers Picture.
+        await siteFeatures([]);
         await openRings();
         await userEvent.click(await treeRow("Everything"));
         await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));

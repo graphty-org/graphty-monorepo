@@ -1187,6 +1187,14 @@ export class StylePainter {
     }
 
     /**
+     * How many edges are waiting to be drawn.
+     * @returns The count.
+     */
+    get pendingEdgeCount(): number {
+        return this.pendingEdges.size;
+    }
+
+    /**
      * Whether one node is waiting to be drawn.
      * @param index - Its dense index.
      * @returns True when its paint has not been applied yet.

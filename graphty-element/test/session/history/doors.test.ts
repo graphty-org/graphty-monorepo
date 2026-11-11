@@ -21,7 +21,7 @@ import { callOf, checkDispatches, dispatchesOf } from "./door-harness";
 
 // The timeline is an experiment: this file's sessions switch it on.
 beforeAll(() => {
-    setDefaultFeatures(["timeline", "network-data"]);
+    setDefaultFeatures(["timeline"]);
 });
 
 /** The document the `LoadDraft` row of `doors.ts` prepares. */

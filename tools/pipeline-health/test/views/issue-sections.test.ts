@@ -156,6 +156,21 @@ describe("the Issues page", () => {
         }
     });
 
+    it("stacks every open issue by its one type, the bands summing to the open count at every range", () => {
+        for (const range of ["1h", "6h", "1d", "7d", "28d", "all"] as const) {
+            const p = page(range);
+            const s = seriesOf(p, "by-type");
+            expect(s.chart).toBe("area");
+            const open = values(seriesOf(p, "backlog"), "issues.series.open");
+            const stacked = open.map((_, k) => s.series.reduce((a, x) => a + x.values[k], 0));
+            expect(stacked, range).toEqual(open);
+            expect(s.sub?.params?.change).toBe(open.at(-1)! - open[0]);
+        }
+        const keys = seriesOf(page(), "by-type").series.map((x) => x.key);
+        expect(keys[0]).toBe("issues.type.bug");
+        expect(new Set(keys).size).toBe(keys.length);
+    });
+
     it("counts a reopened issue (no closedAt) as open its whole life and never as closed", () => {
         const s = page("all");
         const flow = seriesOf(s, "flow");

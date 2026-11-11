@@ -13,6 +13,7 @@ import { count } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
 import { BulkBinding, type LayerSequence } from "./BulkBinding";
+import { useAssetLine } from "./ModelField";
 import {
     carriedOpacity,
     type DataBinding,
@@ -1284,13 +1285,15 @@ export function Field({
     });
     useFocusOnRemoval(box);
     useFocusKept(box);
+    // The node-models experiment's Shape (a model in place of a shape) and Picture lines.
+    const asset = useAssetLine({ ctx, descriptor, pending, box, onCancel, fail });
     const lines = fieldLines(ctx, channel, pending);
     const { own, partly, spread } = lines;
-    if (own === undefined && partly === undefined && !pending) {
+    if (own === undefined && partly === undefined && !pending && asset?.model === undefined) {
         return null;
     }
-    const name = fieldName(channel);
-    const label = word ?? channelWord(channel);
+    const name = asset?.name ?? fieldName(channel);
+    const label = word ?? asset?.label ?? channelWord(channel);
     const receipt = ctx.many?.receipt?.(channel);
     // A layer above covers this row's value on some of its elements (a shown row only).
     const over = own?.layer.enabled ? ctx.paintedOver?.(channel) : undefined;
@@ -1303,12 +1306,19 @@ export function Field({
             listed ? undefined : `${name} now ${valueWords(descriptor, value)}`,
         );
     };
-    // A property's own list offers only its own choices: shaders are added in the Shaders section.
-    const extraChoices: ExtraChoices = undefined;
-    const pick = writeValue;
-    const remove = (): void => {
-        removeField({ ctx, channel, name, lines, box, store, onCancel });
+    // A property's own list offers only its own choices (shaders are added in the Shaders section),
+    // and Shape's Model... with the node-models experiment on.
+    const extraChoices: ExtraChoices = asset?.extraChoices;
+    const pick = (value: ChannelValue): void => {
+        if (asset?.pick(value) !== true) {
+            writeValue(value);
+        }
     };
+    const remove =
+        asset?.remove ??
+        ((): void => {
+            removeField({ ctx, channel, name, lines, box, store, onCancel });
+        });
     const onLayers = (): void => {
         setPendingVary("layer");
     };
@@ -1324,7 +1334,7 @@ export function Field({
             );
         }
     };
-    const varies = variesFrom(ctx, descriptor, own, pending);
+    const varies = asset?.ownsVary !== true && variesFrom(ctx, descriptor, own, pending);
     const keys: FieldKeys = {
         varies,
         descriptor,
@@ -1340,34 +1350,39 @@ export function Field({
     };
     // Every layer a write reaches, those holding no value among them.
     const reached = ctx.many?.inOrder?.(channel).length ?? 0;
-    const control = fieldControl({
-        ctx,
-        descriptor,
-        name,
-        lines,
-        pending,
-        reached,
-        write,
-        writeValue,
-        pick,
-        extraChoices,
-        bind,
-        onLayers,
-    });
-    const varySlot = varySlotOf({
-        ctx,
-        descriptor,
-        name,
-        lines,
-        varies,
-        reached,
-        store,
-        write,
-        bind,
-        onLayers,
-        open: varyOpen,
-        onOpenChange: setVaryOpen,
-    });
+    const control =
+        asset?.control ??
+        fieldControl({
+            ctx,
+            descriptor,
+            name,
+            lines,
+            pending,
+            reached,
+            write,
+            writeValue,
+            pick,
+            extraChoices,
+            bind,
+            onLayers,
+        });
+    const varySlot =
+        asset?.ownsVary === true
+            ? asset.varySlot
+            : varySlotOf({
+                  ctx,
+                  descriptor,
+                  name,
+                  lines,
+                  varies,
+                  reached,
+                  store,
+                  write,
+                  bind,
+                  onLayers,
+                  open: varyOpen,
+                  onOpenChange: setVaryOpen,
+              });
     const breakdown = fieldBreakdown(ctx, channel, label, lines, pending);
     const removeName =
         ctx.many === undefined ? `Remove ${name.toLowerCase()}` : `Remove ${name.toLowerCase()} from every layer`;
@@ -1413,6 +1428,7 @@ export function Field({
                 label={label}
                 breakdown={breakdown}
             />
+            {asset?.extras}
             {pendingVary === null ? null : (
                 <BulkBinding
                     session={session}

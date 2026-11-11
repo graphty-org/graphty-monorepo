@@ -2,13 +2,14 @@
 
 > The Mergify merge queue, the `hold` label and per-change pull requests were retired on 2026-10-18; changes now land through one integration branch (design/ci/golden-local.md). Read the merge-queue parts below as history.
 
-Status (2026-11-07): implemented and experimental, behind graphty-element's `network-data`
-experiment (issue #6211; off by default, on at canary.graphty.app). Built: graph-io's source
+Status (2026-11-09): implemented, experimental in its API, and always on: the `network-data`
+experiment switch (issue #6211) was removed and its id is now graduated. Built: graph-io's source
 contract, registry and built-in sources NDEx, Cypher (with the `neo4j` and `neptune` presets, over
 the Neo4j Query API, Bolt, Neptune Database and Neptune Analytics), SPARQL, and REST (with the
 `openalex` preset); graphty-element's source verbs on `session.data` (`import` with a `source`,
-`testSource`, `listSource`, `previewSource`, `checkSource`, `refresh`, `more`, `expand`,
-`collapse`, `loadExample`, `pendingSourceLoads`, `runPendingSourceLoad`), the credential store and
+`testSource`, `listSource`, `previewSource`, `readExample`, `checkSource`, `refresh`,
+`more`, `expand`, `collapse`, `loadExample`, `pendingSourceLoads`, `runPendingSourceLoad`), the
+credential store and
 the `graphty-sources` project member; the graphty app's Network data form. Not built: the Gremlin
 source (#6212), a file-host source (#6213), more REST presets (#6214), and Memgraph run locally
 (#3408). Tracking issue: #2907. Each built-in source's examples are loaded live every week
@@ -17,13 +18,12 @@ source (#6212), a file-host source (#6213), more REST presets (#6214), and Memgr
 Samples and network data are separate (section 12.5): a sample is a graph-samples dataset, shown
 as a thumbnail on the graphty app's start page and loaded with `session.data.loadDataset`; it is
 not a network source and never creates a load that waits for approval. Network data is reached
-only through the Network data form, whose Example row lists each source's public `examples`.
+only through the Network data form and the start page's network tiles, which show one of each
+kind of source's public `examples`.
 Reopening: a project opened with `session.project.open(file, { ownWork: true })` (the reader's
 own autosave or a project kept in this browser) keeps its loads live, and only the loads its
 `graphty-sources` member lists as `waiting` wait for approval; any other project file waits for
-every load. With the `network-data` experiment off, every source verb rejects with
-`E_FEATURE_OFF` (`{ feature, key }`), `pendingSourceLoads()` is empty, a project's
-`graphty-sources` member is kept unchanged, and the graphty app shows no network entry point.
+every load.
 
 The rest of this document is the design as written on 2026-10-17, kept for its reasoning. Browser
 and Node behavior was measured then (section 7 says how), the Cypher path was run against a live
@@ -1056,8 +1056,32 @@ app's start page and in its Samples dialog. A sample never creates a network loa
 saved in `graphty-sources` and never waits for approval. An _example_ is a public server and the
 params that load a known graph from it, listed on its source's descriptor (`examples`), loaded with
 `session.data.loadExample(source, id)` (which applies the endpoint, the published login and the
-first page) and offered only in the network form's Example row. Example ids are unique within
-their source.
+first page) and offered only as tiles on the start page, never in the network form. Example ids
+are unique within their source.
+
+**Where the graphty app shows them.** The start page has a
+"Load network data" section immediately before "Generate a graph", with one tile for each kind of
+network: NDEx (`ndex-wp5483`), Neo4j (`neo4j-movies`), SPARQL endpoint (`uniprot-tp53`) and Web API
+(`deps-dev-webpack`). Which example fills a tile is the app's choice and lives in
+`graphty/src/workspace/start/network-samples.json`. Neptune has no tile because it has no public
+server, and OpenAlex has none because it is one service reached through the REST source, not a kind
+of network. A tile calls `session.data.readExample` on a session with no canvas while the tile shows
+as busy, so a failure leaves the reader on the start page with a notice and no project. A successful
+read opens a new project on the graph, with the Style panel open on the row that paints the whole
+graph.
+
+Open network data on the start page pops up a chooser with one card per kind of network (NDEx,
+Neo4j, SPARQL endpoint, Web API), a Web address box and an Open a file button. A card opens the app
+on an empty project with the `ServerForm` popped up on that kind, with no example or sample in it.
+Closing the form with nothing loaded returns to the start page, and closing it during a Load aborts
+the Load.
+
+**What the app says about a load.** A click on a row in the Data place's Sources list shows that
+load in the right panel: its type, file or address, format, size, when it was retrieved, node and
+edge counts, open issues and, for a joined table, how it was joined. These come from
+`session.data.sources()`: `LoadedSource.loadedAt` is the time of the last read and is saved with the
+project (absent for a project saved before it was kept), `url` is the address with no credential in
+it, and `fileName` is the file it came from.
 
 **The dependable set (2026-11-07).** Every one loaded live that day with the counts shown, from
 Node (`scripts/live-examples.ts`) and from the graphty app in Chromium through
@@ -1437,6 +1461,25 @@ Each call takes `credential` and `endpoint` options and, missing a needed creden
 These are capabilities, so they live in the element; what to show while they run is the
 application's.
 
+Seeing and changing what a load fetches:
+
+- `data.sourceSettings(key)` returns a `SourceSettings`: the load's `source`, `endpoint`, `config`,
+  `limits` and `expand`, redacted as a saved project holds them. Params whose names mark a
+  credential are left out, and a query source reports the `mode` it read in. It is `undefined` for
+  anything that is not a network load. Never show a load's in-memory config instead: its URLs are
+  not redacted.
+- `data.replaceSource(key, { source, config }, options)` reads that load again with new settings.
+  The key, the name (unless the caller passes one), styles and filters stay, and it is one undo
+  step. A value sent back as `sourceSettings` showed it keeps the original it stood for, a URL to
+  the same address keeps its secret query keys, and with no `credential` the one remembered for
+  the endpoint is used.
+- When loads overlap, each `sources()` row is matched to one load: the load most of its nodes
+  carry, among loads no earlier row took, the newest on a tie.
+
+In the graphty app, a network source's details panel shows these
+settings as rows and its Edit control opens the network form filled with them (password fields
+empty). A file or sample file source has no Edit control. Closing the form never leaves the app.
+
 ### 14.4 Click-to-expand
 
 **What exists.** A double-click on a node calls two host hooks, `fetchEdges(node, graph)` then
@@ -1750,11 +1793,10 @@ dependencies for graph-io are fine"). These still publish contracts that are har
 
 ## Appendix A. Sub-issues (drafted, not filed; built)
 
-Status (2026-11-07): A.1 to A.9 are built under the `network-data` experiment (#6211) and were
+Status (2026-11-07): A.1 to A.9 are built (#6211) and were
 never filed as separate issues. What remains is filed: the Gremlin source (#6212), a file-host
 source (#6213), more REST presets (#6214), Cypher neighborhoods without `idProperty` (#6215),
-`neo4j+s://` endpoints (#6216), a default User-Agent in Node (#6217), graduating the experiment
-(#6211) and local Memgraph (#3408). The drafts below are kept for their scope.
+`neo4j+s://` endpoints (#6216), a default User-Agent in Node (#6217) and local Memgraph (#3408). The drafts below are kept for their scope.
 
 One framework issue, one per initial source, one per further source. All carry `enhancement`, a
 priority and an effort, and say `Refs #2907`.

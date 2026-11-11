@@ -151,6 +151,15 @@ Cancel an ongoing recording:
 graph.cancelAnimationCapture();
 ```
 
+Stop a recording early and keep what was recorded -- the `captureAnimation` promise resolves with
+the video so far, so a long `duration` records until the reader stops:
+
+```typescript
+const recording = graph.captureAnimation({ duration: 300_000, cameraMode: "stationary" });
+stopButton.onclick = () => graph.stopAnimationCapture();
+const { blob } = await recording;
+```
+
 ## Downloading Video
 
 ```typescript

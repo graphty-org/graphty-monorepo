@@ -1,11 +1,10 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
-import type { ScreenshotErrorCode, ScreenshotLegendSection } from "@graphty/graphty-element";
+import type { ScreenshotErrorCode } from "@graphty/graphty-element";
 import { SCREENSHOT_PRESET_DESCRIPTORS } from "@graphty/graphty-element/catalog";
-import type { GraphSession } from "@graphty/graphty-element/session";
 import { Alert, Button, Input, Loader, Select, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
-import { dataBlocks, imageLegend, keyNames } from "../canvas/legendWords";
+import { imageKey } from "../canvas/legendWords";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     backgroundRefusal,
@@ -45,16 +44,6 @@ const PREVIEW_WIDTH = 480;
  * cannot say which limit it hit; the gap is recorded with the Export dialog package.
  */
 const SIZE_REFUSED = "this browser cannot make an image this size";
-
-/**
- * The key an image carries when the canvas shows the legend card: the card's sections, in the
- * same words.
- * @param session - the session, or null.
- * @returns the sections; none without a session.
- */
-function imageKey(session: GraphSession | null): ScreenshotLegendSection[] {
-    return session === null ? [] : imageLegend(dataBlocks(session), keyNames(session));
-}
 
 /** Props for ImageOutput. */
 interface ImageOutputProps {

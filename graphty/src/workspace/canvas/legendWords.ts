@@ -796,3 +796,13 @@ function addCovers(
         }
     }
 }
+
+/**
+ * The key an image carries when the canvas shows the legend card: the card's sections, in the
+ * same words.
+ * @param session - the session, or null.
+ * @returns the sections; none without a session.
+ */
+export function imageKey(session: GraphSession | null): ScreenshotLegendSection[] {
+    return session === null ? [] : imageLegend(dataBlocks(session), keyNames(session));
+}

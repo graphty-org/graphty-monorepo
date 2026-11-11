@@ -15,8 +15,6 @@ import type {
     StaleNote,
     SummaryGroup,
     TimeUnit,
-    XrCapability,
-    XrUnavailableReason,
 } from "@graphty/graphty-element/session";
 
 import { formatCount, formatNumber } from "../settings/numberFormat";
@@ -856,48 +854,8 @@ export function rankedName(group: SummaryGroup | undefined): string {
     return group?.rank === undefined ? "" : `Group ${String(group.rank)}`;
 }
 
-/** An immersive mode, or both of them in one row. */
-type XrRowMode = "vr" | "ar" | "both";
-
-const XR_MODE_WORDS: Readonly<Record<XrRowMode, string>> = { vr: "VR", ar: "AR", both: "VR or AR" };
-
-/** The words for each reason a mode cannot be entered; a reason the element adds fails to compile. */
-const XR_REASON_WORDS: Readonly<Record<XrUnavailableReason, (mode: XrRowMode) => string>> = {
-    "no-webxr": (mode) => `This browser has no ${XR_MODE_WORDS[mode]}`,
-    "insecure-context": () => "Needs a secure (https) page",
-    unsupported: (mode) =>
-        ({ vr: "No VR headset found", ar: "This device has no AR", both: "This device has no VR or AR" })[mode],
-    "webgpu-renderer": () => "Not available with the WebGPU renderer",
-    disabled: () => "Turned off for this graph",
-    probing: () => "Checking...",
-};
-
-/**
- * Why VR, AR or both cannot be entered, in the app's words, from the element's reason code.
- * @param reason - the element's reason.
- * @param mode - the row the reason is for.
- * @returns the words; never the code itself.
- */
-export function xrReasonWords(reason: XrUnavailableReason, mode: XrRowMode): string {
-    return XR_REASON_WORDS[reason](mode);
-}
-
-/**
- * The XR rows the Mode menu draws: one "VR / AR" row when neither mode can be entered for the
- * same reason, otherwise one row per mode, each with its reason or null.
- * @param xr - the element's XR facts.
- * @returns the rows, top to bottom.
- */
-export function xrRows(xr: XrCapability): { mode: XrRowMode; reason: string | null }[] {
-    const { vr, ar } = xr.reasons;
-    if (vr !== null && vr === ar) {
-        return [{ mode: "both", reason: xrReasonWords(vr, "both") }];
-    }
-    return (["vr", "ar"] as const).map((mode) => {
-        const reason = xr.reasons[mode];
-        return { mode, reason: reason === null ? null : xrReasonWords(reason, mode) };
-    });
-}
+/** The words for VR and AR in a notice. */
+const XR_MODE_WORDS: Readonly<Record<"vr" | "ar", string>> = { vr: "VR", ar: "AR" };
 
 /**
  * The notice for an immersive session the browser would not start.

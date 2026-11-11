@@ -300,7 +300,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.equal(session.layout.id, before);
     });
 
-    it("names the view mode on the Mode tool, draws its icon, and offers 2D, 3D and VR or AR", async () => {
+    it("names the view mode on the Mode tool, draws its icon, and offers 2D, 3D, VR and AR", async () => {
         const session = await openKarate();
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
         // Named with the mode its icon shows (WCAG 2.5.3).
@@ -318,17 +318,13 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         // Key 5 is shown on the row it switches to, not on the current one.
         assert.include(twoD.textContent, "5");
         assert.notInclude(threeD.textContent, "5");
-        // Without a headset (the test browser), VR and AR are drawn, disabled, with a reason.
-        await waitFor(() => {
-            const xr = within(menu)
-                .getAllByRole("menuitemradio")
-                .filter((row) => /^(VR|AR)/.test(row.textContent));
-            assert.isAbove(xr.length, 0);
-            for (const row of xr) {
-                assert.equal(row.getAttribute("aria-disabled"), "true");
-                assert.notInclude(row.textContent, "Checking");
-            }
-        });
+        // Without a headset (the test browser), VR and AR are a row each, disabled, saying only
+        // "Not available".
+        for (const name of [/^VR/, /^AR/]) {
+            const row = within(menu).getByRole("menuitemradio", { name });
+            assert.equal(row.getAttribute("aria-disabled"), "true");
+            assert.equal(row.textContent, `${name.source.slice(1)}Not available`);
+        }
         // The camera moves are the Camera tool's, not here.
         assert.isNull(within(menu).queryByRole("menuitem", { name: /^Front/ }));
         // The workspace turns XR on (graphty-element leaves it off unless a page asks), so a
@@ -374,6 +370,8 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.isNull(within(menu).queryByRole("menuitem", { name: /^Zoom in/ }));
         const rotate = within(menu).getByRole("menuitemcheckbox", { name: /^Auto-rotate/ });
         assert.equal(rotate.getAttribute("aria-checked"), "false");
+        // Auto-rotate shows its key, 9, on its row.
+        assert.equal(rotate.getAttribute("aria-keyshortcuts"), "9");
         assert.equal(element.autoRotate, 0);
         await userEvent.click(rotate);
         await waitFor(() => {
@@ -384,6 +382,16 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         const on = within(menu).getByRole("menuitemcheckbox", { name: /^Auto-rotate/ });
         assert.equal(on.getAttribute("aria-checked"), "true");
         await userEvent.click(on);
+        await waitFor(() => {
+            assert.equal(element.autoRotate, 0);
+        });
+
+        // 9 turns it on and off from the keyboard.
+        await userEvent.keyboard("9");
+        await waitFor(() => {
+            assert.isAbove(element.autoRotate, 0);
+        });
+        await userEvent.keyboard("9");
         await waitFor(() => {
             assert.equal(element.autoRotate, 0);
         });

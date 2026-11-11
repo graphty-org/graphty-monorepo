@@ -656,19 +656,7 @@ export class ElementAutosave {
         // session storage kept across a reload or a discard.
         const own = ownEntries.get(key) ?? this.#readOwn(key);
         if (own !== null) {
-            const leaving = departing.get(own);
-            if (leaving !== undefined) {
-                await leaving;
-                await this.#env.locks.wait(lockName(key, own));
-            }
-
-            // A reload: the page before it may still hold the lock for its final write.
-            if (takeLeaving(this.#env, key) === own) {
-                await this.#env.locks.own?.(lockName(key, own), LEAVING_WAIT_MS);
-            }
-
-            // After a reload with no leaving mark, the page it replaced may not have let go yet.
-            await this.#env.locks.handoff?.(lockName(key, own));
+            await this.#waitForOwn(key, own);
         }
 
         saver.setFacts(await this.#gatherFacts(), true);
@@ -683,14 +671,23 @@ export class ElementAutosave {
             return;
         }
 
-        this.#told = JSON.stringify(saver.status);
-        this.#lastSaved = commitOf(saver.status);
+        // A change made while the start waited (a page's setup right after connect) may already be
+        // written: that is a change of the status, told now. A restore is told by its own event.
+        const writtenWhileStarting = restored === null && saver.status.entry !== null;
+        if (!writtenWhileStarting) {
+            this.#told = JSON.stringify(saver.status);
+            this.#lastSaved = commitOf(saver.status);
+        }
+
         this.#noteOwn(key, saver.status.entry);
         this.#stops.push(
             saver.onStatus((status) => {
                 this.#onStatus(status);
             }),
         );
+        if (writtenWhileStarting) {
+            this.#onStatus(saver.status);
+        }
         this.#listen();
         // From here a hidden or closed page writes what is outstanding; before, nothing can be written.
         logger.info("listening", { entry: saver.entryId, restored: restored !== null, started: saver.started });
@@ -702,6 +699,27 @@ export class ElementAutosave {
 
         this.#finish(restored);
         this.#checkAtRisk(saver.status);
+    }
+
+    /**
+     * Wait until the page or element that last wrote this tab's own entry has let go of it.
+     * @param key - The autosave key.
+     * @param own - This tab's own entry.
+     */
+    async #waitForOwn(key: string, own: string): Promise<void> {
+        const leaving = departing.get(own);
+        if (leaving !== undefined) {
+            await leaving;
+            await this.#env.locks.wait(lockName(key, own));
+        }
+
+        // A reload: the page before it may still hold the lock for its final write.
+        if (takeLeaving(this.#env, key) === own) {
+            await this.#env.locks.own?.(lockName(key, own), LEAVING_WAIT_MS);
+        }
+
+        // After a reload with no leaving mark, the page it replaced may not have let go yet.
+        await this.#env.locks.handoff?.(lockName(key, own));
     }
 
     /**

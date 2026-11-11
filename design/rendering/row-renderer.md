@@ -1096,6 +1096,17 @@ rows (2 runs in 8, every x, y and z lane, worst relative difference 0.2). A publ
 the flag (`RowTable.dropCopy`), so the repack sends every row. The texture at rest now equals the CPU copy, which is
 what the upload path sends, within 1e-6, and a click while the layout copies selects the node under the pointer.
 
+As built (cosmos-gap stage 114): under renderPath "batched", the zoom-to-fit a running layout takes every step frames
+the box the layout's last publish left the rows in, grown by the widest row (`RowTable.widestHalf`), and walks no row
+(`UpdateManager.envelopeFraming`). Correction to the stage text, which asked for a GPU reduction alongside the step for
+the GPU layout: none is needed. Every engine that runs on a frame, the GPU spring-electrical driver included, publishes
+its rows through one `LayoutEngine.publishColumn` loop over the scene coordinates it already computes (the GPU driver from
+the landed read-back, mapped through the transform its batch drew with), so that loop measures the box for free
+(`LayoutEngine.publishedBounds`; ngraph and the simulation engines answer it, d3 and the one-shot engines do not). A
+pinned or held row counts where it is kept. The walk still runs for a framing asked for, the framing a layout settles on,
+a node drawn as an object, any hidden row (`RowTable.hiddenRows`), a layout transition and an engine that holds rows
+outside its publish (a scope or followers). Labels and bent edges are not framed while the layout moves.
+
 ### 4.6 Columns and load (#3249)
 
 - **Lazy objects.** Under `"batched"`, `buildNode` and `buildEdge` stop running at load for eligible rows. `nodes`, `edges`, `edgesByIndex`,

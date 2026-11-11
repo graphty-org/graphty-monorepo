@@ -604,4 +604,42 @@ describe("an empty response after tool results is not an answer (#6712)", () => 
         assert.strictEqual(live.answered[0].code, "AI_COMPLETED");
         assert.strictEqual(live.answered[0].llmText, "I could not find how to paint them.");
     });
+
+    it("a press right after the empty response waits: the first message is asked to go on and reads its own response", async () => {
+        const live = await harness();
+        const search = { id: "s1", name: "catalog", arguments: { action: "search", text: "node color" } };
+        await live.sayAndRun("make all the nodes red", search);
+        live.connection.emit({ type: "response-end" });
+        // The reader speaks again before the model answers the first message.
+        live.engine.press();
+        live.connection.emit({ type: "reader-transcript", text: "how many nodes?", final: true });
+        assert.isTrue(live.engine.busy(), "a press now would be read by the first message");
+
+        await vi.waitFor(() => {
+            assert.isAbove(live.connection.sentTexts.length + live.connection.sentResults.length, 1);
+        });
+        assert.deepStrictEqual(live.connection.sentTexts.length, 1, "the first message was asked to go on");
+
+        live.connection.emit({ type: "tool-calls", calls: [paint("c1", "n1", "n2", "n3", "n4", "n5")] });
+        live.connection.emit({ type: "response-end" });
+        await live.results(2);
+        live.connection.emit({ type: "answer-text", delta: "All five are red." });
+        live.connection.emit({ type: "response-end" });
+        await live.messages(1);
+
+        live.connection.emit({ type: "answer-text", delta: "Five." });
+        live.connection.emit({ type: "response-end" });
+        await live.messages(2);
+
+        assert.deepStrictEqual(
+            live.answered.map((r) => r.code),
+            ["AI_COMPLETED", "AI_COMPLETED"],
+        );
+        assert.deepStrictEqual(live.saved().reader, [
+            { text: "make all the nodes red", via: "voice" },
+            { text: "how many nodes?", via: "voice" },
+        ]);
+        assert.deepStrictEqual(live.saved().assistant, ["All five are red.", "Five."]);
+        assert.deepStrictEqual(redNodes(live.session, NODES), ["n1", "n2", "n3", "n4", "n5"]);
+    });
 });

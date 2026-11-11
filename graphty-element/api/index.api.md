@@ -4963,7 +4963,7 @@ export abstract class LayoutEngine {
     // (undocumented)
     abstract get isSettled(): boolean;
     // @internal
-    protected keepInPublishedBox(n: Node_2 | ElementPositions, rows: Iterable<number>): void;
+    protected keepInPublishedBox(n: Node_2 | ElementPositions | undefined, rows: ReadonlySet<number>): void;
     protected keptEdges(graph: GraphSnapshot): EdgeMask | null;
     protected keptRows(rows: number): NodeMask | null;
     // @internal

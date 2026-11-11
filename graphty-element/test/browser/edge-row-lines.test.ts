@@ -172,11 +172,19 @@ describe("an edge row with no Edge", () => {
  * nothing in the element turns on yet), with the nodes and the edges given.
  * @param edges - The edges.
  * @param uncapped - Whether a layer takes the arrow caps off, so that a row line draws each edge.
+ * @param setup - The element's features, and what to do before the edges arrive.
+ * @param setup.features - The features turned on.
+ * @param setup.before - Run after the nodes and the layer, before the edges.
  * @returns The element.
  */
-async function lazyLoaded(edges: { src: number; dst: number }[], uncapped = true): Promise<Graphty> {
+async function lazyLoaded(
+    edges: { src: number; dst: number; t?: number }[],
+    uncapped = true,
+    setup: { features?: string[]; before?: (element: Graphty) => Promise<void> } = {},
+): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderer = "webgl";
+    element.features = setup.features ?? [];
     element.renderPath = "batched";
     element.style.display = "block";
     element.style.width = "400px";
@@ -196,6 +204,7 @@ async function lazyLoaded(edges: { src: number; dst: number }[], uncapped = true
         } as never);
     }
 
+    await setup.before?.(element);
     await element.session.data.addEdges(edges);
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
@@ -250,5 +259,86 @@ describe("an edge stored with no Edge", () => {
         assert.equal(lines.count, 1);
         assert.isFalse(lines.has(0));
         assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 0);
+    });
+});
+
+/**
+ * Wait for what the session says to reach the picture.
+ * @param element - The element.
+ */
+async function settled(element: Graphty): Promise<void> {
+    await operationQueueOf(element.graph).waitForCompletion();
+    await element.waitForStableFrame();
+}
+
+// A row line has no mask of its own: a row the filter hides or the selection holds is drawn by its `Edge`, built for
+// it, and so is every row once lines fade by age.
+describe("a masked edge stored with no Edge", () => {
+    const TWO = [
+        { src: 0, dst: 1 },
+        { src: 1, dst: 2 },
+    ];
+    // The degree filter keeps node 1 alone, so it hides both edges.
+    const hideAll = async (element: Graphty): Promise<void> => {
+        await element.graph.getSession().visibility.set({ kind: "degree", min: 2 });
+        await settled(element);
+    };
+
+    it("builds the Edge of a row the filter hides, drawn hidden", async () => {
+        const element = await lazyLoaded(TWO);
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        assert.equal(lines.count, 2);
+        await hideAll(element);
+        assert.isFalse(element.graph.getSession().visibility.isVisible("0"), "the filter hides the edge");
+        assert.equal(lines.count, 0, "no row line draws a hidden row");
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 2);
+        const edge = edgeBetween(element.graph, 0, 1);
+        assert.isDefined(edge);
+        assert.isFalse(edge.isRenderVisible(), "its Edge is hidden");
+    });
+
+    it("builds the Edge of a row stored while the filter hides it, drawn hidden", async () => {
+        const element = await lazyLoaded(TWO, true, { before: hideAll });
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        assert.equal(lines.count, 0, "no row line draws a hidden row");
+        const edge = edgeBetween(element.graph, 1, 2);
+        assert.isDefined(edge);
+        assert.isFalse(edge.isRenderVisible(), "its Edge is hidden");
+    });
+
+    it("builds the Edge of a selected row, drawn selected", async () => {
+        const element = await lazyLoaded(TWO);
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        await element.session.selection.apply({ edges: ["0"] });
+        await settled(element);
+        assert.isFalse(lines.has(0), "no row line draws a selected row");
+        assert.isTrue(lines.has(1), "the other row keeps its line");
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 1);
+        assert.isTrue(edgeBetween(element.graph, 0, 1)?.isSelected(), "its Edge is selected");
+    });
+
+    it("builds every row's Edge when lines start to fade by age", async () => {
+        const element = await lazyLoaded(
+            [
+                { src: 0, dst: 1, t: 0 },
+                { src: 1, dst: 2, t: 1 },
+            ],
+            true,
+            { features: ["timeline"] },
+        );
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        assert.equal(lines.count, 2);
+        const { time } = element.session;
+        await time.setField({ edges: { start: "t", unit: "ordinal" } });
+        await time.ready;
+        await time.window({ from: 0, to: 2, step: 1 });
+        await time.setSettings({ ageFade: 0.2 });
+        await settled(element);
+        assert.equal(lines.count, 0, "a row line carries no age");
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 2);
     });
 });

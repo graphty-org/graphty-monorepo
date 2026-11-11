@@ -591,6 +591,13 @@ export class UpdateManager implements Manager {
     private drawnSelectedEdges = new Set<Edge>();
 
     /**
+     * The edge masks the last pass read: an `Edge` built for a row line's row takes them, and a row
+     * line draws no row they hide or select, having no mask of its own.
+     */
+    private edgeVisibilityMask: ElementMask<EdgeId> | null = null;
+    private edgeSelectionMask: ElementMask<EdgeId> | null = null;
+
+    /**
      * Whether the state the most recent update pass left behind is a finished picture: the layout
      * has stopped, no framing is outstanding that could still move the camera, no style work is
      * queued, and every drawn mesh has its shader. It says nothing about what is on screen -- a
@@ -922,6 +929,13 @@ export class UpdateManager implements Manager {
                 edge.updateStyle();
             }
 
+            // A row line carries no age either: each row takes its `Edge`, painted as it is built.
+            if (state.on) {
+                for (const row of this.graphContext.getEdgeRowLines?.()?.rows() ?? []) {
+                    this.buildRowEdge(row);
+                }
+            }
+
             this.forceEdgeWalk();
             this.meshesAdded();
         }
@@ -1002,6 +1016,8 @@ export class UpdateManager implements Manager {
         const edgeSelection = masks.selection?.edges() ?? null;
         const nodeVisibility = masks.visibility?.nodes() ?? null;
         const edgeVisibility = masks.visibility?.edges() ?? null;
+        this.edgeVisibilityMask = edgeVisibility;
+        this.edgeSelectionMask = edgeSelection;
         const showContext = masks.showContext?.() ?? false;
         const ghost = masks.ghost?.() ?? false;
 
@@ -1147,6 +1163,7 @@ export class UpdateManager implements Manager {
      */
     private applyEdgeRows(rows: Rows, edgeVisibility: ElementMask<EdgeId> | null): void {
         const { edgesByIndex } = this.dataManager;
+        this.buildMaskedRowLines(rows);
 
         for (const row of rows) {
             const edge = edgesByIndex[row];
@@ -1286,7 +1303,7 @@ export class UpdateManager implements Manager {
         const next = new Set<Edge>();
 
         edgeSelection?.forEachMember((index) => {
-            const edge = this.dataManager.edgesByIndex[index];
+            const edge = this.dataManager.edgesByIndex[index] ?? this.maskedRowLineEdge(index);
             if (edge) {
                 next.add(edge);
             }
@@ -1326,6 +1343,7 @@ export class UpdateManager implements Manager {
     ): void {
         let revealed = false;
         this.drawnSelectedEdges.clear();
+        this.buildMaskedRowLines(this.graphContext.getEdgeRowLines?.()?.rows() ?? []);
 
         for (const edge of this.builtEdges()) {
             const { index } = edge;
@@ -1596,12 +1614,68 @@ export class UpdateManager implements Manager {
             !this.mapArcsEdges() &&
             !this.endBehindEdges(source) &&
             !this.endBehindEdges(target) &&
+            !this.rowMasked(index) &&
             lines.paintRow(index, source, target, paint)
         ) {
             return undefined;
         }
 
-        return dataManagerInternals.buildEdgeAt(this.dataManager, index);
+        return this.buildRowEdge(index);
+    }
+
+    /**
+     * Whether the edge masks hide or select a row, which a row line, with no mask of its own, does not draw.
+     * @param index - The edge row.
+     * @returns True when they do.
+     */
+    private rowMasked(index: number): boolean {
+        return this.edgeVisibilityMask?.has(index) === false || this.edgeSelectionMask?.has(index) === true;
+    }
+
+    /**
+     * Build the `Edge` of each of some rows a row line draws that the edge masks hide or select.
+     * @param rows - The edge rows.
+     */
+    private buildMaskedRowLines(rows: Iterable<number>): void {
+        for (const row of rows) {
+            this.maskedRowLineEdge(row);
+        }
+    }
+
+    /**
+     * Build a row line's `Edge` when the edge masks hide or select its row.
+     * @param index - The edge row.
+     * @returns The `Edge` built, or undefined when none was.
+     */
+    private maskedRowLineEdge(index: number): Edge | undefined {
+        const lines = this.graphContext.getEdgeRowLines?.() ?? null;
+        return lines?.has(index) === true && this.rowMasked(index) ? this.buildRowEdge(index) : undefined;
+    }
+
+    /**
+     * Build an edge row's `Edge` (`dataManagerInternals.buildEdgeAt`), which queues its paint, and
+     * draw it as the edge masks the last pass read say: no pass walks it before its row's masks move.
+     * @param index - The edge row.
+     * @returns The `Edge`, or undefined when no edge is stored there.
+     */
+    private buildRowEdge(index: number): Edge | undefined {
+        const edge = dataManagerInternals.buildEdgeAt(this.dataManager, index);
+        if (edge === undefined) {
+            return undefined;
+        }
+
+        const hidden = edge.setRenderVisible(this.edgeVisibilityMask?.has(index) !== false);
+        const selected = this.edgeSelectionMask?.has(index) === true;
+        edge.setSelected(selected);
+        if (selected) {
+            this.drawnSelectedEdges.add(edge);
+        }
+
+        if (hidden || selected) {
+            this.forceEdgeWalk();
+        }
+
+        return edge;
     }
 
     /**

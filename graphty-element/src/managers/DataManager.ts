@@ -508,10 +508,7 @@ class LazyView<K, V> extends Map<K, V> {
         return this.entries();
     }
 
-    override forEach(
-        callback: (value: V, key: K, map: Map<K, V>) => void,
-        thisArg?: unknown,
-    ): void {
+    override forEach(callback: (value: V, key: K, map: Map<K, V>) => void, thisArg?: unknown): void {
         this.#buildAll();
         super.forEach(callback, thisArg);
     }

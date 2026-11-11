@@ -521,6 +521,27 @@ describe("an edge loaded with no switch", () => {
         assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 2);
     });
 
+    // The objects path has no row lines, so a switch to it builds every edge's `Edge` before they go: none goes
+    // undrawn (the rollback rule of design/rendering/row-renderer.md).
+    it("gets its Edge, and stays drawn, when the path switches to objects", async () => {
+        const edges = [
+            { src: 0, dst: 1 },
+            { src: 1, dst: 2 },
+        ];
+        const element = await lazyLoaded(edges, true, { switched: false });
+        const dm = element.graph.getDataManager();
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 0);
+        element.graph.setRenderPath("objects");
+        await element.waitForStableFrame();
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 2, "every edge has its Edge");
+        assert.isNull(element.graph.getEdgeRowLines());
+        const got = await readCanvas(element.graph);
+        document.body.replaceChildren();
+
+        const want = await loaded("objects", edges);
+        assert.equal(overBar(await readCanvas(want.graph), got), 0, "drawn as an objects load draws it");
+    });
+
     it("builds every Edge on the objects path", async () => {
         const element = await loaded("objects", [
             { src: 0, dst: 1 },

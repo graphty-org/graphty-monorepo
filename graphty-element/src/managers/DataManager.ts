@@ -396,7 +396,7 @@ export const dataManagerInternals = {} as {
     unbuiltRecord(manager: DataManager, index: number): Record<string | number, unknown> | undefined;
     /** Build the `Node` of a row stored with no `Node` yet, and hand it back. */
     buildRow(manager: DataManager, id: NodeIdType): Node | undefined;
-    /** Build the `Node` of every row stored with no `Node` yet. */
+    /** Build the `Node` of every row stored with no `Node` yet, then the `Edge` of every edge stored with none. */
     buildAll(manager: DataManager): void;
     /**
      * How the current layout engine is handed a row stored with no `Node`: a function given the
@@ -682,6 +682,11 @@ export class DataManager implements Manager {
         dataManagerInternals.buildAll = (manager) => {
             for (const id of manager.unbuiltRows.ids()) {
                 manager.buildRow(id);
+            }
+
+            // Only a row line draws an edge stored with no `Edge`, and the objects path has none.
+            for (const row of [...manager.unbuiltEdges.keys()]) {
+                manager.buildEdgeRow(row);
             }
         };
         dataManagerInternals.setLayoutRows = (manager, rows) => {

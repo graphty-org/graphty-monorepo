@@ -1905,11 +1905,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * @returns the row, or `INVALID_INDEX` when the graph has no such node
      */
     protected rowOfId(id: string | number): number {
-        const { ids } = this.graph;
-        const row = rowOfEitherSpelling(ids, id);
-        // ponytail: the Number() retry reads " 1", "1e0" and "0x1" as 1 too, which the either-spelling
-        // rule does not; it shipped that way, so dropping it waits for a major.
-        return row === INVALID_INDEX && typeof id === "string" && id.trim() !== "" ? ids.indexOf(Number(id)) : row;
+        return rowOfEitherSpelling(this.graph.ids, id);
     }
 
     /**

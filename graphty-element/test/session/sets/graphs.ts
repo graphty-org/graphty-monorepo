@@ -88,6 +88,7 @@ export class TestGraph {
         this.sets = createSetsApi({
             edgeMember: (id: EdgeId) =>
                 sessionEdgeMember(this.snapshot(), id, (row) => this.bags.get(this.counterAt(row)), this.path),
+            hasNode: (id: NodeId) => this.snapshot().ids.indexOf(id) !== INVALID_INDEX,
         });
         this.setsStore = setsStoreOf(this.sets);
     }

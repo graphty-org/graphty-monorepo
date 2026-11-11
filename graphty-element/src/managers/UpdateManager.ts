@@ -3050,11 +3050,14 @@ export class UpdateManager implements Manager {
             centers.set(node, center);
             return center;
         };
+        // Under "batched" only a placed edge can have a support point: one that follows its rows is a straight pulled
+        // line, and a curve is pulled with a span of its own, so the walk asks the placed list, not every edge.
+        const batched = this.dataManager.renderLimits?.batched() === true;
         const bowed =
             !this.dataManager.drawHeld &&
             this.dataManager.supportPoints.update(
                 () => Array.from(this.layoutManager.nodes, centerOf),
-                this.layoutManager.edges,
+                batched ? this.placedEdges() : this.layoutManager.edges,
                 (edge) => edge.supportEdge(centerOf),
                 // Only a walk of every edge finds an edge newly bowed, so nothing bowed means a drag
                 // need not read every edge to ask.
@@ -3065,7 +3068,7 @@ export class UpdateManager implements Manager {
             // Each edge aims its own ray, inside the branch that fires it, so an edge that has not
             // moved costs nothing here. A pass over the whole graph used to aim all of them first.
             // Under "batched" the list of edges to place is kept between walks; "objects" walks every edge as before.
-            if (this.dataManager.renderLimits?.batched() === true) {
+            if (batched) {
                 for (const edge of this.placedEdges()) {
                     edge.update();
                 }

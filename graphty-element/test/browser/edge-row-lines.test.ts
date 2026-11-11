@@ -433,6 +433,25 @@ describe("an edge loaded with no switch", () => {
         assert.equal(element.graph.getEdgeRowLines()?.count, 0);
     });
 
+    // Graphviz keys its routes by `Edge` and builds its graph from the `Edge`s it holds: an edge stored with none
+    // would be routed and laid out as absent.
+    it("builds every Edge under a layout that reads Edges (fixed, routed by Graphviz)", async () => {
+        const element = await lazyLoaded(
+            [
+                { src: 0, dst: 1 },
+                { src: 1, dst: 2 },
+            ],
+            true,
+            {
+                switched: false,
+                before: async (el) => {
+                    await el.graph.setLayout("fixed", { dim: 2, edgeRoutes: "graphviz" });
+                },
+            },
+        );
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 2);
+    });
+
     it("builds every Edge on the objects path", async () => {
         const element = await loaded("objects", [
             { src: 0, dst: 1 },

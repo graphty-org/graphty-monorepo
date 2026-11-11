@@ -648,6 +648,46 @@ export class D3GraphEngine extends LayoutEngine {
     }
 
     /**
+     * Hand an `Edge` built late for an edge stored with no `Edge` the link its row already has, so
+     * the simulation keeps its links and is not reheated by an edge it already pulls on.
+     * @param key - The edge's id.
+     * @param e - Its `Edge`.
+     * @returns False when no link carries that id, and the `Edge` must be added instead.
+     * @internal
+     */
+    adoptEdgeRow(key: string, e: Edge): boolean {
+        const link = this.rowLinks.get(key);
+        if (link === undefined) {
+            return false;
+        }
+
+        this.rowLinks.delete(key);
+        for (const end of [link.source, link.target]) {
+            this.rowLinksByNode.get(endIdOf(end))?.delete(key);
+        }
+
+        if (isD3Edge(link)) {
+            this.edgeMapping.set(e, link);
+            this.edgeList = null;
+        } else {
+            // Not yet handed to the simulation: it goes with the next refresh, which the row already asked for.
+            this.newEdgeMap.set(e, link);
+        }
+
+        for (const id of [e.srcId, e.dstId]) {
+            let incident = this.edgesByNode.get(id);
+            if (!incident) {
+                incident = new Set();
+                this.edgesByNode.set(id, incident);
+            }
+
+            incident.add(e);
+        }
+
+        return true;
+    }
+
+    /**
      * Take out the links of edges that leave the graph with no `Edge`.
      * @param keys - The edges' ids; one with no link is skipped.
      * @internal

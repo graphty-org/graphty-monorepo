@@ -434,12 +434,18 @@ export const dataManagerInternals = {} as {
 export interface LayoutEdgeRows {
     add(rows: readonly EdgeRow[]): void;
     remove(keys: Iterable<string>): void;
+    /**
+     * Hand an `Edge` built late the place its row already has in the layout, without unsettling it.
+     * @returns False when the engine must be handed the `Edge` as a new edge instead.
+     */
+    adopt(key: string, e: Edge): boolean;
 }
 
 /** No layout engine yet, or one that reads the snapshot: an edge stored with no `Edge` needs no hand-over. */
 export const noLayoutEdgeRows: LayoutEdgeRows = {
     add: () => undefined,
     remove: () => undefined,
+    adopt: () => false,
 };
 
 /**
@@ -3006,8 +3012,9 @@ export class DataManager implements Manager {
             this.paintUndrawn = true;
         }
 
-        // Add to layout engine if it exists
-        if (this.layoutEngine) {
+        // Add to layout engine if it exists; an edge it already lays out by row keeps its place there.
+        const adopted = !announce && this.layoutEdgeRows?.adopt(edgeIdOf(edgeId), e) === true;
+        if (this.layoutEngine && !adopted) {
             layoutEngineInternals.addEdge(this.layoutEngine, e);
         }
 
@@ -3026,15 +3033,17 @@ export class DataManager implements Manager {
             return undefined;
         }
 
-        this.forgetUnbuiltEdge(row);
+        // The layout keeps the row's place for the `Edge` (`adopt`), so it is not dropped here.
+        this.forgetUnbuiltEdge(row, false);
         return this.makeEdge(stored, false, queue);
     }
 
     /**
      * Forget an edge stored with no `Edge`.
      * @param row - Its row.
+     * @param leaves - False when its `Edge` is being built, which takes over the row's place in the layout.
      */
-    private forgetUnbuiltEdge(row: number): void {
+    private forgetUnbuiltEdge(row: number, leaves = true): void {
         const stored = this.unbuiltEdges.get(row);
         this.unbuiltEdges.delete(row);
         // Its row line goes with it; a built `Edge` draws it from here on.
@@ -3043,7 +3052,9 @@ export class DataManager implements Manager {
         // built `Edge` reaches the engine in its place.
         if (stored !== undefined && this.unbuiltEdgeIds.get(edgeIdOf(stored.edgeId)) === row) {
             this.unbuiltEdgeIds.delete(edgeIdOf(stored.edgeId));
-            this.layoutEdgeRows?.remove([edgeIdOf(stored.edgeId)]);
+            if (leaves) {
+                this.layoutEdgeRows?.remove([edgeIdOf(stored.edgeId)]);
+            }
         }
 
         this.edgeVersion++;

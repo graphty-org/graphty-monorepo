@@ -4655,7 +4655,9 @@ export class Graph implements GraphContext {
         const problems = this.dataManager.sliceProblems(slice);
         const engine = this.layoutManager.layoutEngine;
         if (engine !== undefined && !this.layoutManager.building) {
-            problems.push(...layoutEngineInternals.edgeProblems(engine, this.dataManager.edges));
+            problems.push(
+                ...layoutEngineInternals.edgeProblems(engine, dataManagerInternals.builtEdges(this.dataManager)),
+            );
         }
 
         if (problems.length > 0) {

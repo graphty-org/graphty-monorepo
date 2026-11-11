@@ -1620,7 +1620,7 @@ export class UpdateManager implements Manager {
             return undefined;
         }
 
-        return this.buildRowEdge(index);
+        return this.buildRowEdge(index, true);
     }
 
     /**
@@ -1653,13 +1653,15 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Build an edge row's `Edge` (`dataManagerInternals.buildEdgeAt`), which queues its paint, and
-     * draw it as the edge masks the last pass read say: no pass walks it before its row's masks move.
+     * Build an edge row's `Edge` (`dataManagerInternals.buildEdgeAt`), which queues its paint unless the
+     * caller paints it now, and draw it as the edge masks the last pass read say: no pass walks it before
+     * its row's masks move.
      * @param index - The edge row.
+     * @param paintingNow - True when the caller paints it in this pass.
      * @returns The `Edge`, or undefined when no edge is stored there.
      */
-    private buildRowEdge(index: number): Edge | undefined {
-        const edge = dataManagerInternals.buildEdgeAt(this.dataManager, index);
+    private buildRowEdge(index: number, paintingNow = false): Edge | undefined {
+        const edge = dataManagerInternals.buildEdgeAt(this.dataManager, index, paintingNow);
         if (edge === undefined) {
             return undefined;
         }

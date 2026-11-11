@@ -42,6 +42,8 @@ async function loaded(path: "objects" | "batched", edges: { src: number; dst: nu
     document.body.appendChild(element);
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
+    // Each edge gets its `Edge`, which these tests read: a batched load would store them with none.
+    dataManagerInternals.storeEdgesUnbuilt(element.graph.getDataManager(), false);
     await element.session.data.addNodes(NODES);
     await element.session.data.addEdges(edges);
     await element.graph.setLayout("fixed", { dim: 3 });
@@ -175,12 +177,13 @@ describe("an edge row with no Edge", () => {
  * @param setup - The element's features, and what to do before the edges arrive.
  * @param setup.features - The features turned on.
  * @param setup.before - Run after the nodes and the layer, before the edges.
+ * @param setup.switched - False to leave the switch alone, so the element decides.
  * @returns The element.
  */
 async function lazyLoaded(
     edges: { src: number; dst: number; t?: number }[],
     uncapped = true,
-    setup: { features?: string[]; before?: (element: Graphty) => Promise<void> } = {},
+    setup: { features?: string[]; before?: (element: Graphty) => Promise<void>; switched?: boolean } = {},
 ): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderer = "webgl";
@@ -192,7 +195,10 @@ async function lazyLoaded(
     document.body.appendChild(element);
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
-    dataManagerInternals.storeEdgesUnbuilt(element.graph.getDataManager(), true);
+    if (setup.switched !== false) {
+        dataManagerInternals.storeEdgesUnbuilt(element.graph.getDataManager(), true);
+    }
+
     await element.session.data.addNodes(NODES);
     await element.graph.setLayout("fixed", { dim: 3 });
     if (uncapped) {
@@ -396,4 +402,43 @@ describe("an edge stored with no Edge under a force layout", () => {
             });
         }
     }
+});
+
+// A load on the batched path stores its edges with no `Edge` unless something turns it off; the objects path builds
+// every `Edge` as before.
+describe("an edge loaded with no switch", () => {
+    it("is stored with no Edge on the batched path, and drawn as a row line", async () => {
+        const element = await lazyLoaded(
+            [
+                { src: 0, dst: 1 },
+                { src: 1, dst: 2 },
+            ],
+            true,
+            { switched: false },
+        );
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 0);
+        assert.equal(lines.count, 2);
+        assert.equal(element.graph.getDataManager().edges.size, 2);
+    });
+
+    it("is found between its nodes, building its Edge", async () => {
+        const element = await lazyLoaded([{ src: 0, dst: 1 }], true, { switched: false });
+        const dm = element.graph.getDataManager();
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 0);
+        const edge = edgeBetween(element.graph, 0, 1);
+        assert.isDefined(edge);
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 1);
+        assert.equal(element.graph.getEdgeRowLines()?.count, 0);
+    });
+
+    it("builds every Edge on the objects path", async () => {
+        const element = await loaded("objects", [
+            { src: 0, dst: 1 },
+            { src: 1, dst: 2 },
+        ]);
+        assert.isNull(element.graph.getEdgeRowLines());
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 2);
+    });
 });

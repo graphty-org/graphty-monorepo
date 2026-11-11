@@ -235,6 +235,41 @@ describe("an edge stored with no Edge", () => {
         assert.deepEqual(lines.endsOf(1), [rowOf(element, 1), rowOf(element, 2)]);
     });
 
+    // Styles/Edge TwoDCurvatureWidth and BlendingOff read the edge map, then render one frame of the scene and read
+    // it: the Edges that read builds drew their placeholder look until the frame loop painted them.
+    it("draws the same picture once reading the edges builds its Edge, before the next frame", async () => {
+        const element = await lazyLoaded(
+            [
+                { src: 0, dst: 1 },
+                { src: 1, dst: 2 },
+            ],
+            true,
+            {
+                before: async (shown) => {
+                    await shown.session.styles.add({
+                        name: "red and wide",
+                        target: "edge",
+                        selector: { match: "everything" },
+                        set: { "edge.color": "#e6194b", "edge.width": 8 },
+                    } as never);
+                },
+            },
+        );
+        const dm = element.graph.getDataManager();
+        assert.equal(element.graph.getEdgeRowLines()?.count, 2, "drawn as row lines");
+        const want = await readCanvas(element.graph);
+
+        assert.equal([...dm.edges.values()].length, 2);
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 2, "reading the edges built them");
+        const scene = element.graph.getScene();
+        const { engine } = element.graph;
+        engine.beginFrame();
+        scene.render();
+        const read = engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight());
+        engine.endFrame();
+        assert.equal(overBar(want, { pixels: (await read) as Uint8Array }), 0, "the same picture");
+    });
+
     it("builds its Edge for a paint only an Edge draws", async () => {
         const element = await lazyLoaded([{ src: 0, dst: 1 }], false);
         const lines = element.graph.getEdgeRowLines();
@@ -537,7 +572,7 @@ describe("a pulled edge under a moving layout", () => {
                 }
 
                 await drawnFrames(element.graph.scene, 3);
-                const pulledVisits = update.mock.contexts.filter((edge: Edge) => edge.isPulled).length;
+                const pulledVisits = (update.mock.contexts as Edge[]).filter((edge) => edge.isPulled).length;
                 assert.equal(pulledVisits, 0);
             } finally {
                 update.mockRestore();

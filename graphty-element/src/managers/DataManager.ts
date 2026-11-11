@@ -3033,9 +3033,18 @@ export class DataManager implements Manager {
             return undefined;
         }
 
+        // A row line's paint is one an `Edge` pulls as a straight line, which needs no placement: the `Edge` takes it
+        // now, so reading the edge map never shows its placeholder look until the frame loop paints it.
+        const lined = queue && this.graphContext?.getEdgeRowLines?.()?.has(row) === true;
         // The layout keeps the row's place for the `Edge` (`adopt`), so it is not dropped here.
         this.forgetUnbuiltEdge(row, false);
-        return this.makeEdge(stored, false, queue);
+        const edge = this.makeEdge(stored, false, queue);
+        const paint = lined ? (this.graphContext?.getStylePainter?.()?.edgePaint(row) ?? null) : null;
+        if (paint !== null) {
+            edge.applySessionPaint(paint);
+        }
+
+        return edge;
     }
 
     /**

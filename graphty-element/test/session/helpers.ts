@@ -94,8 +94,9 @@ export interface Harness {
      */
     add(nodes: readonly NodeRow[], edges?: readonly EdgeRow[]): void;
     /**
-     * Say that the rows or the records changed beneath the session: the store drops its snapshot
-     * and the graph token moves, as it does for every write the element makes.
+     * Say that the rows or the records changed beneath the session: the store accounts for the
+     * builder writes (its snapshot follows them by itself) and the graph token moves, as it does
+     * for every write the element makes.
      */
     touch(): void;
 }
@@ -147,7 +148,7 @@ export function makeSession(
     const session = createElementSession(sessionOptions, options.internals ?? {});
 
     const touch = (): void => {
-        store.touch();
+        store.account();
         dispatcherOf(session).graph.retoken();
     };
 

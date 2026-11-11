@@ -244,7 +244,7 @@ function writeCapacity(store: GraphStore, edgeId: number, record: GraphRecord | 
     const row = store.edgeIndexOf(edgeId);
     if (row !== INVALID_INDEX) {
         store.builder.setEdgeValue(store.capacityColumn, row, resolveEdgeCapacity(record ?? {}));
-        store.touch();
+        store.account();
     }
 }
 
@@ -860,7 +860,7 @@ class GraphEntry implements OpLogEntry {
             this.graph.touch(ROWS_MOVED);
         }
 
-        store.touch();
+        store.account();
         if (rollback) {
             this.graph.retoken();
         } else {
@@ -1071,7 +1071,7 @@ class GraphEntry implements OpLogEntry {
             this.graph.touch(ROWS_MOVED);
         }
 
-        store.touch();
+        store.account();
         this.graph.restoreToken(this.tokenAfter);
     }
 
@@ -1297,10 +1297,7 @@ class Writer implements GraphWriter {
                 this.store.builder.setNodeValue(this.store.seedColumn, index, seed);
             }
 
-            // EVERY mutating path touches, including a merge: the store keys its snapshot cache
-            // on its own revision (see GraphStore.touch), so a burst of merges would otherwise
-            // serve a stale snapshot.
-            this.store.touch();
+            this.store.account();
         }
 
         // A record holding only the id, as a node an edge made is given, puts nothing in the row.
@@ -1333,7 +1330,7 @@ class Writer implements GraphWriter {
         const edgeId = this.store.nextEdgeId();
         this.store.stampEdgeId(index, edgeId);
         this.store.recordIngestedEdge(index, edgeId, fileId);
-        this.store.touch();
+        this.store.account();
         (this.graph.slice.edges as Map<EdgeId, GraphRecord>).set(edgeIdOf(edgeId), record);
         // A new row already reads the column default, 1: only another capacity costs a write.
         if (resolveEdgeCapacity(record) !== 1) {
@@ -1356,7 +1353,7 @@ class Writer implements GraphWriter {
         const edgeId = this.store.edgeIdAt(edgeIndex);
         const prior = this.store.builder.edgeWeight(edgeIndex);
         this.store.builder.setEdgeWeight(edgeIndex, weight);
-        this.store.touch();
+        this.store.account();
         this.record({ kind: "weight", edgeId, prior, next: weight }, edgeKey(edgeIdOf(edgeId)), null);
         if (record !== null) {
             const edges = this.graph.slice.edges as Map<EdgeId, GraphRecord>;
@@ -1407,9 +1404,6 @@ class Writer implements GraphWriter {
         }
 
         bumpFields(this.store, target, prior, next, this.bumped, true);
-        // A layer or a filter may read any value just written, so every reader keyed on the
-        // snapshot asks again.
-        this.store.touch();
         this.record(
             { kind: "record", target, id: key, prior, next },
             target === "node" ? nodeKey(key) : edgeKey(String(key)),
@@ -1451,9 +1445,7 @@ class Writer implements GraphWriter {
             return "edges-present";
         } else {
             builder.setDirected(directed);
-            // The direction is frozen into the snapshot, and the store does not key its cache on
-            // `builder.mutationCount`, so a snapshot taken before the declaration would be served.
-            store.touch();
+            store.account();
             outcome = "applied";
         }
 

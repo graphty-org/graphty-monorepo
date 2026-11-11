@@ -10,8 +10,8 @@ import { NullEngine, Scene, TransformNode, Vector3, type WebXRDefaultExperience 
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import { twoHandGestureDelta } from "../../src/cameras/InputUtils";
 import { PivotController } from "../../src/cameras/PivotController";
+import { twoHandGestureDelta } from "../../src/cameras/twoHandGesture";
 import { XRInputHandler } from "../../src/cameras/XRInputHandler";
 
 type Handedness = "left" | "right";

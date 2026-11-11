@@ -736,6 +736,11 @@ export class AiController {
     private readonly approvals = new Map<string, PendingApproval>();
     /** Questions asked of the reader, by id, until an event ends each. */
     private readonly questions = new Map<string, PendingQuestion>();
+    /**
+     * Requests and questions open here but not saved yet: the host is not told of them, so a
+     * reload after it hears of one always finds it saved.
+     */
+    private readonly unsaved = new Set<string>();
     /** Whether the model may ask the reader questions. */
     private readonly asks: boolean;
     /** The helpers the model may hand tasks to; none without `agents`. */
@@ -1802,9 +1807,9 @@ export class AiController {
             ...(bound === undefined ? {} : { bound }),
             ...(found === undefined ? {} : { found }),
         });
-        this.updatePending();
+        this.unsaved.add(id);
         // The message holding the calls and the request are saved together, before the host hears
-        // of it: a reload after the event always finds the request.
+        // of it (its status, its list or its event): a reload after that always finds the request.
         const entry: SavedPending = {
             kind: "approval",
             id,
@@ -1824,6 +1829,8 @@ export class AiController {
             entry,
             ...(planStep === undefined ? [] : [planStep]),
         ]);
+        this.unsaved.delete(id);
+        this.updatePending();
         this.emitAiEvent({ type: "ai-approval-requested", request, replayed: false });
         return id;
     }
@@ -1889,9 +1896,11 @@ export class AiController {
             ...(bound === undefined ? {} : { bound }),
             ...(found === undefined ? {} : { found }),
         });
-        this.updatePending();
-        // Saved before the host hears of it: a reload after the event always finds the question.
+        this.unsaved.add(id);
+        // Saved before the host hears of it: a reload after that always finds the question.
         await this.saveInto(conversationId, ask.conversation.messages, (pending) => [...pending, entry]);
+        this.unsaved.delete(id);
+        this.updatePending();
         this.emitAiEvent({ type: "ai-question-asked", request, replayed: false });
         return id;
     }
@@ -1900,7 +1909,7 @@ export class AiController {
      * Tell the status how many requests and questions wait on the reader.
      */
     private updatePending(): void {
-        this.statusManager.setPending(this.approvals.size, this.questions.size);
+        this.statusManager.setPending(this.getPendingApprovals().length, this.getPendingQuestions().length);
     }
 
     /**
@@ -3100,7 +3109,9 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      * @returns The requests, oldest first.
      */
     getPendingApprovals(): readonly AiApprovalRequest[] {
-        return [...this.approvals.values()].map((pending) => pending.request);
+        return [...this.approvals.entries()].flatMap(([id, pending]) =>
+            this.unsaved.has(id) ? [] : [pending.request],
+        );
     }
 
     /**
@@ -3109,7 +3120,9 @@ When the user asks you to perform an action, use the appropriate tool. If no too
      * @returns The questions, oldest first.
      */
     getPendingQuestions(): readonly AiQuestionRequest[] {
-        return [...this.questions.values()].map((pending) => pending.request);
+        return [...this.questions.entries()].flatMap(([id, pending]) =>
+            this.unsaved.has(id) ? [] : [pending.request],
+        );
     }
 
     /**

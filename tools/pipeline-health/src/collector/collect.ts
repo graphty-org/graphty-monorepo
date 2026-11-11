@@ -27,7 +27,7 @@ import {
     type WorkflowState,
 } from "../model/snapshots.js";
 import { isLive, type Item, type Store } from "../model/store.js";
-import type { DeployBuilds } from "./aws.js";
+import type { AwsCostDay, DeployBuilds } from "./aws.js";
 import { flakyMembers } from "./flaky.js";
 import { type Fetch, type GitHub, HttpError, runJobs } from "./github.js";
 import { definedJobs, jobMembers, nonGatingJobs } from "./jobs.js";
@@ -132,7 +132,7 @@ export interface Deps {
     /** Plain fetch for public sources (npm, Coveralls). */
     fetch: Fetch;
     /** Cost Explorer's daily cost, ISO days [from, to). Undefined: the AWS line is skipped. */
-    awsCosts?: (from: string, to: string) => Promise<{ day: string; usd: number }[]>;
+    awsCosts?: (from: string, to: string) => Promise<AwsCostDay[]>;
     rates: Rates;
     limits: { linux_windows: number; macos: number };
     org: string;
@@ -1497,7 +1497,8 @@ async function coverage(c: Cycle): Promise<void> {
 }
 
 /**
- * Money lines by day for this month: AWS from Cost Explorer, the fixed plans spread over the month.
+ * Money lines by day for this month: AWS from Cost Explorer (with its split by service), the fixed plans spread over
+ * the month.
  * @param c - the cycle
  */
 async function costs(c: Cycle): Promise<void> {
@@ -1515,6 +1516,7 @@ async function costs(c: Cycle): Promise<void> {
                 line: "aws",
                 day: Date.parse(r.day),
                 usd: r.usd,
+                ...(r.services ? { services: r.services } : {}),
             });
         }
     }

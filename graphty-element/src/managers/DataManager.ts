@@ -3112,21 +3112,10 @@ export class DataManager implements Manager {
             }
 
             const byRow = this.renderLimits?.batched() === true;
-            const rowOf = (each: Edge | number): number => (typeof each === "number" ? each : each.index);
             for (const inner of pairs.values()) {
                 for (const joined of inner.values()) {
                     if (joined.length > 1) {
-                        // Under "batched", by row, oldest first: an `Edge` built late (from a row stored with
-                        // none) is not last in its fan for that. The objects path keeps its build order.
-                        if (byRow) {
-                            joined.sort((x, y) => rowOf(x) - rowOf(y));
-                        }
-                        const group = joined.flatMap((each) =>
-                            typeof each === "number" ? (this.buildEdgeRow(each) ?? []) : each,
-                        );
-                        group.forEach((each, rank) => {
-                            byEdge.set(each, { rank, count: group.length, first: group[0], members: group });
-                        });
+                        this.joinBundle(joined, byRow, byEdge);
                     }
                 }
             }
@@ -3135,6 +3124,25 @@ export class DataManager implements Manager {
         }
 
         return this.bundles.byEdge.get(edge) ?? { rank: 0, count: 1, first: edge, members: [edge] };
+    }
+
+    /**
+     * Record one fan of {@link drawnBundle}'s, building the `Edge` of each member stored with none.
+     * @param joined - Its members: `Edge`s, and the rows of edges stored with no `Edge`.
+     * @param byRow - Under "batched": order it by row, oldest first, so an `Edge` built late (from a row
+     *   stored with none) is not last in its fan for that. The objects path keeps its build order.
+     * @param byEdge - Where each member's place is recorded.
+     */
+    private joinBundle(joined: (Edge | number)[], byRow: boolean, byEdge: Map<Edge, EdgeBundle>): void {
+        if (byRow) {
+            const rowOf = (each: Edge | number): number => (typeof each === "number" ? each : each.index);
+            joined.sort((x, y) => rowOf(x) - rowOf(y));
+        }
+
+        const group = joined.flatMap((each) => (typeof each === "number" ? (this.buildEdgeRow(each) ?? []) : each));
+        group.forEach((each, rank) => {
+            byEdge.set(each, { rank, count: group.length, first: group[0], members: group });
+        });
     }
 
     /** {@link DataManager.drawnBundle}'s answers, and the edge set they were worked out over. */

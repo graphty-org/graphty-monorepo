@@ -4779,7 +4779,8 @@ export class Graph implements GraphContext {
         }
 
         if (path === "objects") {
-            // Every row stored with no `Node` gets one: only a batch draws it otherwise.
+            // Every row stored with no `Node` gets one, and every edge stored with no `Edge`: only a batch or a row
+            // line draws them otherwise.
             dataManagerInternals.buildAll(this.dataManager);
         }
 

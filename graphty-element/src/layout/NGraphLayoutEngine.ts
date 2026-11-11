@@ -837,6 +837,27 @@ export class NGraphEngine extends LayoutEngine {
     }
 
     /**
+     * Hand an `Edge` built late for an edge stored with no `Edge` the link its row is already on, so
+     * the simulation keeps its springs and does not unsettle for an edge it already pulls on.
+     * @param key - The edge's id.
+     * @param e - Its `Edge`.
+     * @returns False when no link carries that id, and the `Edge` must be added instead.
+     * @internal
+     */
+    adoptEdgeRow(key: string, e: Edge): boolean {
+        const link = this.rowLinks.get(key);
+        if (link === undefined) {
+            return false;
+        }
+
+        this.rowLinks.delete(key);
+        pairOf(link).rows.delete(key);
+        pairOf(link).edges.add(e);
+        this.edgeMapping.set(e, link);
+        return true;
+    }
+
+    /**
      * Take edges that leave the graph with no `Edge` off their links, and drop a link left carrying none.
      * @param keys - The edges' ids; one on no link is skipped.
      * @internal

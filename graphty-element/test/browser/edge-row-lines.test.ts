@@ -7,12 +7,14 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import type { EdgePaint } from "../../src/managers/StylePainter";
+import { drawnFrames } from "../helpers/drawn-frames";
 import { edgeBetween } from "../helpers/testSetup";
 import { pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
 
@@ -42,6 +44,8 @@ async function loaded(path: "objects" | "batched", edges: { src: number; dst: nu
     document.body.appendChild(element);
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
+    // Each edge gets its `Edge`, which these tests read: a batched load would store them with none.
+    dataManagerInternals.storeEdgesUnbuilt(element.graph.getDataManager(), false);
     await element.session.data.addNodes(NODES);
     await element.session.data.addEdges(edges);
     await element.graph.setLayout("fixed", { dim: 3 });
@@ -175,12 +179,13 @@ describe("an edge row with no Edge", () => {
  * @param setup - The element's features, and what to do before the edges arrive.
  * @param setup.features - The features turned on.
  * @param setup.before - Run after the nodes and the layer, before the edges.
+ * @param setup.switched - False to leave the switch alone, so the element decides.
  * @returns The element.
  */
 async function lazyLoaded(
     edges: { src: number; dst: number; t?: number }[],
     uncapped = true,
-    setup: { features?: string[]; before?: (element: Graphty) => Promise<void> } = {},
+    setup: { features?: string[]; before?: (element: Graphty) => Promise<void>; switched?: boolean } = {},
 ): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderer = "webgl";
@@ -192,7 +197,10 @@ async function lazyLoaded(
     document.body.appendChild(element);
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
-    dataManagerInternals.storeEdgesUnbuilt(element.graph.getDataManager(), true);
+    if (setup.switched !== false) {
+        dataManagerInternals.storeEdgesUnbuilt(element.graph.getDataManager(), true);
+    }
+
     await element.session.data.addNodes(NODES);
     await element.graph.setLayout("fixed", { dim: 3 });
     if (uncapped) {
@@ -225,6 +233,41 @@ describe("an edge stored with no Edge", () => {
         assert.equal(lines.count, 2);
         assert.deepEqual(lines.endsOf(0), [rowOf(element, 0), rowOf(element, 1)]);
         assert.deepEqual(lines.endsOf(1), [rowOf(element, 1), rowOf(element, 2)]);
+    });
+
+    // Styles/Edge TwoDCurvatureWidth and BlendingOff read the edge map, then render one frame of the scene and read
+    // it: the Edges that read builds drew their placeholder look until the frame loop painted them.
+    it("draws the same picture once reading the edges builds its Edge, before the next frame", async () => {
+        const element = await lazyLoaded(
+            [
+                { src: 0, dst: 1 },
+                { src: 1, dst: 2 },
+            ],
+            true,
+            {
+                before: async (shown) => {
+                    await shown.session.styles.add({
+                        name: "red and wide",
+                        target: "edge",
+                        selector: { match: "everything" },
+                        set: { "edge.color": "#e6194b", "edge.width": 8 },
+                    } as never);
+                },
+            },
+        );
+        const dm = element.graph.getDataManager();
+        assert.equal(element.graph.getEdgeRowLines()?.count, 2, "drawn as row lines");
+        const want = await readCanvas(element.graph);
+
+        assert.equal([...dm.edges.values()].length, 2);
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 2, "reading the edges built them");
+        const scene = element.graph.getScene();
+        const { engine } = element.graph;
+        engine.beginFrame();
+        scene.render();
+        const read = engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight());
+        engine.endFrame();
+        assert.equal(overBar(want, { pixels: (await read) as Uint8Array }), 0, "the same picture");
     });
 
     it("builds its Edge for a paint only an Edge draws", async () => {
@@ -396,4 +439,189 @@ describe("an edge stored with no Edge under a force layout", () => {
             });
         }
     }
+});
+
+// A load on the batched path stores its edges with no `Edge` unless something turns it off; the objects path builds
+// every `Edge` as before.
+describe("an edge loaded with no switch", () => {
+    it("is stored with no Edge on the batched path, and drawn as a row line", async () => {
+        const element = await lazyLoaded(
+            [
+                { src: 0, dst: 1 },
+                { src: 1, dst: 2 },
+            ],
+            true,
+            { switched: false },
+        );
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 0);
+        assert.equal(lines.count, 2);
+        assert.equal(element.graph.getDataManager().edges.size, 2);
+    });
+
+    it("is found between its nodes, building its Edge", async () => {
+        const element = await lazyLoaded([{ src: 0, dst: 1 }], true, { switched: false });
+        const dm = element.graph.getDataManager();
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 0);
+        const edge = edgeBetween(element.graph, 0, 1);
+        assert.isDefined(edge);
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 1);
+        assert.equal(element.graph.getEdgeRowLines()?.count, 0);
+    });
+
+    // A repaint makes the next frame visit every edge once. It used to leave the edge count and the node positions
+    // unrecorded, so the two frames after it walked every edge again, and a stable frame could end between them: a
+    // drag counted after it paid for a walk of every edge (drag-walks-incident-edges on fixed, forced-batched).
+    it("visits every built Edge once for a repaint", async () => {
+        const element = await lazyLoaded(
+            [
+                { src: 0, dst: 1 },
+                { src: 1, dst: 2 },
+                { src: 2, dst: 3 },
+            ],
+            false,
+        );
+        const built = dataManagerInternals.edgesBuilt(element.graph.getDataManager());
+        assert.equal(built, 3);
+        await drawnFrames(element.graph.scene, 3);
+        const update = vi.spyOn(Edge.prototype, "update");
+        try {
+            await element.session.styles.add({
+                name: "wide",
+                target: "edge",
+                selector: { match: "everything" },
+                set: { "edge.width": 3 },
+            } as never);
+            await element.waitForStableFrame();
+            await drawnFrames(element.graph.scene, 3);
+
+            assert.equal(update.mock.calls.length, built);
+        } finally {
+            update.mockRestore();
+        }
+    });
+
+    // Graphviz keys its routes by `Edge` and builds its graph from the `Edge`s it holds: an edge stored with none
+    // would be routed and laid out as absent.
+    it("builds every Edge under a layout that reads Edges (fixed, routed by Graphviz)", async () => {
+        const element = await lazyLoaded(
+            [
+                { src: 0, dst: 1 },
+                { src: 1, dst: 2 },
+            ],
+            true,
+            {
+                switched: false,
+                before: async (el) => {
+                    await el.graph.setLayout("fixed", { dim: 2, edgeRoutes: "graphviz" });
+                },
+            },
+        );
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 2);
+    });
+
+    // The objects path has no row lines, so a switch to it builds every edge's `Edge` before they go: none goes
+    // undrawn (the rollback rule of design/rendering/row-renderer.md).
+    it("gets its Edge, and stays drawn, when the path switches to objects", async () => {
+        const edges = [
+            { src: 0, dst: 1 },
+            { src: 1, dst: 2 },
+        ];
+        const element = await lazyLoaded(edges, true, { switched: false });
+        const dm = element.graph.getDataManager();
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 0);
+        element.graph.setRenderPath("objects");
+        await element.waitForStableFrame();
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 2, "every edge has its Edge");
+        assert.isNull(element.graph.getEdgeRowLines());
+        const got = await readCanvas(element.graph);
+        document.body.replaceChildren();
+
+        const want = await loaded("objects", edges);
+        assert.equal(overBar(await readCanvas(want.graph), got), 0, "drawn as an objects load draws it");
+    });
+
+    it("builds every Edge on the objects path", async () => {
+        const element = await loaded("objects", [
+            { src: 0, dst: 1 },
+            { src: 1, dst: 2 },
+        ]);
+        assert.isNull(element.graph.getEdgeRowLines());
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 2);
+    });
+});
+
+// A straight pulled line follows its nodes' rows in its shader, so neither the load's placement walk nor a moving
+// layout's frames have anything to place for it: the walk (`UpdateManager.updateEdges` -> `Edge.update` ->
+// `pullRows`) is 1M visits a frame at 100k + 1M. Stage 27 of design/rendering/row-renderer.md.
+describe("a pulled edge under a moving layout", () => {
+    for (const [lazy, dim] of [
+        [true, 3],
+        [false, 3],
+        [true, 2],
+        [false, 2],
+    ] as const) {
+        const stored = lazy ? "stored with no Edge" : "with its Edge";
+        it(`is visited by no placement walk, ${stored}, in ${dim}D`, async () => {
+            const update = vi.spyOn(Edge.prototype, "update");
+            try {
+                const element = await lazyLoaded(
+                    [
+                        { src: 0, dst: 1 },
+                        { src: 1, dst: 2 },
+                        { src: 2, dst: 0 },
+                    ],
+                    true,
+                    {
+                        before: async (el) => {
+                            dataManagerInternals.storeEdgesUnbuilt(el.graph.getDataManager(), lazy);
+                            if (dim === 2) {
+                                await el.setViewMode("2d");
+                            }
+
+                            await el.graph.setLayout("ngraph", { dim, seed: 7 });
+                        },
+                    },
+                );
+                const dm = element.graph.getDataManager();
+                assert.equal(dataManagerInternals.edgesBuilt(dm), lazy ? 0 : 3);
+                if (!lazy) {
+                    for (const edge of dm.edges.values()) {
+                        assert.isTrue(edge.followsRows, "every Edge is a straight pulled line");
+                    }
+                }
+
+                await drawnFrames(element.graph.scene, 3);
+                const pulledVisits = (update.mock.contexts as Edge[]).filter((edge) => edge.isPulled).length;
+                assert.equal(pulledVisits, 0);
+            } finally {
+                update.mockRestore();
+            }
+        });
+    }
+});
+
+// A simulation engine (forceatlas2, and every layout the accelerator runs) holds no edges of its own: it read the
+// store's edges each frame, which built an `Edge` for every edge stored with none. At 100,000 nodes and 300,000
+// edges on WebGPU that ran the tab out of memory the moment the layout started.
+describe("an edge stored with no Edge under a simulation layout", () => {
+    it("gets no Edge from the frames that move it", async () => {
+        const element = await lazyLoaded(
+            [
+                { src: 0, dst: 1 },
+                { src: 1, dst: 2 },
+                { src: 2, dst: 0 },
+            ],
+            true,
+            { switched: false },
+        );
+        const dm = element.graph.getDataManager();
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 0);
+        await element.graph.setLayout("forceatlas2", { seed: 1 });
+        await operationQueueOf(element.graph).waitForCompletion();
+        await drawnFrames(element.graph.scene, 5);
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 0);
+        assert.equal(element.graph.getEdgeRowLines()?.count, 3);
+    });
 });

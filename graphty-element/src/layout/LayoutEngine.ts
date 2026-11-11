@@ -1715,6 +1715,10 @@ export const simpleLayoutInternals = {
     hostGraph(engine: StaticLayoutEngine): GraphContext | undefined;
     /** Whether the engine has nothing to arrange: no node handed to it, and no row it lays out by row. */
     empty(engine: StaticLayoutEngine): boolean;
+    /** Whether the engine lays out by row (renderPath "batched", a row stored), so a freeze, not a `Node` or `Edge` handed to it, says the graph changed. */
+    byRow(engine: StaticLayoutEngine): boolean;
+    /** Hold an `Edge` built late for an edge the engine already laid out by row, without marking the layout stale. */
+    adoptEdge(engine: StaticLayoutEngine, e: Edge): void;
 };
 
 /**
@@ -1751,6 +1755,14 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             engine._nodes[0]?.parentGraph ??
             (engine.#rowSource() === null ? undefined : (engine.#rows?.graph?.() ?? undefined));
         simpleLayoutInternals.empty = (engine) => engine._nodes.length === 0 && engine.#rowSource() === null;
+        simpleLayoutInternals.byRow = (engine) => engine.#rowSource() !== null;
+        simpleLayoutInternals.adoptEdge = (engine, e) => {
+            if (engine.#goneEdges.has(e)) {
+                compact(engine.#edges, engine.#goneEdges);
+            }
+
+            engine.#edges.push(e);
+        };
     }
 
     static type: string;

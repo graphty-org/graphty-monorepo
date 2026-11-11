@@ -1589,6 +1589,31 @@ an `Edge`, so it never leaves an edge row out; an end left out still lets its li
 edge rows over yet: ingest still builds every `Edge`, so neither path lays out differently. Every other engine
 still needs an `Edge` per edge.
 
+Stage 27's eleventh pull request: an edge can be stored with no `Edge`. The node maps' lazy map (`NodeView`, now
+`LazyView` in `DataManager.ts`, shared by nodes and edges) backs `edges` too: an edge whose ends are stored is kept as
+its `StoredEdge` by row, `edges` counts and finds it, and reading or walking it builds and keeps its `Edge`. A removal,
+a reconcile (which hands it its record and moves it to its row), a freeze and a clear take it out or move it without
+building one; `disposeNodesAndEdges` disposes built `Edge`s only. `test/managers/DataManager.test.ts` pins it, switched
+on through `dataManagerInternals.storeEdgesUnbuilt`, which nothing in the element calls yet, so neither path changes.
+Correction: `edgesByIndex` stays the built `Edge`s by row, as `nodesByIndex` is for nodes, not a view that builds:
+its readers are the frame's walks, which must not build. What turning it on still needs: the frame's paint loop
+drawing such a row through `EdgeRowLines.paintRow` (building the `Edge` only when it returns false), d3 and ngraph
+handed the rows (`addEdgeRows`), every internal walk of `edges` reading built `Edge`s only (`drawnBundle`, the
+reconcile of a removed node's edges, the strict-state check and the per-frame walks outside `DataManager` all walk
+`edges` and would build every `Edge`), and the eligibility check (batched, row lines, an engine that takes edge rows).
+
+Stage 27's twelfth pull request: the data manager's own walks of the edges build no `Edge`. Undo and redo that take a
+node away (`dropRenderNodes`) send its edges stored with no `Edge` back to waiting, or forget them, without building
+them. The strict-state check after each pass compares the slice with the built `Edge`s and the stored edge ids, and
+hands the layout engine's check (`heldEdgeProblems`) the built `Edge`s only (`dataManagerInternals.builtEdges`, a
+live view). `drawnBundle` groups the built `Edge`s and the stored edges by pair and builds the stored ones of a pair
+with more than one edge, since a fan is drawn by `Edge`s; a lone edge stays unbuilt, and built ones keep their order
+ahead of those built for the fan. `test/managers/DataManager.test.ts` pins it: an undo, redo and undo of a node's
+removal build none (3 before), and a lone pair's bundle builds only the edge asked about (2 before). Still to come:
+the walks of `edges` outside `DataManager` (in `Graph.ts`, `LayoutManager.ts`, `Node.ts`, the edge ID target's
+`pickEdgeId`), the paint loop, d3 and ngraph handed the rows, and the eligibility check. Nothing turns the switch on,
+so neither path changes.
+
 | #   | Stage                               | Issues                          | What it changes                                                                                                                                                                                                                                                                                         | Depends on                                                                                                                                       | R   | Target                                                                                                                                                                                               | Proving test                                                                                                                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 0   | Done: baseline, spikes              | all                             | Harness, `baseline` run, section 5                                                                                                                                                                                                                                                                      | --                                                                                                                                               | L   | None                                                                                                                                                                                                 | Harness and `baseline` committed                                                                                                                                                                                                                                                                                                                                                                 |

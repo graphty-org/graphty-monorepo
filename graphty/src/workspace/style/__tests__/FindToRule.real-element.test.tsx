@@ -12,6 +12,7 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { nodeModelsOn } from "../../features";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -70,15 +71,20 @@ function readerLayers(session: GraphSession): Layer[] {
 /**
  * Picks "New layer from selection" from the inspector's actions menu for the selection, then sets
  * the new layer's first value, a node color, which makes it a layer.
+ * @param session - the element's session.
  * @param hex - the color, six hex digits.
  */
-async function newLayerFromSelection(hex: string): Promise<void> {
+async function newLayerFromSelection(session: GraphSession, hex: string): Promise<void> {
     const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
     await userEvent.click(await inspector.findByRole("button", { name: /actions$/ }));
     await userEvent.click(await screen.findByRole("menuitem", { name: /New layer from selection/ }));
     const tab = await screen.findByTestId("style-tab", {});
     // Fill's "+" adds Color; typing its hex writes it.
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
+    if (nodeModelsOn(session)) {
+        // With the node-models experiment on, Fill also offers Picture, so its "+" opens a menu.
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
+    }
     const field = await screen.findByRole("textbox", { name: /^Node color(,|$)/ });
     await userEvent.clear(field);
     await userEvent.type(field, `${hex}{Enter}`);
@@ -113,7 +119,7 @@ describe("selection as a way into a rule", () => {
             assert.sameMembers([...session.selection.nodes], ["a", "c"]);
         });
 
-        await newLayerFromSelection("00AA55");
+        await newLayerFromSelection(session, "00AA55");
         await waitFor(() => {
             assert.lengthOf(readerLayers(session), before + 1);
         });
@@ -191,7 +197,7 @@ describe("selection as a way into a rule", () => {
             assert.sameMembers([...session.selection.nodes], ["a", "c", "d"]);
         });
 
-        await newLayerFromSelection("00AA55");
+        await newLayerFromSelection(session, "00AA55");
         await waitFor(() => {
             assert.lengthOf(readerLayers(session), before + 1);
         });

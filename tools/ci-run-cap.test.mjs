@@ -1,9 +1,18 @@
 // Tests of tools/ci-run-cap.mjs on recorded GitHub Actions API responses (the shapes of
 // GET actions/workflows/<file>/runs and GET actions/runs/<id>/jobs, recorded 2026-10-26, trimmed).
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { earlierActive, MAX_WAIT_MINUTES, parseCap, POLL_SECONDS, RELEASE_SHARE, waitTurn } from "./ci-run-cap.mjs";
+import {
+    earlierActive,
+    FULL_RUN_MAX_PARALLEL,
+    MAX_WAIT_MINUTES,
+    parseCap,
+    POLL_SECONDS,
+    RELEASE_SHARE,
+    waitTurn,
+} from "./ci-run-cap.mjs";
 
 const run = (id, started, status, event = "pull_request") => ({
     id,
@@ -117,7 +126,11 @@ test("yields to a release run waiting for a GitHub-hosted runner, not to a T4 or
     assert.equal(r1.waitedSeconds, MAX_WAIT_MINUTES * 60);
     const f2 = fake({ ci: [ME], release, jobs: other });
     assert.equal((await waitTurn({ cap: 2, runId: ME.id, ...f2 })).outcome, "proceeded");
-    const f3 = fake({ ci: [ME], release: [run(78, "2026-10-26T02:02:09Z", "queued", "workflow_dispatch")] });
+    const f3 = fake({
+        ci: [ME],
+        release: [run(78, "2026-10-26T02:02:09Z", "queued", "workflow_dispatch")],
+        jobs: { 78: [{ status: "queued", labels: ["ubuntu-24.04"] }] },
+    });
     assert.equal((await waitTurn({ cap: 2, runId: ME.id, ...f3 })).outcome, "gave up waiting");
     // a release run that already holds its share of runners: its queued jobs are its own max-parallel tail
     const full = {
@@ -187,4 +200,55 @@ test("a failed GraphQL query counts every run, so the cap never loosens by mista
         },
     });
     assert.equal(r.outcome, "API error"); // it waited (the fake sleep stops it), it did not proceed
+});
+
+// a full run's jobs, as GET actions/runs/<id>/jobs names them (release run 42966344736, 2026-11-11)
+const job = (name, status) => ({ name: `CI / ${name}`, status, labels: ["ubuntu-24.04"] });
+const legs = (matrix, n, status) => Array.from({ length: n }, (_, i) => job(`${matrix} (leg-${i})`, status));
+
+test("a full run whose only queued job is held by its own max-parallel does not hold pull requests", async () => {
+    // GitHub reports the whole run as "queued" while one story leg waits behind its six running siblings
+    const release = [run(42966344736, "2026-11-11T05:20:00Z", "queued", "workflow_dispatch")];
+    const jobs = {
+        42966344736: [
+            ...legs("Story tests", FULL_RUN_MAX_PARALLEL["Story tests"], "in_progress"),
+            ...legs("Test", 9, "in_progress"),
+            job("Story tests (graph-io-fidelity-4)", "queued"),
+            job("Build", "completed"),
+        ],
+    };
+    const f = fake({ ci: [ME], release, jobs });
+    assert.deepEqual(await waitTurn({ cap: 2, runId: ME.id, ...f }), {
+        waitedSeconds: 0,
+        outcome: "proceeded",
+        checks: 1,
+    });
+    assert.equal(f.calls.filter((c) => c.includes("/jobs")).length, 1);
+});
+
+test("a full run waiting for runners with fewer than its share still holds pull requests", async () => {
+    const release = [run(42966344736, "2026-11-11T05:20:00Z", "in_progress", "workflow_dispatch")];
+    // three story legs run, a fourth waits for a runner though the matrix allows six
+    const jobs = {
+        42966344736: [
+            ...legs("Story tests", 3, "in_progress"),
+            ...legs("Test", FULL_RUN_MAX_PARALLEL.Test, "in_progress"),
+            job("Story tests (graph-io-fidelity-4)", "queued"),
+        ],
+    };
+    const r = await waitTurn({ cap: 2, runId: ME.id, ...fake({ ci: [ME], release, jobs }) });
+    assert.equal(r.outcome, "gave up waiting");
+    // a test shard queued behind fourteen running ones is the run's own max-parallel, not a runner wait
+    jobs[42966344736][jobs[42966344736].length - 1] = job("Test (layout-2)", "queued");
+    const ok = await waitTurn({ cap: 2, runId: ME.id, ...fake({ ci: [ME], release, jobs }) });
+    assert.equal(ok.outcome, "proceeded");
+});
+
+test("FULL_RUN_MAX_PARALLEL matches ci.yml's full-run max-parallel", () => {
+    const yml = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+    for (const [name, n] of Object.entries(FULL_RUN_MAX_PARALLEL)) {
+        const re = new RegExp(`name: ${name} \\(\\$\\{\\{[^]*?max-parallel: .*\\|\\| (\\d+) \\}\\}`);
+        assert.equal(Number(re.exec(yml)?.[1]), n, `${name}'s full-run max-parallel in ci.yml`);
+    }
+    assert.equal(RELEASE_SHARE, 20);
 });

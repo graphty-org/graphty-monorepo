@@ -284,7 +284,7 @@ describe("runner use", () => {
     it("counts jobs, not runs, and a macOS job against both limits", () => {
         const base = jobs("jobs-pr-40238975833.json")[0];
         const at = (min: number) => new Date(NOW - min * MIN).toISOString();
-        const j = (status: string, labels: string[], created = at(1)): GhJob => ({
+        const j = (status: string, labels: string[], created = at(20)): GhJob => ({
             ...base,
             status,
             labels,
@@ -311,6 +311,36 @@ describe("runner use", () => {
             saturated: true,
             unassigned: false,
         });
+    });
+});
+
+describe("runner use: jobs our own workflow holds", () => {
+    const base = jobs("jobs-pr-40238975833.json")[0];
+    const at = (min: number) => new Date(NOW - min * MIN).toISOString();
+    const j = (status: string, created: string, runId = 1): GhJob => ({
+        ...base,
+        run_id: runId,
+        status,
+        labels: ["ubuntu-24.04"],
+        created_at: created,
+    });
+
+    it("a matrix job held by max-parallel while a later job already runs is held by its run, not waiting for a runner", () => {
+        // run 42966344736 (2026-11-11): Story tests (graph-io-fidelity-4) queued from 05:35 behind max-parallel 6
+        // while a pull request's Run cap job created at 05:39 got a runner at once
+        const use = runnerUse([j("in_progress", at(30)), j("queued", at(30)), j("in_progress", at(5), 2)], [], NOW);
+        expect(use).toMatchObject({ queued: 1, queuedOver2: 0, heldByRun: 1 });
+        expect(runnerFlags(use, 300)).toEqual({ saturated: false, unassigned: false });
+    });
+
+    it("a queued job with no later job running still waits for a runner", () => {
+        const use = runnerUse([j("in_progress", at(30)), j("queued", at(10)), j("queued", at(4), 2)], [], NOW);
+        expect(use).toMatchObject({ queued: 2, queuedOver2: 2, heldByRun: 0 });
+    });
+
+    it("a later job started within 2 minutes of the queued one does not make it held", () => {
+        const use = runnerUse([j("queued", at(10)), j("in_progress", at(9))], [], NOW);
+        expect(use).toMatchObject({ queuedOver2: 1, heldByRun: 0 });
     });
 });
 

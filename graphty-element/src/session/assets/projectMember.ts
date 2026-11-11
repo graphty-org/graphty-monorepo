@@ -390,13 +390,13 @@ function addRef(build: MemberBuild, ref: string, layerIds: LayerId[]): void {
 
 /**
  * The `graphty-assets` member: every model and picture a layer names that the session holds,
- * files as given; one a layer names by URL is kept by its URL and digest alone when `storage`
- * says `"url"` for it, or, with no entry for it and the `node-models` experiment on, when the
- * session remembers it kept that way.
+ * and every other accepted model it holds (embedded by id), files as given; one a layer names by
+ * URL is kept by its URL and digest alone when `storage` says `"url"` for it, or, with no entry
+ * for it and the `node-models` experiment on, when the session remembers it kept that way.
  * @param session - The session.
  * @param storage - By the URL a layer names: `"url"` keeps it by URL, `"embed"` embeds it; or
  *     `"embed-all"` to embed everything whatever the session remembers (autosave). Default: none.
- * @returns The member, or null when no layer names a held asset; and what could not be embedded.
+ * @returns The member, or null when it would hold no asset; and what could not be embedded.
  */
 export function assetsMember(
     session: GraphSession,
@@ -416,8 +416,22 @@ export function assetsMember(
         digests: new Set<string>(),
         bytes: 0,
     };
+    const named = new Set<string>();
     for (const [ref, layerIds] of modelRefs(session)) {
         addRef(build, ref, layerIds);
+        const record = isAssetId(ref) ? assets.get(ref) : assets.urlRecord(ref);
+        if (record !== undefined) {
+            named.add(record.id);
+        }
+    }
+
+    // Every other model the project holds, accepted: one added for later (a host's "add to the
+    // project") or no longer named by any layer stays in the project, embedded by its id.
+    for (const record of assets.list()) {
+        if (record.kind === "model" && record.state === "accepted" && !named.has(record.id)) {
+            named.add(record.id);
+            addRef(build, record.id, []);
+        }
     }
 
     return {

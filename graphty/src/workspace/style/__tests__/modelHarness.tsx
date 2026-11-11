@@ -181,3 +181,65 @@ export function fileInput(within: HTMLElement, folder = false): HTMLInputElement
     }
     return input;
 }
+
+/**
+ * Opens the Load custom model dialog from the Models pop-over's Custom model... button.
+ * @param tab - the Style tab.
+ * @returns the dialog.
+ */
+export async function openCustom(tab: HTMLElement): Promise<HTMLElement> {
+    const models = await openModels(tab);
+    await userEvent.click(within(models).getByRole("button", { name: "Custom model..." }));
+    return screen.findByRole("dialog", { name: "Load custom model" });
+}
+
+/**
+ * How many pixels of a picture are not fully transparent.
+ * @param picture - the picture, loaded or loading.
+ * @returns the count of drawn pixels.
+ */
+export async function drawnPixels(picture: HTMLImageElement): Promise<number> {
+    await picture.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = picture.naturalWidth;
+    canvas.height = picture.naturalHeight;
+    const context = canvas.getContext("2d");
+    assert.isNotNull(context);
+    context.drawImage(picture, 0, 0);
+    const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+    let drawn = 0;
+    for (let at = 3; at < data.length; at += 4) {
+        drawn += data[at] > 0 ? 1 : 0;
+    }
+    return drawn;
+}
+
+/**
+ * Waits until the dialog shows its model drawn by graphty-element: a PNG with the model on it,
+ * not an empty picture.
+ * @param dialog - the dialog.
+ * @param name - the model's name.
+ * @returns the preview picture.
+ */
+export async function previewOf(dialog: HTMLElement, name: string): Promise<HTMLImageElement> {
+    const picture = await within(dialog).findByRole<HTMLImageElement>("img", { name: `${name} preview` });
+    assert.match(picture.src, /^data:image\/png;base64,/);
+    assert.isAbove(await drawnPixels(picture), 0, `${name} is drawn in the preview`);
+    return picture;
+}
+
+/**
+ * Presses the dialog's Add button, once it can be pressed, and waits for the dialog to close.
+ * @param dialog - the dialog.
+ * @param word - the button's name: "Add model" with a layer, "Add to project" from the Main menu.
+ */
+export async function addModel(dialog: HTMLElement, word = "Add model"): Promise<void> {
+    const add = within(dialog).getByRole("button", { name: word });
+    await waitFor(() => {
+        assert.isNull(add.getAttribute("aria-disabled"));
+    });
+    await userEvent.click(add);
+    await waitFor(() => {
+        assert.isNull(screen.queryByRole("dialog", { name: "Load custom model" }));
+    });
+}

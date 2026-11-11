@@ -1834,10 +1834,20 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             }
 
             const name = (plainName ?? "").slice(0, 256);
-            const fields: { -readonly [K in keyof AssetRecord]: AssetRecord[K] } = { ...entry.record };
-            delete fields.plainName;
-            entry.record = record(name === "" ? fields : { ...fields, plainName: name });
-            entry.settled = Promise.resolve(entry.record);
+            const renamed = (before: AssetRecord): AssetRecord => {
+                const fields: { -readonly [K in keyof AssetRecord]: AssetRecord[K] } = { ...before };
+                delete fields.plainName;
+                return record(name === "" ? fields : { ...fields, plainName: name });
+            };
+            // A URL's entry and its accepted id's entry are two records of one asset: both are renamed.
+            const { id } = entry.record;
+            for (const each of allEntries()) {
+                if (each === entry || each.record.id === id) {
+                    each.record = renamed(each.record);
+                    each.settled = Promise.resolve(each.record);
+                }
+            }
+
             return entry.record;
         },
 

@@ -39,6 +39,7 @@ import {
     type WorkspaceStore,
 } from "./state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "./state/WorkspaceContext";
+import { CustomModelHost } from "./style/CustomModelHost";
 import { ShaderEditorHost } from "./style/ShaderEditorHost";
 
 /** The workspace's facts about opening and reopening projects: ids and booleans, never data. */
@@ -379,6 +380,7 @@ export function Workspace({
             <HelpDialogs />
             <ExportDialog />
             <ShaderEditorHost />
+            <CustomModelHost />
             <SettingsDialog />
             <ReportDialog />
             <ProjectDialogs />

@@ -1757,39 +1757,62 @@ Mantine `Modal`, `size="md"` (480 wide, figma-spec 8.5), `ModalFooter` with Canc
 | v Files                                                    |
 |  (cube) police.glb               Model                     |
 |  (pic)  Textures/colormap.png    Texture   (!) Missing     |
-|         [Use file v] [ Paste URL      ] (->) [Choose]      |
-|         [Load without it]                                  |
+|         [Use file v]                                       |
+|         [Choose] [Address...] [Load without it]            |
 | > Advanced                                     (Guessed)   |
 |------------------------------------------------------------|
 |                                    [Cancel] [Add model]    |
 +------------------------------------------------------------+
 ```
 
+Once a model is held (waiting or accepted), the address field and the drop box fold to one line,
+the model's file or address and **Replace...**, which opens them again; files dropped anywhere on
+the dialog's body still arrive. The body scrolls under a footer that stays in view
+(`ScrollArea.Autosize` around it, `ModalFooter` outside), so no open section hides Add.
+
 - **Sources** are the Models pop-over's, moved (`AddressForm`, `FileInput`, `readDrop`, the Parts
-  pop-over's drop-over look). Choosers take `assetFileExtensions("model")`; the drop zone's
-  tooltip lists them. Folders keep their paths.
+  pop-over's drop-over look). Choosers take `assetFileExtensions("model")`; the drop hint names
+  the model formats inline ("or drop files, a folder or a .zip -- GLB, GLTF, OBJ, STL, PLY", the
+  extensions `detectModelFormat` reads as supported), never in a tooltip a keyboard or touch reader
+  cannot reach. Folders keep their paths. compact-mantine's `FileSource` is not used: it has no
+  folder chooser and no testable input (issue #6233).
 - **Progressive.** Empty: only the sources, Add disabled. Loading: a spinner in the preview box.
   Accepted: preview, Name, Color, Add enabled; Files and Advanced collapsed. Files opens by itself
-  only when a part is missing, ambiguous, substituted, skipped or unused. One `.glb` or one URL is
-  one source and Add.
-- **One model per dialog.** Files arriving while it waits for parts are supplied to it
-  (`supply(ref, { file })`, no name, so the element matches them). A source arriving after it was
-  accepted replaces it (the old one is removed if this dialog added it and no layer uses it).
+  only when a part needs an answer before Add can work (missing, ambiguous, or which file of the
+  set is the model); closed, its line counts the parts that need nothing ("1 substituted, 2 not
+  used"). One self-contained file (one part, found) has no Files line at all. One `.glb` or one
+  URL is one source and Add.
+- **One model per dialog.** Files that are not a model, arriving while it waits for parts, go to
+  `assets.offer` (the element matches each by path, then base name, once). A model file or a .zip
+  (by `detectModelFormat` on its name), or a folder holding one, is a new source and replaces the
+  model, waiting or accepted (the old one is removed if this dialog added it and no layer uses it).
+  A set holding several models waits as a missing part does (`E_MODEL_AMBIGUOUS`): Files opens on
+  "Which file is the model", answered with `supply(ref, { main })`.
 - **Files** lists `record.parts` (14.4) as Figma property rows: name (middle-cut, full path in
-  the tooltip), role word, and a state chip unless "found". A missing or ambiguous part's row is
-  `PartRow` (Paste URL, Choose, Load without it when `optional`, candidates when ambiguous) plus a
-  **Use file** select of the set's `unused` files, answered with `supply(ref, { name, use })`:
-  how a reader says "paint.png is the colormap" when names differ.
+  the tooltip), role word, and a state chip unless "found" (a part found under its own file name in
+  another folder carries none either: it was matched, nothing is wrong). A missing or ambiguous
+  part's row is `PartRow` (Choose, Load without it when `optional`, candidates when ambiguous),
+  indented under its name. When the set holds files nothing names, the row leads with a **Use
+  file** select of them, answered with `supply(ref, { name, use })` -- how a reader says
+  "paint.png is the colormap" when names differ -- and its address waits behind **Address...**;
+  with none, the address field ("URL for colormap.png") shows at once.
 - **Color** (`node.modelTint`) stays outside Advanced: how node color meets the model's own is a
   common question. With no target layer it is not drawn.
-- **Advanced** (compact-mantine `AdvancedButton`, collapsed): Up, Turn, Fit, Center
-  (`ModelSettings`' controls, layer only), then read-only **Details** `DataRow`s from
-  `assets.inspect(id)`: Format, Triangles, Materials, Textures, Animations. The Advanced row
-  carries the "Guessed" chip for `W_MODEL_UP_GUESSED`, so a lying model is noticed while closed.
-- **Settings are a draft**: nothing is written until Add; the preview redraws with the draft.
-- **A lone picture** gives "Not a model"; with a layer, also "Use as picture" (writes
-  `node.texture`, closes; 13.5). **Errors** are 13.6's chips under the sources, with Retry and Use
-  file address.
+- **Advanced** (collapsed): a disclosure line drawn as the selection pane's Advanced (chevron and
+  word, `size="sm"`); compact-mantine's `AdvancedButton` is a gear for a trailing slot, not a
+  section line. Inside: Up, Turn, Fit, Center (`ModelSettings`' controls, layer only), then one
+  secondary line of **Details** from `assets.inspect(id)`: "Details: GLB, 12 triangles, 1
+  material, 1 texture, no animations". The Advanced line carries the "Guessed" chip for
+  `W_MODEL_UP_GUESSED`, so a lying model is noticed while closed.
+- **Settings are a draft**: nothing is written until Add. The preview draws the model with the
+  target layer's own `node.color` and model settings under the draft, so Color (tint) shows.
+- **A lone picture** gives a sentence, "colormap is a picture, not a 3D model: choose a GLB, GLTF,
+  OBJ, STL, PLY file"; with a layer, also "Use as picture" (writes `node.texture`, closes; 13.5).
+- **Errors** are sentences a reader can act on, never a chip whose cause hides in a tooltip. An
+  address refusal is the address field's own error (`aria-invalid`, described by it): 13.6's chip
+  words, then "check the address or choose the file instead", with Retry and Use file address
+  under it. A file refusal is a line under the sources; a format refusal adds which formats would
+  do.
 
 ### 14.3 Preview: `modelThumbnail` in graphty-element
 
@@ -1849,6 +1872,10 @@ is enough: Turn shows another side.
    it first.
 4. `ModelPart.name`, `ModelPart.file` and `plainName` are consumer data: `PLAIN_STRING_ALLOWLIST`
    in `tools/api-report.mjs`.
+5. **The project keeps every accepted model it holds**, not only those a layer names: the
+   `graphty-assets` member embeds each other accepted model by its id, so a model added for later
+   (Main menu > Custom model...) or no longer named by any layer survives save, autosave and
+   reopen. `assets.remove(ref)` is how a project lets one go. No API change.
 
 ### 14.5 Entry points
 
@@ -1859,26 +1886,29 @@ is enough: Turn shows another side.
 - **Main menu > Custom model...**: command `model.custom`, group "Project",
   `feature: "node-models"`, sets `dialog: "custom-model"`, disabled as `shader.add` is ("No project
   is open", "The graph is still loading"); in the menu section with Add Shader..., before it. Add
-  model renames if needed, writes no layer, closes and says "police added to the project"; the
-  model is then an In this project tile.
+  model, labelled **Add to project** here, renames if needed, writes no layer, closes and shows a
+  notice "police added to the project" (spoken too); the model is then an In this project tile,
+  and stays one after save and reopen (14.4 item 5).
 - With node-models off the command is not shown and the button's pop-over is never reached.
 
 ### 14.6 Words
 
-| Where               | Words                                                                               |
-| ------------------- | ----------------------------------------------------------------------------------- |
-| Title; button       | "Load custom model"; "Custom model..."                                              |
-| Command description | "Load a 3D model file or address into this project"                                 |
-| Address field; go   | placeholder "Paste URL", name "Model address"; "Load model address"                 |
-| Choosers; drop hint | "Choose files", "Choose folder"; "or drop files, a folder or a .zip"                |
-| Drop zone tooltip   | "Reads " + the extensions, upper case                                               |
-| Preview             | alt "police preview"; "Loading police"; waiting: cube glyph and "N missing" chip    |
-| Rows; Files; roles  | "Name", "Color" (13.3); "Files"; Model, Mesh, Materials, Texture, Not used          |
-| State chips         | Missing, Which file?, Substituted (tip "used X for Y"), Skipped                     |
-| Use file            | placeholder "Use file", name "File for colormap.png"                                |
-| Advanced; Details   | "Advanced"; "Details": Format, Triangles, Materials, Textures, Animations           |
-| Footer              | "Cancel", "Add model"; disabled tip "Add a model first" / "colormap.png is missing" |
-| Live region         | "police loaded", "colormap.png added", "police added to the project"                |
+| Where               | Words                                                                            |
+| ------------------- | -------------------------------------------------------------------------------- |
+| Title; button       | "Load custom model"; "Custom model..."                                           |
+| Command description | "Load a 3D model file or address into this project"                              |
+| Address field; go   | placeholder "Paste URL", name "Model address"; "Load model address"              |
+| Choosers; drop hint | "Choose files", "Choose folder"; "or drop files, a folder or a .zip -- GLB, ..." |
+| Held source         | the file or address; "Replace..."                                                |
+| Preview             | alt "police preview"; "Loading police"; waiting: cube glyph and "N missing" chip |
+| Rows; Files; roles  | "Name", "Color" (13.3); "Files"; Model, Mesh, Materials, Texture, Not used       |
+| State chips         | Missing, Which file?, Substituted (tip "used X for Y"), Skipped                  |
+| Use file            | placeholder "Use file", name "File for colormap.png"; "Address..."; "URL for X"  |
+| Advanced; Details   | "Advanced"; "Details: GLB, 12 triangles, 1 material, 1 texture, no animations"   |
+| Files, closed       | "1 substituted", "1 skipped", "2 not used", joined by commas                     |
+| Footer              | "Cancel", "Add model" ("Add to project" from the Main menu); disabled tip "Add a |
+|                     | model first" / "colormap.png is missing"                                         |
+| Live region         | "police loaded", "colormap.png added", "police added to the project"             |
 
 Error and warning chips are 13.6's. Labels go in `style/words.ts`, roles and states in
 `style/modelWords.ts`.
@@ -1889,8 +1919,10 @@ Error and warning chips are 13.6's. Labels go in `style/words.ts`, roles and sta
   folder, Name, Color, Files toggle and rows (Use file, address, Choose, Load without it),
   Advanced and its rows, Cancel, Add model; Close (x) in the header. Enter in Name submits when
   Add is enabled; a disabled Add stays focusable with its reason as tooltip.
+- Once a model loads, focus moves to Name (whose Enter adds); while it waits, to the first part
+  row's first control.
 - Escape in an address field with text takes the text back (decided.md, 2026-10-19); otherwise
-  Escape is Cancel.
+  Escape is Cancel. A click outside the dialog closes it only while it holds no model.
 - **Cancel, Escape or (x)** remove the dialog's model, waiting or accepted, when this dialog added
   it (absent from `assets.list()` at open) and `assets.usedBy(ref)` is empty. Focus returns to
   Custom model... or to the Main menu button.
@@ -1920,7 +1952,9 @@ while loading" dialog test) and checks Custom model... opens the dialog.
 `ModelParts.real-element.test.tsx` keeps the Parts pop-over for a layer whose model waits; its
 folder, zip and missing-row cases move to the dialog. graphty-element adds
 `test/session/assets-parts.test.ts` (`parts`, `use` for a missing part, `rename` round trip) and
-`test/browser/model-thumbnail.test.ts` (a non-empty PNG, the cache, the rejection codes).
+`test/browser/models/model-thumbnail.test.ts` (a PNG with drawn pixels, also for police.glb, whose
+one primitive has no indices; the cache; the rejection codes). The dialog tests' `previewOf`
+counts the preview's drawn pixels, so an empty picture fails them.
 
 ### 14.9 Files
 

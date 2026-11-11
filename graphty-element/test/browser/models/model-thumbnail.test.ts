@@ -8,6 +8,8 @@ import { assert, describe, it } from "vitest";
 
 import { isGraphtyError } from "../../../src/errors";
 import { sphereGlb } from "../../fixtures/models/fixtures";
+import policeUrl from "../../fixtures/models/police.glb?url";
+import colormapUrl from "../../fixtures/models/Textures/colormap.png?url";
 import { mount } from "./helpers";
 
 /**
@@ -49,6 +51,22 @@ describe("modelThumbnail", () => {
             style: { "node.color": "#ff0000", "node.modelTint": true },
         });
         assert.notEqual(tinted, first, "the tint is drawn");
+    });
+
+    // police.glb's one primitive has no indices, as glTF allows: drawn in vertex order.
+    it("draws a textured model from a set (police.glb and its colormap.png)", async () => {
+        const element = await mount();
+        const bytes = async (url: string): Promise<Uint8Array> =>
+            new Uint8Array(await (await fetch(url)).arrayBuffer());
+        const police = await element.session.assets.add({
+            files: new Map([
+                ["police.glb", await bytes(policeUrl)],
+                ["Textures/colormap.png", await bytes(colormapUrl)],
+            ]),
+        });
+        assert.equal(police.state, "accepted", JSON.stringify(police.problems));
+        const url = await element.modelThumbnail(police.id, { size: 64 });
+        assert.isAbove(await drawnPixels(url), 0, "the textured model is drawn");
     });
 
     it("refuses an unknown ref, and a model waiting for parts with its own code", async () => {

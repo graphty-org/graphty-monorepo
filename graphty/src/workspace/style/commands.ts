@@ -1,9 +1,10 @@
 import type { ColumnRef, GraphSession } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
+import { nodeModelsOn } from "../features";
 import { DEFAULT_NAME_KEY, selectionName } from "./cards";
 import { addLabelLine, labelRow, selectionRow, topmostRow } from "./row";
-import { madeWords } from "./words";
+import { CUSTOM_MODEL, madeWords } from "./words";
 
 /**
  * The node attribute the inspector shows, when it shows one: the attribute kind's id is the
@@ -99,6 +100,25 @@ async function layerFromSelection(session: GraphSession, workspace: CommandConte
 export const registration = defineRegistration({
     owner: "style",
     commands: [
+        {
+            id: "model.custom",
+            label: CUSTOM_MODEL.button,
+            group: "Project",
+            description: CUSTOM_MODEL.description,
+            keywords: ["model", "3d", "glb", "gltf", "obj", "stl", "upload", "file"],
+            experiment: true,
+            feature: "node-models",
+            shown: ({ session }) => nodeModelsOn(session),
+            disabled: ({ session, workspace }) => {
+                if (workspace.get().project === null) {
+                    return "No project is open";
+                }
+                return session === null ? "The graph is still loading" : null;
+            },
+            run: ({ workspace }) => {
+                workspace.set({ dialog: "custom-model" });
+            },
+        },
         {
             id: "shader.add",
             label: "Add Shader...",

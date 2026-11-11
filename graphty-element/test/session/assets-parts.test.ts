@@ -12,11 +12,37 @@ import { assert, describe, it } from "vitest";
 import { isGraphtyError } from "../../src/errors";
 import { createAssetsApi } from "../../src/session/assets/AssetsApi";
 import { assetsMember, restoreAssets } from "../../src/session/assets/projectMember";
+import { binaryStl } from "../fixtures/models/fixtures";
 import { baseSession } from "../helpers/project-session";
 
 const POLICE = new Uint8Array(readFileSync(new URL("../fixtures/models/police.glb", import.meta.url)));
 const COLORMAP = new Uint8Array(readFileSync(new URL("../fixtures/models/Textures/colormap.png", import.meta.url)));
 const PART = "Textures/colormap.png";
+
+describe("a set holding several models", () => {
+    it("waits for the reader to say which file is the model, then takes it", async () => {
+        const assets = createAssetsApi();
+        const record = await assets.add({
+            files: new Map([
+                ["kit/rack.stl", binaryStl(1)],
+                ["kit/car.stl", binaryStl(2)],
+            ]),
+        });
+        assert.equal(record.state, "rejected");
+        assert.equal(record.problems[0].code, "E_MODEL_AMBIGUOUS");
+        assert.include(
+            assets.waiting().map((w) => w.id),
+            record.id,
+            "held for supply",
+        );
+        const candidates = record.problems[0].params.candidates as string[];
+        const car = candidates.find((c) => c.endsWith("car.stl"));
+        assert.isDefined(car, JSON.stringify(candidates));
+        const chosen = await assets.supply(record.id, { main: car ?? "" });
+        assert.equal(chosen.state, "accepted", JSON.stringify(chosen.problems));
+        assert.equal(chosen.path, car);
+    });
+});
 
 describe("assets.parts", () => {
     it("lists the main file and its picture, found, for a complete set", async () => {
@@ -117,6 +143,27 @@ describe("assets.rename", () => {
             await restoreAssets(reopened, JSON.parse(JSON.stringify(member)) as Record<string, unknown>),
             [],
         );
+        assert.equal(reopened.assets.get(record.id)?.plainName, "Cruiser");
+    });
+
+    it("keeps a model no layer names through the project file", async () => {
+        const session = await baseSession();
+        const record = await session.assets.add({
+            files: new Map([
+                ["police.glb", POLICE],
+                [PART, COLORMAP],
+            ]),
+        });
+        session.assets.rename(record.id, "Cruiser");
+        const { member } = assetsMember(session);
+        assert.isNotNull(member);
+
+        const reopened = await baseSession();
+        assert.deepEqual(
+            await restoreAssets(reopened, JSON.parse(JSON.stringify(member)) as Record<string, unknown>),
+            [],
+        );
+        assert.equal(reopened.assets.get(record.id)?.state, "accepted");
         assert.equal(reopened.assets.get(record.id)?.plainName, "Cruiser");
     });
 });

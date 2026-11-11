@@ -432,7 +432,9 @@ project saves it like a model.
 ## Saving a project with its models
 
 A saved project carries its models. `session.project.save()` (and the element's autosave) writes
-the files of every model a layer names into the project file, exactly as they were added, so the
+the files of every model a layer names, and of every other accepted model the session holds (one
+added for later, or no longer named), into the project file, exactly as they were added; call
+`session.assets.remove(id)` to leave one out. So the
 project opens anywhere -- offline, on another machine, with no request for the model -- and draws
 the same models:
 

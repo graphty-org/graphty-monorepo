@@ -395,14 +395,17 @@ describe("graphty-assets: autosave", () => {
         assert.lengthOf(opened.assets.list(), 2);
     });
 
-    it("removes the part of a model no layer names any more", async () => {
+    it("keeps a model no layer names, and removes its part once the project lets it go", async () => {
         const { session, glbId } = await sessionWithModels();
         const first = buildParts(session, new Set(["rest"] as const), new Map(), new Map());
         const layer = session.styles.list().find((each) => each.set?.["node.model"] === glbId);
         assert.isDefined(layer);
         await session.styles.remove(layer?.id);
-        const second = buildParts(session, new Set(["rest"] as const), new Map(), new Map(), first.assets);
         const glbDigest = glbId.slice("asset:".length);
-        assert.strictEqual(second.parts[`asset:${glbDigest}`], null);
+        const second = buildParts(session, new Set(["rest"] as const), new Map(), new Map(), first.assets);
+        assert.isUndefined(second.parts[`asset:${glbDigest}`], "still in the project: its part is unchanged");
+        session.assets.remove(glbId);
+        const third = buildParts(session, new Set(["rest"] as const), new Map(), new Map(), second.assets);
+        assert.strictEqual(third.parts[`asset:${glbDigest}`], null);
     });
 });

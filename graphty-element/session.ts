@@ -765,7 +765,25 @@ export type {
     ValueEntryWrite,
     ValueGroup,
 } from "./src/session/styles";
+export type {
+    Condition,
+    ConditionField,
+    ConditionFieldKind,
+    ConditionTextMode,
+    ListedConditionField,
+} from "./src/session/styles";
 export {
+    CONDITION_SOURCE_PATH,
+    conditionFields,
+    conditionKey,
+    conditionLeaf,
+    conditionOf,
+    conditionSelector,
+    edgeConditions,
+    isConditionFinished,
+    newCondition,
+    nodeConditionLeaves,
+    nodeConditions,
     OVERFLOW_PATTERNS,
     OVERFLOW_SHAPES,
     quotePath,

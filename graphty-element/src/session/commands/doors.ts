@@ -1772,6 +1772,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getDrawnTarget: READ,
             openRowTable: RENDER,
             getNodeBatches: READ,
+            getEdgeRowLines: READ,
             getNodeIdTarget: READ,
             getEdgeIdTarget: READ,
             renderPath: READ,
@@ -2530,6 +2531,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
     {
         name: "NodeBatches",
         file: "src/meshes/NodeBatch.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
+        name: "EdgeRowLines",
+        file: "src/meshes/EdgeRowLines.ts",
         half: "renderer",
         whole: RENDER,
     },

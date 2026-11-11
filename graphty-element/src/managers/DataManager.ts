@@ -409,6 +409,13 @@ export const dataManagerInternals = {} as {
      * are read. Off until the lazy-edge stage of design/rendering/row-renderer.md switches it on.
      */
     storeEdgesUnbuilt(manager: DataManager, on: boolean): void;
+    /**
+     * The rows of the two ends of an edge stored with no `Edge`, or undefined when an `Edge` draws
+     * the row or none is stored there.
+     */
+    unbuiltEdgeEnds(manager: DataManager, row: number): [number, number] | undefined;
+    /** Build the `Edge` of an edge row stored with no `Edge` yet, and hand it back. */
+    buildEdgeAt(manager: DataManager, row: number): Edge | undefined;
 };
 
 /** No layout engine yet: a row stored with no `Node` needs no hand-over. */
@@ -641,6 +648,14 @@ export class DataManager implements Manager {
         dataManagerInternals.storeEdgesUnbuilt = (manager, on) => {
             manager.edgesUnbuilt = on;
         };
+        dataManagerInternals.unbuiltEdgeEnds = (manager, row) => {
+            const stored = manager.unbuiltEdges.get(row);
+            const { builder } = manager.store;
+            return stored === undefined
+                ? undefined
+                : [builder.indexOf(stored.sourceId), builder.indexOf(stored.targetId)];
+        };
+        dataManagerInternals.buildEdgeAt = (manager, row) => manager.buildEdgeRow(row);
         dataManagerInternals.followRenumbering = (manager, follower) => {
             manager.renumberFollowers.add(follower);
             return () => {
@@ -1485,6 +1500,9 @@ export class DataManager implements Manager {
             if (this.unbuiltEdges.get(from) === stored) {
                 this.unbuiltEdges.delete(from);
             }
+
+            // Its line is drawn again on its new row, from the paint queued below.
+            this.graphContext?.getEdgeRowLines?.()?.unpaintRow(from);
 
             this.graphContext?.getStylePainter?.()?.queue("edge", row);
         }
@@ -2893,9 +2911,11 @@ export class DataManager implements Manager {
     /**
      * Build the `Edge` of an edge whose ends are stored, and register it.
      * @param stored - The edge, its ends and its row.
+     * @param announce - False for an edge stored earlier with no `Edge`, whose key a pass may have painted
+     *   already, so only its paint is queued (as `buildNode` does for a row with no `Node`).
      * @returns The `Edge`.
      */
-    private makeEdge(stored: StoredEdge): Edge {
+    private makeEdge(stored: StoredEdge, announce = true): Edge {
         const { record: edge, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId } = stored;
         const opts = {};
         if (!this.graphContext) {
@@ -2912,7 +2932,12 @@ export class DataManager implements Manager {
             opts,
         );
         this.registerEdge(e, edgeIndex);
-        this.builtUnpainted(`e:${edgeIdOf(edgeId)}`, "edge", edgeIndex);
+        if (announce) {
+            this.builtUnpainted(`e:${edgeIdOf(edgeId)}`, "edge", edgeIndex);
+        } else {
+            this.graphContext.getStylePainter?.()?.queue("edge", edgeIndex);
+            this.paintUndrawn = true;
+        }
 
         // Add to layout engine if it exists
         if (this.layoutEngine) {
@@ -2934,7 +2959,7 @@ export class DataManager implements Manager {
         }
 
         this.forgetUnbuiltEdge(row);
-        return this.makeEdge(stored);
+        return this.makeEdge(stored, false);
     }
 
     /**
@@ -2944,6 +2969,8 @@ export class DataManager implements Manager {
     private forgetUnbuiltEdge(row: number): void {
         const stored = this.unbuiltEdges.get(row);
         this.unbuiltEdges.delete(row);
+        // Its row line goes with it; a built `Edge` draws it from here on.
+        this.graphContext?.getEdgeRowLines?.()?.unpaintRow(row);
         // Only while the id still names this row.
         if (stored !== undefined && this.unbuiltEdgeIds.get(edgeIdOf(stored.edgeId)) === row) {
             this.unbuiltEdgeIds.delete(edgeIdOf(stored.edgeId));

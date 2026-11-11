@@ -133,7 +133,7 @@ export class ApiKeyManager {
     constructor(options: ApiKeyManagerOptions = {}) {
         this.storage = options.storage ?? "localStorage";
         this.prefix = options.prefix ?? DEFAULT_STORAGE_PREFIX;
-        void this.enqueue(() => this.restorePersistence());
+        void this.enqueue(() => this.restorePersistence()); // NOSONAR(S7059): restoring on construction is the class's contract; ready() awaits it
     }
 
     /**
@@ -218,7 +218,7 @@ export class ApiKeyManager {
         };
         this.persistenceConfig = persistenceConfig;
 
-        if (typeof window === "undefined") {
+        if (globalThis.window === undefined) {
             return false;
         }
 
@@ -234,7 +234,7 @@ export class ApiKeyManager {
      */
     disablePersistence(clearStorage = true): void {
         const config = this.persistenceConfig;
-        if (clearStorage && config && typeof window !== "undefined") {
+        if (clearStorage && config && globalThis.window !== undefined) {
             try {
                 for (const item of [KEYS_ITEM, DEFAULT_PROVIDER_ITEM, EXTRAS_ITEM]) {
                     storageArea(config.storage).removeItem(itemName(config, item));
@@ -346,7 +346,7 @@ export class ApiKeyManager {
      */
     retireOtherStorage(): Promise<void> {
         const config = this.persistenceConfig;
-        if (config === null || typeof window === "undefined") {
+        if (config === null || globalThis.window === undefined) {
             return this.pending;
         }
 
@@ -360,12 +360,7 @@ export class ApiKeyManager {
                 return;
             }
 
-            for (const [provider, key] of Object.entries(stored)) {
-                if (!this.keys.has(provider as ProviderType)) {
-                    this.keys.set(provider as ProviderType, key);
-                }
-            }
-
+            this.mergeKeys(stored);
             await this.saveKeys(config);
             storageArea(other.storage).removeItem(itemName(other, KEYS_ITEM));
         });
@@ -396,7 +391,7 @@ export class ApiKeyManager {
         }
 
         const config = this.persistenceConfig;
-        if (config && typeof window !== "undefined") {
+        if (config && globalThis.window !== undefined) {
             void this.enqueue(() => this.saveExtras(config));
         }
     }
@@ -460,7 +455,7 @@ export class ApiKeyManager {
      * @returns One configuration per storage; none without a window
      */
     private bothStores(): Config[] {
-        if (typeof window === "undefined") {
+        if (globalThis.window === undefined) {
             return [];
         }
 
@@ -476,7 +471,7 @@ export class ApiKeyManager {
      * custom key remembered for this tab, then with the built-in key.
      */
     private async restorePersistence(): Promise<void> {
-        if (typeof window === "undefined" || this.hostChosePersistence) {
+        if (globalThis.window === undefined || this.hostChosePersistence) {
             return;
         }
 
@@ -514,12 +509,7 @@ export class ApiKeyManager {
                 return;
             }
 
-            for (const [provider, key] of Object.entries(stored)) {
-                if (!this.keys.has(provider as ProviderType)) {
-                    this.keys.set(provider as ProviderType, key);
-                }
-            }
-
+            this.mergeKeys(stored);
             const defaultProvider = await this.readItem(config, DEFAULT_PROVIDER_ITEM);
             this.defaultProvider ??= typeof defaultProvider === "string" ? (defaultProvider as ProviderType) : null;
             const extras = await this.readItem(config, EXTRAS_ITEM);
@@ -536,10 +526,22 @@ export class ApiKeyManager {
         }
     }
 
+    /**
+     * Take stored keys into memory. Keys in memory win over stored ones.
+     * @param stored - The keys by provider
+     */
+    private mergeKeys(stored: Record<string, string>): void {
+        for (const [provider, key] of Object.entries(stored)) {
+            if (!this.keys.has(provider as ProviderType)) {
+                this.keys.set(provider as ProviderType, key);
+            }
+        }
+    }
+
     /** Queue a save of the keys and the default provider when persistence is on. */
     private persistKeys(): void {
         const config = this.persistenceConfig;
-        if (config && typeof window !== "undefined") {
+        if (config && globalThis.window !== undefined) {
             void this.enqueue(() => this.saveKeys(config));
         }
     }

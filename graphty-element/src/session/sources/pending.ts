@@ -23,7 +23,7 @@ export function descriptorOf(id: string): SourceDescriptor | undefined {
  * @param record - the load
  * @returns the endpoint, or null when none is known
  */
-function targetOf(record: SourceLoadRecord): string | null {
+export function targetOf(record: SourceLoadRecord): string | null {
     const { mapping } = record.config as { mapping?: { endpoint?: unknown } };
     const mapped = typeof mapping?.endpoint === "string" ? mapping.endpoint : null;
     return record.endpoint ?? mapped ?? descriptorOf(record.source)?.defaultEndpoint ?? null;
@@ -35,7 +35,8 @@ function targetOf(record: SourceLoadRecord): string | null {
  * @returns one entry per waiting load
  */
 export function pendingSourceLoads(host: SourceHost): readonly PendingSourceLoad[] {
-    return host.ledger
+    // The live records only: a load replaced by an edit has no rows left, and waits for nothing.
+    return host
         .loads()
         .filter((record) => host.pending.has(record.key))
         .map((record) => {

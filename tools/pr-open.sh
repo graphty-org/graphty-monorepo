@@ -200,10 +200,17 @@ fi
 # (this script and pr-title.yml). A change to one waits for the owner; every other CI change merges on green.
 # Gap the owner accepted: ci.yml's own gate steps are not held, so a pull request can still change a check
 # that judges it; code-owner review closes that when it is turned on.
-GUARD_PATHS='^(visual-review/|visual-review\.config\.json$|(.*/)?\.storybook/vitest\.setup\.|release-[^/]*\.json$|\.github/workflows/release\.yml$|tools/release-(approvals|hold)\.mjs$|tools/claude-owner-credential-guard\.mjs$|\.claude/settings\.json$|tools/test-quarantine\.(json|mjs)$|tools/pr-open\.sh$|tools/pr-review\.sh$|tools/pr-integrity\.mjs$|tools/check-test-integrity\.mjs$|\.github/workflows/(pr-title|dependabot-automerge)\.yml$)'
+GUARD_PATHS='^(visual-review/|visual-review\.config\.json$|(.*/)?\.storybook/vitest\.setup\.|release-[^/]*\.json$|\.github/workflows/release\.yml$|tools/release-(approvals|hold|not-breaking)\.mjs$|tools/claude-owner-credential-guard\.mjs$|\.claude/settings\.json$|tools/test-quarantine\.(json|mjs)$|tools/pr-open\.sh$|tools/pr-review\.sh$|tools/pr-integrity\.mjs$|tools/check-test-integrity\.mjs$|\.github/workflows/(pr-title|dependabot-automerge)\.yml$)'
 hold=""
 # A here-string, not a pipe: grep -q stops at the first match, and pipefail would read git's SIGPIPE as no match.
-if grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:' <<<"$(git log --no-merges --format='%s%n%b' "$base..HEAD")"; then
+# A commit master's release-not-breaking.json lists is the owner's ruling that it is not breaking: skipped.
+# master's list, never the branch's: a branch cannot rule its own commit not breaking (none before the file exists).
+ruled=$(git show origin/master:release-not-breaking.json 2>/dev/null | jq -r '.notBreaking[].commit') || ruled=""
+msgs=""
+for c in $(git rev-list --no-merges "$base..HEAD"); do
+    grep -qxF "$c" <<<"$ruled" || msgs+="$(git log -1 --format='%s%n%b' "$c")"$'\n'
+done
+if grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:' <<<"$msgs"; then
     hold="it holds a breaking change (it bumps a published major)"
 elif guarded=$(git diff --name-only --no-renames "$base" HEAD | grep -E "$GUARD_PATHS"); then
     hold="it changes what guards the owner: $(echo $guarded)"

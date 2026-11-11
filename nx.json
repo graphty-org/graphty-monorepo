@@ -159,6 +159,7 @@
             "{workspaceRoot}/vitest.shared.config.ts",
             "{workspaceRoot}/vitest.base.mjs",
             "{workspaceRoot}/vitest.ci-junit.mjs",
+            "{workspaceRoot}/vite.anthropic-sdk-stub.mjs",
             "{workspaceRoot}/vitest.browser-coverage-setup.ts",
             "{workspaceRoot}/vitest.wait-guard-setup.ts",
             "{workspaceRoot}/tools/test-wait-guard.mjs",

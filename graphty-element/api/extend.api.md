@@ -342,6 +342,14 @@ export interface AlgorithmStatics {
 }
 
 // @public
+export function assistantReach(commands?: readonly {
+    readonly name: string;
+}[]): readonly CodedFact<AssistantReachCode>[];
+
+// @public
+export type AssistantReachCode = "ai.option-unoffered" | "ai.no-description" | "ai.name-reserved" | "ai.no-descriptor";
+
+// @public
 export type AuthoredLayoutDescriptor = Omit<LayoutDescriptor, "honoursWeights" | "scoped">;
 
 // @public
@@ -785,6 +793,8 @@ export class Edge {
     get arrowTailStackCaps(): readonly ArrowCap[];
     // (undocumented)
     arrowTailText: RichTextLabel | null;
+    // @internal
+    columnEnd(end: "source" | "target"): ColumnRow | undefined;
     get data(): AdHocData;
     dispose(): void;
     get drawnCaps(): {
@@ -811,8 +821,14 @@ export class Edge {
     get drawnPattern(): readonly ArrowCap[];
     // (undocumented)
     readonly dstId: NodeIdType;
-    // (undocumented)
-    dstNode: Node_2;
+    get dstNode(): Node_2;
+    set dstNode(node: Node_2);
+    // @internal
+    endRow(end: "source" | "target"): number;
+    // @internal
+    followRenumberedRows(): void;
+    // @internal
+    get followsRows(): boolean;
     getInterceptPoints(): InterceptPoint;
     readonly id: string;
     get index(): number;
@@ -843,8 +859,8 @@ export class Edge {
     shaderDataChanged(): void;
     // (undocumented)
     readonly srcId: NodeIdType;
-    // (undocumented)
-    srcNode: Node_2;
+    get srcNode(): Node_2;
+    set srcNode(node: Node_2);
     // @internal
     supportEdge(centerOf?: (node: Node_2) => Readonly<Vector3>): SupportEdge | null;
     // @internal
@@ -977,6 +993,8 @@ export interface ExportResult {
 // @public
 export type ExportScope = RuleTree | "shown" | "selection" | {
     readonly set: SetId;
+} | {
+    readonly nodes: readonly NodeId_2[];
 };
 
 // @public
@@ -2003,11 +2021,15 @@ export abstract class LayoutEngine {
     static honoursWeights: boolean;
     // (undocumented)
     abstract init(): Promise<void>;
+    protected isEdgeLeftOut(edge: Edge): boolean;
     protected isFollower(index: number): boolean;
     protected isHeld(index: number): boolean;
+    protected isLeftOut(index: number): boolean;
     isNodeXlabelLeftOut(_n: Node_2): boolean;
     // (undocumented)
     abstract get isSettled(): boolean;
+    protected keptEdges(graph: GraphSnapshot): EdgeMask | null;
+    protected keptRows(rows: number): NodeMask | null;
     loadArrangement(): void;
     // (undocumented)
     static maxDimensions: number;
@@ -2020,7 +2042,7 @@ export abstract class LayoutEngine {
     protected pairWeights(edges: readonly Edge[]): Map<string, number> | null;
     protected abstract pin(n: Node_2): void;
     // @internal
-    protected publishColumn(n: Node_2 | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
+    protected publishColumn(n: Node_2 | ElementPositions | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     // @internal
@@ -2033,12 +2055,18 @@ export abstract class LayoutEngine {
         y: number;
         z: number;
     }): boolean;
+    protected readRowPosition(row: number, out: {
+        x: number;
+        y: number;
+        z: number;
+    }): boolean;
     static register<T extends LayoutEngineClass>(cls: T, options?: RegisterOptions): T;
     protected removeEdge(_e: Edge): void;
     protected removeNode(_n: Node_2): void;
     static scoped: boolean;
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
+    protected setLeftOut(mask: NodeMask | null, rows: number, edges?: ReadonlySet<Edge> | null): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
     // @internal
     get spacesBySize(): boolean;
@@ -2298,7 +2326,11 @@ class Node_2 implements ModelUser {
     // @internal
     syncXlabelPlace(): void;
     // @internal
+    takeDrawnPaint(paint: NodePaint): void;
+    // @internal
     get teardownMesh(): TransformNode;
+    // @internal
+    togglesOwnMeshes(): boolean;
     tooltip?: RichTextLabel;
     get tooltipText(): string | undefined;
     unpin(): void;
@@ -3120,6 +3152,13 @@ export interface SourcePreviewRow {
 export { SourceProbe }
 
 // @public
+export interface SourceRead extends SourceInput {
+    readonly edges: number;
+    readonly nodes: number;
+    readonly rows: unknown;
+}
+
+// @public
 export interface SourceRefreshReport {
     readonly added: SourceCounts;
     readonly fact: CodedFact<"I_SOURCE_REFRESHED" | "I_SOURCE_UNCHANGED">;
@@ -3137,6 +3176,11 @@ export { SourceRuntimeReason }
 
 // @public
 export const SOURCES_MEMBER_VERSION = 2;
+
+// @public
+export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "config" | "expand"> & {
+    readonly limits?: SourceLimitOptions;
+};
 
 export { SourceValidators }
 

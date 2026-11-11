@@ -1646,37 +1646,59 @@ function readNodeShape(n: NodeRead): void {
         // a polygon shape's corners are where Graphviz draws them, one reaching past its box too
         n.put("shapePointsStretch", false);
     } else if (GRAPHVIZ_GLYPH_SHAPES.has(n.shape)) {
-        const size = (name: string): number | null => {
-            const v = inches(n.get(name), n.at(name));
-            return v === null ? null : v * DOT_POINTS_PER_INCH;
-        };
-        putGlyph(
-            n.shape,
-            size("width"),
-            size("height"),
-            n.put,
-            () => {
-                const raw = nonEmpty(n.get("penwidth")) ?? setLineWidth(n.tokens);
-                const pen = raw === null ? Number.NaN : Number(raw);
-                if (Number.isFinite(pen)) {
-                    return Math.max(0, pen);
-                }
-                return n.tokens.includes("bold") ? 2 : 1;
-            },
-            () =>
-                n.color === null
-                    ? null
-                    : (canonColor(n.color, "graphviz", n.at("outerBorderColor"), { scheme: n.scheme, use: "line" })
-                          ?.color ?? null),
-        );
+        readGlyphShape(n);
     } else if (n.shapeRaw !== null) {
-        const shape =
-            rounded && BOX_LIKE.has(n.shape)
-                ? "round-rectangle"
-                : canonEnum("shape", n.shapeRaw, "graphviz", n.at("shape"));
-        // a filled shape=none is its box filled, with no outline (its border is 0): a rectangle, not a node with no body
-        // so is a shape=none whose label is a table with an outline: the table's box
-        n.put("shape", shape === "none" && (isFilled(n) || drawsTableOutline(n)) ? "rectangle" : shape);
+        readNamedShape(n, n.shapeRaw, rounded);
+    }
+}
+
+/**
+ * Reads a node drawn as one of Graphviz's glyph shapes, at its size, pen width and color.
+ * @param n - the node
+ */
+function readGlyphShape(n: NodeRead): void {
+    const size = (name: string): number | null => {
+        const v = inches(n.get(name), n.at(name));
+        return v === null ? null : v * DOT_POINTS_PER_INCH;
+    };
+    putGlyph(
+        n.shape,
+        size("width"),
+        size("height"),
+        n.put,
+        () => {
+            const raw = nonEmpty(n.get("penwidth")) ?? setLineWidth(n.tokens);
+            const pen = raw === null ? Number.NaN : Number(raw);
+            if (Number.isFinite(pen)) {
+                return Math.max(0, pen);
+            }
+            return n.tokens.includes("bold") ? 2 : 1;
+        },
+        () =>
+            n.color === null
+                ? null
+                : (canonColor(n.color, "graphviz", n.at("outerBorderColor"), { scheme: n.scheme, use: "line" })
+                      ?.color ?? null),
+    );
+}
+
+/**
+ * Reads a node's named shape; a filled or table-outlined shape with no outline of its own is drawn as its box.
+ * @param n - the node
+ * @param raw - the shape as the file names it
+ * @param rounded - whether the `rounded` style rounds a box-like shape
+ */
+function readNamedShape(n: NodeRead, raw: string, rounded: boolean): void {
+    const shape =
+        rounded && BOX_LIKE.has(n.shape) ? "round-rectangle" : canonEnum("shape", raw, "graphviz", n.at("shape"));
+    // a filled shape=none is its box filled, with no outline (its border is 0): a rectangle, not a node with no body
+    // so is a shape=none whose label is a table with an outline: the table's box. plain and plaintext are none with
+    // other margins (Graphviz's shapes documentation), so an unfilled one draws its label alone too
+    const bodiless = shape === "none" || NO_OUTLINE.has(n.shape);
+    if (bodiless && (isFilled(n) || drawsTableOutline(n))) {
+        n.put("shape", "rectangle");
+    } else {
+        n.put("shape", bodiless ? "none" : shape);
     }
 }
 

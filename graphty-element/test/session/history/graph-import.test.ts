@@ -500,7 +500,13 @@ describe("data.import without a named format", () => {
         const file = new File([DOCUMENT], "graph.json");
         await session.data.import({ config: { file } });
 
-        assert.deepEqual(session.data.source(), { type: "json", name: "graph.json", size: file.size, config: {} });
+        assert.deepEqual(session.data.source(), {
+            type: "json",
+            name: "graph.json",
+            size: file.size,
+            fileName: "graph.json",
+            config: {},
+        });
         session.dispose();
     });
 

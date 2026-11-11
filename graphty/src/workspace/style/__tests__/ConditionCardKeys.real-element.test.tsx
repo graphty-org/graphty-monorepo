@@ -133,6 +133,40 @@ describe("keys in the condition cards, on the real element", () => {
         assert.deepEqual(order, ["name: how to match", "name: text to match", "Match case", "Add a condition", "Done"]);
     });
 
+    it("a change the count does not read, a color, leaves the card's count said while it counts again", async () => {
+        const { session, id } = await openLayer("Poster", POSTER);
+        const region = await openCards();
+        const card = await within(region).findByRole("group", { name: /^name, 3 nodes$/ });
+        const heard: string[] = [];
+        const watch = new MutationObserver(() => {
+            heard.push(
+                `${card.getAttribute("aria-label") ?? ""} | ${card.querySelector(".ws-card-head")?.textContent ?? ""}`,
+            );
+        });
+        watch.observe(card, { subtree: true, childList: true, characterData: true, attributes: true });
+        const { version } = session.history;
+        await session.styles.update(id, { set: { "node.color": "#0072b2" } });
+        await session.styles.settled();
+        assert.isAbove(session.history.version, version, "the color is a step");
+        // The card counts again after the step: once that count is in, the card says 3 nodes.
+        await session.scope.count({
+            define: {
+                kind: "rule",
+                where: { kind: "text", reads: "data.name", mode: "substring", text: "Mlle" },
+                reading: "clipped",
+            },
+        });
+        await waitFor(() => {
+            assert.strictEqual(card.getAttribute("aria-label"), "name, 3 nodes");
+        });
+        watch.disconnect();
+        assert.deepEqual(
+            heard.filter((each) => !each.includes("3 nodes")),
+            [],
+            "the count never blinked out",
+        );
+    });
+
     it("opening a card leaves its list closed, so ArrowDown and Enter keep the rule", async () => {
         const { session, id } = await openLayer("Poster", POSTER);
         const before = session.styles.get(id)?.selector;

@@ -260,6 +260,11 @@ export const UntimedControl: Story = {
 export const OutsideGhost: Story = {
     play: async (context) => {
         const { element, session } = await officeEmail(context.canvasElement);
+        // The layout settled before the window is set: a node the window hides may keep the place
+        // it has at that moment (a layout over only what is shown leaves it where it is), and a
+        // ghost draws it there, so a window set while the layout still moves puts it somewhere
+        // new on every run (#6541).
+        await element.waitForStableFrame();
         await session.time.window(LAUNCH_WEEK);
         await session.time.setSettings({ outside: "ghost" });
         await timeCardOpen(context);

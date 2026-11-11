@@ -1,5 +1,5 @@
 /**
- * The View menu's VR and AR rows from the element's XR facts: one "VR / AR" row when neither
+ * The Mode menu's VR and AR rows from the element's XR facts: one "VR / AR" row when neither
  * mode can be entered for the same reason, a row each otherwise, with the reason in words.
  */
 import type { XrCapability } from "@graphty/graphty-element/session";

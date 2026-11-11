@@ -16,6 +16,7 @@ import { afterEach, assert, beforeEach, it } from "vitest";
 
 import { type Graph, operationQueueOf } from "../../src/Graph";
 import { simpleLayoutInternals, StaticLayoutEngine } from "../../src/layout/LayoutEngine";
+import { dataManagerInternals } from "../../src/managers/DataManager";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 const NODES = 200;
@@ -23,6 +24,16 @@ const NODES = 200;
 type StrictScope = { __GRAPHTY_STRICT_STATE__?: boolean };
 let graph: Graph | null = null;
 let strictBefore: boolean | undefined;
+
+/**
+ * The `Node`s the data manager built: every row on the object path, and under renderPath
+ * "batched" none until one is asked for, since a static layout arranges such a row by row.
+ * @param g - The graph.
+ * @returns How many there are.
+ */
+function built(g: Graph): number {
+    return [...dataManagerInternals.builtNodes(g.getDataManager())].length;
+}
 
 beforeEach(() => {
     // Strict state checks after every pass that the engine can place every drawn edge, and that
@@ -56,7 +67,11 @@ it("a replacing import and its undo leave no torn-down edge in a static layout",
     await queue.waitForCompletion();
     const engine = graph.getLayoutManager().layoutEngine;
     assert(engine instanceof StaticLayoutEngine, "the random layout is a static layout");
-    assert.deepEqual(simpleLayoutInternals.held(engine), { nodes: NODES, edges: NODES / 2 }, "the graph is held");
+    assert.deepEqual(
+        simpleLayoutInternals.held(engine),
+        { nodes: built(graph), edges: NODES / 2 },
+        "the graph is held",
+    );
 
     await session.data.import(
         { type: "json", config: { data: '{"nodes":[{"id":"r"}],"edges":[]}' } },
@@ -64,13 +79,13 @@ it("a replacing import and its undo leave no torn-down edge in a static layout",
     );
     await queue.waitForCompletion();
     assert.strictEqual(graph.getLayoutManager().layoutEngine, engine, "the same engine arranged the new graph");
-    assert.deepEqual(simpleLayoutInternals.held(engine), { nodes: 1, edges: 0 }, "a replacing import");
+    assert.deepEqual(simpleLayoutInternals.held(engine), { nodes: built(graph), edges: 0 }, "a replacing import");
 
     await session.undo();
     await queue.waitForCompletion();
-    assert.deepEqual(simpleLayoutInternals.held(engine), { nodes: NODES, edges: NODES / 2 }, "its undo");
+    assert.deepEqual(simpleLayoutInternals.held(engine), { nodes: built(graph), edges: NODES / 2 }, "its undo");
 
     await session.redo();
     await queue.waitForCompletion();
-    assert.deepEqual(simpleLayoutInternals.held(engine), { nodes: 1, edges: 0 }, "its redo");
+    assert.deepEqual(simpleLayoutInternals.held(engine), { nodes: built(graph), edges: 0 }, "its redo");
 });

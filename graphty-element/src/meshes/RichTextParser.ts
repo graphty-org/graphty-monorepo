@@ -1,6 +1,15 @@
 import type { RichTextStyle, TextSegment } from "./RichTextLabel.ts";
 
 /**
+ * Whether a parsed line holds words: a kept blank line holds one run with no letters.
+ * @param line - One parsed line.
+ * @returns True when a run in it has letters.
+ */
+export function hasWords(line: readonly TextSegment[]): boolean {
+    return line.some((run) => run.text !== "");
+}
+
+/**
  * Parses rich text markup into styled text segments
  */
 export class RichTextParser {
@@ -18,12 +27,26 @@ export class RichTextParser {
      * Parses rich text into an array of line segments
      * @param text - The text to parse (supports markup tags)
      * @param plainText - Draw every character as written, reading no markup.
+     * @param keepBlankLines - Give a blank line before or between lines of words one run with no letters, so it
+     * measures one line of the label's font tall (`keepBlankLines`); otherwise it holds no run and takes no height.
+     * A trailing blank line holds no run either way.
      * @returns Array of text segments grouped by line
      */
-    parse(text: string, plainText = false): TextSegment[][] {
+    parse(text: string, plainText = false, keepBlankLines = false): TextSegment[][] {
         const whole = (line: string): TextSegment[] =>
             line === "" ? [] : [{ text: line, style: { ...this.defaultStyle } }];
-        return text.split("\n").map((line) => (plainText ? whole(line) : this.parseLine(line)));
+        const parsed = text.split("\n").map((line) => (plainText ? whole(line) : this.parseLine(line)));
+        if (!keepBlankLines) {
+            return parsed;
+        }
+
+        let last = parsed.length - 1;
+        while (last >= 0 && parsed[last].length === 0) {
+            last--;
+        }
+        return parsed.map((segments, i) =>
+            segments.length === 0 && i < last ? [{ text: "", style: { ...this.defaultStyle } }] : segments,
+        );
     }
 
     private parseLine(line: string): TextSegment[] {

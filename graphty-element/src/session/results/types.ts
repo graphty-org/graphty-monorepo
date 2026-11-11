@@ -873,8 +873,10 @@ export interface ResultSummary {
     readonly normalization: Normalization;
     /** The highest-ranked elements, best first. Bounded however large the graph is. */
     readonly top: readonly SummaryEntry[];
-    /** The groups, largest first, for a result that partitions. */
+    /** The largest groups, largest first, for a result that partitions. Stops at ten. */
     readonly groups?: readonly SummaryGroup[];
+    /** How many groups there are, however few of them `groups` lists. Set whenever `groups` is. */
+    readonly groupCount?: number;
     /** What qualifies these numbers. */
     readonly caveats: Caveats;
     /** How long the run took, in milliseconds. */

@@ -1,6 +1,6 @@
 import { EntityChip } from "@graphty/compact-mantine";
 import type { JoinChoices, JoinReport } from "@graphty/graphty-element/session";
-import { Button, Chip, Menu } from "@mantine/core";
+import { Badge, Button, Chip, Menu } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -123,6 +123,46 @@ function CountChip({
 }
 
 /**
+ * What becomes of a values join's rows matching no node: left out, or new nodes.
+ * @param props - Component props
+ * @param props.report - the element's counts
+ * @param props.choices - the join as chosen
+ * @param props.onChange - takes changed choices
+ * @returns the chip, or nothing for rows that cannot make new nodes
+ */
+function NewRowsChip({
+    report,
+    choices,
+    onChange,
+}: Readonly<Pick<MatchChipsProps, "report" | "choices" | "onChange">>): React.JSX.Element | null {
+    const addable = choices.shape === "node-values" && choices.keys.length === 1 && choices.via === undefined;
+    if (!addable || report.notInGraph === 0) {
+        return null;
+    }
+    const adding = choices.unmatchedRows === "add";
+    return (
+        <MenuChip label={adding ? "Add as new nodes" : "Leave those rows out"}>
+            <ChoiceItem
+                checked={adding}
+                onClick={() => {
+                    onChange({ ...choices, unmatchedRows: "add" });
+                }}
+            >
+                Add as new nodes
+            </ChoiceItem>
+            <ChoiceItem
+                checked={!adding}
+                onClick={() => {
+                    onChange({ ...choices, unmatchedRows: "leave-out" });
+                }}
+            >
+                Leave those rows out
+            </ChoiceItem>
+        </MenuChip>
+    );
+}
+
+/**
  * An edge join's counts: edges added and new nodes narrow the file's table; nodes updated names
  * no rows. A zero count is not drawn.
  * @param props - Component props
@@ -215,6 +255,14 @@ export function MatchChips({
                     </CountChip>
                 </li>
             ) : null}
+            {report.unreadRows > 0 ? (
+                <li>
+                    <Badge size="sm" variant="light" color="yellow" tt="none">
+                        {counted(report.unreadRows, "line not read", "lines not read")}
+                    </Badge>
+                </li>
+            ) : null}
+            <NewRowsChip report={report} choices={choices} onChange={onChange} />
             {report.withoutValue > 0 && !edges ? (
                 <li>
                     {toggles.includes("without-value") ? (

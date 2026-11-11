@@ -9,9 +9,15 @@ import {
     type ThinEngine,
 } from "@babylonjs/core";
 
-import { JOIN_TEMPLATE_INDICES, JOIN_TEMPLATE_VERTICES } from "./edgeJoinShader";
+import {
+    JOIN_TEMPLATE_INDICES,
+    JOIN_TEMPLATE_VERTICES,
+    LEAN_TEMPLATE_INDICES,
+    LEAN_TEMPLATE_OF,
+} from "./edgeJoinShader";
 import { markEdgeLineBatchMesh } from "./EdgeLineBatch";
 import { batchUploadFrames } from "./FrameRoster";
+import { takePoolReserve } from "./poolReserve";
 import { curveShape, type CurveSpan } from "./pulledCurve";
 
 /**
@@ -46,6 +52,13 @@ import { curveShape, type CurveSpan } from "./pulledCurve";
  */
 export const pulledEdgesDefault: { value: boolean } = { value: false };
 
+/**
+ * Whether an element with no `antialias` property or attribute multisamples. True, the documented
+ * default; only render-parity's `VITE_PARITY_ANTIALIAS=false` run writes it, so every story's three
+ * loads draw without multisampling and the batched one uses the lean line program.
+ */
+export const antialiasDefault: { value: boolean } = { value: true };
+
 /** Texels across the edge table, as across the row table: texel `i` is at `(i % 1024, i / 1024)`. */
 const TABLE_WIDTH = 1024;
 
@@ -58,6 +71,9 @@ const TEXELS_PER_CURVE_PIECE = 4;
 
 /** The join template, drawn once per piece: its index list and its vertices. */
 const JOIN_TEMPLATE = { indices: JOIN_TEMPLATE_INDICES, vertices: JOIN_TEMPLATE_VERTICES };
+
+/** The lean program's rectangle, drawn once per piece of a mesh made with `pulledLean: true`. */
+export const LEAN_TEMPLATE = { indices: LEAN_TEMPLATE_INDICES, vertices: LEAN_TEMPLATE_OF.length };
 
 /** Floats in one texel. */
 const TEXEL_FLOATS = 4;
@@ -117,8 +133,10 @@ export class PulledLineBatch {
      * @param rowPositions - The `rowPosition` texture, asked each frame: the row table replaces it
      *     when it grows.
      * @param curve - Whether its pieces are curves' (a mesh made with `pulledCurve: true`).
-     * @param template - What a piece draws: the join template, or another mesh's own
-     *     (`pulledAnimatedLine.ts`), its vertices numbered from 0 a piece.
+     * @param template - What a piece draws: the join template, the lean program's rectangle
+     *     (`LEAN_TEMPLATE`, for a mesh made with `pulledLean: true`: 4 vertices and 6 indices, not
+     *     the join template's 14 and 30), or another mesh's own (`pulledAnimatedLine.ts`), its
+     *     vertices numbered from 0 a piece.
      * @param template.indices - Its index list.
      * @param template.vertices - Its vertices.
      */
@@ -435,9 +453,15 @@ export class PulledLineBatch {
         return table;
     }
 
-    /** Double the table, keeping every piece where it is. */
+    /**
+     * Double the table, or make room for every piece a load's paint run still expects (`poolReserve.ts`) when that is
+     * more, in whole table lines, keeping every piece where it is.
+     */
     private grow(): void {
-        const grown = this.emptyTable((this.rows.length / this.pieceFloats) * 2);
+        const doubled = (this.rows.length / this.pieceFloats) * 2;
+        const reserved = this.highWater + takePoolReserve(this.scene, "lines");
+        const pieces = Math.max(doubled, Math.ceil(reserved / this.piecesPerLine) * this.piecesPerLine);
+        const grown = this.emptyTable(pieces);
         grown.set(this.rows);
         this.rows = grown;
         this.table.dispose();

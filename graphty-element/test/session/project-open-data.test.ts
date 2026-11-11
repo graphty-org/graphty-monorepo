@@ -81,9 +81,11 @@ async function loaded(name: string, text: string, via: "import" | "open"): Promi
 
     // As plain data, key order included: frozen records and class instances compare by what they hold.
     const state = JSON.stringify(stateOf(session), (key: string, value: unknown) =>
-        // How a CSV load was made, not what it loaded: the draft keeps the mapping it chose (so a
-        // reload repeats it) and its report names the columns it declared as the ends.
-        name.endsWith(".csv") && ["mapping", "tableRows", "endpoints"].includes(key) ? undefined : value,
+        // When a load happened, and how a CSV load was made, not what it loaded: the draft keeps the
+        // mapping it chose (so a reload repeats it) and its report names the columns it declared as the ends.
+        key === "loadedAt" || (name.endsWith(".csv") && ["mapping", "tableRows", "endpoints"].includes(key))
+            ? undefined
+            : value,
     );
     session.dispose();
     return state;

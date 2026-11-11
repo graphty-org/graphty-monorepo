@@ -1,3 +1,50 @@
+## 3.4.21 (2026-11-10)
+
+### 🩹 Fixes
+
+- **tools:** compare a benchmark result only with results of the same input graph ([#6220](https://github.com/graphty-org/graphty-monorepo/issues/6220))
+- **tools:** move to knip 6 so the dead-code check peaks at 1.4 GB, not 3 GB ([#6142](https://github.com/graphty-org/graphty-monorepo/issues/6142), [#6147](https://github.com/graphty-org/graphty-monorepo/issues/6147))
+- **algorithms:** keep the report script's promise chain ([#5978](https://github.com/graphty-org/graphty-monorepo/issues/5978))
+- **algorithms:** use top-level await in the performance report script ([#5978](https://github.com/graphty-org/graphty-monorepo/issues/5978))
+- **algorithms:** pin the benchmark report script with an integrity hash ([#5978](https://github.com/graphty-org/graphty-monorepo/issues/5978))
+- **algorithms:** seed the benchmark graphs so their timings compare run to run ([#5843](https://github.com/graphty-org/graphty-monorepo/issues/5843))
+
+### 🔥 Performance
+
+- **algorithms:** restore Brandes and PageRank hot-loop speed lost in the complexity split ([#5648](https://github.com/graphty-org/graphty-monorepo/issues/5648), [#5626](https://github.com/graphty-org/graphty-monorepo/issues/5626), [#5821](https://github.com/graphty-org/graphty-monorepo/issues/5821))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.46
+- Updated visual-review to 0.2.42
+- Updated graph-format to 1.5.1
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
+## 3.4.20 (2026-11-09)
+
+### 🚀 Features
+
+- **graph-format:** share the text grammar, the seeded generator and the plain-object check ([#736](https://github.com/graphty-org/graphty-monorepo/issues/736))
+
+### 🩹 Fixes
+
+- **tools:** guard every tracked vitest config, not only a package's top-level ones ([#5714](https://github.com/graphty-org/graphty-monorepo/issues/5714))
+- **workspace:** type-check the algorithms and layout test files in lint ([#5689](https://github.com/graphty-org/graphty-monorepo/issues/5689))
+
+### 🔥 Performance
+
+- **algorithms:** pass the arc arrays to the Brandes skip test ([#5648](https://github.com/graphty-org/graphty-monorepo/issues/5648), [#5821](https://github.com/graphty-org/graphty-monorepo/issues/5821))
+- **algorithms:** read adjacency arrays once in the power-iteration helpers ([#5619](https://github.com/graphty-org/graphty-monorepo/issues/5619), [#5821](https://github.com/graphty-org/graphty-monorepo/issues/5821))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.45
+- Updated visual-review to 0.2.41
+- Updated graph-format to 1.5.0
+
 ## 3.4.19 (2026-11-02)
 
 ### 🩹 Fixes

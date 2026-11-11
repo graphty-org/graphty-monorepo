@@ -11,7 +11,9 @@
 }
 
 .ws-land,
-.ws-land-settings {
+.ws-land-net,
+.ws-land-settings,
+.ws-land-cards {
     --ws-land-canvas: #fbfbfd;
     --ws-land-raised: #eef0f4;
     --ws-land-glass: rgba(255, 255, 255, 0.86);
@@ -74,7 +76,9 @@ html.ws-land-page #root {
 }
 
 .ws-land[data-scheme="dark"],
-:root[data-mantine-color-scheme="dark"] .ws-land-settings {
+.ws-land-net[data-scheme="dark"],
+:root[data-mantine-color-scheme="dark"] .ws-land-settings,
+:root[data-mantine-color-scheme="dark"] .ws-land-cards {
     --ws-land-canvas: #15171e;
     --ws-land-raised: #232633;
     --ws-land-glass: rgba(26, 28, 36, 0.86);
@@ -907,7 +911,7 @@ html.ws-land-page #root {
     gap: 2px;
 }
 
-.ws-land .ws-land-sample {
+:is(.ws-land, .ws-land-cards) .ws-land-sample {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -940,7 +944,7 @@ html.ws-land-page #root {
     border-radius: 6px;
 }
 
-.ws-land .ws-land-sample:hover {
+:is(.ws-land, .ws-land-cards) .ws-land-sample:hover {
     border-color: var(--ws-land-go);
 }
 
@@ -1012,6 +1016,31 @@ html.ws-land-page #root {
     vertical-align: -1px;
 }
 
+/* The sample cards outside the start page (the Samples dialog): the page's reading text. */
+.ws-land-cards {
+    font-weight: 400;
+    line-height: 1.45;
+    letter-spacing: normal;
+    text-rendering: geometricPrecision;
+}
+
+/* On the dialog's own surface the card keeps the start page's, so its tag and lines read the same. */
+.ws-land-cards .ws-land-sample {
+    background: var(--ws-land-surface);
+}
+
+/* A card with a control in its corner (SampleCard's corner). */
+.ws-land-sample-cell {
+    position: relative;
+    display: grid;
+}
+
+.ws-land-sample-corner {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+}
+
 /* The generators, under the datasets. */
 .ws-land-h3 {
     margin: 32px 0 16px;
@@ -1048,6 +1077,113 @@ html.ws-land-page #root {
     background: var(--ws-land-surface);
     color: var(--ws-land-text);
     font-size: 12px;
+}
+
+/* Open network data: one card for each kind of network. */
+.mantine-Modal-content.ws-land-net-content {
+    overflow: visible;
+    background: transparent;
+    box-shadow: none;
+}
+
+.ws-land-net {
+    border: 1px solid var(--ws-land-line-strong);
+    border-radius: 16px;
+    background: var(--ws-land-surface);
+    box-shadow: var(--ws-land-shadow-lg);
+    color: var(--ws-land-text);
+}
+
+.ws-land-net header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 18px 6px;
+}
+
+.ws-land-net h2 {
+    flex: 1;
+    margin: 0;
+    font-family: var(--ws-land-font-h);
+    font-size: 20px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+}
+
+.ws-land-net .ws-land-net-x {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    color: var(--ws-land-muted);
+}
+
+.ws-land-net .ws-land-net-x:hover {
+    background: var(--ws-land-raised);
+}
+
+.ws-land-net-x svg {
+    width: 16px;
+    height: 16px;
+}
+
+.ws-land-net-body {
+    display: grid;
+    gap: 10px;
+    padding: 0 18px 18px;
+}
+
+.ws-land-net-sources {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-rows: 1fr;
+    gap: 10px;
+}
+
+.ws-land-net .ws-land-net-source {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 2px 12px;
+    align-items: center;
+    padding: 12px;
+    border: 1px solid var(--ws-land-line);
+    border-radius: 12px;
+    background: var(--ws-land-surface);
+    color: var(--ws-land-text);
+    text-align: left;
+}
+
+.ws-land .ws-land-net-source:hover,
+.ws-land-net .ws-land-net-source:hover {
+    border-color: var(--ws-land-tint-edge);
+    background: var(--ws-land-tint);
+}
+
+.ws-land-net-badge {
+    grid-row: span 2;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    background: var(--ws-land-raised);
+    color: var(--ws-land-muted);
+    font: 600 12px var(--ws-land-font-h);
+}
+
+.ws-land-net-source b {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.ws-land-net-source small {
+    color: var(--ws-land-muted);
+    font-size: 12px;
+}
+
+.ws-land-net-source:hover small {
+    color: var(--ws-land-text);
 }
 
 /* The usage data question, under the first view until it is answered. */

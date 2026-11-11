@@ -30,7 +30,7 @@ async function loadUndoRedo(
     options: Record<string, unknown>,
     recordings: Parameters<typeof replayFetch>[0],
 ): Promise<{ nodes: number; edges: number; calls: number }> {
-    const session = createGraphSession({ features: ["network-data"] });
+    const session = createGraphSession();
     try {
         const fetch = replayFetch(recordings);
         const error = await session.data.import(input, { ...options, fetch }).then(
@@ -87,7 +87,7 @@ describe("built-in sources from recorded responses", () => {
     });
 
     it("loads a Wikidata CONSTRUCT through sparql: Load more adds a page, expanding a node adds its triples", async () => {
-        const session = createGraphSession({ features: ["network-data"] });
+        const session = createGraphSession();
         try {
             const fetch = replayFetch(wikidataRecordings);
             await session.data.import(
@@ -113,7 +113,7 @@ describe("built-in sources from recorded responses", () => {
     });
 
     it("loads the OpenAlex example's first page, and its source entry offers Load more", async () => {
-        const session = createGraphSession({ features: ["network-data"] });
+        const session = createGraphSession();
         try {
             // The recorded citing page, with the cursor a live answer carries to its next page.
             const paged = openalexRecordings.map((r, at) =>

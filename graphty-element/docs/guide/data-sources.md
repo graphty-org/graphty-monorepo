@@ -161,7 +161,9 @@ With nothing loaded, `renameSource` rejects with `E_BAD_COMMAND` and `details.re
 an empty name rejects with `"empty-name"`.
 
 `source()` describes the last load. When loads are added together with `{ mode: "merge" }`,
-`sources()` lists every load still in the graph, oldest first, with the tables each read and how
+`sources()` lists every load still in the graph, oldest first, when it was last read (`loadedAt`,
+absent in a project saved before it was kept), where from (`url`, without credentials, for a URL
+or a network load), the file it came from (`fileName`), with the tables each read and how
 many nodes and edges each added. A replacing load starts the list again; undo, redo and the
 project file keep it with the graph, and `renameSource` renames the last entry:
 

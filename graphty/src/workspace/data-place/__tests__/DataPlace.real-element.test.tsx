@@ -13,11 +13,16 @@ import { assert, beforeAll, describe, it, onTestFinished } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import football from "../../../../public/samples/football.gml?raw";
+import { withFeatures } from "../../../test/features";
 import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { AUTH_LOG_CSV, HOSTS_CSV } from "../fixtures";
+
+// The Data place without the Sources tab: its Fields section is one "Attributes" group, so the
+// `selection-workspace` experiment stays off here (DataPlaceSources and DataPlaceTabs test it on).
+withFeatures([]);
 
 /**
  * Renders the workspace on the Data place with a project open and waits for the session.
@@ -475,8 +480,6 @@ describe("the Data place's sidebar on the real element", () => {
     });
 
     it("draws the Sources + items with a glyph and their keys, and says it opens a menu", async () => {
-        await siteFeatures(["network-data"]);
-        onTestFinished(() => siteFeatures([]));
         await openDataPlace();
         const add = await place().findByRole("button", { name: "Add source" });
         assert.equal(add.getAttribute("aria-haspopup"), "menu");

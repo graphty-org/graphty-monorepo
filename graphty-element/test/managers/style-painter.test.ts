@@ -523,6 +523,72 @@ describe("StylePainter shared edge paints", () => {
     });
 });
 
+describe("StylePainter row paints, one look per mesh key", () => {
+    const RAMP: LayerSpec = {
+        name: "degree ramp",
+        target: "node",
+        selector: { match: "has", path: "results.degree.value" },
+        encode: { "node.color": { by: "results.degree.value", scale: "linear", palette: "viridis" } },
+    };
+
+    it("paints a row with no Node exactly as its Node would be painted", async () => {
+        const held = harness();
+        await held.styles.add(RAMP);
+        await held.paintAll();
+
+        for (let index = 0; index < NODES.length; index++) {
+            assert.deepStrictEqual(held.painter.rowPaint(index), held.painter.nodePaint(index));
+        }
+    });
+
+    it("builds one style per mesh key, not one per row, whatever color each row has", async () => {
+        const held = harness();
+        await held.styles.add(RAMP);
+        await held.paintAll();
+
+        const paints = NODES.map((_, index) => held.painter.rowPaint(index));
+        const styles = new Set(paints.map((paint) => paint?.style));
+        assert.strictEqual(styles.size, 1, "four rows of one shape share one style");
+        assert.strictEqual(new Set(paints.map((paint) => paint?.color?.r)).size, NODES.length, "each keeps its color");
+    });
+
+    it("builds a style per size when the size is data-driven", async () => {
+        const held = harness();
+        await held.styles.add({
+            name: "size by degree",
+            target: "node",
+            selector: { match: "has", path: "results.degree.value" },
+            encode: { "node.size": { by: "results.degree.value", scale: "linear", range: [1, 4] } },
+        });
+        await held.paintAll();
+
+        const styles = new Set(NODES.map((_, index) => held.painter.rowPaint(index)?.style));
+        assert.strictEqual(styles.size, NODES.length);
+    });
+
+    it("never shares the style of a row that carries content of its own", async () => {
+        const held = harness();
+        await held.styles.add({
+            name: "labels",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.label": "host" },
+        });
+        await held.paintAll();
+
+        const first = held.painter.rowPaint(0);
+        assert.strictEqual(first?.style.label?.text, "host");
+        assert.isFalse(held.painter.rowPaint(1)?.style === first?.style, "a label is per row, so its style is too");
+    });
+
+    it("leaves nodePaint building a style of its own for every node, as the objects path always has", async () => {
+        const held = harness();
+        await held.paintAll();
+
+        assert.isFalse(held.painter.nodePaint(0)?.style === held.painter.nodePaint(1)?.style);
+    });
+});
+
 describe("StylePainter arrowheads", () => {
     it("draws a head on a directed graph's edges and none on an undirected graph's", async () => {
         const directed = harness(true);

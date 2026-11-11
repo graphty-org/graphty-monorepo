@@ -13,26 +13,6 @@ client.
 graph-samples' datasets are not a network source: load one with
 `session.data.loadDataset("karate")`.
 
-## Switch it on
-
-Network sources sit behind the `network-data` experiment, off by default. Switch it on per element
-or per session:
-
-```html
-<graphty-element features="network-data"></graphty-element>
-```
-
-```ts
-import { createGraphSession } from "@graphty/graphty-element/session";
-const session = createGraphSession({ features: ["network-data"] });
-```
-
-While it is off, every call on this page that reads a network source rejects with
-`E_FEATURE_OFF` and `details: { feature: "network-data", key }` (`key` names the call, such as
-`"data.import"`) and sends nothing, `pendingSourceLoads()` returns an empty list, and a project
-opened with network loads keeps them exactly as saved, reporting `E_FEATURE_OFF` with
-`key: "graphty-sources"`.
-
 ## Load from a built-in source
 
 ```ts
@@ -87,6 +67,20 @@ example's. An id the source does not list rejects with `E_SOURCE_UNKNOWN`, whose
 
 The Neo4j demo server (`demo.neo4jlabs.com`) is read-only and publishes each database's login as
 its name, for both user and password. Amazon Neptune has no public server, so it has no example.
+
+## Read first, load later
+
+`session.data.readExample(source, example, options)` reads one of a source's examples and changes
+nothing, so a failure can be shown before anything is opened for the data. It takes what `import`
+takes and refuses what the renderer could not draw with `E_TOO_LARGE`. Pass the result to `import`,
+on any session, and it loads without reading the service again:
+
+```ts
+const scratch = createGraphSession();
+const read = await scratch.data.readExample("ndex", "ndex-wp5483");
+await element.session.data.import(read); // read.nodes and read.edges say how big it is
+scratch.dispose();
+```
 
 ## Write your own source
 
@@ -196,7 +190,7 @@ the values. Your application writes the words.
 | `E_SOURCE_UNSUPPORTED` | the source cannot do what was asked            | `feature`                            |
 | `E_SOURCE_PENDING`     | a load of an opened project has not been run   | `id`                                 |
 | `E_LOAD_UNKNOWN`       | no load in the graph has that key              | `key`, `known`                       |
-| `E_FEATURE_OFF`        | the `network-data` experiment is off           | `feature`, `key`                     |
+| `E_TOO_LARGE`          | it is past what the renderer can draw          | `limit`, `count`, `of`, `graph`      |
 
 `stored: true` on `E_SOURCE_AUTH` means a remembered credential was used and refused, so you can
 offer to replace it; `slot` names the credential slot to ask the reader for. The full list is `SOURCE_ISSUE` in `@graphty/graphty-element`.
@@ -301,3 +295,24 @@ const fetch = replayFetch([{ url: "https://example.com/api/people?team=core", bo
 await element.loadFromSource("people", { team: "core" }, { endpoint: "https://example.com", fetch });
 fetch.calls.length; // 1
 ```
+
+## Showing and changing what a load fetches
+
+`session.data.sourceSettings(key)` says what a load connects to and fetches: its `source`, `endpoint`,
+`config`, `limits` and `expand`. The params are redacted as a saved file has them and no credential
+is in it, so it is safe to show. It is `undefined` for anything that is not a network load.
+
+To change a load, read it again with new settings through `replaceSource`. The key and the name stay,
+styles and filters stay, and it is one undo step:
+
+```javascript
+const [{ key }] = session.data.sources();
+const settings = session.data.sourceSettings(key);
+await session.data.replaceSource(key, {
+    source: settings.source,
+    config: { ...settings.config, query: "MATCH (n)-[r]->(m) RETURN n, r, m LIMIT 100" },
+});
+```
+
+With no `credential` given, the one remembered for that endpoint is used. A `credential` is taken in
+the third argument, with `endpoint`, `limits` and `signal`, as `import` takes them.

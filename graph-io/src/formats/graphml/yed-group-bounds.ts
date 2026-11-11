@@ -73,3 +73,42 @@ export function yedGroupBounds(
     }
     return out;
 }
+
+/**
+ * The nodes yEd and yEd Live do not draw because a group holding them, at any depth, is closed: they draw the closed
+ * group alone (graphml-synthetic-nodes' `grp-closed`, yed-live-graphml-specimen-groups-p3's `group-collapsed`).
+ * @param snapshot - the graph, its nesting in the `parent` node role
+ * @param closed - whether a node is a closed group
+ * @returns the hidden nodes' indices
+ */
+export function foldedMembers(snapshot: GraphSnapshot, closed: (row: number) => boolean): Set<number> {
+    const hidden = new Set<number>();
+    const parent = snapshot.nodes.byRole("parent");
+    if (parent === null) {
+        return hidden;
+    }
+    const known = new Map<number, boolean>();
+    const isClosed = (row: number): boolean => {
+        const was = known.get(row);
+        if (was !== undefined) {
+            return was;
+        }
+        const now = closed(row);
+        known.set(row, now);
+        return now;
+    };
+    for (let row = 0; row < parent.length; row++) {
+        // walk up the nesting; a cycle the file should not have ends the walk
+        const seen = new Set<number>([row]);
+        let p = parent.isSet(row) ? parent.value(row) : undefined;
+        while (typeof p === "number" && !seen.has(p)) {
+            if (isClosed(p)) {
+                hidden.add(row);
+                break;
+            }
+            seen.add(p);
+            p = parent.isSet(p) ? parent.value(p) : undefined;
+        }
+    }
+    return hidden;
+}

@@ -234,6 +234,11 @@ export interface NodeStyleValues {
      */
     readonly labelWrapSpaceCount: number;
     /**
+     * Whether a blank line before or between lines of words is drawn one line of the label's font tall, as a text
+     * layout sets it (yEd's "\nCS" is two lines tall). Unset or false, a blank line takes no height.
+     */
+    readonly labelKeepBlankLines: boolean;
+    /**
      * Where runs of different sizes in one line of `labelRuns` meet: `baseline` (their alphabetic baselines, the
      * default), `hanging` (their hanging baselines, so their tops line up) or `middle` (their middles).
      */
@@ -934,6 +939,8 @@ export interface EdgeStyleValues {
     readonly labelWrapAnywhere: boolean;
     /** How many blanks a blank between two words counts as against `labelWrapWidth`; see the node's. */
     readonly labelWrapSpaceCount: number;
+    /** Whether a blank line before or between lines of words is drawn one line tall; see the node's. */
+    readonly labelKeepBlankLines: boolean;
     /**
      * Where runs of different sizes in one line of `labelRuns` meet: `baseline` (their alphabetic baselines, the
      * default), `hanging` (their hanging baselines, so their tops line up) or `middle` (their middles).

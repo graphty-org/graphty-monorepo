@@ -342,7 +342,8 @@ const OFF_SHARDS = [
         shard: "graphty-element-default",
         package: "graphty-element",
         "test-command": `cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob ${ELEMENT_REPORTERS} --coverage`,
-        "needs-browser": false,
+        // test/packaging/program-wasm.test.ts runs the pages it builds with Vite and webpack in Chromium.
+        "needs-browser": true,
     },
     // graphty-element browser tests (ELEMENT_BROWSER_PARTS shards)
     // Note: Using both blob and default reporters to capture test results and show failures in logs
@@ -361,13 +362,17 @@ const OFF_SHARDS = [
     })),
     // The element drawn on WebGPU, on SwiftShader because no shard has a card: the five shards above launch
     // Chromium with no WebGPU, so a shader only WebGPU refuses blanked every canvas with edges unseen (#5847).
+    // The frame rate is unlimited, as on the benchmark's card, so the frame-pacing tests can build a queue of frames.
     {
         shard: "graphty-element-webgpu",
         package: "graphty-element",
-        "test-command": `cd graphty-element && GRAPHTY_BROWSER_GPU=swiftshader pnpm exec vitest run --project=browser test/browser/webgpu-renderer.test.ts ${ELEMENT_REPORTERS}`,
+        "test-command": `cd graphty-element && GRAPHTY_BROWSER_GPU=swiftshader-unthrottled pnpm exec vitest run --project=browser test/browser/webgpu-renderer.test.ts test/browser/webgpu-frame-pacing.test.ts ${ELEMENT_REPORTERS}`,
         "needs-browser": true,
         local: "when-paths-change",
-        "local-paths": ["graphty-element/test/browser/webgpu-renderer.test.ts"],
+        "local-paths": [
+            "graphty-element/test/browser/webgpu-renderer.test.ts",
+            "graphty-element/test/browser/webgpu-frame-pacing.test.ts",
+        ],
     },
     // The WebGPU device destroyed and the GPU process crashed under the element, on the full Chromium build.
     {
@@ -457,7 +462,8 @@ export const FEATURES_ON_SHARDS = [
         shard: `graphty-element-default-${ON_SUFFIX}`,
         package: "graphty-element",
         "test-command": `cd graphty-element && ${ON_ENV}=1 pnpm exec vitest run ${on("default", "mesh")} ${ELEMENT_REPORTERS}`,
-        "needs-browser": false,
+        // As its Off twin: test/packaging/program-wasm.test.ts runs the pages it builds in Chromium.
+        "needs-browser": true,
     },
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-element-browser-${ON_SUFFIX}-${n}`,

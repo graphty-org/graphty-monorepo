@@ -1,0 +1,16 @@
+# The reporter's sources, with the assistant already connected, its panel closed, and the 14 people still selected from someone else's look through the file.
+--click Open a file
+--upload sources.graphml
+--click Assistant
+--click AI provider...
+--expect API key
+--click API key
+--type study-access-4471
+--click Save
+--expect-not Get a key from Google
+--click role=button:Graph
+--click Find nodes, edges, values
+--type person
+--wait 600
+--click kind is person
+--expect 14 nodes selected

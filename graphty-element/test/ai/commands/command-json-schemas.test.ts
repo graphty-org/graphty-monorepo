@@ -1,11 +1,12 @@
 /**
- * The JSON Schema every AI command's parameters convert to, through the AI SDK's `asSchema` (what
- * VercelAiProvider and WebLlmProvider hand the model). A change to the committed file is a change
- * in what the model is told, so it fails here first. Keys are sorted, so only content counts.
+ * The JSON Schema every AI command's parameters convert to, through graphty's own conversion
+ * (what the provider-API engine and WebLlmProvider hand the model). The committed file was written
+ * by the AI SDK 5's `asSchema` and the conversion reproduced it exactly before the SDK was removed,
+ * so a change to it is a change in what the model is told, and fails here first. Keys are sorted,
+ * so only content counts.
  * @module test/ai/commands/command-json-schemas.test
  */
 
-import { asSchema } from "ai";
 import { describe, expect, it } from "vitest";
 
 import * as AlgorithmCommands from "../../../src/ai/commands/AlgorithmCommands";
@@ -17,6 +18,7 @@ import * as QueryCommands from "../../../src/ai/commands/QueryCommands";
 import * as SchemaCommands from "../../../src/ai/commands/SchemaCommands";
 import * as StyleCommands from "../../../src/ai/commands/StyleCommands";
 import type { GraphCommand } from "../../../src/ai/commands/types";
+import { toolJsonSchema } from "../../../src/ai/engine/jsonSchema";
 
 const modules = [
     AlgorithmCommands,
@@ -48,13 +50,14 @@ function sortKeys(value: unknown): unknown {
     return value;
 }
 
+const commands = modules
+    .flatMap((m) => Object.values(m))
+    .filter((v): v is GraphCommand => typeof v === "object" && v !== null && "parameters" in v && "name" in v)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
 describe("AI command JSON Schemas", () => {
     it("match the committed schemas", async () => {
-        const commands = modules
-            .flatMap((m) => Object.values(m))
-            .filter((v): v is GraphCommand => typeof v === "object" && v !== null && "parameters" in v && "name" in v)
-            .sort((a, b) => a.name.localeCompare(b.name));
-        const schemas = Object.fromEntries(commands.map((c) => [c.name, sortKeys(asSchema(c.parameters).jsonSchema)]));
+        const schemas = Object.fromEntries(commands.map((c) => [c.name, sortKeys(toolJsonSchema(c.parameters))]));
 
         expect(commands.length).toBeGreaterThan(10);
         await expect(`${JSON.stringify(schemas, null, 4)}\n`).toMatchFileSnapshot(

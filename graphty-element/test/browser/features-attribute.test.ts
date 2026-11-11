@@ -31,7 +31,7 @@ describe("the features attribute", () => {
 
         const detail = await heard;
         assert.deepEqual(element.features, ["later-idea", "other"]);
-        assert.deepEqual(detail, { enabled: [], unknown: ["later-idea", "other"] });
+        assert.deepEqual({ ...detail }, { enabled: [], unknown: ["later-idea", "other"] });
         assert.strictEqual(element.enabledFeatures, detail);
     });
 

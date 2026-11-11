@@ -8,10 +8,6 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { ApiKeyManager, createCredentialStore, credentials, CredentialStore } from "../../../credentials";
 import type { GraphtyError } from "../../../src/errors/GraphtyError";
-import { setDefaultFeatures } from "../../../src/features/resolve";
-
-// Network sources sit behind the network-data experiment.
-setDefaultFeatures(["network-data"]);
 
 const NEO4J = { source: "neo4j", endpoint: "https://db.example.com:7473/db/movies" };
 const SECRET = "SENTINEL-credential-store-secret";

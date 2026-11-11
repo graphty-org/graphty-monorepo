@@ -24,7 +24,7 @@ import { callOf, checkDispatches, dispatchesOf } from "../session/history/door-h
 
 // The timeline's attributes are doors too, and they answer only with their experiment on.
 beforeAll(() => {
-    setDefaultFeatures(["timeline", "network-data"]);
+    setDefaultFeatures(["timeline"]);
 });
 
 /** A small graph every door can find its way around. */

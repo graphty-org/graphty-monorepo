@@ -378,6 +378,37 @@ switched-on third: on WebGL 325 stories pass, but only 4 of them draw a pulled e
 edge. Found building it: a pulled line follows the row table, which takes the layout's places, so a place written to the layout
 engine and not yet to the node's mesh moves the line before the node; the update loop writes both in one frame.
 
+As built (stage 15, the 6-vertex program, cosmos-gap.md G12): `EDGE_PULLED_LEAN` draws a straight pulled piece's rectangle
+alone, the join template's vertices 1, 2, 7 and 6 as its two triangles (4 vertices and 6 indices a piece, `piece * 4 + k`,
+not 14 and 30), and its fragment stage skips the ownership test and the pattern, so it never discards. It is used only
+when `antialias` is false and the `"batched"` batches are open (`Graph.leansLines`), in a batch of its own
+(`edge-pulled|...|lean`); curves never use it. The stray pixel did not survive the trace. The spike's program is not in the
+repository, so the trace rebuilt it from the join shader: the triangles are the join template's own, and a piece with no
+neighbour has every join vertex on a side vertex, so the dropped triangles have no area; the one thing left that could put
+a pixel on one side and not the other is the fragment's ownership test against the rasterizer's coverage. Against the
+placed plain line, over 240 scenes (60 seeded cameras and graphs of 120 edges, 4 widths from 160 screen to 0.05 world) with
+`antialias` false and 240 with it true, 0 pixels differ on the RTX 4070 SUPER (ANGLE Vulkan) and 0 on SwiftShader.
+`test/browser/pulled-edge-lines.test.ts` holds it at 0 pixels in 27 scenes per setting, and
+`test/browser/pulled-edges-on-graph.test.ts` holds a graph under `antialias` false on `"batched"` to the objects picture, at
+rest and after a mouse drag, on WebGL and WebGPU. Measured 100k + 1M still frame with `antialias` false on the RTX: 29.2-29.5
+ms serial, 35.6-35.8 ms paced, 28.2 ms of GPU, against 54.8-54.9 ms, 70.1-70.5 ms and 52.3-53.2 ms with the join template.
+Two corrections, from the code:
+
+- The vertex count is not what costs: the join template's rectangle alone with the join fragment stage measured 54.2 ms
+  against 55.0, since a straight piece's join triangles have no area. The gain is the fragment stage's: no ownership test
+  and no `discard`, which also lets the card test depth before shading.
+- The harness's lean mode is 2D (`main.js`, `is2d`), where a straight line is not pulled until cosmos-gap.md G3 lands, so
+  its 100k + 1M scene draws 1,000,000 object lines and neither G5 nor this program reaches it. The `3d` flag
+  (`run.mjs graphty lean on 100000 1000000 1 skip-layout 3d no-move`) keeps it in 3D, where every edge is pulled, and
+  fails a run with an object edge; the numbers above are its. The 2D scene reaches this program with G3.
+- Stage 15's render-parity could not switch the program on: no story sets `antialias`, so every batched load multisampled.
+  `VITE_PARITY_ANTIALIAS=false` builds every load of a run without multisampling (through the internal `antialiasDefault`,
+  read only when an element has no `antialias` property or attribute), and each load asserts `Graph.leansLines` is true on
+  `"batched"` and false on `"objects"`. With it, on SwiftShader: WebGL 324 passed, 1 failed; WebGPU 283 passed, 1 failed.
+  The one failure is `FileStyles.stories.ts Gexf`, 676 pixels, the same 676 with `leansLines` forced false, so the lean
+  program adds none: it is issue #6392 (1488 pixels with `antialias` true, on either parity mode), where the objects and
+  pulled pictures differ in the blended colors of overlapping translucent edges.
+
 As built (stage 16, first pull request): `Edge.pullsLine` passes on the `"batched"` path, read as the graph keeping node batches,
 so `pulledEdgesDefault` is needed only to pull on `"objects"`. A line's rebuild test (`Edge.paintFrom`) compares whether it is
 pulled with whether it should be, and `Graph` repaints every edge, then walks them, when the path changes live, so an edge moves
@@ -390,6 +421,17 @@ Correction from stage 16: this pull request cannot move the stage's targets, bec
 head, which waits for stage 17. One `lean-m` run each under `"batched"`, RTX, interleaved: before (`benchmarks/results/stage-16-before`,
 load average 5.4) moving 87.6 ms (p99 90.6), layout frame 942 ms; after (`benchmarks/results/stage-16`, 4.2) moving 86.9 ms (p99 89.5),
 layout frame 997 ms, `rowCounts.pulledEdges` 0 in both. The 2D targets need a pulled 2D line, which no stage yet builds.
+
+As built (stage G3 of `cosmos-gap.md`): a plain solid straight 2D line is pulled too. `EdgeMesh.pulledBatch` builds a 2D batch's
+mesh as the 2D line's joined program (`worldWidth`, a piece's width `edge.width / 40`, as `Simple2DLineRenderer` takes it), and
+the view keys the batch (`|2d`), so a 2D/3D switch builds another. Correction to `cosmos-gap.md` section 3.3 item 1, which drops
+the `drawsFlat` refusal whole: two refusals stay in 2D. A 2D curve (`EdgeMesh.pullsCurve`) stays an object edge, since no parity
+case covers a pulled 2D curve yet; and `Edge.pullsLine` now refuses an end at a node drawn behind every edge
+(`Node.isDrawnBehindEdges`, which a 2D node below z-index 0 is, not only a group), because that line ends at the node's outline
+(`Edge.groupEnd`) where a pulled line runs to its centre. `test/browser/pulled-edges-batched.test.ts` holds 2D to the objects
+picture, 0 pixels, at rest, after a mouse drag, across a 2D/3D switch and at a sub-pixel width. One `lean-m` run under
+`"batched"`, RTX, load average 3.0 (`benchmarks/results/stage-g3`): `rowCounts.pulledEdges` 1,000,000, drag 79.9 ms median
+(p99 89.6; 107 ms median before), still serial 72.1 ms (p99 74.3), paced 87.3 ms (p99 89.8).
 
 Also fixed in stage 16 (a `"batched"`-only defect already on master): a node source mesh whose batch group lost its last member
 stayed in `MeshCache.batchedSources` until the next flush, but the cache prunes right after the repaint, before that flush, so a
@@ -1017,6 +1059,42 @@ A second correction: a repack from the lane also changes w, when a row the layou
 (w 0 to 1) or a row is unplaced. The kernel keeps the ring's w, so such a row stayed at w 0 on the card until the layout
 settled. A repack that changes a row's w now mirrors that row into the ring and uploads it once, since the landing
 already copied holds the old w.
+Correction (2026-11-09 re-profile): the 187-205 ms `renderer="webgpu"` layout frame measured for this stage was not a
+layout frame. On WebGPU the render loop did not pace its frames (only WebGL fenced them), so a still 100k + 1M scene queued
+a frame every 0.8-3 ms against about 89 ms of GPU work each; the layout's position readback waited behind that backlog
+and never landed, the layout stopped moving, and the frames timed the zoom-to-fit walk over a stalled layout. With frames
+paced the real layout frame was 1.07-1.28 s, CPU-bound. Since cosmos-gap stage 113, under renderPath "batched" the loop
+skips a tick while the last frame's `queue.onSubmittedWorkDone()` is unresolved (`RenderManager.fenceWebGpuFrame`), and
+the benchmark refuses a layout-frame row in which no GPU batch landed.
+
+As built (stage 25, fourth pull request): a loss needed no code of its own. The controller's rebuild on the engine's
+new device goes through `replaceSimulation`, whose load attaches a new ring seeded from `rowPosition`, and the
+table's texture is re-uploaded with the engine's restore; `#drawnRun` drops a run whose device is no longer the
+target's. A test destroys the device mid-run and checks that copies resume with no uploads and the texture equals
+the CPU copy. A layout transition suspends the copy: while the transition runner is active, `getDrawnTarget` says
+`suspended`, and each landing goes up by upload, while the skip mask and the transform are still sent, so the copy
+resumes at the first landing after the move ends.
+
+A correction, found when the gpu-loss tests were made to wait on the copy itself rather than on a count of landings:
+when a layout with no transition replaces the one that held a transition, the FIRST landing copied after the swap
+leaves the texture differing from the CPU copy (worst relative difference about 2000); from the second copy on they
+agree. The mechanism is not yet explained (a batch of the replaced simulation, or its draw transform, landing after
+the swap is the likely one). `shared-device-drawn-moves.test.ts` compares at the second copy and points here; until
+this is fixed the texture can hold the wrong rows for one landing after a layout is replaced. Issue #6422.
+Explained and fixed (cosmos-gap stage 113): the layout manager disposes the replaced engine after the new one's `init()`
+has attached its ring, and the replaced engine's detach set the table's `drawnMirror` to null, the new engine's
+mirror included. Every row the table wrote after the swap (the move's end putting rows back on the lane, a w change)
+then reached neither the new ring nor its told-row resend, so a copied landing held stale values for those rows.
+With WebGPU frames paced the second copy was wrong too (worst relative difference 1.39). A detach now clears only
+its own mirror, and the test compares at the first copy.
+
+As built (stage 25, fifth pull request): a correction to "a settling batch repacks from the lane, so the rest
+picture matches the upload path". It did not always. `RowTable` remembers a copied landing with one flag until
+the next repack, which then sends no row; when the settling batch was published by upload after a copy and before
+that repack, the flag hid it too, and the texture rested on the copied landing while the CPU copy held the settled
+rows (2 runs in 8, every x, y and z lane, worst relative difference 0.2). A publish that goes up by upload now drops
+the flag (`RowTable.dropCopy`), so the repack sends every row. The texture at rest now equals the CPU copy, which is
+what the upload path sends, within 1e-6, and a click while the layout copies selects the node under the pointer.
 
 ### 4.6 Columns and load (#3249)
 
@@ -1025,6 +1103,24 @@ already copied holds the old w.
   `evt.node === graph.getNode(id)` holds. `getNodes()` makes N objects; nothing internal may, so a transition, fit, filter and layout swap
   go by row. `srcNode` and `dstNode` become accessors. Shipped engines key on rows; a third party's `LayoutEngine`, `defineLayout` and
   `SimpleLayoutEngine` still get `Node`s. `node-add-before` is gated on its observers. `StylePainter` writes columns into batch buffers.
+- **One paint per look (cosmos-gap.md G6, first pull request).** A row stored with no `Node` is painted through
+  `StylePainter.rowPaint`, which builds one `NodePaint` style per node look (mesh key, opacity, visible flag, the color's
+  alpha, a gradient's start) and hands each row only its own color; `nodePaint`, which every `Node` and the objects path
+  use, still builds a style per node. Correction to cosmos-gap.md section 5.2: after stage 26 the 100k + 1k batched first
+  frame was already about 1.4 s (under G6's 2.0 s target) and the cache does not move it; what it removes is heap,
+  about 58 MB at 100k rows (195 to 137 MB used, RTX, 2026-11-10). The color still reaches the batch buffer through one
+  small `Rgba` per row rather than straight from the color column.
+- **A uniform mesh-key fill (cosmos-gap.md G6, second pull request).** Under `"batched"` the element hands the repaint
+  `uniformFill` (`RepaintSources`, from `SessionInternals.batched`, not from the ingest host's `batched` flag as
+  cosmos-gap.md section 3.3 item 3 says: the repaint is built by the session, which never sees the ingest host).
+  When every mesh-keying channel is absent or one value over a pass's dirty set, the pass interns one sequence and
+  only moves each row's retain count; a data-driven size or shape keeps the per-row path, and the keys come out the
+  same either way. The color is still not written straight from the color column; the 2.0 s first-frame target was
+  met without it, so it is not built.
+- **A view switch builds every row's `Node`.** `Graph.enterDimension` reads `getNodes()`, which builds a `Node`
+  (and its transform node) for every row stored without one, so a 2D/3D switch after a batched load gives up the
+  lean rows: at 10k rows, 10,000 transform nodes. A load made after the switch stays lean. The scene-object guard in
+  `test/browser/node-batch.test.ts` enters the view before the load for that reason. Not fixed yet.
 - **The typed door**, the advanced path; `addNodes` and `addEdges` stay the simple one. `session.data.importColumns({ sources, targets,
 nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attributes` are optional. Same ceilings, report and undo step,
   with one range entry in the op log, the only bulk history entry (cosmos-gap.md G4 reuses it). Rows are placed by the element's `layout`, as
@@ -1314,6 +1410,175 @@ only a `Node` draws (a model, a picture, or anything `batchableOf` refuses); a g
 `StylePainter` needed no change: it already resolves paint by row number. Nothing calls `paintRow` yet: the frame's paint loop
 (`UpdateManager.takeNodeBatch`) keeps dropping a row with no `Node` until the fifth pull request skips `buildNode`, because today such a
 row is one that was removed, and painting it would draw a ghost. That pull request also renumbers `ColumnRow`s on a freeze.
+
+Correction from stage 26's third pull request: the third item is split. Fit and filter go first, alone: they reach a `ColumnRow`
+through `NodeBatches.columnRowIndices()` and the row table, never through a `Node`. A fit frames each visible column row from
+`RowTable.centerOf` and `extentOf` inside the graph root's transform (`nodeFramingBox`'s `columns`), and a filter writes the row
+table's hidden flag (`UpdateManager.applyColumnRows`), which is all a batch reads. Two limits carry to the fifth pull request. A row
+the mask draws faintly in context, or ringed as selected, needs a `Node` (both are a `Node`'s overlays), so ingest must build one for
+such a row; a column row is shown or hidden, nothing else. And `RowTable.measure` takes a `Node`, so a row that never had one has no
+extent to frame until paint measures it from its `NodePaint`. Shipped engines and transitions by row are the next pull request.
+
+Correction from stage 26's fourth pull request: shipped engines are split by kind. Static engines (every `StaticLayoutEngine`,
+which is every `SnapshotLayoutEngine`) go first, alone: they already compute over the element's snapshot by row, and only two
+things reached a `Node`. They found the data manager through `_nodes[0].parentGraph`, and they published node by node through
+`n.index`. The layout manager now hands each one the data manager (`simpleLayoutInternals.attachRows`), and while the data manager
+says `"batched"` the engine arranges with no `Node` at all and publishes every row of its answer (`publishColumn` takes the
+element's array in place of a node). Under `"objects"` it publishes node by node, as before. A third party's static engine is
+still handed every built `Node`. Two limits carry on. A snapshot layout's `nodeSizes`, `nodeExtents` and data columns still read
+a row's `Node`, so a row with none counts as unsized until paint measures it (the fifth pull request). Simulations
+(`SimulationLayoutEngine`, d3, ngraph), which hold per-node state, and layout transitions are the next pull request.
+
+Correction from stage 26's fifth pull request: simulations are split again. `SimulationLayoutEngine` (spring, spring-electrical,
+ForceAtlas2) already loads, steps and draws through the GPU ring by row; only its publish walked `nodes` for row membership.
+Under `"batched"` it now publishes every row of its loaded snapshot (`publishColumn` with the element's array), and under
+`"objects"` node by node, as before. A removed node's row, live until the next freeze, is published too; the batches draw nothing
+for it. Its `nodeGap` radii and `clusterBy` communities still walk `nodes` and read a row's `Node`, so the fifth item must
+materialize nothing there either: a row with no `Node` counts as unsized and in no community until then. d3 and ngraph are
+different in kind: they keep a body per `Node`, fed through `addNode`, so going by row is a rewrite of their bodies onto rows,
+not a change to their publish. They and layout transitions, whose movers are keyed by `Node` and read `drawnPosition`, are the
+next pull request.
+
+Correction from stage 26's sixth pull request: transitions go first, alone, and d3 and ngraph follow. The runner needed no
+rekeying: its movers are keyed by a `TransitionSubject`, which a `Node` is and a `RowSubject` now is too, a row drawn with no
+`Node` read and written through the row table (`centerOf`, `extentOf`, `shrink`, `place`) and painted from `StylePainter.nodePaint`.
+The graph hands the runner `NodeBatches.columnRowIndices()` as row subjects beside its `Node`s, and since no `Node.update`
+places them, `UpdateManager.updateNodes` calls `placeRows` after its node walk: each row is drawn on its way to where the lane
+puts it (`RowTable.laneOf`, flat in 2D), and is put back on the lane when the move ends or is replaced. Under `"objects"` there
+are no column rows, so nothing changes. One limit carries on: a row subject's hops from the selection are taken as farthest,
+since edges still reach their ends as `Node`s (the end accessors, the fourth item). d3 and ngraph by row are the next pull
+request, then the fifth item.
+
+Correction from stage 26's seventh pull request: d3 goes first, alone, and ngraph follows. d3 already keys every body by node id
+(its links resolve ends by id), so going by row is a second set of bodies, not a rewrite: under `"batched"` the layout swap hands a
+d3 engine a body for each of `NodeBatches.columnRowIndices()` (`D3GraphEngine.addRows`, keyed by id, since a freeze renumbers
+rows) and hands it no `Node` for such a row, so no row has two bodies. A row body publishes through `publishColumn`, finding its row
+in the element's snapshot by id at each publish, and a hold reaches it by that row. It is unsized (collision radius 0), in no
+`clusterBy` community and never pinned, since each of those is read from a `Node`, as for the simulations above. A third party's
+engine, and ngraph until its pull request, is handed `Node`s only, so it lays out no row drawn with no `Node`. Two limits carry
+to the fifth item: rows are handed over only at the swap, so one that loses or gains its `Node` later, or is removed, changes no
+body; and the swap still makes the `Node` list from `nodes`, which the fifth item's view must not materialize.
+
+Correction from stage 26's eighth pull request: ngraph by row follows d3's pattern with two differences true of its code. ngraph
+keys its bodies by node id already, so a row body is `ngraph.addNode(id)` (`NGraphEngine.addRows`); and the swap adds edges before
+rows, and `ngraph.addLink` makes a body for an end it has not seen, so a row with edges already has an unseeded body when its row
+arrives. `addRows` keeps that body and places it from the seed, as `addNode` places a `Node`'s, so a seeded layout stays the same
+drawing. A row body is pinned only by a hold, weighed as a follower by its row, unsized (no `nodeGap` push) and in no `clusterBy`
+community; it publishes in the same `publishColumn` call as the `Node`s. The same two limits carry to the fifth item.
+
+Correction from stage 26's ninth pull request: the end accessors. `Edge.srcNode` and `dstNode` are accessors (with setters, so the
+public shape is kept) over the graph's `Node` for `srcId` and `dstId`. Under `"objects"` both are resolved as the edge is built,
+as before; under `"batched"` the constructor asks only whether each id is stored (`nodeCache.has`) and each end is looked up on
+first read. The data manager's edge build and its pending-edge retry check existence with `has` on both paths, which reads no
+`Node`. One read per end is left at build under `"batched"`, and it is not the accessor's: the line's pull check
+(`Edge.pullsLine`) asks whether an end is drawn behind edges (a group, or a 2D node below z-index 0). The fifth item must answer
+that from the row (a row with no `Node` is never a group, and its z-index is in its `NodePaint`), and so must the edge's per-frame
+placement, which reads both ends' `drawnPosition`. Neither the anchor per batched `Node` nor the load's object-row transient, both
+named by the 2026-11-09 re-profile, is touched yet; the load-peak heap gate the stage note adds is the fifth item's.
+
+Correction from stage 26's tenth pull request: an edge reads an end drawn with no `Node` from its row. `Edge.columnEnd` names
+the `ColumnRow` an end is drawn by (`NodeBatches.columnRowOf`, found by id through the store), and for such an end the pull check
+(not behind edges unless it is a 2D row below z-index 0 in its `NodePaint`), the pulled piece's rows, the frame's move check, a
+bare line end and `drawnLine` read the row, and the static and simulation engines' `getEdgePosition` read the element's array
+by row (`LayoutEngine.readRowPosition`); d3 and ngraph already read ends by id. A self-loop is now told by ids, not by `Node`
+identity. An end a `Node` draws is read from its `Node` as before, so nothing changes until rows lose their `Node`s, and under
+`"objects"` there are no column rows. What is left reads an end's `Node` only for a line that is not a plain pulled one: a cap,
+a gap, a label, a group end, a route or a lift (their geometry is the `Node`'s outline), so ingest must keep building a `Node`
+for both ends of such an edge, or those reads must move to the row, before the view lands.
+
+Correction from stage 26's eleventh pull request: the load-peak gate (live heap after a forced GC, sampled during a 200k-node
+batched load with the ceilings raised, under 1.5 KB per node) is added to the row's target, because "`Node`s built counted at 0"
+does not show that the load's per-row transient is gone. Lazy `Node` removes all three per-row costs the 2026-11-09 profile
+named, with no separate work: a row with no `Node` has no `TransformNode` anchor (the anchor is the `Node`'s), and it never
+becomes an object row with its own `InstancedMesh` on the way to its batch. Measured on the same machine, interleaved
+(200k nodes, 2k edges, `renderPath: "batched"`): master peaks at 2,328 MB (11.6 KB per node) and ends with 200,002
+`TransformNode`s; this branch peaks at 249 MB (1,245 B per node, the fixed ~53 MB included) and ends with 2. A 1M-node load now
+completes (peak 1,105 MB, 1.1 KB per node). The proving test counts it at 12 rows: no `InstancedMesh` and no `TransformNode`
+added during a batched load, and no `Node` built.
+
+Correction from stage 27's first pull request: the per-edge placement walk the 2026-11-09 re-profile named (`updateEdges` ->
+`Edge.update` -> `pullRows`, 2.1 s of the 100k + 1M load) went first, alone, since it is the cost lazy `Edge` would otherwise
+carry over to rows. A straight pulled line is drawn from its nodes' rows by its shader, so no walk places it
+(`Edge.followsRows`): not the load's first walk, a moving frame, nor a drag's incident edges. Its rows change only when a
+freeze renumbers them (`snapshot-replaced` with a `nodeRemap`), and the next edge pass then tells every pulled line its
+rows once. A pulled curve still writes its span at each placement, and a straight line a map layout would arc is still
+placed so it can move to the curve batch. A restyle asks `Edge.wantsPull` once. The walk still reads one flag per edge
+of the engine's list; under lazy `Edge` the list it walks must be the placed edges only. A load on the batched path grows
+the pulled line table and the arrow cap pool once, sized from the count it is about to paint or store, instead of by
+doubling. Layout-frame target (WebGPU, paced, 100k + 1M, `lean-m`): a median at most half the merge base's, measured
+interleaved in one session, since the re-profile put 617 ms of a 1,065 ms layout frame in per-edge placement. Measured
+2026-11-10: 1,554 ms before and 472 ms after (medians of three interleaved runs each), with the layout frame's garbage
+collector time down from 3.7 s to 1.5 s of a 30 s stage. The build count, the views and the walk over placed edges only
+are still to come in this stage.
+
+Stage 27's second pull request adds the build count: `dataManagerInternals.edgesBuilt`, every `Edge` a data manager has
+built, counted where both build sites (an edge whose ends are stored, and a pending edge once they are) register it. It
+changes no behavior on either path; under `"objects"` and, until the next pull request, under `"batched"` it equals the
+edges stored, and `test/managers/DataManager.test.ts` pins that. The proving test the row names reads it at 0.
+
+Stage 27's third pull request: on a small batched graph under a moving layout, the per-frame edge walk is not the
+engine's full walk but `UpdateManager.placedEdgesAtRows`. It runs on every frame the row table moves while some row
+has no `Node`, and asked every edge of the engine's list `isPulled`. It now walks a list of the placed edges, built
+again only when one of these changes: the layout engine, the store's edges, the engine's array of them, or some
+edge's pulled line (`pulledLines.version` in `Edge.ts`). `test/browser/pulled-edges-on-graph.test.ts` counts it: a
+moving layout asks each pulled line a fixed number of times, not once a frame. The engine's full walk (`placeEdges`
+over every edge, reading `followsRows`) is unchanged. The harness profile (100k + 1M, WebGPU, batched) says the 59 ms
+the first pull request left was the full walk: at that size every row has a `Node`, so `placedEdgesAtRows` takes no
+sample, and the frame's edge walk is still about 62 ms (`placeEdges`, the per-edge `update`, `edgesNeedWalking`).
+Caching the full walk's list too, keyed also on the route, is what would cut it.
+
+Stage 27's fourth pull request caches the full walk's list. Under `"batched"` the walk over every edge reads one list
+of the edges to place (those whose line does not follow its rows, `Edge.followsRows`), built again only when the
+engine, the store's edges, the engine's array, some edge's pulled line, the view (2D or 3D) or the engine's map frame
+(`geoFrame`) changes; the last two pick a pulled line's route, and a style that changes the route rebuilds the line,
+which counts as a pulled-line change. `placedEdgesAtRows` reads the same list, so a pulled curve at a row with no
+`Node` is now placed when its rows move (it was skipped). Under `"objects"` the walk is unchanged.
+`test/browser/pulled-edges-on-graph.test.ts` counts it on a graph whose rows all have a `Node`. Profiled at 100k + 1M
+(WebGPU, batched, `lean-m`): the frame's edge walk fell from about 87 ms to 45 ms (`placeEdges` 2.2 s to 0.03 s over
+the stage) and layout garbage-collector time from 2.0 s to 1.4 s, but the layout frame median did not move beyond
+run-to-run spread (436 ms before, 442 ms after, three interleaved runs each). What is left in the walk is
+`supportPoints.update`, which still asks every edge `supportEdge` on a walk of every edge (about 1.1 s), and
+`nodesMoved`.
+
+Stage 27's fifth pull request: under `"batched"` the support-point step reads the same list of placed edges, not
+every edge. A line that follows its rows is straight and pulled, so it has no support point (a curve is pulled with
+a span and is placed), and the step got nothing from asking it. `test/browser/pulled-edges-on-graph.test.ts` counts
+it in 2D, where every row has a `Node`: before, a moving layout asked the pulled lines 340 times; now 0. Under
+`"objects"` the step still asks every edge.
+
+Stage 27's sixth pull request: an edge row with no `Edge` can be drawn. `EdgeRowLines` (`Graph.getEdgeRowLines`,
+under `"batched"` only) draws an edge row from its `EdgePaint` as a straight line pulled from its two nodes' rows,
+the piece and look an `Edge`'s plain pulled line takes. `paintRow` returns false for a paint only an `Edge` draws:
+a cap, words, a band, a dash, a curve, bends, a gap, a fan, a support point, an animation, a width of 0, or lines
+fading by age. A self-loop, a route the layout's map arcs, and an end drawn behind edges are the caller's to rule
+out. Nothing calls it yet: ingest still builds every `Edge`, so a row with no `Edge` is one that was removed. The
+next pull request skips `buildEdge` under `"batched"`, paints such rows from the frame's paint loop
+(`UpdateManager.paintEdgeBatch`, as `unbuiltPainted` does for nodes), renumbers them on a freeze, and makes
+`edges` and `edgesByIndex` views. The edge ID target (`EdgeIdTarget`) still reads `Edge`s, so a row line is not
+yet hovered or picked.
+
+Stage 27's seventh pull request: `Edge.pullsLine` ran for every edge twice during a load, once when the `Edge` was
+built from the bootstrap paint and once when its paint arrived. Its style-only part (the keys a style sets, a solid
+line, no words, cap or band) is now judged once per style object (`pulledLook` in `Edge.ts`), which the painter
+shares between every edge drawn in one look; what reads the edge (its ends, its route, a self-loop, the scene) still
+runs per edge. `test/browser/pulled-edges-on-graph.test.ts` counts it: a 3,000-edge batched load judged 6,000 looks
+and now judges 2. Profiled at 100k + 1M (WebGPU, batched, `lean-m`, two interleaved runs each), `pullsLine`'s load
+time fell from about 1.48 s to 0.65 s; what is left is the per-edge part. The objects path never reaches the check.
+
+Stage 27's eighth pull request: a row line follows a freeze. On `snapshot-replaced` the element hands both of the
+report's remaps to `EdgeRowLines.rowsMoved`, which moves each line to its edge's new row and pulls it from its
+nodes' new rows; a line whose edge row or either node row the freeze dropped stops being drawn. A builder put back
+by undo (no old row named) drops the line too, so the data manager that paints row lines must queue such a row's
+paint again, as `walkNodeRemap` does for a node row with no `Node`. `test/browser/edge-row-lines.test.ts` counts
+it: after a node and its edge are removed, the other line is on its edge's new row with its nodes' new rows, and
+the removed edge's line is gone. Nothing paints row lines yet, so neither path draws differently.
+
+Stage 27's ninth pull request: a row line goes when the data is cleared. The eighth pull request's freeze does not
+cover a clear: the emptied graph is frozen lazily, so until something reads it no `snapshot-replaced` names the
+dropped rows, and the lines stayed while the mesh cache disposed the batches they were drawn in. The data manager's
+clear (`dropEverythingRendered`) now clears `EdgeRowLines` itself, before the mesh cache lets the batches go.
+`test/browser/edge-row-lines.test.ts` counts it: two lines are gone when `clearData` returns, and a line painted
+after the next load takes a live batch. Nothing paints row lines yet, so neither path draws differently.
 
 | #   | Stage                               | Issues                          | What it changes                                                                                                                                                                                                                                                                                         | Depends on                                                                                                                                       | R   | Target                                                                                                                                                                                               | Proving test                                                                                                                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

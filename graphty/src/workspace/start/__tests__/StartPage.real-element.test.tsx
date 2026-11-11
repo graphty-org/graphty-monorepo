@@ -425,6 +425,21 @@ describe("the start page's ways in", () => {
         assert.equal(opened.data.statistics().nodeCount, 3);
     });
 
+    it("opens a model chosen from Open a file as a project drawing it, as a dropped one does", async () => {
+        const { store } = await startPage();
+
+        // An OBJ model is text: one triangle.
+        await commands.chooseNextFile("tri.obj", "text/plain", "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n");
+        const opened = await openBy(store, () => userEvent.click(screen.getByRole("button", { name: /^Open a file/ })));
+        assert.equal(store.get().project?.name, "tri");
+        await waitFor(() => {
+            const named = opened.styles.list().map((layer) => layer.set?.["node.model"]);
+            assert.isTrue(
+                named.some((ref) => typeof ref === "string" && opened.assets.find(ref)?.state === "accepted"),
+            );
+        });
+    });
+
     it("reopens the newest recent project from Resume", async () => {
         // A saved project to resume: the start page's own graph, saved as soon as it has loaded.
         const first = render(<Workspace store={createWorkspaceStore()} />);

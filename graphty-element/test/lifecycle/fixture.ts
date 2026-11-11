@@ -192,7 +192,7 @@ el.layout = "fixed";
 // dataMaxWaitMs (10 s by default); 1 s keeps a test short without changing what is written.
 // delay=<ms> holds every write back, so only a lifecycle event writes an edit.
 const delay = params.has("delay") ? Number(params.get("delay")) : undefined;
-el.autosaveOptions = delay === undefined ? { dataMaxWaitMs: 1000 } : { delayMs: delay, maxWaitMs: delay, dataMaxWaitMs: delay };
+el.autosaveOptions = { ...(delay === undefined ? { dataMaxWaitMs: 1000 } : { delayMs: delay, maxWaitMs: delay, dataMaxWaitMs: delay }), ...(params.get("keepCamera") === "1" ? { keepCamera: true } : {}) };
 let lastSaved = 0;
 el.addEventListener("graphty-autosave-status", (e) => {
     const s = e.detail;
@@ -255,6 +255,8 @@ window.fixture = {
         await el.session.runs.start("degree", undefined, { as: "hidden-run", style: false });
     },
     status: () => el.autosaver.status,
+    camera: () => el.getCameraState(),
+    placeCamera: (state) => el.setCameraState(state, { animate: false }),
     listed,
     async check() {
         await ready;

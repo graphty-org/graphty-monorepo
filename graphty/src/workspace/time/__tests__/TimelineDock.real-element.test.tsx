@@ -736,10 +736,10 @@ describe("the timeline across a reload", () => {
         await session.time.stepBy(3);
         session.time.play({ interval: 60_000, motion: "steps" });
         assert.isTrue(session.time.playing);
-        await waitFor(() => {
-            assert.strictEqual(autosaver.status.state, "saved");
-        });
-        // The window the reader leaves on: a step of the play can land before the save.
+        // Autosave holds its writes while time plays (the layout moves on every step), so the
+        // reload's own write is what keeps the work: leaving a page flushes it, as here.
+        await autosaver.flush();
+        assert.isTrue(session.time.playing);
         const window = session.time.current;
         view.unmount();
 

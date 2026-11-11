@@ -5,6 +5,7 @@
  */
 import "../../src/graphty-element";
 
+import { TransformNode } from "@babylonjs/core";
 import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
@@ -409,6 +410,34 @@ describe("changed rows on real nodes and edges", () => {
         assert.isAbove(withNodes.entered.nodes + withNodes.left.nodes, 0, "the step moved nodes");
         assert.isAbove(thaw.mock.calls.length, 0, "the list of what is drawn was made again");
         assertDrawnAsVisible(element, "after a step that moved nodes");
+    });
+
+    it("keeps the frozen list of what is drawn through a step that shows and hides batched nodes", async () => {
+        const element = await slidingElement(({ graph }) => {
+            graph.setRenderPath("batched");
+            return Promise.resolve();
+        });
+        const { session, graph } = element;
+        const scene = graph.getScene();
+        await vi.waitFor(() => {
+            assert.strictEqual(graph.rowCounts.objectNodes, 0, "every node is drawn by a batch");
+            assert.isTrue(scene._activeMeshesFrozen, "the scene at rest froze what it draws");
+        });
+        const thaw = vi.spyOn(scene, "unfreezeActiveMeshes");
+        const toggle = vi.spyOn(TransformNode.prototype, "setEnabled");
+        const step = await session.time.seek(505, { commit: false });
+        await drawn(element);
+        const moved = step.entered.nodes + step.left.nodes;
+        assert.isAbove(moved, 0, "the step moved nodes");
+        assert.strictEqual(thaw.mock.calls.length, 0, "the list of what is drawn was not made again");
+        // Each moved node enables or disables its anchor, which draws nothing, and nothing else.
+        assert.isAtMost(toggle.mock.calls.length, moved, "no mesh beyond the moved nodes' anchors was toggled");
+        assert.strictEqual(graph.rowCounts.objectNodes, 0, "every node is still drawn by a batch");
+        const { visibility } = session;
+        for (const node of graph.getDataManager().nodes.values()) {
+            const state = node.getRenderState();
+            assert.strictEqual(state === "visible", visibility.isVisible(node.id), `node ${String(node.id)}`);
+        }
     });
 
     it("places the edges of a node a Ghost step resized, and only those, with no walk", async () => {

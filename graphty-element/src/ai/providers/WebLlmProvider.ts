@@ -6,7 +6,7 @@
 
 import { aiProviderDescriptor } from "../../catalog/ai";
 import { GraphtyError } from "../../errors/GraphtyError";
-import { missingPackage } from "../missingPackage";
+import { toolJsonSchema } from "../engine/jsonSchema";
 import type {
     LlmProvider,
     LlmResponse,
@@ -474,7 +474,7 @@ export class WebLlmProvider implements LlmProvider {
             const sendTools = this.shouldSendTools(tools, options?.toolChoice);
 
             let response = (await engine.chat.completions.create(
-                await this.buildRequest(messages, sendTools ? tools : [], false),
+                this.buildRequest(messages, sendTools ? tools : [], false),
             )) as OpenAiResponse;
 
             // Sent tools, WebLLM constrains a Hermes model to a JSON list of calls, so it cannot
@@ -486,7 +486,7 @@ export class WebLlmProvider implements LlmProvider {
                 }
 
                 response = (await engine.chat.completions.create(
-                    await this.buildRequest(messages, [], false),
+                    this.buildRequest(messages, [], false),
                 )) as OpenAiResponse;
             }
 
@@ -535,7 +535,7 @@ export class WebLlmProvider implements LlmProvider {
             const sendTools = this.shouldSendTools(tools);
 
             const stream = await engine.chat.completions.create(
-                await this.buildRequest(messages, sendTools ? tools : [], true),
+                this.buildRequest(messages, sendTools ? tools : [], true),
             );
 
             let accumulatedText = "";
@@ -620,11 +620,11 @@ export class WebLlmProvider implements LlmProvider {
      * @param stream - Whether to stream the response
      * @returns The request
      */
-    private async buildRequest(
+    private buildRequest(
         messages: Message[],
         tools: ToolDefinition[],
         stream: boolean,
-    ): Promise<OpenAiRequestOptions & { messages: OpenAiMessage[] }> {
+    ): OpenAiRequestOptions & { messages: OpenAiMessage[] } {
         // OpenAI API requires snake_case keys
         /* eslint-disable camelcase */
         const request: OpenAiRequestOptions & { messages: OpenAiMessage[] } = {
@@ -638,7 +638,7 @@ export class WebLlmProvider implements LlmProvider {
         }
 
         if (tools.length > 0) {
-            request.tools = await this.convertTools(tools);
+            request.tools = this.convertTools(tools);
             request.tool_choice = "auto";
         }
         /* eslint-enable camelcase */
@@ -694,21 +694,14 @@ export class WebLlmProvider implements LlmProvider {
      * @param tools - Tool definitions to convert
      * @returns Array of OpenAI formatted tool objects
      */
-    private async convertTools(tools: ToolDefinition[]): Promise<Record<string, unknown>[]> {
-        // `ai` is an optional peer: see `missingPackage`.
-        let asSchema: typeof import("ai").asSchema;
-        try {
-            ({ asSchema } = await import("ai"));
-        } catch (error) {
-            throw missingPackage("ai", "webllm", error);
-        }
+    private convertTools(tools: ToolDefinition[]): Record<string, unknown>[] {
         return tools.map((t) => ({
             type: "function",
             function: {
                 name: t.name,
                 description: t.description,
                 // WebLLM writes the tools into the model's prompt as JSON, so it needs JSON Schema, not Zod
-                parameters: asSchema(t.parameters).jsonSchema,
+                parameters: toolJsonSchema(t.parameters),
             },
         }));
     }

@@ -18,6 +18,7 @@ import { page, userEvent } from "vitest/browser";
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { selectWithTwin } from "../../../test/twin-layer";
+import { nodeModelsOn } from "../../features";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { DEFAULT_NAME_KEY } from "../cards";
@@ -199,9 +200,14 @@ describe("the layer panel", () => {
             await session.selection.apply({ nodes: [idOf("Cosette")] });
         });
         await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
-        // Fill holds one property: its "+" adds it, with no menu of one item.
+        // Fill holds one property: its "+" adds it, with no menu of one item. With the node-models
+        // experiment on it also offers Picture, so the "+" opens a menu.
         await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
-        assert.isNull(screen.queryByRole("menu"), "no menu");
+        if (nodeModelsOn(session)) {
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
+        } else {
+            assert.isNull(screen.queryByRole("menu"), "no menu");
+        }
         await waitFor(() => {
             assert.isNotNull(document.activeElement?.closest('[data-line="node.color"]'), "focus in the new line");
         });

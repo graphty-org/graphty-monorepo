@@ -30,6 +30,7 @@ import { fileURLToPath } from "node:url";
 
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
+import { loadEnv } from "vite";
 import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
@@ -39,6 +40,14 @@ import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { baseTest } from "../vitest.base.mjs";
 import { isTileServer, mapTileCommands } from "../vitest.map-tiles.mjs";
+
+/** Whether this run names the paid llm-regression project (`--project llm-regression`). */
+const LLM_REGRESSION_ASKED = process.argv.some(
+    (arg, i, argv) => arg === "--project=llm-regression" || (arg === "--project" && argv[i + 1] === "llm-regression"),
+);
+
+/** The variables test/helpers/llm-regression-env.ts reads: the settings and each provider's key. */
+const LLM_REGRESSION_ENV = ["LLM_REGRESSION_", "GOOGLE_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"];
 
 /**
  * Each pre-push gate shard's own Vite dependency cache (tools/test-slots.mjs shardCacheDir()), set
@@ -131,6 +140,13 @@ const LODASH_FUNCTIONS = [
 const WORKSPACE_DIST = /\/(graph-format|graph-io|graph-samples|algorithms|layout|webgpu-graph-algorithms)\/dist\//;
 
 /**
+ * The AI adapter's frameworks, which the element loads with `import()` on an assistant's first
+ * turn. Pre-bundled for the same reason: found mid-run, they would make Vite re-optimize and reload
+ * the page under the test that is running.
+ */
+const AI_FRAMEWORKS = ["@tanstack/ai", "@tanstack/ai-openai", "@tanstack/ai-anthropic", "@tanstack/ai-gemini"];
+
+/**
  * The optional Graphviz package, which only the Graphviz layouts' Worker imports. Discovered
  * there mid-run, Vite re-optimizes its dependencies and deletes the chunks the page already
  * holds, and Babylon's next lazy shader import fails to fetch.
@@ -208,7 +224,7 @@ const ELEMENT_DEPENDENCIES = [
 ];
 
 /** Everything the browser projects pre-bundle up front. */
-const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS, ...GRAPHVIZ, ...MODEL_CHUNK];
+const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS, ...AI_FRAMEWORKS, ...GRAPHVIZ, ...MODEL_CHUNK];
 
 /** The browser tests that exercise WebXR: the "xr" project runs them and "browser" does not. */
 const XR_BROWSER_TESTS = [
@@ -216,6 +232,7 @@ const XR_BROWSER_TESTS = [
     "test/browser/xr-session.test.ts",
     "test/browser/XRUIManager.test.ts",
     "test/browser/NodeBehavior-xr-compatibility.test.ts",
+    "test/interactions/xr/xr-voice.test.ts",
 ];
 
 /** The files "forced-batched" leaves out, each with its reason. */
@@ -443,7 +460,7 @@ const OWN_ENTRY_POINTS = {
  * on macOS and Windows only). `test/config/vitest-config-loads-with-ci-gpu-values.test.ts` loads
  * this file under each of those values so the next one is caught on Linux.
  *
- * With GRAPHTY_BROWSER_GPU unset the project launches with NO flags, which is what the five CI
+ * With GRAPHTY_BROWSER_GPU unset the project launches with NO GPU flags, which is what the five CI
  * shards do and why they see no WebGPU at all: the element's browser tests run against the fake
  * accelerator. `test/browser/webgpu-layout.test.ts` asks for a real card, and the
  * `graphty-element-webgpu` shard runs `test/browser/webgpu-renderer.test.ts` on SwiftShader.
@@ -458,6 +475,21 @@ const BROWSER_GPU_FLAGS: Readonly<Record<string, readonly string[]>> = {
         "--enable-features=Vulkan",
         "--use-vulkan=swiftshader",
         "--disable-vulkan-surface",
+    ],
+    // SwiftShader with the frame rate unlimited, as `benchmarks/compare/run.mjs` launches the
+    // real card: the loop's ticks then outrun the GPU, so a test can build a queue of frames on
+    // the device (test/browser/webgpu-frame-pacing.test.ts). With the limit on, Chromium holds
+    // the page's frames to the GPU's pace and no queue builds.
+    "swiftshader-unthrottled": [
+        "--enable-unsafe-webgpu",
+        "--use-angle=swiftshader",
+        "--enable-unsafe-swiftshader",
+        "--use-webgpu-adapter=swiftshader",
+        "--enable-features=Vulkan",
+        "--use-vulkan=swiftshader",
+        "--disable-vulkan-surface",
+        "--disable-gpu-vsync",
+        "--disable-frame-rate-limit",
     ],
     // The host matrix on macOS: Dawn's Metal backend when headless Chromium reaches the VM's
     // device with the blocklist ignored, SwiftShader otherwise.
@@ -508,6 +540,17 @@ function browserLaunchEnv(): Record<string, string> | undefined {
     return env;
 }
 
+/**
+ * Chromium's fake microphone (a tone), the microphone prompt answered yes, and audio allowed to
+ * play without a gesture, for the voice tests (`test/browser/ai/voice-paths.test.ts`). They touch
+ * nothing but media, and every launch of the `browser` project carries them.
+ */
+const MEDIA_FLAGS = [
+    "--use-fake-device-for-media-stream",
+    "--use-fake-ui-for-media-stream",
+    "--autoplay-policy=no-user-gesture-required",
+];
+
 /** One Playwright Chromium entry for a browser project's `instances`. */
 /** What `test/gpu-loss/` asks of the browser from outside the page. */
 const gpuLossCommands: {
@@ -557,7 +600,7 @@ interface ChromiumInstance {
  */
 function browserInstance(): ChromiumInstance {
     if (browserGpu === "") {
-        return { browser: "chromium" };
+        return { browser: "chromium", provider: playwright({ launchOptions: { args: [...MEDIA_FLAGS] } }) };
     }
 
     const args = BROWSER_GPU_FLAGS[browserGpu];
@@ -573,7 +616,11 @@ function browserInstance(): ChromiumInstance {
     return {
         browser: "chromium",
         provider: playwright({
-            launchOptions: { args: [...args], channel: BROWSER_GPU_CHANNEL[browserGpu], env: browserLaunchEnv() },
+            launchOptions: {
+                args: [...args, ...MEDIA_FLAGS],
+                channel: BROWSER_GPU_CHANNEL[browserGpu],
+                env: browserLaunchEnv(),
+            },
         }),
     };
 }
@@ -1303,6 +1350,8 @@ const config = defineConfig({
                     setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, "./test/setup.ts"],
                     include: ["test/interactions/**/*.test.ts"],
                     exclude: [
+                        // The XR voice test runs real immersive sessions: see the "xr" project
+                        ...XR_BROWSER_TESTS,
                         // Exclude experimental/temporary folders ending with ~
                         "**/*~/**",
                         "**/*~",
@@ -1413,11 +1462,15 @@ const config = defineConfig({
             // runs; openai and anthropic also work) and its key variable (GOOGLE_API_KEY, ...; never VITE_-prefixed,
             // which the browser project's envPrefix would put on import.meta.env). Its seven real test
             // files sit inside describe.skipIf(skipIfNoApiKey()), so without a key they skip; the release
-            // job checks the key is set first and fails if it is not.
+            // job checks the key is set first and fails if it is not. Locally the key comes from the
+            // repository's .env, the one the dev server reads, but only for a run that asks for this
+            // project by name (npm run test:llm-regression): a plain `vitest run test/ai/` must not
+            // spend money. CI sets the key in the environment.
             {
                 define: { ...define },
                 test: {
                     name: "llm-regression",
+                    env: LLM_REGRESSION_ASKED ? loadEnv("", "..", LLM_REGRESSION_ENV) : {},
                     setupFiles: ["./test/ai/llm-regression/setup.ts"],
                     include: ["test/ai/llm-regression/**/*.test.ts"],
                     exclude: [

@@ -8,6 +8,8 @@
  * hands them back to Graphviz as the file gave them.
  */
 
+import { INVALID_INDEX } from "@graphty/graph-format";
+
 import type { RankSet } from "../../data/groups";
 import type { NodeIdType } from "../../Node";
 import type { DotEdge, DotStructure } from "./toDot";
@@ -166,7 +168,7 @@ function attributeText(name: string, value: string): string {
 
 /**
  * The structure to hand Graphviz.
- * @param rowOf - each node id's row, or a negative number for none
+ * @param rowOf - each node id's row, or a negative number or `INVALID_INDEX` for none (a node the run leaves out)
  * @param edges - the edges, in the order they arrived
  * @param groups - each group's row with its data
  * @param ranks - the rank subgraphs
@@ -190,7 +192,7 @@ export function graphvizStructure<E extends EdgeLike>(
     for (const edge of edges) {
         const src = rowOf(edge.srcId);
         const dst = rowOf(edge.dstId);
-        if (src >= 0 && dst >= 0) {
+        if (isRow(src) && isRow(dst)) {
             dotEdges.push({ src, dst, attributes: edgeAttributes(edge.data, rowOf, groups) });
             edgeOf.push(edge);
         }
@@ -200,10 +202,19 @@ export function graphvizStructure<E extends EdgeLike>(
         edges: dotEdges,
         edgeOf,
         groupAttributes: new Map([...groups].map(([row, data]) => [row, attributesOf(data, CLUSTER_ATTRIBUTES)])),
-        ranks: ranks.map(({ rank, members }) => ({ rank, rows: members.map(rowOf).filter((row) => row >= 0) })),
+        ranks: ranks.map(({ rank, members }) => ({ rank, rows: members.map(rowOf).filter(isRow) })),
         ...(nodes === undefined ? {} : { nodeAttributes: nodeAttributes(nodes, sizing) }),
         ...(sizing === undefined ? {} : { labelSized: true }),
     };
+}
+
+/**
+ * Whether `rowOf` answered a row.
+ * @param row - its answer
+ * @returns true for a row
+ */
+function isRow(row: number): boolean {
+    return row >= 0 && row !== INVALID_INDEX;
 }
 
 /**

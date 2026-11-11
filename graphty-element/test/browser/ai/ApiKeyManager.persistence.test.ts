@@ -26,6 +26,70 @@ describe("ApiKeyManager Persistence", () => {
         sessionStorage.clear();
     });
 
+    describe("forgetKey", () => {
+        it("removes one provider's key from both storages and leaves the others", () => {
+            const inTab = new ApiKeyManager({ prefix: testPrefix });
+            inTab.enablePersistence({ storage: "sessionStorage", prefix: testPrefix });
+            inTab.setKey("google", "tab-key-long-enough");
+            const onDevice = new ApiKeyManager({ prefix: testPrefix });
+            onDevice.enablePersistence({ storage: "localStorage", prefix: testPrefix });
+            onDevice.setKey("google", "device-key-long-enough");
+            onDevice.setKey("openai", "sk-other-key-long-enough");
+
+            onDevice.forgetKey("google");
+
+            assert.isFalse(onDevice.hasKey("google"));
+            for (const storage of ["localStorage", "sessionStorage"] as const) {
+                const fresh = new ApiKeyManager({ prefix: testPrefix });
+                fresh.enablePersistence({ storage, prefix: testPrefix });
+                assert.isFalse(fresh.hasKey("google"), storage);
+            }
+            assert.isTrue(new ApiKeyManager({ prefix: testPrefix }).hasKey("openai"));
+        });
+    });
+
+    describe("forgetKeys", () => {
+        it("removes every provider's key from both storages", () => {
+            const inTab = new ApiKeyManager({ prefix: testPrefix });
+            inTab.enablePersistence({ storage: "sessionStorage", prefix: testPrefix });
+            inTab.setKey("google", "tab-key-long-enough");
+            const onDevice = new ApiKeyManager({ prefix: testPrefix });
+            onDevice.enablePersistence({ storage: "localStorage", prefix: testPrefix });
+            onDevice.setKey("openai", "sk-other-key-long-enough");
+
+            onDevice.forgetKeys();
+
+            for (const storage of ["localStorage", "sessionStorage"] as const) {
+                const fresh = new ApiKeyManager({ prefix: testPrefix });
+                fresh.enablePersistence({ storage, prefix: testPrefix });
+                assert.deepEqual(fresh.getConfiguredProviders(), [], storage);
+            }
+        });
+    });
+
+    describe("retireOtherStorage", () => {
+        it("moves a key out of the storage the host moved away from, either way", () => {
+            for (const [from, to] of [
+                ["localStorage", "sessionStorage"],
+                ["sessionStorage", "localStorage"],
+            ] as const) {
+                const before = new ApiKeyManager({ prefix: testPrefix });
+                before.enablePersistence({ storage: from, prefix: testPrefix });
+                before.setKey("google", "moved-key-long-enough");
+
+                const after = new ApiKeyManager({ prefix: testPrefix });
+                after.enablePersistence({ storage: to, prefix: testPrefix });
+                after.retireOtherStorage();
+
+                assert.strictEqual(after.getKey("google"), "moved-key-long-enough");
+                const area = from === "localStorage" ? localStorage : sessionStorage;
+                assert.isNull(area.getItem(`${testPrefix}:keys`));
+                localStorage.clear();
+                sessionStorage.clear();
+            }
+        });
+    });
+
     describe("enablePersistence", () => {
         it("enables persistence with encryption key", () => {
             const manager = new ApiKeyManager();

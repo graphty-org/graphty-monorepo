@@ -2,6 +2,7 @@ import type { Observable, Scene } from "@babylonjs/core";
 
 import type { AccelerationController } from "../acceleration";
 import type { XRConfig } from "../config/XRConfig";
+import type { EdgeRowLines } from "../meshes/EdgeRowLines";
 import type { MeshCache } from "../meshes/MeshCache";
 import type { NodeBatches } from "../meshes/NodeBatch";
 import type { DrawnTarget, RowTable } from "../render/RowTable";
@@ -79,11 +80,26 @@ export interface GraphContext {
     getRowTable?(): RowTable | null;
 
     /**
+     * Whether a straight pulled line draws the lean program (`EDGE_PULLED_LEAN`): only with
+     * `antialias` false and the `"batched"` path's batches open. Optional, as `getRowTable` is.
+     * @returns True when it does.
+     * @internal
+     */
+    leansLines?(): boolean;
+
+    /**
      * The node batches, on the `"batched"` render path.
      * @returns The batches, or null.
      * @internal
      */
     getNodeBatches?(): NodeBatches | null;
+
+    /**
+     * The edge rows drawn with no `Edge`, on the `"batched"` render path.
+     * @returns The row lines, or null.
+     * @internal
+     */
+    getEdgeRowLines?(): EdgeRowLines | null;
 
     /**
      * Get the Babylon.js Scene

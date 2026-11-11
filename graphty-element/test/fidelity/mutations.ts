@@ -3,13 +3,16 @@
  * primitives and returns them with one visual defect, the way a broken importer or renderer would draw them.
  */
 import {
+    arrowMiss,
     browserFace,
     browserFontClass,
     lineAlign,
+    lineWidthMiss,
     ORACLE_TOLERANCES,
     type OracleProperty,
     type OracleReport,
     programFace,
+    renderPixel,
     withoutCaptions,
 } from "./oracle/compare-oracle";
 import {
@@ -1137,73 +1140,131 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
 };
 
 /**
- * Where a defect can be planted at all. A mirror is told only between related layouts: where graphty lays the graph
- * out itself (a file with no positions), its drawing mirrored is another layout as unrelated as the first.
+ * Each of graphty's edges the unplanted comparison paired with one of the program's, with it.
+ * @param base - the unplanted comparison
+ * @param oracle - the program's drawing
+ * @param graphty - graphty's, unplanted
+ * @returns the pairs, the program's edge first
  */
-const APPLIES: Partial<Record<keyof typeof DEFECTS, (base: OracleReport, oracle: PScene) => boolean>> = {
-    // only where half a group's outline is more than a box's side may be off: wider than a tenth of its smaller side
-    "group box grown by half its outline width": (base, oracle) =>
-        oracle.groups.some(
-            (g) =>
-                g.stroke !== null &&
-                Number.isFinite(g.stroke.width) &&
-                g.stroke.width / 2 >
-                    Math.max(
-                        ORACLE_TOLERANCES.groupSideOfSize * Math.min(g.box.x1 - g.box.x0, g.box.y1 - g.box.y0),
-                        ORACLE_TOLERANCES.pixel * (base.transform?.lengthScale ?? 1),
-                    ),
-        ),
-    "whole drawing mirrored": (base) => base.transform !== null && !base.transform.unrelatedLayout,
-    // a quarter more of a head is more than the render pixel a head's size is allowed only on a head five or more
-    // pixels long (json-vis-siblings draws them under four)
-    "arrowheads x1.25": (base, oracle) =>
-        oracle.edges.some((e) =>
-            e.arrows.some((a) => 0.25 * a.length > ORACLE_TOLERANCES.pixel * (base.transform?.lengthScale ?? 1)),
-        ),
-    // a bend is judged edge by edge only where the layouts are related or the file places its nodes; where each program
-    // lays the file out itself, only the drawing's share of bent lines is (compare-oracle.ts), which straightening
-    // every line moves out of its band only where the program bends enough of its own, and bowing every straight one
-    // only where it leaves enough straight; an arc drawn as a wave keeps its share
-    "curved edges straightened": (base, oracle) =>
-        curveByEdge(base) || (curveJudged(base) && bentShare(oracle) > ORACLE_TOLERANCES.curvedShare),
-    "straight edges bowed": (base, oracle) =>
-        curveByEdge(base) || (curveJudged(base) && bentShare(oracle) < 1 - ORACLE_TOLERANCES.curvedShare),
-    "curved edges drawn as sine waves (arc->sine)": (base) => curveByEdge(base),
-    // where each program lays the file out itself, where a node sits is its layout's and is not judged
-    "one node moved twice its size": (base) => base.properties["node.position"].passRate !== null,
-    // a bend a twenty-fifth of the chord off is over the route's allowance only where that is more than its end
-    // nodes' smaller side, and routes are judged only between related layouts
-    "longest straight edge bent off its chord by a twenty-fifth of its length": (base, oracle) => {
-        const byId = new Map(oracle.nodes.map((n) => [n.id, n]));
-        return (
-            base.transform !== null &&
-            !base.transform.unrelatedLayout &&
-            oracle.edges.some((e) => {
-                const [a, b] = [e.points[0], e.points[e.points.length - 1]];
-                const ends = [byId.get(e.source), byId.get(e.target)];
-                return (
-                    a !== undefined &&
-                    b !== undefined &&
-                    ends.every(
-                        (n) =>
-                            n !== undefined &&
-                            0.04 * Math.hypot(b[0] - a[0], b[1] - a[1]) >
-                                2 *
-                                    Math.max(
-                                        Math.min(n.w, n.h),
-                                        10 * ORACLE_TOLERANCES.pixel * (base.transform?.lengthScale ?? 1),
-                                    ),
-                    )
-                );
-            })
-        );
-    },
-    "whole drawing turned 20deg": (base) => base.transform !== null && !base.transform.unrelatedLayout,
-    // a face is told only where the program names one the pinned fonts carry; elsewhere only its class is. A
-    // caption's face is not judged: a DOT sheet's captions are DejaVu Sans, its `default` specimen Graphviz's Times
-    "label face swapped within its class (DejaVu<->Liberation)": (_base, oracle) =>
-        allTexts(withoutCaptions(oracle)).some((t) => programFace(t.family) !== null),
+const pairedEdges = (base: OracleReport, oracle: PScene, graphty: PScene): [PEdge, PEdge][] => {
+    const byId = new Map(oracle.edges.map((e) => [e.id, e]));
+    return graphty.edges.flatMap((g): [PEdge, PEdge][] => {
+        const o = byId.get(base.paired.edges[g.id] ?? "");
+        return o === undefined ? [] : [[o, g]];
+    });
 };
+
+/**
+ * Whether scaling graphty's arrowheads by `k` moves some head's length or width out of the comparison's tolerance of
+ * the program's head on the same edge. Ends are not matched (a line graphty runs the other way swaps them), so a head
+ * is tried against each of the program's heads on its edge.
+ * @param k - the scale
+ * @param base - the unplanted comparison
+ * @param oracle - the program's drawing
+ * @param graphty - graphty's, unplanted
+ * @returns true when some head would miss
+ */
+const headsMissScaled = (k: number, base: OracleReport, oracle: PScene, graphty: PScene): boolean => {
+    const scale = base.transform?.lengthScale ?? 1;
+    const pixel = renderPixel(oracle, graphty, scale, base.transform?.unrelatedLayout === true);
+    return pairedEdges(base, oracle, graphty).some(([o, g]) =>
+        g.arrows.some((ga) =>
+            o.arrows.some(
+                (oa) =>
+                    arrowMiss(oa.length, k * ga.length * scale, pixel) > 0 ||
+                    arrowMiss(oa.width, k * ga.width * scale, pixel) > 0,
+            ),
+        ),
+    );
+};
+
+/**
+ * Where a defect can be planted at all. A mirror is told only between related layouts: where graphty lays the graph
+ * out itself (a file with no positions), its drawing mirrored is another layout as unrelated as the first. A defect
+ * that scales what graphty draws a little is plantable only where the scaled size, judged against the program's as
+ * the comparison judges it, falls outside the tolerance: graphty's own size, not the program's, is what is scaled.
+ */
+const APPLIES: Partial<Record<keyof typeof DEFECTS, (base: OracleReport, oracle: PScene, graphty: PScene) => boolean>> =
+    {
+        // only where half a group's outline is more than a box's side may be off: wider than a tenth of its smaller side
+        "group box grown by half its outline width": (base, oracle) =>
+            oracle.groups.some(
+                (g) =>
+                    g.stroke !== null &&
+                    Number.isFinite(g.stroke.width) &&
+                    g.stroke.width / 2 >
+                        Math.max(
+                            ORACLE_TOLERANCES.groupSideOfSize * Math.min(g.box.x1 - g.box.x0, g.box.y1 - g.box.y0),
+                            ORACLE_TOLERANCES.pixel * (base.transform?.lengthScale ?? 1),
+                        ),
+            ),
+        "whole drawing mirrored": (base) => base.transform !== null && !base.transform.unrelatedLayout,
+        // a quarter more of a head is told only where it takes the head out of the ratio band and more than a render
+        // pixel off the program's: json-vis-siblings draws heads under five oracle pixels at 0.92 of vis-network's, which a
+        // quarter more puts at 1.15, inside the band and within a pixel (#6433)
+        "arrowheads x1.25": (base, oracle, graphty) => headsMissScaled(1.25, base, oracle, graphty),
+        // a line under a pixel wide shows its width only as how dark the pixels it crosses are: json-vis-siblings's pastel
+        // lines a quarter of a pixel wide, drawn 1.4 times as wide, paint pixels within the color tolerance (#6433)
+        "edge width x1.4": (base, oracle, graphty) => {
+            const scale = base.transform?.lengthScale ?? 1;
+            return pairedEdges(base, oracle, graphty).some(
+                ([o, g]) =>
+                    o.stroke !== null &&
+                    g.stroke !== null &&
+                    Number.isFinite(o.stroke.width) &&
+                    lineWidthMiss(
+                        o.stroke.width,
+                        1.4 * g.stroke.width * (g.stroke.screen === true ? 1 : scale),
+                        o.stroke.color,
+                        o.stroke.opacity,
+                        oracle.background ?? "#ffffff",
+                    ) > 0,
+            );
+        },
+        // a bend is judged edge by edge only where the layouts are related or the file places its nodes; where each program
+        // lays the file out itself, only the drawing's share of bent lines is (compare-oracle.ts), which straightening
+        // every line moves out of its band only where the program bends enough of its own, and bowing every straight one
+        // only where it leaves enough straight; an arc drawn as a wave keeps its share
+        "curved edges straightened": (base, oracle) =>
+            curveByEdge(base) || (curveJudged(base) && bentShare(oracle) > ORACLE_TOLERANCES.curvedShare),
+        "straight edges bowed": (base, oracle) =>
+            curveByEdge(base) || (curveJudged(base) && bentShare(oracle) < 1 - ORACLE_TOLERANCES.curvedShare),
+        "curved edges drawn as sine waves (arc->sine)": (base) => curveByEdge(base),
+        // where each program lays the file out itself, where a node sits is its layout's and is not judged
+        "one node moved twice its size": (base) => base.properties["node.position"].passRate !== null,
+        // a bend a twenty-fifth of the chord off is over the route's allowance only where that is more than its end
+        // nodes' smaller side, and routes are judged only between related layouts
+        "longest straight edge bent off its chord by a twenty-fifth of its length": (base, oracle) => {
+            const byId = new Map(oracle.nodes.map((n) => [n.id, n]));
+            return (
+                base.transform !== null &&
+                !base.transform.unrelatedLayout &&
+                oracle.edges.some((e) => {
+                    const [a, b] = [e.points[0], e.points[e.points.length - 1]];
+                    const ends = [byId.get(e.source), byId.get(e.target)];
+                    return (
+                        a !== undefined &&
+                        b !== undefined &&
+                        ends.every(
+                            (n) =>
+                                n !== undefined &&
+                                0.04 * Math.hypot(b[0] - a[0], b[1] - a[1]) >
+                                    2 *
+                                        Math.max(
+                                            Math.min(n.w, n.h),
+                                            10 * ORACLE_TOLERANCES.pixel * (base.transform?.lengthScale ?? 1),
+                                        ),
+                        )
+                    );
+                })
+            );
+        },
+        "whole drawing turned 20deg": (base) => base.transform !== null && !base.transform.unrelatedLayout,
+        // a face is told only where the program names one the pinned fonts carry; elsewhere only its class is. A
+        // caption's face is not judged: a DOT sheet's captions are DejaVu Sans, its `default` specimen Graphviz's Times
+        "label face swapped within its class (DejaVu<->Liberation)": (_base, oracle) =>
+            allTexts(withoutCaptions(oracle)).some((t) => programFace(t.family) !== null),
+    };
 
 /** Whether bends are judged at all. */
 const curveJudged = (base: OracleReport): boolean => base.properties["edge.curve"].passRate !== null;
@@ -1219,7 +1280,7 @@ const bentShare = (oracle: PScene): number =>
 interface Mutation {
     readonly mutate: (s: PScene) => PScene;
     readonly targets: readonly OracleProperty[];
-    readonly applies: (base: OracleReport, oracle: PScene) => boolean;
+    readonly applies: (base: OracleReport, oracle: PScene, graphty: PScene) => boolean;
 }
 
 /** The planted defects, by name. */

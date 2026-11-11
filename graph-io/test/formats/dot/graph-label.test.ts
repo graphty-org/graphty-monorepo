@@ -71,6 +71,20 @@ describe("DOT root graph label", () => {
         expect(all.every((t) => t.at.x === 100)).toBe(true);
     });
 
+    it("places a graph that is not laid out yet against the side of its drawing that labelloc names", async () => {
+        // no bb and no lp: the place is the drawing's, once it is laid out, as Graphviz's place_root_label puts it
+        const [t, ...rest] = await texts(String.raw`digraph { graph [label="graph-label", labelloc="t"]; a; }`);
+        expect(rest).toEqual([]);
+        expect(t.at).toEqual({ x: 0, y: 0 });
+        expect(t.beside).toMatchObject({ side: "top", align: "center", height: 14 * 1.2 + 8 });
+        expect(t.beside?.width).toBeGreaterThan(16);
+        const lines = await texts(String.raw`graph { graph [label="one\ntwo", labeljust="r"]; a; }`);
+        expect(lines.map((l) => [l.text, Math.round(l.at.y * 1e6) / 1e6, l.beside?.side, l.beside?.align])).toEqual([
+            ["one", 14 * 1.2 * 0.5, "bottom", "right"],
+            ["two", -14 * 1.2 * 0.5, "bottom", "right"],
+        ]);
+    });
+
     it("draws nothing for a cluster's label or a graph without one", async () => {
         expect(await texts(`digraph { graph [${BB}]; subgraph cluster_x { label="c"; a [pos="320,464!"]; } }`)).toEqual(
             [],

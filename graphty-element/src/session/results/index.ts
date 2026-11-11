@@ -11,6 +11,17 @@
  * Nothing in this module's import graph reaches Babylon.js, Lit or the DOM.
  */
 
+export type {
+    ComparedField,
+    CompareSide,
+    ComparisonBase,
+    GroupMove,
+    GroupOverlap,
+    PartitionComparison,
+    RankChange,
+    RankingComparison,
+    ResultComparison,
+} from "./compare";
 export { englishReading } from "./reading";
 export { createResultsApi, type ResultsRunEntry } from "./ResultsApi";
 export { createRunResult, type ResultElementValues } from "./RunResult";

@@ -2069,6 +2069,8 @@ export abstract class LayoutEngine {
     abstract get isSettled(): boolean;
     protected keptEdges(graph: GraphSnapshot): EdgeMask | null;
     protected keptRows(rows: number): NodeMask | null;
+    // @internal
+    protected lastPublishedBox(): Readonly<Float64Array> | null;
     loadArrangement(): void;
     // (undocumented)
     static maxDimensions: number;
@@ -2082,6 +2084,8 @@ export abstract class LayoutEngine {
     protected abstract pin(n: Node_2): void;
     // @internal
     protected publishColumn(n: Node_2 | ElementPositions | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
+    // @internal
+    publishedBounds(): Readonly<Float64Array> | null;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     // @internal

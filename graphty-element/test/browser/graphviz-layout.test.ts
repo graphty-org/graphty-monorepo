@@ -180,7 +180,8 @@ describe("Graphviz layouts in the element", () => {
 
         const edge = [...graph.getDataManager().edges.values()].find((e) => e.srcId === "a" && e.dstId === "c");
         const dashes = edge?.drawnPattern ?? [];
-        assert.isAbove(dashes.length, 2, "the edge is drawn as dashes");
+        // two at least: the line stops behind its arrowhead, rather than running on under it and back (issue #6410)
+        assert.isAtLeast(dashes.length, 2, "the edge is drawn as dashes");
         const [a, c] = [at("a"), at("c")];
         const length = Math.hypot(c.x - a.x, c.y - a.y);
         const off = Math.max(

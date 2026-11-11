@@ -4350,7 +4350,7 @@ export class Edge {
 
         const lineStart = this.placeArrowTail(start, afterStart, afterStart.subtract(start).normalize(), path);
         const lineEnd = this.lineEndBefore(beforeEnd, end);
-        const flat = [lineStart.x, lineStart.y, lineStart.z, ...mid, lineEnd.x, lineEnd.y, lineEnd.z];
+        const flat = Edge.runUnderCaps(mid, start, end, lineStart, lineEnd);
         this.placeLineRun(batch, sampled ? flat : Edge.curveThroughBends(line, flat));
         return true;
     }
@@ -4388,8 +4388,34 @@ export class Edge {
 
         const lineStart = this.placeArrowTail(start, first, first.subtract(start).normalize(), path);
         const lineEnd = this.lineEndBefore(last, end);
-        const flat = [lineStart.x, lineStart.y, lineStart.z, ...mid, lineEnd.x, lineEnd.y, lineEnd.z];
+        const flat = Edge.runUnderCaps(mid, start, end, lineStart, lineEnd);
         this.placeLineRun(batch, round ? roundCorners(flat) : flat);
+    }
+
+    /**
+     * The run a bent line is drawn along: from where it starts behind its tail cap, through the route's points that lie
+     * further from each end than the line's own end there, to where it stops behind its head cap. A point nearer an
+     * end than the line's end lies under the cap, and a line run on to it and back pokes out of the cap's sides toward
+     * its tip (issue #6410).
+     * @param mid - The route's inner points, flat x, y, z, from the start.
+     * @param start - Where the route starts, at the tail cap's tip or the source's outline.
+     * @param end - Where the route ends, at the head cap's tip or the target's outline.
+     * @param lineStart - Where the line starts, behind the tail cap.
+     * @param lineEnd - Where the line ends, behind the head cap.
+     * @returns The run, flat x, y, z.
+     */
+    private static runUnderCaps(
+        mid: readonly number[],
+        start: Vector3,
+        end: Vector3,
+        lineStart: Vector3,
+        lineEnd: Vector3,
+    ): number[] {
+        const kept = clearOfCaps(mid, start, end, {
+            start: Vector3.Distance(start, lineStart),
+            end: Vector3.Distance(end, lineEnd),
+        });
+        return [lineStart.x, lineStart.y, lineStart.z, ...kept, lineEnd.x, lineEnd.y, lineEnd.z];
     }
 
     /**
@@ -5218,50 +5244,7 @@ export class Edge {
                 );
             }
         } else {
-            // AIMED HERE, BY THE ONE EDGE THAT IS ABOUT TO FIRE IT. A pass over every edge in the
-            // graph used to do this, once a frame, whether or not the edge had moved.
-            freshenWorldMatrix(srcMesh);
-            freshenWorldMatrix(dstMesh);
-
-            // CAST IN THE WORLD, DRAWN IN GRAPH-ROOT SPACE. The intersection is against the
-            // meshes' world geometry, so the ray runs between their world centres; the line is
-            // drawn under graph-root, so each hit is carried back as how far along the centre
-            // line it is, which a move, turn or scale of graph-root (an XR gesture) leaves alone.
-            const srcWorld = srcMesh.getAbsolutePosition();
-            const dstWorld = dstMesh.getAbsolutePosition();
-            this.ray.origin.copyFrom(srcWorld);
-            dstWorld.subtractToRef(srcWorld, this.ray.direction);
-            const worldSpan = this.ray.direction.length();
-
-            const dstHitInfo = this.ray.intersectsMeshes([dstMesh]);
-            // THE SOURCE IS MET FROM THE FAR END TOO. A ray cast from inside a node meets the nearest wall,
-            // which for a figure with arms (Pajek's man) is its body's, and the line would then run on
-            // across its own arm; coming in from the destination, the first wall is where the line
-            // finally leaves the outline, as it is for the destination.
-            this.ray.origin.copyFrom(dstWorld);
-            srcWorld.subtractToRef(dstWorld, this.ray.direction);
-            const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
-            // A node with no body (shape "none") has no face for the ray to meet: the line meets its box.
-            const along = (hits: typeof srcHitInfo, node: Node, toward: Node): Vector3 | null => {
-                // a node whose surface is its box (a glyph of pieces) is met at its box, not at a piece the ray crosses
-                const hit = node.surfaceIsBox ? null : hits[0]?.pickedPoint;
-                if (hit) {
-                    return Vector3.Lerp(
-                        srcMesh.position,
-                        dstMesh.position,
-                        Vector3.Distance(srcWorld, hit) / worldSpan,
-                    );
-                }
-
-                return node.shapeType === "none" || node.surfaceIsBox
-                    ? this.leaveNode(node, node.drawnPosition, toward.drawnPosition)
-                    : null;
-            };
-
-            if (worldSpan > 0) {
-                srcPoint = along(srcHitInfo, this.srcNode, this.dstNode);
-                dstPoint = along(dstHitInfo, this.dstNode, this.srcNode);
-            }
+            ({ srcPoint, dstPoint } = this.interceptPointsByShape(srcMesh, dstMesh));
         }
 
         if (srcPoint !== null && dstPoint !== null) {
@@ -5285,6 +5268,88 @@ export class Edge {
             srcPoint,
             dstPoint,
             newEndPoint,
+        };
+    }
+
+    /**
+     * Where the line leaves each end that is not round on both: worked out for an end whose surface is its box (a box,
+     * a rectangle left unturned, a glyph's box, a shape with no body), and met by a ray against the drawn mesh only for
+     * the others (a cylinder, a cone, a polyhedron, a flat outline), so an edge between boxes casts no ray (issue #412).
+     * @param srcMesh - The source node's drawn mesh.
+     * @param dstMesh - The target node's drawn mesh.
+     * @returns The two points, null where an end has none.
+     */
+    private interceptPointsByShape(
+        srcMesh: AbstractMesh,
+        dstMesh: AbstractMesh,
+    ): { srcPoint: Vector3 | null; dstPoint: Vector3 | null } {
+        const boxed = (node: Node): boolean =>
+            node.surfaceIsBox || node.shapeType === "none" || node.surfaceIsClosedForm;
+        // where the line leaves a boxed node: its box (its border is passed later, by pastBorders), or for a glyph or
+        // a shape with no body its box with its border, as before
+        const leave = (node: Node, toward: Node): Vector3 => {
+            const [from, to] = [node.drawnPosition, toward.drawnPosition];
+            if (!node.surfaceIsClosedForm) {
+                return this.leaveNode(node, from, to);
+            }
+            const dir = to.subtract(from).normalize();
+            return from.add(dir.scale(surfaceReach(dir, node.drawnHalfExtents, null)));
+        };
+        const [srcBoxed, dstBoxed] = [boxed(this.srcNode), boxed(this.dstNode)];
+        if (srcBoxed && dstBoxed) {
+            return this.srcNode.drawnPosition.equals(this.dstNode.drawnPosition)
+                ? { srcPoint: null, dstPoint: null }
+                : { srcPoint: leave(this.srcNode, this.dstNode), dstPoint: leave(this.dstNode, this.srcNode) };
+        }
+
+        // AIMED HERE, BY THE ONE EDGE THAT IS ABOUT TO FIRE IT. A pass over every edge in the
+        // graph used to do this, once a frame, whether or not the edge had moved.
+        freshenWorldMatrix(srcMesh);
+        freshenWorldMatrix(dstMesh);
+
+        // CAST IN THE WORLD, DRAWN IN GRAPH-ROOT SPACE. The intersection is against the
+        // meshes' world geometry, so the ray runs between their world centres; the line is
+        // drawn under graph-root, so each hit is carried back as how far along the centre
+        // line it is, which a move, turn or scale of graph-root (an XR gesture) leaves alone.
+        const srcWorld = srcMesh.getAbsolutePosition();
+        const dstWorld = dstMesh.getAbsolutePosition();
+        const worldSpan = Vector3.Distance(srcWorld, dstWorld);
+        if (worldSpan === 0) {
+            return { srcPoint: null, dstPoint: null };
+        }
+
+        // THE SOURCE IS MET FROM THE FAR END TOO. A ray cast from inside a node meets the nearest wall,
+        // which for a figure with arms (Pajek's man) is its body's, and the line would then run on
+        // across its own arm; coming in from the destination, the first wall is where the line
+        // finally leaves the outline, as it is for the destination.
+        const end = (
+            node: Node,
+            mesh: AbstractMesh,
+            boxedEnd: boolean,
+            from: Vector3,
+            to: Vector3,
+            toward: Node,
+        ): Vector3 | null => {
+            if (!boxedEnd) {
+                this.ray.origin.copyFrom(from);
+                to.subtractToRef(from, this.ray.direction);
+                const hit = this.ray.intersectsMeshes([mesh])[0]?.pickedPoint;
+                if (hit) {
+                    return Vector3.Lerp(
+                        srcMesh.position,
+                        dstMesh.position,
+                        Vector3.Distance(srcWorld, hit) / worldSpan,
+                    );
+                }
+            }
+
+            // a node whose surface is its box (a glyph of pieces, a shape with no body) is met at its box
+            return boxedEnd ? leave(node, toward) : null;
+        };
+
+        return {
+            srcPoint: end(this.srcNode, srcMesh, srcBoxed, dstWorld, srcWorld, this.dstNode),
+            dstPoint: end(this.dstNode, dstMesh, dstBoxed, srcWorld, dstWorld, this.srcNode),
         };
     }
 

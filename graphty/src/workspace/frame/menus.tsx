@@ -8,12 +8,10 @@ import { MenuItemDescription, MenuShortcut, TargetTooltip } from "@graphty/compa
 import { Menu, UnstyledButton, VisuallyHidden } from "@mantine/core";
 import React, { Fragment } from "react";
 
-import { offeredSamples } from "../../data/sampleManifest";
 import { FILE_LIST } from "../commands/registry";
 import { GLYPHS } from "../glyphs";
 import { ariaKey, formatKey } from "../keys/keys";
 import { RecentMenu } from "../project/RecentMenu";
-import { sampleCommandId } from "../start/commands";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 
 /**
@@ -117,59 +115,7 @@ export function Sections({ sections }: Readonly<{ sections: readonly (readonly s
 }
 
 /**
- * One row per start-screen sample, each running its "Open sample: <name>" command (a new project,
- * asking first over unsaved changes). Inside a menu titled for samples, so a row shows the name;
- * the one open now is checked and says so.
- * @returns The rows
- */
-function SampleItems(): React.JSX.Element {
-    const workspace = useWorkspace();
-    // The sample the graph was loaded from, read from where the element says it came from.
-    const loaded = workspace.session?.data.source()?.config?.url;
-    return (
-        <>
-            {offeredSamples().map((sample) => {
-                const open = loaded === sample.url;
-                return (
-                    <Menu.Item
-                        key={sample.id}
-                        // A check marks the one that is open; the others keep its room, so the names line up.
-                        leftSection={
-                            <GLYPHS.check size={14} aria-hidden style={{ visibility: open ? "visible" : "hidden" }} />
-                        }
-                        rightSection={open ? "Open now" : sample.size}
-                        aria-current={open ? "true" : undefined}
-                        onClick={() => {
-                            workspace.run(sampleCommandId(sample));
-                        }}
-                    >
-                        {sample.name}
-                    </Menu.Item>
-                );
-            })}
-        </>
-    );
-}
-
-/**
- * The main menu's "Open sample" submenu.
- * @returns The submenu
- */
-function SampleMenu(): React.JSX.Element {
-    return (
-        <Menu.Sub>
-            <Menu.Sub.Target>
-                <Menu.Sub.Item>Open sample</Menu.Sub.Item>
-            </Menu.Sub.Target>
-            <Menu.Sub.Dropdown>
-                <SampleItems />
-            </Menu.Sub.Dropdown>
-        </Menu.Sub>
-    );
-}
-
-/**
- * The main menu, the app's one menu: Back to start | New project, Open, Open sample, Open recent
+ * The main menu, the app's one menu: Back to start | New project, Open, Open recent
  * | the File list | Add Shader..., Rename | Settings, Keyboard shortcuts, Help. The start screen's copy leaves
  * out the rows that need a project (Back to start, the File list, Rename) rather than
  * drawing them disabled.
@@ -196,7 +142,6 @@ export function MainMenu({ start = false }: Readonly<{ start?: boolean }>): Reac
                 )}
                 <CommandItem id="project.new" />
                 <CommandItem id="file.open" />
-                <SampleMenu />
                 <RecentMenu />
                 <Menu.Divider />
                 <Sections

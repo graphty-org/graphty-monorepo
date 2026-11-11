@@ -25,6 +25,7 @@ import type { Graphty } from "../../index.js";
 import { ElementPositions } from "../../src/data/positions";
 import { operationQueueOf } from "../../src/Graph";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
+import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { assertScalesLinearly, type Growth, visitsDuring } from "../helpers/cost";
 
@@ -266,7 +267,10 @@ const CASES: readonly Case[] = [
             return Promise.resolve();
         },
         check: (element, size) => {
-            assert.strictEqual([...element.graph.getLayoutManager().nodes].length, size);
+            // Bodies, not `Node`s: under renderPath "batched" a row has a body and no `Node`.
+            const engine = element.graph.getLayoutManager().layoutEngine;
+            assert.instanceOf(engine, NGraphEngine);
+            assert.strictEqual(engine.ngraph.getNodeCount(), size);
         },
     },
     {

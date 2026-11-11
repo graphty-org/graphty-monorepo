@@ -789,7 +789,9 @@ describe("a repaint of every node", () => {
 
             assert.isFalse(painter.hasPending, "the whole repaint was applied");
             assert.isAtLeast(frames, 100, "and spread over a frame for each small batch of nodes");
-            assert.isAtLeast(visits.count.calls, edges, "every edge was visited");
+            // a straight pulled line is drawn from its rows and never placed (`Edge.followsRows`, "batched")
+            const placed = [...graph.getDataManager().edges.values()].filter((edge) => !edge.followsRows).length;
+            assert.isAtLeast(visits.count.calls, placed, "every placed edge was visited");
             assert.isAtMost(visits.count.calls, 8 * edges, "a fixed number of visits per edge, not one a frame");
         } finally {
             visits.restore();

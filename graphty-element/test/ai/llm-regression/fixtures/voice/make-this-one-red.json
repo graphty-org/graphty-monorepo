@@ -1,0 +1,6 @@
+{
+    "clip": "make-this-one-red.wav",
+    "spoken": "Make this one red.",
+    "source": "Gemini speech (gemini-3.1-flash-tts-preview, voice Kore), 24 kHz 16-bit mono, recorded 2026-10-12",
+    "expectedWords": ["make", "this", "one", "red"]
+}

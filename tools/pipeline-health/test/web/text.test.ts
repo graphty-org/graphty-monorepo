@@ -634,7 +634,7 @@ describe("the Issues page", () => {
         expect(html).toContain("No label marks production issues");
         expect(html).toContain('<span class="rlab">history</span>');
         expect(html).toMatch(/href="#\/issues\?range=all"/);
-        for (const id of ["open", "bugs", "bug-flow", "flow", "backlog", "types", "oldest"]) {
+        for (const id of ["open", "by-type", "bugs", "bug-flow", "flow", "backlog", "types", "oldest"]) {
             expect(html, id).toContain(`id="s-${id}"`);
         }
         const bugs = p.sections.find((s) => s.id === "bugs");

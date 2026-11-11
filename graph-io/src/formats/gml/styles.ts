@@ -1037,6 +1037,17 @@ function readLabelPlace(lg: Rec, yed: boolean, put: Put, at: At): void {
         if (place === null) {
             noteAt(at("labelPosition"), STYLE_ISSUE.UNKNOWN_VALUE, anchor.slice(0, MAX_STYLE_VALUE_LENGTH));
         }
+        if (
+            yed &&
+            place?.includes("-") === true &&
+            !place.startsWith("inside-") &&
+            typeof lg.model === "string" &&
+            lg.model.trim().toLowerCase() === "sides"
+        ) {
+            // yEd's `sides` model has only the four sides: it draws a corner anchor at its default, the top
+            // (gml-synthetic-coverage 11, 31, 81: `nw`, `se` and `sw` all drawn above the node)
+            place = "top";
+        }
         put("labelPosition", place);
     }
     if (!yed) {

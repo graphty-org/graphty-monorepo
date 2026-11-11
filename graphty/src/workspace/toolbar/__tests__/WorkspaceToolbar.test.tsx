@@ -28,14 +28,14 @@ describe("the canvas toolbar", () => {
         await page.viewport(1366, 768);
     });
 
-    it("draws Analyze, Layout, View, Legend, Table, Filters and Quick actions in order", () => {
+    it("draws Analyze, Layout, Camera, Mode, Legend, Table and Quick actions in order", () => {
         render(<Workspace initialState={OPEN} />);
 
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
         const names = within(toolbar)
             .getAllByRole("button")
             .map((button) => button.getAttribute("aria-label"));
-        assert.deepEqual(names, ["Analyze", "Layout", "View, 3D", "Legend", "Table", "Filters", "Quick actions"]);
+        assert.deepEqual(names, ["Analyze", "Layout", "Camera", "Mode, 3D", "Legend", "Table", "Quick actions"]);
     });
 
     it("draws Layout as a network chart and Quick actions as a search", () => {
@@ -47,6 +47,9 @@ describe("the canvas toolbar", () => {
             );
         assert.equal(icon("Layout"), "lucide-chart-network");
         assert.equal(icon("Quick actions"), "lucide-search");
+        assert.equal(icon("Camera"), "lucide-camera");
+        // The Mode tool's face is the mode's own icon: a cube for 3D.
+        assert.equal(icon("Mode, 3D"), "lucide-box");
     });
 
     it("draws the clock only while timeline.toggle is registered and shown, and runs it on a click", async () => {
@@ -88,7 +91,7 @@ describe("the canvas toolbar", () => {
     it("disables everything but Quick actions with nothing drawn, saying why", () => {
         render(<Workspace initialState={OPEN} />);
 
-        for (const name of ["Analyze", "Layout", "View, 3D"]) {
+        for (const name of ["Analyze", "Layout", "Camera", "Mode, 3D"]) {
             const button = screen.getByRole("button", { name });
             assert.equal(button.getAttribute("aria-disabled"), "true", name);
             assert.equal(button.getAttribute("aria-description"), "Nothing is drawn", name);
@@ -99,7 +102,7 @@ describe("the canvas toolbar", () => {
         assert.isFalse(screen.getByRole("button", { name: "Quick actions" }).hasAttribute("aria-disabled"));
     });
 
-    it("gives Legend and Table their own buttons, pressed while showing, and keeps them out of View", async () => {
+    it("gives Legend and Table their own buttons, pressed while showing, and keeps them out of Mode", async () => {
         const store = createWorkspaceStore({ ...OPEN, dialog: "view" });
         render(<Workspace store={store} />);
 
@@ -122,7 +125,7 @@ describe("the canvas toolbar", () => {
         });
         assert.equal(legend.getAttribute("aria-pressed"), "true", "pressed over nothing once the reader asked");
 
-        const menu = await screen.findByRole("menu", { name: /^View/ });
+        const menu = await screen.findByRole("menu", { name: /^Mode/ });
         assert.notInclude(menu.textContent, "Legend");
         assert.notInclude(menu.textContent, "Table");
     });
@@ -165,6 +168,8 @@ describe("the canvas toolbar", () => {
             "layout.rerun",
             "layout.reshuffle",
             "view.open",
+            "view.camera",
+            "view.auto-rotate",
             "view.legend",
             "view.fit",
             "view.frame-selection",

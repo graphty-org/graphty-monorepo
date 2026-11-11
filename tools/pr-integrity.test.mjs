@@ -227,6 +227,32 @@ describe("prIntegrity", () => {
         assert.match(prIntegrity(r.dir, pr(r)).problems.join(), /^Saved format: /);
     });
 
+    it("skips a breaking commit master's release-not-breaking.json lists, but not one the branch lists", () => {
+        const r = repo();
+        r.git("switch", "-q", "-c", "b");
+        const ruled = r.commit("feat(x)!: drop a", { "src/a.mjs": "export const a = 2;\n" });
+        const list = JSON.stringify({
+            notBreaking: [{ commit: ruled, project: "x", reason: "owner", since: "2026-11-09" }],
+        });
+        r.commit("chore: rule it here", { "release-not-breaking.json": list });
+        assert.match(
+            prIntegrity(r.dir, pr(r)).problems.join(),
+            /Breaking change/,
+            "the branch's own list counts for nothing",
+        );
+        r.git("switch", "-q", "master");
+        r.commit("chore: the owner's ruling", { "release-not-breaking.json": list });
+        r.git("switch", "-q", "b");
+        r.git("merge", "-q", "--no-edit", "master");
+        assert.deepEqual(prIntegrity(r.dir, pr(r)).problems, []);
+        r.commit("fix: more\n\nBREAKING CHANGE: b is gone", { "src/a.mjs": "export const b = 2;\n" });
+        assert.match(
+            prIntegrity(r.dir, pr(r)).problems.join(),
+            /Breaking change/,
+            "an unlisted breaking commit still fails",
+        );
+    });
+
     it("fails a weakened test, which a code owner's approval clears and Dependabot does not skip", () => {
         const r = repo();
         r.git("switch", "-q", "-c", "b");

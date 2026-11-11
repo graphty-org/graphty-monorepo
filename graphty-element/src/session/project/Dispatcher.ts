@@ -109,8 +109,6 @@ interface CommandServices {
     config?: () => ProjectConfig;
     /** Whether the timeline experiment is on; absent reads on, as a store with no session has no switch. */
     timeline?: () => boolean;
-    /** Whether the network-data experiment is on; absent reads on, as for `timeline`. */
-    network?: () => boolean;
     /** Whether the file styles experiment is on; absent reads on, as a store with no session has no switch. */
     fileStyles?: () => boolean;
     /**

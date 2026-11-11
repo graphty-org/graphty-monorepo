@@ -38,6 +38,7 @@ import {
     type PText,
     shapeId,
     strokedBarb,
+    taperedOutline,
     taperPaintedAsFill,
 } from "./primitives";
 
@@ -143,17 +144,18 @@ export function shapeOf(p: Prim): PShape | null {
             // within 2% of the box: an absolute tolerance passes every corner of a node drawn a few units across
             const slack = 0.02 * Math.max(b.x1 - b.x0, b.y1 - b.y0);
             const near = (v: number, at: number): boolean => Math.abs(v - at) < slack;
-            // each vertex once: a closed outline repeats its first point at its end
+            // each vertex once: a closed outline repeats its first point at its end, and a polygon the file closes
+            // itself and the reader closes again repeats it twice (Graphviz's, dot-synth-nodes s_parallelogram)
             const first = p.points[0];
-            const last = p.points.at(-1);
-            const vertices =
-                p.points.length > 1 &&
+            const vertices = [...p.points];
+            while (
+                vertices.length > 1 &&
                 first !== undefined &&
-                last !== undefined &&
-                near(first[0], last[0]) &&
-                near(first[1], last[1])
-                    ? p.points.slice(0, -1)
-                    : p.points;
+                near(first[0], vertices[vertices.length - 1][0]) &&
+                near(first[1], vertices[vertices.length - 1][1])
+            ) {
+                vertices.pop();
+            }
             const onCorner = vertices.filter(
                 ([x, y]) => (near(x, b.x0) || near(x, b.x1)) && (near(y, b.y0) || near(y, b.y1)),
             ).length;
@@ -533,6 +535,10 @@ function nodeFrom(
                       ),
                   },
         label: mergeTexts(texts),
+        // a node the program draws as its words alone (Graphviz's unfilled plain, plaintext and none: a `<g
+        // class="node">` holding one `<text>`) is a text-only node, read as graphty's are (`facelessAsTexts`): its words,
+        // no node, unless the other side draws a node there (dot-real-happiness c, dot-real-linux-kernel LKD)
+        ...(drawn.length === 0 && texts.length > 0 ? { faceless: texts.map((t) => ({ ...t, owner: id })) } : {}),
         ...(drawn.length > 0 ? { order: Math.max(...drawn.map((p) => p.index)) } : {}),
         ...((painted ?? filled) ? { fillOrder: (painted ?? filled)?.index } : {}),
     };
@@ -1332,6 +1338,37 @@ const longestPath = (prims: readonly Prim[]): Prim | undefined => {
         .filter((p) => !p.closed || reach < Math.hypot(bw(p.box), bh(p.box)))
         .sort((a, b) => pathLength(b.points) - pathLength(a.points) || a.index - b.index)[0];
 };
+
+/**
+ * An edge's line drawn as one filled outline with no stroke (Graphviz's style=tapered, `taperedOutline`), as the line
+ * it draws: its axis, as wide as the outline at its widest, in its fill.
+ * @param part - the primitives the markup names one edge, none of them a line
+ * @returns the line and the outline it was read from, or null when none is drawn so
+ */
+function taperedLine(part: readonly Prim[]): { line: Prim; outline: Prim } | null {
+    for (const p of part) {
+        const band = p.kind === "shape" && p.fill !== null && p.stroke === null ? taperedOutline(p.points) : null;
+        if (band !== null && p.fill !== null) {
+            const line: Prim = {
+                ...p,
+                kind: "path",
+                closed: false,
+                points: band.route ?? band.ends,
+                fill: null,
+                stroke: {
+                    color: p.fill.color,
+                    opacity: p.fill.opacity,
+                    width: band.width ?? Number.NaN,
+                    dash: null,
+                    dashClass: band.dashClass,
+                    painted: true,
+                },
+            };
+            return { line, outline: p };
+        }
+    }
+    return null;
+}
 
 // A drawing's point lists are never changed once read, so what is measured along one is kept by the list: matching
 // a shape against every line's ends and middle asks again for each shape (json-vis-siblings: about 400 shapes against
@@ -2650,7 +2687,9 @@ export function associate(
                 const dress = new Set(whole.filter((p) => labelDress(p, whole)));
                 const part = whole.filter((p) => !dress.has(p));
                 const segmented = segmentedLine(part);
-                const line = segmented?.line ?? longestPath(part);
+                // with no line drawn, a line drawn as one filled outline (Graphviz's style=tapered) is the line
+                const tapered = segmented === null && longestPath(part) === undefined ? taperedLine(part) : null;
+                const line = tapered?.line ?? segmented?.line ?? longestPath(part);
                 if (line === undefined) {
                     continue;
                 }
@@ -2658,7 +2697,7 @@ export function associate(
                 const pairId = `${ends[0]}->${ends[1]}`;
                 const k = edgeCount.get(pairId) ?? 0;
                 edgeCount.set(pairId, k + 1);
-                const heads = part.filter((p) => p !== line && p.kind === "shape");
+                const heads = part.filter((p) => p !== line && p !== tapered?.outline && p.kind === "shape");
                 let { points } = line;
                 const endOf = (h: Prim): "source" | "target" => {
                     const c: Pt = [cx(h.box), cy(h.box)];
@@ -2752,13 +2791,20 @@ export function associate(
                 continue;
             }
             ps.forEach(take);
+            // a fill drawn in pieces under an unfilled outline (Graphviz's striped cluster: a stripe per color, then
+            // the outline over them) is the group's fill, its first color, as a node's is (`piecesFirst`)
+            const first = box.fill === null ? piecesFirst(ps.filter((p) => p !== box && p.kind === "shape")) : null;
+            const pieces = first === null ? [] : ps.filter((p) => p !== box && p.kind === "shape" && p.fill !== null);
             groups.push({
                 id: ps[0]?.hint?.id ?? id,
                 box: box.box,
-                fill: box.fill,
+                fill: first?.fill ?? box.fill,
                 stroke: box.stroke,
                 label: mergeTexts(ps.flatMap((p) => (p.text ? [p.text] : []))),
                 members: [],
+                ...(pieces.length > 0
+                    ? { faces: pieces.map((p) => ({ box: p.box, color: p.fill?.color ?? "#000000" })) }
+                    : {}),
             });
         }
     }

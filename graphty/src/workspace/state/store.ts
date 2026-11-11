@@ -8,21 +8,35 @@
  */
 
 import type { AutosaveEntry, Graphty as GraphtyElement, Lighting } from "@graphty/graphty-element";
+import type { AiPointing } from "@graphty/graphty-element/ai";
+import type { AiResultCode, AiResultParams, GeneratorParams } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
 import type {
     DataSourceInput,
     GraphSession,
     LoadDraft,
     NoteTargetInput,
+    ScopeInput,
     SourceKey,
     UnionLeaf,
 } from "@graphty/graphty-element/session";
 import { type ReactNode, useSyncExternalStore } from "react";
 
+import type { StartSample } from "../../data/sampleManifest";
 import type { InspectedKind } from "../commands/registry";
 
+/**
+ * How the open project was opened, when opening it again gives the same project: one of the app's
+ * samples, a dataset, a generated graph or a network sample. Never a file, a form or a credential.
+ */
+export type Opener =
+    | { readonly kind: "sample"; readonly sample: StartSample }
+    | { readonly kind: "dataset"; readonly dataset: string }
+    | { readonly kind: "generator"; readonly generator: string; readonly params: GeneratorParams }
+    | { readonly kind: "network"; readonly name: string; readonly source: string; readonly example: string };
+
 /** A left-panel place on the rail (tier1-design.md section 2.2). */
-type Place = "graph" | "data" | "notes";
+type Place = "graph" | "data" | "assistant" | "notes";
 
 /** What takes the area right of the rail: the panels, or the Data page (section 2.10). */
 type Page = "panels" | "data-page";
@@ -33,6 +47,8 @@ export interface Notice {
     readonly message: string;
     /** A failure: it stays until the reader dismisses it, rather than going after 6 s. */
     readonly error?: boolean;
+    /** Stays until it is answered or dismissed, rather than going after 6 s; it is no failure. */
+    readonly lasting?: boolean;
     /** Describes the selection that just went: a new selection takes it down at once. */
     readonly endsWithSelection?: boolean;
     /** What it shows instead of the words, such as the replace receipt's chips. */
@@ -57,7 +73,19 @@ export interface WorkspaceState {
      * project file (#301, tier1-real-app/plan.md section 2 item 10); the Project package moves it.
      * `id` changes when another project opens, which mounts a fresh element.
      */
-    readonly project: { readonly name: string; readonly id: number } | null;
+    /**
+     * The open project; `blank` when it opened empty, so a reload brings it back even with nothing
+     * written; `opened` when opening it again gives it back, for a reload before graphty-element's
+     * autosave wrote it.
+     */
+    readonly project: {
+        readonly name: string;
+        readonly id: number;
+        readonly blank?: true;
+        readonly opened?: Opener;
+        /** The autosave entry its work was written to, once one was. */
+        readonly entry?: string;
+    } | null;
     readonly page: Page;
     readonly place: Place;
     /** The open modal, by the id its package gives it ("export", "settings"), or null. */
@@ -75,6 +103,43 @@ export interface WorkspaceState {
      */
     readonly styleSide: "node" | "edge";
     readonly leftWidth: number;
+    /** The Assistant panel's width once the reader resized it; null for its default. */
+    readonly assistantWidth: number | null;
+    /** Where closing the Assistant returns to; null while it is shut, or after a reload. */
+    readonly assistantFrom: {
+        readonly page: Page;
+        readonly place: Place;
+        readonly focus: HTMLElement | null;
+    } | null;
+    /** How many times something sent the reader to the Assistant's composer: each one focuses it. */
+    readonly composerCalls: number;
+    /** What the reader is typing to the Assistant, kept while its panel is away. */
+    readonly assistantDraft: string;
+    /** How many times the element's assistant was set up: the panel listens to the newest. */
+    readonly assistantLinks: number;
+    /** How many approvals and questions wait on the reader: the rail's dot. */
+    readonly assistantWaiting: number;
+    /** A press of Talk from outside the panel, held until the panel's Talk takes it. */
+    readonly assistantTalkPress: boolean;
+    /** What the reader pointed at, while a spoken message waits in the composer; else null. */
+    readonly assistantSpoken: { readonly pointing?: AiPointing } | null;
+    /**
+     * The reader picked Selection in the composer's options: messages are about the selection until
+     * they pick Whole graph again or the selection empties. Off, every message is about the whole graph.
+     */
+    readonly assistantScopeSelection: boolean;
+    /** The open question refused the composer's text: it stays open with one line. */
+    readonly assistantRefused: boolean;
+    /** How the last message ended, when the conversation cannot say: nothing reached it. */
+    readonly assistantEnded: {
+        readonly code: AiResultCode;
+        readonly params: AiResultParams;
+        /**
+         * It failed while the panel was open: the newest turn's row is the alert until the reader
+         * leaves the panel, so a reopened log never says an old failure again.
+         */
+        readonly news?: boolean;
+    } | null;
     readonly rightWidth: number;
     readonly dockHeight: number;
     readonly dockOpen: boolean;
@@ -95,6 +160,11 @@ export interface WorkspaceState {
      * list's Show rows outside the table and cleared by the dock; null when none is asked for.
      */
     readonly dockIssue: string | null;
+    /**
+     * The rows a table tab narrows to once the dock shows it, set by the Assistant's Show in table
+     * and cleared by the dock: its Nodes or Edges tab, and the rows; null when none is asked for.
+     */
+    readonly dockRows: { readonly kind: "node" | "edge"; readonly scope: ScopeInput } | null;
     /**
      * The selection open in an editor (a style layer's Which nodes / Which edges, or a filter
      * card), as graphty-element holds it, and the group a filter's count chip narrowed the matches
@@ -121,8 +191,8 @@ export interface WorkspaceState {
     } | null;
     /**
      * A new filter card to open once the Filters section shows it: on a field
-     * (`<node|edge>:<path>`, an attribute's Filter to...), or "+" for its add list (the toolbar's
-     * Filters); cleared by the section. Null when none is asked for.
+     * (`<node|edge>:<path>`, an attribute's Filter to...), or "+" for its add list (the Filters
+     * command); cleared by the section. Null when none is asked for.
      */
     readonly filterDraft: string | null;
     /**
@@ -146,6 +216,10 @@ export interface WorkspaceState {
         readonly draft: LoadDraft;
         /** What the draft was read from, for Replace data and Open as a separate graph. */
         readonly source?: DataSourceInput;
+        /** One of the app's own samples, for a table added as rows. */
+        readonly origin?: "sample";
+        /** The load holding the same columns as this file: the screen opens on Replace of it. */
+        readonly matches?: SourceKey;
     } | null;
     /** A joined table whose join the join screen is editing (its row's Edit join), or null. */
     readonly editingJoin: SourceKey | null;
@@ -206,12 +280,20 @@ export interface WorkspaceState {
      */
     readonly labelsAvoid: boolean;
     /**
+     * The layout form's "Shown nodes only": a layout runs over only what the filter shows, and runs
+     * again when the filter changes (graphty-element's `layout.visibleOnly`). On by default, so a
+     * filtered graph fills the space; off, the shown nodes keep the places the whole graph gave them.
+     */
+    readonly layoutShownOnly: boolean;
+    /**
      * Graph settings, Same size at any depth: null follows whether a node size is bound to data;
      * true or false is the reader's own choice.
      */
     readonly sameSizeAtAnyDepth: boolean | null;
     /** Graph settings, Lighting: how the 3D nodes are lit. A view preference, never saved. */
     readonly lighting: Lighting;
+    /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
+    readonly autoRotate: boolean;
     /** Graph settings, Outline width: every outline's width, or null for the element's own. */
     readonly outlineWidth: number | null;
     /**
@@ -224,8 +306,8 @@ export interface WorkspaceState {
     readonly exportSource: string | null;
     /** The source the server form opens on (a catalog id, Open network data's card), else null. */
     readonly serverKind: string | null;
-    /** Whether the server form opened the project it sits in (the start screen's Open network data). */
-    readonly serverFromStart: boolean;
+    /** The network source the server form edits (its key); null when the form adds a new one. */
+    readonly serverEdit: SourceKey | null;
     /** Single-key shortcuts on (WCAG 2.1.4); Settings > Accessibility writes it. */
     readonly singleKeyShortcuts: boolean;
     readonly notice: Notice | null;
@@ -292,6 +374,17 @@ const INITIAL: WorkspaceState = {
     tabs: {},
     styleSide: "node",
     leftWidth: PANEL_MIN,
+    assistantWidth: null,
+    assistantFrom: null,
+    composerCalls: 0,
+    assistantDraft: "",
+    assistantLinks: 0,
+    assistantWaiting: 0,
+    assistantTalkPress: false,
+    assistantSpoken: null,
+    assistantScopeSelection: false,
+    assistantRefused: false,
+    assistantEnded: null,
     rightWidth: PANEL_MIN,
     dockHeight: DOCK_DEFAULT,
     dockOpen: false,
@@ -299,6 +392,7 @@ const INITIAL: WorkspaceState = {
     dockTab: "nodes",
     dockColumn: null,
     dockIssue: null,
+    dockRows: null,
     editingSelection: null,
     selectionWorkspace: null,
     filterDraft: null,
@@ -319,13 +413,15 @@ const INITIAL: WorkspaceState = {
     textNext: null,
     shaderNext: null,
     labelsAvoid: true,
+    layoutShownOnly: true,
     sameSizeAtAnyDepth: null,
     lighting: "studio",
+    autoRotate: false,
     outlineWidth: null,
     exportOn: "image",
     exportSource: null,
     serverKind: null,
-    serverFromStart: false,
+    serverEdit: null,
     singleKeyShortcuts: true,
     notice: null,
     noteDraft: null,
@@ -495,7 +591,24 @@ export function keepPlace(store: WorkspaceStore): () => void {
     let last = "";
     const write = (): void => {
         const { project, page, place, inspected, tabs, styleSide, dataTab } = store.get();
-        const text = project === null ? "" : JSON.stringify({ page, place, inspected, tabs, styleSide, dataTab });
+        const blank = project?.blank === true ? { blank: true } : {};
+        const opened = project?.opened === undefined ? {} : { opened: project.opened };
+        const entry = project?.entry === undefined ? {} : { entry: project.entry };
+        const text =
+            project === null
+                ? ""
+                : JSON.stringify({
+                      page,
+                      place,
+                      inspected,
+                      tabs,
+                      styleSide,
+                      dataTab,
+                      name: project.name,
+                      ...blank,
+                      ...opened,
+                      ...entry,
+                  });
         if (text === last) {
             return;
         }
@@ -513,14 +626,114 @@ export function keepPlace(store: WorkspaceStore): () => void {
     return store.subscribe(write);
 }
 
+/** The name the reader's place is stashed under with graphty-element's autosaved work. */
+const PLACE_STASH = "app.graphty.workspace.place";
+
+/**
+ * Stashes the reader's place with the open project's autosaved work as it changes, so work
+ * restored in another tab opens where the reader left it.
+ * @param store - the workspace store.
+ * @param element - the project's element.
+ * @returns a function that stops it.
+ */
+export function stashPlace(store: WorkspaceStore, element: GraphtyElement): () => void {
+    let last = "";
+    // Not while the project opens: restored work brings its own place, which the opening puts back.
+    let ready = false;
+    const put = (): void => {
+        // Only with work already written: a stash on its own would start an entry for a project
+        // that holds nothing to keep.
+        if (!ready || element.autosaver.status.entry === null) {
+            return;
+        }
+        const { page, place, inspected, tabs, styleSide, dataTab } = store.get();
+        const kept: KeptPlace = { page, place, inspected, tabs, styleSide, dataTab };
+        const text = JSON.stringify(kept);
+        if (text !== last) {
+            last = text;
+            element.autosaver.stash(PLACE_STASH, kept);
+        }
+    };
+    void (store.get().opened ?? Promise.resolve())
+        .catch(() => undefined)
+        .finally(() => {
+            ready = true;
+            put();
+        });
+    element.addEventListener("graphty-autosave-status", put);
+    const stop = store.subscribe(put);
+    return () => {
+        stop();
+        element.removeEventListener("graphty-autosave-status", put);
+    };
+}
+
+/**
+ * The reader's place stashed with work graphty-element restored.
+ * @param element - the element it was restored into.
+ * @returns the place, or an empty change when none was stashed.
+ */
+export function stashedPlace(element: GraphtyElement): Partial<KeptPlace> {
+    const kept = element.autosaver.stashed(PLACE_STASH);
+    return typeof kept === "object" && kept !== null ? kept : {};
+}
+
 /**
  * The place this tab kept before it was reloaded.
  * @returns the place, or an empty change when none was kept.
  */
 export function keptPlace(): Partial<KeptPlace> {
+    const { blank: _blank, opened: _opened, name: _name, entry: _entry, ...place } = readKept();
+    return place;
+}
+
+/**
+ * The autosave entry the project this tab kept its place for was written to.
+ * @returns the entry's id, or null when nothing was written.
+ */
+export function keptEntry(): string | null {
+    return readKept().entry ?? null;
+}
+
+/**
+ * The name the project this tab kept its place for had in the header.
+ * @returns the name, or null.
+ */
+export function keptName(): string | null {
+    return readKept().name ?? null;
+}
+
+/**
+ * How the project this tab kept its place for was opened, when opening it again gives it back.
+ * @returns the opener, or null.
+ */
+export function keptOpener(): Opener | null {
+    return readKept().opened ?? null;
+}
+
+/**
+ * Whether the project this tab kept its place for opened empty.
+ * @returns true for a blank project.
+ */
+export function keptBlank(): boolean {
+    return readKept().blank === true;
+}
+
+/**
+ * What this tab kept before it was reloaded.
+ * @returns the place and whether the project was blank, or an empty object when none was kept.
+ */
+function readKept(): Partial<KeptPlace> & { blank?: boolean; opened?: Opener; name?: string; entry?: string } {
     try {
         const text = sessionStorage.getItem(PLACE_ITEM);
-        return text === null ? {} : (JSON.parse(text) as Partial<KeptPlace>);
+        return text === null
+            ? {}
+            : (JSON.parse(text) as Partial<KeptPlace> & {
+                  blank?: boolean;
+                  opened?: Opener;
+                  name?: string;
+                  entry?: string;
+              });
     } catch {
         return {};
     }

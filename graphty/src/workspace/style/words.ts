@@ -27,6 +27,8 @@ import {
     type GraphtyErrorCode,
     type GraphtyWarningCode,
     type ReadableValue,
+    renamePaths,
+    rulePath,
 } from "@graphty/graphty-element/session";
 
 import { wordsFor } from "../analyze/words";
@@ -54,7 +56,22 @@ export interface SectionSpec {
     readonly channels: readonly Channel[];
     /** The section is the tab's Shaders list: its rows are the layer's shader uses, its "+" opens the gallery. */
     readonly shaders?: boolean;
+    /**
+     * Properties the section sets from inside one of its lines (the Shape field's Model... and Model
+     * settings), never a "+" item of their own.
+     */
+    readonly inner?: readonly Channel[];
 }
+
+/** A model's channels: what the Shape field names, and what Model settings sets. */
+export const MODEL_CHANNELS: readonly Channel[] = [
+    "node.model",
+    "node.modelSourceUp",
+    "node.modelTurn",
+    "node.modelTint",
+    "node.modelFit",
+    "node.modelCenter",
+];
 
 /**
  * One kind of text a Text list entry draws: its words, its look, and the look's three channels a
@@ -198,13 +215,35 @@ const COSMOGRAPH_EDGE_SECTIONS: readonly SectionSpec[] = SECTIONS.edge.map((sect
 );
 
 /**
+ * The node sections with the `node-models` experiment on (issue #3396): Shape holds a model in
+ * place of a built-in shape, with its settings, and Fill's "+" offers Picture.
+ */
+const NODE_MODELS_SECTIONS: readonly SectionSpec[] = SECTIONS.node.map((section) => {
+    if (section.id === "shape") {
+        return { ...section, inner: MODEL_CHANNELS };
+    }
+    return section.id === "fill" ? { ...section, channels: [...section.channels, "node.texture"] } : section;
+});
+
+/** The experiments that change which properties the Style tab's sections hold. */
+export interface SectionFlags {
+    /** The `cosmograph` experiment: Line's long-edge fade and blending. */
+    readonly cosmograph: boolean;
+    /** The `node-models` experiment: Shape's models and Fill's Picture. */
+    readonly nodeModels: boolean;
+}
+
+/**
  * A group's sections, with what the experiments switched on add.
  * @param kind - nodes or edges.
- * @param cosmograph - whether the `cosmograph` experiment is on.
+ * @param flags - which experiments are on.
  * @returns the sections, in their fixed order.
  */
-export function sectionsFor(kind: Kind, cosmograph: boolean): readonly SectionSpec[] {
-    return cosmograph && kind === "edge" ? COSMOGRAPH_EDGE_SECTIONS : SECTIONS[kind];
+export function sectionsFor(kind: Kind, flags: SectionFlags): readonly SectionSpec[] {
+    if (kind === "edge") {
+        return flags.cosmograph ? COSMOGRAPH_EDGE_SECTIONS : SECTIONS.edge;
+    }
+    return flags.nodeModels ? NODE_MODELS_SECTIONS : SECTIONS.node;
 }
 
 /**
@@ -1849,3 +1888,117 @@ export const GROUP_BY_WORDS = {
     line: (value: string): string => `Group by ${value}`,
     none: "None",
 } as const;
+
+/** The Shape list's last entry, which opens the Models pop-over (the node-models experiment). */
+export const MODEL_TILE = "Model...";
+
+/** The value the Shape list's Model... entry carries: never written, it opens the Models pop-over. */
+export const MODEL_PICK = "+model";
+
+/** What Fill's "+" and the Picture line call `node.texture` (the node-models experiment). */
+export const PICTURE_WORD = "Picture";
+
+/**
+ * Model settings' rows (node-models design 13.3): each row's word and, for a choice, each value's
+ * word in list order. Turn is a number in degrees.
+ */
+export const MODEL_SETTING_ROWS: readonly {
+    readonly channel: Channel;
+    readonly word: string;
+    readonly choices?: readonly (readonly [string, string])[];
+}[] = [
+    {
+        channel: "node.modelSourceUp",
+        word: "Up",
+        choices: [
+            ["detected", "Detected"],
+            ["y", "Y"],
+            ["z", "Z"],
+            ["-y", "-Y"],
+            ["-z", "-Z"],
+            ["x", "X"],
+            ["-x", "-X"],
+        ],
+    },
+    { channel: "node.modelTurn", word: "Turn" },
+    {
+        channel: "node.modelTint",
+        word: "Color",
+        choices: [
+            ["false", "Model's own"],
+            ["true", "Node color on top"],
+            ["replace", "Node color only"],
+        ],
+    },
+    {
+        channel: "node.modelFit",
+        word: "Fit",
+        choices: [
+            ["contain", "Keep proportions"],
+            ["stretch", "Stretch"],
+        ],
+    },
+    {
+        channel: "node.modelCenter",
+        word: "Center",
+        choices: [
+            ["bounds", "Middle"],
+            ["origin", "File's origin"],
+        ],
+    },
+];
+
+/** A warning chip on a Model settings row: its word and its tooltip (design 13.3). */
+export const MODEL_SETTING_CHIPS: Readonly<
+    Partial<Record<Channel, { readonly code: string; readonly word: string; readonly tip: string }>>
+> = {
+    "node.modelSourceUp": { code: "W_MODEL_UP_GUESSED", word: "Guessed", tip: "up axis guessed from the file" },
+    "node.modelTint": { code: "W_MODEL_COLOR_IGNORED", word: "Color unused", tip: "node color not drawn on the model" },
+};
+
+/**
+ * A rule as the reader reads and types it: its numbers without the backticks the element writes
+ * around them. Only numbers: a backticked text means something else bare.
+ * @param rule - the rule, without "=".
+ * @returns the rule.
+ */
+export function plainRule(rule: string): string {
+    return rule.replaceAll(/`(-?\d+(?:\.\d+)?)`/g, "$1");
+}
+
+/**
+ * The name the panels show a column a rule reads by: a run's value under its run's name, a node's
+ * structure under its own (Degree, never graphty.degree).
+ * @param session - the element's session.
+ * @param path - the path as the rule names it: a bare column name or a dotted path.
+ * @returns the name, or undefined for a path no value answers.
+ */
+export function shownName(session: GraphSession, path: string): string | undefined {
+    const value = session.data
+        .readableValues()
+        .find((each) => each.end === undefined && (each.path === path || rulePath(each.path) === path));
+    if (value !== undefined) {
+        return readableName(session, value).name;
+    }
+    const structure = session.data.structureValues().find((each) => each.path === path);
+    if (structure !== undefined) {
+        return structure.plainName;
+    }
+    const named = attributeName(session, path);
+    return named === path ? undefined : named;
+}
+
+/**
+ * A rule as the find box shows it: each column under the name the panels give it, numbers bare.
+ * It is shown, never typed back: a rule reads columns by their paths.
+ * @param session - the element's session.
+ * @param rule - the rule, without "=".
+ * @returns the words.
+ */
+export function shownRule(session: GraphSession, rule: string): string {
+    try {
+        return plainRule(renamePaths(rule, (path) => shownName(session, path)));
+    } catch {
+        return plainRule(rule);
+    }
+}

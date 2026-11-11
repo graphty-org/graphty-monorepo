@@ -1,3 +1,9 @@
+## 0.0.7 (2026-11-10)
+
+### 🩹 Fixes
+
+- **babylonjs-map:** a phone number is not read as a degrees-minutes-seconds place ([100d55fc0b](https://github.com/graphty-org/graphty-monorepo/commit/100d55fc0b))
+
 ## 0.0.6 (2026-11-09)
 
 This was a version bump only for babylonjs-map to align it with other projects, there were no code changes.

@@ -170,6 +170,12 @@ export interface LabelStyle {
      */
     wrapSpaceCount?: number;
     /**
+     * Whether a blank line before or between lines of words is drawn one line of the label's font tall, as a text
+     * layout sets it (yEd draws "\nCS" two lines tall). Unset or false, a blank line takes no height. A blank line
+     * after the last words takes none either way.
+     */
+    keepBlankLines?: boolean;
+    /**
      * Where runs of different sizes in one line of label markup meet: their alphabetic baselines ("baseline"), their
      * hanging baselines, so their tops line up ("hanging", as vis-network draws a label below a node), or their middles
      * ("middle"). Unset, their alphabetic baselines.
@@ -436,6 +442,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     wrapEllipsis: 0,
     wrapAnywhere: 0,
     wrapSpaceCount: 0,
+    keepBlankLines: 0,
     runAlign: 0,
     rotation: 0,
     lineHeight: 0,
@@ -529,6 +536,7 @@ export const RICH_TEXT_KEYS = {
     wrapEllipsis: "wrapEllipsis",
     wrapAnywhere: "wrapAnywhere",
     wrapSpaceCount: "wrapSpaceCount",
+    keepBlankLines: "keepBlankLines",
     runAlign: "runAlign",
     rotation: "rotation",
     color: "textColor",

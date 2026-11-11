@@ -206,8 +206,8 @@ version` (409) means it is propagating (minutes); otherwise re-run the failed pu
   `Red run: deploy-pages.yml <run id> on <sha7>` (`bug`, `priority:high`, `effort:medium`), with the failed job and
   the end of its log, then classify it as above.
 - Never dispatch `promote.yml` (production) or `release.yml` in any mode but `restart` ("Master onto nightly") and
-  the `promote-nightly` fallback in step 6, and never release the grouped major (#676, #702, #843, #1370 have no entry in `release-approvals.json` and stay
-  held).
+  the `promote-nightly` fallback in step 6, and never release a major (none is planned: held breaking changes land as
+  ordinary `feat`/`fix` commits, CLAUDE.md "Public API and breaking changes").
 
 ### 6. Held nightly candidate
 
@@ -247,8 +247,10 @@ several:
 - **Promotion waiting on screenshots, always first:** the held candidate's Finish (step 6, after its check), asked
   the round it is held; a broken story fails its own pull request instead.
 - **Never ask the owner to merge.** A pull request `tools/pr-open.sh` left auto-merge off for because it touches an
-  owner-guarded path: once green, arm its auto-merge yourself (`gh pr merge <n> --auto --merge`). Only a breaking
-  change (it needs the label `breaking-go`) is the owner's, in one daily review list. Never arm one that writes an
+  owner-guarded path: once green, arm its auto-merge yourself (`gh pr merge <n> --auto --merge`). Only a `!` commit
+  (it needs the label `breaking-go`) is the owner's, in one daily review list; breaking changes otherwise land with
+  no `!` (CLAUDE.md "Public API and breaking changes"), so never make one (a pushed `!` commit is lowered only by
+  the owner's `release-not-breaking.json` entry). Never arm one that writes an
   approval the owner keeps for himself (`visual-review/passkeys.json`, `release-approvals.json`, a hand-added
   `tools/test-quarantine.json` entry): agents never write those, so flag it to the owner instead. Never merge master into one
   waiting on the owner unless it conflicts: the push dismisses his approval.
@@ -261,8 +263,7 @@ several:
 
 From the broker file (`tmp/pr-status/status.json`): every open pull request into master opened by graphty-agent
 (its `author`) whose `All Checks Pass` concluded `failure` on its head, that conflicts with master, or has unanswered
-review findings. A pull request anyone else opened -- the owner's (among them the held grouped major #1677, with
-#676, #702, #843 and #1370), a master-guard revert (step 1) -- is not this step's: skip it.
+review findings. A pull request anyone else opened -- the owner's, a master-guard revert (step 1) -- is not this step's: skip it.
 
 - Its branch's issue has a live `taken` marker (its session is alive, see "Alive"): that session owns it. Skip.
 - Otherwise classify the failure from the failed job (see "Failure classes"): outside, re-run the failed jobs once;

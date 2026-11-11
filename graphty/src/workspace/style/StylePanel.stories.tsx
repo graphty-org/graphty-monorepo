@@ -586,24 +586,151 @@ export const ModelSettingsOpen: Story = nodeModelsStory(
 );
 
 /**
- * The Parts pop-over: Key people drawn as the car kit's police.glb chosen alone, so the Shape field
- * carries "1 missing" for Textures/colormap.png, and the pop-over opens on that part in the Models
- * pop-over's place.
+ * The Parts pop-over: Key people naming the car kit's police.glb added alone, as a saved project
+ * whose picture moved names it, so the Shape field carries "1 missing" for Textures/colormap.png;
+ * the chip opens the pop-over on that part.
  */
 export const Parts: Story = nodeModelsStory(
-    sceneStory(async () => {
-        const { tab, models } = await openModels();
-        // Choose model files' input, as the button opens it.
-        const chooser = models.querySelector<HTMLInputElement>("input[type=file]:not([data-folder])");
-        if (chooser === null) {
-            throw new Error("no file input");
-        }
+    sceneStory(async ({ session }) => {
         const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
-        await userEvent.upload(chooser, new File([police], "police.glb", { type: "model/gltf-binary" }));
-        await within(tab).findByRole("button", { name: "police: 1 file missing" });
+        const record = await session.assets.add(new File([police], "police.glb", { type: "model/gltf-binary" }));
+        const layer = session.styles.list().find((each) => each.name === "Key people");
+        if (layer === undefined) {
+            throw new Error("no Key people layer");
+        }
+        await session.styles.update(layer.id, { set: { ...layer.set, "node.model": record.id } });
+        const tab = await openStyle("Key people");
+        await userEvent.click(await within(tab).findByRole("button", { name: "police: 1 file missing" }));
         await page().findByRole("dialog", { name: "police.glb" });
     }),
     "Parts",
+);
+
+/**
+ * Opens the Load custom model dialog on Key people by real input: the Models pop-over's Custom
+ * model... button.
+ * @returns the dialog.
+ */
+async function openCustomModel(): Promise<HTMLElement> {
+    const { models } = await openModels();
+    await userEvent.click(within(models).getByRole("button", { name: "Custom model..." }));
+    return page().findByRole("dialog", { name: "Load custom model" });
+}
+
+/**
+ * Chooses files in the dialog's Choose files input, as the button opens it.
+ * @param dialog - the dialog.
+ * @param files - the files.
+ */
+async function chooseInDialog(dialog: HTMLElement, files: File[]): Promise<void> {
+    const chooser = dialog.querySelector<HTMLInputElement>("input[type=file]:not([data-folder])");
+    if (chooser === null) {
+        throw new Error("no file input");
+    }
+    await userEvent.upload(chooser, files);
+}
+
+/**
+ * The car kit's files, from the repository.
+ * @param picture - the picture's file name ("colormap.png"), or none for police.glb alone.
+ * @returns the files.
+ */
+async function carKit(picture?: string): Promise<File[]> {
+    const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
+    const files = [new File([police], "police.glb", { type: "model/gltf-binary" })];
+    if (picture !== undefined) {
+        const colormap = new Uint8Array(await (await fetch(colormapUrl)).arrayBuffer());
+        files.push(new File([colormap], picture, { type: "image/png" }));
+    }
+    return files;
+}
+
+/** The Load custom model dialog, empty: the address field, the file choosers and the drop zone. */
+export const CustomModelEmpty: Story = nodeModelsStory(
+    sceneStory(async () => {
+        await openCustomModel();
+    }),
+    "Custom model, empty",
+);
+
+/** The dialog with police.glb and its picture loaded: the preview graphty-element draws, Name and Color. */
+export const CustomModelLoaded: Story = nodeModelsStory(
+    sceneStory(async () => {
+        const dialog = await openCustomModel();
+        await chooseInDialog(dialog, await carKit("colormap.png"));
+        await within(dialog).findByRole("img", { name: "police preview" });
+    }),
+    "Custom model, loaded",
+);
+
+/** The dialog with police.glb whose picture is named paint.png: Files open on the missing part and Use file. */
+export const CustomModelMissingParts: Story = nodeModelsStory(
+    sceneStory(async () => {
+        const dialog = await openCustomModel();
+        await chooseInDialog(dialog, await carKit("paint.png"));
+        const files = await within(dialog).findByTestId("model-files");
+        await within(files).findByRole("combobox", { name: "File for colormap.png" });
+    }),
+    "Custom model, missing parts",
+);
+
+/** The dialog after an address on this site that holds no model: why, under the address field. */
+export const CustomModelUrlError: Story = nodeModelsStory(
+    sceneStory(async () => {
+        const dialog = await openCustomModel();
+        const address = within(dialog).getByRole("textbox", { name: "Model address" });
+        await userEvent.type(address, `${location.origin}/no-such-model/police.glb{Enter}`);
+        await waitFor(() => {
+            expect(address.getAttribute("aria-invalid")).toBe("true");
+        });
+    }),
+    "Custom model, address error",
+);
+
+/** The dialog with police loaded and Advanced open: Up, Turn, Fit, Center and the model's details. */
+export const CustomModelAdvanced: Story = nodeModelsStory(
+    sceneStory(async () => {
+        const dialog = await openCustomModel();
+        await chooseInDialog(dialog, await carKit("colormap.png"));
+        await within(dialog).findByRole("img", { name: "police preview" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Advanced" }));
+        await within(dialog).findByTestId("model-details");
+        // However tall the dialog grows, Add model stays in view: the body scrolls, the footer stays.
+        const add = within(dialog).getByRole("button", { name: "Add model" }).getBoundingClientRect();
+        expect(add.bottom).toBeLessThanOrEqual(window.innerHeight);
+    }),
+    "Custom model, advanced",
+);
+
+/** The Main menu open on Custom model..., which opens the dialog with no layer to write to. */
+export const CustomModelMainMenu: Story = nodeModelsStory(
+    sceneStory(async () => {
+        await userEvent.click(page().getByRole("button", { name: "Main menu" }));
+        await page().findByRole("menuitem", { name: "Custom model..." });
+    }),
+    "Custom model, main menu",
+);
+
+/** The Models pop-over after police was added through the dialog: its picture tile under In this project. */
+export const CustomModelProjectTile: Story = nodeModelsStory(
+    sceneStory(async () => {
+        await userEvent.click(page().getByRole("button", { name: "Main menu" }));
+        await userEvent.click(await page().findByRole("menuitem", { name: "Custom model..." }));
+        const dialog = await page().findByRole("dialog", { name: "Load custom model" });
+        await chooseInDialog(dialog, await carKit("colormap.png"));
+        await within(dialog).findByRole("img", { name: "police preview" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Add to project" }));
+        await waitFor(() => {
+            expect(page().queryByRole("dialog", { name: "Load custom model" })).toBeNull();
+        });
+        const { models } = await openModels();
+        const own = within(models).getByRole("group", { name: "In this project" });
+        const tile = within(own).getByRole("button", { name: "police" });
+        await waitFor(() => {
+            expect(tile.querySelector("img")).not.toBeNull();
+        });
+    }),
+    "Custom model, project tile",
 );
 
 /**

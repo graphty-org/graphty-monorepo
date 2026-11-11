@@ -129,7 +129,7 @@ const TRANSPARENT_NODES = 100;
  * @param format - The model's format, which settles a "detected" up axis.
  * @returns The options.
  */
-function optionsOf(shape: NonNullable<NodeStyleConfig["shape"]>, format: string): TemplateOptions {
+export function optionsOf(shape: NonNullable<NodeStyleConfig["shape"]>, format: string): TemplateOptions {
     const asked = shape.modelSourceUp ?? "detected";
     // glTF's loader converts +Y up itself; an STL is taken as Z up; OBJ and PLY as Y up.
     const detected = format === "stl" ? "z" : "y";

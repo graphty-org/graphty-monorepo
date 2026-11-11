@@ -1915,6 +1915,145 @@ export const MODEL_TILE = "Model...";
 /** The value the Shape list's Model... entry carries: never written, it opens the Models pop-over. */
 export const MODEL_PICK = "+model";
 
+/**
+ * A count and its noun: "no animations", "1 material", "12 triangles".
+ * @param n - the count.
+ * @param noun - the noun, singular.
+ * @returns the words.
+ */
+function counted(n: number, noun: string): string {
+    if (n === 0) {
+        return `no ${noun}s`;
+    }
+    return n === 1 ? `1 ${noun}` : `${String(n)} ${noun}s`;
+}
+
+/**
+ * What a refused file should be instead: "choose a GLB, GLTF, OBJ, STL file".
+ * @param formats - the formats' extensions, ".glb".
+ * @returns the words.
+ */
+function readsWords(formats: readonly string[]): string {
+    return `choose a ${formats.map((e) => e.replace(/^\./, "").toUpperCase()).join(", ")} file`;
+}
+
+/** The Load custom model dialog's words (node-models design 14.6). */
+export const CUSTOM_MODEL = {
+    title: "Load custom model",
+    button: "Custom model...",
+    description: "Load a 3D model file or address into this project",
+    address: "Model address",
+    load: "Load model address",
+    chooseFiles: "Choose files",
+    chooseFolder: "Choose folder",
+    /**
+     * The drop zone's hint, with the model formats graphty-element draws.
+     * @param formats - the formats' extensions, ".glb".
+     * @returns the words.
+     */
+    dropHint: (formats: readonly string[]): string =>
+        `or drop files, a folder or a .zip -- ${formats.map((e) => e.replace(/^\./, "").toUpperCase()).join(", ")}`,
+    /** What a refused file should be instead. */
+    reads: readsWords,
+    checkAddress: "check the address or choose the file instead",
+    /**
+     * A lone picture where a model was expected.
+     * @param name - the picture's name.
+     * @param formats - the model formats' extensions.
+     * @returns the words.
+     */
+    notModel: (name: string, formats: readonly string[]): string =>
+        `${name} is a picture, not a 3D model: ${readsWords(formats)}`,
+    replace: "Replace...",
+    name: "Name",
+    color: "Color",
+    files: "Files",
+    advanced: "Advanced",
+    details: "Details",
+    /**
+     * The model's details in one line: "GLB, 12 triangles, 1 material, 1 texture, no animations".
+     * @param summary - from graphty-element's `assets.inspect`.
+     * @param summary.format - its format.
+     * @param summary.triangles - its triangles.
+     * @param summary.materials - its materials.
+     * @param summary.textures - its pictures.
+     * @param summary.animations - its animations.
+     * @returns the words.
+     */
+    detailLine: (summary: {
+        readonly format: string;
+        readonly triangles: number;
+        readonly materials: readonly unknown[];
+        readonly textures: number;
+        readonly animations: readonly unknown[];
+    }): string =>
+        [
+            summary.format.toUpperCase(),
+            counted(summary.triangles, "triangle"),
+            counted(summary.materials.length, "material"),
+            counted(summary.textures, "texture"),
+            counted(summary.animations.length, "animation"),
+        ].join(", "),
+    /**
+     * What the closed Files line says about files that need nothing: "1 substituted, 2 not used".
+     * @param counts - how many parts are in each state.
+     * @param counts.substituted - found under another name.
+     * @param counts.skipped - left out.
+     * @param counts.unused - files nothing names.
+     * @returns the words, or "" for none.
+     */
+    filesNote: (counts: { readonly substituted: number; readonly skipped: number; readonly unused: number }): string =>
+        [
+            counts.substituted > 0 ? `${String(counts.substituted)} substituted` : "",
+            counts.skipped > 0 ? `${String(counts.skipped)} skipped` : "",
+            counts.unused > 0 ? `${String(counts.unused)} not used` : "",
+        ]
+            .filter((w) => w !== "")
+            .join(", "),
+    /**
+     * A part row's address field placeholder.
+     * @param part - the part's file name.
+     * @returns the words.
+     */
+    partAddress: (part: string): string => `URL for ${part}`,
+    byAddress: "Address...",
+    useFile: "Use file",
+    cancel: "Cancel",
+    add: "Add model",
+    addToProject: "Add to project",
+    addFirst: "Add a model first",
+    /**
+     * Add's tooltip while a part is missing.
+     * @param part - the part's file name.
+     * @returns the words.
+     */
+    missing: (part: string): string => `${part} is missing`,
+    /**
+     * The preview's text alternative.
+     * @param name - the model's name.
+     * @returns the words.
+     */
+    preview: (name: string): string => `${name} preview`,
+    /**
+     * Said while a model loads.
+     * @param name - its name, or "model".
+     * @returns the words.
+     */
+    loading: (name: string): string => `Loading ${name}`,
+    /**
+     * Said once a model is in the dialog.
+     * @param name - its name.
+     * @returns the words.
+     */
+    loaded: (name: string): string => `${name} loaded`,
+    /**
+     * Said once the main menu's dialog added a model.
+     * @param name - its name.
+     * @returns the words.
+     */
+    added: (name: string): string => `${name} added to the project`,
+} as const;
+
 /** What Fill's "+" and the Picture line call `node.texture` (the node-models experiment). */
 export const PICTURE_WORD = "Picture";
 

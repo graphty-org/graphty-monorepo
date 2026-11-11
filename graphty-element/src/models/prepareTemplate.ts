@@ -86,6 +86,12 @@ function bakeParts(container: AssetContainer, turn: Matrix): Part[] {
         }
 
         const data = VertexData.ExtractFromMesh(mesh, true, true);
+        // A glTF primitive with no indices draws its vertices in order (the loader marks it
+        // unindexed); the merged template is drawn indexed, so it gets those indices, or it
+        // draws nothing.
+        if (mesh.isUnIndexed || (data.indices?.length ?? 0) === 0) {
+            data.indices = Array.from({ length: mesh.getTotalVertices() }, (_, i) => i);
+        }
         // The rest pose: skin weights and morph targets are not carried over.
         data.matricesIndices = null;
         data.matricesWeights = null;

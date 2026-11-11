@@ -3135,6 +3135,8 @@ export interface GraphContext {
     getDataManager(): DataManager;
     // @internal
     getDrawnTarget?(): DrawnTarget | null;
+    // @internal
+    getEdgeRowLines?(): EdgeRowLines | null;
     getEventManager?(): EventManager | undefined;
     getLayoutManager(): LayoutManager;
     getMeshCache(): MeshCache;

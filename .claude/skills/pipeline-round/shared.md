@@ -117,7 +117,8 @@ Before its first label edit in a session, either skill creates the label if it i
 `gh label list -R graphty-org/graphty-monorepo --search in-progress --json name --jq '.[].name' | grep -qx in-progress || gh label create in-progress -R graphty-org/graphty-monorepo --color FBCA04 --description "A session is working on this; other sessions skip it"`.
 Marking an issue always means both: `gh issue edit <n> --add-label in-progress` and the `taken` marker.
 
-- `pipeline-round: taken by session <session id>, branch <b>, worktree <path>[, group #a #b #c] -- <reason>`
+- `pipeline-round: taken by session <session id>, branch <b>, worktree <path>[, group #a #b #c] -- <reason>[; files <path> ...]`
+  (issue-round names the files the job will touch, for its collision check)
 - `pipeline-round: ready <branch> <sha>` (the work is finished; written just before `pr-open.sh`)
 - `pipeline-round: opened <branch> <pull request url>` (after `pr-open.sh` printed the URL)
 - `pipeline-round: fix attempt <branch> <cause> -- <one line>` (each fix subagent sent for a red pull request)

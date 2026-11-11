@@ -1715,6 +1715,8 @@ export const simpleLayoutInternals = {
     hostGraph(engine: StaticLayoutEngine): GraphContext | undefined;
     /** Whether the engine has nothing to arrange: no node handed to it, and no row it lays out by row. */
     empty(engine: StaticLayoutEngine): boolean;
+    /** Whether the engine lays out by row (renderPath "batched", a row stored), so a freeze, not a `Node` or `Edge` handed to it, says the graph changed. */
+    byRow(engine: StaticLayoutEngine): boolean;
 };
 
 /**
@@ -1751,6 +1753,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             engine._nodes[0]?.parentGraph ??
             (engine.#rowSource() === null ? undefined : (engine.#rows?.graph?.() ?? undefined));
         simpleLayoutInternals.empty = (engine) => engine._nodes.length === 0 && engine.#rowSource() === null;
+        simpleLayoutInternals.byRow = (engine) => engine.#rowSource() !== null;
     }
 
     static type: string;

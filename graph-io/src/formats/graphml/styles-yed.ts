@@ -1677,21 +1677,34 @@ function yedIconSizes(
         for (const list of treeChildren(plainCell(snapshot.graph.value(col.meta.name, 0)), "Resources")) {
             for (const r of treeChildren(list, "Resource")) {
                 const id = treeAttr(r, "id");
-                const scaled = treeChild(r, "ScaledIcon");
-                const image = treeAttr(treeChild(scaled, "ImageIcon"), "image");
-                const size = pngSize(image === undefined ? undefined : resources.get(image));
-                if (id === undefined || size === null || out.has(id)) {
-                    continue;
+                const size = yedIconSize(r, resources);
+                if (id !== undefined && size !== null && !out.has(id)) {
+                    out.set(id, size);
                 }
-                const scale = (k: string): number => {
-                    const n = Number(treeAttr(scaled, k) ?? 1);
-                    return Number.isFinite(n) ? n : 1;
-                };
-                out.set(id, [size[0] * scale("xScale"), size[1] * scale("yScale")]);
             }
         }
     }
     return out;
+}
+
+/**
+ * The size yEd draws one `<y:Resource>`'s scaled icon: its PNG's own size by the icon's `xScale` and `yScale`.
+ * @param r - the resource
+ * @param resources - the graph's shared pictures, by id
+ * @returns the size, or null when it holds no PNG that reads
+ */
+function yedIconSize(r: unknown, resources: ReadonlyMap<string, string>): readonly [number, number] | null {
+    const scaled = treeChild(r, "ScaledIcon");
+    const image = treeAttr(treeChild(scaled, "ImageIcon"), "image");
+    const size = pngSize(image === undefined ? undefined : resources.get(image));
+    if (size === null) {
+        return null;
+    }
+    const scale = (k: string): number => {
+        const n = Number(treeAttr(scaled, k) ?? 1);
+        return Number.isFinite(n) ? n : 1;
+    };
+    return [size[0] * scale("xScale"), size[1] * scale("yScale")];
 }
 
 /**
@@ -3004,6 +3017,29 @@ function realizerAt(real: Realizer, box: YedBox): Realizer {
 }
 
 /**
+ * The first of an element's tree columns that holds one of the named realizers, read.
+ * @param table - the element's table
+ * @param columns - the table's tree columns
+ * @param i - the element's row
+ * @param names - the realizers to look for
+ * @returns the realizer, or null when no column holds one
+ */
+function firstRealizer(
+    table: GraphSnapshot["nodes"],
+    columns: readonly string[],
+    i: number,
+    names: ReadonlySet<string>,
+): Realizer | null {
+    for (const column of columns) {
+        const real = realizerOf(plainCell(table.value(column, i)), names);
+        if (real !== null) {
+            return real;
+        }
+    }
+    return null;
+}
+
+/**
  * The yEd styles of a graph: each element's realizer read into canonical values.
  * @param snapshot - the graph
  * @param notes - where problems are noted
@@ -3025,10 +3061,31 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
     const nestedRows = new Set(
         [...groups.keys()].filter((row) => parent?.isSet(row) === true && typeof parent.value(row) === "number"),
     );
+    // an edge between two folded nodes is folded away with them; one with an end outside the folder yEd draws to the
+    // folder, which a style cannot, so it is left as it is
+    const foldedAway = (target: StyleTarget, i: number): boolean =>
+        target === "node" ? folded.has(i) : folded.has(snapshot.edgeSource(i)) && folded.has(snapshot.edgeTarget(i));
+    const readNodeRow = (i: number, found: Realizer, put: PutValue, at: SiteOf): void => {
+        const box = groups.get(i);
+        const real = box === undefined ? found : realizerAt(found, box);
+        readNode(real, box !== undefined && nestedRows.has(i) ? nestedGroupPut(put) : put, at, resources, icons);
+        if (boxOutline(real)) {
+            boxOutlined.add(i);
+        }
+        const geometry = treeChild(real.r, "Geometry");
+        const [w, h] = [Number(treeAttr(geometry, "width")), Number(treeAttr(geometry, "height"))];
+        boxes.set([Number(treeAttr(geometry, "x")) + w / 2, Number(treeAttr(geometry, "y")) + h / 2, w, h], 4 * i);
+    };
+    const readEdgeRow = (i: number, real: Realizer, put: PutValue, at: SiteOf): void => {
+        readEdge(real, put, at);
+        readEdgeRoute(real, boxes, snapshot.edgeSource(i), snapshot.edgeTarget(i), put, boxOutlined);
+        readEdgeLabelPlace(real, boxes, snapshot.edgeSource(i), snapshot.edgeTarget(i), put);
+    };
     const read = (target: StyleTarget): ValueColumns => {
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const names = target === "node" ? NODE_REALIZERS : EDGE_REALIZERS;
+        const readRow = target === "node" ? readNodeRow : readEdgeRow;
         const columns = treeColumns(table);
         const out = valueColumns(n);
         if (columns.length === 0) {
@@ -3036,10 +3093,7 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
         }
         for (let i = 0; i < n; i++) {
             budget.spend(target, columns.length);
-            let real: Realizer | null = null;
-            for (let c = 0; c < columns.length && real === null; c++) {
-                real = realizerOf(plainCell(table.value(columns[c], i)), names);
-            }
+            const real = firstRealizer(table, columns, i, names);
             if (real === null) {
                 continue;
             }
@@ -3048,39 +3102,10 @@ export function readYedStyles(snapshot: GraphSnapshot, notes: StyleNotes, budget
             const put: PutValue = (property, value) => {
                 out.put(i, property, value);
             };
-            // an edge between two folded nodes is folded away with them; one with an end outside the folder yEd draws
-            // to the folder, which a style cannot, so it is left as it is
-            if (
-                target === "node"
-                    ? folded.has(i)
-                    : folded.has(snapshot.edgeSource(i)) && folded.has(snapshot.edgeTarget(i))
-            ) {
+            if (foldedAway(target, i)) {
                 put("visible", false);
             }
-            if (target === "node") {
-                const box = groups.get(i);
-                real = box === undefined ? real : realizerAt(real, box);
-                readNode(
-                    real,
-                    box !== undefined && nestedRows.has(i) ? nestedGroupPut(put) : put,
-                    at,
-                    resources,
-                    icons,
-                );
-                if (boxOutline(real)) {
-                    boxOutlined.add(i);
-                }
-                const geometry = treeChild(real.r, "Geometry");
-                const [w, h] = [Number(treeAttr(geometry, "width")), Number(treeAttr(geometry, "height"))];
-                boxes.set(
-                    [Number(treeAttr(geometry, "x")) + w / 2, Number(treeAttr(geometry, "y")) + h / 2, w, h],
-                    4 * i,
-                );
-            } else {
-                readEdge(real, put, at);
-                readEdgeRoute(real, boxes, snapshot.edgeSource(i), snapshot.edgeTarget(i), put, boxOutlined);
-                readEdgeLabelPlace(real, boxes, snapshot.edgeSource(i), snapshot.edgeTarget(i), put);
-            }
+            readRow(i, real, put, at);
         }
         return out.values;
     };
@@ -3596,6 +3621,12 @@ function centeredOn(at: string, had: string | undefined, now: StyleValue | null)
         : at;
 }
 
+/** The attributes of a yEd `y:Geometry` box: x, y, width and height. */
+const GEOMETRY_BOX_KEYS = ["x", "y", "width", "height"] as const;
+
+/** The attributes of a yFiles 3 `y:RectD` box: x, y, width and height. */
+const RECTD_BOX_KEYS = ["X", "Y", "Width", "Height"] as const;
+
 /**
  * A node's position from the graphics it had: a yEd realizer's `y:Geometry` x and y, or a yFiles 3 `y:RectD`'s, moved
  * to keep the box's center where the node is written at another size.
@@ -3615,12 +3646,13 @@ function keptPosition(
         const tree = plainCell(table.value(name, i));
         const real = realizerOf(tree, NODE_REALIZERS);
         const geometry = real === null ? treeChild(tree, "RectD") : treeChild(real.r, "Geometry");
-        const x = treeAttr(geometry, real === null ? "X" : "x");
-        const y = treeAttr(geometry, real === null ? "Y" : "y");
+        const [kx, ky, kw, kh] = real === null ? RECTD_BOX_KEYS : GEOMETRY_BOX_KEYS;
+        const x = treeAttr(geometry, kx);
+        const y = treeAttr(geometry, ky);
         if (x !== undefined && y !== undefined) {
             return [
-                centeredOn(x, treeAttr(geometry, real === null ? "Width" : "width"), get("width")),
-                centeredOn(y, treeAttr(geometry, real === null ? "Height" : "height"), get("height")),
+                centeredOn(x, treeAttr(geometry, kw), get("width")),
+                centeredOn(y, treeAttr(geometry, kh), get("height")),
             ];
         }
     }

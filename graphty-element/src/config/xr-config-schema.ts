@@ -16,6 +16,9 @@ import { z } from "zod";
  * ```
  */
 
+/** A Quest Touch face button. */
+const xrControllerButton = z.enum(["a", "b", "x", "y"]);
+
 export const xrConfigSchema = z
     .object({
         /**
@@ -180,6 +183,31 @@ export const xrConfigSchema = z
                 easeTime: z.number().positive().default(200),
             })
             .prefault({}),
+
+        /**
+         * The assistant in an immersive session (XRAiConfig). Optional with no default, so a
+         * configuration that leaves it out parses exactly as before; its defaults apply where it
+         * is read.
+         */
+        ai: z
+            .object({
+                pushToTalk: z
+                    .object({
+                        buttons: z.array(xrControllerButton).optional(),
+                        wristOrb: z.boolean().optional(),
+                    })
+                    .optional(),
+                pendingButtons: z
+                    .object({
+                        approve: z.array(xrControllerButton).optional(),
+                        deny: z.array(xrControllerButton).optional(),
+                    })
+                    .optional(),
+                pendingControl: z.boolean().optional(),
+                panel: z.boolean().optional(),
+                labels: z.record(z.string(), z.string()).optional(),
+            })
+            .optional(),
     })
     .prefault({});
 

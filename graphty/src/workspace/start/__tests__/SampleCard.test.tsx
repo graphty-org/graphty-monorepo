@@ -39,7 +39,7 @@ describe("the sample card", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: /Samples/ }));
         const dialog = await screen.findByRole("dialog", { name: "Samples" });
         const inDialog = seen(
-            ["Samples", "Generated"].flatMap((group) => [
+            ["Samples", "Network", "Generated"].flatMap((group) => [
                 ...within(dialog)
                     .getByRole("region", { name: group })
                     .querySelectorAll<HTMLElement>("button.ws-land-sample"),

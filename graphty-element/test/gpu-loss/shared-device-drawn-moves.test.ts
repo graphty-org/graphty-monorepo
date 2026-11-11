@@ -61,9 +61,10 @@ describe("the layout filling the row table through a loss and a transition", () 
         await session.config.set({ layoutTransition: undefined });
         await graph.setLayout("forceatlas2", { maxIter: 1_000_000 });
         assert.isFalse(runner.active);
-        // the copy resumes; the texture is compared at the second copy, since at the first one after the
-        // layout is replaced it still differs from the CPU copy (design/rendering/row-renderer.md 4.5)
-        await copied(graph);
+        // the new layout's ring is told of the table's writes: the replaced engine, disposed after the new
+        // one attached, once took the table's mirror away with it
+        assert.isNotNull(table.drawnMirror);
+        // the copy resumes, and its first landing already holds the rows the CPU copy does
         await copied(graph);
 
         assert.isAbove(table.copies - copies, 0);

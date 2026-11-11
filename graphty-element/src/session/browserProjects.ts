@@ -8,7 +8,7 @@
 
 import { PROJECT_FILE } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
-import { projectFileName } from "./projectFile";
+import { projectFileName, type ProjectSaveOptions, type ProjectSaveReport } from "./projectFile";
 import type { GraphSession } from "./types";
 
 /** The IndexedDB database the projects are kept in. */
@@ -29,12 +29,22 @@ export interface StoredProject {
     readonly nodes: number;
     /** Edges in the graph when it was saved. */
     readonly edges: number;
+    /**
+     * What the save reported: the file's size, what it holds and what it could not hold. Absent
+     * on a project stored before reports were kept.
+     */
+    readonly report?: ProjectSaveReport;
 }
 
 /** How `browserProjects.save` stores a project. */
 export interface BrowserProjectSaveOptions {
     /** The id of a stored project to replace. Default: a new id, so a new entry. */
     readonly id?: string;
+    /**
+     * How to keep each model or picture a layer names by URL, as `project.save` takes it.
+     * Default: as the project last kept it, else embedded.
+     */
+    readonly assets?: ProjectSaveOptions["assets"];
 }
 
 /** The record IndexedDB holds: the facts plus the project file. */
@@ -56,8 +66,8 @@ export interface BrowserProjects {
      * clears only once the write has committed; a failed write leaves the project dirty. The first
      * save asks the browser to keep its storage (`navigator.storage.persist()`).
      * @param session - The session to save, such as `element.session`.
-     * @param options - The id of a stored project to replace.
-     * @returns What was stored.
+     * @param options - The id of a stored project to replace, and how to keep models named by URL.
+     * @returns What was stored, with the save's report.
      * @throws A `GraphtyError` (as a rejection): `E_UNSUPPORTED` with no usable IndexedDB,
      *     `E_TOO_LARGE` when the browser's storage quota is used up, and what `project.save`
      *     throws.
@@ -201,8 +211,8 @@ function askToPersist(): void {
  * @returns The frozen facts.
  */
 function factsOf(record: ProjectRecord): StoredProject {
-    const { id, name, savedAt, nodes, edges } = record;
-    return Object.freeze({ id, name, savedAt, nodes, edges });
+    const { id, name, savedAt, nodes, edges, report } = record;
+    return Object.freeze({ id, name, savedAt, nodes, edges, ...(report === undefined ? {} : { report }) });
 }
 
 /**
@@ -226,13 +236,17 @@ export const browserProjects: BrowserProjects = Object.freeze({
         (await openDatabase()).close();
         askToPersist();
         const { nodes, edges } = session.status.counts;
-        const saved = await session.project.save({ markSaved: false });
+        const saved = await session.project.save({
+            markSaved: false,
+            ...(options.assets === undefined ? {} : { assets: options.assets }),
+        });
         const record: ProjectRecord = {
             id: options.id ?? crypto.randomUUID(),
             name: session.project.name,
             savedAt: Date.now(),
             nodes,
             edges,
+            report: saved.report,
             file: new Blob([saved.text], { type: PROJECT_FILE.mediaType }),
         };
         await inStore("readwrite", (store) => store.put(record));

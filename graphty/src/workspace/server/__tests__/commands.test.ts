@@ -5,7 +5,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { formReady, freshForm, serverKinds, serverRequest, withExample, withoutExample } from "../commands";
+import { formReady, freshForm, serverKinds, serverRequest } from "../commands";
 
 /**
  * A source of the catalog, by id.
@@ -81,38 +81,5 @@ describe("the server form's request", () => {
         const ndex = kind("ndex");
         assert.isFalse(formReady(ndex, freshForm(ndex)), "NDEx needs its network UUID");
         assert.isTrue(formReady(ndex, { ...freshForm(ndex), params: { uuid: "x" } }));
-    });
-
-    it("fills from an example exactly, its Start, transport and cap, so Load loads what it promises", () => {
-        const neo4j = kind("neo4j");
-        const hetionet = withExample(neo4j, freshForm(neo4j), "hetionet");
-        assert.equal(hetionet.params.mode, "neighborhood", "the example's Start");
-        assert.equal(hetionet.params.transport, "bolt");
-        assert.notProperty(hetionet.params, "query", "no starter query rides along");
-        const movies = withExample(neo4j, hetionet, "neo4j-movies");
-        assert.equal(movies.params.mode, "all", "Everything, as the example loads");
-        assert.equal(movies.limit, 0, "a whole example is not capped at the form's 500");
-        assert.notProperty(movies.params, "transport", "Bolt does not carry over");
-        assert.notProperty(movies.params, "idProperty");
-        assert.equal(movies.params.database, "movies");
-        assert.equal(movies.endpoint, "https://demo.neo4jlabs.com:7473");
-        assert.equal(movies.user, "movies");
-    });
-
-    it("sends every example's own values and no cap for a whole one, and lets them go with the example", () => {
-        const rest = kind("rest");
-        const string = withExample(rest, freshForm(rest), "string-tp53");
-        const { input, options } = serverRequest(rest, string);
-        assert.include(input.config, { identifiers: "TP53", species: "9606" });
-        assert.equal(input.config.add_nodes, "20");
-        assert.notProperty(options, "limits");
-        const ndex = kind("ndex");
-        const first = ndex.descriptor.examples?.[0];
-        assert.isDefined(first);
-        assert.notProperty(serverRequest(ndex, withExample(ndex, freshForm(ndex), first.id)).options, "limits");
-
-        const cleared = withoutExample(rest, string);
-        assert.equal(cleared.limit, 500, "the fresh cap is back");
-        assert.notProperty(serverRequest(rest, cleared).input.config, "identifiers");
     });
 });

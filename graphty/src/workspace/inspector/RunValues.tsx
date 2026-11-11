@@ -353,8 +353,8 @@ function MeasureValues({
  */
 function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    const groups = run.result?.summary().groups;
-    if (session === null || run.result === undefined || groups === undefined) {
+    const { groups, groupCount } = run.result?.summary() ?? {};
+    if (session === null || run.result === undefined || groups === undefined || groupCount === undefined) {
         return null;
     }
     const { modularity } = run.result.graph;
@@ -363,7 +363,7 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
     return (
         <>
             <ControlSection label="Summary" collapsible={false} headingLevel={3}>
-                <DataRow stat name="Groups" value={groups.length} />
+                <DataRow stat name="Groups" value={groupCount} />
                 {typeof modularity === "number" && (
                     <DataRow
                         stat
@@ -386,7 +386,7 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
                     minLabel={rankedName(groups.at(0))}
                     maxLabel={rankedName(groups.at(-1))}
                 />
-                {groups.length > TOP && <DataRowHeader label={`Largest ${String(TOP)}`} />}
+                {groups.length < groupCount && <DataRowHeader label={`Largest ${String(TOP)}`} />}
                 {groups.slice(0, TOP).map((group) => (
                     <DataRow
                         key={String(group.group)}

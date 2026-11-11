@@ -122,7 +122,7 @@ component draws each region. Its status is the worst status of the region's comp
 | Value | Rule | Reason |
 |---|---|---|
 | Panel widths | derived from `PANEL_GRID.WIDTH`; no literal in the app | one grid identity; the app's current constant is `implementation-mapping.md` 8's |
-| Assistant panel | 280 px, Figma's Agents panel | it holds a conversation and no grid rows, so `PANEL_GRID` does not apply and no second grid identity is created |
+| Assistant panel | 280 px, Figma's Agents panel, or the left panel's current width in a window under 1200 px; stored apart from the left panel's width; the handle reaches 480, capped so the canvas keeps 320; below 640 CSS px it fills the area right of the rail | it holds a conversation and no grid rows, so `PANEL_GRID` does not apply and no second grid identity is created; 280 at 900 x 700 would leave a 323 px canvas, and 400% zoom cannot fit a rail, panel and inspector |
 | Bottom dock | default one third of the canvas column; minimum five table rows plus its tab strip, header and scope line (160 px left about three at 1366 by 768); resizable by `ResizeHandle` | a table needs about five rows to compare; the canvas keeps the majority. Its height past the drawing limit is `state-matrix.md` 4.2's |
 | Comparison side | unmeasured; set by the two-view prototype (7.4) | no number is invented |
 | Option-form labels | `FieldRow` `labelPosition="above"`, labels forced on: figma-spec's caption role over `PANEL_GRID.BODY`, or `PANEL_GRID.FIELD` when paired; a channel field is paired only once it has a short label | the widest measured labels fit `BODY`, not `FIELD` (`research/interface-checks.md`); a label is never truncated |

@@ -123,6 +123,13 @@ const ARROW_CAPTION_OFFSET = 0.3;
  */
 const DEFAULT_ARC_HEIGHT = { arc: 0.25, "great-circle": 0.1 } as const;
 
+/**
+ * Counts every time some edge's line starts or stops being pulled ({@link Edge.isPulled}), so a list of the placed
+ * edges is built again only when one did (`UpdateManager.placedEdges`).
+ * @internal
+ */
+export const pulledLines = { version: 0 };
+
 /** Style keys a pulled line can carry; any other set keeps the edge an object edge (`Edge.pullsLine`). */
 const PULLED_STYLE_KEYS = new Set(["line", "label", "arrowHead", "arrowTail", "band", "visible"]);
 
@@ -170,6 +177,43 @@ function setsOnly(block: object, keys: ReadonlySet<string>): boolean {
  */
 function noCap(cap: EdgeStyleConfig["arrowHead"]): boolean {
     return cap === undefined || ((cap.type ?? "none") === "none" && cap.text === undefined);
+}
+
+/**
+ * Counts every time a look is judged for whether it can be pulled ({@link pulledLook}), so a test can count it.
+ * @internal
+ */
+export const pulledLooks = { judged: 0 };
+
+/**
+ * What {@link pulledLook} answered for each style. A paint's style is shared by every edge drawn in that look
+ * (`StylePainter.edgePaint`) and never changed once handed out, so it is judged once, not once per edge.
+ */
+const pulledLookOf = new WeakMap<EdgeStyleConfig, boolean>();
+
+/**
+ * The part of `Edge.pullsLine` that reads the style alone: it sets only keys a pulled line draws, a solid line,
+ * no words, no cap and no band.
+ * @param style - The resolved style.
+ * @returns True when the look can be pulled.
+ */
+function pulledLook(style: EdgeStyleConfig): boolean {
+    let pulls = pulledLookOf.get(style);
+    if (pulls === undefined) {
+        pulledLooks.judged++;
+        const line = style.line ?? {};
+        pulls =
+            setsOnly(style, PULLED_STYLE_KEYS) &&
+            setsOnly(line, PULLED_LINE_KEYS) &&
+            (line.type ?? "solid") === "solid" &&
+            drawnText(style.label) === undefined &&
+            noCap(style.arrowHead) &&
+            noCap(style.arrowTail) &&
+            style.band?.color === undefined;
+        pulledLookOf.set(style, pulls);
+    }
+
+    return pulls;
 }
 
 /** Which of an edge's caps an entry of {@link Edge.drawnCaps} is: an end's, or one drawn part-way along the line. */
@@ -697,16 +741,40 @@ export class Edge {
             return this.context.is2D() && (row.paint.style.shape?.zIndex ?? 0) < 0;
         }
 
+        // A row stored with no `Node` and not painted yet holds the bootstrap paint, as its `Node`
+        // would, which is never behind edges. Asking its `Node` would build one.
+        if (this.unbuiltEnd(end) !== INVALID_INDEX) {
+            return false;
+        }
+
         return (end === "source" ? this.srcNode : this.dstNode).isDrawnBehindEdges;
     }
 
     /**
-     * One end's row: read from the row itself for an end drawn with no `Node`.
+     * One end's row when it is stored with no `Node`.
+     * @param end - Which end.
+     * @returns The row, or INVALID_INDEX when a `Node` draws it.
+     */
+    private unbuiltEnd(end: "source" | "target"): number {
+        const manager = this.context.getDataManager();
+        const row = dataManagerInternals.rowOf(manager, end === "source" ? this.srcId : this.dstId);
+        return dataManagerInternals.unbuiltAt(manager, row) === undefined ? INVALID_INDEX : row;
+    }
+
+    /**
+     * One end's row: read from the row itself for an end drawn with no `Node`, so asking for it
+     * never builds one.
      * @param end - Which end.
      * @returns The row.
+     * @internal
      */
-    private endRow(end: "source" | "target"): number {
-        return this.columnEnd(end)?.index ?? (end === "source" ? this.srcNode : this.dstNode).index;
+    endRow(end: "source" | "target"): number {
+        const row = this.columnEnd(end)?.index ?? this.unbuiltEnd(end);
+        if (row !== INVALID_INDEX) {
+            return row;
+        }
+
+        return (end === "source" ? this.srcNode : this.dstNode).index;
     }
 
     /**
@@ -1954,8 +2022,9 @@ export class Edge {
             !asSurface;
         // A line moves between a pulled piece and a placed slot when the render path changes.
         // a pulled line that becomes a curve, or stops being one, moves between batches (`EdgeMesh.pullsCurve`)
+        const pulls = this.wantsPull(style);
         const samePull =
-            this.wantsPull(style) === (this.pulled !== null) &&
+            pulls === (this.pulled !== null) &&
             (this.pulled === null || (this.pulled.run !== null) === this.pullsCurve(style));
         const sameRoute = wantsPattern === this.mesh instanceof PatternedLineMesh && samePull;
         // A surface or a taper keys no source mesh either (`content` channels), but it is drawn
@@ -2000,7 +2069,7 @@ export class Edge {
 
         // recreate edge line mesh; the next update places it, because the endpoint cache was
         // invalidated above
-        this.mesh = this.createLine(meshKey, style);
+        this.mesh = this.createLine(meshKey, style, pulls);
 
         // Nothing is parented to graph-root here. Every line, pattern element and cap is a slot in
         // a batch, and a batch parents its one mesh when it is built, which puts every edge in it
@@ -2575,9 +2644,14 @@ export class Edge {
      * {@link Edge.mesh} points at either way: the batch's mesh, or the pattern's own wrapper.
      * @param meshKey - Which appearance this edge is drawn with.
      * @param style - The resolved style to draw from.
+     * @param pulls - Whether the line is pulled ({@link Edge.wantsPull}), when the caller has asked already.
      * @returns What the line is drawn by.
      */
-    private createLine(meshKey: string, style: EdgeStyleConfig): AbstractMesh | PatternedLineMesh {
+    private createLine(
+        meshKey: string,
+        style: EdgeStyleConfig,
+        pulls = this.wantsPull(style),
+    ): AbstractMesh | PatternedLineMesh {
         const options = {
             styleId: meshKey,
             width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
@@ -2592,7 +2666,7 @@ export class Edge {
             options.width > 0 ? style : { ...style, line: { ...style.line, type: "solid" as const, bezier: false } };
 
         this.lineWanted = flavorOf(style);
-        const pulled = this.wantsPull(style) ? this.pullLine(options, style) : null;
+        const pulled = pulls ? this.pullLine(options, style) : null;
         if (pulled) {
             this.lineBatch = null;
             this.lineSlots = [];
@@ -2670,22 +2744,16 @@ export class Edge {
         const line = style.line ?? {};
         return (
             (pulledEdgesDefault.value || (this.context.getNodeBatches?.() ?? null) !== null) &&
+            pulledLook(style) &&
             // a group, or a 2D node below z-index 0, ends the line at its outline (`Edge.groupEnd`), not its centre
             !this.endBehindEdges("source") &&
             !this.endBehindEdges("target") &&
             // in 2D only a straight line, with its width in world units (`EdgeMesh.pulledBatch`)
             !(EdgeMesh.drawsFlat(this.context.getScene()) && this.pullsCurve(style)) &&
-            setsOnly(style, PULLED_STYLE_KEYS) &&
-            setsOnly(line, PULLED_LINE_KEYS) &&
             (this.pullsCurve(style) || !(line.nodeGap || line.sourceNodeGap || line.targetNodeGap)) &&
-            (line.type ?? "solid") === "solid" &&
             (!line.animationSpeed || this.pullsAnimated(style)) &&
             // a line through bends is pulled straight, not rounded or round a self-loop's ring
             (parseBends(line.bends) === null || (line.bezier !== true && !this.isLoop)) &&
-            drawnText(style.label) === undefined &&
-            noCap(style.arrowHead) &&
-            noCap(style.arrowTail) &&
-            style.band?.color === undefined &&
             !batchUploadFrames.edgeAges(this.context.getScene()).on
         );
     }
@@ -2752,9 +2820,7 @@ export class Edge {
             style,
             scene,
             () => rows.positionTexture,
-            this.isLoop,
-            this.routeOf(style),
-            this.context.leansLines?.() ?? false,
+            { loop: this.isLoop, route: this.routeOf(style), lean: this.context.leansLines?.() ?? false },
         );
         const piece = batch.acquire();
         // As `createStaticLine` hands the plain line's material its look.
@@ -2778,6 +2844,7 @@ export class Edge {
             batch.setCurve(piece, 0, null);
         }
 
+        pulledLines.version++;
         this.pulled = {
             batch,
             piece,
@@ -2790,6 +2857,8 @@ export class Edge {
             look,
         };
         this.pullRows();
+        // the walk leaves a straight pulled line alone ({@link Edge.followsRows}), so what it last placed is stale
+        this.invalidatePositionCache();
         return batch.mesh;
     }
 
@@ -2956,6 +3025,26 @@ export class Edge {
     }
 
     /**
+     * Whether this edge's line is a straight pulled one, which the shader draws from its nodes' rows wherever they
+     * are, so the frame's walk has nothing to place for it: only a renumbering freeze changes it
+     * ({@link Edge.followRenumberedRows}). A pulled curve writes its span at each placement, and a line the
+     * layout's map would arc is moved to the curve batch by its next placement, so neither follows rows alone.
+     * @returns True when the walk may leave this edge alone.
+     * @internal
+     */
+    get followsRows(): boolean {
+        return this.pulled !== null && this.pulled.run === null && this.route === "straight";
+    }
+
+    /**
+     * Write this edge's pulled rows again after a freeze renumbered them.
+     * @internal
+     */
+    followRenumberedRows(): void {
+        this.pullRows();
+    }
+
+    /**
      * The batch a line with a surface or a taper is drawn from, or null for the plain line's.
      *
      * A SURFACE replaces the line's pattern (`edge.style`), so its line is a solid joined line
@@ -3027,6 +3116,7 @@ export class Edge {
             this.pulled.batch.releaseRoute(this.pulled.route?.at ?? -1);
 
             this.pulled = null;
+            pulledLines.version++;
             return;
         }
 
@@ -3964,6 +4054,22 @@ export class Edge {
     }
 
     /**
+     * {@link boxReachOf} for one end: an end drawn with no `Node` is its row's box, read from the row table.
+     * @param end - Which end.
+     * @param direction - The line's unit direction.
+     * @returns The distance.
+     */
+    private boxReachAt(end: "source" | "target", direction: Vector3): number {
+        const row = this.columnEnd(end);
+        const table = row === undefined ? null : (this.context.getRowTable?.() ?? null);
+        if (row !== undefined && table !== null) {
+            return surfaceReach(direction, table.extentOf(row.index).half, null);
+        }
+
+        return Edge.boxReachOf(end === "source" ? this.srcNode : this.dstNode, direction);
+    }
+
+    /**
      * How far a node's surface and border are from its center in a direction: on a flat shape, its own outline
      * ({@link Node.reachOutline}), so a line ends on a star's point and not out at its box's corner.
      * @param node - The node.
@@ -4112,7 +4218,7 @@ export class Edge {
             EdgeMesh.calculateArrowLength() *
                 (head.size ?? 1) *
                 scale *
-                Edge.capScale(this.dstNode) *
+                this.capScaleAt("target") *
                 (geometry.lineStop ?? 1)
         );
     }
@@ -4750,7 +4856,7 @@ export class Edge {
 
         const arrowType = arrowStyle.arrowHead?.type;
         const arrowSize = arrowStyle.arrowHead?.size ?? 1;
-        const scale = Edge.capScale(this.dstNode);
+        const scale = this.capScaleAt("target");
         arrowCap.setScale(scale);
         const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * scale;
         const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal", Edge.capOf(arrowStyle, arrowStyle.arrowHead));
@@ -4777,8 +4883,8 @@ export class Edge {
      * @returns The line's ends, stopping short of the arrow head.
      */
     private placeArrowFromCentres(arrowCap: ArrowCap): EdgeLine {
-        const fallbackSrc = this.srcNode.drawnPosition;
-        const fallbackDst = this.dstNode.drawnPosition;
+        const fallbackSrc = this.endPosition("source");
+        const fallbackDst = this.endPosition("target");
 
         // Hide arrow if nodes are too close or at same position
         if (fallbackSrc.equalsWithEpsilon(fallbackDst, 0.01)) {
@@ -4796,7 +4902,7 @@ export class Edge {
         this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.styleAndGeometry");
         const style = this.currentStyle;
         const arrowSize = style.arrowHead?.size ?? 1;
-        const scale = Edge.capScale(this.dstNode);
+        const scale = this.capScaleAt("target");
         arrowCap.setScale(scale);
         const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * scale;
 
@@ -4804,8 +4910,8 @@ export class Edge {
         // around the box, so its radius is the box's half-diagonal and an edge trimmed by it
         // stopped well short of a box, a cylinder or a torus (#2643). Measured in the node's own
         // (graph-root) space, the space the centres above are in.
-        const dstNodeRadius = Edge.boxReachOf(this.dstNode, direction);
-        const srcNodeRadius = Edge.boxReachOf(this.srcNode, direction);
+        const dstNodeRadius = this.boxReachAt("target", direction);
+        const srcNodeRadius = this.boxReachAt("source", direction);
         this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.styleAndGeometry");
 
         // Calculate surface intersection points
@@ -4873,7 +4979,7 @@ export class Edge {
 
         // Get tail arrow dimensions and geometry
         const tailSize = tailStyle.arrowTail?.size ?? 1;
-        const tailScale = Edge.capScale(this.srcNode);
+        const tailScale = this.capScaleAt("source");
         arrowTailCap.setScale(tailScale);
         const tailLength = EdgeMesh.calculateArrowLength() * tailSize * tailScale;
         const tailGeometry = EdgeMesh.getArrowGeometry(tailType, Edge.capOf(tailStyle, tailStyle.arrowTail));
@@ -5046,7 +5152,7 @@ export class Edge {
 
             const toward = new Vector3(along.toward.x, along.toward.y, along.toward.z);
             const tip = new Vector3(along.tip.x, along.tip.y, along.tip.z);
-            const scale = Edge.capScale(this.dstNode);
+            const scale = this.capScaleAt("target");
             cap.setScale(scale);
             const length = EdgeMesh.calculateArrowLength() * (arrow?.size ?? 1) * scale;
             cap.place(EdgeMesh.calculateArrowPosition(tip, toward, length, geometry), toward);
@@ -5059,6 +5165,11 @@ export class Edge {
      * @returns Intersection points for source, destination, and adjusted endpoint
      */
     getInterceptPoints(): InterceptPoint {
+        const fromColumns = this.interceptPointsFromColumns();
+        if (fromColumns !== null) {
+            return fromColumns;
+        }
+
         const srcMesh = this.srcNode.drawnPickMesh;
         const dstMesh = this.dstNode.drawnPickMesh;
         if (this.srcNode.drawnInBatch || this.dstNode.drawnInBatch || srcMesh === null || dstMesh === null) {
@@ -5175,6 +5286,52 @@ export class Edge {
             dstPoint,
             newEndPoint,
         };
+    }
+
+    /**
+     * {@link getInterceptPoints} when no `Node` draws either end and both are round (`"batched"` only): the mirror's
+     * answer from the row table, as the pulled cap's shader reads it, so no `Node` is built for an end.
+     * @returns The points, or null when an end needs its `Node` (a ray, or no row table).
+     */
+    private interceptPointsFromColumns(): InterceptPoint | null {
+        const table = this.context.getRowTable?.() ?? null;
+        const source = this.columnEnd("source");
+        const target = this.columnEnd("target");
+        if (table === null || source === undefined || target === undefined) {
+            return null;
+        }
+
+        const trimEnd = (row: ColumnRow, end: "source" | "target"): TrimEnd | null => {
+            const { round, half } = table.extentOf(row.index);
+            return round === null
+                ? null
+                : {
+                      radius: round,
+                      half,
+                      flat: false,
+                      border: row.borderReach,
+                      gap: this.gapAt(end),
+                      measured: TRIM_CLOSED,
+                      leaves: false,
+                      group: this.endBehindEdges(end),
+                  };
+        };
+        const srcEnd = trimEnd(source, "source");
+        const dstEnd = trimEnd(target, "target");
+        if (srcEnd === null || dstEnd === null) {
+            return null;
+        }
+
+        const tip = new Vector3(1, 0, 0);
+        const { src, dst, lineEnd } = trimEnds({
+            src: table.centerOf(source.index),
+            dst: table.centerOf(target.index),
+            source: srcEnd,
+            target: dstEnd,
+            capBack: 1 - this.lineEndBefore(Vector3.Zero(), tip).x,
+        });
+        const point = (at: Xyz | null): Vector3 | null => (at === null ? null : new Vector3(at.x, at.y, at.z));
+        return { srcPoint: point(src), dstPoint: point(dst), newEndPoint: point(lineEnd) };
     }
 
     /**
@@ -5299,7 +5456,7 @@ export class Edge {
         }
 
         const arrowSize = style.arrowHead?.size ?? 1;
-        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * Edge.capScale(this.dstNode);
+        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * this.capScaleAt("target");
         const arrowType = style.arrowHead?.type ?? "normal";
         const geometry = EdgeMesh.getArrowGeometry(arrowType, Edge.capOf(style, style.arrowHead));
 
@@ -5319,12 +5476,30 @@ export class Edge {
      * How much larger or smaller than its style's size a cap at a node is drawn: as the node is,
      * so a node kept one size on screen (a map's `nodeScale: "screen"`) or drawn at one depth's
      * size keeps its arrowheads in proportion rather than buried under them.
-     * @param node - The node the cap stands on.
-     * @returns The node mesh's scale; 1 when it has none.
+     * An end drawn with no `Node` is read from its row, so no `Node` is built for it.
+     * @param end - The end the cap stands on.
+     * @returns The node's scale; 1 when it has none.
      */
-    private static capScale(node: Node): number {
-        const scale = node.drawnScale;
+    private capScaleAt(end: "source" | "target"): number {
+        const row = this.columnEnd(end);
+        const table = row === undefined ? null : (this.context.getRowTable?.() ?? null);
+        const scale = this.rowOrNodeScale(end, row === undefined || table === null ? null : table.extentOf(row.index));
         return Number.isFinite(scale) && scale > 0 ? scale : 1;
+    }
+
+    /**
+     * A row's scale, or the end's Node's when the row cannot answer: reading a Node builds one.
+     * @param end - The end.
+     * @param extent - The row's extent, or null.
+     * @param extent.scale - Its scale.
+     * @returns The scale.
+     */
+    private rowOrNodeScale(end: "source" | "target", extent: { scale: number } | null): number {
+        if (extent !== null) {
+            return extent.scale;
+        }
+
+        return (end === "source" ? this.srcNode : this.dstNode).drawnScale;
     }
 
     /**

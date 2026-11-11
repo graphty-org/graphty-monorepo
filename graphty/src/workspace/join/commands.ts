@@ -43,6 +43,8 @@ export interface JoinSubject {
     readonly rows: () => Promise<readonly Readonly<Record<string, unknown>>[]>;
     /** The choices the screen opens with: the element's suggestion, or the join as it was made. */
     readonly initial: JoinChoices;
+    /** One of the app's own samples, for a table added as rows. */
+    readonly origin?: "sample";
     /** The Join button's choice the screen opens with. */
     readonly how: JoinHow;
     /** The element's counts for a set of choices. */
@@ -51,6 +53,8 @@ export interface JoinSubject {
     readonly draft?: LoadDraft;
     /** What the file was read from; present when Replace data and Open as a separate graph can run. */
     readonly source?: DataSourceInput;
+    /** The load this file matches, which Replace data opens on. */
+    readonly matches?: SourceKey;
     /** The joined table's load, when editing its join. */
     readonly edit?: SourceKey;
 }
@@ -90,7 +94,14 @@ function suggested(draft: LoadDraft): { choices: JoinChoices; how: JoinHow } {
             how: suggestion.shape === "rows" ? "rows" : "replace",
         };
     }
-    return { choices: { shape: suggestion.shape, keys: suggestion.keys }, how: "join" };
+    return {
+        choices: {
+            shape: suggestion.shape,
+            keys: suggestion.keys,
+            ...(suggestion.repeated === undefined ? {} : { repeated: suggestion.repeated }),
+        },
+        how: "join",
+    };
 }
 
 /**
@@ -99,12 +110,16 @@ function suggested(draft: LoadDraft): { choices: JoinChoices; how: JoinHow } {
  * @param joining.name - the file's name.
  * @param joining.draft - the draft.
  * @param joining.source - what it was read from.
+ * @param joining.origin - "sample" for one of the app's own samples.
+ * @param joining.matches - the load holding the same columns, if any.
  * @returns the subject.
  */
 export function draftSubject(joining: {
     readonly name: string;
     readonly draft: LoadDraft;
     readonly source?: DataSourceInput;
+    readonly origin?: "sample";
+    readonly matches?: SourceKey;
 }): JoinSubject {
     const { draft } = joining;
     const table = draft.tables[0];
@@ -117,10 +132,12 @@ export function draftSubject(joining: {
                 ? []
                 : (await draft.rows(table.id, { limit: Infinity })).records.map((row) => row.values),
         initial: choices,
-        how,
+        how: joining.matches === undefined ? how : "replace",
         report: (next) => draft.joinReport(next),
         draft,
         ...(joining.source === undefined ? {} : { source: joining.source }),
+        ...(joining.origin === undefined ? {} : { origin: joining.origin }),
+        ...(joining.matches === undefined ? {} : { matches: joining.matches }),
     };
 }
 
@@ -250,7 +267,7 @@ export async function finishJoin(
     } else if (how === "join") {
         await draft?.load({ join: choices });
     } else if (how === "rows") {
-        await draft?.load({ mode: "merge" });
+        await draft?.load({ mode: "merge", ...(subject.origin === undefined ? {} : { origin: subject.origin }) });
     } else if (how === "replace" && source !== undefined && target !== undefined) {
         draft?.dispose();
         await replaceWith(workspace, session, target, { name: subject.name, source });

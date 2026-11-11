@@ -14,7 +14,8 @@ export function useSourceActions(): () => AttributeAction[] {
     const { session, store } = useWorkspace();
     return () => {
         const sources = session?.data.sources() ?? [];
-        if (!canReplace(sources)) {
+        // A network source is edited in its own form, never through the file flow.
+        if (!canReplace(sources) || sources[0].kind === "server") {
             return [];
         }
         return [

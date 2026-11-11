@@ -490,7 +490,9 @@ export type { JournalApi, JournalEntry, JournalId } from "./src/session/journal"
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./src/session";
 export { browserProjects } from "./src/session";
 export type {
+    AssetStorage,
     ProjectApi,
+    ProjectAssetChoice,
     ProjectOpenOptions,
     ProjectOpenReport,
     ProjectProblem,

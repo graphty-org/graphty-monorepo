@@ -63,6 +63,8 @@ export interface JoinsDraftHost {
     graph(): {
         readonly nodes: readonly DraftNode[];
         readonly edges: readonly DraftEdge[];
+        /** Whether an edge's ends are ordered; directed when absent. */
+        readonly directed?: boolean;
     };
     /** The loads a recipe can read (every load but the joins), with what each supplied. */
     sources(): readonly {
@@ -225,7 +227,9 @@ function applied(
  * @returns The draft.
  */
 export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
-    const start = copyOf(host.graph());
+    const given = host.graph();
+    const start = copyOf(given);
+    const directed = given.directed ?? true;
     const loads = host.sources();
     const held = new Map<string, JoinTable>();
     let history: State[] = [{ steps: [] }];
@@ -286,6 +290,7 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
             data: { ...edge.data, source: edge.source, target: edge.target },
         })),
         table: (key) => tableOf(key, graph),
+        directed,
     });
 
     const run = (): readonly StepRun[] => {

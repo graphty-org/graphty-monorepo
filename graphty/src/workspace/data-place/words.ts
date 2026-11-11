@@ -12,7 +12,7 @@ import type {
     ColumnRole,
     Endpoint,
     GraphSession,
-    ImportReport,
+    JoinShape,
     LeftOutEdge,
     LoadedSource,
     LocationKind,
@@ -23,20 +23,8 @@ import type {
 } from "@graphty/graphty-element/session";
 
 import { formatNumber, valueText } from "../inspector/words";
+import { kindName } from "../server/words";
 import { formatCount } from "../settings/numberFormat";
-
-/** What a Sources row's glyph shows: a graph file holding both tables, one table, or the rows a load left out. */
-export type SourceKind = "file" | "nodes" | "edges" | "left-out";
-
-/** One Sources row. */
-export interface SourceRow {
-    readonly id: string;
-    readonly kind: SourceKind;
-    readonly name: string;
-    /** The quiet line: "34 nodes, 78 edges"; "30 nodes, 254 edges"; "77 nodes"; a table's "254 rows, 254 edges". */
-    readonly quiet: string;
-    readonly children?: readonly SourceRow[];
-}
 
 /** What an Attributes row's glyph shows: what the column measures, or the run that made it. */
 export type TypeGlyph = "category" | "text" | "number" | "ordinal" | "time" | "yes-no" | "unknown" | "result";
@@ -66,33 +54,6 @@ export interface AttributeRow {
  */
 export function count(n: number, noun: string): string {
     return `${formatCount(n)} ${noun}${n === 1 ? "" : "s"}`;
-}
-
-/**
- * What a load added, as its row's quiet line. A kind it added none of is left out, so a narrow
- * row keeps room for its name.
- * @param added - `LoadedSource.added`.
- * @returns such as "20 nodes, 41 edges", "17 edges", or "0 nodes, 0 edges" for a load that added nothing.
- */
-function addedWords(added: LoadedSource["added"]): string {
-    const parts = [
-        ...(added.nodes > 0 ? [count(added.nodes, "node")] : []),
-        ...(added.edges > 0 ? [count(added.edges, "edge")] : []),
-    ];
-    return parts.length === 0 ? "0 nodes, 0 edges" : parts.join(", ");
-}
-
-/**
- * The row under a load that says how many edge rows it left out, so the count shows however
- * narrow the panel is.
- * @param load - the load, an entry of `data.sources()`.
- * @param id - the load's row id.
- * @returns the rows: one "1 row left out" row, or none when the load left nothing out.
- */
-function leftOutRows(load: LoadedSource, id: string): SourceRow[] {
-    return load.leftOut === undefined
-        ? []
-        : [{ id: `${id}:left-out`, kind: "left-out", name: `${count(load.leftOut.rows, "row")} left out`, quiet: "" }];
 }
 
 /**
@@ -152,137 +113,12 @@ export function leftOutRow(edge: LeftOutEdge, ends?: NonNullable<LoadedSource["l
 }
 
 /**
- * The index into `data.sources()` that a Sources row id names.
- * @param id - `source:<load>` or `source:<load>:<table>`.
- * @returns the index, or undefined for an id that is not a source row's.
- */
-export function loadIndexOf(id: string): number | undefined {
-    const [head, index] = id.split(":");
-    const at = Number(index);
-    return head === "source" && Number.isInteger(at) && at >= 0 ? at : undefined;
-}
-
-/**
- * The glyph of a load that read one table: a graph file when it brought both nodes and edges.
- * @param added - `LoadedSource.added`.
- * @returns the kind.
- */
-function kindOf(added: LoadedSource["added"]): SourceKind {
-    if (added.nodes > 0 && added.edges > 0) {
-        return "file";
-    }
-    return added.edges > 0 ? "edges" : "nodes";
-}
-
-/**
- * The Sources rows for what the element says was loaded: one row per load, oldest first
- * (`data.sources()`). A load that read several tables expands to them. A graph that came from one
- * load of one table keeps the tier 1 rows: a graph file expands to its node table and edge table
- * (counted from `data.lastImport()`), and a source that brought one kind of record is that table.
- * @param sources - `data.sources()`.
- * @param report - `data.lastImport()`.
- * @returns the rows, empty when nothing was imported.
- */
-export function sourceRows(sources: readonly LoadedSource[], report: ImportReport | null): SourceRow[] {
-    const [only] = sources;
-    if (sources.length === 1 && only.tables.length <= 1 && report !== null) {
-        return oneTableRows(only.name ?? "Untitled data", report).map((row) => {
-            const leftOut = leftOutRows(only, row.id);
-            return leftOut.length === 0 ? row : { ...row, children: [...(row.children ?? []), ...leftOut] };
-        });
-    }
-    return sources.map((load, index) => {
-        const id = `source:${String(index)}`;
-        const name = loadName(load);
-        if (load.tables.length > 1) {
-            const children = load.tables.map((table, at): SourceRow => ({
-                id: `${id}:${String(at)}`,
-                kind: load.tableRows?.[at] ?? "file",
-                name: table,
-                quiet: "",
-            }));
-            return {
-                id,
-                kind: "file",
-                name,
-                quiet: addedWords(load.added),
-                children: [...children, ...leftOutRows(load, id)],
-            };
-        }
-        const leftOut = leftOutRows(load, id);
-        return {
-            id,
-            kind: kindOf(load.added),
-            name,
-            quiet: addedWords(load.added),
-            ...(leftOut.length === 0 ? {} : { children: leftOut }),
-        };
-    });
-}
-
-/**
- * One Sources row by its id, a load's or a child's.
- * @param sources - `data.sources()`.
- * @param report - `data.lastImport()`.
- * @param id - the row's id.
- * @returns the row, or undefined when it is gone.
- */
-export function sourceRowOf(
-    sources: readonly LoadedSource[],
-    report: ImportReport | null,
-    id: string,
-): SourceRow | undefined {
-    return sourceRows(sources, report)
-        .flatMap((row) => [row, ...(row.children ?? [])])
-        .find((row) => row.id === id);
-}
-
-/**
  * A load's name: the one it was given, else its tables'.
  * @param load - an entry of `data.sources()`.
  * @returns such as "people.csv and passes.csv".
  */
 export function loadName(load: LoadedSource): string {
     return load.name ?? (load.tables.join(" and ") || "Untitled data");
-}
-
-/**
- * The rows for a graph that came from one load of one table.
- * @param name - the load's name.
- * @param report - `data.lastImport()`.
- * @returns the rows.
- */
-function oneTableRows(name: string, report: ImportReport): SourceRow[] {
-    const { nodes, edges, nodeRecords, edgeRecords } = report.counts;
-    const nodeTable: SourceRow = {
-        id: "source:0:nodes",
-        kind: "nodes",
-        name: "Node table",
-        quiet: `${count(nodeRecords, "row")}, ${count(nodes, "node")}`,
-    };
-    const edgeTable: SourceRow = {
-        id: "source:0:edges",
-        kind: "edges",
-        name: "Edge table",
-        quiet: `${count(edgeRecords, "row")}, ${count(edges, "edge")}`,
-    };
-    if (nodeRecords > 0 && edgeRecords > 0) {
-        return [
-            {
-                id: "source:0",
-                kind: "file",
-                name,
-                quiet: `${count(nodes, "node")}, ${count(edges, "edge")}`,
-                children: [nodeTable, edgeTable],
-            },
-        ];
-    }
-    // A lone table reads what it made: "77 nodes", or "14 nodes, 16 edges" for an edge list.
-    const table =
-        edgeRecords > 0
-            ? { ...edgeTable, quiet: `${count(nodes, "node")}, ${count(edges, "edge")}` }
-            : { ...nodeTable, quiet: count(nodes, "node") };
-    return [{ ...table, id: "source:0", name }];
 }
 
 /**
@@ -450,6 +286,173 @@ export function sourceName(source: LoadedSource): string {
 }
 
 /**
+ * What kind of source a load is, for its details: the catalog's name for a network source.
+ * @param source - the load.
+ * @returns such as "File" or "SPARQL endpoint".
+ */
+export function sourceKindWord(source: LoadedSource): string {
+    const id = source.type?.replace(/^source:/, "");
+    const entry = source.kind === "server" ? sourceDescriptors().find((each) => each.id === id) : undefined;
+    return entry === undefined ? KIND_NAMES[source.kind] : kindName(entry);
+}
+
+/**
+ * The key of the load an inspected Sources row names.
+ * @param id - `source:<key>`.
+ * @returns the key.
+ */
+export function sourceKeyOf(id: string): string {
+    return id.slice("source:".length);
+}
+
+/** One row of a load's details. */
+export interface SourceFact {
+    readonly name: string;
+    readonly value: string | number;
+}
+
+/** What a joined table's rows were read as, in words. */
+const JOIN_SHAPE_WORDS: Readonly<Record<JoinShape, string>> = {
+    "node-values": "Values on nodes",
+    "edge-values": "Values on edges",
+    edges: "Edges",
+    rows: "Added rows",
+    replace: "Replaced data",
+    link: "Links between nodes",
+    merge: "Merged into nodes",
+};
+
+/**
+ * What `JoinRecord.matched` counts, by the join's shape.
+ * @param shape - the join's shape.
+ * @returns "node", "edge" or "row".
+ */
+function matchedUnit(shape: JoinShape): "node" | "edge" | "row" {
+    if (shape === "node-values") {
+        return "node";
+    }
+    return shape === "edge-values" ? "edge" : "row";
+}
+
+/**
+ * A file's size.
+ * @param bytes - how many bytes.
+ * @returns such as "45 B", "12 KB" or "1.4 MB".
+ */
+function sizeWords(bytes: number): string {
+    if (bytes < 1000) {
+        return `${String(bytes)} B`;
+    }
+    return bytes < 1_000_000 ? `${formatNumber(Math.ceil(bytes / 1000))} KB` : `${(bytes / 1_000_000).toFixed(1)} MB`;
+}
+
+/**
+ * A load's format as a reader says it. The element reads a .tsv with its CSV reader, so the file's
+ * extension tells the two apart.
+ * @param source - the load.
+ * @returns such as "CSV", "TSV" or "GML".
+ */
+function formatWord(source: LoadedSource): string {
+    const tab = source.type === "csv" && /\.tsv$/i.test(source.fileName ?? source.name ?? "");
+    return tab ? "TSV" : (source.type ?? "").toUpperCase();
+}
+
+/**
+ * One side of a join key, as a reader says it.
+ * @param graph - the key's graph value: "id", "source", "target" or "data.<column>".
+ * @returns such as "Id" or "symbol".
+ */
+function graphValueWord(graph: string): string {
+    const plain = graph.replace(/^data\./, "");
+    return plain === graph && graph !== "" ? `${graph.charAt(0).toUpperCase()}${graph.slice(1)}` : plain;
+}
+
+/** What a load's details say besides its own entry. */
+interface SourceExtras {
+    /** How many open issues it has. */
+    readonly issues: number;
+    /** It is an opened project's network load that has not run. */
+    readonly waiting: boolean;
+    /** A network load's Start, params, Limit and Expand, drawn after its Address. */
+    readonly settings?: readonly SourceFact[];
+}
+
+/**
+ * A join's own rows.
+ * @param source - the joined load.
+ * @param sources - `data.sources()`.
+ * @returns the rows.
+ */
+function joinFacts(source: LoadedSource, sources: readonly LoadedSource[]): SourceFact[] {
+    const { join } = source;
+    if (join === undefined) {
+        return [];
+    }
+    const nameOf = (key: string | undefined): string | undefined => {
+        const held = sources.find((each) => each.key === key);
+        return held === undefined ? undefined : sourceName(held);
+    };
+    const unit = matchedUnit(join.shape);
+    const rows: readonly (SourceFact | false)[] = [
+        nameOf(source.joinedOnto) !== undefined && { name: "Joined onto", value: nameOf(source.joinedOnto) as string },
+        { name: "Reads as", value: JOIN_SHAPE_WORDS[join.shape] },
+        join.choices.keys.length > 0 && {
+            name: "Key",
+            value: join.choices.keys.map((key) => `${key.file} = ${graphValueWord(key.graph)}`).join(", "),
+        },
+        nameOf(join.choices.via) !== undefined && { name: "Through", value: nameOf(join.choices.via) as string },
+        { name: "Table rows", value: join.rows },
+        (join.table.unreadRows ?? 0) > 0 && { name: "Lines not read", value: join.table.unreadRows ?? 0 },
+        { name: `${unit.charAt(0).toUpperCase()}${unit.slice(1)}s matched`, value: join.matched },
+        join.columns.length > 0 && { name: "Columns added", value: join.columns.join(", ") },
+    ];
+    return rows.filter((row) => row !== false);
+}
+
+/**
+ * A load's details, as the right panel draws them: what it was and when it was retrieved, simple
+ * statistics, and how a joined table was joined. A fact a load does not have is left out.
+ * @param source - the load.
+ * @param sources - `data.sources()`.
+ * @param extras - what the element says about it besides its entry.
+ * @returns the rows of each section.
+ */
+export function sourceFacts(
+    source: LoadedSource,
+    sources: readonly LoadedSource[],
+    extras: SourceExtras,
+): { source: SourceFact[]; statistics: SourceFact[]; join: SourceFact[] } {
+    const local = source.kind === "file" || source.kind === "join";
+    const server = source.kind === "server";
+    const facts: readonly (SourceFact | false)[] = [
+        { name: "Type", value: sourceKindWord(source) },
+        local && source.fileName !== undefined && { name: "File", value: source.fileName },
+        !local && source.url !== undefined && { name: "Address", value: source.url },
+        ...(extras.settings ?? []),
+        !server && source.type !== undefined && { name: "Format", value: formatWord(source) },
+        local && source.size !== undefined && { name: "Size", value: sizeWords(source.size) },
+        source.loadedAt !== undefined && {
+            name: "Retrieved",
+            value: new Date(source.loadedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }),
+        },
+        extras.waiting && { name: "Status", value: "Not fetched yet" },
+    ];
+    const values = source.join?.shape === "node-values" || source.join?.shape === "edge-values";
+    const { nodes, edges } = source.counts;
+    const statistics: readonly (SourceFact | false)[] = [
+        !values && { name: "Nodes", value: server ? serverCount(nodes, source.total) : nodes },
+        !values && { name: "Edges", value: server ? serverCount(edges, source.totalEdges) : edges },
+        source.leftOut !== undefined && { name: "Rows left out", value: source.leftOut.rows },
+        extras.issues > 0 && { name: "Open issues", value: extras.issues },
+    ];
+    return {
+        source: facts.filter((row) => row !== false),
+        statistics: statistics.filter((row) => row !== false),
+        join: joinFacts(source, sources),
+    };
+}
+
+/**
  * A server load's count beside its name: how many nodes it brought of how many the source holds.
  * @param loaded - the nodes the load brought.
  * @param total - the nodes the source holds, when it says.
@@ -484,12 +487,18 @@ function joinedRows(join: NonNullable<LoadedSource["join"]>): number {
 /**
  * The join match's name and tooltip, with its unit.
  * @param source - the joined load.
- * @returns such as "17 of 19 rows joined", or null when {@link joinMatch} draws nothing.
+ * @returns such as "17 of 19 rows joined" or "52 nodes matched, 70 table rows", or null when
+ * {@link joinMatch} draws nothing.
  */
 export function joinWords(source: LoadedSource): string | null {
-    return joinMatch(source) === null || source.join === undefined
-        ? null
-        : `${formatNumber(joinedRows(source.join))} of ${formatNumber(source.join.rows)} rows joined`;
+    if (joinMatch(source) === null || source.join === undefined) {
+        return null;
+    }
+    const { matched, rows, shape } = source.join;
+    const unit = matchedUnit(shape);
+    return unit === "row"
+        ? `${formatNumber(joinedRows(source.join))} of ${formatNumber(rows)} rows joined`
+        : `${count(matched, unit)} matched, ${formatNumber(rows)} table rows`;
 }
 
 /**
@@ -510,7 +519,17 @@ export type FieldSide = "nodes" | "edges";
 
 /** What a Fields row sets. */
 export type FieldKey =
-    "key" | "label" | "kind" | "time" | "source" | "target" | "weight" | "edgeId" | "sourceKind" | "targetKind";
+    | "key"
+    | "label"
+    | "kind"
+    | "kindName"
+    | "time"
+    | "source"
+    | "target"
+    | "weight"
+    | "edgeId"
+    | "sourceKind"
+    | "targetKind";
 
 /** One fixed structure row: it always holds a value, so it is never a "+" entry. */
 export interface FieldRow {
@@ -528,7 +547,8 @@ export const FIELD_ROWS: readonly FieldRow[] = [
 ];
 
 /** What a Fields "+" entry is. */
-export type EntryId = "label" | "kind" | "weight" | "time" | LocationKind | "edgeId" | "sourceKind" | "targetKind";
+export type EntryId =
+    "label" | "kind" | "kindName" | "weight" | "time" | LocationKind | "edgeId" | "sourceKind" | "targetKind";
 
 /** One kind of Fields "+" entry. */
 export interface FieldEntry {
@@ -556,6 +576,7 @@ export const FIELD_ENTRIES: Readonly<Record<FieldSide, readonly FieldEntry[]>> =
     nodes: [
         { id: "label", name: "Label", role: "label" },
         { id: "kind", name: "Kind", load: "kind" },
+        { id: "kindName", name: "Kind of node", load: "kindName" },
         { id: "weight", name: "Weight", role: "weight" },
         { id: "time", name: "Time", role: "time" },
         ...LOCATION_ENTRIES,
@@ -707,6 +728,18 @@ export function kindChoices(roles: TableMappingRead | undefined, current: string
         (name): name is string => name !== null,
     );
     return [...new Set(names)];
+}
+
+/**
+ * The kind names a node file's Kind of node row offers: the file's name without its extension,
+ * which is what a reader calls the rows in it, and the current kind.
+ * @param source - the load.
+ * @param current - the kind now, or null.
+ * @returns the names.
+ */
+export function fileKindChoices(source: LoadedSource | undefined, current: string | null): string[] {
+    const file = source === undefined ? null : sourceName(source).replace(/\.[^.]*$/, "");
+    return [...new Set([file, current].filter((name) => name !== null && name !== ""))] as string[];
 }
 
 /**

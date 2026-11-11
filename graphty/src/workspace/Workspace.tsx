@@ -315,9 +315,18 @@ export function Workspace({
     // causes is written after this runs, since it listens first.
     useEffect(() => {
         const empty = (): void => {
-            if (store.get().announcement !== "") {
-                store.set({ announcement: "" });
+            const { announcement, announced } = store.get();
+            if (announcement === "") {
+                return;
             }
+            // After the key's own listeners, unless one of them said something: emptying the line
+            // re-renders at once, and a re-render in the middle of the key's dispatch swaps the
+            // window listener an open Mantine modal closes on, so that modal would miss its Escape.
+            setTimeout(() => {
+                if (store.get().announced === announced) {
+                    store.set({ announcement: "" });
+                }
+            });
         };
         globalThis.addEventListener("keydown", empty, true);
         globalThis.addEventListener("pointerdown", empty, true);

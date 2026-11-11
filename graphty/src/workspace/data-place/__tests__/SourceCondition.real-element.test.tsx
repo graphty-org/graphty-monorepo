@@ -165,7 +165,10 @@ describe("picking nodes by a condition card from the Data place", () => {
             assert.isDefined(found);
             return found;
         });
-        assert.lengthOf(within(card).getAllByText(/ of /), 1);
+        // The chip's count arrives in a render after the card's, from the element's visibility counts.
+        await waitFor(() => {
+            assert.lengthOf(within(card).getAllByText(/ of /), 1);
+        });
         // Its chip shows its whole "X of Y" at the panel's width: not cut to an ellipsis, and not
         // clipped or covered by the card's controls (the chip is what the reader sees at its far end).
         for (const text of card.querySelectorAll<HTMLElement>(".cm-entity-text")) {

@@ -45,7 +45,10 @@ beforeEach(() => {
     localStorage.removeItem(PROJECT_HOSTS_KEY);
 });
 
-afterEach(() => {
+afterEach(async () => {
+    // Saved projects outlive the file in the browser's storage: a later file's start page would
+    // open as a returning reader's.
+    await clearRecent();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     localStorage.removeItem(OPEN_PROJECT_URLS.key);
@@ -284,7 +287,7 @@ describe("web addresses in the Style tab, with the node models experiment", () =
         assert.lengthOf(await browserProjects.list(), 0);
     });
 
-    it("Save as pressed while the question asks cancels that save, and the next one asks afresh", async () => {
+    it("Save as pressed while the question asks leaves the question, and the next save after Cancel asks afresh", async () => {
         await clearRecent();
         const { session, tab, store } = await openShapes();
         await pasteModel(session, tab);
@@ -297,6 +300,15 @@ describe("web addresses in the Style tab, with the node models experiment", () =
         await userEvent.click(within(saveAs).getByRole("button", { name: "Save" }));
         const keep = await screen.findByRole("dialog", { name: "Save files from the web" });
         await userEvent.click(within(keep).getByText("Use URL"));
+
+        // A modal dialog keeps every command key: Save as does not reach the page behind it.
+        await userEvent.keyboard("{Control>}{Shift>}s{/Shift}{/Control}");
+        assert.isTrue(keep.isConnected, "the question is still asking");
+        assert.isNull(screen.queryByRole("dialog", { name: "Save Models as" }));
+        await userEvent.click(within(keep).getByRole("button", { name: "Cancel" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog"));
+        });
 
         await userEvent.keyboard("{Control>}{Shift>}s{/Shift}{/Control}");
         const again = await screen.findByRole("dialog", { name: "Save Models as" });

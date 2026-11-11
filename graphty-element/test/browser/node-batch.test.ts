@@ -30,6 +30,7 @@ import { isRowBatch } from "../../src/meshes/RowPullPlugin";
 import { rowScanOf } from "../../src/render/PickService";
 import { RowTable } from "../../src/render/RowTable";
 import { defineLayout } from "../../src/simple/defineLayout";
+import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
 import { click, drag, hover, nextFrame, wheel } from "../helpers/real-input";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas as readFrame } from "../helpers/whole-canvas";
 import { nextModelEvent } from "./models/helpers";
@@ -1272,6 +1273,51 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             NODES.map((n) => n.id),
             "the bodies were made in row order, as on the object path",
         );
+    });
+
+    // A simulation handed the frame loop the store's every node, so the first frame after a layout started built a
+    // Node for every row and painted each: at 100k rows, seconds before the first layout frame (#6389).
+    it("start and switch a simulation layout building no Node and repainting nothing", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        graph.acceleration.setAccelerator(createFakeAccelerator());
+        await element.session.data.addNodes(NODES);
+        await element.session.data.addEdges(NODES.slice(1).map((node) => ({ source: node.id - 1, target: node.id })));
+        await operationQueueOf(graph).waitForCompletion();
+        await nextFrame();
+        const manager = graph.getDataManager();
+        const table = graph.getRowTable();
+        assert.isNotNull(table);
+        if (table === null) {
+            return;
+        }
+
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "loaded with no Node");
+        const snapshot = manager.getSnapshot();
+        const paints = vi.spyOn(NodeBatches.prototype, "paintRow");
+        cleanups.push(() => {
+            paints.mockRestore();
+        });
+
+        for (const layout of ["spring-electrical", "ngraph", "spring-electrical"]) {
+            const before = table.centerOf(3).clone();
+            await graph.setLayout(layout, { dim: 2, seed: 5 });
+            await operationQueueOf(graph).waitForCompletion();
+            // The layout draws: its rows move with no Node, frame by frame.
+            while (table.centerOf(3).equals(before)) {
+                await nextFrame();
+            }
+
+            const engine = graph.getLayoutManager().layoutEngine;
+            assert.isTrue(
+                layout === "ngraph" ? engine instanceof NGraphEngine : engine instanceof SimulationLayoutEngine,
+                `${layout}: the engine it names`,
+            );
+            assert.equal(dataManagerInternals.nodesBuilt(manager), 0, `${layout}: no row has a Node`);
+            assert.equal(paints.mock.calls.length, 0, `${layout}: no row was repainted`);
+            assert.strictEqual(manager.getSnapshot(), snapshot, `${layout}: the snapshot was reused`);
+        }
     });
 
     // Removing a row with no Node used to forget it everywhere but the simulation: its d3 or

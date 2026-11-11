@@ -566,11 +566,25 @@ export class LiveTurnEngine implements AiEngine {
     }
 
     /**
-     * Send the results of the last turn's calls, when it made any.
+     * Send the results of the last turn's calls, when it made any. A call the loop did not run (one
+     * made on a turn that may only answer) is answered `AI_TOOL_NOT_RUN`, with graphty's own words
+     * that end the request (the loop's ask to answer or to go on). A later turn whose last response
+     * made no call sends those words as text. Either way the provider answers in one response.
      * @param request - The turn, whose messages hold the results.
      */
     private answerOutstanding(request: TurnRequest): void {
+        const last = request.messages.at(-1);
+        const parts = last?.role === "user" ? last.parts : [];
+        const words = parts.every((part) => part.type === "text" && part.origin === "graphty")
+            ? parts.map((part) => (part.type === "text" ? part.text : "")).join("\n")
+            : "";
         if (this.outstanding.length === 0) {
+            if (this.reading?.read === true && words !== "") {
+                // The message reads one more response.
+                this.reading.read = false;
+                this.connection.sendText(words);
+            }
+
             return;
         }
 
@@ -581,7 +595,13 @@ export class LiveTurnEngine implements AiEngine {
             }
         }
 
-        this.send(this.outstanding.flatMap((call) => results.get(call.id) ?? []));
+        this.send(
+            this.outstanding.map(
+                (call) =>
+                    results.get(call.id) ??
+                    result(call.id, "AI_TOOL_NOT_RUN", { tool: call.name, reason: "limit" }, words || undefined),
+            ),
+        );
     }
 
     /**

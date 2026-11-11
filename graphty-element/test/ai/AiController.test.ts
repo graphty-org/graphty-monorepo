@@ -364,6 +364,41 @@ describe("AiController", () => {
             assert.strictEqual(result.success, true);
             assert.strictEqual(result.llmText, "I looked at the data; what should change?");
         });
+
+        it("an empty turn after tool results is asked once to go on, and not kept in the history (#6712)", async () => {
+            const looked = registerEcho("look");
+            const provider = scriptedProvider([
+                { text: "", toolCalls: [{ id: "t1", name: "look", arguments: { value: "a" } }] },
+                { text: "", toolCalls: [] },
+                { text: "Found a.", toolCalls: [] },
+            ]);
+            const multi = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
+
+            const result = await multi.execute("look");
+
+            assert.deepStrictEqual(looked, ["a"]);
+            assert.strictEqual(provider.asks.length, 3);
+            assert.strictEqual(provider.asks[2].at(-1)?.role, "user");
+            assert.include(provider.asks[2].at(-1)?.content, "Go on");
+            assert.strictEqual(result.code, "AI_COMPLETED");
+            assert.strictEqual(result.llmText, "Found a.");
+        });
+
+        it("an empty turn again after the ask to go on ends the message AI_NO_RESPONSE (#6712)", async () => {
+            registerEcho("look");
+            const provider = scriptedProvider([
+                { text: "", toolCalls: [{ id: "t1", name: "look", arguments: { value: "a" } }] },
+                { text: "", toolCalls: [] },
+                { text: "", toolCalls: [] },
+            ]);
+            const multi = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
+
+            const result = await multi.execute("look");
+
+            assert.strictEqual(provider.asks.length, 3, "asked to go on only once");
+            assert.strictEqual(result.code, "AI_NO_RESPONSE");
+            assert.deepStrictEqual(result.params, { toolCalls: 1 });
+        });
     });
 
     describe("status changes", () => {

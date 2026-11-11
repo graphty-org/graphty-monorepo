@@ -9,6 +9,7 @@ import { layoutDim, startColumn } from "./start.js";
 
 /** Options of indexed.arf. */
 export interface ArfOptions {
+    /** Numbers per node: `2` or `3`. Default 2. */
     readonly dim?: 2 | 3 | undefined;
     /** The seed of the rows `pos` does not give (null or absent: unseeded). */
     readonly seed?: number | null | undefined;

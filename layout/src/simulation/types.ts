@@ -2,9 +2,13 @@ import type { F32, GraphSnapshot, NodeId, NodeMask, U32 } from "@graphty/graph-f
 
 /** graph-format design 14.3 CommonLayoutOptions. */
 export interface CommonLayoutOptions {
+    /** Numbers per node: `2` or `3`. Default 2. */
     readonly dim?: 2 | 3 | undefined;
+    /** The size of the layout around its center. Default 1. */
     readonly scale?: number | undefined;
+    /** The center of the layout; missing components are 0. Default the origin. */
     readonly center?: ArrayLike<number> | undefined;
+    /** The seed of the random start positions; the same seed gives the same drawing. `null` or unset draws a random one. */
     readonly seed?: number | null | undefined;
 }
 
@@ -126,6 +130,7 @@ export interface LayoutSimulation {
     load(snapshot: GraphSnapshot, positions: F32): void;
     /** GPU implementations are async (the readback); CPU implementations return void. */
     step(iterations?: number): void | Promise<void>;
+    /** True once the layout has stopped moving (or reached its iteration limit); `step()` then does nothing. */
     readonly settled: boolean;
     /** The same bitmap layout as a bool column with role "fixed". */
     setFixed(mask: NodeMask): void;
@@ -155,16 +160,38 @@ export interface LayoutSimulation {
     setCollision?(collision: CollisionOptions | null): void;
     /** A drag during the simulation: one node's scene-unit position. */
     setPosition(index: number, x: number, y: number, z: number): void;
+    /** Frees what the simulation holds; it cannot be stepped afterwards. */
     dispose(): void;
 }
 
 /** Design 9.3 LayoutAccelerator: what an injected GPU implements; every method optional (only implemented ones exist). */
 export interface LayoutAccelerator {
+    /** What runs the simulations, such as `"webgpu"`; for logs and diagnostics. */
     readonly kind: string;
+    /**
+     * A ForceAtlas2 simulation on the accelerator.
+     * @param options - the ForceAtlas2 options
+     * @returns the simulation, ready for `load()`
+     */
     forceAtlas2?(options?: ForceAtlas2Options): LayoutSimulation;
+    /**
+     * A Fruchterman-Reingold simulation on the accelerator.
+     * @param options - the Fruchterman-Reingold options
+     * @returns the simulation, ready for `load()`
+     */
     fruchtermanReingold?(options?: FruchtermanReingoldOptions): LayoutSimulation;
+    /**
+     * A spring-electrical simulation on the accelerator.
+     * @param options - the spring-electrical options
+     * @returns the simulation, ready for `load()`
+     */
     springElectrical?(options?: SpringElectricalOptions): LayoutSimulation;
+    /**
+     * Frees what the accelerator holds for a snapshot (its uploaded buffers).
+     * @param s - the snapshot whose resources to free
+     */
     release?(s: GraphSnapshot): void;
+    /** Frees everything the accelerator holds; it cannot be used afterwards. */
     dispose?(): void;
 }
 

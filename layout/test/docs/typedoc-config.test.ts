@@ -46,4 +46,15 @@ describe("typedoc.json", () => {
         assert.strictEqual(result.warningCount, 0, `TypeDoc warnings:\n${log}`);
         assert.strictEqual(result.errorCount, 0, `TypeDoc errors:\n${log}`);
     });
+
+    it("gives every exported symbol a description", async () => {
+        const { stdout } = await execFileAsync(process.execPath, [CONVERTER, PKG, "--not-documented"]);
+        const result = JSON.parse(stdout) as { messages: string[] };
+        // LAYOUTS is an `as const` literal, so TypeDoc lists each entry's inferred fields as members of its own; every
+        // one of them is a LayoutEntry field, described on LayoutEntry.
+        const missing = result.messages.filter(
+            (m) => m.includes("does not have any documentation") && !m.includes("LAYOUTS.__type"),
+        );
+        assert.deepStrictEqual(missing, []);
+    });
 });

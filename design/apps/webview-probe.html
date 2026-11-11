@@ -1,0 +1,116 @@
+<!doctype html>
+<!--
+    Web view probe for design/apps/desktop-and-mobile-apps.md.
+
+    Loads graphty-element with a seeded 10,000-node graph and reports what the web view gives it:
+    the WebGL renderer string, whether WebGPU has an adapter, the renderer graphty-element chose,
+    the time to the first drawn frame, and frame intervals while the force layout runs.
+
+    Put graphty-element's self-contained bundle (graphty-element/dist/graphty.bundle.js) next to
+    this file, serve the folder (or load it into the app shell under test), and open the page. The
+    result is written to the page as JSON and to window.probeResult. Query parameters: nodes
+    (default 10000) and renderer (webgl, webgpu or auto; default webgl).
+-->
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Web view probe</title>
+        <style>
+            body {
+                margin: 0;
+                font: 12px monospace;
+                background: #fff;
+            }
+            graphty-element {
+                display: block;
+                width: 100vw;
+                height: 70vh;
+            }
+            pre {
+                margin: 8px;
+                white-space: pre-wrap;
+            }
+        </style>
+    </head>
+    <body>
+        <pre id="out">running</pre>
+        <script type="module">
+            const NODES = Number(new URLSearchParams(location.search).get("nodes") ?? 10000);
+            const RENDERER = new URLSearchParams(location.search).get("renderer") ?? "webgl";
+            const FRAMES = 300;
+            const out = document.getElementById("out");
+            const result = { userAgent: navigator.userAgent, nodes: NODES };
+
+            function webglRenderer() {
+                const gl = document.createElement("canvas").getContext("webgl2");
+                if (!gl) return null;
+                const ext = gl.getExtension("WEBGL_debug_renderer_info");
+                return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+            }
+
+            async function webgpuAdapter() {
+                if (!("gpu" in navigator)) return "no navigator.gpu";
+                const adapter = await navigator.gpu.requestAdapter();
+                if (!adapter) return "no adapter";
+                const info = adapter.info ?? {};
+                return `${info.vendor ?? "?"} ${info.architecture ?? ""} ${info.description ?? ""}`.trim();
+            }
+
+            // Seeded generator so every web view draws the same graph.
+            function rng(seed) {
+                return () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32;
+            }
+
+            function frameStats(intervals) {
+                const s = [...intervals].sort((a, b) => a - b);
+                const at = (p) => s[Math.min(s.length - 1, Math.floor(p * s.length))];
+                return { median: +at(0.5).toFixed(1), p95: +at(0.95).toFixed(1), frames: s.length };
+            }
+
+            try {
+                result.webgl = webglRenderer();
+                result.webgpu = await webgpuAdapter();
+                await import("./graphty.bundle.js");
+                // The renderer is chosen when the element is first drawn, so set it before adding it.
+                const graph = document.createElement("graphty-element");
+                graph.setAttribute("renderer", RENDERER);
+                document.body.prepend(graph);
+                graph.layoutConfig = { seed: 1655 };
+                const rand = rng(1655);
+                const nodes = Array.from({ length: NODES }, (_, i) => ({ id: i }));
+                const edges = [];
+                for (let i = 1; i < NODES; i++) {
+                    edges.push({ source: i, target: Math.floor(rand() * i) });
+                    if (rand() < 0.5) edges.push({ source: i, target: Math.floor(rand() * NODES) });
+                }
+                result.edges = edges.length;
+                const start = performance.now();
+                const firstFrame = new Promise((resolve) => graph.on("graph-first-frame", resolve));
+                graph.nodeData = nodes;
+                graph.edgeData = edges;
+                await firstFrame;
+                result.firstFrameMs = Math.round(performance.now() - start);
+                result.renderer = graph.rendererStatus;
+
+                const intervals = [];
+                let last = performance.now();
+                await new Promise((resolve) => {
+                    const tick = (now) => {
+                        intervals.push(now - last);
+                        last = now;
+                        if (intervals.length < FRAMES) requestAnimationFrame(tick);
+                        else resolve();
+                    };
+                    requestAnimationFrame(tick);
+                });
+                result.frameMsDuringLayout = frameStats(intervals.slice(1));
+                if (performance.memory) result.jsHeapMB = Math.round(performance.memory.usedJSHeapSize / 2 ** 20);
+            } catch (error) {
+                result.error = String(error?.stack ?? error);
+            }
+            window.probeResult = result;
+            out.textContent = JSON.stringify(result, null, 2);
+        </script>
+    </body>
+</html>

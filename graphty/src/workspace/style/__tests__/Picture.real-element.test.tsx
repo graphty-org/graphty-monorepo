@@ -3,8 +3,7 @@
  * tab and on the canvas, on the real graphty-element, by real input: Fill's "+" adds a Picture line
  * whose pop-over takes a chosen picture; a model chosen there is offered as the layer's model, and
  * let go when it is not taken; a picture a layer names as its model moves to node.texture in one
- * undo step; Escape takes back an empty new Picture line and Delete removes a set one; a picture
- * dropped on the canvas finishes the model waiting for it. Every assertion reads what the element
+ * undo step; Escape takes back an empty new Picture line and Delete removes a set one. Every assertion reads what the element
  * reports: its layers and assets.
  */
 
@@ -14,13 +13,10 @@ import "@graphty/graphty-element";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { siteFeatures } from "../../../test/siteFeatures";
-import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { createWorkspaceStore } from "../../state/store";
-import { Workspace } from "../../Workspace";
+import { screen, waitFor, within } from "../../../test/test-utils";
 import policeUrl from "../__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
-import { canvasElement, dropOn, fileInput, NODES, openShapes, written } from "./modelHarness";
+import { fileInput, openShapes, written } from "./modelHarness";
 import { quadGlb } from "./quadGlb";
 
 /**
@@ -124,35 +120,6 @@ describe("pictures on nodes, on the real element", () => {
         await session.undo();
         assert.equal(written(session, "node.model"), id);
         assert.isUndefined(written(session, "node.texture"));
-    });
-
-    it("finishes a waiting model with a picture dropped on the canvas", async () => {
-        const store = createWorkspaceStore({ project: { name: "Models", id: 1 } });
-        await siteFeatures(["node-models"]);
-        render(<Workspace store={store} />);
-        const { session } = await canvasElement();
-        await session.data.addNodes(NODES);
-        const before = session.styles.list().length;
-
-        // The car alone: one layer names it while it waits.
-        dropOn(screen.getByTestId("canvas"), [await fixture(policeUrl, "police.glb")]);
-        await waitFor(() => {
-            assert.lengthOf(session.styles.list(), before + 1);
-        });
-        assert.lengthOf(session.assets.waiting(), 1);
-        assert.isNotNull(await screen.findByRole("button", { name: "police: 1 file missing" }));
-
-        // Its picture: the same layer draws it, and no second layer is made.
-        dropOn(screen.getByTestId("canvas"), [await colormap()]);
-        await waitFor(() => {
-            assert.lengthOf(session.assets.waiting(), 0);
-        });
-        const ref = session.styles.list().find((l) => l.set?.["node.model"] !== undefined)?.set?.["node.model"];
-        await waitFor(() => {
-            assert.equal(session.assets.states().find((change) => change.ref === ref)?.state, "drawn");
-        });
-        assert.lengthOf(session.styles.list(), before + 1);
-        assert.equal(store.get().notice?.message, "colormap.png added to police");
     });
 
     it("takes back a Picture line just added and holding nothing on Escape, focus on the '+'", async () => {

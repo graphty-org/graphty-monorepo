@@ -102,6 +102,7 @@ describe("an edge row with no Edge", () => {
             { line: { width: 0 } },
             { line: { nodeGap: 1 } },
             { line: { animationSpeed: 1 } },
+            { line: { color: "#ff0000" }, visible: false },
         ];
         for (const style of refused) {
             assert.isFalse(lines.paintRow(0, 0, 1, { meshKey: "refused", style }), JSON.stringify(style));

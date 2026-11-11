@@ -88,14 +88,15 @@ export class EdgeRowLines {
     }
 
     /**
-     * Whether a paint is one a row line draws: a plain solid straight line with no cap, words or band, while
-     * lines do not fade by age.
+     * Whether a paint is one a row line draws: a shown, plain solid straight line with no cap, words or band,
+     * while lines do not fade by age. A hidden paint is refused: an `Edge` hides its line.
      * @param style - The resolved style.
      * @returns True when no `Edge` is needed.
      */
     draws(style: EdgeStyleConfig): boolean {
         const line = style.line ?? {};
         return (
+            style.visible !== false &&
             (line.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) > 0 &&
             setsOnly(style, ROW_STYLE_KEYS) &&
             setsOnly(line, ROW_LINE_KEYS) &&

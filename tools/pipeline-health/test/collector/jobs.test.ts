@@ -355,6 +355,7 @@ describe("chronicJobs", () => {
         const point = { ...h(runs), workflow: "bisect.yml", job: "Point 9c90fdeaa2616c58f65097c85ff484b1793d6844" };
         expect(chronicJobs([point], NOW)).toEqual([]);
         expect(chronicJobs([{ ...point, workflow: "release.yml" }], NOW)).toHaveLength(1);
+        expect(chronicJobs([{ ...point, job: "Judge the round" }], NOW)).toHaveLength(1);
     });
 
     it("does not judge a share of fewer than 4 runs, a recent first failure, or a job that stopped running", () => {

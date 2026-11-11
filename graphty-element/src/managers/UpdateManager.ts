@@ -3072,12 +3072,75 @@ export class UpdateManager implements Manager {
      * @returns The box, or undefined when nothing is visible.
      */
     private measure(): FramingBox | undefined {
-        return framingBox(
-            this.layoutManager.nodes,
-            this.layoutManager.edges,
-            this.framing?.extent,
-            this.columnFraming(),
+        return (
+            this.envelopeFraming() ??
+            framingBox(this.layoutManager.nodes, this.layoutManager.edges, this.framing?.extent, this.columnFraming())
         );
+    }
+
+    /**
+     * Under renderPath "batched", the box a running layout's framing takes without walking a row:
+     * the box the layout's last publish left the rows in (`LayoutEngine.publishedBounds`, measured in
+     * the publish's own loop), grown by the widest row. At 100,000 rows the walk cost about 200 ms of
+     * a layout frame (issue #6389). Labels and bent edges are not framed while the layout moves; the
+     * framing it settles on, and any framing asked for, walks every row as before.
+     *
+     * Undefined, so the walk runs, whenever the box would not be the drawn picture's: a node drawn
+     * as an object, a hidden row, a layout transition easing the rows, a layout holding rows outside
+     * its publish, or a box with no room in it.
+     * @returns The box, or undefined.
+     */
+    private envelopeFraming(): FramingBox | undefined {
+        const layout = this.layoutManager;
+        const engine = layout.layoutEngine;
+        const batches = this.graphContext.getNodeBatches?.() ?? null;
+        const table = this.graphContext.getRowTable?.() ?? null;
+        if (
+            this.forceZoomToFit ||
+            !layout.running ||
+            engine === undefined ||
+            engine.isSettled ||
+            batches === null ||
+            table === null ||
+            this.dataManager.renderLimits?.batched() !== true ||
+            table.hiddenRows > 0 ||
+            this.dataManager.nodes.size > batches.batchedNodes ||
+            transitionsOf(layout)?.active === true
+        ) {
+            return undefined;
+        }
+
+        const bounds = engine.publishedBounds();
+        if (bounds === null) {
+            return undefined;
+        }
+
+        const scene = this.graphContext.getScene();
+        const flat = scene.metadata?.twoD === true;
+        const pad = this.framing?.extent === "centers" ? 0 : table.widestHalf;
+        const root = scene.getTransformNodeByName("graph-root");
+        const world = root?.computeWorldMatrix(true);
+        const min = new Vector3(Infinity, Infinity, Infinity);
+        const max = new Vector3(-Infinity, -Infinity, -Infinity);
+        const corner = new Vector3();
+        // The batches draw a row flat in 2D, wherever the layout put its z.
+        const near = flat ? 0 : bounds[2] - pad;
+        const far = flat ? 0 : bounds[5] + pad;
+        for (let i = 0; i < 8; i++) {
+            corner.set(
+                (i & 1) === 0 ? bounds[0] - pad : bounds[3] + pad,
+                (i & 2) === 0 ? bounds[1] - pad : bounds[4] + pad,
+                (i & 4) === 0 ? near : far,
+            );
+            if (world !== undefined) {
+                Vector3.TransformCoordinatesToRef(corner, world, corner);
+            }
+
+            min.minimizeInPlace(corner);
+            max.maximizeInPlace(corner);
+        }
+
+        return min.x < max.x || min.y < max.y ? { min, max, spots: [] } : undefined;
     }
 
     /**

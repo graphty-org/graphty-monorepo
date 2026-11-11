@@ -694,6 +694,15 @@ export class NGraphEngine extends LayoutEngine {
     }
 
     /**
+     * The box the last publish left the rows in: one {@link LayoutEngine.publishColumn} per publish.
+     * @returns The box, or null.
+     * @internal
+     */
+    override publishedBounds(): Readonly<Float64Array> | null {
+        return this.lastPublishedBox();
+    }
+
+    /**
      * Copy one body's position into the publish scratch, flat when ngraph carries no z.
      * @param id - The body's ngraph id.
      * @param row - Its row.

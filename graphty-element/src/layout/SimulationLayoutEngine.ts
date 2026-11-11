@@ -1317,6 +1317,15 @@ export class SimulationLayoutEngine extends LayoutEngine {
     }
 
     /**
+     * The box the last publish left the rows in: one {@link LayoutEngine.publishColumn} per publish.
+     * @returns The box, or null.
+     * @internal
+     */
+    override publishedBounds(): Readonly<Float64Array> | null {
+        return this.lastPublishedBox();
+    }
+
+    /**
      * Follows the drawn target: a simulation that has a ring fills the table on the card, while the
      * graph still offers one (renderPath "batched" on the shared device).
      * @param nodeCount - The rows the simulation was loaded with.

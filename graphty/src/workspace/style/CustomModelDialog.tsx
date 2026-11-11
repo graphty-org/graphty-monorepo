@@ -446,6 +446,10 @@ export function CustomModelDialog({
         const after = await session.assets.supply(held.record.id, answer);
         moved(held.record, after);
         setHeld((now) => (now === null ? now : { ...now, record: after }));
+        if ("main" in answer) {
+            // A set of several models had no name until the reader said which file is the model.
+            setName(after.plainName ?? modelName(session, after.id));
+        }
         const still = after.problems.some((p) => PART_CODES.has(p.code) && p.params.name === named);
         if (named !== undefined && !still && !("skip" in answer)) {
             say(`${named.split("/").pop() ?? named} added`);

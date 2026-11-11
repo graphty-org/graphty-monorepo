@@ -252,12 +252,11 @@ function SupplyPart({
                         aria-label={`Address for ${label}`}
                         onClick={(event) => {
                             const row = event.currentTarget.closest(".ws-part-row");
+                            const field = CSS.escape(`${label} address`);
                             setByAddress(true);
                             // The button goes; focus goes to the field it opened.
                             requestAnimationFrame(() => {
-                                row?.querySelector<HTMLInputElement>(
-                                    `input[aria-label="${CSS.escape(`${label} address`)}"]`,
-                                )?.focus();
+                                row?.querySelector<HTMLInputElement>(`input[aria-label="${field}"]`)?.focus();
                             });
                         }}
                     >

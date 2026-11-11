@@ -14,7 +14,7 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-export const NODES = [
+const NODES = [
     { id: "1", position: { x: -2, y: 0, z: 0 } },
     { id: "2", position: { x: 2, y: 0, z: 0 } },
 ];
@@ -23,7 +23,7 @@ export const NODES = [
  * The element on the project's canvas, once it has come up.
  * @returns the element.
  */
-export async function canvasElement(): Promise<HTMLElementTagNameMap["graphty-element"]> {
+async function canvasElement(): Promise<HTMLElementTagNameMap["graphty-element"]> {
     return waitFor(() => {
         const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(".ws-canvas graphty-element");
         assert.isDefined(element?.session);
@@ -198,7 +198,7 @@ export async function openCustom(tab: HTMLElement): Promise<HTMLElement> {
  * @param picture - the picture, loaded or loading.
  * @returns the count of drawn pixels.
  */
-export async function drawnPixels(picture: HTMLImageElement): Promise<number> {
+async function drawnPixels(picture: HTMLImageElement): Promise<number> {
     await picture.decode();
     const canvas = document.createElement("canvas");
     canvas.width = picture.naturalWidth;

@@ -80,7 +80,11 @@ describe("the Load custom model dialog, on the real element", () => {
         await waitFor(() => {
             assert.equal(document.activeElement?.getAttribute("aria-label"), "Name", "focus moves to Name");
         });
-        assert.isNull(within(dialog).queryByRole("button", { name: "Files" }), "a found set needs no Files line");
+        assert.equal(
+            within(dialog).getByRole("button", { name: "Files" }).getAttribute("aria-expanded"),
+            "false",
+            "a set whose files were all found keeps Files closed",
+        );
         await addModel(dialog, "Add to project");
         assert.include(models(session), "police.glb");
         assert.isUndefined(written(session, "node.model"), "no layer names it");
@@ -259,7 +263,7 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.equal(advanced.getAttribute("aria-expanded"), "false");
         await userEvent.click(advanced);
         const rows = within(dialog).getByTestId("model-advanced");
-        assert.match(within(rows).getByTestId("model-details").textContent, /^Details: GLB, 2 triangles/);
+        assert.match(within(rows).getByTestId("model-details").textContent, /^Details: GLB, 4 triangles/);
         await userEvent.click(within(rows).getByRole("combobox", { name: /^Up, / }));
         await userEvent.click(await screen.findByRole("option", { name: "Z" }));
         await waitFor(() => {

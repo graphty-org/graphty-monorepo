@@ -1706,19 +1706,7 @@ class Neo4jImportSession {
         let found = false;
         let sinceCheck = 0;
         while (stack.length > 0) {
-            const value = stack.pop();
-            if (isRecord(value) && value.type === "node" && "id" in value) {
-                this.apocNode(value);
-                found = true;
-            } else if (isRecord(value) && value.type === "relationship") {
-                this.apocRelationship(value);
-                found = true;
-            } else if (Array.isArray(value) || isRecord(value)) {
-                const children: readonly unknown[] = Array.isArray(value) ? value : Object.values(value);
-                for (let i = children.length - 1; i >= 0; i--) {
-                    stack.push(children[i]);
-                }
-            }
+            found = this.apocValue(stack.pop(), stack) || found;
             if (++sinceCheck >= ABORT_CHECK_INTERVAL) {
                 sinceCheck = 0;
                 throwIfAborted(readOptions.signal);
@@ -1731,6 +1719,31 @@ class Neo4jImportSession {
                 { line: 1 },
             );
         }
+    }
+
+    /**
+     * Read one value of an APOC JSON document: a node or relationship record is pushed, any other
+     * array or object has its children put on the stack (in document order).
+     * @param value - the value
+     * @param stack - the values still to read, the next on top
+     * @returns true when the value was a node or relationship record
+     */
+    private apocValue(value: unknown, stack: unknown[]): boolean {
+        if (isRecord(value) && value.type === "node" && "id" in value) {
+            this.apocNode(value);
+            return true;
+        }
+        if (isRecord(value) && value.type === "relationship") {
+            this.apocRelationship(value);
+            return true;
+        }
+        if (Array.isArray(value) || isRecord(value)) {
+            const children: readonly unknown[] = Array.isArray(value) ? value : Object.values(value);
+            for (let i = children.length - 1; i >= 0; i--) {
+                stack.push(children[i]);
+            }
+        }
+        return false;
     }
 
     /**
@@ -1787,7 +1800,7 @@ class Neo4jImportSession {
      * @param record - the record
      */
     private apocRelationship(record: Record<string, unknown>): void {
-        const { report, sink } = this;
+        const { report } = this;
         if (!this.headerSet) {
             this.headerSet = true;
             this.direction.setHeader(true, {});
@@ -1817,14 +1830,7 @@ class Neo4jImportSession {
             return;
         }
         const element = `${String(source)}->${String(target)}`;
-        const { weightFrom } = this.common;
-        let weight: number | undefined;
-        if (weightFrom !== null && isRecord(properties) && typeof properties[weightFrom] === "number") {
-            weight = properties[weightFrom];
-            if (weightFrom !== "weight") {
-                this.weightProperty = weightFrom;
-            }
-        }
+        const weight = this.apocWeight(properties);
         let edge: number;
         try {
             edge = this.direction.addEdge(source, target, "directed", weight, { element });
@@ -1833,21 +1839,47 @@ class Neo4jImportSession {
             report.counts.skippedEdges++;
             return;
         }
-        if (typeof label === "string" && label.length > 0) {
-            this.ensureType();
-            this.guarded(null, element, () => {
-                sink.setEdgeValue(this.typeHandle, edge, label);
-            });
-        } else {
-            report.warning(
+        this.setApocType(edge, label, element);
+        this.apocProperties("edge", edge, properties, element, weight === undefined ? null : this.common.weightFrom);
+        report.counts.edges++;
+    }
+
+    /**
+     * The weight of an APOC relationship: the number under the `weightFrom` property, if any.
+     * @param properties - the record's properties
+     * @returns the weight, or undefined
+     */
+    private apocWeight(properties: unknown): number | undefined {
+        const { weightFrom } = this.common;
+        if (weightFrom === null || !isRecord(properties) || typeof properties[weightFrom] !== "number") {
+            return undefined;
+        }
+        if (weightFrom !== "weight") {
+            this.weightProperty = weightFrom;
+        }
+        return properties[weightFrom];
+    }
+
+    /**
+     * Write an APOC relationship's type (its `label`), warning when it has none.
+     * @param edge - the edge index
+     * @param label - the record's label
+     * @param element - the element name for issues
+     */
+    private setApocType(edge: number, label: unknown, element: string): void {
+        if (typeof label !== "string" || label.length === 0) {
+            this.report.warning(
                 "missing-value",
                 MISSING_TYPE_CODE,
                 "an APOC relationship without a label (its type); kept without one",
                 { element },
             );
+            return;
         }
-        this.apocProperties("edge", edge, properties, element, weight === undefined ? null : weightFrom);
-        report.counts.edges++;
+        this.ensureType();
+        this.guarded(null, element, () => {
+            this.sink.setEdgeValue(this.typeHandle, edge, label);
+        });
     }
 
     /**
@@ -1901,20 +1933,12 @@ class Neo4jImportSession {
             if (text.length === 0 && !quoted[cell]) {
                 continue;
             }
-            if (labels === undefined) {
-                labels = [];
-            }
             const items = section.colonLabels ? text.split(":") : splitListText(text, this.options.listSyntax);
-            for (const item of items) {
-                if (item.length > 0) {
-                    labels.push(item);
-                }
-            }
+            labels ??= [];
+            labels.push(...items.filter((item) => item.length > 0));
         }
         if (section.extraLabels.length > 0) {
-            if (labels === undefined) {
-                labels = [];
-            }
+            labels ??= [];
             labels.push(...section.extraLabels);
         }
         return labels;

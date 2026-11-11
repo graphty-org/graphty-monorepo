@@ -1183,11 +1183,8 @@ export abstract class LayoutEngine {
             const placed = row < live && isStorableCoordinate(array[base]);
             const guarded = placed || !firstPlacement;
             if (guarded && (pins[row] === 1 || (holds && placed && this.isHeld(row)))) {
-                // A kept row is still drawn, where it was kept.
-                if (placed) {
-                    grow(box, array[base], array[base + 1], array[base + 2]);
-                }
-
+                // A kept row is still drawn, where it was kept; an unplaced one is not drawn.
+                grow(box, array[base], array[base + 1], array[base + 2], placed);
                 continue;
             }
 
@@ -2593,8 +2590,13 @@ export function layoutDim(dim: number): 2 | 3 {
  * @param x - X.
  * @param y - Y.
  * @param z - Z.
+ * @param counts - False to leave the box as it is.
  */
-function grow(box: Float64Array, x: number, y: number, z: number): void {
+function grow(box: Float64Array, x: number, y: number, z: number, counts = true): void {
+    if (!counts) {
+        return;
+    }
+
     box[0] = Math.min(box[0], x);
     box[1] = Math.min(box[1], y);
     box[2] = Math.min(box[2], z);

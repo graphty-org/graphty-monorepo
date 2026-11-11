@@ -52,10 +52,13 @@ import { DOOR_ROOTS, type DoorRoot } from "../../../src/session/commands/doors";
 import { CONFIG_KEYS } from "../../../src/session/configKeys";
 import { coverage } from "./coverage-report";
 
-/** The report for the built-in catalog. */
+/**
+ * The report for the built-in catalog, with every experiment on: an option or channel an
+ * experiment adds is reached or excluded before the experiment ships, in the Off run too.
+ */
 function report(overrides: { ops?: string[]; doorRoots?: DoorRoot[]; exclusions?: readonly Exclusion[] } = {}) {
     return coverage({
-        toolset: buildToolset(createGraphSession()),
+        toolset: buildToolset(createGraphSession({ features: ["all"] })),
         doorRoots: overrides.doorRoots ?? DOOR_ROOTS,
         exclusions: overrides.exclusions ?? NOT_FOR_THE_ASSISTANT,
         ...(overrides.ops === undefined ? {} : { ops: overrides.ops }),

@@ -187,6 +187,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ...[
         "location-map/map",
         "location-map/gazetteer",
+        "fixed/graphvizAttributes",
         ...["dot", "neato", "fdp", "sfdp", "circo", "twopi", "osage", "patchwork"].map(
             (engine) => `graphviz-${engine}/attributes`,
         ),

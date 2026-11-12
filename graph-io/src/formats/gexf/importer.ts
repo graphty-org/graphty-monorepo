@@ -3143,7 +3143,7 @@ function stripAngles(text: string): string {
  * A numeric viz attribute.
  * @param attrs - the element's attributes
  * @param name - the attribute name
- * @returns the number; E_COLUMN_TYPE when absent or not a number
+ * @returns the number; E_COLUMN_TYPE when absent or not a finite number
  */
 function vizNumber(attrs: ReadonlyMap<string, string>, name: string): number {
     const text = attrs.get(name);
@@ -3151,8 +3151,11 @@ function vizNumber(attrs: ReadonlyMap<string, string>, name: string): number {
         throw new GraphFormatError("E_COLUMN_TYPE", `viz element without a ${name} attribute`, { attribute: name });
     }
     const value = parseDecimalText(text);
-    if (Number.isNaN(value)) {
-        throw new GraphFormatError("E_COLUMN_TYPE", `viz ${name}="${text}" is not a number`, { attribute: name });
+    // INF, Infinity and text past the f64 range parse to Infinity: no place, size, thickness or color is infinite
+    if (!Number.isFinite(value)) {
+        throw new GraphFormatError("E_COLUMN_TYPE", `viz ${name}="${text}" is not a finite number`, {
+            attribute: name,
+        });
     }
     return value;
 }

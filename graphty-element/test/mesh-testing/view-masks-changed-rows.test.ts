@@ -142,6 +142,8 @@ async function sceneOf(overrides: Partial<ViewMasks> = {}): Promise<Scene> {
         nodeMap: { built: () => nodes.values() },
         lateNodeVersions: 0,
         edges: new Map(edges.map((edge) => [edge.index, edge])),
+        // Every edge is built too; the mask walk reads the built ones.
+        edgeMap: { builtView: () => new Map(edges.map((edge) => [edge.index, edge])) },
         nodesByIndex: nodes,
         edgesByIndex: edges,
         nodeVersion: 0,

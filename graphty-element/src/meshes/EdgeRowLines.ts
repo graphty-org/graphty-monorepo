@@ -91,6 +91,14 @@ export class EdgeRowLines {
     }
 
     /**
+     * The edge rows drawn here.
+     * @returns Them, a copy.
+     */
+    rows(): number[] {
+        return [...this.lines.keys()];
+    }
+
+    /**
      * The nodes' rows an edge row's line is pulled from.
      * @param row - The edge row.
      * @returns Its source and target rows, or undefined for a row not drawn here.

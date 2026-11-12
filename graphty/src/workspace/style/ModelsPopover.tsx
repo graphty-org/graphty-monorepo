@@ -1,25 +1,21 @@
 import { Popout } from "@graphty/compact-mantine";
-import { assetFileExtensions } from "@graphty/graphty-element/catalog";
-import type { AssetSource, CodedFact } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, Stack, Text, TextInput, Tooltip, UnstyledButton } from "@mantine/core";
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 
-import { filesOf, fileStem, modelName, offerFirst, readDrop } from "../canvas/models";
+import { modelName, useModelPicture } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { ModelChip } from "./ModelChip";
-import { chipLine, modelChip } from "./modelWords";
 import { roveTiles, tileStop } from "./tileRoving";
-import { useStillOpen } from "./useStillOpen";
-
-/** The files the chooser offers, as graphty-element reads them; the element decides what they are. */
-const MODEL_ACCEPT = assetFileExtensions("model").join(",");
+import { CUSTOM_MODEL } from "./words";
 
 /** The pop-over's width: the Shape list's, which it replaces. */
 const WIDTH = 240;
 
-/** The samples grid's columns (`.ws-gallery-grid`). */
+/** The tile grids' columns (`.ws-gallery-grid`). */
 const COLUMNS = 2;
+
+/** A tile picture's width in CSS pixels: half the pop-over. */
+const TILE_PX = 104;
 
 /** Props for ModelsPopover. */
 interface ModelsPopoverProps {
@@ -29,35 +25,82 @@ interface ModelsPopoverProps {
     readonly anchor: React.RefObject<HTMLElement | null>;
     /** What the layer's `node.model` names now, so its sample or project model reads as chosen. */
     readonly current?: string;
-    /**
-     * Called with what the layer's `node.model` should name: an asset id, a sample's id, or a
-     * pasted URL. Also called for a model waiting for parts, with `waiting` true, so its Parts
-     * pop-over opens in this one's place.
-     */
-    readonly onPick: (ref: string, waiting: boolean) => void;
-    /** Called with a picture's asset id when the reader takes a lone picture as the layer's picture. */
-    readonly onPicture: (ref: string) => void;
+    /** Called with what the layer's `node.model` should name: an asset id or a sample's id. */
+    readonly onPick: (ref: string) => void;
+    /** Custom model...: the Load custom model dialog opens in the pop-over's place. */
+    readonly onCustom: () => void;
     /** Back to the Shape list. */
     readonly onBack: () => void;
     /** Closed, by Escape or its close button. */
     readonly onClose: () => void;
 }
 
-/** A picture that arrived where a model was expected: its asset id and its name. */
-interface Arrived {
-    readonly id: string;
-    readonly name: string;
+/** What a tile carries for the grid's keyboard walk. */
+type TileProps = ReturnType<typeof tileProps>;
+
+/**
+ * A tile's roving and pressed state.
+ * @param id - the tile's id.
+ * @param stop - the grid's one Tab stop.
+ * @param chosen - what the layer names.
+ * @param autofocus - the tile focus goes to on open.
+ * @param setFocused - notes the focused tile.
+ * @returns the props.
+ */
+function tileProps(
+    id: string,
+    stop: string | undefined,
+    chosen: string | undefined,
+    autofocus: string | undefined,
+    setFocused: (id: string) => void,
+): {
+    "data-tile": string;
+    "aria-pressed": boolean;
+    "data-autofocus": true | undefined;
+    tabIndex: number;
+    onFocus: () => void;
+} {
+    return {
+        "data-tile": "",
+        "aria-pressed": id === chosen,
+        "data-autofocus": id === autofocus ? true : undefined,
+        tabIndex: id === stop ? 0 : -1,
+        onFocus: () => {
+            setFocused(id);
+        },
+    };
 }
 
 /**
- * The files a chooser gave, by folder path when a folder was chosen, as `session.assets.add` takes them.
- * @param files - the chosen files.
- * @returns the source.
+ * A model of the project as a tile: its picture drawn by graphty-element, else the cube, and its name.
+ * @param props - Component props
+ * @param props.id - the asset id
+ * @param props.name - its name
+ * @param props.tile - its roving props
+ * @param props.onPick - picks it
+ * @returns The tile
  */
-function chosenSource(files: readonly File[]): AssetSource {
-    return files.some((f) => f.webkitRelativePath !== "")
-        ? { files: new Map(files.map((f) => [f.webkitRelativePath || f.name, f])) }
-        : [...files];
+function ProjectTile({
+    id,
+    name,
+    tile,
+    onPick,
+}: Readonly<{ id: string; name: string; tile: TileProps; onPick: () => void }>): React.JSX.Element {
+    const picture = useModelPicture(id, TILE_PX);
+    return (
+        <UnstyledButton className="ws-gallery-tile" aria-label={name} {...tile} onClick={onPick}>
+            {picture === undefined ? (
+                <span className="ws-gallery-picture ws-gallery-empty">
+                    <GLYPHS.model size={24} aria-hidden />
+                </span>
+            ) : (
+                <img className="ws-gallery-picture" src={picture} alt="" />
+            )}
+            <Text size="xs" truncate>
+                {name}
+            </Text>
+        </UnstyledButton>
+    );
 }
 
 /**
@@ -128,18 +171,16 @@ export function FileInput({
 }
 
 /**
- * The Models pop-over (node-models design 13.2), opened by the Shape list's Model... entry in the
- * list's place: graphty-element's samples, the models this project holds, a field for a model's
- * address, Choose model files and Choose model folder, and a drop anywhere on it. What arrives goes
- * first to the models waiting for parts (`session.assets.offer`); a model is picked as it is
- * accepted, or as it waits for parts; a lone picture offers Use as picture; any other refusal is a
- * chip. Samples and the project's models are one Tab stop each, walked with the arrows.
+ * The Models pop-over (node-models design 13.2, 14.1), opened by the Shape list's Model... entry in
+ * the list's place: graphty-element's samples and the models this project holds, each a picture
+ * tile, then Custom model..., which opens the Load custom model dialog. Each grid is one Tab stop,
+ * walked with the arrows.
  * @param props - Component props
  * @param props.opened - whether it is open
  * @param props.anchor - the row it opens beside
  * @param props.current - what `node.model` names now
  * @param props.onPick - called with what `node.model` should name
- * @param props.onPicture - called with a picture's id for `node.texture`
+ * @param props.onCustom - opens the Load custom model dialog
  * @param props.onBack - back to the Shape list
  * @param props.onClose - closed
  * @returns The pop-over
@@ -149,72 +190,15 @@ export function ModelsPopover({
     anchor,
     current,
     onPick,
-    onPicture,
+    onCustom,
     onBack,
     onClose,
 }: Readonly<ModelsPopoverProps>): React.JSX.Element | null {
-    const { session, store } = useWorkspace();
-    const [busy, setBusy] = useState(false);
-    const [problem, setProblem] = useState<CodedFact | null>(null);
-    const [picture, setPicture] = useState<Arrived | null>(null);
-    const [url, setUrl] = useState("");
-    // The address last added, for Retry on "Not reached".
-    const [tried, setTried] = useState<string | null>(null);
+    const { session } = useWorkspace();
     const [focused, setFocused] = useState<string | undefined>(undefined);
-    const chooser = useRef<HTMLInputElement | null>(null);
-    const folder = useRef<HTMLInputElement | null>(null);
-    const start = useStillOpen(opened);
     if (session === null) {
         return null;
     }
-    const refuse = (fact: CodedFact): void => {
-        setProblem(fact);
-        store.set({ announcement: chipLine(fact) });
-    };
-    const settle = async (source: AssetSource, files: readonly File[], live: () => boolean): Promise<void> => {
-        const { supplied, rest } = await offerFirst(session, source, files);
-        if (rest === null) {
-            store.set({ announcement: supplied.map((s) => `${s.fileName} added`).join(", ") });
-            return;
-        }
-        const record = await session.assets.add(rest);
-        if (!live()) {
-            // Closed while it loaded: the reader did not take it, so it never waits for parts.
-            if (session.assets.waiting().some((w) => w.id === record.id)) {
-                session.assets.remove(record.id);
-            }
-            return;
-        }
-        if (record.state === "accepted" && record.kind === "image") {
-            const name = fileStem(record.path ?? files[0]?.name ?? "") || "picture";
-            setPicture({ id: record.id, name });
-            store.set({ announcement: `Not a model: ${name} is a picture` });
-            return;
-        }
-        const waits = session.assets.waiting().some((w) => w.id === record.id);
-        if (record.state === "accepted" || waits) {
-            // A URL is named by its address, accepted or waiting: the element reports it under that ref.
-            onPick(typeof rest === "string" ? rest : record.id, waits);
-            return;
-        }
-        refuse(record.problems[0] ?? { code: "E_MODEL_PARSE", params: {} });
-    };
-    const add = (source: AssetSource, files: readonly File[]): void => {
-        setBusy(true);
-        setProblem(null);
-        setPicture(null);
-        setTried(typeof source === "string" ? source : null);
-        const live = start();
-        settle(source, files, live)
-            .catch((error: unknown) => {
-                if (live()) {
-                    refuse({ code: "E_MODEL_PARSE", params: { message: String(error) } });
-                }
-            })
-            .finally(() => {
-                setBusy(false);
-            });
-    };
     const samples = session.catalog.models();
     // Newest first.
     const own = session.assets
@@ -234,26 +218,8 @@ export function ModelsPopover({
     );
     // Opening, focus goes to the chosen tile, else the first sample.
     const autofocus = own.some((r) => r.id === chosen) ? chosen : (sampleStop ?? samples[0]?.id);
-    const pasted = url.trim();
-    const suggested = problem?.code === "E_MODEL_WEB_PAGE" ? problem.params.suggested : undefined;
-    const tile = (
-        id: string,
-        stop: string | undefined,
-    ): {
-        "data-tile": string;
-        "aria-pressed": boolean;
-        "data-autofocus": true | undefined;
-        tabIndex: number;
-        onFocus: () => void;
-    } => ({
-        "data-tile": "",
-        "aria-pressed": id === chosen,
-        "data-autofocus": id === autofocus ? true : undefined,
-        tabIndex: id === stop ? 0 : -1,
-        onFocus: () => {
-            setFocused(id);
-        },
-    });
+    const tile = (id: string, stop: string | undefined): TileProps =>
+        tileProps(id, stop, chosen, autofocus, setFocused);
 
     return (
         <Popout
@@ -292,18 +258,6 @@ export function ModelsPopover({
                                 onBack();
                             }
                         }}
-                        onDragOver={(event) => {
-                            if (event.dataTransfer.types.includes("Files")) {
-                                event.preventDefault();
-                            }
-                        }}
-                        onDrop={(event) => {
-                            event.preventDefault();
-                            // Read during the drop: the browser empties the transfer after.
-                            void readDrop(event.dataTransfer).then((dropped) => {
-                                add(dropped.source, filesOf(dropped.source));
-                            });
-                        }}
                     >
                         <SectionHeading>Samples</SectionHeading>
                         <div // NOSONAR(S6819): an ARIA group naming a grid of tile buttons; a fieldset would draw its own border and legend
@@ -321,7 +275,7 @@ export function ModelsPopover({
                                     aria-label={sample.plainName}
                                     {...tile(sample.id, sampleStop)}
                                     onClick={() => {
-                                        onPick(sample.id, false);
+                                        onPick(sample.id);
                                     }}
                                 >
                                     <img className="ws-gallery-picture" src={sample.thumbnail} alt="" />
@@ -334,154 +288,38 @@ export function ModelsPopover({
                         {own.length === 0 ? null : (
                             <>
                                 <SectionHeading>In this project</SectionHeading>
-                                <div // NOSONAR(S6819): an ARIA group naming a list of tile buttons; a fieldset would draw its own border and legend
-                                    className="ws-model-list"
+                                <div // NOSONAR(S6819): an ARIA group naming a grid of tile buttons; a fieldset would draw its own border and legend
+                                    className="ws-gallery-grid"
                                     role="group"
                                     aria-label="In this project"
                                     onKeyDown={(event) => {
-                                        roveTiles(event);
+                                        roveTiles(event, COLUMNS);
                                     }}
                                 >
-                                    {own.map((record) => {
-                                        const name = modelName(session, record.id);
-                                        return (
-                                            <Button
-                                                key={record.id}
-                                                size="compact-xs"
-                                                variant="subtle"
-                                                color="dark"
-                                                justify="start"
-                                                aria-label={name}
-                                                {...tile(record.id, ownStop)}
-                                                leftSection={
-                                                    record.id === chosen ? (
-                                                        <GLYPHS.check size={14} aria-hidden />
-                                                    ) : (
-                                                        <GLYPHS.model size={14} aria-hidden />
-                                                    )
-                                                }
-                                                onClick={() => {
-                                                    onPick(record.id, false);
-                                                }}
-                                            >
-                                                {name}
-                                            </Button>
-                                        );
-                                    })}
+                                    {own.map((record) => (
+                                        <ProjectTile
+                                            key={record.id}
+                                            id={record.id}
+                                            name={modelName(session, record.id)}
+                                            tile={tile(record.id, ownStop)}
+                                            onPick={() => {
+                                                onPick(record.id);
+                                            }}
+                                        />
+                                    ))}
                                 </div>
                             </>
                         )}
-                        <AddressForm
-                            name="Model address"
-                            submitName="Add model address"
-                            value={url}
-                            busy={busy}
-                            onChange={setUrl}
-                            onDiscard={() => {
-                                store.set({ announcement: "Address discarded" });
-                            }}
-                            onSubmit={() => {
-                                if (pasted !== "" && !busy) {
-                                    add(pasted, []);
-                                }
-                            }}
-                        />
-                        <Group gap={4}>
-                            <Button
-                                size="compact-xs"
-                                variant="default"
-                                leftSection={<GLYPHS.upload size={12} aria-hidden />}
-                                aria-label="Choose model files"
-                                aria-disabled={busy || undefined}
-                                onClick={() => {
-                                    if (!busy) {
-                                        chooser.current?.click();
-                                    }
-                                }}
-                            >
-                                Choose files
-                            </Button>
-                            <Button
-                                size="compact-xs"
-                                variant="default"
-                                leftSection={<GLYPHS.folder size={12} aria-hidden />}
-                                aria-label="Choose model folder"
-                                aria-disabled={busy || undefined}
-                                onClick={() => {
-                                    if (!busy) {
-                                        folder.current?.click();
-                                    }
-                                }}
-                            >
-                                Folder
-                            </Button>
-                            <FileInput
-                                chooser={chooser}
-                                accept={MODEL_ACCEPT}
-                                multiple
-                                onFiles={(files) => {
-                                    add(chosenSource(files), files);
-                                }}
-                            />
-                            <FileInput
-                                chooser={folder}
-                                folder
-                                onFiles={(files) => {
-                                    add(chosenSource(files), files);
-                                }}
-                            />
-                        </Group>
-                        <Text size="xs" c="var(--cm-text-secondary)">
-                            Or drop files here
-                        </Text>
-                        {problem === null ? null : (
-                            <Group gap={4}>
-                                <ModelChip chip={modelChip(problem)} />
-                                {problem.code === "E_MODEL_FETCH" && tried !== null ? (
-                                    <Button
-                                        size="compact-xs"
-                                        variant="default"
-                                        onClick={() => {
-                                            add(tried, []);
-                                        }}
-                                    >
-                                        Retry
-                                    </Button>
-                                ) : null}
-                                {typeof suggested === "string" ? (
-                                    <Button
-                                        size="compact-xs"
-                                        variant="default"
-                                        onClick={() => {
-                                            setUrl(suggested);
-                                            setProblem(null);
-                                        }}
-                                    >
-                                        Use file address
-                                    </Button>
-                                ) : null}
-                            </Group>
-                        )}
-                        {picture === null ? null : (
-                            <Group gap={4} wrap="nowrap">
-                                <ModelChip
-                                    chip={{ word: "Not a model", tip: "this file is a picture" }}
-                                    tone="warning"
-                                />
-                                <Tooltip label={`Use ${picture.name} as picture`}>
-                                    <Button
-                                        size="compact-xs"
-                                        variant="default"
-                                        aria-label={`Use ${picture.name} as picture`}
-                                        onClick={() => {
-                                            onPicture(picture.id);
-                                        }}
-                                    >
-                                        Use as picture
-                                    </Button>
-                                </Tooltip>
-                            </Group>
-                        )}
+                        <Button
+                            size="compact-xs"
+                            variant="default"
+                            fullWidth
+                            leftSection={<GLYPHS.upload size={12} aria-hidden />}
+                            aria-haspopup="dialog"
+                            onClick={onCustom}
+                        >
+                            {CUSTOM_MODEL.button}
+                        </Button>
                     </Stack>
                 </Popout.Content>
             </Popout.Panel>
@@ -498,6 +336,10 @@ interface AddressFormProps {
     readonly value: string;
     readonly busy: boolean;
     readonly autofocus?: boolean;
+    /** The field's placeholder. Default "Paste URL". */
+    readonly placeholder?: string;
+    /** Why the address was refused, shown under the field and tied to it. */
+    readonly error?: string;
     readonly onChange: (value: string) => void;
     /** Says that Escape took the typing back. */
     readonly onDiscard: () => void;
@@ -513,6 +355,8 @@ interface AddressFormProps {
  * @param props.value - the typed address
  * @param props.busy - an add is under way
  * @param props.autofocus - takes focus when its pop-over opens
+ * @param props.placeholder - the field's placeholder
+ * @param props.error - why the address was refused
  * @param props.onChange - the typing
  * @param props.onDiscard - says Escape took the typing back
  * @param props.onSubmit - Enter or the go button
@@ -524,6 +368,8 @@ export function AddressForm({
     value,
     busy,
     autofocus = false,
+    placeholder = "Paste URL",
+    error,
     onChange,
     onDiscard,
     onSubmit,
@@ -535,13 +381,14 @@ export function AddressForm({
                 onSubmit();
             }}
         >
-            <Group gap={4} wrap="nowrap">
+            <Group gap={4} wrap="nowrap" align="flex-start">
                 {/* No tooltip: one opened on focus would take the dialog's first Escape. */}
                 <TextInput
                     size="xs"
                     flex={1}
                     aria-label={name}
-                    placeholder="Paste URL"
+                    placeholder={placeholder}
+                    error={error}
                     data-autofocus={autofocus ? true : undefined}
                     value={value}
                     onChange={(event) => {

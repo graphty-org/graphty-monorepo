@@ -197,10 +197,11 @@ fi
 # config, graphty's in-test comparison), the release (approvals, holds, release.yml and the scripts that read
 # them), the agents' credential guard and settings, the quarantine list and its reader, the two safeguards
 # left on an unheld CI change (the fresh review and PR Integrity), and the two that hold breaking changes
-# (this script and pr-title.yml). A change to one waits for the owner; every other CI change merges on green.
+# (this script and pr-title.yml), and the save-file checks with their exceptions list (graphty-element/test/
+# saved-format/ and its push check). A change to one waits for the owner; every other CI change merges on green.
 # Gap the owner accepted: ci.yml's own gate steps are not held, so a pull request can still change a check
 # that judges it; code-owner review closes that when it is turned on.
-GUARD_PATHS='^(visual-review/|visual-review\.config\.json$|(.*/)?\.storybook/vitest\.setup\.|release-[^/]*\.json$|\.github/workflows/release\.yml$|tools/release-(approvals|hold|not-breaking)\.mjs$|tools/claude-owner-credential-guard\.mjs$|\.claude/settings\.json$|tools/test-quarantine\.(json|mjs)$|tools/pr-open\.sh$|tools/pr-review\.sh$|tools/pr-integrity\.mjs$|tools/check-test-integrity\.mjs$|\.github/workflows/(pr-title|dependabot-automerge)\.yml$)'
+GUARD_PATHS='^(visual-review/|visual-review\.config\.json$|(.*/)?\.storybook/vitest\.setup\.|release-[^/]*\.json$|\.github/workflows/release\.yml$|tools/release-(approvals|hold|not-breaking)\.mjs$|tools/claude-owner-credential-guard\.mjs$|\.claude/settings\.json$|tools/test-quarantine\.(json|mjs)$|tools/pr-open\.sh$|tools/pr-review\.sh$|tools/pr-integrity\.mjs$|tools/check-test-integrity\.mjs$|\.github/workflows/(pr-title|dependabot-automerge)\.yml$|graphty-element/test/saved-format/|tools/check-saved-format-allowlist\.mjs$)'
 hold=""
 # A here-string, not a pipe: grep -q stops at the first match, and pipefail would read git's SIGPIPE as no match.
 # A commit master's release-not-breaking.json lists is the owner's ruling that it is not breaking: skipped.

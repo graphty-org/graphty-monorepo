@@ -174,7 +174,9 @@ export interface AssetRecord {
     readonly format: ModelFormat;
     readonly id: AssetId;
     readonly kind: "model" | "image";
+    readonly parts?: readonly ModelPart[];
     readonly path?: string;
+    readonly plainName?: string;
     readonly problems: readonly CodedFact[];
     readonly skipped?: readonly string[];
     readonly state: AssetState;
@@ -197,6 +199,7 @@ export interface AssetsApi {
         readonly signal?: AbortSignal;
     }): Promise<AssetRecord>;
     remove(id: string): void;
+    rename(ref: string, plainName?: string): AssetRecord;
     setLimits(limits: Partial<ModelLimits>): void;
     states(): readonly ModelChange[];
     supply(ref: string, answer: PartAnswer, options?: {
@@ -673,6 +676,28 @@ export interface CommandOutcomeMap {
 }
 
 // @public
+export interface ComparedField {
+    readonly field: string;
+    readonly runId: RunId;
+}
+
+// @public
+export interface CompareSide {
+    readonly field?: string;
+    readonly run: RunRef;
+}
+
+// @public
+export interface ComparisonBase {
+    readonly a: ComparedField;
+    readonly b: ComparedField;
+    readonly elements: "node" | "edge";
+    readonly onlyA: readonly NodeId[];
+    readonly onlyB: readonly NodeId[];
+    readonly shared: number;
+}
+
+// @public
 export interface ComponentStatistics {
     componentOf(id: NodeId_2): number | undefined;
     readonly count: number;
@@ -681,6 +706,96 @@ export interface ComponentStatistics {
     readonly sizes: readonly number[];
     readonly truncatedSizes: boolean;
 }
+
+// @public
+export type Condition<F extends ConditionField = ConditionField> = {
+    readonly type: "number";
+    readonly key: string;
+    readonly field: F;
+    readonly match: "range" | "top" | Presence;
+    readonly min?: number;
+    readonly max?: number;
+    readonly top?: number;
+    readonly from?: "high" | "low";
+    readonly percent?: boolean;
+} | {
+    readonly type: "category";
+    readonly key: string;
+    readonly field: F;
+    readonly match: "values" | Presence;
+    readonly values: readonly string[];
+    readonly gaps: boolean;
+} | {
+    readonly type: "text";
+    readonly key: string;
+    readonly field: F;
+    readonly match: ConditionTextMode | Presence | "list";
+    readonly text: string;
+    readonly caseSensitive: boolean;
+    readonly ids?: readonly string[];
+} | {
+    readonly type: "date";
+    readonly key: string;
+    readonly field: F;
+    readonly match: "before" | "after" | "between" | Presence;
+    readonly min?: number;
+    readonly max?: number;
+} | {
+    readonly type: "yes-no";
+    readonly key: string;
+    readonly field: F;
+    readonly match: "yes" | "no" | "unset" | Presence;
+} | {
+    readonly type: "source";
+    readonly key: string;
+    readonly field: F;
+    readonly sources: readonly SourceKey[];
+} | {
+    readonly type: "ends";
+    readonly key: "ends";
+    readonly reading: "clipped" | "incident";
+} | {
+    readonly type: "fixed";
+    readonly key: string;
+    readonly leaf: RuleTree | null;
+    readonly selector?: Selector_2;
+    readonly repeat?: true;
+};
+
+// @public
+export const CONDITION_SOURCE_PATH = "@source";
+
+// @public
+export interface ConditionField {
+    readonly kind: ConditionFieldKind;
+    readonly on: "node" | "edge";
+    readonly path: string;
+    readonly range?: {
+        readonly min: number;
+        readonly max: number;
+    };
+}
+
+// @public
+export type ConditionFieldKind = ReadableValueKind | "name" | "source" | "date";
+
+// @public
+export function conditionFields(session: GraphSession, on: "node" | "edge"): ListedConditionField[];
+
+// @public
+export const conditionKey: (field: Pick<ConditionField, "on" | "path">) => string;
+
+// @public
+export function conditionLeaf(condition: Condition): RuleTree | null;
+
+// @public
+export function conditionOf<F extends ConditionField>(leaf: RuleTree, fields: readonly F[], at: number): Condition<F>;
+
+// @public
+export function conditionSelector(conditions: readonly Condition[], ends?: readonly RuleTree[]): Selector_2;
+
+// @public
+export type ConditionTextMode = "substring" | "starts-with" | "ends-with" | "exact";
 
 // @public
 export interface CostBasis {
@@ -878,6 +993,9 @@ export interface DraftTable {
     readonly rowCount: number;
     readonly weightCandidate?: string;
 }
+
+// @public
+export function edgeConditions<F extends ConditionField>(selector: Selector_2, fields: readonly F[]): Condition<F>[];
 
 // @public
 export type EdgeEnd = "source" | "target";
@@ -2625,10 +2743,25 @@ export interface GraphvizCapability {
 export type GroupMatchCode = "group.new" | "group.gone";
 
 // @public
+export interface GroupMove {
+    readonly a: string | number;
+    readonly b: string | number;
+    readonly id: NodeId;
+    readonly mostOfGroup: string | number;
+}
+
+// @public
 export interface GroupOutlineClick {
     readonly group: string | number | boolean | null;
     readonly layer: LayerId;
     readonly shader: string;
+}
+
+// @public
+export interface GroupOverlap {
+    readonly a: string | number;
+    readonly b: string | number;
+    readonly count: number;
 }
 
 // @public
@@ -2772,6 +2905,9 @@ export function isAlgorithmRunCommand(value: unknown): value is AlgorithmRunComm
 
 // @public
 export function isAssetId(value: unknown): value is AssetId;
+
+// @public
+export const isConditionFinished: (condition: Condition) => boolean;
 
 // @public
 export function isGraphtyError(value: unknown): value is GraphtyErrorFor;
@@ -3167,6 +3303,13 @@ export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn">>
 // @public
 export function listAutosaves(key: string, options?: AutosaveLookupOptions): Promise<readonly AutosaveEntry[]>;
 
+// @public
+export interface ListedConditionField extends ConditionField {
+    readonly from: ReadableValue["from"] | "source";
+    readonly integer?: true;
+    readonly value?: ReadableValue;
+}
+
 export { listSources }
 
 // @public
@@ -3431,6 +3574,22 @@ export interface ModelLimits {
 }
 
 // @public
+export interface ModelPart {
+    readonly file?: string;
+    readonly name: string;
+    // (undocumented)
+    readonly role: ModelPartRole;
+    // (undocumented)
+    readonly state: ModelPartState;
+}
+
+// @public
+export type ModelPartRole = "model" | "geometry" | "materials" | "texture" | "other";
+
+// @public
+export type ModelPartState = "found" | "substituted" | "missing" | "ambiguous" | "skipped" | "unused";
+
+// @public
 export type ModelState = "pending" | "accepted" | "drawn" | "rejected" | "failed";
 
 // @public
@@ -3540,6 +3699,17 @@ export type NetworkRequestAsker = "file" | "ai" | "data" | "source" | "supplied"
 
 // @public
 export type NetworkRequestKind = "model" | "texture" | "source";
+
+// @public
+export function newCondition<F extends ConditionField>(field: F): Exclude<Condition<F>, {
+    type: "fixed" | "ends";
+}>;
+
+// @public
+export function nodeConditionLeaves(selector: Selector_2): readonly RuleTree[] | null;
+
+// @public
+export function nodeConditions<F extends ConditionField>(selector: Selector_2, fields: readonly F[]): Condition<F>[];
 
 // @public
 export type NodeId = string | number;
@@ -3785,7 +3955,12 @@ export type PartAnswer =
     readonly name?: string;
     readonly file: NamedBlob | Uint8Array;
 }
-/** Use a file the set already holds for an ambiguous reference (`E_MODEL_PART_AMBIGUOUS`). */
+/**
+* Use a file the set already holds: one of an ambiguous reference's candidates
+* (`E_MODEL_PART_AMBIGUOUS`), or any file of the set for a missing part (`E_MODEL_MISSING_FILE`),
+* as when a picture's name differs from the one the model names. A file nothing else names is
+* moved to the part's name.
+*/
 | {
     readonly name: string;
     readonly use: string;
@@ -3802,6 +3977,18 @@ export type PartAnswer =
 
 // @public
 export type PartialCode = "partial.iteration-cap" | "partial.time-box" | "partial.canceled" | "partial.stopped" | "partial.batch-incomplete";
+
+// @public
+export interface PartitionComparison extends ComparisonBase {
+    readonly agreement: number | undefined;
+    readonly groups: {
+        readonly a: number;
+        readonly b: number;
+    };
+    readonly kind: "partition";
+    readonly moves: readonly GroupMove[];
+    readonly overlaps: readonly GroupOverlap[];
+}
 
 // @public
 export type Path = string;
@@ -4063,7 +4250,7 @@ export interface ProjectOpenReport {
 }
 
 // @public
-export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
+export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | "shader.unknown" | "shader.not-saved">;
 
 // @public
 export interface ProjectSaveOptions {
@@ -4143,6 +4330,24 @@ export type QueuePolicy = (typeof QUEUE_POLICIES)[number];
 
 // @public
 export function quotePath(path: Path): Query;
+
+// @public
+export interface RankChange {
+    readonly id: NodeId;
+    readonly move: number;
+    readonly rankA: number;
+    readonly rankB: number;
+    readonly tiedA: number;
+    readonly tiedB: number;
+}
+
+// @public
+export interface RankingComparison extends ComparisonBase {
+    readonly changes: readonly RankChange[];
+    readonly correlation: number | undefined;
+    readonly kind: "ranking";
+    readonly moved: number;
+}
 
 // @public
 export interface RankingEntry {
@@ -4552,6 +4757,9 @@ export interface ResultColumnDescriptor {
 }
 
 // @public
+export type ResultComparison = RankingComparison | PartitionComparison;
+
+// @public
 export type ResultId = RunId;
 
 // @public
@@ -4572,6 +4780,7 @@ export interface ResultRef {
 
 // @public
 export interface ResultsApi {
+    compare(a: RunRef | CompareSide, b: RunRef | CompareSide): ResultComparison;
     get(run: RunRef): RunResult | undefined;
     has(run: RunRef, field?: string): boolean;
     path(run: RunRef, field?: string): Path;
@@ -5803,6 +6012,8 @@ export interface SessionShaders {
         readonly compile?: boolean;
         readonly picture?: boolean;
     }): Promise<ShaderAddResult>;
+    describe(id: string): ShaderDescriptor | undefined;
+    fromCatalog(id: string): Promise<string>;
     // (undocumented)
     list(): readonly ProjectShader[];
     remove(id: string): Promise<void>;
@@ -6544,6 +6755,7 @@ export interface StyleDocument {
     layers: readonly LayerSpec[];
     // (undocumented)
     palettes?: readonly PaletteDescriptor[];
+    problems?: readonly ShaderProblem[];
     shaders?: readonly {
         readonly id: string;
         readonly text: ShaderText;
@@ -6785,7 +6997,7 @@ export type TemplatePosition = "top" | "aboveBase" | {
 // @public
 export interface TemplateReport {
     readonly applied: readonly LayerId[];
-    readonly shaders?: readonly CodedFact<"shader.held" | "shader.id-taken">[];
+    readonly shaders?: readonly CodedFact<"shader.held" | "shader.id-taken" | "shader.unknown">[];
     readonly unbound: readonly UnboundLayer[];
 }
 

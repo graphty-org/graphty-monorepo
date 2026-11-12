@@ -94,6 +94,11 @@ work is not reopened over it, stays listed, and fires `graphty-autosave-availabl
 
 Restored work that was never saved to a file stays unsaved (`session.project.dirty` is true).
 
+An entry carries the code of every shader the work used, so it comes back the same after the page
+updates graphty-element. If a shader in it no longer reads, its uses are dropped and the rest comes
+back; the entry is then kept as it was and further changes go to a new entry, so the older copy is
+never written over.
+
 ## What each browser guarantees
 
 Autosave keeps what it has written. What it has not yet written when the page dies is lost, so

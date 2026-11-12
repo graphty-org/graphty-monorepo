@@ -1345,6 +1345,7 @@ const S: Record<string, (p: P) => string> = {
         `month to date, projected to ${esc(String(p.month_end ?? "").slice(5))}; the line is the range by day`,
     "costs.money_by_workflow": () => "Money by workflow, this month so far, USD",
     "costs.value_by_workflow": () => "List-price value by workflow, not money, this month so far, USD",
+    "costs.aws_by_service": () => "AWS by service, this month so far, USD",
     "cost.t4.rate": (p) =>
         `machine.dev, on demand ${fmtN(num(p, "usd_min"))} USD/min, +${fmtN(num(p, "boot_min"))} min boot per job`,
     "cost.llm.rate": (p) =>

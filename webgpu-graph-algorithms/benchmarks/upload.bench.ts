@@ -10,6 +10,14 @@ import { randomEdges, snapshotOf, TIERS } from "./datasets.js";
 import { bench, type BenchResult } from "./harness.js";
 
 /**
+ * Measured runs per upload row, fixed above the harness's default 5 (and above --runs). Dawn's wait for a 16 MB
+ * writeBuffer is bimodal (about 0.1 ms or 6 ms on the RTX 4070 SUPER, often alternating run to run, with or without a
+ * fresh buffer or fresh data), so a median of 5 lands on either mode and the daily T4 series swung 12.8-17.6 ms with no
+ * change to the upload path (issue #6565). A median of 15 needs 8 slow runs to move.
+ */
+const UPLOAD_RUNS = 15;
+
+/**
  * Run the upload benchmarks.
  * @param ctx - the context (a hardware adapter; run.ts refuses software ones)
  * @returns the results
@@ -43,7 +51,7 @@ export async function runUploadBenchmarks(ctx: GpuContext): Promise<BenchResult[
                         ctx.release(s);
                     },
                 },
-                { device: ctx.device, items: hotBytes, unit: "bytes" },
+                { device: ctx.device, runs: UPLOAD_RUNS, items: hotBytes, unit: "bytes" },
             ),
         );
     }

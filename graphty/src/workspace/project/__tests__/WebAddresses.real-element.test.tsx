@@ -17,7 +17,7 @@ import { page, userEvent } from "vitest/browser";
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { OPEN_PROJECT_URLS, PROJECT_HOSTS_KEY, readPreference, readProjectHosts } from "../../settings/preferences";
 import { createWorkspaceStore } from "../../state/store";
-import { openModels, openShapes, written } from "../../style/__tests__/modelHarness";
+import { addModel, openCustom, openShapes, written } from "../../style/__tests__/modelHarness";
 import { dotPng, quadGlb } from "../../style/__tests__/quadGlb";
 import { Workspace } from "../../Workspace";
 import { clearRecent } from "../recent";
@@ -181,14 +181,15 @@ describe("web addresses a project names, from the app", () => {
 });
 
 /**
- * Pastes MODEL in the Models pop-over by real input, and waits until graphty-element draws it.
+ * Pastes MODEL in the Load custom model dialog by real input, and waits until graphty-element draws it.
  * @param session - the element's session.
  * @param tab - the Style tab.
  */
 async function pasteModel(session: GraphSession, tab: HTMLElement): Promise<void> {
-    const models = await openModels(tab);
-    await userEvent.type(within(models).getByRole("textbox", { name: "Model address" }), MODEL);
-    await userEvent.click(within(models).getByRole("button", { name: "Add model address" }));
+    const dialog = await openCustom(tab);
+    await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), MODEL);
+    await userEvent.click(within(dialog).getByRole("button", { name: "Load model address" }));
+    await addModel(dialog);
     await reaches(session, MODEL, "drawn");
 }
 
@@ -210,7 +211,7 @@ async function keptEntries(): Promise<Record<string, unknown>[]> {
 }
 
 describe("web addresses in the Style tab, with the node models experiment", () => {
-    it("draws a model pasted by URL in the Models pop-over, asking nothing", async () => {
+    it("draws a model pasted by URL in the Load custom model dialog, asking nothing", async () => {
         const { session, tab } = await openShapes();
         await pasteModel(session, tab);
         assert.equal(written(session, "node.model"), MODEL);

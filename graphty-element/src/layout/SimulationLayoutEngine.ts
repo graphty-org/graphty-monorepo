@@ -36,7 +36,15 @@
  * that costs and why the repair that suggests itself is worse.
  */
 
-import { type F32, type GraphSnapshot, makeMask, maskSet, type NodeId, type NodeMask } from "@graphty/graph-format";
+import {
+    type F32,
+    type GraphSnapshot,
+    makeMask,
+    maskSet,
+    maskTest,
+    type NodeId,
+    type NodeMask,
+} from "@graphty/graph-format";
 import {
     type CommonLayoutOptions,
     createSimulation,
@@ -345,6 +353,22 @@ export interface SimulationEngineInit {
     /** The data manager the snapshot, its undirected copy and the position array come from. */
     readonly dataManager: DataManager;
     /**
+     * The edges that have an `Edge` (`dataManagerInternals.builtEdges`), which {@link SimulationLayoutEngine.edges}
+     * hands out. Omitted, every edge of the data manager, building any `Edge` not yet built.
+     */
+    readonly builtEdges?: () => Iterable<Edge>;
+    /**
+     * The nodes that have a `Node` (`dataManagerInternals.builtNodes`) under renderPath "batched", which
+     * {@link SimulationLayoutEngine.nodes} hands out. Omitted, every node of the data manager, building any `Node`
+     * not yet built.
+     */
+    readonly builtNodes?: () => Iterable<Node>;
+    /**
+     * The spacing radius (`Node.spacingRadius`) of a row with no `Node`, read from how it is drawn, for `nodeGap`;
+     * null for a row it cannot answer. Omitted, such a row is kept apart by nothing.
+     */
+    readonly rowSpacingRadius?: (row: number, flat: boolean) => number | null;
+    /**
      * Start the first load from the seed rather than from the arrangement the element holds: the
      * rebuild a seeded layout makes when new data arrives, so the frames that stepped the graph
      * as it stood before do not decide where it settles (issue #3379). Pinned rows are replayed
@@ -378,6 +402,20 @@ interface DrawnTransform {
     readonly center: readonly [number, number, number];
     readonly scale: number;
     readonly target: readonly [number, number, number];
+}
+
+/**
+ * Whether two drawn transforms are the same map.
+ * @param a - One.
+ * @param b - The other.
+ * @returns True when every number matches.
+ */
+function sameTransform(a: DrawnTransform, b: DrawnTransform): boolean {
+    return (
+        a.scale === b.scale &&
+        a.center.every((v, i) => v === b.center[i]) &&
+        a.target.every((v, i) => v === b.target[i])
+    );
 }
 
 /**
@@ -424,6 +462,15 @@ interface DrawnRun {
     readonly told: Map<number, number>;
     /** The mirror this run gave the table, which only this run takes back. */
     readonly mirror: (row: number, x: number, y: number, z: number, w: number) => void;
+    /** Whether a landing of this run has been published, so the transforms sent since were measured over one. */
+    stepped: boolean;
+    /**
+     * The transforms sent before that, measured over the coordinates the run was loaded with (each distinct one
+     * once; they change only when a landing does). A batch drawn with one is no picture of the graph: a seeded
+     * ForceAtlas2 spreads some 3,000 times over in its first batches, so its first landing drawn this way stood
+     * some 2,000 times the size of the next (#6584). Such a landing goes up by upload.
+     */
+    readonly unstepped: DrawnTransform[];
 }
 
 /**
@@ -469,6 +516,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
     readonly #controller: AccelerationController;
     readonly #report: (error: GraphtyError) => void;
     readonly #dataManager: DataManager;
+    readonly #builtEdges: () => Iterable<Edge>;
+    readonly #builtNodes: () => Iterable<Node>;
+    readonly #rowSpacingRadius: ((row: number, flat: boolean) => number | null) | undefined;
     readonly #weightMeaning: () => "strength" | "distance" | null;
     readonly #drawnTarget: () => DrawnTarget | null;
     /** The simulation filling the row table on the card, or null on the upload path. */
@@ -627,6 +677,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#controller = built.controller;
         this.#report = built.report as (error: GraphtyError) => void;
         this.#dataManager = built.dataManager as DataManager;
+        this.#builtEdges = built.builtEdges ?? ((): Iterable<Edge> => this.#dataManager.edges.values());
+        this.#builtNodes = built.builtNodes ?? ((): Iterable<Node> => this.#dataManager.nodes.values());
+        this.#rowSpacingRadius = built.rowSpacingRadius;
         this.#fromSeed = built.fromSeed === true;
         this.#weightMeaning = built.weightMeaning ?? ((): "strength" => "strength");
         this.#drawnTarget = built.drawnTarget ?? ((): null => null);
@@ -1188,18 +1241,25 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * iterable would let the simulation rewrite the position array every frame while not one mesh
      * moved. So they answer with the data manager's own collections, which hold exactly what
      * `LayoutManager` hands every other engine through `addNodes` / `addEdges`.
+     *
+     * A row stored with no `Node` (only under renderPath "batched") is drawn and moved by its row, so it is left
+     * out, as d3 and ngraph leave it out: reading the store's `values()` built a `Node` for every row the first
+     * frame after the layout started, the 100k-row graph's seconds before its first layout frame (#6389).
      * @returns The graph's live node collection.
      */
     get nodes(): Iterable<Node> {
-        return this.#dataManager.nodes.values();
+        return this.#builtNodes();
     }
 
     /**
-     * Every edge of the graph; see {@link SimulationLayoutEngine.nodes}.
-     * @returns The graph's live edge collection.
+     * Every edge of the graph that has an `Edge`; see {@link SimulationLayoutEngine.nodes}. An edge stored with no
+     * `Edge` (only under renderPath "batched") is simulated by row and drawn by its row line, so it is left out, as
+     * d3 and ngraph leave out their edge rows: reading the store's `values()` would build an `Edge` for every one of
+     * them on every frame. On the objects path every edge has its `Edge`, so this is every edge, as before.
+     * @returns The graph's built edges, live.
      */
     get edges(): Iterable<Edge> {
-        return this.#dataManager.edges.values();
+        return this.#builtEdges();
     }
 
     /**
@@ -1263,10 +1323,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // texture the ring is copied into hold the same rows; the envelope measured now is the next batches'.
         const drawn = this.#drawnRun();
         const landed = drawn?.simulation.landedDrawn ?? null;
-        const viaCard =
-            landed !== null && drawn?.suspended === false && !(this.#simulation?.settled ?? true)
-                ? (drawn?.simulation.landedDrawnTransform ?? null)
-                : null;
+        const viaCard = drawn === null || landed === null ? null : this.#cardTransform(drawn);
         this.#fitEnvelope(snapshot, simPositions);
 
         const scale = viaCard?.scale ?? this.#envelopeScale;
@@ -1311,9 +1368,37 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // coordinate at all and would render at the origin for the rest of its life. So its FIRST
         // coordinate lands as a placement, and every one after that is the reader's to keep.
         this.publishColumn(first, rows, coords, count, true);
+        // A pinned or dragged row was left out of the publish above; it is still drawn, where it is kept.
+        this.keepInPublishedBox(first, this.#fixedRows);
         if (drawn !== null) {
+            drawn.stepped ||= landed !== null;
             this.#publishDrawn(drawn, viaCard === null ? null : landed);
         }
+    }
+
+    /**
+     * The transform a landed batch drew with, when its copy may stand for the landing: not while a
+     * transition draws the rows or the simulation is at rest, and not when the batch drew with the
+     * transform measured before the run stepped.
+     * @param run - The run, with a landing.
+     * @returns The transform, or null to publish the landing by upload.
+     */
+    #cardTransform(run: DrawnRun): DrawnTransform | null {
+        const batch = run.simulation.landedDrawnTransform ?? null;
+        if (batch === null || run.suspended || (this.#simulation?.settled ?? true)) {
+            return null;
+        }
+
+        return run.unstepped.some((seed) => sameTransform(batch, seed)) ? null : batch;
+    }
+
+    /**
+     * The box the last publish left the rows in: one {@link LayoutEngine.publishColumn} per publish.
+     * @returns The box, or null.
+     * @internal
+     */
+    override publishedBounds(): Readonly<Float64Array> | null {
+        return this.lastPublishedBox();
     }
 
     /**
@@ -1344,6 +1429,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
             skip: new Uint32Array(Math.ceil(nodeCount / 32)),
             suspended: false,
             told: new Map(),
+            stepped: false,
+            unstepped: [],
             mirror: (row, x, y, z, w): void => {
                 if (this.#drawn === run && row < nodeCount) {
                     drawn.writeDrawn(row, x, y, z, w);
@@ -1452,6 +1539,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
             target: [this.#targetCentre[0], this.#targetCentre[1], this.#targetCentre[2]],
         };
         run.simulation.setDrawnTransform(transform);
+        const last = run.unstepped.at(-1);
+        if (!run.stepped && (last === undefined || !sameTransform(last, transform))) {
+            run.unstepped.push(transform);
+        }
     }
 
     /**
@@ -1557,16 +1648,43 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const dimensions =
             this.#options.nodeGapFront === true ? 2 : (this.#options.model.dim ?? this.#options.dim ?? 3);
         const radii = new Float32Array(nodeCount);
+        const byNode = makeMask(nodeCount);
         for (const node of this.nodes) {
             if (this.#hasRow(node.index) && !this.isFollower(node.index)) {
                 radii[node.index] = node.spacingRadius(dimensions === 2) + gap / 2;
             }
+
+            if (this.#hasRow(node.index)) {
+                maskSet(byNode, node.index, true);
+            }
         }
 
+        this.#rowRadii(radii, byNode, dimensions === 2, gap);
         this.#radii = radii;
         this.#radiiStale = false;
         this.#packedRadius = packedRadius(radii, dimensions);
         return radii;
+    }
+
+    /**
+     * Writes the `nodeGap` radius of every row with no `Node` (renderPath "batched"), spaced by how it is drawn.
+     * @param radii - The radii, written in place.
+     * @param byNode - The rows a `Node` already answered for.
+     * @param flat - Whether depth does not count.
+     * @param gap - The `nodeGap`.
+     */
+    #rowRadii(radii: F32, byNode: NodeMask, flat: boolean, gap: number): void {
+        const ofRow = this.#rowSpacingRadius;
+        if (ofRow === undefined) {
+            return;
+        }
+
+        for (let row = 0; row < radii.length; row++) {
+            const radius = maskTest(byNode, row) || this.isFollower(row) ? null : ofRow(row, flat);
+            if (radius !== null) {
+                radii[row] = radius + gap / 2;
+            }
+        }
     }
 
     /**

@@ -32,6 +32,7 @@ import type {
 import { quoteEach } from "../../utils/quote-each";
 import type { Caveats, Run, RunDistinction } from "../runs/types";
 import type { CodedFact } from "../shared";
+import type { CompareSide, ResultComparison } from "./compare";
 
 // ---------------------------------------------------------------------------------------------
 // The published path
@@ -1089,6 +1090,25 @@ export interface ResultsApi {
      * @returns True when the path would resolve.
      */
     has(run: RunRef, field?: string): boolean;
+    /**
+     * Compare two runs' results element by element: two rankings (who kept their place, who moved
+     * and by how much, who is tied) or two groupings (which groups map onto which, and who left the
+     * rest of their group). A grouping field (a community's `group`) gives a partition comparison;
+     * a measurement (a centrality's `value`) gives a ranking comparison.
+     *
+     * ```ts
+     * const c = session.results.compare(pagerank, degree);
+     * if (c.kind === "ranking") console.log(c.correlation, c.changes[0]);
+     * ```
+     * @param a - The first run, or `{ run, field }` for a field other than its primary one.
+     * @param b - The second run, or `{ run, field }`.
+     * @returns The comparison.
+     * @throws A GraphtyError coded E_UNKNOWN_RUN when the session holds no finished run by that
+     *   name, or E_BAD_COMMAND when a field is not published per element, the two fields are on
+     *   different elements, or one is a grouping and the other a measurement.
+     * @since 3.38.0
+     */
+    compare(a: RunRef | CompareSide, b: RunRef | CompareSide): ResultComparison;
     /** Every run that has published a result, as an expression editor reads them. */
     readonly roots: readonly ResultRoot[];
 }

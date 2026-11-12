@@ -14,7 +14,7 @@ import { carriedOpacity, lineIn, partlySet, startingAdds, writeIn } from "./row"
 import { type PasteInit, ShaderEditorDialog } from "./ShaderEditorDialog";
 import { type OptionTile, ShaderGallery } from "./ShaderGallery";
 import { ShaderRow } from "./ShaderRow";
-import { addShader, moveShader, shaderEntries, writeWireframe } from "./shaderSlots";
+import { addShader, moveShader, pickedShader, shaderEntries, writeWireframe } from "./shaderSlots";
 import { focusLineNext, headerBottom } from "./useFocusLine";
 import {
     channelWord,
@@ -419,11 +419,10 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
             sectionBox.current?.querySelector<HTMLElement>("[data-plus]")?.focus();
         }
     }, [shaderNext, tab, store]);
-    const pick = (id: string): Promise<void> => {
-        const name = ctx.session.catalog.shaders().find((each) => each.id === id)?.plainName ?? id;
-        return addShader(ctx, id).then(() => {
-            store.set({ announcement: `${name} added` });
-        });
+    const pick = async (id: string): Promise<void> => {
+        const name = ctx.session.shaders.describe(id)?.plainName ?? id;
+        await addShader(ctx, await pickedShader(ctx.session, id));
+        store.set({ announcement: `${name} added` });
     };
     return (
         <div // NOSONAR(S6848): only catches the paste shortcut bubbling from the section's own controls
@@ -506,8 +505,7 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                                 setCode({});
                             }}
                             onDelete={(id) => {
-                                const name =
-                                    ctx.session.catalog.shaders().find((each) => each.id === id)?.plainName ?? id;
+                                const name = ctx.session.shaders.describe(id)?.plainName ?? id;
                                 ctx.session.shaders
                                     .remove(id)
                                     .then(() => {

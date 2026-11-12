@@ -96,7 +96,12 @@ export type PartAnswer =
     | { readonly name: string; readonly url: string }
     /** This file is the part. With no name, it is matched to a missing part by its path, then by its base name. */
     | { readonly name?: string; readonly file: NamedBlob | Uint8Array }
-    /** Use a file the set already holds for an ambiguous reference (`E_MODEL_PART_AMBIGUOUS`). */
+    /**
+     * Use a file the set already holds: one of an ambiguous reference's candidates
+     * (`E_MODEL_PART_AMBIGUOUS`), or any file of the set for a missing part (`E_MODEL_MISSING_FILE`),
+     * as when a picture's name differs from the one the model names. A file nothing else names is
+     * moved to the part's name.
+     */
     | { readonly name: string; readonly use: string }
     /** Draw without this part. Pictures and `.mtl` files only; never a `.bin` or other geometry. */
     | { readonly name: string; readonly skip: true }
@@ -113,6 +118,25 @@ export interface AssetOffer {
 
 /** Where an asset stands. */
 export type AssetState = "pending" | "accepted" | "rejected";
+
+/** What a part is to its model: the main file, a buffer, an `.mtl`, a picture, or a file nothing names. */
+export type ModelPartRole = "model" | "geometry" | "materials" | "texture" | "other";
+
+/**
+ * Where a part stands: in the set as named, found by case or base name, missing, matched by more
+ * than one file, drawn without, or a file of the set the model never names.
+ */
+export type ModelPartState = "found" | "substituted" | "missing" | "ambiguous" | "skipped" | "unused";
+
+/** One file of a model, or one file it names (`AssetRecord.parts`). */
+export interface ModelPart {
+    /** The path as the model names it; for an `"unused"` file, its path in the set. */
+    readonly name: string;
+    readonly role: ModelPartRole;
+    readonly state: ModelPartState;
+    /** The set's file used for it, when found or substituted. */
+    readonly file?: string;
+}
 
 /** One asset of the session. */
 export interface AssetRecord {
@@ -142,6 +166,13 @@ export interface AssetRecord {
     readonly url?: string;
     /** The parts it is drawn without (`supply`'s `skip`, `add`'s `skipped`), by their path in the set. */
     readonly skipped?: readonly string[];
+    /**
+     * The model's files, accepted or waiting: the main file, each file it names, then the set's
+     * files nothing names. Absent for a picture and for a set whose main file cannot be told.
+     */
+    readonly parts?: readonly ModelPart[];
+    /** The reader's name for it (`assets.rename`), saved with the project. */
+    readonly plainName?: string;
 }
 
 /** What a model holds, read from its files without drawing it. */
@@ -366,6 +397,19 @@ export interface AssetsApi {
      * ```
      */
     usedBy(ref: string): readonly LayerId[];
+    /**
+     * Give an asset the reader's own name, or clear it. The name is saved with the project and is
+     * not undone (assets are not commands).
+     * @param ref - An asset id, a waiting model's id, or a URL the session holds.
+     * @param plainName - The name, cut to 256 characters; empty or left out clears it.
+     * @returns The renamed record.
+     * @throws A `GraphtyError` coded `E_MODEL_UNKNOWN_ASSET` for a ref the session does not hold.
+     * @example
+     * ```ts
+     * graph.session.assets.rename(record.id, "Cruiser");
+     * ```
+     */
+    rename(ref: string, plainName?: string): AssetRecord;
 }
 
 /** A model missing parts, held for `supply` (design 12.4). */
@@ -686,7 +730,13 @@ interface Decided {
 type Step =
     | { readonly unused: string }
     | { readonly refused: CodedFact }
-    | { readonly main?: string; readonly skip?: string; readonly part?: readonly [string, Uint8Array] };
+    | {
+          readonly main?: string;
+          readonly skip?: string;
+          readonly part?: readonly [string, Uint8Array];
+          /** A file of the set moved to the part's name, when nothing else names it. */
+          readonly moved?: string;
+      };
 
 /**
  * The step of a skip: a picture or `.mtl` the model is missing.
@@ -706,7 +756,8 @@ function skipStep(missing: readonly CodedFact[], name: string): Step {
 }
 
 /**
- * The step of a `use`: one of an ambiguous reference's candidates, stored under the name the model uses.
+ * The step of a `use`: one of an ambiguous reference's candidates, or any file of the set for a
+ * missing part, stored under the name the model uses.
  * @param missing - The missing and ambiguous parts.
  * @param answer - The answer.
  * @param answer.name - The ambiguous part.
@@ -722,6 +773,19 @@ function useStep(
     const part = partNamed(missing, answer.name);
     const candidates = (part?.params.candidates ?? []) as readonly string[];
     const bytes = given.get(answer.use);
+    if (part?.code === "E_MODEL_MISSING_FILE") {
+        if (bytes === undefined) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                source: "data",
+                message: "The model's files hold no file by that path.",
+                details: { name: cut(answer.name), use: cut(answer.use) },
+            });
+        }
+
+        return { part: [String(part.params.name), bytes], moved: answer.use };
+    }
+
     if (part?.code !== "E_MODEL_PART_AMBIGUOUS" || !candidates.includes(answer.use) || bytes === undefined) {
         return { unused: answer.name };
     }
@@ -857,9 +921,12 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         at: Settling,
     ): Promise<{ settled: AssetRecord; summary?: ModelSummary }> => {
         const { id, digest, byteLength } = at;
+        const intakeModule = await loadIntake();
+        const listed = intakeModule.partsOf(files, options, limits);
+        const parts = listed === undefined ? {} : { parts: Object.freeze(listed) };
         let checked: Awaited<ReturnType<Awaited<ReturnType<typeof loadIntake>>["checkAsset"]>>;
         try {
-            checked = await (await loadIntake()).checkAsset(files, options, limits);
+            checked = await intakeModule.checkAsset(files, options, limits);
         } catch (error) {
             if (!(error instanceof Refusal)) {
                 throw error;
@@ -867,7 +934,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
 
             const problems = error.facts;
             // A model waiting for parts is named by its main file, as an accepted one is.
-            const main = onlyParts(problems) ? (await loadIntake()).mainPathOf(files, options) : undefined;
+            const main = onlyParts(problems) ? intakeModule.mainPathOf(files, options) : undefined;
             const path = main === undefined ? {} : { path: main.slice(0, 256) };
             return {
                 settled: record({
@@ -879,6 +946,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                     problems,
                     ...path,
                     ...at.extra,
+                    ...parts,
                 }),
             };
         }
@@ -902,6 +970,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             state: "accepted",
             problems: checked.warnings,
             ...at.extra,
+            ...(checked.kind === "model" ? parts : {}),
         });
         return { settled, summary: checked.summary };
     };
@@ -1086,8 +1155,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 if (error.held !== undefined) {
                     // Missing parts only: held, so the reader can supply them (design 12.4).
                     entry.held = { ...error.held, skipped: [], options: shared, url: named };
-                    const main = (await loadIntake()).mainPathOf(error.held.given, { main: error.held.main });
-                    settled = record({ ...settled, url: named, ...(main === undefined ? {} : { path: main }) });
+                    settled = await heldRecord(settled, error.held, named);
                     entry.record = settled;
                     settled = await fillFromProject(entry);
                 }
@@ -1395,6 +1463,41 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
     };
 
     /**
+     * The record of a model fetched by URL that waits for parts: its address, its main file and
+     * its parts, as `assets.parts` lists them.
+     * @param settled - The refusal's record.
+     * @param held - The files fetched so far.
+     * @param url - The address it was added by.
+     * @returns The record.
+     */
+    const heldRecord = async (
+        settled: AssetRecord,
+        held: NonNullable<Refusal["held"]>,
+        url: string,
+    ): Promise<AssetRecord> => {
+        const intakeModule = await loadIntake();
+        const main = intakeModule.mainPathOf(held.given, { main: held.main });
+        const parts = intakeModule.partsOf(held.given, { main: held.main }, limits);
+        return record({
+            ...settled,
+            url,
+            ...(main === undefined ? {} : { path: main }),
+            ...(parts === undefined ? {} : { parts: Object.freeze(parts) }),
+        });
+    };
+
+    /**
+     * Why a part handed over was refused, naming the part it was for when the reason does not.
+     * @param why - The refusal.
+     * @param part - The part's name, when the answer named one.
+     * @returns The fact.
+     */
+    const partRefusal = (why: CodedFact, part: string | undefined): CodedFact =>
+        part === undefined || why.params.part !== undefined
+            ? why
+            : { code: why.code, params: { ...why.params, part: cut(part) } };
+
+    /**
      * One `supply` call, run in its model's turn.
      * @param entry - The held model.
      * @param answer - The part.
@@ -1435,19 +1538,24 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             given.set(...step.part);
         }
 
+        // A file nothing else names, taken for a missing part, goes under the part's name only.
+        if (
+            step.moved !== undefined &&
+            entry.record.parts?.some((p) => p.state === "unused" && p.name === step.moved)
+        ) {
+            given.delete(step.moved);
+        }
+
         const main = step.main ?? held.main;
         const skipped = step.skip === undefined ? held.skipped : [...held.skipped, step.skip];
-        const settled = await intake(given, { ...held.options, skipped }, main, false, held.url, entry);
+        const checked = await intake(given, { ...held.options, skipped }, main, false, held.url, entry);
+        // The reader's name stays through every part handed over.
+        const { plainName } = entry.record;
+        const settled = plainName === undefined ? checked : record({ ...checked, plainName });
         if (settled.state === "rejected" && !onlyParts(settled.problems)) {
             // The part itself was refused (a picture that is not one, a size over a limit): keep
             // what was held, and say why beside what is still missing, naming the part it was for.
-            const [why] = settled.problems;
-            const part = step.part?.[0];
-            return refused(
-                part === undefined || why.params.part !== undefined
-                    ? why
-                    : { code: why.code, params: { ...why.params, part: cut(part) } },
-            );
+            return refused(partRefusal(settled.problems[0], step.part?.[0]));
         }
 
         entry.assembled = true;
@@ -1733,6 +1841,35 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
 
         waiting() {
             return Object.freeze(waitingEntries().map((entry) => entry.record));
+        },
+
+        rename(ref, plainName) {
+            const entry = findEntry(ref);
+            if (entry === undefined) {
+                throw new GraphtyError({
+                    code: "E_MODEL_UNKNOWN_ASSET",
+                    source: "data",
+                    message: `No model is held as ${ref}.`,
+                    details: { id: ref },
+                });
+            }
+
+            const name = (plainName ?? "").slice(0, 256);
+            const renamed = (before: AssetRecord): AssetRecord => {
+                const fields: { -readonly [K in keyof AssetRecord]: AssetRecord[K] } = { ...before };
+                delete fields.plainName;
+                return record(name === "" ? fields : { ...fields, plainName: name });
+            };
+            // A URL's entry and its accepted id's entry are two records of one asset: both are renamed.
+            const { id } = entry.record;
+            for (const each of allEntries()) {
+                if (each === entry || each.record.id === id) {
+                    each.record = renamed(each.record);
+                    each.settled = Promise.resolve(each.record);
+                }
+            }
+
+            return entry.record;
         },
 
         usedBy(ref) {

@@ -1,8 +1,7 @@
 /**
  * The sample library: one list of every sample the app offers, in one order, which the start
  * page's library and the Samples dialog both draw with the same card (SampleCard.tsx): the samples,
- * then one network sample of each kind of network source, then the generators. The main
- * menu's Open sample list is its first part: the app's own samples, from offeredSamples().
+ * then one network sample of each kind of network source, then the generators.
  */
 
 import {

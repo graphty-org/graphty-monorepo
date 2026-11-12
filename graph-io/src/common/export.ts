@@ -256,11 +256,14 @@ export const NO_CAPABILITIES: ExportCapabilities = Object.freeze({
 /**
  * Build a capabilities table from the fields a format supports; every field left out is the
  * conservative NO_CAPABILITIES value, so an exporter states what it keeps and nothing is assumed.
- * @param supported - the fields the format supports
+ * @param supported - the fields the format supports; `viz` is the deprecated
+ *     {@link ExportCapabilities.viz} fact, still read until the next major version
  * @returns a frozen table
  * @category Writing a format
  */
-export function capabilities(supported: Partial<ExportCapabilities>): ExportCapabilities {
+export function capabilities(
+    supported: Partial<Omit<ExportCapabilities, "viz"> & { readonly viz: boolean }>,
+): ExportCapabilities {
     return Object.freeze({ ...NO_CAPABILITIES, ...supported, dtypes: Object.freeze([...(supported.dtypes ?? [])]) });
 }
 

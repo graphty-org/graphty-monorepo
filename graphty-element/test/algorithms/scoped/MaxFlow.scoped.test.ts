@@ -22,7 +22,7 @@ function withCapacities(capacities: readonly number[], graph: InputGraph): Input
     [...graph.edges.values()].forEach((edge, index) => {
         graph.store.builder.setEdgeValue(graph.store.capacityColumn, edge.index, capacities[index]);
     });
-    graph.store.touch();
+    graph.store.account();
 
     return graph;
 }

@@ -1484,9 +1484,15 @@ const config = defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
-                    // Run tests sequentially to avoid rate limits
+                    // Six files at a time, each in its own process (so no two share the transport's
+                    // caches or the harness's request recorder). One file at a time took about 50
+                    // minutes on the release job (#6549); six keep under ten requests in flight,
+                    // far below Gemini's per-minute limits, and the transport waits out any 429.
+                    // Spend is the same: every case still runs once.
                     pool: "forks",
-                    fileParallelism: false,
+                    maxWorkers: 6,
+                    // Its own group: a run of every project would otherwise refuse to mix workers counts.
+                    sequence: { groupOrder: 1 },
                 },
             },
         ],

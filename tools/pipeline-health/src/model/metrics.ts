@@ -49,7 +49,7 @@ export const PR_BASE_MS = 20 * MIN;
  */
 export const FULL_SHARD_BUDGET_MS = budgets.budgets["job:ci.yml:Test (*)"].minutes * MIN;
 /** Changes whenever a fold changes for items already stored; bump the suffix when a fold's code changes. */
-export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job-ran-jobs-nightly-deploys-merge-ratio-cohort-slice-saturated-designed-rerun`;
+export const FOLD_VERSION = `shard-budget-${FULL_SHARD_BUDGET_MS}-exact-jobs-file-runs-run-branch-results-per-test-job-ran-jobs-nightly-deploys-merge-ratio-cohort-slice-saturated-designed-rerun-clean-file-runs`;
 
 /**
  * When a job started on a runner, or undefined when it never did. GitHub gives a job cancelled before any runner
@@ -278,13 +278,17 @@ export const METRICS: MetricDef[] = [
             ),
         ],
     },
-    // Flake hotspots (section 5): how often each test file ran, the denominator of a file's and its tests' rate.
+    // Flake hotspots (section 5): how often each test file ran, the denominator of a file's and its tests' rate. The
+    // sum counts its clean runs (a test passed, none failed), which resolve a flaky test (flaky.ts netChange).
     {
         id: "flaky.file_runs",
         from: [
             src("shard_run", "endedAt", (s) =>
                 s.source === "ci" && s.attempt === 1
-                    ? s.files.map(([file]) => ({ dim: fileRunKey(s.family, file) }))
+                    ? s.files.map(([file, passed, failed]) => ({
+                          dim: fileRunKey(s.family, file),
+                          sum: passed > 0 && failed === 0 ? 1 : 0,
+                      }))
                     : null,
             ),
         ],
@@ -331,6 +335,11 @@ export const METRICS: MetricDef[] = [
                 c.workflow ? { sum: c.usd, dim: c.line === "llm" ? `${c.workflow}, LLM step` : c.workflow } : null,
             ),
         ],
+    },
+    // The AWS line by AWS service, to see which service spends (issue #6486).
+    {
+        id: "cost.aws_by_service",
+        from: [src("cost", "day", (c) => Object.entries(c.services ?? {}).map(([dim, sum]) => ({ sum, dim })))],
     },
     // Section 7, list-price value: GitHub-hosted job minutes (each job rounded up, as GitHub bills), by
     // [workflow, os]; the view prices them from rates.json, so a rate change needs no recompute.

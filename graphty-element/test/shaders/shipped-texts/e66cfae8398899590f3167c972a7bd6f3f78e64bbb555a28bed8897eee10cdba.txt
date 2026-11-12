@@ -1,0 +1,151 @@
+/* graphty-shader 1
+{
+    "id": "icon-sticker",
+    "name": "Sticker",
+    "place": "replace",
+    "categories": [
+        "Card"
+    ],
+    "cost": "light",
+    "motion": "still",
+    "reads": [
+        "color",
+        "light"
+    ],
+    "webgpu": "translate",
+    "params": [
+        {
+            "name": "icon",
+            "type": "integer",
+            "default": 0,
+            "min": 0,
+            "max": 5,
+            "varies": true,
+            "choices": [
+                {
+                    "value": 0,
+                    "plainName": "Person",
+                    "glyph": {
+                        "path": "M8.6 8a3.4 3.4 0 1 0 6.8 0a3.4 3.4 0 1 0 -6.8 0ZM8.8 14h6.4a3.2 3.2 0 0 1 3.2 3.2v1.6a3.2 3.2 0 0 1-3.2 3.2h-6.4a3.2 3.2 0 0 1-3.2-3.2v-1.6a3.2 3.2 0 0 1 3.2-3.2Z"
+                    }
+                },
+                {
+                    "value": 1,
+                    "plainName": "Gear",
+                    "glyph": {
+                        "path": "M19.8 12L19.8 11.2L18.5 10.7L17.2 10.4L17 9.9L16.8 9.5L17.5 8.3L18 7.1L17.5 6.5L16.9 6L15.7 6.5L14.5 7.2L14.1 7L13.6 6.8L13.3 5.5L12.8 4.2L12 4.2L11.2 4.2L10.7 5.5L10.4 6.8L9.9 7L9.5 7.2L8.3 6.5L7.1 6L6.5 6.5L6 7.1L6.5 8.3L7.2 9.5L7 9.9L6.8 10.4L5.5 10.7L4.2 11.2L4.2 12L4.2 12.8L5.5 13.3L6.8 13.6L7 14.1L7.2 14.5L6.5 15.7L6 16.9L6.5 17.5L7.1 18L8.3 17.5L9.5 16.8L9.9 17L10.4 17.2L10.7 18.5L11.2 19.8L12 19.8L12.8 19.8L13.3 18.5L13.6 17.2L14.1 17L14.5 16.8L15.7 17.5L16.9 18L17.5 17.5L18 16.9L17.5 15.7L16.8 14.5L17 14.1L17.2 13.6L18.5 13.3L19.8 12.8ZM9.6 12a2.4 2.4 0 1 0 4.8 0a2.4 2.4 0 1 0 -4.8 0Z"
+                    }
+                },
+                {
+                    "value": 2,
+                    "plainName": "Heart",
+                    "glyph": {
+                        "path": "M12 19.5C9 17.2 4.2 13.6 4.2 9.8A3.9 3.9 0 0 1 12 8.4A3.9 3.9 0 0 1 19.8 9.8C19.8 13.6 15 17.2 12 19.5Z"
+                    }
+                },
+                {
+                    "value": 3,
+                    "plainName": "Bolt",
+                    "glyph": {
+                        "path": "M15.5 2L6.5 13H11.5L8.5 22L17.5 10.5H12.5Z"
+                    }
+                },
+                {
+                    "value": 4,
+                    "plainName": "Document",
+                    "glyph": {
+                        "path": "M7.6 4.8h8.8a1 1 0 0 1 1 1v12.4a1 1 0 0 1-1 1h-8.8a1 1 0 0 1-1-1V5.8a1 1 0 0 1 1-1ZM8.8 8.7h6.4v1h-6.4ZM8.8 11.1h6.4v1h-6.4ZM8.8 13.5h4.8v1h-4.8Z"
+                    }
+                },
+                {
+                    "value": 5,
+                    "plainName": "Planet",
+                    "glyph": {
+                        "path": "M7 12a5 5 0 1 0 10 0a5 5 0 1 0 -10 0ZM2.6 16.5A10.4 3.4 -25.8 1 0 21.4 7.5A10.4 3.4 -25.8 1 0 2.6 16.5ZM4.3 15.7A8.6 2 -25.8 1 0 19.7 8.3A8.6 2 -25.8 1 0 4.3 15.7Z"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "outline",
+            "type": "boolean",
+            "default": false
+        },
+        {
+            "name": "finish",
+            "type": "enum",
+            "default": "holographic",
+            "values": [
+                {
+                    "value": "none",
+                    "label": "None"
+                },
+                {
+                    "value": "shiny",
+                    "label": "Shiny"
+                },
+                {
+                    "value": "holographic",
+                    "label": "Holographic"
+                }
+            ],
+            "primary": true,
+            "plainName": "Foil"
+        },
+        {
+            "name": "foil",
+            "type": "number",
+            "default": 0.85,
+            "min": 0,
+            "max": 1,
+            "plainName": "Foil strength"
+        },
+        {
+            "name": "borderColor",
+            "type": "color",
+            "default": "#fbfaf6"
+        }
+    ]
+}
+*/
+// Sticker: a die-cut vinyl sticker with an icon and an optional shiny or holographic finish.
+vec4 shade(NodeInput n) {
+    vec2 p = n.uv;
+    float d = length(p) - 0.92;
+    float cut = fillAA(d);
+    // A soft drop shadow down and to the right, outside the die cut.
+    float shadow = (1.0 - smoothstep(-0.02, 0.1, length(p - vec2(0.03, -0.05)) - 0.92)) * 0.28;
+    float a = max(cut, shadow);
+    if (a <= 0.003) {
+        return vec4(0.0);
+    }
+
+    float body = fillAA(d + 0.13);
+    vec3 c = mix(borderColor, n.color.rgb * (0.85 + 0.2 * p.y), body);
+    float mark = fillAA(iconSdf(icon + (outline ? 6 : 0), p * 1.1));
+    c = mix(c, vec3(1.0, 0.99, 0.96), mark);
+
+    // The view reflected off the tilted card, and how squarely it meets the light.
+    vec3 rv = reflect(n.viewDir, n.normal);
+    float meet = max(dot(rv, lightDir), 0.0);
+    if (finish == 1) {
+        // Shiny: a soft glare at the top left and a gloss line where the card catches the light.
+        vec2 g = p - vec2(-0.38, 0.42);
+        float glare = exp(-dot(g, g) * 7.0) * (0.15 + 0.3 * meet);
+        float s = (p.x * 0.6 + p.y - (rv.x * 0.6 + rv.y) * 2.4) * 7.0;
+        float gloss = exp(-s * s) * 0.5;
+        c += vec3(1.0) * (glare + gloss) * foil;
+    } else if (finish == 2) {
+        // Holographic: a grating whose hue follows the reflection against the light, and a sheen.
+        float ga = n.seed * 6.2831853;
+        vec2 grating = vec2(cos(ga), sin(ga));
+        float t = dot(rv.xy - lightDir.xy, grating) * 2.2 + dot(p, grating) * 0.6;
+        vec3 holo = palette(t, vec3(0.6), vec3(0.4), vec3(1.0), vec3(0.0, 0.33, 0.67));
+        float onFoil = foil * 0.6 * (1.0 - 0.5 * mark);
+        c = mix(c, c * 0.55 + holo * 0.55, onFoil);
+        c += vec3(1.0) * pow(meet, 6.0) * 0.35 * foil;
+    }
+
+    // Outside the die cut only the shadow is drawn.
+    return vec4(c * cut, a);
+}

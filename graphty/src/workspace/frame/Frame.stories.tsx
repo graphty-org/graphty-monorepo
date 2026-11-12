@@ -2,10 +2,7 @@
 import "@graphty/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { freshStore } from "../../stories/freshStore";
-import { sampleTile } from "../../test/sample-tile";
 import { Workspace } from "../Workspace";
 
 /** Eight nodes on a ring with two chords, laid out on a flat circle, which places them the same way every time. */
@@ -134,37 +131,5 @@ export const KeyboardShortcuts: Story = {
     args: { initialState: { ...OPEN, dialog: "shortcuts" } },
     play: async ({ canvasElement }) => {
         await loadRing(canvasElement);
-    },
-};
-
-/**
- * The main menu's Open sample submenu with Les Miserables open: its row checked and saying "Open
- * now", the other samples giving their sizes. The light mode's picture shows the checked glyph and
- * the row text on compact-mantine's light menu surface. The reader opens the sample from the start
- * screen, then the menu and the submenu, by clicks.
- */
-export const OpenSampleMenu: Story = {
-    ...freshStore(),
-    play: async ({ canvasElement }) => {
-        const page = within(canvasElement.ownerDocument.body);
-        await userEvent.click(await page.findByRole("button", { name: sampleTile("Les Miserables") }));
-        await customElements.whenDefined("graphty-element");
-        const element = await waitFor(() => {
-            const found = canvasElement.querySelector("graphty-element");
-            expect(found).not.toBeNull();
-            return found as HTMLElementTagNameMap["graphty-element"];
-        });
-        // The app loads the sample once the element is up, then clears the history; the switch
-        // to a circle waits for that, so the clear does not cancel it.
-        await waitFor(() => {
-            expect(element.session.data.statistics().nodeCount).toBe(77);
-            expect(element.session.history.pending.length + element.session.history.steps.length).toBe(0);
-        });
-        await element.session.layout.setDimension("2d");
-        await element.session.layout.set("circular");
-        await element.waitForStableFrame();
-        await userEvent.click(page.getByRole("button", { name: "Main menu" }));
-        await userEvent.click(await page.findByRole("menuitem", { name: "Open sample" }));
-        await page.findByRole("menuitem", { name: /^Les Miserables/, current: true });
     },
 };

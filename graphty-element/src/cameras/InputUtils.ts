@@ -1,5 +1,3 @@
-import { Vector3 } from "@babylonjs/core";
-
 /**
  * Shared input utility functions for camera controllers.
  * Used by both 3D (OrbitInputController) and XR (XRInputHandler).
@@ -35,8 +33,6 @@ const XR_PITCH_SPEED = 0.03;
 const XR_PAN_SPEED = 0.08;
 /** Zoom factor change per frame at full right-stick Y deflection. */
 const XR_ZOOM_SPEED = 0.02;
-/** Zoom factor change per metre the two pinching hands move apart or together. */
-const XR_GESTURE_ZOOM_SENSITIVITY = 2;
 /** Thumb-to-index distance, in metres, below which an open hand starts pinching. */
 const XR_PINCH_START_DISTANCE = 0.04;
 /** Thumb-to-index distance, in metres, above which a pinching hand lets go. Looser than the start, so a pinch does not flicker. */
@@ -104,45 +100,4 @@ export function thumbstickDeltas(left: { x: number; y: number }, right: { x: num
         zoom: Math.abs(rightY) > EPSILON ? 1 + rightY * XR_ZOOM_SPEED : 1,
         pan: Math.abs(rightX) > EPSILON ? rightX * XR_PAN_SPEED : 0,
     };
-}
-
-/** What one frame of a two-hand gesture does to the XR pivot. */
-interface TwoHandGestureDelta {
-    /** Factor, for `PivotController.zoom`, clamped to [0.9, 1.1]. Hands moving apart zoom out. */
-    zoom: number;
-    /** Unit axis for `PivotController.rotateAroundAxis`, or null when the hands did not turn. */
-    axis: Vector3 | null;
-    /** Radians, for `PivotController.rotateAroundAxis`. */
-    angle: number;
-}
-
-/**
- * Map the change in the line between two pinching hands, from one frame to the next, to pivot
- * movement: the change in its length zooms, and the change in its direction rotates.
- * @param previousDistance - Distance between the hands last frame
- * @param previousDirection - Unit vector from left hand to right hand last frame
- * @param distance - Distance between the hands this frame
- * @param direction - Unit vector from left hand to right hand this frame
- * @returns The movement to apply this frame
- */
-export function twoHandGestureDelta(
-    previousDistance: number,
-    previousDirection: Vector3,
-    distance: number,
-    direction: Vector3,
-): TwoHandGestureDelta {
-    const zoomFactor = 1 + (distance - previousDistance) * XR_GESTURE_ZOOM_SENSITIVITY;
-    // Inverted: hands apart (a positive change) zooms out, which scales the graph down.
-    const zoom = 2 - Math.max(0.9, Math.min(1.1, zoomFactor));
-    const axis = Vector3.Cross(previousDirection, direction);
-    const axisLength = axis.length();
-
-    if (axisLength <= EPSILON) {
-        return { zoom, axis: null, angle: 0 };
-    }
-
-    const angle = Math.acos(Math.max(-1, Math.min(1, Vector3.Dot(previousDirection, direction))));
-
-    // Negated for world-mode rotation: the graph turns with the hands.
-    return { zoom, axis: axis.scaleInPlace(1 / axisLength), angle: -angle };
 }

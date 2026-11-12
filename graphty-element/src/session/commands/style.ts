@@ -143,7 +143,7 @@ interface StyleTemplateCommand {
     readonly templateId?: string;
     /** Where the layers go; the top of the stack when absent. */
     readonly at?: TemplatePosition;
-    /** What to do with the document's shaders: hold them (absent), run them, or leave them out. */
+    /** What to do with the document's shaders: hold them (absent), run them, or refuse to run them (still kept, held, so a save carries them). */
     readonly shaders?: "run" | "hold" | "refuse";
 }
 
@@ -177,7 +177,8 @@ export interface StyleService {
 }
 
 /** What a style op's step is keyed on: the stack, one frozen value. */
-const STYLES_KEY = ["styles"] as const;
+// A write may copy a catalog shader into the project in its own step (the style service's execute).
+const STYLES_KEY = ["styles", "shaders"] as const;
 
 /**
  * The name of a layer in the stack, for a label.

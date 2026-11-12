@@ -209,7 +209,8 @@ describe("toolset", () => {
 
         await ai.execute("look");
 
-        const asked = mock.getCallHistory().at(-1)?.messages.at(-1);
+        // The ask after the call ran: the model's empty answer to it is asked to go on (#6712).
+        const asked = mock.getCallHistory()[1]?.messages.at(-1);
         assert.strictEqual(asked?.role, "tool");
         assert.deepEqual(JSON.parse(asked?.content ?? "{}"), { success: true, message: "looked", data: { seen: 1 } });
         ai.dispose();

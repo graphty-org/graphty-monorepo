@@ -9,6 +9,7 @@ export default {
         "SessionDataApi.loadDataset",
         "SessionShaders.add",
         "SessionShaders.approve",
+        "SessionShaders.fromCatalog",
         "SessionShaders.remove",
         "SessionShaders.replace",
         "StylesApi.setHighlightColor",

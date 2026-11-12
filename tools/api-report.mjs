@@ -184,6 +184,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "createdAt",
     "updatedAt",
     "path",
+    // a model part's file: its path in the model's file set (ModelPart.file)
+    "file",
     // the location a file's relative picture paths resolve against (FileStyleOptions, #5307)
     "imageBaseUrl",
     "mediaType",

@@ -261,6 +261,8 @@ export interface CostItem extends RawBase {
     line: string; // t4 | llm | aws | cloudflare | sentry | github
     /** The workflow file whose job cost it (t4, llm), for money by workflow. */
     workflow?: string;
+    /** The AWS line's split by AWS service (Cost Explorer's SERVICE names), USD. */
+    services?: Record<string, number>;
     day: number; // start of the UTC day
     usd: number;
 }

@@ -9,7 +9,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { type PasteInit, ShaderEditorDialog } from "../style/ShaderEditorDialog";
 import { ShaderGallery } from "../style/ShaderGallery";
 import { ShaderParams } from "../style/ShaderParams";
-import { copyShaderText } from "../style/shaderSlots";
+import { copyShaderText, pickedShader } from "../style/shaderSlots";
 import { headerBottom } from "../style/useFocusLine";
 import {
     BACKGROUND_SECTION_WORDS,
@@ -87,7 +87,7 @@ export function BackgroundShader({
     const [picking, setPicking] = useState(startOpen);
     const [settings, setSettings] = useState(false);
     const [paste, setPaste] = useState<PasteInit | null>(null);
-    const descriptor = session.catalog.shaders().find((each) => each.id === shader);
+    const descriptor = shader === undefined ? undefined : session.shaders.describe(shader);
     const name = descriptor?.plainName ?? shader ?? "None";
     return (
         <Group gap={4} wrap="nowrap" className="ws-shader-control">
@@ -128,12 +128,11 @@ export function BackgroundShader({
                             }}
                             onPick={(id) => {
                                 setPicking(false);
-                                if (id !== shader) {
-                                    void onWrite(id, {});
-                                }
                                 // Its settings open next, as a style row's do after a pick.
-                                const picked = session.catalog.shaders().find((each) => each.id === id);
-                                setSettings((picked?.params.length ?? 0) > 0);
+                                setSettings((session.shaders.describe(id)?.params.length ?? 0) > 0);
+                                void pickedShader(session, id).then((picked) =>
+                                    picked === shader ? undefined : onWrite(picked, {}),
+                                );
                             }}
                         />
                     </Popout.Content>

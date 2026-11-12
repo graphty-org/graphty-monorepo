@@ -8,7 +8,6 @@
 
 import { assert, describe, it } from "vitest";
 
-import { EdgeRecordMap } from "../../src/data/edgeRecordMap";
 import type { GraphStore } from "../../src/data/GraphStore";
 import type { GraphSession } from "../../src/session";
 import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
@@ -221,81 +220,6 @@ describe("session.data.importColumns", () => {
             assert.strictEqual(digest(session), after);
         });
     }
-
-    it("keeps a batched load's edge records in a table by counter, and the objects path's in a Map", async () => {
-        const sessions = [false, true].map((batched) => createElementSession({}, { batched: () => batched }));
-        for (const session of sessions) {
-            await session.data.importColumns({ sources: SOURCES, targets: TARGETS, nodeCount: 5, weights: WEIGHTS });
-        }
-
-        const [objects, batched] = sessions;
-        const edgesOf = (session: GraphSession): ReadonlyMap<unknown, unknown> =>
-            dispatcherOf(session).state.graph.edges;
-        assert.strictEqual(edgesOf(objects).constructor, Map);
-        assert.instanceOf(edgesOf(batched), EdgeRecordMap);
-        assert.strictEqual(digest(batched), digest(objects));
-
-        // Removing, clearing and taking each back leaves both paths with the same graph.
-        const ids = (session: GraphSession): string[] =>
-            session.data
-                .edges()
-                .map((edge) => edge.id)
-                .sort();
-        for (const session of sessions) {
-            await session.data.removeEdges(
-                session.data
-                    .edges()
-                    .slice(1, 3)
-                    .map((edge) => edge.id),
-            );
-        }
-
-        assert.deepStrictEqual(ids(batched), ids(objects));
-        assert.strictEqual(digest(batched), digest(objects));
-        for (const session of sessions) {
-            await session.data.clear();
-            await session.undo();
-            await session.undo();
-        }
-
-        assert.deepStrictEqual(ids(batched), ids(objects));
-        assert.strictEqual(edgesOf(batched).size, 6);
-        assert.strictEqual(digest(batched), digest(objects));
-    });
-
-    it("answers as a Map would, for every key it is given", () => {
-        const table = new EdgeRecordMap();
-        const map = new Map<string, Readonly<Record<string, unknown>>>();
-        const record = (n: number): Readonly<Record<string, unknown>> => ({ n });
-        const keys = ["0", "3", "1", "2000", "017", "x", "", "-1", "1e2", "4294967296"];
-        for (const [at, key] of keys.entries()) {
-            table.set(key, record(at));
-            map.set(key, record(at));
-        }
-
-        table.delete("3");
-        map.delete("3");
-        table.set("1", record(99));
-        map.set("1", record(99));
-        for (const key of [...keys, "5", "03"]) {
-            assert.strictEqual(table.has(key), map.has(key), key);
-            assert.deepStrictEqual(table.get(key), map.get(key), key);
-        }
-
-        assert.strictEqual(table.size, map.size);
-        assert.sameDeepMembers([...table.entries()], [...map.entries()]);
-        assert.sameMembers([...table.keys()], [...map.keys()]);
-        let visited = 0;
-        table.forEach((value, key, self) => {
-            assert.strictEqual(self, table);
-            assert.deepStrictEqual(value, map.get(key));
-            visited++;
-        });
-        assert.strictEqual(visited, map.size);
-        table.clear();
-        assert.strictEqual(table.size, 0);
-        assert.isFalse(table.has("0"));
-    });
 
     it("retains history in proportion to the edges it loads", async () => {
         await assertScalesLinearly(

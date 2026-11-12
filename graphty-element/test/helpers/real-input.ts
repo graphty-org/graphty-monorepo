@@ -315,6 +315,26 @@ export async function touchDrag(element: Element, from: Point, to: Point, steps 
  * @param steps - How many moves between.
  */
 export async function pinch(element: Element, center: Point, fromGap: number, toGap: number, steps = 8): Promise<void> {
+    const lift = await holdPinch(element, center, fromGap, toGap, steps);
+    await lift();
+}
+
+/**
+ * The fingers of a pinch, moved and left on the element, so other input can happen during it.
+ * @param element - The element the fingers are on.
+ * @param center - The midpoint between the fingers.
+ * @param fromGap - The distance between the fingers when they land.
+ * @param toGap - The distance they stop at.
+ * @param steps - How many moves between.
+ * @returns A function that lifts both fingers.
+ */
+export async function holdPinch(
+    element: Element,
+    center: Point,
+    fromGap: number,
+    toGap: number,
+    steps = 8,
+): Promise<() => Promise<void>> {
     const fingers = (gap: number): Record<string, number>[] =>
         [-1, 1].map((side, id) => {
             const at = toPage(element, { x: center.x + (side * gap) / 2, y: center.y });
@@ -330,7 +350,9 @@ export async function pinch(element: Element, center: Point, fromGap: number, to
         await nextFrame();
     }
 
-    await send()("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    return async () => {
+        await send()("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    };
 }
 
 /**

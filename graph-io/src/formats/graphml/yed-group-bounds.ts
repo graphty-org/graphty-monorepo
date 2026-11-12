@@ -52,8 +52,24 @@ export function yedGroupBounds(
             list.push(row);
         }
     }
-    // members before their group, walked with a stack of its own: nesting may be as deep as the file has nodes; a
-    // cycle the file should not have stops at the group already being walked, which counts its stored box
+    for (const group of membersFirst(members)) {
+        const box = enclose(frameOf(group), members.get(group) ?? [], (row) => out.get(row) ?? boxOf(row));
+        if (box !== null) {
+            out.set(group, box);
+        }
+    }
+    return out;
+}
+
+/**
+ * The groups, each after the groups among its members, walked with a stack of its own: nesting may be as deep as the
+ * file has nodes. A cycle the file should not have stops at the group already being walked, which then counts by its
+ * stored box.
+ * @param members - each group's members
+ * @returns the groups in that order
+ */
+function membersFirst(members: ReadonlyMap<number, readonly number[]>): number[] {
+    const order: number[] = [];
     const seen = new Set<number>();
     for (const root of members.keys()) {
         if (seen.has(root)) {
@@ -61,25 +77,19 @@ export function yedGroupBounds(
         }
         seen.add(root);
         const stack: [number, number][] = [[root, 0]];
-        while (stack.length > 0) {
-            const top = stack[stack.length - 1];
+        for (let top = stack.at(-1); top !== undefined; top = stack.at(-1)) {
             const inside = members.get(top[0]) ?? [];
-            if (top[1] < inside.length) {
-                const member = inside[top[1]++];
-                if (members.has(member) && !seen.has(member)) {
-                    seen.add(member);
-                    stack.push([member, 0]);
-                }
-                continue;
-            }
-            stack.pop();
-            const box = enclose(frameOf(top[0]), inside, (row) => out.get(row) ?? boxOf(row));
-            if (box !== null) {
-                out.set(top[0], box);
+            const member = inside[top[1]++] as number | undefined;
+            if (member === undefined) {
+                stack.pop();
+                order.push(top[0]);
+            } else if (members.has(member) && !seen.has(member)) {
+                seen.add(member);
+                stack.push([member, 0]);
             }
         }
     }
-    return out;
+    return order;
 }
 
 /**
@@ -199,11 +209,7 @@ function cycleHidden(
             r = parentOf(r);
         }
         if (r !== undefined && walking.has(r)) {
-            const cycle = path.slice(path.indexOf(r));
-            const closed = cycle.filter(isClosed).length;
-            for (const c of cycle) {
-                out.set(c, closed - (isClosed(c) ? 1 : 0) > 0);
-            }
+            markCycle(path.slice(path.indexOf(r)), isClosed, out);
         }
         for (const passed of path) {
             walking.delete(passed);
@@ -211,4 +217,17 @@ function cycleHidden(
         }
     }
     return out;
+}
+
+/**
+ * Mark each node on a nesting cycle hidden when another node on it is closed.
+ * @param cycle - the nodes on the cycle
+ * @param isClosed - whether a node is a closed group
+ * @param out - whether each node is hidden, by node index
+ */
+function markCycle(cycle: readonly number[], isClosed: (row: number) => boolean, out: Map<number, boolean>): void {
+    const closed = cycle.filter(isClosed).length;
+    for (const c of cycle) {
+        out.set(c, closed - (isClosed(c) ? 1 : 0) > 0);
+    }
 }

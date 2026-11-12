@@ -1,0 +1,27 @@
+diff --git a/Misc/rgbdTextureTools.js b/Misc/rgbdTextureTools.js
+index 5029e47f93621dd0114939acb102d34b1b3277e7..293b14db9d85108117f6d3150214b6be3cae57f6 100644
+--- a/Misc/rgbdTextureTools.js
++++ b/Misc/rgbdTextureTools.js
+@@ -45,6 +45,11 @@ export class RGBDTextureTools {
+             else {
+                 await import("../Shaders/rgbdDecode.fragment.js");
+             }
++            // The engine may have been disposed while the shader loaded: a disposed engine's effects
++            // report ready with no program, and the decode would throw.
++            if (engine.isDisposed) {
++                return;
++            }
+             // Expand the texture if possible
+             // Simply run through the decode PP.
+             const rgbdPostProcess = new PostProcess("rgbdDecode", "rgbdDecode", null, null, 1, null, 3, engine, false, undefined, internalTexture.type, undefined, null, false, undefined, shaderLanguage);
+@@ -60,6 +65,10 @@ export class RGBDTextureTools {
+             });
+             rgbdPostProcess.onEffectCreatedObservable.addOnce((e) => {
+                 e.executeWhenCompiled(() => {
++                    // Disposed while the shader compiled: nothing left to draw into.
++                    if (engine.isDisposed) {
++                        return;
++                    }
+                     // PP Render Pass
+                     rgbdPostProcess.onApply = (effect) => {
+                         effect._bindTexture("textureSampler", internalTexture);

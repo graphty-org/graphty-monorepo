@@ -1168,6 +1168,10 @@ const SHADERS_API: Readonly<Record<string, Door>> = {
         "Lets a shader the project already holds run; whether it may run is the reader's trust, never saved in a project file.",
     ),
     thumbnail: CAPTURE,
+    describe: READ,
+    fromCatalog: exempt(
+        "Names the project's copy of a catalog shader for a write to use; it dispatches a shader.set only when the project holds that id with other text, and the write that names the copy records it.",
+    ),
 };
 
 const STYLES_API: Readonly<Record<string, Door>> = {
@@ -1463,6 +1467,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             xr: XR,
             captureScreenshot: CAPTURE,
             nodeThumbnail: CAPTURE,
+            modelThumbnail: CAPTURE,
             canCaptureScreenshot: READ,
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
@@ -1837,6 +1842,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             waitForPainted: READ,
             captureScreenshot: CAPTURE,
             nodeThumbnail: CAPTURE,
+            modelThumbnail: CAPTURE,
             canCaptureScreenshot: READ,
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
@@ -3714,6 +3720,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             clusterColumn: READ,
             // A node's community changed, so a layout pulling communities together starts again.
             wakeForClusters: TRANSPORT,
+            // The box the last publish left the rows in, read by the batched fit; walks no row.
+            publishedBounds: READ,
         },
     },
     {

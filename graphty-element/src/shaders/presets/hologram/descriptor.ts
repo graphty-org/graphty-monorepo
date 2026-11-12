@@ -19,6 +19,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     target: "node",
     place: "paint",
     categories: Object.freeze(["Iridescent"]),
+    tags: Object.freeze(["shiny"]),
     params: Object.freeze([
         Object.freeze({
             name: "holoColor",

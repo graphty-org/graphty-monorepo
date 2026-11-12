@@ -56,7 +56,8 @@ token, never from the body:
       `work-protection-macos.yml`), write `full`, except master's own `push` of `ci.yml` (a build with no
       tests), which writes `master` (durations only); `bisect.yml` writes `bisect`,
       `base-check.yml` writes `base`, `restricted-cpu-stress.yml` writes `stress`, `story-slices.yml` writes
-      `slice` (story captures and durations only) and `deploy-pages.yml` writes `site` (sites and durations only), only when both the run's ref and the workflow file's ref
+      `slice` (story captures and durations only), `deploy-pages.yml` writes `site` (sites and durations only) and `promote.yml` is `promote` (reads only,
+      every write refused), only when both the run's ref and the workflow file's ref
       are `refs/heads/master`. Anything else is refused with 403;
     - a site repository (`DEPLOY_REPOSITORY_IDS` in `wrangler.toml`) writes only durations, of kind
       `deploy`.

@@ -57,7 +57,7 @@
  */
 
 import type { LabelDeclutterOrder, LabelLocation, LabelTextAlign } from "../../catalog/label-style";
-import { shaderDescriptor } from "../../catalog/shaderRegistry";
+import { projectShaderDescriptor } from "../../catalog/shaderRegistry";
 import { isExclusivePlace, type ShaderPlace, type ShaderUse } from "../../catalog/shaders";
 import type { Binding, Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
@@ -5374,7 +5374,7 @@ export function isShaderListChannel(channel: string): boolean {
  * @returns The place, or undefined for a shader the catalog does not list.
  */
 export function placeOfUse(use: ShaderUse): ShaderPlace | undefined {
-    return use.place ?? shaderDescriptor(use.shader)?.place;
+    return use.place ?? projectShaderDescriptor(use.shader)?.place;
 }
 
 /**

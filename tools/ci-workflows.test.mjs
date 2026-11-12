@@ -6505,6 +6505,10 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "figma-lock\\n");\n`,
             );
             writeFileSync(
+                join(dir, "tools/check-saved-format-allowlist.mjs"),
+                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "saved-format\\n");\n`,
+            );
+            writeFileSync(
                 join(dir, "tools/release-dry-run.mjs"),
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "release\\n");\n`,
             );
@@ -6581,6 +6585,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             writeFileSync(join(gate, "tools/sonar-gate.mjs"), sonar("gate-sonar"));
             writeFileSync(join(gate, "tools/check-committed-images.mjs"), sonar("gate-images"));
             writeFileSync(join(gate, "tools/check-figma-lock.mjs"), sonar("gate-figma-lock"));
+            writeFileSync(join(gate, "tools/check-saved-format-allowlist.mjs"), sonar("gate-saved-format"));
             writeFileSync(join(gate, "tools/release-dry-run.mjs"), sonar("gate-release"));
             writeFileSync(join(root, "tools/check-links.sh"), log("root-links"), { mode: 0o755 });
             writeFileSync(join(root, "tools/sonar-gate.mjs"), sonar("root-sonar"));

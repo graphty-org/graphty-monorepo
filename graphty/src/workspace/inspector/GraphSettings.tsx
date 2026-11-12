@@ -361,9 +361,11 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
                             shader={parts.shader?.id}
                             params={parts.shader?.params ?? {}}
                             startOpen={parts.shader === undefined}
-                            onWrite={(id, params, scope = session) => {
+                            onWrite={async (id, params, scope = session) => {
+                                // Settled once written: a row neither waiting nor in the config unmounts,
+                                // and the settings its pick opens would go with it.
+                                await write({ shader: { id, params } }, scope);
                                 settle("shader");
-                                return write({ shader: { id, params } }, scope);
                             }}
                         />
                     </FieldRow>

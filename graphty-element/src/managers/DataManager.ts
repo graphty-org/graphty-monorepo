@@ -1340,14 +1340,11 @@ export class DataManager implements Manager {
         const doomed = new Set<NodeIdType>();
         const moves: UnbuiltMove[] = [];
         for (const key of dirty) {
+            // A forward batched add's range key (`e+:`) is skipped: its edges were drawn as they were
+            // ingested, and undo, redo, restore and rollback touch each edge they move by its own
+            // `e:` key (cosmos-gap.md G4).
             if (key.startsWith("e:")) {
                 edgeKeys.push(key.slice(2));
-            } else if (key.startsWith("e+:")) {
-                // A forward batched add's range: its edges were drawn as they were ingested, so it
-                // is walked only when the slice moved some other way (cosmos-gap.md G4).
-                if (cause !== "command") {
-                    forEachEdgeOfKey(key, (id) => edgeKeys.push(id));
-                }
             } else if (key.startsWith("n:")) {
                 addedNodes += this.reconcileNode(JSON.parse(key.slice(2)) as NodeIdType, slice, doomed, moves);
             }
@@ -2407,6 +2404,10 @@ export class DataManager implements Manager {
         } else {
             for (const key of [...dirty, ...this.lateKeysPainting]) {
                 this.unpainted.delete(key);
+                // A batched add's range key names its edges' per-edge keys (cosmos-gap.md G4).
+                if (key.startsWith("e+:") && this.unpainted.size > 0) {
+                    forEachEdgeOfKey(key, (id) => this.unpainted.delete(`e:${id}`));
+                }
             }
         }
 

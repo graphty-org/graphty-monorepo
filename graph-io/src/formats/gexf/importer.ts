@@ -87,6 +87,7 @@ import { isWeightField, parseWeightText } from "../../common/weights.js";
 import {
     isWhitespace,
     localName,
+    MAX_HINT_RESERVE,
     sniffXmlText,
     tokenizeXml,
     xmlDeclaredEncoding,
@@ -1324,9 +1325,9 @@ class GexfReader implements XmlHandler {
         }
         try {
             if (domain === "node") {
-                this.sink.reserve(count, undefined);
+                this.sink.reserve(Math.min(count, MAX_HINT_RESERVE), undefined);
             } else {
-                this.sink.reserve(undefined, count);
+                this.sink.reserve(undefined, Math.min(count, MAX_HINT_RESERVE));
             }
         } catch (err) {
             if (!(err instanceof GraphFormatError)) {

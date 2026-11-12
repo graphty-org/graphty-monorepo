@@ -20,6 +20,7 @@ import { sourceName } from "../data-place/words";
 import { GLYPHS } from "../glyphs";
 import { useSessionVersion } from "../inspector/hooks";
 import { replaceWith } from "../replace/commands";
+import { addSource, urlSource } from "../start/open";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     EXPAND_DEFAULTS,
@@ -440,7 +441,19 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                 await element.credentials.remember({ source: entry.id, endpoint }, credential);
             }
             const edited = session.data.sources().find((each) => each.key === editing);
-            if (edited === undefined) {
+            const address = input.config[descriptor.endpointParam ?? ""];
+            if (
+                edited === undefined &&
+                descriptor.kind === "file-host" &&
+                typeof address === "string" &&
+                session.data.sources().length > 0
+            ) {
+                // A file at an address into a graph that holds data is a second file, as Paste
+                // takes it: a copy of a loaded source replaces it, anything else opens the join screen.
+                // ponytail: the form's CSV options and sign-in do not reach that read; pass them
+                // once the join screen reads a network source.
+                addSource({ workspace: store, session, element }, urlSource(address));
+            } else if (edited === undefined) {
                 await session.data.import(input, {
                     ...options,
                     signal: loading.current.signal,

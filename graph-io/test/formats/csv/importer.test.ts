@@ -889,6 +889,11 @@ describe("csvImporter: node tables", () => {
         const external = await load("source,target\na,b\nb,c\n", { nodes: "name,uniprot_id\na,P1\nb,P2\nc,P3\n" });
         expect(external.snapshot.ids.toArray()).toEqual(["a", "b", "c"]);
         expect(column(external.snapshot, "nodes", "uniprot_id")).toEqual(["P1", "P2", "P3"]);
+        // under table "auto", only id, node, name or key makes a node table: an edge list headed by
+        // *_id columns still fails rather than losing its edges
+        expect((await failure("user_id,friend_id\nu1,u2\nu2,u3\n", { header: true })).report.issues[0].code).toBe(
+            NO_ENDPOINT_COLUMNS_CODE,
+        );
         // an explicit idColumn is never second-guessed
         const explicit = await load("person_id,name\nP1,A\nP2,A\n", { table: "nodes", idColumn: "name" });
         expect(explicit.snapshot.ids.toArray()).toEqual(["A"]);

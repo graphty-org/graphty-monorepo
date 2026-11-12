@@ -1015,6 +1015,7 @@ class TableReader {
             csv.sourceColumn === null &&
             csv.targetColumn === null &&
             csv.nodes === null &&
+            findColumn(names, ID_NAMES) >= 0 &&
             findColumn(names, SOURCE_NAMES) < 0 &&
             findColumn(names, TARGET_NAMES) < 0
         );
@@ -1293,7 +1294,9 @@ class TableReader {
                 { columns: [...names] },
             );
         }
-        const idResolves = header ? idCandidates(names).length > 0 : names.length >= 1;
+        // only an id, node, name or key column makes a table without endpoints a node table: an
+        // edge list headed user_id,friend_id must fail, not lose its edges as a node table
+        const idResolves = header ? findColumn(names, ID_NAMES) >= 0 : names.length >= 1;
         if (this.kind === "auto" && csv.idColumn === null && !idResolves && !this.rowNumbers) {
             report.fail(
                 NO_ENDPOINT_COLUMNS_CODE,

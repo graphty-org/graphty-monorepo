@@ -238,6 +238,7 @@ export const MUTATING: readonly string[] = [
     "SessionDataApi.ignoreIssue",
     "SessionDataApi.ignoreIssues",
     "SessionDataApi.import",
+    "SessionDataApi.importColumns",
     "SessionDataApi.loadDataset",
     "SessionDataApi.loadExample",
     "SessionDataApi.more",

@@ -210,6 +210,7 @@ type GraphOp =
           /** The identity cells it was completed with, kept by its first undo for its redo. */
           identity?: EdgeIdentityCells;
       }
+    | EdgeRange
     | { readonly kind: "weight"; readonly edgeId: number; readonly prior: number; readonly next: number }
     | {
           readonly kind: "record";
@@ -239,6 +240,30 @@ type GraphOp =
           readonly prior: { readonly directed: boolean; readonly provenance: DirectionProvenance };
           readonly next: { readonly directed: boolean; readonly provenance: DirectionProvenance };
       };
+
+/**
+ * A run of edges with consecutive counters that one forward add wrote under the `"batched"` render
+ * path, kept as columns: the op log's one bulk entry (design/rendering/row-renderer.md 4.6), which
+ * undo takes back and redo puts again edge by edge, in one op, with no object per edge.
+ */
+interface EdgeRange {
+    readonly kind: "edges";
+    /** The first edge's counter; edge `i` of the run has counter `first + i`. */
+    readonly first: number;
+    readonly sources: NodeId[];
+    readonly targets: NodeId[];
+    readonly weights: number[];
+    readonly records: GraphRecord[];
+    /** The file's own id per edge, or undefined. */
+    readonly fileIds: (string | number | undefined)[];
+    /** The endpoints an edge created, by its place in the run; most create none. */
+    readonly created: Map<number, readonly NodeId[]>;
+    /** The identity cells each edge was completed with, kept by the first undo for its redo. */
+    identities?: (EdgeIdentityCells | undefined)[];
+}
+
+/** One edge added, as an edge op holds it. */
+type EdgeOp = Extract<GraphOp, { kind: "edge" }>;
 
 /** The three maps of the `graph` slice. */
 interface GraphMaps {
@@ -749,16 +774,30 @@ export function createdNodes(log: readonly OpLogEntry[]): NodeId[] {
     for (const entry of log) {
         if (entry instanceof GraphEntry) {
             for (const op of entry.ops) {
-                if (op.kind === "node" && !op.existed) {
-                    out.push(op.id);
-                } else if (op.kind === "edge") {
-                    out.push(...op.created);
-                }
+                out.push(...createdBy(op));
             }
         }
     }
 
     return out;
+}
+
+/**
+ * The nodes one op created rows for.
+ * @param op - The op.
+ * @returns Their ids, in the order they were created.
+ */
+function createdBy(op: GraphOp): readonly NodeId[] {
+    switch (op.kind) {
+        case "node":
+            return op.existed ? [] : [op.id];
+        case "edge":
+            return op.created;
+        case "edges":
+            return [...op.created.values()].flat();
+        default:
+            return [];
+    }
 }
 
 /**
@@ -790,6 +829,17 @@ function touchOp(op: GraphOp, into: TouchedIds): boolean {
             into.edge(edgeIdOf(op.edgeId));
             for (const id of op.created) {
                 into.node(id);
+            }
+
+            break;
+        case "edges":
+            op.records.forEach((_, at) => {
+                into.edge(edgeIdOf(op.first + at));
+            });
+            for (const ids of op.created.values()) {
+                ids.forEach((id) => {
+                    into.node(id);
+                });
             }
 
             break;
@@ -881,6 +931,44 @@ class GraphEntry implements OpLogEntry {
         }
     }
 
+    /**
+     * Keep one edge added in the run the last op holds, or start a run: what a forward add under
+     * the `"batched"` render path records instead of one op per edge.
+     * @param op - The edge.
+     */
+    pushRange(op: EdgeOp): void {
+        const last = this.ops.at(-1);
+        let range: EdgeRange;
+        if (last?.kind === "edges" && last.first + last.records.length === op.edgeId) {
+            range = last;
+        } else {
+            range = {
+                kind: "edges",
+                first: op.edgeId,
+                sources: [],
+                targets: [],
+                weights: [],
+                records: [],
+                fileIds: [],
+                created: new Map(),
+            };
+            this.ops.push(range);
+            this.retained += 48;
+        }
+
+        if (op.created.length > 0) {
+            range.created.set(range.records.length, op.created);
+        }
+
+        range.sources.push(op.source);
+        range.targets.push(op.target);
+        range.weights.push(op.weight);
+        range.records.push(op.record);
+        range.fileIds.push(op.fileId);
+        // Five array slots per edge, not an op object.
+        this.retained += 16 + recordBytes(op.record);
+    }
+
     bytes(): number {
         return this.retained;
     }
@@ -942,7 +1030,11 @@ class GraphEntry implements OpLogEntry {
                 this.undoNode(op, maps.nodes, seen);
                 break;
             case "edge":
-                this.undoEdge(op, maps, seen);
+                op.identity ??= store.frozenEdgeIdentity(op.edgeId);
+                this.undoEdge(op.edgeId, op.record, op.created, maps, seen);
+                break;
+            case "edges":
+                this.undoRange(op, maps, seen);
                 break;
             case "weight": {
                 const row = store.edgeIndexOf(op.edgeId);
@@ -1021,21 +1113,44 @@ class GraphEntry implements OpLogEntry {
     }
 
     /**
-     * Undo an edge added: its record, its row, and the endpoints it created that no node record holds.
-     * @param op - The op.
+     * Undo a run of edges added, last first, each as one edge op is undone.
+     * @param op - The run.
      * @param maps - The slice's maps.
      * @param seen - The fields this batch bumped already.
      */
-    private undoEdge(op: Extract<GraphOp, { kind: "edge" }>, maps: SliceMaps, seen: Bumped): void {
+    private undoRange(op: EdgeRange, maps: SliceMaps, seen: Bumped): void {
         const { store } = this;
-        op.identity ??= store.frozenEdgeIdentity(op.edgeId);
-        bumpFields(store, "edge", op.record, undefined, seen);
-        maps.edges.delete(edgeIdOf(op.edgeId));
-        const created = op.created.filter((id) => !maps.nodes.has(id));
+        const identities = (op.identities ??= []);
+        for (let at = op.records.length - 1; at >= 0; at--) {
+            const edgeId = op.first + at;
+            identities[at] ??= store.frozenEdgeIdentity(edgeId);
+            this.undoEdge(edgeId, op.records[at], op.created.get(at) ?? [], maps, seen);
+        }
+    }
+
+    /**
+     * Undo an edge added: its record, its row, and the endpoints it created that no node record holds.
+     * @param edgeId - The edge's counter.
+     * @param record - Its record.
+     * @param made - The endpoints it created.
+     * @param maps - The slice's maps.
+     * @param seen - The fields this batch bumped already.
+     */
+    private undoEdge(
+        edgeId: number,
+        record: GraphRecord,
+        made: readonly NodeId[],
+        maps: SliceMaps,
+        seen: Bumped,
+    ): void {
+        const { store } = this;
+        bumpFields(store, "edge", record, undefined, seen);
+        maps.edges.delete(edgeIdOf(edgeId));
+        const created = made.filter((id) => !maps.nodes.has(id));
         if (store.deferring) {
-            store.dropAdded(created, [op.edgeId]);
+            store.dropAdded(created, [edgeId]);
         } else {
-            const row = store.edgeIndexOf(op.edgeId);
+            const row = store.edgeIndexOf(edgeId);
             if (row !== INVALID_INDEX) {
                 store.builder.removeEdge(row);
             }
@@ -1047,7 +1162,7 @@ class GraphEntry implements OpLogEntry {
             }
         }
 
-        this.graph.touch(edgeKey(edgeIdOf(op.edgeId)));
+        this.graph.touch(edgeKey(edgeIdOf(edgeId)));
     }
 
     /**
@@ -1081,7 +1196,21 @@ class GraphEntry implements OpLogEntry {
                     added.add(NODES_ADDED);
                     break;
                 case "edge":
-                    this.redoEdge(op, edges, seen);
+                    this.redoEdge(op, op.identity, edges, seen);
+                    added.add(EDGES_ADDED);
+                    break;
+                case "edges":
+                    op.records.forEach((record, at) => {
+                        const edge = {
+                            edgeId: op.first + at,
+                            source: op.sources[at],
+                            target: op.targets[at],
+                            weight: op.weights[at],
+                            record,
+                            fileId: op.fileIds[at],
+                        };
+                        this.redoEdge(edge, op.identities?.[at], edges, seen);
+                    });
                     added.add(EDGES_ADDED);
                     break;
                 case "weight": {
@@ -1157,18 +1286,24 @@ class GraphEntry implements OpLogEntry {
 
     /**
      * Redo an edge added: its row, its identity, its record and its capacity.
-     * @param op - The op.
+     * @param op - The edge.
+     * @param identity - The identity cells its first undo kept, if any.
      * @param edges - The edge records.
      * @param seen - The fields this batch bumped already.
      */
-    private redoEdge(op: Extract<GraphOp, { kind: "edge" }>, edges: Map<EdgeId, GraphRecord>, seen: Bumped): void {
+    private redoEdge(
+        op: Pick<EdgeOp, "edgeId" | "source" | "target" | "weight" | "record" | "fileId">,
+        identity: EdgeIdentityCells | undefined,
+        edges: Map<EdgeId, GraphRecord>,
+        seen: Bumped,
+    ): void {
         const { store } = this;
         const row = store.builder.addEdge(op.source, op.target, op.weight);
         store.stampEdgeId(row, op.edgeId);
-        if (op.identity === undefined) {
+        if (identity === undefined) {
             store.recordIngestedEdge(row, op.edgeId, op.fileId);
         } else {
-            store.restoreEdgeIdentity(row, op.identity);
+            store.restoreEdgeIdentity(row, identity);
         }
 
         edges.set(edgeIdOf(op.edgeId), op.record);
@@ -1401,10 +1536,11 @@ class Writer implements GraphWriter {
         }
 
         bumpFields(this.store, "edge", undefined, record, this.bumped);
-        const op: GraphOp = { kind: "edge", edgeId, source, target, weight, record, created, fileId };
+        const op: EdgeOp = { kind: "edge", edgeId, source, target, weight, record, created, fileId };
         if (this.entry !== null && this.graph.touchesRanges) {
-            // The run marks its edges, and the rows they add and move, once per run, not per edge.
-            this.entry.push(op);
+            // The run marks its edges, and the rows they add and move, once per run, not per edge,
+            // and the op log keeps it as one range.
+            this.entry.pushRange(op);
             this.extendRun(edgeId);
         } else {
             this.record(op, edgeKey(edgeIdOf(edgeId)), EDGES_ADDED);

@@ -675,17 +675,12 @@ function pairValues(
  */
 function checked(table: JoinTable, choices: JoinChoices, shape: JoinShape): JoinShape {
     const chosen = choices.shape ?? shape;
-    for (const key of choices.keys) {
-        if (!table.columns.includes(key.file)) {
-            throw badJoin(`The table has no column ${JSON.stringify(key.file)}.`, {
-                reason: "unknown-column",
-                column: key.file,
-                columns: [...table.columns],
-            });
-        }
-    }
-
-    for (const column of [...Object.keys(choices.aggregate ?? {}), ...(choices.link?.columns ?? [])]) {
+    const named = [
+        ...choices.keys.map((key) => key.file),
+        ...Object.keys(choices.aggregate ?? {}),
+        ...(choices.link?.columns ?? []),
+    ];
+    for (const column of named) {
         if (!table.columns.includes(column)) {
             throw badJoin(`The table has no column ${JSON.stringify(column)}.`, {
                 reason: "unknown-column",

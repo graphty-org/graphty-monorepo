@@ -1,7 +1,7 @@
 /**
  * @file Every node and edge lookup a consumer can reach takes an integer id in either spelling:
  * node `34` answers to `"34"` and node `"35"` to `35`, and edge `"0"` answers to `0`. Text that is
- * not the decimal printing of the id (" 34", "34.0", "1e1") names nothing.
+ * not the canonical decimal printing of the id (" 34", "034", "34.0", "1e1") names nothing.
  */
 
 import { assert, beforeEach, describe, it } from "vitest";
@@ -33,7 +33,7 @@ const NODES: readonly (readonly [NodeId, NodeId])[] = [
 ];
 
 /** Text that is not an integer id's decimal printing, so names no node. */
-const NOT_SPELLINGS: readonly NodeId[] = [" 34", "34.0", "3.4e1", 34.5];
+const NOT_SPELLINGS: readonly NodeId[] = [" 34", "34.0", "3.4e1", 34.5, "034", "+34", "0x22"];
 
 /**
  * The edge id as the number it spells.
@@ -78,6 +78,10 @@ describe("either spelling of an integer id", () => {
         }
 
         assert.isUndefined(components.componentOf(" 34"));
+    });
+
+    it("session.data.edge finds no edge by a padded counter", () => {
+        assert.isUndefined(session.data.edge(`0${edge}`));
     });
 
     it("session.data.edge finds the edge by the number it spells", () => {
@@ -199,6 +203,34 @@ describe("either spelling of an integer id in a set", () => {
             const { sets } = await session.sets.containing({ node: asked });
             assert.include(sets, id, `containing ${JSON.stringify(asked)}`);
         }
+    });
+
+    it("sets.addMembers and removeMembers edit a member named in the other spelling", () => {
+        const id = session.sets.create({ kind: "fixed", nodes: [34], reading: "listed" }, { name: "One" });
+        const nodesOf = (): readonly NodeId[] => {
+            const definition = session.sets.get(id)?.definition;
+            return definition?.kind === "fixed" ? definition.nodes : [];
+        };
+
+        session.sets.addMembers(id, { nodes: ["34"] });
+        assert.deepEqual(nodesOf(), [34], "adding the other spelling adds nothing");
+        session.sets.removeMembers(id, { nodes: ["34"] });
+        assert.deepEqual(nodesOf(), [], "removing the other spelling removes the member");
+    });
+
+    it("sets.addMembers and removeMembers take the exact id when the graph holds both spellings", async () => {
+        await session.data.addNodes([{ id: "34" }]);
+        const id = session.sets.create({ kind: "fixed", nodes: [34], reading: "listed" }, { name: "One" });
+        const nodesOf = (): NodeId[] => {
+            const definition = session.sets.get(id)?.definition;
+            return definition?.kind === "fixed" ? [...definition.nodes].map(String).sort() : [];
+        };
+
+        session.sets.addMembers(id, { nodes: ["34"] });
+        assert.deepEqual(nodesOf(), ["34", "34"], "the text id is a node of its own");
+        session.sets.removeMembers(id, { nodes: [34] });
+        const definition = session.sets.get(id)?.definition;
+        assert.deepEqual(definition?.kind === "fixed" ? definition.nodes : [], ["34"]);
     });
 
     it("a path set naming its nodes in the other spelling walks them", async () => {

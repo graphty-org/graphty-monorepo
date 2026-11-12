@@ -169,6 +169,47 @@ the line where it was, as superscripts do. Where runs of different sizes meet on
 (`node.labelRunAlign`): on their alphabetic baselines (the default), on their hanging baselines so
 their tops line up, or on their middles.
 
+## Long labels
+
+A long name drawn on one line covers its neighbors. `wrapWidth` breaks it onto more lines at the
+spaces between words, and `maxLines` keeps at most that many lines, ending the last one with an
+ellipsis where the rest was cut. `maxLines` also cuts a label that has more lines of its own, with
+no `wrapWidth`. Markup runs keep their style across the breaks.
+
+```typescript
+await element.session.styles.add({
+    name: "Short names",
+    target: "node",
+    selector: { match: "everything" },
+    set: {
+        "node.label": "Department of Health and Human Services",
+        "node.labelStyle": { wrapWidth: 4, maxLines: 2 },
+    },
+});
+```
+
+`wrapWidth` is in the scene's units, the same as a node's `size`.
+
+## A control for every label field
+
+`LABEL_STYLE_DESCRIPTORS` describes every field of a label style: its name, the kind of value it
+takes, its choices or bounds, and what is drawn while nothing sets it. A settings panel can draw a
+control for each field from it without listing any of them itself.
+
+```typescript
+import { LABEL_STYLE_DESCRIPTORS } from "@graphty/graphty-element/catalog";
+
+for (const field of LABEL_STYLE_DESCRIPTORS) {
+    // field.field: "maxLines"; field.plainName: "Max Lines"
+    // field.accepts: "number"; field.min: 1; field.integer: true
+    // field.values: the choices of an "enum" field; field.default: the value drawn when unset
+    console.log(field.field, field.accepts, field.default);
+}
+```
+
+A label that stays the same size on screen at any distance is `sizeMode: "screen"`: its `sizePx`
+is then measured in CSS pixels.
+
 ## Text from several values
 
 A `template` binding builds a label from several values, one string per line. `{path}` reads a

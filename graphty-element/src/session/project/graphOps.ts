@@ -91,7 +91,7 @@ export const edgeKey = (id: EdgeId): string => `e:${id}`;
  * @param count - How many edges it holds.
  * @returns The key, `e+:<first>:<count>`.
  */
-export const edgeRangeKey = (first: number, count: number): string => `e+:${String(first)}:${String(count)}`;
+const edgeRangeKey = (first: number, count: number): string => `e+:${String(first)}:${String(count)}`;
 
 /**
  * Whether a lane key names edges: one ({@link edgeKey}) or a run ({@link edgeRangeKey}).

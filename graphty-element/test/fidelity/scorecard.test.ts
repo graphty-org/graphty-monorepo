@@ -12,6 +12,11 @@
  *
  * in graphty-element and commit the file. A drop that is accepted (a reference corrected, a
  * deliberate trade) goes in the file's `allowedDrops` as `"<sample>/<property>": "<reason>"`.
+ *
+ * A property that is no longer judged at all (its reference now leaves every element of it out on
+ * purpose, as a gradient-filled node's flat fill is `paintedOver`) is not a drop: its floor is
+ * taken off `floors` and listed in `retired` as `"<sample>/<property>": "<reason>"`. A retired
+ * property that carries a floor again, or is judged again, fails here, so the record stays true.
  */
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -40,6 +45,8 @@ interface Floors {
     floors: Record<string, Record<string, number>>;
     /** `"<sample>/<property>"`: why a drop below its floor is accepted. */
     allowedDrops: Record<string, string>;
+    /** `"<sample>/<property>"`: why a property is no longer judged, so it has no floor. */
+    retired?: Record<string, string>;
 }
 
 const stored = JSON.parse(readFileSync(FLOORS, "utf8")) as Floors;
@@ -150,7 +157,7 @@ describe("style fidelity scorecard: what graphty-element is asked to draw", () =
                     .slice(0, 3)
                     .map((w) => `${w.id} (reference ${JSON.stringify(w.ref)}, asked ${JSON.stringify(w.got)})`);
                 return [
-                    `${id} ${p}: ${rate === undefined ? "no longer judged" : rate.toFixed(4)} < floor ${floor.toFixed(4)}; worst: ${worst.join("; ") || "none listed"}`,
+                    `${id} ${p}: ${rate === undefined ? 'no longer judged (if on purpose, move it to "retired")' : rate.toFixed(4)} < floor ${floor.toFixed(4)}; worst: ${worst.join("; ") || "none listed"}`,
                 ];
             });
             assert.deepEqual(dropped, [], `${id}: a property fell below its floor in requested-floors.json`);
@@ -158,6 +165,14 @@ describe("style fidelity scorecard: what graphty-element is asked to draw", () =
                 Object.keys(scores).filter((p) => !(p in floors)),
                 [],
                 `${id}: a property is judged that has no floor; record the floors`,
+            );
+            assert.deepEqual(
+                Object.keys(stored.retired ?? {}).filter((key) => {
+                    const [sampleId, p] = key.split("/");
+                    return sampleId === id && (p in floors || p in scores);
+                }),
+                [],
+                `${id}: a property listed in "retired" has a floor or is judged again; drop one or the other`,
             );
         } finally {
             session.dispose();

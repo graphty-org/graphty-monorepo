@@ -197,8 +197,8 @@ describe("Styles", () => {
             assert.strictEqual(colorToHex("hwb(60, 3%, 60%)"), "#666608");
         });
 
-        it("converted by hwba", () => {
-            assert.strictEqual(colorToHex("hwb(60, 3%, 60%, 0.6)"), "#666608");
+        it("converted by hwba, keeping its alpha like every other form", () => {
+            assert.strictEqual(colorToHex("hwb(60, 3%, 60%, 0.6)"), "#66660899");
         });
     });
 });

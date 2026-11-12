@@ -207,5 +207,7 @@ export const GraphStyle = z.strictObject({
     /**
      * @deprecated Use viewMode instead. twoD: true is equivalent to viewMode: "2d"
      */
+    // The tag above is this field's own declaration, which typescript-eslint reads as a use of it.
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     twoD: z.boolean().default(false),
 });

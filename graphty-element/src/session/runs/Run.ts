@@ -1339,11 +1339,12 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         ].find(({ cause, reason }) => cause !== undefined || reason !== undefined);
         const cause = said === undefined ? this.defaultPartialCause(timedOut) : said.cause;
         const reason = said?.reason ?? (cause === undefined ? undefined : partialSentence(cause));
-        return Object.freeze({
+        const caveats: Caveats = {
             ...merged,
             ...(cause === undefined ? {} : { partialCause: cause }),
             ...(reason === undefined ? {} : { partialReason: reason }),
-        });
+        };
+        return Object.freeze(caveats);
     }
 
     /**

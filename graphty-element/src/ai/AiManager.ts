@@ -275,7 +275,7 @@ export interface AiManagerConfig {
      * `providerInstance`.
      */
     provider: ProviderType;
-    /** Optional API key for the provider */
+    /** Optional API key for the provider, kept in the key store (`getApiKeyManager()`) even beside `providerInstance` */
     apiKey?: string;
     /** Optional model name override */
     model?: string;
@@ -519,6 +519,12 @@ export class AiManager {
 
         // Before the API key is set, so it is persisted.
         this.persistKeys(config.keyPersistence);
+        // A given key is kept whatever builds the provider, so it is in the key store before the
+        // assistant reports itself enabled.
+        if (config.apiKey) {
+            this.keysSeen.add(config.apiKey);
+            this.apiKeyManager.setKey(config.provider, config.apiKey);
+        }
         this.provider = config.providerInstance ?? this.configuredProvider(config);
 
         const toolset = config.toolset ?? "commands";
@@ -587,12 +593,6 @@ export class AiManager {
             reasoningEffort: config.reasoningEffort,
             thinkingBudgetTokens: config.thinkingBudgetTokens,
         };
-        // Configure the provider with API key if provided (will be persisted if persistence enabled)
-        if (config.apiKey) {
-            this.keysSeen.add(config.apiKey);
-            this.apiKeyManager.setKey(config.provider, config.apiKey);
-        }
-
         // A key given here wins; with none, the one storage brought back is the provider's key.
         provider.configure({
             ...this.providerOptions,

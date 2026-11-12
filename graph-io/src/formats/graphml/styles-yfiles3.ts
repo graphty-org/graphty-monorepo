@@ -374,13 +374,14 @@ function putGradient(refs: References, g: StyleObject, owner: string, put: PutVa
     const repeats = Math.max(...along) - Math.min(...along);
     const small = (repeats + 3) * 2 * stops.length <= MAX_UNROLLED_STOPS;
     const unrolls = !spans && len2 > 0 && small && (spread === "reflect" || spread === "repeat");
-    if (g.tag !== "LinearGradient" || !(spans || unrolls) || colors.length < 2 || colors.length !== stops.length) {
-        noteAt(at("fill"), STYLE_ISSUE.GRADIENT, owner);
-        return;
-    }
-    if (unrolls) {
+    if (unrolls && g.tag === "LinearGradient" && colors.length === stops.length) {
         const ramp = spreadRamp({ colors, stops: offsets }, spread, Math.min(...along), Math.max(...along));
         [colors, offsets] = [[...ramp.colors], [...ramp.stops]];
+    }
+    // a ramp far longer than its box (endPoint 1e10) crosses it in less than a rounding step and unrolls to nothing
+    if (g.tag !== "LinearGradient" || !(spans || unrolls) || colors.length < 2 || colors.length !== offsets.length) {
+        noteAt(at("fill"), STYLE_ISSUE.GRADIENT, owner);
+        return;
     }
     put("fillGradient", colors.at(-1) ?? null);
     put("fillGradientAngle", num6(((((Math.atan2(dy, dx) * 180) / Math.PI) % 360) + 360) % 360));

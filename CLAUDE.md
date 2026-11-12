@@ -298,7 +298,8 @@ From the root (Nx, cached): `pnpm run build`, `pnpm run test`, `pnpm run lint`; 
   mechanism and fix it, never by a longer timeout, a fixed wait or deleting the test, and close its issue with
   `Fixes #N`. Never add a test to `tools/test-quarantine.json` by hand, and never re-run hoping for a pass. Full
   rules: tools/README.md, "Quarantined tests".
-- Coverage thresholds in every package: 80% lines, functions and statements, 75% branches.
+- Coverage thresholds: at least 80% lines, functions and statements and 75% branches; 90% in all four for the
+  packages already there (tools/README.md, "Coverage Thresholds"). Never lower one.
 
 ### Secrets, checks and what only the owner does
 

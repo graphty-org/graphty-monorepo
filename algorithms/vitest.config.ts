@@ -73,10 +73,10 @@ const config = defineConfig({
                 process.argv.includes("--project=default")
                     ? undefined
                     : {
-                          lines: 80,
-                          functions: 80,
-                          branches: 75,
-                          statements: 80,
+                          lines: 90,
+                          functions: 90,
+                          branches: 90,
+                          statements: 90,
                       },
         },
         slowTestThreshold: 5000,

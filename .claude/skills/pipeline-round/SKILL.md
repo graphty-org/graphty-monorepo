@@ -66,6 +66,16 @@ master onto nightly. A round does not only react to each red full run; it moves 
   on every run, and no running or pending `release.yml` run has them, dispatch
   `gh workflow run release.yml --ref master -f mode=restart` (owner-approved 2026-11-11). It tests the commit it
   starts on and replaces any pending release run (Known situations).
+- **Follow it through.** Once there is an approved candidate (step 6), or a merged fix for a red full run, this
+  session drives it to nightly without waiting for the next round (on 2026-11-11 a failed promotion sat unnoticed
+  until the owner asked, twice). After every action whose result arrives later -- an approval or fix pull request
+  merging, master's build, a `promote-nightly` or restart run -- arm a background watch that wakes the session when
+  it ends, then end the turn; never wait inside a turn. A run: `gh run watch <id> --interval 60 --exit-status` in the
+  background. A pull request: a background wait on its merge polling every 5 minutes or slower (GitHub API budget).
+  On each wake take the next step at once: dispatch the promotion when the approval or its fix merged, re-run once
+  for a classified outside cause, or start a fix subagent for a code cause and arm a watch on its pull request. Done
+  only when nightly.graphty.app's build stamp names the candidate and
+  `npm view @graphty/graphty-element dist-tags.next` moved.
 
 ### Nightly every slot
 
@@ -238,6 +248,11 @@ own (`hold.mjs replace`); a held green-images head awaiting review is never repl
   pull request's head). Then verify: nightly.graphty.app's build stamp
   (`<meta name="graphty-build" content="commit=...">`) names H, and `npm view @graphty/graphty-element dist-tags.next`
   moved.
+- **A `promote-nightly` run that failed** (not just missing): read the failed job's log
+  (`gh api repos/graphty-org/graphty-monorepo/actions/jobs/<id>/logs` when `gh run view --log-failed` returns
+  nothing), classify it, and fix the cause on master (a release-path tool fix goes alone in its own pull request).
+  Once the fix merges, re-dispatch the same command with the same H and P; the approval stands, so no new review is
+  needed. Arm a watch on each step ("Follow it through").
 
 ### 7. Owner items
 
@@ -354,6 +369,9 @@ Each: signal, meaning, action. Add to this list (see the next section).
   run; a newer dispatch replaces the pending one (on 2026-11-10 a restart dispatch replaced a doomed same-commit
   retry). A fix merged with `Refs #<red issue>` starts a restart after its master build (`release-due`); an agent
   may also dispatch one ("Master onto nightly").
+- **Excluded images and the promotion gate.** An image the owner excludes in the Finish counts as `excluded` for the
+  promotion only since #6781 (`acceptedBy` in `tools/channel/recapture.mjs` reads the head's `disableSnapshot`
+  file). Before it, an excluded unstable story still failed "Gate the approved candidate" (run 43141765347).
 - **A workflow fix and a re-run.** `gh run rerun` keeps the original run's workflow file, so a merged workflow fix
   takes effect only in a new dispatch.
 - **"rate limit exceeded"** on the agent account (5,000 an hour, every session) or the Actions token budget

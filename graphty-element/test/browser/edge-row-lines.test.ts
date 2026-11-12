@@ -625,3 +625,106 @@ describe("an edge stored with no Edge under a simulation layout", () => {
         assert.equal(element.graph.getEdgeRowLines()?.count, 3);
     });
 });
+
+/**
+ * Mount a batched element the way the comparison harness's lean mode does (benchmarks/compare/main.js): the view
+ * set before it is attached, a fixed layout, box nodes and capless edges, then the data set as `nodeData` and
+ * `edgeData`.
+ * @param dim - The view: 2 or 3.
+ * @param edgesFirst - Set `edgeData` before `nodeData`, so the edges wait for their ends.
+ * @returns The element.
+ */
+async function leanLoaded(dim: 2 | 3, edgesFirst: boolean): Promise<Graphty> {
+    const element = document.createElement("graphty-element");
+    element.renderer = "webgl";
+    element.renderPath = "batched";
+    element.layout = "fixed";
+    element.viewMode = dim === 2 ? "2d" : "3d";
+    element.style.display = "block";
+    element.style.width = "400px";
+    element.style.height = "300px";
+    document.body.appendChild(element);
+    await element.updateComplete;
+    await operationQueueOf(element.graph).waitForCompletion();
+    await element.session.styles.add({
+        name: "lean nodes",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.shape": "box" },
+    } as never);
+    await element.session.styles.add({
+        name: "lean edges",
+        target: "edge",
+        selector: { match: "everything" },
+        set: { "edge.arrowHead": "none" },
+    } as never);
+    if (edgesFirst) {
+        element.edgeData = LEAN_EDGES;
+        await element.updateComplete;
+        await operationQueueOf(element.graph).waitForCompletion();
+        element.nodeData = NODES;
+    } else {
+        element.nodeData = NODES;
+        element.edgeData = LEAN_EDGES;
+    }
+
+    await element.updateComplete;
+    await operationQueueOf(element.graph).waitForCompletion();
+    await element.waitForStableFrame();
+    return element;
+}
+
+const LEAN_EDGES = [
+    { src: 0, dst: 1 },
+    { src: 1, dst: 2 },
+    { src: 2, dst: 0 },
+];
+
+// The comparison harness's lean load builds no `Edge`, in 2D as in 3D: since G3 a straight 2D line is pulled from
+// its nodes' rows, so a row line draws it. That holds for edges that wait for their ends too. Undo takes the rows
+// back with no `Edge`; redo brings them back and selects them (undo and redo select what changed), and a selected
+// row is drawn by its `Edge`, since a row line has no selected look. G7 of design/rendering/cosmos-gap.md.
+describe("a lean load on the batched path", () => {
+    for (const dim of [2, 3] as const) {
+        for (const edgesFirst of [false, true]) {
+            const order = edgesFirst ? "its edges before its nodes" : "its nodes first";
+            it(`builds no Edge in ${dim}D, ${order}`, async () => {
+                const element = await leanLoaded(dim, edgesFirst);
+                const dm = element.graph.getDataManager();
+                const lines = element.graph.getEdgeRowLines();
+                assert.isNotNull(lines);
+                assert.equal(element.graph.getViewMode(), dim === 2 ? "2d" : "3d");
+                assert.equal(dm.edges.size, LEAN_EDGES.length);
+                assert.equal(dataManagerInternals.edgesBuilt(dm), 0);
+                assert.equal(lines.count, LEAN_EDGES.length);
+            });
+        }
+
+        it(`builds an Edge across undo and redo of the load in ${dim}D only for what redo selects`, async () => {
+            const element = await leanLoaded(dim, false);
+            const dm = element.graph.getDataManager();
+            const lines = element.graph.getEdgeRowLines();
+            assert.isNotNull(lines);
+
+            await element.session.undo();
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            assert.equal(dm.edges.size, 0, "undo takes the load back");
+            assert.equal(lines.count, 0);
+            assert.equal(dataManagerInternals.edgesBuilt(dm), 0);
+
+            await element.session.redo();
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            assert.equal(dm.edges.size, LEAN_EDGES.length, "redo brings it back");
+            const selected = element.session.selection.edges.length;
+            assert.equal(dataManagerInternals.edgesBuilt(dm), selected, "an Edge for each selected row, no more");
+            assert.equal(lines.count + selected, LEAN_EDGES.length, "every other row a row line");
+
+            element.session.selection.clear();
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            assert.equal(dataManagerInternals.edgesBuilt(dm), selected, "no further Edge once the selection clears");
+        });
+    }
+});

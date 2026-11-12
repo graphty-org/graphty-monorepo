@@ -2651,32 +2651,15 @@ export class DataManager implements Manager {
 
             this.forgetPending(pending);
 
-            // No duplicate check. A second edge between the same pair is a second EDGE, and the
-            // repeat policy already decided that in `addEdges`, before the store was told. The
-            // check that used to be here dropped a render object for an edge the snapshot holds,
-            // which left a store edge with no `Edge` and a permanently occupied index slot.
-            const opts = {};
-            if (!this.graphContext) {
-                throw new Error("GraphContext not set. Call setGraphContext before adding edges.");
+            // A waiting edge is stored as one that never waited is: with no `Edge` when the element says so.
+            // Without this every edge that arrived before its ends got an `Edge`.
+            if (this.storesWithoutEdge(pending)) {
+                this.storeUnbuiltEdge(pending);
+            } else {
+                this.buildPendingEdge(pending);
             }
 
-            const e = new Edge(
-                this.graphContext,
-                sourceId,
-                targetId,
-                edgeId,
-                bootstrapEdgePaint(this.store.directed),
-                record as AdHocData,
-                opts,
-            );
-            this.registerEdge(e, edgeIndex);
-            this.builtUnpainted(`e:${edgeIdOf(edgeId)}`, "edge", edgeIndex);
             this.lateEdges.push({ row: edgeIndex, key: `e:${edgeIdOf(edgeId)}` });
-
-            // Add to layout engine if it exists
-            if (this.layoutEngine) {
-                layoutEngineInternals.addEdge(this.layoutEngine, e);
-            }
 
             // Emit edge added event
             this.eventManager.emitEdgeEvent("edge-add-before", {
@@ -2688,6 +2671,39 @@ export class DataManager implements Manager {
 
         // Update the queue with edges that still couldn't be processed
         this.pendingEdges = stillPending;
+    }
+
+    /**
+     * Build the `Edge` of a waiting edge whose ends are now stored, and hand it to the layout.
+     * @param pending - The edge.
+     */
+    private buildPendingEdge(pending: PendingEdge): void {
+        const { record, sourceId, targetId, edgeIndex, edgeId } = pending;
+        // No duplicate check. A second edge between the same pair is a second EDGE, and the
+        // repeat policy already decided that in `addEdges`, before the store was told. The
+        // check that used to be here dropped a render object for an edge the snapshot holds,
+        // which left a store edge with no `Edge` and a permanently occupied index slot.
+        const opts = {};
+        if (!this.graphContext) {
+            throw new Error("GraphContext not set. Call setGraphContext before adding edges.");
+        }
+
+        const e = new Edge(
+            this.graphContext,
+            sourceId,
+            targetId,
+            edgeId,
+            bootstrapEdgePaint(this.store.directed),
+            record as AdHocData,
+            opts,
+        );
+        this.registerEdge(e, edgeIndex);
+        this.builtUnpainted(`e:${edgeIdOf(edgeId)}`, "edge", edgeIndex);
+
+        // Add to layout engine if it exists
+        if (this.layoutEngine) {
+            layoutEngineInternals.addEdge(this.layoutEngine, e);
+        }
     }
 
     /**
@@ -2948,12 +2964,7 @@ export class DataManager implements Manager {
         }
 
         if (this.storesWithoutEdge(stored)) {
-            this.unbuiltEdges.set(edgeIndex, stored);
-            this.unbuiltEdgeIds.set(edgeIdOf(edgeId), edgeIndex);
-            // ponytail: one hand-over per edge; buffer them as `arrivedRows` does if a profile shows the calls.
-            this.layoutEdgeRows?.add([edgeRowOf(stored)]);
-            this.builtUnpainted(`e:${edgeIdOf(edgeId)}`, "edge", edgeIndex);
-            this.edgeVersion++;
+            this.storeUnbuiltEdge(stored);
         } else {
             this.makeEdge(stored);
         }
@@ -2964,6 +2975,21 @@ export class DataManager implements Manager {
             dstNodeId,
             metadata: edge,
         });
+    }
+
+    /**
+     * Store an edge whose ends are stored with no `Edge` ({@link storesWithoutEdge}), handed to the layout and
+     * queued to be painted as a row line.
+     * @param stored - The edge, its ends and its row.
+     */
+    private storeUnbuiltEdge(stored: StoredEdge): void {
+        const { edgeIndex, edgeId } = stored;
+        this.unbuiltEdges.set(edgeIndex, stored);
+        this.unbuiltEdgeIds.set(edgeIdOf(edgeId), edgeIndex);
+        // ponytail: one hand-over per edge; buffer them as `arrivedRows` does if a profile shows the calls.
+        this.layoutEdgeRows?.add([edgeRowOf(stored)]);
+        this.builtUnpainted(`e:${edgeIdOf(edgeId)}`, "edge", edgeIndex);
+        this.edgeVersion++;
     }
 
     /**

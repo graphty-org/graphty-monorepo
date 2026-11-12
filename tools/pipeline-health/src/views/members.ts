@@ -536,6 +536,11 @@ async function noteOf(reads: Reads, s: MemberStatus): Promise<Fact | undefined> 
         const n = s.facts?.["ci.chronic_no_issue"];
         return n ? f("note.chronic_no_issue", { n }) : undefined;
     }
+    if (s.id === "flaky.net_new") {
+        const added = s.facts?.["flaky.net_added"];
+        const resolved = s.facts?.["flaky.net_resolved"];
+        return added === undefined || resolved === undefined ? undefined : f("flaky.net_new.note", { added, resolved });
+    }
     if (!s.value || !["pr.oldest_open", "pr.automerge_green_stuck", "pr.automerge_armed_long"].includes(s.id)) {
         return undefined;
     }

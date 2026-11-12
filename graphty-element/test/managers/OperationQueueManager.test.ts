@@ -153,26 +153,35 @@ describe("OperationQueueManager", () => {
     });
 
     it("should provide queue statistics", async () => {
-        // Queue some operations but don't wait
-        queueManager.queueOperation("data-add", async () => {
-            await new Promise((resolve) => setTimeout(resolve, 10));
+        let started!: () => void;
+        const running = new Promise<void>((resolve) => {
+            started = resolve;
+        });
+        let release!: () => void;
+        const released = new Promise<void>((resolve) => {
+            release = resolve;
         });
 
-        queueManager.queueOperation("layout-set", async () => {
-            await new Promise((resolve) => setTimeout(resolve, 10));
-        });
+        // One operation runs and holds the queue; the other waits behind it
+        queueManager.queueOperation(
+            "data-add",
+            async () => {
+                started();
+                await released;
+            },
+            { skipTriggers: true },
+        );
+        queueManager.queueOperation("layout-set", () => undefined, { skipTriggers: true });
 
-        // Check stats immediately after queueing
-        // The batch is scheduled on a microtask; one macrotask yield lets it start
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        const stats = queueManager.getStats();
+        await running;
+        assert.deepEqual(queueManager.getStats(), { pending: 1, size: 1, isPaused: false });
 
-        assert.isDefined(stats.pending);
-        assert.isDefined(stats.size);
-        assert.isDefined(stats.isPaused);
-        assert.equal(stats.isPaused, false);
-
+        release();
         await queueManager.waitForCompletion();
+        assert.deepEqual(queueManager.getStats(), { pending: 0, size: 0, isPaused: false });
+
+        queueManager.pause();
+        assert.isTrue(queueManager.getStats().isPaused);
     });
 
     it("should support pausing and resuming the queue", async () => {
@@ -278,37 +287,17 @@ describe("OperationQueueManager", () => {
     it("lets go of finished operations when disposed, without waiting for their cleanup", async () => {
         // A finished operation's cleanup runs a second later and holds the manager -- and through
         // it a whole graph -- until it does. Dispose cancels every one (issue #3413).
-        const cleanups = new Set<ReturnType<typeof setTimeout>>();
-        const cleared = new Set<unknown>();
-        const realSetTimeout = globalThis.setTimeout;
-        const setSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation((handler: () => void, delay?: number) => {
-            const timer = realSetTimeout(handler, delay);
-            if (String(handler).includes("operationProgress")) {
-                cleanups.add(timer);
-            }
-
-            return timer;
-        });
-        const realClearTimeout = globalThis.clearTimeout;
-        const clearSpy = vi.spyOn(globalThis, "clearTimeout").mockImplementation(((
-            timer?: ReturnType<typeof setTimeout>,
-        ) => {
-            cleared.add(timer);
-            realClearTimeout(timer);
-        }) as typeof clearTimeout);
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
         try {
-            queueManager.queueOperation("data-add", () => undefined);
-            queueManager.queueOperation("layout-set", () => undefined);
+            queueManager.queueOperation("data-add", () => undefined, { skipTriggers: true });
+            queueManager.queueOperation("layout-set", () => undefined, { skipTriggers: true });
             await queueManager.waitForCompletion();
-            assert.isAtLeast(cleanups.size, 2, "the finished operations scheduled their cleanups");
+            assert.equal(vi.getTimerCount(), 2, "each finished operation scheduled its cleanup");
 
             queueManager.dispose();
-            for (const timer of cleanups) {
-                assert.isTrue(cleared.has(timer), "dispose cancelled the cleanup");
-            }
+            assert.equal(vi.getTimerCount(), 0, "dispose cancelled the cleanups");
         } finally {
-            setSpy.mockRestore();
-            clearSpy.mockRestore();
+            vi.useRealTimers();
         }
     });
 });

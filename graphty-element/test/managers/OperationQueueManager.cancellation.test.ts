@@ -1,309 +1,233 @@
 import { assert, beforeEach, describe, it } from "vitest";
 
 import { EventManager } from "../../src/managers/EventManager";
-import { OperationQueueManager } from "../../src/managers/OperationQueueManager";
+import { type OperationContext, OperationQueueManager } from "../../src/managers/OperationQueueManager";
+
+/** A promise with its resolver, so a test decides when an operation's work ends. */
+function gate(): { promise: Promise<void>; open: () => void } {
+    let open!: () => void;
+    const promise = new Promise<void>((resolve) => {
+        open = resolve;
+    });
+    return { promise, open };
+}
+
+/** Work that ends only when the operation's signal aborts, by rejecting with an AbortError. */
+function untilAborted(context: OperationContext): Promise<void> {
+    return new Promise<void>((_resolve, reject) => {
+        context.signal.addEventListener("abort", () => {
+            const error = new Error("Cancelled");
+            error.name = "AbortError";
+            reject(error);
+        });
+    });
+}
 
 describe("Operation Cancellation", () => {
     let eventManager: EventManager;
     let queueManager: OperationQueueManager;
-    let cancelledEvents: { id: string; category: string; reason?: string }[];
+    let cancelledEvents: { id: string; code: string }[];
+    let obsoletedEvents: string[];
+    let startEvents: string[];
+    let completeEvents: string[];
 
     beforeEach(() => {
         eventManager = new EventManager();
         queueManager = new OperationQueueManager(eventManager);
         cancelledEvents = [];
-
-        // Capture cancellation events
-        eventManager.onGraphEvent.add((event) => {
-            if (event.type === "operation-obsoleted") {
-                cancelledEvents.push({
-                    id: (event as Record<string, unknown>).id as string,
-                    category: (event as Record<string, unknown>).category as string,
-                    reason: (event as Record<string, unknown>).reason as string | undefined,
-                });
-            }
-        });
-    });
-
-    it("should cancel operations via AbortController", async () => {
-        let operationStarted = false;
-        let operationCompleted = false;
-        // We need to expose the AbortController to cancel it
-        // Since the current implementation creates it internally,
-        // we'll need to enhance the API
-        queueManager.queueOperation("algorithm-run", async (context) => {
-            operationStarted = true;
-
-            // Listen for abort signal
-            context.signal.addEventListener("abort", () => {
-                // Signal aborted
-            });
-
-            try {
-                // Simulate long-running operation
-                await new Promise<void>((resolve, reject) => {
-                    const checkInterval = setInterval(() => {
-                        if (context.signal.aborted) {
-                            clearInterval(checkInterval);
-                            const error = new Error("Operation was aborted");
-                            error.name = "AbortError";
-                            reject(error);
-                        }
-                    }, 10);
-
-                    setTimeout(() => {
-                        clearInterval(checkInterval);
-                        resolve();
-                    }, 1000);
-                });
-
-                operationCompleted = true;
-            } catch (error) {
-                if ((error as Error).name === "AbortError") {
-                    throw error; // Re-throw abort errors
-                }
-
-                throw error;
-            }
-        });
-
-        // Cancel after a short delay
-        setTimeout(() => {
-            // Need to implement cancelOperation method
-            queueManager.clear();
-        }, 50);
-
-        try {
-            await queueManager.waitForCompletion();
-        } catch {
-            // Expected for cancelled operations
-        }
-
-        assert.isTrue(operationStarted, "Operation should have started");
-        assert.isFalse(operationCompleted, "Operation should not have completed");
-    });
-
-    it("should handle signal.aborted checks in operations", async () => {
-        let checkedAbortedBeforeStart = false;
-        const checkedAbortedDuringExecution = false;
-
-        queueManager.queueOperation("data-update", async (context) => {
-            // Check if already aborted before starting
-            if (context.signal.aborted) {
-                checkedAbortedBeforeStart = true;
-                const error = new Error("Already aborted");
-                error.name = "AbortError";
-                throw error;
-            }
-
-            // Simulate work with periodic abort checks
-            for (let i = 0; i < 10; i++) {
-                // Check abort signal during work
-
-                await new Promise((resolve) => setTimeout(resolve, 10));
-            }
-        });
-
-        await queueManager.waitForCompletion();
-
-        // The operation should complete normally if not cancelled
-        assert.isFalse(checkedAbortedBeforeStart, "Should not be aborted before start");
-        assert.isFalse(checkedAbortedDuringExecution, "Should not be aborted during execution");
-    });
-
-    it("should cleanup cancelled operations properly", async () => {
-        const startEvents: string[] = [];
-        const completeEvents: string[] = [];
+        obsoletedEvents = [];
+        startEvents = [];
+        completeEvents = [];
 
         eventManager.onGraphEvent.add((event) => {
-            if (event.type === "operation-start") {
+            if (event.type === "operation-cancelled") {
+                cancelledEvents.push({ id: event.id, code: event.code });
+            } else if (event.type === "operation-obsoleted") {
+                obsoletedEvents.push((event as Record<string, unknown>).id as string);
+            } else if (event.type === "operation-start") {
                 startEvents.push((event as Record<string, unknown>).id as string);
             } else if (event.type === "operation-complete") {
                 completeEvents.push((event as Record<string, unknown>).id as string);
             }
         });
+    });
 
-        // Queue multiple operations
-        const ops = [];
-        for (let i = 0; i < 5; i++) {
-            ops.push(
-                queueManager.queueOperation("layout-update", async (context) => {
-                    // Check for abort
-                    if (context.signal.aborted) {
-                        throw new Error("AbortError");
-                    }
+    it("should cancel operations via AbortController", async () => {
+        const started = gate();
+        let operationCompleted = false;
 
-                    await new Promise((resolve) => setTimeout(resolve, 100));
-                }),
-            );
-        }
+        const id = queueManager.queueOperation("algorithm-run", async (context) => {
+            started.open();
+            await untilAborted(context);
+            operationCompleted = true;
+        });
 
-        // Clear the queue (which should cancel pending operations)
-        setTimeout(() => {
-            queueManager.clear();
-        }, 50);
+        await started.promise;
+        queueManager.clear();
+        await queueManager.waitForCompletion();
 
-        try {
-            await queueManager.waitForCompletion();
-        } catch {
-            // Expected
-        }
+        assert.deepEqual(startEvents, [id]);
+        assert.isFalse(operationCompleted, "the body did not get past the abort");
+        assert.deepEqual(completeEvents, []);
+    });
 
-        // Some operations may have started
-        assert.isTrue(startEvents.length <= ops.length);
+    it("should hand an un-aborted signal to an operation nobody cancels", async () => {
+        const seen: boolean[] = [];
 
-        // Completed operations should be fewer than total
-        assert.isTrue(completeEvents.length < ops.length);
+        queueManager.queueOperation(
+            "data-update",
+            async (context) => {
+                seen.push(context.signal.aborted);
+                await Promise.resolve();
+                seen.push(context.signal.aborted);
+            },
+            { skipTriggers: true },
+        );
 
-        // After clearing, stats should be clean
+        await queueManager.waitForCompletion();
+
+        assert.deepEqual(seen, [false, false], "not aborted before or during its work");
+        assert.deepEqual(cancelledEvents, []);
+        assert.lengthOf(completeEvents, 1);
+    });
+
+    it("should cleanup cancelled operations properly", async () => {
+        const started = gate();
+        const ids = [
+            queueManager.queueOperation("data-add", async (context) => {
+                started.open();
+                await untilAborted(context);
+            }),
+            queueManager.queueOperation("data-add", () => undefined),
+            queueManager.queueOperation("data-add", () => undefined),
+        ];
+
+        await started.promise;
+        queueManager.clear();
+        await queueManager.waitForCompletion();
+
+        assert.deepEqual(startEvents, [ids[0]], "the queued operations never started");
+        assert.deepEqual(completeEvents, []);
+        assert.deepEqual(
+            cancelledEvents,
+            ids.map((id) => ({ id, code: "queue-cleared" })),
+        );
+
         const stats = queueManager.getStats();
         assert.equal(stats.pending, 0);
         assert.equal(stats.size, 0);
     });
 
-    it("should emit cancellation events", async () => {
-        queueManager.queueOperation("camera-update", async (context) => {
-            // Long running operation that will be cancelled
-            await new Promise<void>((resolve, reject) => {
-                const timeout = setTimeout(resolve, 500);
-                context.signal.addEventListener("abort", () => {
-                    clearTimeout(timeout);
-                    const error = new Error("Cancelled");
-                    error.name = "AbortError";
-                    reject(error);
-                });
-            });
+    it("should report a cleared operation as cancelled, not obsoleted", async () => {
+        const started = gate();
+        const id = queueManager.queueOperation("camera-update", async (context) => {
+            started.open();
+            await untilAborted(context);
         });
 
-        // Clear queue to cancel operations
-        setTimeout(() => {
-            queueManager.clear();
-        }, 50);
+        await started.promise;
+        queueManager.clear();
+        await queueManager.waitForCompletion();
 
-        try {
-            await queueManager.waitForCompletion();
-        } catch {
-            // Expected
-        }
-
-        // The current implementation emits "operation-obsoleted" events for cancelled ops
-        // We should check if any were emitted
-        // TODO: The implementation may need enhancement to properly emit these
+        assert.deepEqual(cancelledEvents, [{ id, code: "queue-cleared" }]);
+        assert.deepEqual(obsoletedEvents, []);
     });
 
-    it("should handle multiple abort listeners", async () => {
+    it("should call every abort listener when the operation is cancelled", async () => {
+        const started = gate();
         const abortCallbacks: number[] = [];
 
-        queueManager.queueOperation("style-init", async (context) => {
-            // Add multiple abort listeners
-            context.signal.addEventListener("abort", () => {
-                abortCallbacks.push(1);
-            });
-
-            context.signal.addEventListener("abort", () => {
-                abortCallbacks.push(2);
-            });
-
-            context.signal.addEventListener("abort", () => {
-                abortCallbacks.push(3);
-            });
-
-            // Wait for potential abort
-            await new Promise<void>((resolve, reject) => {
-                setTimeout(resolve, 100);
+        const id = queueManager.queueOperation("style-init", async (context) => {
+            for (const n of [1, 2, 3]) {
                 context.signal.addEventListener("abort", () => {
-                    reject(new Error("Aborted"));
+                    abortCallbacks.push(n);
                 });
-            });
+            }
+
+            started.open();
+            await untilAborted(context);
         });
 
+        await started.promise;
+        assert.deepEqual(abortCallbacks, [], "no listener fires before the cancel");
+
+        assert.isTrue(queueManager.cancelOperation(id));
         await queueManager.waitForCompletion();
 
-        // If not cancelled, no abort callbacks should fire
-        assert.equal(abortCallbacks.length, 0);
+        assert.deepEqual(abortCallbacks, [1, 2, 3]);
     });
 
-    it("should properly propagate abort errors", async () => {
-        eventManager.onGraphError.add(() => {
-            // Error handler to verify no errors are propagated
-            // Log if needed for debugging
+    it("should not report the AbortError of a cancelled operation as a graph error", async () => {
+        const started = gate();
+        const graphErrors: unknown[] = [];
+        eventManager.addListener("error", (event) => {
+            graphErrors.push(event);
         });
 
-        queueManager.queueOperation("data-remove", () => {
-            // Immediately abort
-            const error = new Error("Test abort");
-            error.name = "AbortError";
-            throw error;
+        const id = queueManager.queueOperation("data-remove", async (context) => {
+            started.open();
+            await untilAborted(context);
         });
 
+        await started.promise;
+        assert.isTrue(queueManager.cancelOperation(id));
         await queueManager.waitForCompletion();
 
-        // AbortErrors should be handled specially and not propagated as regular errors
-        // The implementation catches AbortError and re-throws it for p-queue to handle
-        // Regular errors would be caught by handleOperationError
+        assert.deepEqual(graphErrors, []);
+        assert.deepEqual(cancelledEvents, [{ id, code: "cancelled" }]);
     });
 
     it("should support cancellation of specific operations", async () => {
+        const op1Started = gate();
+        const op1Release = gate();
         const results: string[] = [];
 
-        // Queue three operations
         queueManager.queueOperation(
             "data-add",
             async () => {
-                await new Promise((resolve) => setTimeout(resolve, 50));
+                op1Started.open();
+                await op1Release.promise;
                 results.push("op1");
             },
             { skipTriggers: true },
         );
 
-        queueManager.queueOperation("layout-set", async (context) => {
-            await new Promise<void>((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                    results.push("op2");
-                    resolve();
-                }, 100);
-
-                context.signal.addEventListener("abort", () => {
-                    clearTimeout(timeout);
-                    const error = new Error("Cancelled");
-                    error.name = "AbortError";
-                    reject(error);
-                });
-            });
+        const op2 = queueManager.queueOperation("layout-set", () => {
+            results.push("op2");
         });
 
-        queueManager.queueOperation("render-update", async () => {
-            await new Promise((resolve) => setTimeout(resolve, 50));
+        queueManager.queueOperation("render-update", () => {
             results.push("op3");
         });
 
-        // Cancel the second operation
-        // TODO: This requires exposing the AbortController in the API
-        // For now, we can only test clearing all operations
+        // op2 is queued behind the running op1; cancel only it.
+        await op1Started.promise;
+        assert.isTrue(queueManager.cancelOperation(op2));
+        op1Release.open();
 
         await queueManager.waitForCompletion();
 
-        // All three should complete normally without cancellation
-        assert.deepEqual(results, ["op1", "op2", "op3"]);
+        assert.deepEqual(results, ["op1", "op3"]);
+        assert.notInclude(startEvents, op2, "the cancelled operation never started");
+        assert.deepEqual(cancelledEvents, [{ id: op2, code: "cancelled" }]);
     });
 
     it("should not cancel already completed operations", async () => {
         const completed: string[] = [];
 
-        queueManager.queueOperation("style-apply", () => {
+        const id = queueManager.queueOperation("style-apply", () => {
             completed.push("instant");
         });
 
-        // Wait for the operation to complete
         await queueManager.waitForCompletion();
 
-        // Try to clear/cancel after completion
         queueManager.clear();
 
-        // The completed operation should not be affected
         assert.deepEqual(completed, ["instant"]);
+        assert.deepEqual(completeEvents, [id]);
+        assert.deepEqual(cancelledEvents, [], "a finished operation is not reported as cancelled");
+        assert.isFalse(queueManager.cancelOperation(id), "a finished operation cannot be cancelled");
 
-        // Stats should be clean
         const stats = queueManager.getStats();
         assert.equal(stats.pending, 0);
         assert.equal(stats.size, 0);

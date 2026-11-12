@@ -332,6 +332,11 @@ export const METRICS: MetricDef[] = [
             ),
         ],
     },
+    // The AWS line by AWS service, to see which service spends (issue #6486).
+    {
+        id: "cost.aws_by_service",
+        from: [src("cost", "day", (c) => Object.entries(c.services ?? {}).map(([dim, sum]) => ({ sum, dim })))],
+    },
     // Section 7, list-price value: GitHub-hosted job minutes (each job rounded up, as GitHub bills), by
     // [workflow, os]; the view prices them from rates.json, so a rate change needs no recompute.
     {

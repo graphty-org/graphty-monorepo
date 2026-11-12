@@ -62,10 +62,15 @@ const ALL_SECTIONS = [
 /** Every channel a section of the Style tab draws as a line, the experiments' included. */
 const DRAWN = new Set<string>(ALL_SECTIONS.flatMap((section) => section.channels));
 
-/** Every channel a text entry varies beside a field of its Label settings (the letter size, the font). */
+/**
+ * Every channel a text entry varies beside a field of its Label settings (the letter size, the font),
+ * or beside its own Position line.
+ */
 const VARIED = (["node", "edge"] as const).flatMap((side) =>
     TEXT_KINDS[side].flatMap((kind) =>
-        LABEL_SETTINGS_FIELDS.flatMap((field) => fieldChannelOf(side, kind.words, field) ?? []),
+        [...LABEL_SETTINGS_FIELDS, "location" as const].flatMap(
+            (field) => fieldChannelOf(side, kind.words, field) ?? [],
+        ),
     ),
 );
 
@@ -145,9 +150,12 @@ describe("every style has a home", () => {
         assert.isAbove(opacities.length, 0);
         for (const d of opacities) {
             // a channel the panel does not offer yet says why in CHANNEL_HOMES (checked above); every
-            // one it places is drawn in a section
+            // one it places is drawn in a section, or varied from a text entry's Label settings
             if ("place" in CHANNEL_HOMES[d.channel]) {
-                assert.isTrue(DRAWN.has(d.channel), `${d.channel} is in a section`);
+                assert.isTrue(
+                    DRAWN.has(d.channel) || VARIED.includes(d.channel),
+                    `${d.channel} is in a section or Label settings`,
+                );
             }
             assert.isTrue(takesBinding(d), `${d.channel} varies by a value`);
             assert.isTrue(isPercent(d), `${d.channel} reads as a percent`);

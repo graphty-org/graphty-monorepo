@@ -70,8 +70,33 @@ function wordOf(value: unknown): string | undefined {
         : undefined;
 }
 
+/** The gradient's own fields, drawn once a gradient is on: an unset gradient draws none. */
+const GRADIENT_FIELDS: ReadonlySet<keyof LabelStyle> = new Set(["gradientType", "gradientDirection", "gradientColors"]);
+
+/** The panel shadow's own fields, drawn once the panel casts a shadow. */
+const PANEL_SHADOW_FIELDS: ReadonlySet<keyof LabelStyle> = new Set([
+    "panelShadowColor",
+    "panelShadowBlur",
+    "panelShadowOffsetX",
+    "panelShadowOffsetY",
+]);
+
+/** The fields graphty-element reads on node labels only. */
+const NODE_ONLY_FIELDS: ReadonlySet<keyof LabelStyle> = new Set(["declutter", "minNodeScreenSize"]);
+
+/**
+ * A fraction as the percent a field shows, to two places.
+ * @param value - the value, if any.
+ * @returns the percent, or the value as it was when it is not a number.
+ */
+function asPercent(value: unknown): unknown {
+    return typeof value === "number" ? Math.round(value * 10000) / 100 : value;
+}
+
 /** Props for LabelSettings. */
 interface LabelSettingsProps {
+    /** Whether the label is on nodes or edges: an edge label draws no node-only fields. */
+    target?: "node" | "edge";
     /** What the entry's layer writes for the label's style. */
     style: LabelStyle;
     /** Called with the fields to change; a field given as undefined is cleared back to the look. */
@@ -103,6 +128,7 @@ export interface VaryField {
  * @param props.onChange - called with the fields to change
  * @param props.vary - how a field varies by a value through a channel of its own
  * @param props.beneath - what the layers beneath write for the label's style
+ * @param props.target - nodes or edges
  * @returns The groups
  */
 export function LabelSettings({
@@ -110,13 +136,14 @@ export function LabelSettings({
     onChange,
     vary,
     beneath = {},
+    target = "node",
 }: Readonly<LabelSettingsProps>): React.JSX.Element {
     const look: Readonly<Partial<Record<keyof LabelStyle, unknown>>> = labelLook(style.look ?? "default")?.style ?? {};
-    // The gradient's shape and colors show once a gradient is on: an unset gradient draws none.
-    const gradientOn = (style.gradient ?? underneath("gradient", look, beneath)) === true;
+    const on = (key: "gradient" | "panelShadow"): boolean => (style[key] ?? underneath(key, look, beneath)) === true;
     const hidden = (field: Field): boolean =>
-        !gradientOn &&
-        (field.key === "gradientType" || field.key === "gradientDirection" || field.key === "gradientColors");
+        (GRADIENT_FIELDS.has(field.key) && !on("gradient")) ||
+        (PANEL_SHADOW_FIELDS.has(field.key) && !on("panelShadow")) ||
+        (NODE_ONLY_FIELDS.has(field.key) && target === "edge");
     const draw = (field: Field): React.ReactNode => {
         const varied = vary?.(field.key);
         if (varied?.field !== undefined) {
@@ -248,7 +275,21 @@ function FieldControl({
         case "color":
             return <ColorFieldControl word={field.word} value={value} fallback={fallback} onChange={onChange} />;
         case "number":
-            return (
+            // A fraction is shown and typed as a percent, and written back as the fraction.
+            return field.percent === true ? (
+                <NumberFieldControl
+                    word={field.word}
+                    step={1}
+                    min={0}
+                    max={100}
+                    value={asPercent(value)}
+                    fallback={asPercent(fallback)}
+                    suffix=" %"
+                    onChange={(next) => {
+                        onChange(typeof next === "number" ? next / 100 : next);
+                    }}
+                />
+            ) : (
                 <NumberFieldControl
                     word={field.word}
                     step={field.step}
@@ -346,6 +387,7 @@ function ColorFieldControl({
  * @param props.word - the field's name
  * @param props.step - the field's step
  * @param props.min - the smallest number it takes, if it has one
+ * @param props.max - the largest number it takes, if it has one
  * @param props.value - what the layer writes, if anything
  * @param props.fallback - what lies beneath, if anything draws it
  * @param props.suffix - its unit, written after it
@@ -356,12 +398,13 @@ function NumberFieldControl({
     word,
     step,
     min,
+    max,
     value,
     fallback,
     suffix,
     onChange,
 }: Readonly<
-    FieldControlProps & { word: string; step: number | undefined; min: number | undefined }
+    FieldControlProps & { word: string; step: number | undefined; min: number | undefined; max?: number }
 >): React.JSX.Element {
     const numberBeneath = typeof fallback === "number" ? fallback : null;
     const written = typeof value === "number";
@@ -393,6 +436,7 @@ function NumberFieldControl({
                 unit={suffix?.trim()}
                 step={step}
                 min={min}
+                max={max}
                 onChange={(next) => {
                     onChange(Number(next));
                 }}

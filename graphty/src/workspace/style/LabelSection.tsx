@@ -114,7 +114,14 @@ async function removeEntry(
  * @returns the channels.
  */
 function channelsOf(kind: TextKindSpec): Channel[] {
-    return [kind.words, kind.style, kind.size, kind.color, kind.background];
+    return [
+        kind.words,
+        kind.style,
+        kind.size,
+        kind.color,
+        kind.background,
+        ...(kind.table === undefined ? [] : [kind.table]),
+    ];
 }
 
 /**
@@ -568,7 +575,7 @@ function sourceWordsOf(ctx: RowContext, kind: TextKindSpec, words: ReturnType<ty
 }
 
 /**
- * A text entry's own "+" ("Add to node label"): its look, size and position while it sets none.
+ * A text entry's own "+" ("Add to node label"): its look, size, position and table while it sets none.
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.kind - the kind of text
@@ -599,13 +606,13 @@ interface TextEntryProps {
     kind: TextKindSpec;
     /** Writes the words: typed, or read from a value. */
     onWords: (kind: TextKindSpec, write: { value: string } | { choice: DataChoice }) => void;
-    /** Adds the entry's look, size or position, by `<kind>:<part>`. */
+    /** Adds the entry's look, size, position or table, by `<kind>:<part>`. */
     onPart: (key: string) => void;
     onFail: (error: unknown) => void;
 }
 
 /**
- * What a text entry's own "+" can still add: its look, size and position while it sets none.
+ * What a text entry's own "+" can still add: its look, size, position and table while it sets none.
  * @param ctx - the row.
  * @param kind - the kind of text.
  * @returns the menu items, keyed `<kind>:<part>`.
@@ -619,8 +626,17 @@ function partsOf(ctx: RowContext, kind: TextKindSpec): AddOption[] {
     if (lineIn(ctx, kind.size) === undefined && descriptorOf(ctx.session, ctx.side, kind.size) !== undefined) {
         parts.push({ key: `${kind.id}:size`, label: "Size" });
     }
-    if (style.location === undefined) {
+    const location = fieldChannelOf(ctx.side, kind.words, "location");
+    if (style.location === undefined && (location === undefined || lineIn(ctx, location) === undefined)) {
         parts.push({ key: `${kind.id}:position`, label: "Position" });
+    }
+    // A table is drawn in place of the label's words; it is typed as the element's table JSON.
+    if (
+        kind.table !== undefined &&
+        lineIn(ctx, kind.table) === undefined &&
+        descriptorOf(ctx.session, ctx.side, kind.table) !== undefined
+    ) {
+        parts.push({ key: `${kind.id}:table`, label: "Table" });
     }
     return parts;
 }
@@ -643,6 +659,8 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [sourceOpen, setSourceOpen] = useState(false);
     const [typing, setTyping] = useState(false);
+    // The table "+" added, waiting for its words: nothing is written until they are typed.
+    const [tableWaiting, setTableWaiting] = useState(false);
     const { session, side: target, layers } = ctx;
     const noun = kind.name.toLowerCase();
     const kindWord = target === "node" ? "Node" : "Edge";
@@ -678,6 +696,17 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
         label: look.id === lookId && edited ? `${look.plainName}, edited` : look.plainName,
     }));
     const sizeDescriptor = descriptorOf(kind.size);
+    const tableDescriptor = kind.table === undefined ? undefined : descriptorOf(kind.table);
+    // The position varies by a value from its own line, as a setting varies from Label settings.
+    const locationVary = vary("location");
+    const addPart = (key: string): void => {
+        if (key === `${kind.id}:table` && kind.table !== undefined) {
+            focusLineNext(session, kind.table);
+            setTableWaiting(true);
+            return;
+        }
+        onPart(key);
+    };
     const where = `${kindWord} ${noun}`;
     const sourcePicker = (trigger: React.ReactElement): React.JSX.Element => (
         <SourcePicker
@@ -740,7 +769,7 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                     <span className="ws-field-name" title={kind.name}>
                         {KIND_WORDS[kind.id] ?? kind.name}
                     </span>
-                    <EntryAdd ctx={ctx} kind={kind} locked={locked} onPart={onPart} />
+                    <EntryAdd ctx={ctx} kind={kind} locked={locked} onPart={addPart} />
                 </span>
                 {sourceControl}
                 <SettingsPopout
@@ -767,7 +796,7 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                             }}
                         />
                     ) : null}
-                    <LabelSettings style={style} onChange={writeStyle} vary={vary} />
+                    <LabelSettings style={style} onChange={writeStyle} vary={vary} target={target} />
                 </SettingsPopout>
                 {locked ? (
                     <span className="ws-slot" />
@@ -834,25 +863,39 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                 />
             </StyleLine>
             {sizeDescriptor === undefined ? null : <Field ctx={ctx} descriptor={sizeDescriptor} word="Size" />}
-            <StyleLine
-                word="Position"
-                name={`${where} position`}
-                set={style.location !== undefined}
-                onRemove={() => {
-                    writeStyle({ location: undefined });
-                }}
-            >
-                <PanelField
-                    label={`${where} position`}
-                    kind="select"
-                    width="fill"
-                    data={LOCATIONS.map((location) => ({ value: location, label: positionWord(location) }))}
-                    value={style.location ?? null}
-                    onChange={(location) => {
-                        writeStyle({ location: String(location) as LabelStyle["location"] });
+            {tableDescriptor === undefined ? null : (
+                <Field
+                    ctx={ctx}
+                    descriptor={tableDescriptor}
+                    word="Table"
+                    pending={tableWaiting && kind.table !== undefined && lineIn(ctx, kind.table) === undefined}
+                    onCancel={() => {
+                        setTableWaiting(false);
                     }}
                 />
-            </StyleLine>
+            )}
+            {locationVary?.field ?? (
+                <StyleLine
+                    word="Position"
+                    name={`${where} position`}
+                    set={style.location !== undefined}
+                    vary={locationVary?.slot}
+                    onRemove={() => {
+                        writeStyle({ location: undefined });
+                    }}
+                >
+                    <PanelField
+                        label={`${where} position`}
+                        kind="select"
+                        width="fill"
+                        data={LOCATIONS.map((location) => ({ value: location, label: positionWord(location) }))}
+                        value={style.location ?? null}
+                        onChange={(location) => {
+                            writeStyle({ location: String(location) as LabelStyle["location"] });
+                        }}
+                    />
+                </StyleLine>
+            )}
         </Stack>
     );
 }
@@ -892,11 +935,12 @@ function UndrawnNote({
 
 /**
  * One line of a text entry on the panel's field column, drawn only while the layer sets it: its
- * word in the label column, the control, an empty vary column, and a minus that removes it.
+ * word in the label column, the control, its vary glyph (else an empty column), and a minus that removes it.
  * @param props - Component props
  * @param props.word - the word in the label column
  * @param props.name - the field's accessible name, with its kind ("Node label look")
  * @param props.set - whether the layer sets it
+ * @param props.vary - the glyph that varies it by a value, if it varies
  * @param props.onRemove - removes it, so the layers beneath show through
  * @param props.children - the control
  * @returns The line, or nothing while the layer does not set it
@@ -905,12 +949,14 @@ function StyleLine({
     word,
     name,
     set,
+    vary,
     onRemove,
     children,
 }: Readonly<{
     word: string;
     name: string;
     set: boolean;
+    vary?: React.ReactNode;
     onRemove: () => void;
     children: React.ReactNode;
 }>): React.JSX.Element | null {
@@ -925,7 +971,7 @@ function StyleLine({
                 </span>
             </span>
             <div className="ws-field-control">{children}</div>
-            <span className="ws-slot ws-vary" />
+            {vary ?? <span className="ws-slot ws-vary" />}
             <span className="ws-slot">
                 <Tooltip label={`Remove ${name.toLowerCase()}`}>
                     <ActionIcon

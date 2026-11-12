@@ -9,7 +9,14 @@ import type { LabelStyle } from "@graphty/graphty-element/schema";
 /** A field of the label style as the popover draws it. */
 export type Field =
     | { readonly key: keyof LabelStyle; readonly word: string; readonly kind: "color" }
-    | { readonly key: keyof LabelStyle; readonly word: string; readonly kind: "number"; readonly step?: number }
+    | {
+          readonly key: keyof LabelStyle;
+          readonly word: string;
+          readonly kind: "number";
+          readonly step?: number;
+          /** A fraction from 0 to 1, shown and typed as a percent. */
+          readonly percent?: boolean;
+      }
     | {
           readonly key: keyof LabelStyle;
           readonly word: string;
@@ -31,6 +38,7 @@ interface FieldGroup {
 
 const color = (key: keyof LabelStyle, word: string): Field => ({ key, word, kind: "color" });
 const number = (key: keyof LabelStyle, word: string, step?: number): Field => ({ key, word, kind: "number", step });
+const percent = (key: keyof LabelStyle, word: string): Field => ({ key, word, kind: "number", percent: true });
 const choice = (key: keyof LabelStyle, word: string, options: readonly (readonly [string, string])[]): Field => ({
     key,
     word,
@@ -74,6 +82,25 @@ function valuesOf(key: keyof LabelStyle, wordsOf: Readonly<Record<string, string
     return values.map((value) => [value, wordsOf[value] ?? value]);
 }
 
+/** What a label's shift or gap is measured by: its whole box, or its words alone. */
+const BOX_OR_WORDS = [
+    ["box", "Box"],
+    ["words", "Words"],
+] as const;
+
+/** What a label's box is sized to. */
+const BOX_SIZES = [
+    ["words", "Words"],
+    ["words-at-side", "Words at side"],
+    ["target-width", "Target width"],
+] as const;
+
+/** Which overlapping node label is kept first. */
+const OVERLAP_ORDERS = [
+    ["degree", "Most edges"],
+    ["size", "Largest"],
+] as const;
+
 const BADGES = [
     ["notification", "Notification"],
     ["label", "Label"],
@@ -88,11 +115,16 @@ const BADGES = [
 
 /**
  * Every field the popover shows, in its groups (design 2.3): text color and background first,
- * then Type (with the text's size beside the unit it is in), Wrap, Box, Letters, Placement, Motion
- * and distance, Badge. The position is on the entry itself.
+ * each with its opacity, then Type (with the text's size beside the unit it is in), Wrap, Box,
+ * Letters, Placement, Visibility, Motion and distance, Badge. The position is on the entry itself.
  */
 export const LABEL_SETTINGS: readonly FieldGroup[] = [
-    { fields: [color("color", "Text color"), color("background", "Background")] },
+    {
+        fields: [
+            [color("color", "Text color"), percent("opacity", "Text opacity")],
+            [color("background", "Background"), percent("backgroundOpacity", "Background opacity")],
+        ],
+    },
     {
         caption: "Type",
         fields: [
@@ -137,8 +169,12 @@ export const LABEL_SETTINGS: readonly FieldGroup[] = [
         caption: "Box",
         fields: [
             [number("padding", "Padding"), number("cornerRadius", "Corners")],
+            [number("boxPadding", "Box padding"), choice("box", "Box size", BOX_SIZES)],
             [number("borderWidth", "Border width"), color("borderColor", "Border color")],
+            percent("borderOpacity", "Border opacity"),
             [toggle("panelShadow", "Panel shadow"), toggle("closeButton", "Close button")],
+            [color("panelShadowColor", "Panel shadow color"), number("panelShadowBlur", "Panel shadow blur")],
+            [number("panelShadowOffsetX", "Panel shadow right"), number("panelShadowOffsetY", "Panel shadow down")],
             [number("marginTop", "Margin above"), number("marginBottom", "Margin below")],
             [number("marginLeft", "Margin left"), number("marginRight", "Margin right")],
             toggle("gradient", "Gradient"),
@@ -160,6 +196,7 @@ export const LABEL_SETTINGS: readonly FieldGroup[] = [
         caption: "Letters",
         fields: [
             [color("outline", "Outline"), number("outlineWidth", "Outline width")],
+            percent("outlineOpacity", "Outline opacity"),
             [toggle("shadow", "Shadow"), color("shadowColor", "Shadow color")],
             number("shadowBlur", "Shadow blur"),
             [number("shadowOffsetX", "Shadow right"), number("shadowOffsetY", "Shadow down")],
@@ -169,12 +206,24 @@ export const LABEL_SETTINGS: readonly FieldGroup[] = [
         caption: "Placement",
         fields: [
             number("attachOffset", "Offset", 0.1),
+            [number("offsetX", "Right"), number("offsetY", "Down")],
+            [number("shiftX", "Shift right", 0.1), number("shiftY", "Shift down", 0.1)],
+            [choice("shiftOf", "Shift of", BOX_OR_WORDS), choice("gapOf", "Gap of", BOX_OR_WORDS)],
             [toggle("pointer", "Pointer"), choice("pointerDirection", "Pointer side", SIDES)],
             [number("pointerWidth", "Pointer width"), number("pointerHeight", "Pointer length")],
             [number("pointerOffset", "Pointer offset"), toggle("pointerCurve", "Curved pointer")],
             toggle("onTop", "Draw over the graph"),
             toggle("keepInView", "Keep in view"),
             toggle("pickable", "Clicking picks the node"),
+        ],
+    },
+    {
+        caption: "Visibility",
+        fields: [
+            number("minScreenSize", "Smallest size on screen"),
+            // Node labels only: graphty-element hides no edge label by these.
+            choice("declutter", "Overlap order", OVERLAP_ORDERS),
+            number("minNodeScreenSize", "Hide on nodes smaller than"),
         ],
     },
     {

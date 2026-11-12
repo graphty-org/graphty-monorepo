@@ -88,17 +88,20 @@ export interface TextKindSpec {
     readonly size: Channel;
     readonly color: Channel;
     readonly background: Channel;
+    /** The table drawn in place of its words (`<base>Table`), on a kind that has one. */
+    readonly table?: Channel;
 }
 
 /**
  * A text kind on its channels, named the element's way: `<base>`, `<base>Style`, `<base>Size`,
- * `<base>Color`, `<base>Background`.
+ * `<base>Color`, `<base>Background`, and `<base>Table` where it has a table.
  * @param id - stable id.
  * @param name - its name.
  * @param base - its words channel.
+ * @param table - whether it can be drawn as a table.
  * @returns the kind.
  */
-function textKind(id: string, name: string, base: Channel): TextKindSpec {
+function textKind(id: string, name: string, base: Channel, table = false): TextKindSpec {
     const at = (suffix: string): Channel => `${base}${suffix}` as Channel;
     return {
         id,
@@ -108,14 +111,15 @@ function textKind(id: string, name: string, base: Channel): TextKindSpec {
         size: at("Size"),
         color: at("Color"),
         background: at("Background"),
+        ...(table ? { table: at("Table") } : {}),
     };
 }
 
 /** The kinds of text each group's Text list adds, in its "+" menu's order. */
 export const TEXT_KINDS: Readonly<Record<Kind, readonly TextKindSpec[]>> = {
-    node: [textKind("label", "Label", "node.label"), textKind("tooltip", "Tooltip", "node.tooltip")],
+    node: [textKind("label", "Label", "node.label", true), textKind("tooltip", "Tooltip", "node.tooltip")],
     edge: [
-        textKind("label", "Label", "edge.label"),
+        textKind("label", "Label", "edge.label", true),
         textKind("head", "Label at target end", "edge.arrowHeadText"),
         textKind("tail", "Label at source end", "edge.arrowTailText"),
     ],
@@ -127,7 +131,14 @@ export const TEXT_KINDS: Readonly<Record<Kind, readonly TextKindSpec[]>> = {
  * @returns the channels.
  */
 function textChannels(kind: Kind): Channel[] {
-    return TEXT_KINDS[kind].flatMap((t) => [t.words, t.style, t.size, t.color, t.background]);
+    return TEXT_KINDS[kind].flatMap((t) => [
+        t.words,
+        t.style,
+        t.size,
+        t.color,
+        t.background,
+        ...(t.table === undefined ? [] : [t.table]),
+    ]);
 }
 
 /**
@@ -860,23 +871,23 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelOutlineWidth": "Label outline width",
     "node.labelBorder": "Label border",
     "node.labelBorderWidth": "Label border width",
-    "node.labelOpacity": "Label opacity",
+    "node.labelOpacity": "Label text opacity",
     "node.labelBackgroundOpacity": "Label background opacity",
     "node.labelOutlineOpacity": "Label outline opacity",
     "node.labelBorderOpacity": "Label border opacity",
-    "node.labelPadding": "Label padding",
+    "node.labelPadding": "Label box padding",
     "node.labelCornerRadius": "Label corner radius",
     "node.labelLineHeight": "Label line height",
-    "node.labelOffsetX": "Label offset x",
-    "node.labelOffsetY": "Label offset y",
-    "node.labelShiftX": "Label shift x",
-    "node.labelShiftY": "Label shift y",
+    "node.labelOffsetX": "Label right",
+    "node.labelOffsetY": "Label down",
+    "node.labelShiftX": "Label shift right",
+    "node.labelShiftY": "Label shift down",
     "node.labelShiftOf": "Label shift of",
     "node.labelGapOf": "Label gap of",
-    "node.labelBox": "Label box",
-    "node.labelMinNodeScreenSize": "Label min node screen size",
+    "node.labelBox": "Label box size",
+    "node.labelMinNodeScreenSize": "Label hidden on nodes smaller than",
     "node.labelTextAlign": "Label text align",
-    "node.labelLocation": "Label location",
+    "node.labelLocation": "Label position",
     "node.xlabel": "Outside label",
     "node.xlabelStyle": "Outside label style",
     "node.xlabelLocation": "Outside label location",
@@ -1016,11 +1027,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowHeadTextLetterSize": "Label at target end letter size",
     "edge.arrowHeadTextFont": "Label at target end font",
     "edge.arrowHeadTextWeight": "Label at target end weight",
-    "edge.arrowHeadTextOpacity": "Label at target end opacity",
+    "edge.arrowHeadTextOpacity": "Label at target end text opacity",
     "edge.arrowHeadTextDistance": "Target end label distance",
     "edge.arrowHeadTextRotation": "Label at target end rotation",
-    "edge.arrowHeadTextOffsetX": "Label at target end offset x",
-    "edge.arrowHeadTextOffsetY": "Label at target end offset y",
+    "edge.arrowHeadTextOffsetX": "Label at target end right",
+    "edge.arrowHeadTextOffsetY": "Label at target end down",
     "edge.arrowTailSide": "Source end side",
     "edge.arrowTailOutlineWidth": "Source end outline width",
     "edge.arrowTailGap": "Source end gap",
@@ -1029,11 +1040,11 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowTailTextLetterSize": "Label at source end letter size",
     "edge.arrowTailTextFont": "Label at source end font",
     "edge.arrowTailTextWeight": "Label at source end weight",
-    "edge.arrowTailTextOpacity": "Label at source end opacity",
+    "edge.arrowTailTextOpacity": "Label at source end text opacity",
     "edge.arrowTailTextDistance": "Source end label distance",
     "edge.arrowTailTextRotation": "Label at source end rotation",
-    "edge.arrowTailTextOffsetX": "Label at source end offset x",
-    "edge.arrowTailTextOffsetY": "Label at source end offset y",
+    "edge.arrowTailTextOffsetX": "Label at source end right",
+    "edge.arrowTailTextOffsetY": "Label at source end down",
     "edge.arrowMiddleHead": "Middle to target",
     "edge.arrowMiddleHeadSize": "Middle to target size",
     "edge.arrowMiddleHeadWidth": "Middle to target width",
@@ -1053,7 +1064,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowMiddleTailOpacity": "Middle to source opacity",
     "edge.arrowMiddleTailImage": "Middle to source image",
     "edge.labelTextAlign": "Label text align",
-    "edge.labelLocation": "Label location",
+    "edge.labelLocation": "Label position",
     "edge.labelWrapEllipsis": "Label wrap ellipsis",
     "edge.labelWrapAnywhere": "Label wrap anywhere",
     "edge.labelWrapSpaceCount": "Label wrap space count",
@@ -1062,21 +1073,21 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelOutlineWidth": "Label outline width",
     "edge.labelBorder": "Label border",
     "edge.labelBorderWidth": "Label border width",
-    "edge.labelOpacity": "Label opacity",
+    "edge.labelOpacity": "Label text opacity",
     "edge.labelBackgroundOpacity": "Label background opacity",
     "edge.labelOutlineOpacity": "Label outline opacity",
     "edge.labelBorderOpacity": "Label border opacity",
-    "edge.labelPadding": "Label padding",
+    "edge.labelPadding": "Label box padding",
     "edge.labelTable": "Label table",
     "edge.labelCornerRadius": "Label corner radius",
     "edge.labelLineHeight": "Label line height",
-    "edge.labelOffsetX": "Label offset x",
-    "edge.labelOffsetY": "Label offset y",
-    "edge.labelShiftX": "Label shift x",
-    "edge.labelShiftY": "Label shift y",
+    "edge.labelOffsetX": "Label right",
+    "edge.labelOffsetY": "Label down",
+    "edge.labelShiftX": "Label shift right",
+    "edge.labelShiftY": "Label shift down",
     "edge.labelShiftOf": "Label shift of",
     "edge.labelGapOf": "Label gap of",
-    "edge.labelBox": "Label box",
+    "edge.labelBox": "Label box size",
     "node.groupPadding": "Group padding",
     "node.groupPaddingRatio": "Group padding ratio",
     "node.groupPaddingOf": "Group padding ratio of",

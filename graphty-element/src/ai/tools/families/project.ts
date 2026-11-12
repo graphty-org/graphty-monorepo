@@ -22,7 +22,7 @@ export const SETTING_GROUPS = Object.freeze({
     selectionStyle: "How selected nodes and edges are drawn.",
     layoutBehavior: "Whether the layout restarts on edits and how it settles.",
     runAlgorithmsOnLoad: "Whether the configured algorithms run when data loads.",
-    data: "How records are read: the id, label, endpoint and weight columns, direction.",
+    data: "How records are read: the id, label, endpoint and weight columns, and whether edges are directed or undirected.",
     author: "The project's author.",
     name: "The project's name.",
     framing: "How the camera frames the graph.",

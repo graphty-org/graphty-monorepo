@@ -171,7 +171,7 @@ describe("a layer naming a set repaints only what moved", () => {
 
         // Removing a renumbers every row after it.
         h.store.builder.removeNode("a");
-        h.store.touch();
+        h.store.account();
         h.session.data.snapshot();
         assert.strictEqual(setsNotifierOfSession(h.session).pending, 1, "queued for a frame, not resolved");
 
@@ -208,7 +208,7 @@ describe("a layer naming a set repaints only what moved", () => {
 
         // Removing a leaves b with one edge: b leaves the set, and every row after a renumbers.
         h.store.builder.removeNode("a");
-        h.store.touch();
+        h.store.account();
         h.session.data.snapshot();
         await paintAll(h);
 
@@ -241,7 +241,7 @@ describe("a layer naming a set repaints only what moved", () => {
 
         await paintAll(h);
         h.store.builder.removeNode("a");
-        h.store.touch();
+        h.store.account();
         h.session.data.snapshot();
         // The element repaints the whole graph after a removal, as it renumbers every later row.
         await paintAll(h);

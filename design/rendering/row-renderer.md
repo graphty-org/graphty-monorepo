@@ -1257,6 +1257,15 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   `GraphOps.addEdge` self 0.98 s, the first frame's `readPixels` 0.41 s, `StylePainter.queue` 0.23 s,
   `unbuiltRowOf` 0.21 s, `endBehindEdges` 0.19 s (a node row read per end), garbage collection 0.23 s: what is left
   is one random read or write per edge into a map or array the size of the graph.
+- **Every feeder through the column door (cosmos-gap.md G8), fourth pull request: measured, not built.** Line-level
+  profiling of an unminified build (100k + 1M columns, master `b0e47122f5`) puts 0.81 s of `GraphOps.addEdge`'s 0.99 s
+  self time on one statement, `slice.edges.set(edgeIdOf(counter), record)`. That cost is not the string key or the
+  hash map: a `Map` subclass keeping records in an array indexed by edge counter (no string, no hash, written in order)
+  moved the same 0.83 s into its own `set` and left the first frame where it was (interleaved, same session: master
+  5.42 s at load average 2.7 and 5.35 s at 1.5; the table 5.36 s at 1.6 and 5.49 s at 1.1), so it was reverted. What
+  costs is keeping a million live record objects reachable from one growing store while the garbage collector marks
+  them, whatever holds them. It goes only when a load stops making a record per edge, which is stage 29's records on
+  demand, not a change to the slice's map. G8's typed 5 s target is still not met (5.35-5.42 s).
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.

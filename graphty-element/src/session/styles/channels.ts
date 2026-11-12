@@ -2500,6 +2500,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Halo",
         shortName: "Halo",
         group: "effects",
+        // Unset, and with no halo color, scale or opacity, a node draws no halo.
+        default: false,
         accepts: "boolean",
         stylePath: "effect.halo.enabled",
         renderable: true,

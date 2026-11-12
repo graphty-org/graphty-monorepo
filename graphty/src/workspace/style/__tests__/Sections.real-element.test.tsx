@@ -159,14 +159,15 @@ function drawn(session: GraphSession): string[] {
 }
 
 /**
- * Whether a node section is drawn with the file-styles experiment off, as here: Borders holds only
- * experiment channels, so it is not drawn (its rows are NodeBorders.real-element.test.tsx's).
+ * Whether a node section is drawn with the file-styles experiment off, as here: Borders and Charts
+ * hold only experiment channels, so they are not drawn (their rows are NodeBorders' and NodeCharts'
+ * real-element tests').
  * @param spec - the section.
  * @param spec.id - its id.
  * @returns true when it is drawn.
  */
 function drawnHere(spec: { readonly id: string }): boolean {
-    return spec.id !== "border";
+    return spec.id !== "border" && spec.id !== "charts";
 }
 
 describe("the Style tab's sections", () => {
@@ -410,7 +411,7 @@ describe("the Style tab's sections", () => {
         await userEvent.click(await within(shape()).findByRole("button", { name: "Add to node halo" }));
         assert.deepEqual(
             (await screen.findAllByRole("menuitem")).map((item) => item.textContent),
-            ["Size", "Opacity"],
+            ["Size", "Opacity", "Shown"],
         );
         await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
         await waitFor(() => {

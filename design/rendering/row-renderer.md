@@ -1271,6 +1271,19 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   Interleaved, same session: 100k + 1M first frame master 5.35 s and 5.15 s, branch 4.975 s and 5.003 s (load average
   3.6-3.9 in the first round, 1.8-2.0 in the second), so the typed 5 s target is met by one run and missed by 3 ms in the
   other; 100k + 1k is unchanged at about 0.90 s against its 0.8 s target.
+- **Every feeder through the column door (cosmos-gap.md G8), fifth pull request: a batched load's node paint.** A
+  frame's node batch is sized by the last batch's speed (`UpdateManager.nodeBatchSize`), and the speed counted only the
+  rows that came back with a `Node`. On `"batched"` a row the batches draw has none, so the speed was 0 and every batch
+  was the floor, a 32nd of the graph: a 100,000-node load painted over 32 frames, about 60% of them idle. Under
+  `"batched"` the speed now counts every row taken (`takeNodeBatch` returns `{ painted, taken }`); and while the draw
+  is held there (`DataManager.drawHeld`), no frame shows the paint, so a repaint gets 48 ms a frame rather than 16
+  (`styleBudgetFor(frameMs, heldBatched)`; on its own this did not move the measurement). The objects path counts and
+  budgets as before. Proof: `test/browser/held-load-paint-batches.test.ts` (the second batch of a 4,096-node batched
+  load is larger than the floor; it was the floor before). Interleaved, same session, against the fourth pull
+  request's build (same element source as master): 100k + 1k first frame master 1.03, 0.98, 1.26 and 1.06 s, branch
+  0.63, 0.68, 0.87 and 0.80 s (load average 20-22 in the first two rounds, 13-16 in the last two), so the 0.8 s target
+  is met in three runs of four; 100k + 1M typed master 5.93 and 6.07 s, branch 5.83 and 6.77 s (load average 7.6-13.8),
+  unchanged: its first frame waits on edge work, the duplicate-edge checks (stage 117) and `publishPositions`.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.

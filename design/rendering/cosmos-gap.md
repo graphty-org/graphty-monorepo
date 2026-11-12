@@ -289,7 +289,7 @@ build on one are follow-on pull requests after its last pull request merges, nev
 
 - Depends on: stage 28, G4, G7.
 - Proving test: Digest, counts and graph-level values of `importColumns` equal the record doors' on every dataset in the repository (the 17 small ones; the six hosted ones hold no data here), every generator and every graph-io corpus format, both render paths (built). The counted halves (an ineligible load takes the records path whole, counted; records built during an eligible file import counted at 0) and import-report equality move to stage 29's row (row-renderer.md), since they need a column path that skips the record.
-- Measured target: 100k + 1M typed: first frame at most 5 s; records at most 6.5 s; 100k + 1k typed at most 0.8 s (raised from 1.9 s, which the 1.30 s of 2026-11-11 met; 0.89-0.94 s at G8's first pull request, not yet met).
+- Measured target: 100k + 1M typed: first frame at most 5 s; records at most 6.5 s; 100k + 1k typed at most 0.8 s (raised from 1.9 s, which the 1.30 s of 2026-11-11 met; 0.89-0.94 s at G8's first pull request, not yet met). At G8's second pull request: 100k + 1M typed 5.5-5.7 s, records 5.6 s (met), 100k + 1k 0.90 s.
 
 **G9. The million-row run.** Harness matrix at 1M + 10k and 1M + 1M, typed and records, 3 rounds, GPU timer probe; committed to `benchmarks/results/cosmos-gap/`.
 

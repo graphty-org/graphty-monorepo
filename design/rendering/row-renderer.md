@@ -1233,6 +1233,18 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   report to compare until then. Building it found one defect, fixed
   on both paths: with no `weights` column `importColumns` named `weight` as the weight key, so a `value` attribute,
   which `addEdges` reads as the weight, was not one; now the edges are read as `addEdges` reads them.
+- **Every feeder through the column door (cosmos-gap.md G8), second pull request: the per-edge bookkeeping.** An edge
+  stored with no `Edge` holds the frame for its paint by its edge counter in a byte array (`DataManager.storedUnpainted`),
+  not by an `e:<id>` string in the `unpainted` key set, and a painted range key clears its counters with no string per
+  edge; `StylePainter.edgePaint` reuses the last edge's paint when the next edge resolves to the same style by
+  reference, building no identity string; `GraphOps.addEdge` allocates no filter closure and no empty field set per
+  edge. Outputs are unchanged on both paths; the byte array is reached only by edges stored with no `Edge`, which only
+  `"batched"` stores. Measured on this branch against the first pull request's build (same element source as master),
+  interleaved, same session, load average 0.9-2.3: 100k + 1M first frame 11.30 and 11.28 s by columns before, 5.73
+  and 5.53 s after; 10.99 s by records before, 5.60 s after (records target 6.5 s met; typed target 5 s not yet met);
+  100k + 1k 0.91 s before, 0.90 s after (target 0.8 s not met: its time is node work, not edges). Profiled after
+  (100k + 1M columns): `GraphOps.addEdge` self 0.87 s (2.73 s before), `builtUnpainted` and `edgePaint` out of the top
+  twenty (2.15 s and 1.13 s before), the first frame's `readPixels` 0.50 s, garbage collection 0.20 s (0.46 s before).
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.

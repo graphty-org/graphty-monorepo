@@ -654,7 +654,6 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelTable",
         "edge.labelTable",
         "node.shapeLineWidth",
-        "node.shapeLineHaloColor",
         "node.shapeLineHaloWidth",
         "node.gradientColors",
         "node.gradientStops",

@@ -511,7 +511,8 @@ export function shapeLinePieces(
     scale = 1,
 ): ColorPiece[] {
     const strokes = [
-        { color: paint(shape?.lineHaloColor), line: (shape?.lineHaloWidth ?? 0) * scale },
+        // Black unset, as the channel's default says; drawn only with a width.
+        { color: paint(shape?.lineHaloColor ?? "#000000"), line: (shape?.lineHaloWidth ?? 0) * scale },
         { color: paint(border?.color, border?.opacity), line: (shape?.lineWidth ?? border?.width ?? 0) * scale },
     ].filter((s) => s.color !== null && isPositive(s.line));
     return pointLists(shape?.lines).flatMap((list) => {

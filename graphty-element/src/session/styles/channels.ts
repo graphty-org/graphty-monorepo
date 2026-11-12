@@ -3889,12 +3889,14 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Shape Line Halo Color",
         shortName: "Line halo color",
         group: "shape",
+        default: "#000000",
         accepts: "color",
         stylePath: "shape.lineHaloColor",
         renderable: true,
         caveat:
             "The color of a wider line drawn under each of `node.shapeLines`, down the same path, " +
-            "`node.shapeLineHaloWidth` wide: a line of 1 over a lighter one of 2 is a yFiles bevel's line.",
+            "`node.shapeLineHaloWidth` wide: a line of 1 over a lighter one of 2 is a yFiles bevel's line. " +
+            "Unset, black; drawn only with a `node.shapeLineHaloWidth` above 0.",
     },
     "node.shapeLineHaloWidth": {
         channel: "node.shapeLineHaloWidth",

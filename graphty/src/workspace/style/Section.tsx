@@ -269,10 +269,12 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
         const options = unset.flatMap((d) =>
             parentOf(d) === style.channel ? [{ key: d.channel, label: settingWord(style.channel, d.channel) }] : [],
         );
+        const word = channelWord(style.channel);
         return options.length === 0 ? undefined : (
             <AddButton
                 kind={ctx.side}
-                title={channelWord(style.channel)}
+                // A row named as its section (Shape in Shape) says "settings", so the two "+" differ.
+                title={word === spec.title ? `${word} settings` : word}
                 options={options}
                 inRow
                 onAdd={(key) => {
@@ -314,7 +316,7 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
             >
                 {lines.map((d) =>
                     d.channel === "node.wireframe" ? (
-                        <WireframeRow key={d.channel} ctx={ctx} />
+                        <WireframeRow key={d.channel} ctx={ctx} settings={settingsAdd(d)} />
                     ) : (
                         <Field
                             key={d.channel}
@@ -347,9 +349,10 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
  * undo step (decisions-v2, section 7).
  * @param props - Component props
  * @param props.ctx - the row
+ * @param props.settings - its own "+", adding Mesh detail under it
  * @returns The row
  */
-function WireframeRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
+function WireframeRow({ ctx, settings }: Readonly<{ ctx: RowContext; settings: React.ReactNode }>): React.JSX.Element {
     const { store } = useWorkspace();
     const value = lineIn(ctx, "node.wireframe")?.value;
     const label = channelWord("node.wireframe");
@@ -364,6 +367,7 @@ function WireframeRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element
                     <span className="ws-field-name" title={label} aria-hidden>
                         {label}
                     </span>
+                    {settings}
                 </span>
                 <div className="ws-field-control">
                     <PanelField

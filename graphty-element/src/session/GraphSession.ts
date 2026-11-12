@@ -2851,6 +2851,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
             timeline: () => timelineOn(),
             fileStyles: () => fileStylesOn(),
+            batched: () => internals.batched?.() === true,
             visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
         },
     );

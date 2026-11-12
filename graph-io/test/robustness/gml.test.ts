@@ -249,6 +249,29 @@ describe("GML robustness: values", () => {
         expect(Array.from(snapshot.edgeList().weights ?? [])).toEqual([Infinity, -Infinity]);
     });
 
+    it("keeps a NAN or INF graphics coordinate out of the position and in the graphics record, with a warning", async () => {
+        const { snapshot, report } = await gml(
+            "graph [ node [ id 1 graphics [ x NAN y 1 ] ] node [ id 2 graphics [ x 1 y 2 z -INF ] ] node [ id 3 graphics [ x 3 y 4 ] ] ]",
+        );
+        expect(codes(report)).toEqual(["W_GML_GRAPHICS"]);
+        const position = snapshot.nodes.byRole("position");
+        expect([0, 1, 2].map((row) => position?.isSet(row))).toEqual([false, false, true]);
+        expect(column(snapshot, "nodes", "graphics").slice(0, 2)).toEqual([
+            { x: Number.NaN, y: 1 },
+            { x: 1, y: 2, z: -Infinity },
+        ]);
+    });
+
+    it("keeps an INF OGDF cluster box out of the position and in the graphics record, with a warning", async () => {
+        const { snapshot, report } = await gml(
+            'graph [ node [ id 1 graphics [ x 0 y 0 w 10 h 10 ] ] ] rootcluster [ cluster [ id 1 vertex "1" graphics [ x INF y 0 width 10 height 10 ] ] ]',
+        );
+        expect(codes(report)).toContain("W_GML_GRAPHICS");
+        const row = snapshot.ids.indexOf("cluster1");
+        expect(snapshot.nodes.byRole("position")?.isSet(row) ?? false).toBe(false);
+        expect(column(snapshot, "nodes", "graphics")[row]).toMatchObject({ x: Infinity, y: 0, width: 10, height: 10 });
+    });
+
     it("warns that a key mixing numbers and strings became a string column with the numbers as written", async () => {
         const { snapshot, report } = await gml('graph [ node [ id 1 w 1 ] node [ id 2 w "x" ] node [ id 3 w 1.50 ] ]');
         expect(codes(report)).toEqual(["W_WIDENED"]);

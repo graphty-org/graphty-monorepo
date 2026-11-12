@@ -473,7 +473,7 @@ async function brief(dir, task, persona) {
 // folder and a study participant) and lists each one that opened a facilitator file, a persona
 // file, anything else under the studio's files, or a path up out of its folder. Any one voids it.
 const FACILITATOR_FILE =
-    /(?:^|[\s/"'`=(])((?:answers|tasks|criteria|roster|plan|scores|insights|decisions|grade)\.md)\b/;
+    /(?:^|[\s/"'`=(])((?:answers|tasks|criteria|roster|plan|scores|insights|decisions|owner-decisions|grade)\.md)\b/;
 const PARTICIPANT_PROMPT = /study participant/i;
 function jsonLines(text) {
     return text
@@ -534,9 +534,13 @@ const WRITTEN = new Set(["content", "old_string", "new_string", "description"]);
 // appending notes to its transcript); a heredoc fed to anything else is still read, since a script can
 // open files
 const HEREDOC = /([^\n]*<<-?\s*(["']?)(\w+)\2[^\n]*)\n[\s\S]*?\n\s*\3[ \t]*(?=\n|$)/g;
+// (an unquoted heredoc still runs the $(...) and `...` in its body, so that body is still read)
 const writesText = (cmd) =>
-    cmd.replace(HEREDOC, (all, head) =>
-        /^\s*(?:cat\b[^|;&]*>|tee\b)|[|]\s*tee\b/.test(head.replace(/^.*(?:&&|;)\s*/, "")) ? head : all,
+    cmd.replace(HEREDOC, (all, head, quote) =>
+        /^\s*(?:cat\b[^|;&]*>|tee\b)|[|]\s*tee\b/.test(head.replace(/^.*(?:&&|;)\s*/, "")) &&
+        (quote || !/\$\(|`/.test(all.slice(head.length)))
+            ? head
+            : all,
     );
 const stringsIn = (v, key) =>
     typeof v === "string"
@@ -546,11 +550,13 @@ const stringsIn = (v, key) =>
         : v && typeof v === "object"
           ? Object.entries(v).flatMap(([k, x]) => stringsIn(x, Array.isArray(v) ? key : k))
           : [];
-// why one string a tool call was given opens something the participant may not
-function leaksIn(s, allowed) {
+// why one string a tool call was given opens something the participant may not; a relative path is
+// read from cwd, where the agent ran (participants run from the repository root, so
+// design/ui/studio/notes/researcher.md reaches the studio's files)
+function leaksIn(s, allowed, cwd = repo) {
     const out = [];
-    for (const p of s.match(/\/[^\s"'`;|&<>()$*]+/g) ?? []) {
-        const q = normalize(p).replace(/\/+$/, "");
+    for (const p of s.match(/[^\s"'`;|&<>()$*=:,]*\/[^\s"'`;|&<>()$*=:,]*/g) ?? []) {
+        const q = resolve(cwd, p);
         if (/\/personas\//.test(q)) out.push(["a persona file", q]);
         else if (under(q, STUDIO) && !allowed.some((a) => under(q, a))) out.push(["a studio file", q]);
     }
@@ -578,10 +584,13 @@ function leakCheck(own, given = []) {
             for (const b of (l.type === "assistant" && l.message?.content) || []) {
                 if (b?.type !== "tool_use") continue;
                 calls++;
-                const found = stringsIn(b.input).flatMap((s) => leaksIn(s, allowed));
-                // a search with no folder searches wherever the agent runs, the repository included
-                if (/^(Grep|Glob)$/.test(b.name) && !b.input?.path)
-                    found.push(["a search outside its folder", b.input?.pattern ?? ""]);
+                const cwd = l.cwd || repo;
+                const found = stringsIn(b.input).flatMap((s) => leaksIn(s, allowed, cwd));
+                // a search with no folder searches wherever the agent runs, the repository included, and
+                // one in a folder above its own (design, the repository root) searches the studio's files
+                const at = b.input?.path && resolve(cwd, b.input.path);
+                if (/^(Grep|Glob)$/.test(b.name) && !(at && allowed.some((a) => under(at, a))))
+                    found.push(["a search outside its folder", `${b.input?.pattern ?? ""} in ${at || cwd}`]);
                 for (const [why, what] of found) leaks.push({ transcript: t, tool: b.name, why, what });
             }
     return { checked: new Date().toISOString(), briefing: briefing ?? null, transcripts, calls, leaks };

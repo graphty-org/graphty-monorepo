@@ -4,8 +4,10 @@
  * case asserts the issue codes recorded and the data kept (counts and sample values).
  */
 
-import { describe, expect, it } from "vitest";
+import { GraphBuilder } from "@graphty/graph-format";
+import { describe, expect, it, vi } from "vitest";
 
+import { MAX_HINT_RESERVE } from "../../src/common/xml.js";
 import { GRAPHML_ISSUE } from "../../src/formats/graphml/constants.js";
 import { codes, graphml, GRAPHML_NS, ids, issuesOf, load } from "./xml-helpers.js";
 
@@ -273,6 +275,24 @@ describe("GraphML hints, descriptions and limits", () => {
             graphml(`<node id="a"/>`, "", ` parse.nodes="99999999999" parse.edges="-1"`),
         );
         expect(codes(huge.report)).toEqual([GRAPHML_ISSUE.COUNT_HINT, GRAPHML_ISSUE.COUNT_HINT]);
+    });
+
+    it("graphml-count-hint-huge: an in-range but huge parse.nodes / parse.edges reserves a bounded amount", async () => {
+        const reserve = vi.spyOn(GraphBuilder.prototype, "reserve");
+        const { snapshot, report } = await load(
+            "graphml",
+            graphml(
+                `<node id="a"/><edge source="a" target="a"/>`,
+                "",
+                ` parse.nodes="4294967294" parse.edges="4294967294"`,
+            ),
+        );
+        expect(codes(report)).toEqual([GRAPHML_ISSUE.COUNT_MISMATCH, GRAPHML_ISSUE.COUNT_MISMATCH]);
+        expect(snapshot.edgeCount).toBe(1);
+        const reserved = reserve.mock.calls.flat().filter((n) => n !== undefined);
+        reserve.mockRestore();
+        expect(reserved.length).toBeGreaterThan(0);
+        expect(Math.max(...reserved)).toBeLessThanOrEqual(MAX_HINT_RESERVE);
     });
 
     it("graphml-desc-silently-dropped: a nested graph's desc, a hyperedge's desc and a second graph description are reported", async () => {

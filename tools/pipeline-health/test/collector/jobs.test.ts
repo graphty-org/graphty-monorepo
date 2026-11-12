@@ -344,6 +344,20 @@ describe("chronicJobs", () => {
         expect(chronicJobs([{ ...agg, job: "All Checks Pass", workflow: "ci.yml" }], NOW)).toEqual([]);
     });
 
+    it("does not judge bisect.yml's point jobs, which fail at a bad commit by design (#6710)", () => {
+        const runs: [number, boolean][] = [
+            [0.1, false],
+            [0.2, false],
+            [0.3, false],
+            [0.4, false],
+            [0.5, true],
+        ];
+        const point = { ...h(runs), workflow: "bisect.yml", job: "Point 9c90fdeaa2616c58f65097c85ff484b1793d6844" };
+        expect(chronicJobs([point], NOW)).toEqual([]);
+        expect(chronicJobs([{ ...point, workflow: "release.yml" }], NOW)).toHaveLength(1);
+        expect(chronicJobs([{ ...point, job: "Judge the round" }], NOW)).toHaveLength(1);
+    });
+
     it("does not judge a share of fewer than 4 runs, a recent first failure, or a job that stopped running", () => {
         expect(
             chronicJobs(

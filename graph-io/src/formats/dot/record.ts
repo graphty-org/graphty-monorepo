@@ -203,15 +203,16 @@ export const MAX_RECORD_DEPTH = 128;
 export function recordDepth(label: string): number {
     let depth = 0;
     let deepest = 0;
-    for (let i = 0; i < label.length; i++) {
+    let i = 0;
+    while (i < label.length) {
         const c = label[i];
-        if (c === "\\") {
-            i++;
-        } else if (c === "{") {
+        if (c === "{") {
             deepest = Math.max(deepest, ++depth);
         } else if (c === "}" && depth > 0) {
             depth--;
         }
+        // an escape and the character it escapes
+        i += c === "\\" ? 2 : 1;
     }
     return deepest;
 }

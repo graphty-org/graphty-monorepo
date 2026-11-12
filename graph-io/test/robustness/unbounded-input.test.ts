@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { recordDepth } from "../../src/formats/dot/record.js";
 import { treeProblem, writeXmlTree } from "../../src/formats/graphml/tree.js";
 import { createRegistry, importGraph } from "../../src/registry.js";
 import { importForStyles } from "../styles/harness.js";
@@ -45,6 +46,12 @@ describe("deep nesting", () => {
         const loaded = await importForStyles(createRegistry(), "dot", doc);
         expect(loaded.snapshot.nodeCount).toBe(2);
         expect(loaded.imported?.styles.notes.map((note) => note.code)).toContain("W_STYLE_NESTING");
+    });
+
+    it("counts a record label's brace nesting, not its escaped braces", () => {
+        expect(recordDepth("a|b")).toBe(0);
+        expect(recordDepth("{a|{b|c}}|d")).toBe(2);
+        expect(recordDepth(String.raw`\{\{a\}|{b}`)).toBe(1);
     });
 
     it("drops a GraphML untyped data value holding elements nested 50,000 deep, keeping its node", async () => {

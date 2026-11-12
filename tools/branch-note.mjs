@@ -286,12 +286,7 @@ export function main(argv, run = gh, cwd = process.cwd()) {
         return 0;
     }
     if (command === "check-issue") return checkIssue(run, Number(o.issue));
-    if (command === "issue-of") {
-        if (!rest[0]) return usage();
-        const n = branchIssue(cwd, rest[0]);
-        if (n) console.log(n);
-        return n ? 0 : 1;
-    }
+    if (command === "issue-of") return issueOf(cwd, rest[0]);
     const branch = o.branch ?? git(cwd, ["symbolic-ref", "-q", "--short", "HEAD"]);
     if (!["start", "update", "commit"].includes(command) || !branch) return usage();
     const n = branchIssue(cwd, branch, o.issue);
@@ -308,7 +303,20 @@ export function main(argv, run = gh, cwd = process.cwd()) {
     if (command === "start") {
         run(["api", "-X", "POST", `repos/{owner}/{repo}/issues/${n}/labels`, "-f", "labels[]=in-progress"]);
     }
-    const fields = {
+    writeNote(run, n, branch, noteFields(command, o, cwd));
+    console.error(`branch-note: the progress note of ${branch} on #${n} is current`);
+    return 0;
+}
+
+/**
+ * The fields `start` and `update` write.
+ * @param command start or update
+ * @param o the options
+ * @param cwd where
+ * @returns the values by FIELDS name
+ */
+function noteFields(command, o, cwd) {
+    return {
         worktree: o.worktree,
         owner: command === "start" || o.owner ? owner(o.owner) : undefined,
         "latest commit": latestCommit(o.worktree ?? cwd),
@@ -316,9 +324,19 @@ export function main(argv, run = gh, cwd = process.cwd()) {
         left: o.left,
         next: o.next,
     };
-    writeNote(run, n, branch, fields);
-    console.error(`branch-note: the progress note of ${branch} on #${n} is current`);
-    return 0;
+}
+
+/**
+ * `issue-of <branch>`: prints the branch's issue.
+ * @param cwd a directory of the repository
+ * @param branch the branch
+ * @returns 0, or 1 when it has none
+ */
+function issueOf(cwd, branch) {
+    if (!branch) return usage();
+    const n = branchIssue(cwd, branch);
+    if (n) console.log(n);
+    return n ? 0 : 1;
 }
 
 function usage() {

@@ -77,6 +77,23 @@ describe("data.prepareJoins", () => {
         recipe.discard();
     });
 
+    it("leaves a load's _source. bookkeeping out of its columns, so no step guesses a key on it", async () => {
+        const session = createGraphSession();
+        // A network load stamps every record with "_source." facts, all "none" on a fresh load.
+        const rows = ["person_id,name,_source.expansion", "P001,Alex Kim,none", "P002,Maria Garcia,none"];
+        const people = await session.data.prepare({
+            type: "csv",
+            config: { data: rows.join("\n") },
+            name: "people.csv",
+        });
+        await people.load({ mapping: { rowsAre: "nodes", key: "person_id" } });
+        const recipe = session.data.prepareJoins();
+        const [input] = recipe.inputs;
+        assert.include(input.columns, "name");
+        assert.notInclude(input.columns, "_source.expansion");
+        recipe.discard();
+    });
+
     it("counts each step against the graph and changes nothing before commit", async () => {
         const session = await doors();
         const recipe = session.data.prepareJoins();

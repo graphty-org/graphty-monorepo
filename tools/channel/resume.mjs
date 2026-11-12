@@ -142,15 +142,16 @@ const NIGHTLY = "refs/remotes/origin/channel/nightly";
  * The approval of a candidate on master (HEAD, the run's master checkout): the head of the pull request that brought
  * its newest accept commit in, the second parent of the first merge on master's first-parent line that holds it.
  * @param candidate H
+ * @param [ref] master's commit to read (a freshly fetched FETCH_HEAD, for the verdict's replace check)
  * @returns P, or null
  */
-function approvalOnMaster(candidate) {
+export function approvalOnMaster(candidate, ref = "HEAD") {
     const log = git(
         "log",
         "--format=%H %P%x09%s",
         "--fixed-strings",
         `--grep=approve visual baselines at ${short(candidate)}`,
-        "HEAD",
+        ref,
     );
     const commits = log
         .split("\n")
@@ -162,7 +163,7 @@ function approvalOnMaster(candidate) {
         });
     const accept = acceptsIn(commits).find((c) => c.candidate === candidate)?.accept;
     if (!accept) return null;
-    const merges = git("log", "--merges", "--first-parent", "--reverse", "--format=%P", `${accept}..HEAD`);
+    const merges = git("log", "--merges", "--first-parent", "--reverse", "--format=%P", `${accept}..${ref}`);
     for (const line of merges.split("\n").filter(Boolean)) {
         const [, second] = line.split(" ");
         if (second && gitOk("merge-base", "--is-ancestor", accept, second)) return second;

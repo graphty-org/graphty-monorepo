@@ -226,7 +226,7 @@ commit H on `channel/candidate` with a `Nightly held on <sha12>` issue (CLAUDE.m
 red cause is fixed forward from `origin/channel/candidate` (step 1's fix prompt, that base, `Refs #<hold issue>`). A
 newer commit's green-clean or green-images verdict replaces a held head judged red, owner-item, rejected, refused or
 green-images on its own (`hold.mjs replace`): a held head awaiting the owner's review is replaced too, so nightly
-never waits behind it (#6604); only an approved head is never replaced. An approval the promotion gate refused
+never waits behind it (#6604); only an approved head, or one whose approval merged, is never replaced. An approval the promotion gate refused
 records `refused`: once its cause is fixed on master, re-dispatch the command the hold issue names (it tries the same
 approval again, #6783).
 

@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { isolateGit, isolatedGitEnv } from "../isolated-git-env.mjs";
-import { acceptsIn, resumeDecision } from "./resume.mjs";
+import { acceptsIn, approvalOnMaster, resumeDecision } from "./resume.mjs";
 
 isolateGit();
 
@@ -160,6 +160,19 @@ describe("resume.mjs check, on a real repository and a stand-in store", () => {
             ),
         };
     }
+
+    it("finds the approval on the master commit it is given, and none before it merged (#6604)", () => {
+        // the verdict reads a freshly fetched master, so a newer run never replaces a head whose approval merged
+        const { dir, h, p } = repo();
+        const cwd = process.cwd();
+        process.chdir(dir);
+        try {
+            assert.equal(approvalOnMaster(h, "HEAD"), p);
+            assert.equal(approvalOnMaster(h, "HEAD^1"), null);
+        } finally {
+            process.chdir(cwd);
+        }
+    });
 
     it("a full slot catches up on the held head's merged approval and names the run that judged it", async () => {
         const { dir, h, p } = repo();

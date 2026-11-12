@@ -1178,6 +1178,18 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   `duplicateIds`), it reads the JSON text as before. The graph, the load entry, undo and redo are the same on both
   paths for every generator and six datasets (`test/session/sample-rows.test.ts`). It still builds a record per row;
   typed rows into the builder, for this route and `importColumns` alike, are still to build.
+  graph-io (tenth pull request of stage 28): correction, a file graph-io reads does not go through `importColumns`
+  either, for the reasons a sample does not, and it needs no new route: there is no text written and read back to
+  cut. Its source parses the file into a graph-io snapshot and makes one record per row from it (`toRecords`),
+  then hands the load every node in chunks of a thousand with every edge in the last chunk, so under `"batched"`
+  the load already records one `nodes` range entry and one `edges` range entry, as the held-rows route of a
+  sample does. A GraphML and a GML file of 5,000 nodes and 8,000 edges load, undo and redo the same on both paths,
+  and the batched step retains at least 27 bytes a node and 31 an edge less (`test/session/file-rows.test.ts`).
+  Correction to "typed rows into the builder without a record per row": the record is not a staging copy. The
+  record `columnMutations`, `toRecords` or a sample makes is the object the graph slice keeps by id
+  (`slice.nodes`, `slice.edges`, read by `Node.data` and every record reader), so loading without one means
+  holding records as columns and building them on demand, which is stage 29's "records into columns", conditional
+  on stage 30's harness run. Stage 28 builds nothing more for it.
 - **Bulk lane keys (cosmos-gap.md G4, first pull request).** Under `"batched"` a forward add marks its edges dirty as
   one range key per run of consecutive edges, `e+:<first edge counter>:<count>`, through `DerivationLane.touchLater`,
   whose key is read when the next pass starts. Correction to cosmos-gap.md section 3.3 item 2: the range is over the

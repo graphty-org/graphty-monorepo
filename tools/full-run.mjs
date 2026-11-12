@@ -873,6 +873,19 @@ function approvalMerged(held) {
     }
 }
 
+/**
+ * The held head's state as holdAction weighs it: a held green-images head whose approval merged is approved in all
+ * but the store, so its promotion is due (master is read only when a newer green verdict could replace it).
+ * @param now the hold the store has now (heldNow)
+ * @param state this run's verdict
+ * @param newer whether this run's commit is newer than the held one
+ * @returns the state
+ */
+function heldStateNow(now, state, newer) {
+    const replaceable = now.state === "green-images" && newer && state.startsWith("green");
+    return replaceable && approvalMerged(now.head) ? "approved" : now.state;
+}
+
 const ancestor = (a, b) => {
     try {
         execFileSync("git", ["merge-base", "--is-ancestor", a, b], { stdio: "ignore" });
@@ -1285,10 +1298,9 @@ async function verdictMain(env) {
     const held = now.head;
     // newer: the held commit is in the judged one's history, so an older commit's late verdict never replaces it
     const newer = !!now.base && now.base !== env.SHA && ancestor(now.base, env.SHA);
-    // a held green-images head whose approval merged is approved in all but the store: its promotion is due
-    const due = now.state === "green-images" && newer && state.startsWith("green") && approvalMerged(held);
-    const heldState = due ? "approved" : now.state;
-    const hold = wait || red[0] === "pick" ? "none" : holdAction({ held, sha: env.SHA, state, heldState, newer });
+    const decides = !wait && red[0] !== "pick";
+    const heldState = decides ? heldStateNow(now, state, newer) : now.state;
+    const hold = decides ? holdAction({ held, sha: env.SHA, state, heldState, newer }) : "none";
     const owner = heldLine(env.VERSION_HELD);
     console.log("::endgroup::");
     output({

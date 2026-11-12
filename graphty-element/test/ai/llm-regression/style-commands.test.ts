@@ -376,7 +376,15 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
 
             // Command result should exist (success or failure due to mock limitations)
             assert.ok(result.commandResult, "Expected command result");
-            assert.ok(result.commandResult.success, "Expected the change to succeed");
+            // "All styles" fairly includes the element's own default layers, and a model that also
+            // removes one is refused with E_PROTECTED: the element still protects them, which
+            // #5905 removes ("any layer may be deleted"). Until then that refusal, and only that
+            // one, is the element's defect, not the model's. Delete this allowance with #5905.
+            const refusedProtected = result.code === "AI_TOOL_FAILED" && result.params?.cause === "E_PROTECTED";
+            assert.ok(
+                result.commandResult.success || refusedProtected,
+                `Expected the change to succeed: ${result.code ?? ""} ${JSON.stringify(result.params ?? {})}`,
+            );
         });
 
         it("tracks latency for style commands", async () => {

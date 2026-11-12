@@ -66,6 +66,11 @@ function emit(file: string): string {
         return cached;
     }
 
+    // A JSON module (the shipped shader hash lists) imports nothing.
+    if (file.endsWith(".json")) {
+        return "";
+    }
+
     const output = ts.transpileModule(readFileSync(file, "utf8"), {
         fileName: file,
         compilerOptions: {

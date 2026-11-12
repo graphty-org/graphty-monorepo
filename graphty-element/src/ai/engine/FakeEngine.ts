@@ -48,6 +48,8 @@ export class FakeLiveConnection implements LiveConnection {
     interrupts = 0;
     /** Every `sendToolResults` call's results, in order. */
     readonly sentResults: (readonly LiveToolResult[])[] = [];
+    /** Every `sendText` call's text, in order. */
+    readonly sentTexts: string[] = [];
     /** What `level` answers. */
     inputLevel = 0;
     closed = false;
@@ -83,6 +85,16 @@ export class FakeLiveConnection implements LiveConnection {
     sendToolResults(results: readonly LiveToolResult[]): void {
         if (!this.closed) {
             this.sentResults.push([...results]);
+        }
+    }
+
+    /**
+     * Record graphty's words.
+     * @param text - The words.
+     */
+    sendText(text: string): void {
+        if (!this.closed) {
+            this.sentTexts.push(text);
         }
     }
 

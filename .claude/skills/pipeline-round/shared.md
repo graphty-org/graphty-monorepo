@@ -40,7 +40,9 @@ origin/master` (merged), the issue's state, what npm lists.
 - **Every branch belongs to an issue and is on GitHub.** `./tools/worktree-new.sh` requires the issue and pushes the
   branch; every commit pushes it again.
 - **Never** stash, `checkout` files, `reset`, `restore` or `clean`; never `--no-verify` on a push; never
-  `git worktree remove --force` or `git branch -D`; never dispatch `release.yml`; never merge a pull request past a
+  `git worktree remove --force` or `git branch -D`; never dispatch `release.yml` except pipeline-round's `restart` and
+  `promote-nightly` rules; cancel a GitHub Actions run only when it is doomed or superseded (owner, 2026-11-11; never a
+  `ci.yml` master build or a `promote-nightly` run); never merge a pull request past a
   check or with `--admin`; never approve screenshots, call the review page's API or touch `visual-baselines/`; never
   arm auto-merge on a breaking (`!`) change without the owner's go, on a pull request `tools/pr-open.sh` left it off
   for, or on one opened by anyone but graphty-agent, dependabot or a master-guard revert; never label anything
@@ -186,9 +188,10 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > holds the commands you ran and what they showed; keep it in tmp/<name>/, because an untracked file in the worktree
 > is refused), write `pipeline-round: opened <branch> <url>` on the issue, and
 > stop. Unless your job is master's fix or revert, first check master yourself, just before opening:
-> `gh run list -R graphty-org/graphty-monorepo --workflow release.yml --status completed --limit 1 --json conclusion`
-> (the newest full run) and the same for `ci.yml --branch master --event push`; while either is `failure`, master is
-> red: stop after the commit, the push and `pipeline-round: ready <branch> <full sha>` on every issue of the group,
+> `gh run list -R graphty-org/graphty-monorepo --workflow release.yml --status completed --limit 10 --json conclusion
+--jq '[.[]|select(.conclusion=="success" or .conclusion=="failure")][0].conclusion'` (the newest full run that
+> reached a verdict: a cancelled run says nothing) and the same for `ci.yml --branch master --event push`; while
+> either is `failure`, master is red: stop after the commit, the push and `pipeline-round: ready <branch> <full sha>` on every issue of the group,
 > without `pr-open.sh` (a later round opens it once master is green). Always: never wait for CI, never merge, never push to master; never git stash, reset, restore, clean or check out
 > files, nor write a tracked file back from git any other way (`git show HEAD:<file> > <file>`): if a run rewrites a
 > tracked file, leave it uncommitted and say so in your report; never cherry-pick or rebase (merge instead); read issues only with `node tools/issue-queue.mjs show <n>`, never
@@ -196,7 +199,7 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 > never one per pull request in a loop, and on a 403 rate limit stop and say so; act as graphty-agent only and never
 > read the owner's credentials; commits are signed and conventional with no attribution trailers; never touch
 > visual-baselines/, and never change parameters.chromatic, visual-review/trusted/, visual-review/passkeys.json or
-> the gate step and visual job in ci.yml to make a check pass; decide every two-way door yourself and say the choice in the commit message; a breaking change or a one-way decision: commit
+> the gate step and visual job in ci.yml to make a check pass; decide every two-way door yourself and say the choice in the commit message; a breaking API change lands as an ordinary feat/fix commit with no `!`, its message saying what changed for callers; a one-way decision: commit
 > nothing, comment the question on the issue with the `needs-decision` label, and stop. Before your final tests:
 > `git fetch origin`, `git merge origin/master` (never rebase), `pnpm install --frozen-lockfile`, resolve any conflict
 > keeping both intents, then run the affected lint, typecheck and build, and only the test files you touched or
@@ -235,7 +238,7 @@ Every subagent prompt either skill writes ends with this paragraph, verbatim:
 Only the owner can do these. Each is asked once, on one final line
 `ACTION NEEDED: <what, specific enough to act on from a phone>`, only when he can act on it now, and recorded with an
 `asked owner` marker so no later round repeats it: changed screenshots holding a nightly candidate (once per
-candidate; never a pull request's screenshots); a breaking change or a major release; a release (`mode=legacy`) or a production promotion (`promote.yml`); money (the T4 balance, runner minutes, a paid plan); a
+candidate; never a pull request's screenshots); a major release (breaking changes land as ordinary commits while nobody outside consumes the packages); a release (`mode=legacy`) or a production promotion (`promote.yml`); money (the T4 balance, runner minutes, a paid plan); a
 credential, token, login, passkey or new terms; a new package's first npm publish; anything needing sudo or a change
 to permission rules or `~/.claude`; a commit under `design/brand`; a one-way decision a subagent labelled
 `needs-decision`. Nothing else, ever: everything else is decided and done in the round, with its reason in a marker

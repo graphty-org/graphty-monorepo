@@ -64,6 +64,7 @@ import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
 import { declarationKey, FILE_GRAPH_VALUE, type FileGraphValue } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
+import { loadNamedShaders } from "./commands/shaderCopies";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { dispatcherOf, registerDispatcher } from "./dispatchers";
@@ -1669,6 +1670,13 @@ function configOf(
             return Object.freeze({ policy: controller.policy, minNodes: controller.minNodes });
         },
         set: async (values: ProjectConfigPatch) => {
+            // A background naming a catalog shader copies its text in as it is set; the body
+            // loads first, since the write's executor cannot wait for it.
+            const loading = loadNamedShaders(values);
+            if (loading !== undefined) {
+                await loading;
+            }
+
             await dispatcher.dispatch({ op: "config.set", values });
         },
         inEffect: (key: GraphSettingKey): SettingEffect =>
@@ -2911,6 +2919,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         dispatcher,
         edgeMember,
         pairsOrdered: () => pairsOrdered(snapshot()),
+        hasNode: (id: NodeId) => snapshot().ids.indexOf(id) !== INVALID_INDEX,
         dependencies,
         offering,
         executionOf: (run: RunId) => executionOf(run),

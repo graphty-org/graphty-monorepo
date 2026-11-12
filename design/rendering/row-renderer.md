@@ -125,8 +125,12 @@ gets a second define, `ROW_UNSCALED`, under which `finalWorld` starts as the ide
 `world0..3` (GLSL and WGSL). The material is frozen, so the switch marks the batch's defines dirty and resets its
 draw cache. `render-parity` passes on WebGL and WebGPU at 0 pixels both ways and after a row is scaled
 (`test/browser/node-batch.test.ts`, "send 20 bytes a row"). Only `"batched"` has batches; `"objects"` is unchanged.
-Open before it can land: on WebGPU (SwiftShader) "read a batched row from its table" sees one edge re-trimmed on a
-frame at rest (`centerOf` called twice), which master does not.
+Every other shader that draws a batch has to honor the same rule: the node ID target (hover) draws an unscaled batch
+with its own `ROW_UNSCALED` variant, or Babylon's thin-instance include reads the missing `world0..3` and the batch
+vanishes from the target (`test/interactions/pointer-on-rows.test.ts` caught it). Two defects of the edge walk under
+`"batched"`, present before this change and exposed by it on WebGPU, are fixed with it: a forced walk (the switch to
+`"batched"`) did not note the table's move count, and a frame that ran no `updateNodes` let the frame's own upload
+repack the rows after the walk, so the next frame, at rest, compared every batched row again.
 
 `RowPullPlugin` (GLSL and WGSL) places the row and applies w. It is attached when the material is made (a frozen material stops evaluating
 defines); its define turns on per mesh, so object rows share the material. It rewrites Babylon's thin-instance normal line to the ordinary

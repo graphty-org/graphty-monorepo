@@ -113,6 +113,15 @@ export function isRowBatch(mesh: AbstractMesh): boolean {
     return rowPlacesOf(mesh) !== undefined;
 }
 
+/**
+ * Whether a batch sends no matrices, its rows all unscaled: a shader drawing it takes each row's matrix as the identity.
+ * @param mesh - The mesh.
+ * @returns True for such a batch.
+ */
+export function isUnscaledRowBatch(mesh: AbstractMesh): boolean {
+    return (mesh.metadata as Partial<RowBatchMetadata> | null | undefined)?.rowUnscaled === true;
+}
+
 /** Reads a batch's rows from the row table; see the file comment. */
 class RowPullPlugin extends MaterialPluginBase {
     /**
@@ -147,7 +156,7 @@ class RowPullPlugin extends MaterialPluginBase {
      */
     override prepareDefines(defines: Record<string, unknown>, _scene: Scene, mesh: AbstractMesh): void {
         defines.ROW_PULL = rowPlacesOf(mesh) !== undefined;
-        defines.ROW_UNSCALED = (mesh.metadata as Partial<RowBatchMetadata> | null | undefined)?.rowUnscaled === true;
+        defines.ROW_UNSCALED = isUnscaledRowBatch(mesh);
     }
 
     /**

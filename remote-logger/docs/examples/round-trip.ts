@@ -15,10 +15,12 @@ logger.log("INFO", "Application started");
 logger.log("ERROR", "Failed to fetch", { status: 503 });
 await logger.flush(); // send now instead of at the next batch
 
-// Read them back the way a script or an AI assistant would: the newest first.
+// Read them back the way a script or an AI assistant would. The server returns the newest n, oldest
+// first; two entries logged in the same millisecond can come back in either order, so sort them to print.
 const response = await fetch(`${serverUrl}/logs/recent?n=10`);
 const { logs } = (await response.json()) as { logs: { level: string; message: string }[] };
-console.log(logs.map((entry) => `${entry.level} ${entry.message}`).join(", ")); // ERROR Failed to fetch, INFO Application started
+const lines = logs.map((entry) => `${entry.level} ${entry.message}`).sort();
+console.log(lines.join(", ")); // ERROR Failed to fetch, INFO Application started
 
 await logger.close();
 server.close();

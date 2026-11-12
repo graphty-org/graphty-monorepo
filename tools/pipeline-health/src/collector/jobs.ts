@@ -80,6 +80,7 @@ function activeFor(runs: JobRun[]): number {
  * The jobs failing chronically: failed in at least half of their newest LAST_RUNS runs (MIN_RUNS at least), or
  * failed in every run for STREAK_MS. Worst first. An aggregator (All Checks Pass) is not judged: it fails whenever any
  * job it summarizes fails, so its share is the union of theirs and it was chronic while no job of its own was (#6068).
+ * Nor is bisect.yml: its "Point <sha>" jobs run the failing tests at a chosen commit, so failing is their purpose (#6710).
  * @param histories - jobHistories
  * @param now - the current time, in ms
  * @returns the chronic jobs, worst first
@@ -88,7 +89,12 @@ export function chronicJobs(histories: JobHistory[], now: number): ChronicJob[] 
     const out: ChronicJob[] = [];
     for (const h of histories) {
         const newest = h.runs[0];
-        if (!newest || now - newest.at > activeFor(h.runs) || AGGREGATORS.has(shortName(h.job))) {
+        if (
+            !newest ||
+            now - newest.at > activeFor(h.runs) ||
+            AGGREGATORS.has(shortName(h.job)) ||
+            (h.workflow === "bisect.yml" && shortName(h.job).startsWith("Point "))
+        ) {
             continue;
         }
         const last = h.runs.slice(0, LAST_RUNS);

@@ -57,7 +57,7 @@
  */
 
 import type { LabelDeclutterOrder, LabelLocation, LabelTextAlign } from "../../catalog/label-style";
-import { shaderDescriptor } from "../../catalog/shaderRegistry";
+import { projectShaderDescriptor } from "../../catalog/shaderRegistry";
 import { isExclusivePlace, type ShaderPlace, type ShaderUse } from "../../catalog/shaders";
 import type { Binding, Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
@@ -885,7 +885,7 @@ export interface ChannelDescriptor {
      * Why the channel cannot be set, as a sentence for a reader beside a disabled control.
      * Present exactly when `renderable` is false; `caveat` is the longer note for an
      * implementer. The same field name as `OptionDescriptor.unsupportedReason`.
-     * @deprecated Read {@link StyleChannelDescriptor.unsupported} and word it in the application.
+     * @deprecated Read {@link ChannelDescriptor.unsupported} and word it in the application.
      * Removed at the next major release.
      */
     readonly unsupportedReason?: string;
@@ -5374,7 +5374,7 @@ export function isShaderListChannel(channel: string): boolean {
  * @returns The place, or undefined for a shader the catalog does not list.
  */
 export function placeOfUse(use: ShaderUse): ShaderPlace | undefined {
-    return use.place ?? shaderDescriptor(use.shader)?.place;
+    return use.place ?? projectShaderDescriptor(use.shader)?.place;
 }
 
 /**

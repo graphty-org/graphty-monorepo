@@ -449,6 +449,7 @@ describe("views", () => {
         set("pr.automerge_armed_long", { value: 2 });
         set("pr.automerge_green_stuck", { value: 0, state: "OK" });
         set("ci.chronic_jobs", { value: 3, state: "FAILING", facts: { "ci.chronic_no_issue": 1 } });
+        set("flaky.net_new", { value: -1, state: "OK", facts: { "flaky.net_added": 2, "flaky.net_resolved": 3 } });
         const vs = await buildViews(store, T0, ev);
         const row = (page: string, id: string) =>
             pages(vs)
@@ -464,6 +465,10 @@ describe("views", () => {
         });
         expect(row("pull-requests", "pull-requests.automerge_green_stuck").note).toBeUndefined();
         expect(row("ci", "ci.chronic_jobs").note).toEqual({ code: "note.chronic_no_issue", params: { n: 1 } });
+        expect(row("flaky", "flaky.net_new").note).toEqual({
+            code: "flaky.net_new.note",
+            params: { added: 2, resolved: 3 },
+        });
     });
 
     it("a page's state names only members the page shows", async () => {

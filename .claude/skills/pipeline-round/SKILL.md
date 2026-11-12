@@ -382,6 +382,8 @@ Each: signal, meaning, action. Add to this list (see the next section).
   spender (a per-pull-request REST loop, a tight poll) and file or fix it.
 - **Worktrees git refuses to remove** because of untracked build output: leave them; a fix belongs in
   `tools/worktree-cleanup.mjs`, not a forced removal.
+- **The loop stopped running.** CronCreate jobs expire 7 days after they are created (the 2026-11-04 loop ran its last
+  round 2026-11-11 and nobody noticed for a day). Start it again and follow "Renewing the loop" in `shared.md`.
 - **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, and the
   Release status issue.
 
@@ -389,7 +391,7 @@ Each: signal, meaning, action. Add to this list (see the next section).
 
 When a round meets something this file or `shared.md` does not cover, or a step here turns out wrong: handle it, then
 fix the file -- a new "Known situations" entry or a corrected step -- on a branch
-(`./tools/worktree-new.sh docs/pipeline-round-<topic> origin/master --issue <N>`), and open its pull request like any
+(`./tools/worktree-new.sh chore/pipeline-round-<topic> origin/master --issue <N>`), and open its pull request like any
 change. Resolved failure modes go in `lessons.md` beside this file. A rule both skills need goes in `shared.md`, never
 in both. Never work around the skill in the session or in memory only. A situation that needs the same manual work
 every time becomes an issue for a tool fix. Keep this file a checklist: no daemons, no state files, no scripts of its
@@ -398,7 +400,8 @@ own.
 ## Running it
 
 One session runs each skill at a time; other sessions may still work by hand and are coordinated only through the
-`in-progress` label and markers. A /loop expires after seven days; start it again then. To pause, stop the loop.
+`in-progress` label and markers. A /loop expires after seven days; each round renews it (`shared.md`, "Renewing the
+loop"). To pause, stop the loop.
 
 - **Normal:** both skills. Two clients, `/loop 30m /pipeline-round` in one and `/loop 30m /issue-round` in the other;
   or one client, `/loop 30m run /pipeline-round, then /issue-round` (issue-round always after pipeline-round).

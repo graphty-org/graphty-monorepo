@@ -16,17 +16,19 @@
 
 import { Buffer } from "node:buffer";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath, URL } from "node:url";
 
-const require = createRequire(import.meta.url);
-
-/** The Babylon.js the tests run, whose CDN build of the compilers they are served. */
-const VERSION = require("@babylonjs/core/package.json").version;
+/**
+ * The Babylon.js the tests run, whose CDN build of the compilers they are served. Read from
+ * graphty-element's install, which depends on Babylon.js (the root package does not).
+ */
+const VERSION = JSON.parse(
+    await readFile(new URL("graphty-element/node_modules/@babylonjs/core/package.json", import.meta.url), "utf8"),
+).version;
 
 /** Where the copy is kept. */
 export const COMPILERS_DIR = path.join(

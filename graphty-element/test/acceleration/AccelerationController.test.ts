@@ -1005,6 +1005,151 @@ describe("AccelerationController: device loss", () => {
         controller.dispose();
     });
 
+    /**
+     * A registry whose factory builds the first accelerator, then answers each later call from
+     * `later` in turn (null once `later` runs out), counting the calls.
+     */
+    function lossSequence(
+        first: GraphAccelerator,
+        later: (GraphAccelerator | null)[],
+    ): { registry: AcceleratorRegistry; calls: () => number } {
+        const registry = new AcceleratorRegistry();
+        let built = 0;
+        registry.register({
+            name: "fake",
+            factory: () => {
+                built += 1;
+                return Promise.resolve(built === 1 ? first : (later[built - 2] ?? null));
+            },
+        });
+        return { registry, calls: () => built };
+    }
+
+    it("tries again on the next plan after a failed reattach, and comes back", async () => {
+        const lost = deferred<{ reason: string }>();
+        const first = fakeAccelerator({ name: "first", lost: lost.promise });
+        const { registry, calls } = lossSequence(first, [null, fakeAccelerator({ name: "second" })]);
+        const controller = new AccelerationController({ registry });
+        await controller.start();
+
+        lost.resolve({ reason: "the GPU process crashed" });
+        await until(() => (controller.status.reason ?? "").includes("reattaching failed"), "the failed first try");
+        assert.strictEqual(calls(), 2);
+
+        assert.isFalse(controller.plan(LAYOUT).accelerated);
+        await until(() => controller.state === "idle", "the second try to attach");
+        assert.strictEqual(controller.accelerator?.name, "second");
+        assert.strictEqual(calls(), 3);
+        controller.dispose();
+    });
+
+    it("tries again when a factory is registered while in error", async () => {
+        const lost = deferred<{ reason: string }>();
+        const first = fakeAccelerator({ name: "first", lost: lost.promise });
+        const { registry, calls } = lossSequence(first, [null, fakeAccelerator({ name: "second" })]);
+        const controller = new AccelerationController({ registry });
+        await controller.start();
+
+        lost.resolve({ reason: "device removed" });
+        await until(() => (controller.status.reason ?? "").includes("reattaching failed"), "the failed first try");
+
+        registry.register({ name: "late", factory: () => Promise.resolve(null) });
+        await until(() => controller.state === "idle", "the try the registration started");
+        assert.strictEqual(controller.accelerator?.name, "second");
+        assert.strictEqual(calls(), 3);
+        controller.dispose();
+    });
+
+    it("makes only maxRecoveryAttempts tries", async () => {
+        const lost = deferred<{ reason: string }>();
+        const first = fakeAccelerator({ name: "first", lost: lost.promise });
+        const { registry, calls } = lossSequence(first, [null, fakeAccelerator({ name: "second" })]);
+        const controller = new AccelerationController({ registry, maxRecoveryAttempts: 1 });
+        await controller.start();
+
+        lost.resolve({ reason: "device removed" });
+        await until(() => (controller.status.reason ?? "").includes("reattaching failed"), "the failed try");
+
+        controller.plan(LAYOUT);
+        controller.plan(LAYOUT);
+        await Promise.resolve();
+        assert.strictEqual(controller.state, "error");
+        assert.strictEqual(calls(), 2);
+        controller.dispose();
+    });
+
+    it("gives up after three tries by default and stays in error", async () => {
+        const lost = deferred<{ reason: string }>();
+        const first = fakeAccelerator({ name: "first", lost: lost.promise });
+        const registry = new AcceleratorRegistry();
+        let built = 0;
+        registry.register({
+            name: "fake",
+            factory: () => {
+                built += 1;
+                return built === 1 ? Promise.resolve(first) : Promise.reject(new Error(`try ${String(built - 1)}`));
+            },
+        });
+        const controller = new AccelerationController({ registry });
+        await controller.start();
+
+        lost.resolve({ reason: "device removed" });
+        for (let tries = 1; tries <= 3; tries += 1) {
+            await until(
+                () => (controller.status.reason ?? "").includes(`try ${String(tries)}`),
+                `try ${String(tries)}`,
+            );
+            controller.plan(LAYOUT);
+        }
+
+        await Promise.resolve();
+        assert.strictEqual(built, 4);
+        assert.strictEqual(controller.state, "error");
+        assert.include(controller.status.reason, "reattaching failed");
+        controller.dispose();
+    });
+
+    it("gives a device that was lost again before doing any work no new budget", async () => {
+        const firstLost = deferred<{ reason: string }>();
+        const secondLost = deferred<{ reason: string }>();
+        const { registry, calls } = lossSequence(fakeAccelerator({ name: "first", lost: firstLost.promise }), [
+            fakeAccelerator({ name: "second", lost: secondLost.promise }),
+        ]);
+        const controller = new AccelerationController({ registry, maxRecoveryAttempts: 1 });
+        await controller.start();
+
+        firstLost.resolve({ reason: "device removed" });
+        await until(() => controller.accelerator?.name === "second", "the reattach");
+
+        secondLost.resolve({ reason: "device removed again" });
+        await until(() => controller.state === "error", "the second loss");
+        controller.plan(LAYOUT);
+        await Promise.resolve();
+        assert.strictEqual(calls(), 2);
+        controller.dispose();
+    });
+
+    it("gives a reattached device that finished work a full budget again", async () => {
+        const firstLost = deferred<{ reason: string }>();
+        const secondLost = deferred<{ reason: string }>();
+        const { registry, calls } = lossSequence(fakeAccelerator({ name: "first", lost: firstLost.promise }), [
+            fakeAccelerator({ name: "second", lost: secondLost.promise }),
+            fakeAccelerator({ name: "third" }),
+        ]);
+        const controller = new AccelerationController({ registry, maxRecoveryAttempts: 1 });
+        await controller.start();
+
+        firstLost.resolve({ reason: "device removed" });
+        await until(() => controller.accelerator?.name === "second", "the reattach");
+        const outcome = await controller.run(LAYOUT, () => "gpu");
+        assert.isTrue(outcome.accelerated);
+
+        secondLost.resolve({ reason: "device removed again" });
+        await until(() => controller.accelerator?.name === "third", "the second reattach");
+        assert.strictEqual(calls(), 3);
+        controller.dispose();
+    });
+
     it("leaves recovery alone when the caller asked it to", async () => {
         const lost = deferred<{ reason: string }>();
         const registry = registryWith(fakeAccelerator({ lost: lost.promise }));

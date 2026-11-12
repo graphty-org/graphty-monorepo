@@ -61,6 +61,19 @@ describe("data.reloadSource", () => {
         assert.isUndefined(source.loadKey);
     });
 
+    it("gives back what a load this session read was read from, and nothing for one it did not", async () => {
+        const session = await loaded();
+        const [{ key }] = session.data.sources();
+        const file = session.data.sourceInput(key)?.config.file;
+        assert.instanceOf(file, File);
+        assert.strictEqual(file.name, "auth-log.csv");
+        assert.isUndefined(session.data.sourceInput("nope"));
+
+        const generated = createGraphSession();
+        await generated.data.generate("complete", { n: 3 });
+        assert.isUndefined(generated.data.sourceInput(generated.data.sources()[0].key));
+    });
+
     it("reads the load again with kinds, as one undo step", async () => {
         const session = await loaded();
         const [{ key }] = session.data.sources();

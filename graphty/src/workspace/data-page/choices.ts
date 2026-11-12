@@ -330,3 +330,72 @@ export function loadChoices(
         ...(Object.keys(tables).length > 0 ? { mapping: { tables } } : {}),
     };
 }
+
+/**
+ * The column a mapping's role names, when it names one of the table's columns: a column name, or
+ * an end's `{ column }`.
+ * @param table - the table.
+ * @param value - the role's value in the mapping.
+ * @returns the column's name, or undefined.
+ */
+function mappedColumn(table: DraftTable, value: unknown): string | undefined {
+    const name = typeof value === "object" && value !== null && "column" in value ? value.column : value;
+    return table.columns.some((column) => column.name === name) ? (name as string) : undefined;
+}
+
+/**
+ * The page's choices for a load's own `LoadChoices` (`LoadedSource.choices`), read onto a draft of
+ * the same data or of a newer copy, so Edit source... and Replace with file... open on the roles
+ * the load was read with. A role naming a column the draft lacks is left to the element's reading.
+ * @param draft - the draft.
+ * @param carried - the choices the load was read with.
+ * @param fileStyles - whether the element's file styles experiment is on.
+ * @returns the page's choices.
+ */
+export function carriedChoices(draft: LoadDraft, carried: LoadChoices, fileStyles = false): PageChoices {
+    let choices: PageChoices = {
+        ...initialChoices(fileStyles),
+        ...(carried.unmatched === undefined ? {} : { unmatched: carried.unmatched }),
+        ...(carried.directed === undefined ? {} : { directed: carried.directed }),
+        ...(fileStyles && carried.styles !== undefined ? { styles: carried.styles } : {}),
+    };
+    const { mapping } = carried;
+    const [only] = draft.tables;
+    let tables: Readonly<Record<string, TableMapping>> = {};
+    if (mapping !== undefined) {
+        if ("tables" in mapping) {
+            ({ tables } = mapping);
+        } else if (only !== undefined) {
+            tables = { [only.id]: mapping };
+        }
+    }
+    for (const table of draft.tables) {
+        const read = tables[table.id];
+        if (read === undefined) {
+            continue;
+        }
+        if (read.rowsAre !== undefined) {
+            choices = setRowsAre(draft, table, read.rowsAre, choices);
+        }
+        for (const role of LOAD_ROLES[rowsAreOf(draft, table, choices)].takes) {
+            const value = (read as Readonly<Record<string, unknown>>)[role];
+            const column = mappedColumn(table, value);
+            if (column !== undefined) {
+                choices = setRole(draft, table, column, role, choices);
+            } else if (value === null) {
+                // The load took the role off the column the element gave it.
+                const holder = table.columns.find((each) => roleOf(draft, table, each.name, choices) === role);
+                if (holder !== undefined) {
+                    choices = setRole(draft, table, holder.name, "attribute", choices);
+                }
+            }
+        }
+        if (read.weightMeaning !== undefined && read.weightMeaning !== null) {
+            choices = setWeightMeaning(table, read.weightMeaning, choices);
+        }
+        if (read.timeUnit !== undefined && read.timeUnit !== null) {
+            choices = setTimeUnit(table, read.timeUnit, choices);
+        }
+    }
+    return choices;
+}

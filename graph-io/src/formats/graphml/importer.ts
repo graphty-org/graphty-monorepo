@@ -40,6 +40,7 @@ import {
 } from "../../common/attributes.js";
 import { type DeclaredTypeSpec, overflowsToInfinity } from "../../common/declared-types.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
+import { checkExpansion, ExpansionRefused } from "../../common/expansion.js";
 import { IdCoercer } from "../../common/ids.js";
 import { textChunks, throwIfAborted } from "../../common/input.js";
 import { type ListSyntax } from "../../common/lists.js";
@@ -514,6 +515,9 @@ class GraphmlReader implements XmlHandler {
     private readonly graphicsColumns = new Map<string, ColumnHandle>();
 
     private hyperedgeCount = 0;
+
+    /** The edges the hyperedges expanded into so far, against MAX_HYPEREDGE_EXPANSION. */
+    private readonly expansion = { used: 0 };
 
     private edgeIdHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
 
@@ -1872,10 +1876,15 @@ class GraphmlReader implements XmlHandler {
         if (key === null) {
             return;
         }
-        if (content.tree !== null) {
-            key.defaultTree = content.tree.finish();
-        } else {
-            key.defaultText = content.text;
+        try {
+            if (content.tree === null) {
+                key.defaultText = content.text;
+            } else {
+                key.defaultTree = content.tree.finish();
+            }
+        } catch (err) {
+            // a tree too deep to keep: the key has no default
+            this.report.recordError(err, { line: content.line, element: key.id }, SKIPPED_VALUE);
         }
         content.tree = null;
         content.text = "";
@@ -1885,13 +1894,20 @@ class GraphmlReader implements XmlHandler {
     /** Close a `<data>`: parse the value and route it to its element. */
     private finishData(): void {
         const { content } = this;
-        const { key, port } = content;
-        const value: unknown = content.tree === null ? content.text : content.tree.finish();
+        const { key, port, tree, text } = content;
         content.tree = null;
         content.text = "";
         content.key = null;
         content.port = null;
         if (key === null || key.skipped) {
+            return;
+        }
+        let value: unknown;
+        try {
+            value = tree === null ? text : tree.finish();
+        } catch (err) {
+            // a tree too deep to keep: only the value is dropped
+            this.report.recordError(err, { line: content.line, element: key.id }, SKIPPED_VALUE);
             return;
         }
         if (port !== null) {
@@ -2697,7 +2713,12 @@ class GraphmlReader implements XmlHandler {
             }
         } catch (err) {
             this.skipEdge(hyperedge);
-            this.report.recordError(err, where);
+            if (err instanceof ExpansionRefused) {
+                // one hyperedge over the cap is skipped; recordError's E_TOO_LARGE rule would stop the import
+                this.report.error("unsupported", err.code, err.message, where);
+            } else {
+                this.report.recordError(err, where);
+            }
         }
     }
 
@@ -2731,6 +2752,7 @@ class GraphmlReader implements XmlHandler {
         }
         this.sink.setNodeValue(this.hubHandle, hub, true);
         for (const endpoint of hyperedge.endpoints) {
+            this.checkAbort();
             const before = this.sink.edgeCount;
             switch (endpoint.type) {
                 case "in":
@@ -2760,9 +2782,19 @@ class GraphmlReader implements XmlHandler {
      */
     private expandClique(hyperedge: HyperedgeState, where: Where): number {
         const { endpoints } = hyperedge;
+        const ins = endpoints.filter((endpoint) => endpoint.type === "in").length;
+        const outs = endpoints.filter((endpoint) => endpoint.type === "out").length;
+        const pairs = (k: number): number => (k * (k - 1)) / 2;
+        // every pair is joined but two `in` or two `out` endpoints
+        checkExpansion(
+            pairs(endpoints.length) - pairs(ins) - pairs(outs),
+            this.expansion,
+            hyperedge.id ?? "<hyperedge>",
+        );
         let added = 0;
         for (let i = 0; i < endpoints.length; i++) {
             for (let j = i + 1; j < endpoints.length; j++) {
+                this.checkAbort();
                 const a = endpoints[i];
                 const b = endpoints[j];
                 const before = this.sink.edgeCount;

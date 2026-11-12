@@ -191,6 +191,31 @@ function splitLines(text: string): RecordLine[] {
     return lines;
 }
 
+/** The deepest `{ }` nesting a record label is laid out with: parsing and layout recurse once per level. */
+export const MAX_RECORD_DEPTH = 128;
+
+/**
+ * How deep a record label's `{ }` nest (escaped braces do not count; braces inside a `<port>` count, which only
+ * overstates it).
+ * @param label - the record label
+ * @returns the deepest nesting, 0 for a flat label
+ */
+export function recordDepth(label: string): number {
+    let depth = 0;
+    let deepest = 0;
+    for (let i = 0; i < label.length; i++) {
+        const c = label[i];
+        if (c === "\\") {
+            i++;
+        } else if (c === "{") {
+            deepest = Math.max(deepest, ++depth);
+        } else if (c === "}" && depth > 0) {
+            depth--;
+        }
+    }
+    return deepest;
+}
+
 /**
  * Parses a record label into its field tree, as `parse_reclbl` does: `|` parts fields, `{ }` opens a sub-record laid
  * the other way, `<name>` names a field's port, and `\{ \} \| \< \>` and `\ ` stand for themselves.

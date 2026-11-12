@@ -77,7 +77,7 @@ import {
 import { type LabelTable, readLabelTable } from "./html-table.js";
 import { type LabelPlaceContext, leftOutEdgeLabels, leftOutXlabels, readLabelPlaces } from "./label-places.js";
 import { CLUSTER_COLUMN, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
-import { fontWidths, layoutRecord } from "./record.js";
+import { fontWidths, layoutRecord, MAX_RECORD_DEPTH, recordDepth } from "./record.js";
 
 /**
  * The graph attribute holding the `graphty.styles` block of a DOT file graphty wrote.
@@ -1038,9 +1038,16 @@ function readNodeSize(
 ): void {
     const { get, put, at, shape } = n;
     readSize(get, shape, n.point, put, at);
-    if (RECORD.has(shape) && label !== null && !htmlLabel) {
+    const record = RECORD.has(shape) && label !== null && !htmlLabel;
+    if (record && recordDepth(label) <= MAX_RECORD_DEPTH) {
         readRecord(n, label, names);
-    } else if (!n.point) {
+        return;
+    }
+    if (record) {
+        // too deep to lay out: the node keeps its plain label
+        noteAt(at("label"), STYLE_ISSUE.NESTING, `record fields nested deeper than ${MAX_RECORD_DEPTH}`);
+    }
+    if (!n.point) {
         readLabelFit(get, shape, label, shown, n.table, put);
         readQuantum(n, label);
     }

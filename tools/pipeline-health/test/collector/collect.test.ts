@@ -368,9 +368,9 @@ function withOpenBranches(fake: Fake, branches: string[]): Fake {
 }
 
 /** Adds the recorded ghost: "Lint PR Title" queued since 02:58Z on #3940, which merged at 03:29Z. */
-function withGhost(fake: Fake): Fake {
+function withGhost(fake: Fake, event = "pull_request"): Fake {
     const recorded = fake.fetch;
-    const ghost = fixture("run-ghost-40441556963.json") as GhRun;
+    const ghost = { ...(fixture("run-ghost-40441556963.json") as GhRun), event };
     fake.fetch = async (url, init) => {
         const u = new URL(url);
         if (/\/actions\/runs\/40441556963\/jobs$/.test(u.pathname)) {
@@ -418,10 +418,10 @@ describe("runner job counts", () => {
     it("leaves out a queued run whose pull request is no longer open", async () => {
         const now = Date.parse("2026-10-27T20:49:00Z");
         const ghostAt = Date.parse("2026-10-27T02:58:55Z");
-        const run = async (open: string[], ghost = true) => {
+        const run = async (open: string[], ghost = true, event = "pull_request") => {
             const store = new MemoryStore();
             const fake = withOpenBranches(fakeGitHub(), open);
-            await collect(deps(store, ghost ? withGhost(fake) : fake, now));
+            await collect(deps(store, ghost ? withGhost(fake, event) : fake, now));
             return {
                 queued: observed(store, "ci.jobs_queued", now),
                 longest: observed(store, "ci.longest_queued_ms", now),
@@ -432,6 +432,9 @@ describe("runner job counts", () => {
         expect(without).toEqual({ queued: 0, longest: 0 });
         // #3940 merged: its branch heads no open pull request, so the ghost changes nothing.
         expect(await run([])).toEqual(without);
+        // Nor does a run of another pull request event: #6729's pull_request_target and pull_request_review runs (#7358).
+        expect(await run([], true, "pull_request_target")).toEqual(without);
+        expect(await run([], true, "pull_request_review")).toEqual(without);
         // While #3940 was open, the same job was a real wait.
         expect(await run(["fix/3938-master-builds-finish"])).toEqual({
             queued: without.queued! + 1,

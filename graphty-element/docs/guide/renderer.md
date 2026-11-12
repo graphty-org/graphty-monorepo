@@ -158,6 +158,30 @@ graph.addEventListener("limits-warning", (event) => {
 });
 ```
 
+### Loading a graph held as arrays
+
+When your graph is already arrays -- edge endpoints as row numbers, say from a generator or a
+binary file -- hand them over as they are with `session.data.importColumns`. Nodes are rows `0`
+to `nodeCount - 1`, and edge `i` runs from row `sources[i]` to row `targets[i]`. Plain arrays and
+typed arrays both work:
+
+```js
+const graph = document.querySelector("graphty-element");
+await graph.session.data.importColumns({
+    sources: new Uint32Array([0, 1, 2]),
+    targets: new Uint32Array([1, 2, 0]),
+    nodeCount: 3,
+    ids: ["a", "b", "c"], // optional; default: the row number
+    weights: [1, 2, 0.5], // optional; stored as each edge's `weight`
+    attributes: { nodes: { group: ["x", "y", "x"] } }, // optional
+});
+console.log(graph.session.data.count()); // { nodes: 3, edges: 3 }
+```
+
+The graph is the one `addNodes` and `addEdges` would make from the same rows, the same limits
+apply, and it is one undo step. Columns that do not line up are refused with `E_BAD_COMMAND`, and
+nothing is added.
+
 ## Smoothing (antialias)
 
 The canvas is drawn with 4x multisampling, which smooths the edges of lines and nodes. With very

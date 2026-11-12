@@ -135,9 +135,10 @@ async function corpusSamples(): Promise<readonly (readonly [string, LoadedGraph,
             )
             .sort((a, b) => (a.bytes?.length ?? 0) - (b.bytes?.length ?? 0));
         for (const input of inputs) {
-            const loaded = await input.load().catch(() => null);
-            const ex = loaded === null ? null : extractStyles(loaded.importer, loaded.snapshot, loaded.report);
-            if (loaded !== null && ex !== null && ex.styles.rules.length > 2 && loaded.snapshot.nodeCount > 2) {
+            // a file that fails to import fails the suite: skipping it would swap the round trip onto another file
+            const loaded = await input.load();
+            const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
+            if (ex !== null && ex.styles.rules.length > 2 && loaded.snapshot.nodeCount > 2) {
                 out.push([input.name, loaded, ex]);
                 break;
             }
@@ -378,7 +379,9 @@ describe("a styled file of each corpus format", async () => {
     const samples = await corpusSamples();
 
     it("is found for every corpus format with a style reader", () => {
-        expect(samples.length).toBeGreaterThanOrEqual(styled.length);
+        expect(samples.map(([name]) => name.split("/")[0])).toEqual(
+            registered.filter((f) => f.corpus !== false).map((f) => f.name),
+        );
     });
 
     it("lists no known failure or refusal that is not a pair this test runs", () => {

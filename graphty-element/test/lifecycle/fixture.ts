@@ -192,7 +192,7 @@ el.layout = "fixed";
 // dataMaxWaitMs (10 s by default); 1 s keeps a test short without changing what is written.
 // delay=<ms> holds every write back, so only a lifecycle event writes an edit.
 const delay = params.has("delay") ? Number(params.get("delay")) : undefined;
-el.autosaveOptions = { ...(delay === undefined ? { dataMaxWaitMs: 1000 } : { delayMs: delay, maxWaitMs: delay, dataMaxWaitMs: delay }), ...(params.get("keepCamera") === "1" ? { keepCamera: true } : {}) };
+el.autosaveOptions = { ...(delay === undefined ? { dataMaxWaitMs: 1000 } : { delayMs: delay, maxWaitMs: delay, dataMaxWaitMs: delay }), ...(params.get("keepCamera") === "1" ? { keepCamera: true } : {}), ...(params.get("restore") === "manual" ? { restore: "manual" } : {}) };
 let lastSaved = 0;
 el.addEventListener("graphty-autosave-status", (e) => {
     const s = e.detail;
@@ -211,7 +211,8 @@ el.addEventListener("graphty-autosave-available", (e) => {
     report("available", { reason: e.detail.reason, id: e.detail.entry.id });
 });
 const rows = () => { el.nodeData = nodes; el.edgeData = edges; };
-if (params.get("rows") !== "late") rows();
+// rows=none: the page loads no data of its own, as an app reopening kept work.
+if (params.get("rows") !== "late" && params.get("rows") !== "none") rows();
 document.body.appendChild(el);
 const summary = (r) => r && { revision: r.revision, entry: r.entry.id, wasDiscarded: r.wasDiscarded, copiedFrom: r.copiedFrom, others: r.others };
 // Ready once both halves of the page's load (nodes, then edges) are in, so a test's first edit
@@ -226,6 +227,9 @@ const ready = el.autosaver.ready.then(async (restored) => {
     report("ready", { restored: summary(restored), probes, state: s.state, revision: s.revision, ephemeral: s.ephemeral, persisted: s.persisted, quota: s.storage?.quota ?? null, problem: s.problem?.code ?? null, available, entries });
     return restored;
 });
+// setup=1: the page keeps a value of its own with the work before it reopens anything, as an app
+// stashes where the reader is.
+if (params.get("setup") === "1") void ready.then(() => el.autosaver.stash("place", { page: "graph" }));
 let edits = 0;
 window.fixture = {
     el,
@@ -253,6 +257,12 @@ window.fixture = {
     async run() {
         await ready;
         await el.session.runs.start("degree", undefined, { as: "hidden-run", style: false });
+    },
+    // restore=manual: reopen a kept entry by hand, as an app does after its own setup.
+    async restore(id) {
+        await ready;
+        await el.autosaver.restore(id, { discard: true });
+        return this.check();
     },
     status: () => el.autosaver.status,
     camera: () => el.getCameraState(),

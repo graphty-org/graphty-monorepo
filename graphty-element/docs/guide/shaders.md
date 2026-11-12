@@ -182,8 +182,7 @@ For building an editor over shader text, the same entry point has `splitShaderTe
 - An id is `"<namespace>/<name>"`: lowercase letters, digits and hyphens, one slash, at most 40
   characters. A bare id (`"heat"`) is refused with `E_BAD_COMMAND`: bare ids belong to the shaders
   the element ships.
-- Registering an id the element ships (`"pearl"`) throws `E_DUPLICATE_PLUGIN`, so a saved project
-  that names it always means the same shader.
+- Registering an id the element ships (`"pearl"`) throws `E_DUPLICATE_PLUGIN`.
 - Defining the same id again replaces the shader, which is how hot reload works. Pass
   `{ strict: true }` as the second argument to throw `E_DUPLICATE_PLUGIN` instead.
 
@@ -526,6 +525,119 @@ else if (!checked.ok) console.log(checked.problems);
 The picture is drawn in the element's own engine, framed by what the shader draws on, as
 `session.shaders.thumbnail` draws one; nothing is added to the project and the graph is not redrawn.
 
+## Saving and opening
+
+A saved project carries the code of every shader it uses. That holds for a project file
+(`session.project.save()`), autosave, and a style file (`session.styles.toFile()`): each lists its
+shaders under `shaders` as `{ id, text }`, the whole shader text with its header, and every layer,
+parameter binding and background that names a shader names one of those. A file therefore opens the
+same on any later release and on any page, including one that no longer ships, or never registered,
+a shader the file used.
+
+- **Using a shader copies it into the project.** Name a shader the element ships (`pearl`) or one
+  your page registered in a layer or the background, and its text joins the project in the same
+  undoable step. `session.shaders.list()` lists the copy. A copy that nothing uses any more is
+  dropped by the change that stopped using it, so trying shaders out does not fill the project's 64.
+- **An id means the project's own shader.** In a file, an id is only a key into that file's
+  `shaders`: `pearl` in someone else's file is whatever text that file carries under `pearl`, which
+  need not be the element's Pearl.
+- **A layer saves only the parameters it changed.** The defaults are in the carried text, so a
+  later release cannot change them.
+- **A project keeps the code it was saved with.** A release that changes or removes a shipped
+  shader, or a page that updates its own, changes no saved project. To take the new code, pick the
+  shader again.
+
+A gallery that offers the shipped and registered shaders writes the id `fromCatalog` returns, and
+marks a tile picked by comparing `copyOf`, never the ids:
+
+```ts
+import type { Graphty } from "@graphty/graphty-element";
+
+export async function pick(g: Graphty, layerId: string, catalogId: string): Promise<void> {
+    const id = await g.session.shaders.fromCatalog(catalogId); // the id to write in this project
+    await g.session.styles.update(layerId, { set: { "node.shaders": [{ shader: id }] } });
+}
+
+export function isPicked(g: Graphty, usedId: string, catalogId: string): boolean {
+    return g.session.shaders.describe(usedId)?.copyOf === catalogId;
+}
+```
+
+`fromCatalog` returns the project's id for a shader it already holds with the same code (under any
+id), else the catalog id. When the project holds that id with other code, such as a file's own
+`pearl`, it copies the catalog's code in under a fresh id, so both looks survive.
+`describe(id)` gives the project's shader for an id the project holds, with `copyOf` set to the
+shipped or registered shader whose code it equals, and the catalog's entry otherwise.
+
+A style file applied to a project that already holds one of its ids with other code gets a fresh id
+for its own, and its layers are rewritten to match.
+
+### Opening files from someone else
+
+Shader code runs on the reader's graphics card, so a shader that arrives in a file (a project, a
+style file, an AI command) is held: its status is `held`, it draws nothing, the layers beneath it
+show, and `shader:held` (on the element, `graphty-shader-held`) lists the held ids. Whether a
+shader is held depends only on its code, never on its id. It runs at once when its code is exactly
+the code of:
+
+- a shader any release of graphty-element shipped, under whatever id the file gives it;
+- a shader your page registered whose body has loaded;
+- a shader the reader approved in this session, or whose hash the page lists in
+  `shaderSettings.trustedHashes`.
+
+Any change to the code, even reformatting it, makes it a different shader that is held.
+`session.shaders.approve(id)` runs the full checks and then runs a held shader, and fires
+`shader:approved` (`graphty-shader-approved`) with its hash, which an application may remember:
+
+```ts
+import type { Graphty } from "@graphty/graphty-element";
+
+export function trustShaders(
+    element: Graphty,
+    remembered: string[],
+    offerToRun: (ids: readonly string[]) => void,
+): void {
+    element.shaderSettings = { trustedHashes: remembered }; // hashes the reader approved before
+    element.session.on("shader:held", ({ ids }) => offerToRun(ids));
+    element.session.on("shader:approved", ({ hash }) => remembered.push(hash)); // store it somewhere lasting
+}
+
+// When the reader agrees to run one: await element.session.shaders.approve(id);
+```
+
+`shaderSettings.untrusted` changes the default for every shader that is not trusted: `"hold"` (the
+default), `"run"`, or `"refuse"`, which leaves such shaders out of what opens and draws what lies
+beneath in their place. A file can never set these: they are the reader's and the page's, never
+saved. Two shaders stay off whatever the settings say: code that was drawing when the graphics card
+was lost on this machine, and code withdrawn after release (held with `shader.revoked`, which
+`approve` does not run).
+
+When a carried text no longer reads, or a layer names a shader the file does not carry, the open
+drops the uses of that shader, opens everything else, and lists each in `report.problems` as
+`shader.unknown`, with the layer's `id` and `channel` (or `channel` `"background"`) and the
+`shader` id. A file never falls back to a shader of the same id on the reading page.
+
+### If you register shaders
+
+- **Files carry your code.** A project that used your shader keeps working on a page that no longer
+  registers it, under an id you renamed, and after you removed it. Nothing you change later reaches
+  a saved file; a reader picks your shader again to get the new code.
+- **A file with your code runs at once on a page that registered and loaded the same code.** A body
+  given as a loader is not loaded because a file opens, so a file opened before your shader is first
+  drawn arrives held. To trust it from the start, add your shader's hash to
+  `shaderSettings.trustedHashes`. Its hash is the `hash` that `session.shaders.list()` gives once a
+  project uses it: SHA-256 of the text with the header's `id` left out.
+- **Changing your code changes its hash**, so files saved with the old code arrive held on pages
+  that trust only the new one. Keep the old hashes in `trustedHashes` for as long as such files are
+  around.
+- **Writing a shader whose body has not loaded waits for the load.** The asynchronous calls
+  (`styles.add` and the other style writes, `fromCatalog`, the background) load it first, and a
+  load that fails refuses the write with the load's problem.
+- **A native `wgsl` body is not saved.** A project carries the shader's GLSL text, and draws it
+  translated on WebGPU, so make the `glsl` body draw what the `wgsl` one does.
+- **`tags`** on the descriptor are other words a gallery search may find the shader by
+  (`["shiny"]`). They are catalog data, not part of the saved text.
+
 ## When something is wrong
 
 - `defineShader` and `registerShader` are synchronous. A definition that is wrong throws
@@ -538,9 +650,12 @@ The picture is drawn in the element's own engine, framed by what the shader draw
   problem's first code and values are also in `error.details.code` and `error.details.params`.
 - A body given as a loader is checked when it loads. If it fails, the shader draws nothing and
   `session.shaders.status(id)` reports `failed` with the problem.
-- `styles.add` refuses a layer that names an id the catalog does not list with
-  `E_UNKNOWN_SHADER`, listing the ids that would fit there. A layer read from a saved project that
-  names one draws what lies beneath until the shader is defined, and
-  `session.styles.counts(layer).undrawn` reports `shader.unknown`.
+- `styles.add` refuses a layer that names an id neither the project nor the catalog holds with
+  `E_UNKNOWN_SHADER`, listing the ids that would fit there.
+- A shader whose body has not loaded yet is loaded before a write that names it. If the load
+  fails, the write is refused with the load's problem.
+- Opening a file whose shader text no longer reads, or that names a shader it does not carry,
+  drops the uses of that shader and opens the rest; the open's report lists each as
+  `shader.unknown` (see [Saving and opening](#saving-and-opening)).
 - A driver that cannot compile a body that passed the checks reports `shader.compile`, with the
   driver's message.

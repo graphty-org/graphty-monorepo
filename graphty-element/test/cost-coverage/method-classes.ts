@@ -336,6 +336,7 @@ export const MUTATING: readonly string[] = [
     "VisibilityApi.updateCondition",
     "SessionShaders.add",
     "SessionShaders.approve",
+    "SessionShaders.fromCatalog",
     "SessionShaders.remove",
     "SessionShaders.replace",
 ];
@@ -1154,6 +1155,7 @@ export const READ_ONLY: readonly string[] = [
     "SessionHistory.cancel",
     "SessionShaders.availability",
     "SessionShaders.check",
+    "SessionShaders.describe",
     "SessionShaders.list",
     "SessionShaders.source",
     "SessionShaders.status",

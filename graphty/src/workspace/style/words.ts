@@ -1592,37 +1592,17 @@ export const SHADER_STEP_WORDS = {
 } as const;
 
 /**
- * The words a reader may search the gallery by beside a shader's name, by preset id: glass,
- * metal, glow, bubble, 3D, shiny. Grouping and searching are the app's; the ids are the catalog's.
- */
-const SHADER_ALIASES: Readonly<Record<string, readonly string[]>> = {
-    glass: ["bubble", "3D"],
-    "glass-marble": ["glass", "3D", "shiny"],
-    "frosted-glass": ["glass", "3D"],
-    pearl: ["shiny", "3D"],
-    gemstone: ["shiny", "3D", "glass"],
-    "disco-ball": ["shiny", "3D", "metal"],
-    "liquid-metal": ["metal", "shiny", "3D"],
-    "anodized-steel": ["metal", "shiny", "3D"],
-    "matcap-ink": ["3D"],
-    "cel-shade": ["3D"],
-    halftone: ["3D"],
-    lantern: ["3D"],
-    "foil-shimmer": ["shiny"],
-    hologram: ["shiny"],
-    frost: ["glass"],
-    "soap-bubble": ["bubble"],
-};
-
-/**
- * Whether a gallery search finds a shader: the start of a word of its name or of one of its
- * aliases.
+ * Whether a gallery search finds a shader: the start of a word of its name, of one of its
+ * categories or of one of its tags, all catalog data supplied by whoever registered it.
  * @param descriptor - the catalog's entry.
  * @param query - the search text.
  * @returns true when it matches.
  */
-export function shaderMatches(descriptor: Pick<ShaderDescriptor, "id" | "plainName">, query: string): boolean {
-    return [descriptor.plainName, ...(SHADER_ALIASES[descriptor.id] ?? [])].some((name) =>
+export function shaderMatches(
+    descriptor: Pick<ShaderDescriptor, "plainName" | "categories" | "tags">,
+    query: string,
+): boolean {
+    return [descriptor.plainName, ...(descriptor.categories ?? []), ...(descriptor.tags ?? [])].some((name) =>
         matchesWordStart(name, query),
     );
 }

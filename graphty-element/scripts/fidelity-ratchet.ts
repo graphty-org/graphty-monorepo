@@ -3,7 +3,9 @@
  *
  * - takes off the known failures every element that passes now (one that is not measurable any more stays listed);
  * - with `--prune`, also takes off a known failure that is not measurable because its element is gone from both
- *   drawings (no property judges or fails it any more); one whose element is still drawn, or still fails, stays;
+ *   drawings (no property judges or fails it any more), or because its property is judged only on the drawing as a
+ *   whole now (an own-layout sample's `edge.curve`); one whose element is still drawn and judged one by one, or still
+ *   fails, stays;
  * - raises every recorded pass rate (the informational floors) to what the run measured, never lowering one;
  * - with `--add "<reason>"`, adds every element failing that the known failures do not list, and records the reason,
  *   the date and how many came from the drawing or from the comparator (`--keys` and `--properties` limit what is

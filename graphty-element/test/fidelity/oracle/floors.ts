@@ -33,6 +33,11 @@ export interface Judgement {
      * with no list here (a score and no list) counts every known failure of it as measured.
      */
     judged?: Partial<Record<string, string[]>>;
+    /**
+     * The elements judged as the drawing as a whole (the frame, the share of lines drawn bent): a property judging only
+     * these judges no element one by one, so a known failure of one element there can never pass or fail.
+     */
+    wholeDrawing?: string[];
     /** Pass rate per judged property (and the raster regions' similarity as `raster.<region>`). */
     scores: Record<string, number>;
 }
@@ -222,7 +227,9 @@ function measured(run: Judgement, property: string, ids: readonly string[]): str
 
 /**
  * The not-measurable elements that neither drawing has any more: no property of the run judges or fails them, under
- * either side's id. A run that names no judged elements at all (a sample that drew nothing) says nothing is gone.
+ * either side's id; and every one of a property the run judges only on the drawing as a whole (an own-layout sample's
+ * `edge.curve`, judged as the share of lines bent since comparator round 5), however drawn. A run that names no judged
+ * elements at all (a sample that drew nothing) says nothing is gone.
  * @param run - the judgement
  * @param notMeasurable - the known failures not judged now, by property
  * @returns those whose element is gone, by property
@@ -236,8 +243,13 @@ function goneFromBoth(run: Judgement, notMeasurable: Record<string, string[]>): 
     const bare = (id: string): string => (id.startsWith("graphty:") ? id.slice("graphty:".length) : id);
     const exists = (id: string): boolean => present.has(bare(id)) || present.has(`graphty:${bare(id)}`);
     const gone: Record<string, string[]> = {};
+    const whole = new Set(run.wholeDrawing ?? []);
+    const wholeOnly = (p: string): boolean => {
+        const ids = run.judged?.[p] ?? [];
+        return ids.length > 0 && ids.every((id) => whole.has(id));
+    };
     for (const [p, ids] of Object.entries(notMeasurable)) {
-        const left = ids.filter((id) => !exists(id));
+        const left = wholeOnly(p) ? ids : ids.filter((id) => !exists(id));
         if (left.length > 0) {
             gone[p] = left;
         }
@@ -598,7 +610,7 @@ export function gateReportText(gates: readonly KeyGate[], gpu: string, baseline:
             listed((g) => g.notMeasurable),
         ),
         ...section(
-            "Of those, gone from both drawings (`npm run fidelity:ratchet -- --prune` takes them off)",
+            "Of those, gone from both drawings or judged only on the whole drawing now (`npm run fidelity:ratchet -- --prune` takes them off)",
             listed((g) => g.gone ?? {}),
         ),
         ...section("Scores below their recorded value (raster regions past 0.02 only)", changes("drop")),

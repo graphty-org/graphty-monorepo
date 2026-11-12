@@ -266,6 +266,29 @@ describe("style fidelity gate", () => {
         assert.deepEqual(blank.gone, {});
     });
 
+    it("prunes a known failure of a property the sample now judges only on the drawing as a whole", () => {
+        // json-vis-siblings: edge.curve is judged once for the drawing ("edges"), so its per-edge entries can never pass
+        // or fail, though the edges are still drawn; node.fill still judges node a one by one, so drawn node b, not
+        // judged for its fill now, is kept
+        const judged = {
+            "edge.curve": ["edges"],
+            "edge.present": ["a->b", "c->d"],
+            "node.fill": ["a"],
+            "node.present": ["a", "b"],
+        };
+        const known = { s: { "edge.curve": ["a->b", "c->d"], "node.fill": ["b"] } };
+        const gate = judgeKey(
+            "s",
+            { ...run({}, { "edge.curve": 1 }, judged), wholeDrawing: ["edges"] },
+            known.s,
+            undefined,
+        );
+        assert.deepEqual(gate.gone, { "edge.curve": ["a->b", "c->d"] });
+        // a run that does not say what it judged as the whole drawing (a gate file written before) prunes none of them
+        const kept = judgeKey("s", run({}, { "edge.curve": 1 }, judged), known.s, undefined);
+        assert.deepEqual(kept.gone, {});
+    });
+
     it("raises a floor and records a new one, and never lowers one", () => {
         const table: Record<string, Record<string, number>> = { s: { "node.fill": 0.5, "edge.color": 0.9 } };
         assert.strictEqual(raiseFloors(table, "s", { "node.fill": 0.6, "edge.color": 0.1, "node.shape": 1 }), 2);

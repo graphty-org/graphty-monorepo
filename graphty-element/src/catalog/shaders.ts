@@ -459,6 +459,13 @@ export interface ShaderDescriptor {
     readonly minSize?: number;
     /** Catalog data: where a gallery may file it, such as `"Glass"`. An application orders them. */
     readonly categories?: readonly string[];
+    /**
+     * Catalog data: other words a gallery search may find it by, such as `"shiny"`, supplied by
+     * whoever registers it. Kept out of the shader's text, so a copy in a project shows its catalog
+     * entry's tags while the entry is listed.
+     * @since 3.50.0
+     */
+    readonly tags?: readonly string[];
     /** The frame its thumbnail is drawn from. */
     readonly preview?: ShaderPreview;
     /** Its parameters, in declaration order. */
@@ -491,8 +498,15 @@ export interface ShaderDescriptor {
      * @since 3.36.0
      */
     readonly reachParam?: string;
-    /** Pasted shaders: the SHA-256 of the text. */
+    /** Project shaders: the content hash of the text (SHA-256 with the header's id left out). */
     readonly hash?: string;
+    /**
+     * For a project shader: the id of the catalog entry (a preset, or a registered shader whose
+     * body has loaded) whose text has the same content, whatever id the project gives it. Absent
+     * when none does. Decided by content alone, never by comparing ids.
+     * @since 3.50.0
+     */
+    readonly copyOf?: string;
 }
 
 /** One shader's fixed parameter values, keyed by the parameter ids its catalog entry declares. @since 3.36.0 */
@@ -535,7 +549,13 @@ export function fixedParamsOf(params: ShaderUse["params"]): ShaderParams | undef
  * @since 3.36.0
  */
 export interface ShaderUse {
-    /** The shader's id. */
+    /**
+     * The id of one of the project's own shaders (`session.shaders.list()`), `off: true` included.
+     * Writing a catalog id (a preset such as `"pearl"`, or a registered shader) copies that shader's
+     * text into the project in the same undoable step, so a saved file carries it; opening a file
+     * resolves the id against the file's own shaders only, and drops a use it cannot resolve with
+     * `shader.unknown`.
+     */
     readonly shader: string;
     /** Where it draws. Default: the shader's own place. */
     readonly place?: ShaderPlace;
@@ -595,7 +615,14 @@ export type ShaderProblemCode =
     | "shader.group-cap"
     | "shader.apply-target"
     | "shader.no-data"
-    | "shader.no-canvas";
+    | "shader.no-canvas"
+    | "shader.not-saved"
+    | "shader.not-loaded"
+    | "shader.not-copyable"
+    | "shader.revoked"
+    // Open: a code may be added or retired in a minor release, and a build without shaders
+    // reads a file that names one.
+    | (string & {}); // NOSONAR(S4335): the open-union idiom
 
 /** One shader problem: a code and its values. @since 3.36.0 */
 export interface ShaderProblem {

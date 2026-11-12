@@ -4,8 +4,8 @@
  * to repair. Synchronous: it reads the resident snapshot, the visibility masks, the kept sets and
  * the runs, and resolves nothing.
  *
- * Node ids compare by their text (`11` and `"11"` name the same node), except that when the graph
- * holds both, a target binds to the one of its own type. Edges bind by their stable identity
+ * Node ids follow the element's one spelling rule (`11` and `"11"` name the same node; the exact id
+ * wins when the graph holds both). Edges bind by their stable identity
  * through the same binding the kept sets use.
  */
 
@@ -13,6 +13,7 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeMember, NodeId, ResultId, SetId } from "../../catalog/types";
 import { pairsOrdered } from "../../data/edgeIdentity";
+import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import type { NoteEntry } from "../project/state";
 import { bindEdgeMembers } from "../sets/resolve";
 import { isSessionEdgeId, namesForeignSessionEdge, supportedCite, supportedTarget } from "./document";
@@ -34,27 +35,13 @@ export interface StatusSources {
 }
 
 /**
- * The number a node id's text spells exactly, so `"11"` finds node `11`.
- * @param text - The id.
- * @returns The number, or the text itself when it spells no number exactly.
- */
-function numberOf(text: string): NodeId {
-    const number = Number(text);
-    return text !== "" && String(number) === text ? number : text;
-}
-
-/**
- * The row of a node, comparing ids by their text and preferring the id's own type.
+ * The row of a node, by the element's one id-spelling rule (`data/nodeIdSpelling.ts`).
  * @param snapshot - The snapshot.
  * @param id - The node id.
  * @returns The row, or -1 when the graph holds no such node.
  */
 export function nodeRowOf(snapshot: GraphSnapshot, id: NodeId): number {
-    let row = snapshot.ids.indexOf(id);
-    if (row === INVALID_INDEX) {
-        row = snapshot.ids.indexOf(typeof id === "number" ? String(id) : numberOf(id));
-    }
-
+    const row = rowOfEitherSpelling(snapshot.ids, id);
     return row === INVALID_INDEX ? -1 : row;
 }
 

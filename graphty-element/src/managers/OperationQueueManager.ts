@@ -1134,21 +1134,20 @@ export class OperationQueueManager implements Manager {
     }
 
     /**
-     * Cancel all operations of a specific category
+     * Cancel all operations of a specific category: the pending, the queued and the running.
      * @param category - The operation category to cancel
      * @returns Number of operations cancelled
      */
     cancelByCategory(category: OperationCategory): number {
         let cancelledCount = 0;
 
-        // Cancel pending operations
-        this.pendingOperations.forEach((operation) => {
-            if (operation.category === category) {
-                if (this.cancelOperation(operation.id)) {
+        for (const operations of [this.pendingOperations, this.queuedOperations, this.runningOperations]) {
+            for (const operation of [...operations.values()]) {
+                if (operation.category === category && this.cancelOperation(operation.id)) {
                     cancelledCount++;
                 }
             }
-        });
+        }
 
         return cancelledCount;
     }

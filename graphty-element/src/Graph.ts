@@ -7321,6 +7321,22 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Stop the camera's animated moves: the one under way stops where the camera is now, and
+     * moves still waiting their turn are dropped. Every caller awaiting one of them resolves; a
+     * cancelled move is not an error.
+     * @returns True if a camera move was cancelled, false if none was under way or waiting
+     * @example
+     * ```typescript
+     * const moving = graph.applyCameraView("top", { animate: true, duration: 2000 });
+     * graph.cancelCameraAnimation();
+     * await moving; // resolves, with the camera wherever it had got to
+     * ```
+     */
+    cancelCameraAnimation(): boolean {
+        return this.operationQueue.cancelByCategory("camera-update") > 0;
+    }
+
+    /**
      * Check if an animation capture is currently in progress
      * @returns True if currently capturing an animation
      */

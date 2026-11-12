@@ -155,15 +155,12 @@ describe("Graph settings", () => {
         assert.include(alert.textContent ?? "", "IMG_0001.HEIC is HEIC, which this browser cannot draw.");
         assert.notStrictEqual(element.session.config.background.backgroundType, "skybox", "nothing was written");
 
-        const loaded = new Promise<void>((resolve) => {
-            element.addEventListener("graphty-skybox-loaded", () => {
-                resolve();
-            });
-        });
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="16"><rect width="32" height="16" fill="#369"/></svg>`;
         await commands.chooseNextFile("sky.svg", "image/svg+xml", svg);
         await userEvent.click(screen.getByRole("button", { name: "Upload image" }));
-        await loaded;
+        await waitFor(() => {
+            assert.strictEqual(element.session.config.background.backgroundType, "skybox");
+        });
         const { background } = element.session.config;
         assert.strictEqual(background.backgroundType, "skybox");
         assert.match(background.backgroundType === "skybox" ? background.data : "", /^data:image\/png;base64,/);

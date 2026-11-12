@@ -15,7 +15,7 @@ import {
 } from "../../catalog/detectModel";
 import { isPrivateHost } from "../network";
 import type { CodedFact } from "../shared";
-import type { AddAssetOptions, AssetSource, ModelLimits, ModelSummary, NamedBlob } from "./AssetsApi";
+import type { AddAssetOptions, AssetSource, ModelLimits, ModelPart, ModelSummary, NamedBlob } from "./AssetsApi";
 import { checkGltf, findGltfParts, parseGltfJson, readGlb } from "./gltfChecks";
 import {
     baseName,
@@ -1153,4 +1153,74 @@ export async function checkFileSet(
         summary: checked.summary,
         warnings: [...findings.warnings, ...checked.warnings],
     };
+}
+
+/**
+ * The parts of a model, for `AssetRecord.parts` (node-models design 14.4): the main file, each
+ * file it names (found ones, then missing ones), then the set's files nothing names. Read from the
+ * files alone, so a model waiting for parts lists them too.
+ * @param files - The set, a zip already unpacked.
+ * @param options - The caller's main file, format and skips.
+ * @param limits - The limits in force.
+ * @returns The parts, or undefined when no main file can be told.
+ */
+export function partsOf(
+    files: ReadonlyMap<string, Uint8Array>,
+    options: Pick<AddAssetOptions, "main" | "format" | "skipped">,
+    limits: ModelLimits,
+): ModelPart[] | undefined {
+    let main: MainFile;
+    try {
+        main =
+            options.main === undefined
+                ? chooseMain(files, options.format)
+                : namedMain(files, options.main, options.format);
+    } catch {
+        return undefined;
+    }
+
+    const findings: Findings = { warnings: [], missing: [], found: [] };
+    const bytes = files.get(main.path);
+    try {
+        if (bytes !== undefined && (main.format === "glb" || main.format === "gltf")) {
+            const text = main.format === "glb" ? readGlb(bytes).text : gltfText(bytes);
+            findGltfParts(parseGltfJson(text), main.path, files, findings);
+        } else if (main.format === "obj") {
+            findObjParts(main.path, files, limits, findings);
+        }
+    } catch (error) {
+        // A file that cannot be read says why in the record's problems; its parts are what was found.
+        if (!(error instanceof Refusal)) {
+            throw error;
+        }
+    }
+
+    const skipped = new Set(options.skipped ?? []);
+    const parts: ModelPart[] = [{ name: main.path, role: "model", state: "found", file: main.path }];
+    const used = new Set([main.path]);
+    const named = new Set([main.path]);
+    for (const part of findings.found ?? []) {
+        used.add(part.file);
+        if (!named.has(part.name)) {
+            named.add(part.name);
+            parts.push({ ...part, state: part.name === part.file ? "found" : "substituted" });
+        }
+    }
+
+    for (const fact of findings.missing) {
+        const name = String(fact.params.name);
+        let state: ModelPart["state"] = fact.code === "E_MODEL_PART_AMBIGUOUS" ? "ambiguous" : "missing";
+        if (skipped.has(name)) {
+            state = "skipped";
+        }
+        parts.push({ name, role: roleOfName(name), state });
+    }
+
+    for (const path of files.keys()) {
+        if (!used.has(path)) {
+            parts.push({ name: path, role: "other", state: "unused" });
+        }
+    }
+
+    return parts;
 }

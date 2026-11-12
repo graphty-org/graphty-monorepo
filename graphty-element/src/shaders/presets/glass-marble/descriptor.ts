@@ -14,6 +14,7 @@ export const GLASS_MARBLE: ShaderDescriptor = Object.freeze({
     target: "node",
     place: "paint",
     categories: Object.freeze(["Glass"]),
+    tags: Object.freeze(["glass", "3D", "shiny"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "twist", plainName: "Twist", type: "number", default: 2.2, min: 0, max: 8, primary: true },
         { name: "vanes", plainName: "Ribbons", type: "integer", default: 4, min: 2, max: 10 },

@@ -10,5 +10,13 @@
 
 export type { AccelerationErrorCode, GraphtyErrorCode, GraphtyWarningCode } from "./codes";
 export { ACCELERATION_ERROR_CODES, GRAPHTY_ERROR_CODES, isGraphtyErrorCode } from "./codes";
-export type { GraphtyErrorInit, GraphtyErrorJson, GraphtyErrorSource, GraphtyErrorTarget } from "./GraphtyError";
+export type {
+    GraphtyErrorDetails,
+    GraphtyErrorDetailsMap,
+    GraphtyErrorFor,
+    GraphtyErrorInit,
+    GraphtyErrorJson,
+    GraphtyErrorSource,
+    GraphtyErrorTarget,
+} from "./GraphtyError";
 export { GraphtyError, isGraphtyError } from "./GraphtyError";

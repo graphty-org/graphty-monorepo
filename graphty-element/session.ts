@@ -225,6 +225,9 @@ export type {
     BuiltInModelFormat,
     ModelFormat,
     ModelLimits,
+    ModelPart,
+    ModelPartRole,
+    ModelPartState,
     ModelSummary,
     NamedBlob,
     PartAnswer,
@@ -364,15 +367,24 @@ export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } 
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    ComparedField,
+    CompareSide,
+    ComparisonBase,
+    GroupMove,
+    GroupOverlap,
     Histogram,
     HistogramBin,
     HistogramBinning,
     HistogramOptions,
     Normalization,
     NumericColumnView,
+    PartitionComparison,
+    RankChange,
+    RankingComparison,
     RankingEntry,
     ReadingCode,
     ReadingOptions,
+    ResultComparison,
     ResultsApi,
     ResultSummary,
     RunRef,
@@ -589,11 +601,13 @@ export type {
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
 export { isAlgorithmRunCommand } from "./src/session";
 export type {
+    CostBasis,
     CostConfidence,
     CostEstimate,
     CostGateDecision,
     CostGateLimits,
     CostMeasurement,
+    CostProvenanceCode,
     EstimateRefusalCode,
     MachineCalibration,
 } from "./src/session/cost";
@@ -803,6 +817,9 @@ export { DEFAULT_LIMITS } from "./src/session";
 export type {
     AccelerationErrorCode,
     GraphtyErrorCode,
+    GraphtyErrorDetails,
+    GraphtyErrorDetailsMap,
+    GraphtyErrorFor,
     GraphtyErrorInit,
     GraphtyErrorJson,
     GraphtyErrorSource,

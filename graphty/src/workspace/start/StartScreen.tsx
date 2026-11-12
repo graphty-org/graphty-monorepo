@@ -27,7 +27,7 @@ import { Groups } from "./icons";
 import { isLarge } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
 import { NETWORK_DIALOG } from "./NetworkDataDialog";
-import { openDataset, openGenerated, openNetworkSample, openOnStart, openSample, pickFiles } from "./open";
+import { openDataset, openFiles, openGenerated, openNetworkSample, openSample, pickFiles } from "./open";
 import { SampleCard } from "./SampleCard";
 import { GENERATED, type LibraryTile, NETWORK_TILES, type NetworkTile, offeredTiles } from "./sampleLibrary";
 
@@ -503,17 +503,18 @@ export function StartScreen(): React.JSX.Element {
         };
     }, []);
 
-    // The drop target is the whole window ("drop a file anywhere in this window"). graphty-element
-    // says whether it is a model before it is read as graph data.
+    // The drop target is the whole window ("drop a file anywhere in this window").
     const onDrop = useCallback(
         (files: File[]) => {
-            void openOnStart(workspace, files, session);
+            openFiles(workspace, files);
         },
-        [workspace, session],
+        [workspace],
     );
     // Open a file is the drop's Choose: the same files open the same way.
     const choose = (): void => {
-        void pickFiles().then((files) => openOnStart(workspace, files, session));
+        void pickFiles().then((files) => {
+            openFiles(workspace, files);
+        });
     };
     const { over: dragging } = useFileDrop("window", onDrop);
 

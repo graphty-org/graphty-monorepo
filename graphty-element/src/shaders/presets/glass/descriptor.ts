@@ -15,6 +15,7 @@ export const GLASS: ShaderDescriptor = Object.freeze({
     target: "node",
     place: "paint",
     categories: Object.freeze(["Glass"]),
+    tags: Object.freeze(["bubble", "3D"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "sparkle", plainName: "Sparkle", type: "number", default: 1.6, min: 0, max: 3, primary: true },
         { name: "tint", plainName: "Tint", type: "number", default: 0.75, min: 0, max: 1 },

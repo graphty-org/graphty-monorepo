@@ -1,3 +1,5 @@
+import "./notes.css";
+
 import { ControlSection } from "@graphty/compact-mantine";
 import type { GraphSession, Note, NoteTarget, NoteTargetInput } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, Stack, Text, Textarea, Tooltip } from "@mantine/core";
@@ -105,7 +107,7 @@ function Chips({ session, targets, states, onOpen, tabbable = true, note }: Chip
                             </Text>
                         ) : (
                             <Button
-                                size="compact-xs"
+                                size="xs"
                                 variant="light"
                                 tabIndex={tabbable ? 0 : -1}
                                 aria-label={note === undefined ? undefined : `${words}, in note: ${noteName(note)}`}
@@ -301,7 +303,7 @@ export function NotesPlace(): React.JSX.Element {
                         </Text>
                     )
                 ) : (
-                    <ul className="nt-list" aria-label="Notes" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                    <ul className="nt-list" aria-label="Notes">
                         {session !== null &&
                             notes.map((note, index) => {
                                 const status = session.notes.status(note.id);
@@ -315,7 +317,6 @@ export function NotesPlace(): React.JSX.Element {
                                         tabIndex={tabbable ? 0 : -1} // NOSONAR(S6845): the roving tab stop of the note list
                                         aria-label={note.text}
                                         className="nt-note"
-                                        style={{ padding: "6px 16px" }}
                                         onFocus={(event) => {
                                             if (event.target === event.currentTarget) {
                                                 setActive(index);
@@ -337,13 +338,10 @@ export function NotesPlace(): React.JSX.Element {
                                             }
                                         }}
                                     >
-                                        <Stack gap={4}>
-                                            <Text
-                                                size="sm"
-                                                style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
-                                            >
-                                                {note.text}
-                                            </Text>
+                                        <Text size="sm" className="nt-note-text">
+                                            {note.text}
+                                        </Text>
+                                        <div className="nt-note-foot">
                                             <Chips
                                                 session={session}
                                                 targets={note.targets}
@@ -354,25 +352,23 @@ export function NotesPlace(): React.JSX.Element {
                                                     openTarget(session, note, target, openRun);
                                                 }}
                                             />
-                                            <Group gap={4} justify="space-between" wrap="nowrap">
-                                                <Text size="xs" c="dimmed">
-                                                    {noteTimeWords(note.time, note.edited)}
-                                                </Text>
-                                                <Tooltip label="Delete note">
-                                                    <ActionIcon
-                                                        variant="subtle"
-                                                        size="sm"
-                                                        aria-label={`Delete note: ${noteName(note.text)}`}
-                                                        tabIndex={tabbable ? 0 : -1}
-                                                        onClick={() => {
-                                                            remove(index);
-                                                        }}
-                                                    >
-                                                        <GLYPHS.delete size={14} aria-hidden />
-                                                    </ActionIcon>
-                                                </Tooltip>
-                                            </Group>
-                                        </Stack>
+                                            <Text size="xs" c="dimmed">
+                                                {noteTimeWords(note.time, note.edited)}
+                                            </Text>
+                                            <Tooltip label="Delete note">
+                                                <ActionIcon
+                                                    variant="subtle"
+                                                    size="sm"
+                                                    aria-label={`Delete note: ${noteName(note.text)}`}
+                                                    tabIndex={tabbable ? 0 : -1}
+                                                    onClick={() => {
+                                                        remove(index);
+                                                    }}
+                                                >
+                                                    <GLYPHS.delete size={14} aria-hidden />
+                                                </ActionIcon>
+                                            </Tooltip>
+                                        </div>
                                     </li>
                                 );
                             })}

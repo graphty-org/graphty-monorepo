@@ -1108,6 +1108,7 @@ export interface GraphBounds {
     readonly measured: number;
     // (undocumented)
     readonly min: Vec3;
+    readonly points?: readonly Vec3[];
     // (undocumented)
     readonly size: Vec3;
 }

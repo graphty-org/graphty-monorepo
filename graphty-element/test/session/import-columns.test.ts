@@ -2,7 +2,7 @@
  * @file The typed door (design/rendering/row-renderer.md, stage 28): `session.data.importColumns`
  * loads a graph from column arrays as one undoable step, and the graph it makes is the one the
  * record doors (`addNodes`, `addEdges`) make from the same rows. Under the "batched" render path a
- * forward add of edges records them as one range entry in the op log, which undo and redo take
+ * forward add of nodes, and of edges, records each as one range entry in the op log, which undo and redo take
  * back and put again in one go.
  */
 
@@ -189,6 +189,37 @@ describe("session.data.importColumns", () => {
         // Each edge op costs 48 bytes of its own; the range costs that once and 16 per edge.
         assert.isAtLeast(objects - batched, 20_000 * 31, `objects ${String(objects)}, batched ${String(batched)}`);
     });
+
+    it("keeps a batched load of nodes as one range entry, retaining less than one op per node", async () => {
+        const bytes: number[] = [];
+        for (const batched of [false, true]) {
+            const session = createElementSession({}, { batched: () => batched });
+            await session.data.addNodes(Array.from({ length: 20_000 }, (_, i) => ({ id: `n${String(i)}` })));
+            bytes.push(session.history.steps.at(-1)?.bytes ?? 0);
+        }
+
+        const [objects, batched] = bytes;
+        // Each node op costs 48 bytes of its own; the range costs that once and 20 per node.
+        assert.isAtLeast(objects - batched, 20_000 * 27, `objects ${String(objects)}, batched ${String(batched)}`);
+    });
+
+    for (const batched of [false, true]) {
+        it(`undoes and redoes nodes merged into existing ones, on the ${batched ? "batched" : "objects"} path`, async () => {
+            const session = createElementSession({}, { batched: () => batched });
+            await session.data.addNodes([{ id: "a", x: 1 }, { id: "b" }]);
+            await session.data.addEdges([{ source: "b", target: "z" }]);
+            const before = digest(session);
+            // "a" and "z" already have rows ("z" made by the edge, with no record); "c" is new.
+            await session.data.addNodes([{ id: "a", x: 2 }, { id: "c" }, { id: "z", y: 3 }]);
+            const after = digest(session);
+            assert.deepStrictEqual(session.data.count(), { nodes: 4, edges: 1 });
+            await session.undo();
+            assert.strictEqual(digest(session), before);
+            assert.deepStrictEqual(session.data.count(), { nodes: 3, edges: 1 });
+            await session.redo();
+            assert.strictEqual(digest(session), after);
+        });
+    }
 
     it("retains history in proportion to the edges it loads", async () => {
         await assertScalesLinearly(

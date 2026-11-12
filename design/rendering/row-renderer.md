@@ -1163,6 +1163,12 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   records, file ids, created endpoints by place) instead of one op object per edge; undo and redo walk it in one
   op, touching each edge by its own `e:` key as before. Under `"objects"` the op log is unchanged. This is the
   entry G4 waits for: a forward `addNodes`/`addEdges` load already records it.
+  Nodes (ninth pull request of stage 28): under `"batched"` a forward add of nodes keeps each run of node adds
+  with no other op between them as one `nodes` op holding columns (ids, records, seeds, whether the row existed,
+  the prior records by place) instead of one op per node, so a `nodeData` or `addNodes` load is one entry for its
+  nodes and one per run of its edges; undo and redo walk it in one op, touching each node by its own `n:` key, and
+  its lane keys are unchanged. A node run is not keyed by row like an edge run: node ids are arbitrary
+  (`test/session/import-columns.test.ts`).
   graph-samples (seventh pull request of stage 28): correction, a generated graph or a dataset does not go through
   `importColumns`. It is a load: it replaces the graph by default, is listed in `sources()` with its sample facts,
   names its nodes by its label column and is reloaded by name from a project file, and `importColumns` carries none

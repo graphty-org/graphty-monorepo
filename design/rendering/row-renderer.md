@@ -117,6 +117,16 @@ Per instance: `matrix` (local scale only), `instanceColor` (`INSTANCESCOLOR` fee
 multiplies alpha, so alpha stays 1 until stage 14) and a float `graphtyRow`, exact to 16.7M: 84 bytes a row. Every matrix is identity today,
 since size is baked into the source mesh, so a batch whose rows are all identity drops `matrix` for a row-only attribute: 20 bytes a row
 (stage 28; unproven how the plugin stands in for `world0..3`, so `render-parity` decides). A batch with per-instance size keeps 84.
+Built (eighth pull request of stage 28). Correction: every matrix is not identity, since a batch is one per shape and
+holds each row's size in its matrix (two sizes, one draw). So a batch starts with no matrices, 20 bytes a row, and
+keeps them only while every row it holds is unscaled; the first scaled row gives every slot a matrix for good (84).
+With no matrix buffer Babylon cannot count thin instances, so the batch sets `forcedInstanceCount`; `RowPullPlugin`
+gets a second define, `ROW_UNSCALED`, under which `finalWorld` starts as the identity instead of reading
+`world0..3` (GLSL and WGSL). The material is frozen, so the switch marks the batch's defines dirty and resets its
+draw cache. `render-parity` passes on WebGL and WebGPU at 0 pixels both ways and after a row is scaled
+(`test/browser/node-batch.test.ts`, "send 20 bytes a row"). Only `"batched"` has batches; `"objects"` is unchanged.
+Open before it can land: on WebGPU (SwiftShader) "read a batched row from its table" sees one edge re-trimmed on a
+frame at rest (`centerOf` called twice), which master does not.
 
 `RowPullPlugin` (GLSL and WGSL) places the row and applies w. It is attached when the material is made (a frozen material stops evaluating
 defines); its define turns on per mesh, so object rows share the material. It rewrites Babylon's thin-instance normal line to the ordinary

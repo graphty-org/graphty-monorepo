@@ -632,6 +632,19 @@ function partsOf(ctx: RowContext, kind: TextKindSpec): AddOption[] {
 }
 
 /**
+ * A channel of a text entry as the row draws it: as the element offers it, or, when the row already
+ * sets it, as graphty-element ships it.
+ * @param ctx - the row.
+ * @param channel - the channel, absent on a kind that has none.
+ * @returns its descriptor, or undefined.
+ */
+function shownIn(ctx: RowContext, channel: Channel | undefined): ChannelDescriptor | undefined {
+    return channel === undefined
+        ? undefined
+        : shownChannel(ctx.session, ctx.side, channel, lineIn(ctx, channel) !== undefined);
+}
+
+/**
  * One text entry at rest (design 2.3). Line 1: the kind's glyph and word in the label column, the
  * source (typed words, or a value the words read), the settings button, the minus. Then the look (previews; "Card, edited" while a field differs,
  * from graphty-element's `labelLookChanges`), the size with its vary glyph, and the position, each
@@ -658,9 +671,7 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
     const styleLine = lineIn(ctx, kind.style);
     const style = styleOf(styleLine);
     const locked = (words ?? styleLine)?.layer.locked === true;
-    // What the element offers, and a setting the row already sets even when it is not offered.
-    const descriptorOf = (channel: Channel): ChannelDescriptor | undefined =>
-        shownChannel(session, target, channel, lineIn(ctx, channel) !== undefined);
+    const descriptorOf = (channel: Channel): ChannelDescriptor | undefined => shownIn(ctx, channel);
     // A write from the row drops `enabled: false`, which the row no longer sets: a label hidden
     // before the row lost its eye is drawn again once the reader changes it here.
     const writeStyle = (patch: Partial<LabelStyle>): void => {
@@ -685,7 +696,7 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
         value: look.id,
         label: look.id === lookId && edited ? `${look.plainName}, edited` : look.plainName,
     }));
-    const sizeDescriptor = kind.size === undefined ? undefined : descriptorOf(kind.size);
+    const sizeDescriptor = shownIn(ctx, kind.size);
     // The position varies by a value from its own line, as a setting varies from Label settings.
     const locationVary = vary("location");
     const addPart = (key: string): void => {
@@ -854,7 +865,7 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
             {sizeDescriptor === undefined ? null : <Field ctx={ctx} descriptor={sizeDescriptor} word="Size" />}
             <TableLine
                 ctx={ctx}
-                descriptor={kind.table === undefined ? undefined : descriptorOf(kind.table)}
+                descriptor={shownIn(ctx, kind.table)}
                 waiting={tableWaiting}
                 onCancel={() => {
                     setTableWaiting(false);

@@ -673,6 +673,7 @@ export class Ingest<K extends KnownEdge> {
                         ...(mutation.source === undefined ? {} : { source: mutation.source }),
                         ...(mutation.target === undefined ? {} : { target: mutation.target }),
                         ...(mutation.repeated === undefined ? {} : { repeated: mutation.repeated }),
+                        ...(mutation.weight === undefined ? {} : { weight: mutation.weight }),
                     },
                     writer,
                 );

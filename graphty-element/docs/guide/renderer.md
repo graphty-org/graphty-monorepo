@@ -76,7 +76,10 @@ that would fail. Keep the default renderer on a page that offers VR or AR.
 WebAssembly modules, glslang and twgsl, which it fetches from `https://cdn.babylonjs.com` the first
 time a WebGPU graph opens on the page, about 1 MB together. The element fetches them before it
 draws, so a page whose Content Security Policy or network blocks that host draws with WebGL and
-says so in `rendererStatus.reason`, rather than drawing a graph with no edges.
+says so in `rendererStatus.reason`, rather than drawing a graph with no edges. To serve them yourself,
+copy `glslang/glslang.js`, `glslang/glslang.wasm`, `twgsl/twgsl.js` and `twgsl/twgsl.wasm` from
+`https://cdn.babylonjs.com/v<babylon version>/` to your own host and point Babylon.js at it before the
+graph opens: `Tools.ScriptBaseUrl = "https://example.com/babylon"` (`Tools` from `@babylonjs/core`).
 
 ## One device for drawing and layout
 

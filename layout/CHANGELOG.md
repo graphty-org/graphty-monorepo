@@ -1,3 +1,25 @@
+## 2.7.1 (2026-11-12)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.47
+- Updated visual-review to 0.2.43
+- Updated graph-format to 1.5.2
+- Updated algorithms to 3.4.22
+
+## 2.7.0 (2026-11-10)
+
+### 🚀 Features
+
+- **layout:** add a cluster force that pulls communities together ([#3257](https://github.com/graphty-org/graphty-monorepo/issues/3257))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.46
+- Updated visual-review to 0.2.42
+- Updated graph-format to 1.5.1
+- Updated algorithms to 3.4.21
+
 ## 2.6.0 (2026-11-09)
 
 ### 🚀 Features

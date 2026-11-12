@@ -1334,6 +1334,11 @@ jobs:
             - name: Release hold list
               run: pnpm run check:release-hold
 
+            # A published package's peer dependencies change only in a major (tools/check-peer-deps-stable.mjs).
+            # The same check runs in tools/prepush.sh.
+            - name: Peer dependencies stable
+              run: pnpm run check:peer-deps
+
             # Element data sources read files through @graphty/graph-io importers, not their own
             # parsers. The same check runs in tools/check-quick.sh.
             - name: Element data sources on graph-io
@@ -1367,6 +1372,12 @@ jobs:
             # that makes it. The same check runs in tools/prepush-source-checks.sh.
             - name: compact-mantine Figma lock
               run: pnpm run check:figma-lock
+
+            # Save files carry what they use: adding a known exception to graphty-element's saved-format
+            # checks needs the owner's `Saved-Format-Exception-Approved: <reason>` trailer, and a shipped
+            # shader hash leaves only by being revoked. The same check runs in tools/prepush-source-checks.sh.
+            - name: Saved-format exceptions
+              run: pnpm run check:saved-format-allowlist
 
             # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
             # ends (.github/actions/early-verdict).
@@ -1739,6 +1750,34 @@ jobs:
             - name: Install Playwright's other browsers
               if: matrix.browsers
               run: pnpm exec playwright install ${{ matrix.browsers }}
+
+            # graphty-element loads Babylon.js's GLSL compilers before it opens WebGPU, and the browser tests answer
+            # those requests from a local copy (vitest.babylon-compilers.mjs), never cdn.babylonjs.com: a CDN that
+            # did not answer once failed a gpu-loss shard on an unrelated pull request (#6787). Cached per Babylon.js
+            # version, so the CDN is asked only when the version changes; the fetch step fills a miss.
+            - name: Key the Babylon.js GLSL compilers by version
+              id: babylon-compilers-key
+              if: matrix.needs-browser
+              run: echo "key=babylon-shader-compilers-$(node -p "require('@babylonjs/core/package.json').version")" >> "$GITHUB_OUTPUT"
+
+            - name: Restore the Babylon.js GLSL compilers
+              id: babylon-compilers
+              if: matrix.needs-browser
+              uses: actions/cache/restore@v6
+              with:
+                  path: ~/.cache/babylon-shader-compilers
+                  key: ${{ steps.babylon-compilers-key.outputs.key }}
+
+            - name: Fetch the Babylon.js GLSL compilers
+              if: matrix.needs-browser
+              run: node vitest.babylon-compilers.mjs
+
+            - name: Save the Babylon.js GLSL compilers
+              if: matrix.needs-browser && steps.babylon-compilers.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: ~/.cache/babylon-shader-compilers
+                  key: ${{ steps.babylon-compilers-key.outputs.key }}
 
             # webgpu-graph-algorithms node shard: Dawn needs a Vulkan ICD; ubuntu-24.04 has none preinstalled.
             # The .deb files apt chose are cached per runner image, as playwright-system-deps does for Chromium's,

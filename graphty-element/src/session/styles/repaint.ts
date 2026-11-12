@@ -171,6 +171,15 @@ export interface RepaintSources {
      */
     readonly hideUnpainted?: () => boolean;
     /**
+     * Whether a pass may fill the mesh keys of a dirty set in one go when every mesh-keying
+     * channel is absent or the same over it, interning one sequence instead of one per element.
+     * Read at the start of every interning; absent is off. The element turns it on under
+     * `render-path="batched"` (design/rendering/cosmos-gap.md, G6); the keys come out the same
+     * either way, so this is a cost switch and nothing else.
+     * @returns True to allow the fill.
+     */
+    readonly uniformFill?: () => boolean;
+    /**
      * The clock a pass's slices are timed on. Absent is `performance.now()`; a test that drives
      * the session's clock itself hands it in, so how often a pass yields depends on that clock and
      * not on how busy the machine is.
@@ -840,6 +849,60 @@ function pushMeshValue(meshes: StyleInterner<ResolvedStyle>, column: ChannelColu
     meshes.pushNumber(color.g);
     meshes.pushNumber(color.b);
     meshes.pushNumber(color.a);
+}
+
+/**
+ * Whether two values of one mesh-keying channel push the same tokens into the interner.
+ *
+ * Conservative: a pair it calls different may still key one mesh, which only costs the per-row path.
+ * @param a - One value, as {@link readColumn} returns it.
+ * @param b - The other.
+ * @returns True when they key the same mesh.
+ */
+function sameMeshValue(a: unknown, b: unknown): boolean {
+    if (Object.is(a, b)) {
+        return true;
+    }
+
+    const first = asColorValue(a);
+    const second = asColorValue(b);
+
+    return (
+        first !== null &&
+        second !== null &&
+        // An effect written off pushes absent, never its zero components (see pushMeshValue).
+        (first.hex === EFFECT_OFF) === (second.hex === EFFECT_OFF) &&
+        first.r === second.r &&
+        first.g === second.g &&
+        first.b === second.b &&
+        first.a === second.a
+    );
+}
+
+/**
+ * Whether every mesh-keying channel is absent or one value over a dirty set, so every element in
+ * it is drawn from the same source mesh.
+ * @param columns - The mesh-keying channels' columns, null where nothing wrote one.
+ * @param dirty - The dense indices.
+ * @param count - How many of them are in use; at least one.
+ * @returns True when one interned sequence keys them all.
+ */
+function uniformOver(columns: readonly (ChannelColumn | null)[], dirty: Uint32Array, count: number): boolean {
+    return columns.every((column) => {
+        if (column === null) {
+            return true;
+        }
+
+        const first = readColumn(column, dirty[0]);
+
+        for (let at = 1; at < count; at++) {
+            if (!sameMeshValue(first, readColumn(column, dirty[at]))) {
+                return false;
+            }
+        }
+
+        return true;
+    });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1804,6 +1867,32 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         };
 
         /**
+         * Intern one element's mesh-keying channels.
+         * @param index - Its dense index.
+         * @returns Its source mesh key.
+         */
+        const keyOf = (index: number): number => {
+            meshes.begin();
+
+            for (let which = 0; which < columns.length; which++) {
+                pushMeshValue(meshes, columns[which], index);
+            }
+
+            minting = index;
+
+            return meshes.end(mintStyle);
+        };
+
+        // THE UNIFORM FILL: when no mesh channel varies over the dirty set, one sequence keys every
+        // element in it, so it is interned once and the rest only move their counts.
+        const uniform =
+            sources.uniformFill?.() === true &&
+            store.dirtyCount > 0 &&
+            uniformOver(columns, store.dirty, store.dirtyCount)
+                ? keyOf(store.dirty[0])
+                : undefined;
+
+        /**
          * Intern one run of elements.
          * @param from - The first position.
          * @param to - One past the last.
@@ -1811,15 +1900,7 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
         const internSlice = (from: number, to: number): void => {
             for (let at = from; at < to; at++) {
                 const index = store.dirty[at];
-
-                meshes.begin();
-
-                for (let which = 0; which < columns.length; which++) {
-                    pushMeshValue(meshes, columns[which], index);
-                }
-
-                minting = index;
-                const key = meshes.end(mintStyle);
+                const key = uniform ?? keyOf(index);
                 const held = store.meshKeys[index];
 
                 // Counted only when an element MOVES to another mesh, so an edit that leaves

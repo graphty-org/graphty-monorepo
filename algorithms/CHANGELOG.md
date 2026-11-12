@@ -1,3 +1,36 @@
+## 3.4.22 (2026-11-12)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.47
+- Updated visual-review to 0.2.43
+- Updated graph-format to 1.5.2
+
+## 3.4.21 (2026-11-10)
+
+### 🩹 Fixes
+
+- **tools:** compare a benchmark result only with results of the same input graph ([#6220](https://github.com/graphty-org/graphty-monorepo/issues/6220))
+- **tools:** move to knip 6 so the dead-code check peaks at 1.4 GB, not 3 GB ([#6142](https://github.com/graphty-org/graphty-monorepo/issues/6142), [#6147](https://github.com/graphty-org/graphty-monorepo/issues/6147))
+- **algorithms:** keep the report script's promise chain ([#5978](https://github.com/graphty-org/graphty-monorepo/issues/5978))
+- **algorithms:** use top-level await in the performance report script ([#5978](https://github.com/graphty-org/graphty-monorepo/issues/5978))
+- **algorithms:** pin the benchmark report script with an integrity hash ([#5978](https://github.com/graphty-org/graphty-monorepo/issues/5978))
+- **algorithms:** seed the benchmark graphs so their timings compare run to run ([#5843](https://github.com/graphty-org/graphty-monorepo/issues/5843))
+
+### 🔥 Performance
+
+- **algorithms:** restore Brandes and PageRank hot-loop speed lost in the complexity split ([#5648](https://github.com/graphty-org/graphty-monorepo/issues/5648), [#5626](https://github.com/graphty-org/graphty-monorepo/issues/5626), [#5821](https://github.com/graphty-org/graphty-monorepo/issues/5821))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.46
+- Updated visual-review to 0.2.42
+- Updated graph-format to 1.5.1
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
 ## 3.4.20 (2026-11-09)
 
 ### 🚀 Features

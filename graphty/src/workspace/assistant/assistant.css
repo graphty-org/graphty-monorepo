@@ -1,0 +1,391 @@
+/* The Assistant's panel: a title row, the log that scrolls, and the composer pinned at the foot.
+   Nothing inside it is boxed; sections part on hairlines. */
+.ws-assistant {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.ws-assistant-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 8px 4px 8px;
+}
+
+.ws-assistant-title {
+    margin: 0;
+    padding-left: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 24px;
+}
+
+.ws-assistant-actions {
+    display: flex;
+    flex: none;
+    gap: 2px;
+}
+
+.ws-assistant-logwrap {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+}
+
+/* Positioned, so a visually hidden label's absolute box stays inside the scroll and never overflows the
+   panel into a second scrollbar. */
+.ws-assistant-log {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 4px 16px 8px;
+}
+
+.ws-assistant-jump {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.ws-assistant-setup {
+    padding: 8px 16px;
+}
+
+.ws-assistant-turn {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+/* "You" and "Assistant": headings for screen readers only, so heading navigation still goes turn by turn. */
+.ws-assistant-who {
+    position: absolute;
+    overflow: hidden;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/* The reader's own message: a light gray fill, and a transparent border that forced colors draw, so
+   the speakers stay apart without color. Replies run plain at full width. */
+.ws-assistant-mine {
+    margin-top: 4px;
+    padding: 4px 8px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: var(--cm-bg-secondary);
+}
+
+.ws-assistant-spoken {
+    margin-inline-end: 4px;
+    vertical-align: -1px;
+    color: var(--cm-icon-secondary);
+}
+
+.ws-assistant-stopped {
+    flex: none;
+    color: var(--cm-icon-secondary);
+    fill: currentcolor;
+}
+
+/* A change line's layers glyph, and a failure: the warning glyph and its words in the error color,
+   or the warning color for a provider out of credit, with no box. */
+.ws-assistant-changed {
+    flex: none;
+    margin-top: 3px;
+    color: var(--cm-icon-secondary);
+}
+
+.ws-assistant-failed {
+    color: var(--cm-text-danger);
+}
+
+.ws-assistant-failed[data-billing] {
+    color: var(--cm-text-warning);
+}
+
+.ws-assistant-failed-mark {
+    flex: none;
+    margin-top: 3px;
+}
+
+/* A reply running: three dots that pulse in turn, still with reduced motion. */
+.ws-assistant-dots {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+    height: 24px;
+}
+
+.ws-assistant-dots span {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--cm-icon-secondary);
+    animation: ws-assistant-dot 1.2s ease-in-out infinite;
+}
+
+.ws-assistant-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.ws-assistant-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes ws-assistant-dot {
+    0%,
+    80%,
+    100% {
+        opacity: 0.3;
+    }
+
+    40% {
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ws-assistant-dots span {
+        opacity: 0.6;
+        animation: none;
+    }
+}
+
+.ws-assistant-prose {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+/* What was said and what was done are text to copy, unlike the workspace around them. */
+.ws-assistant-prose,
+.ws-assistant-step {
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.ws-assistant-steps {
+    margin: 2px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ws-assistant-steps li {
+    padding-left: 12px;
+}
+
+/* A disclosure's chevron: ">" while closed, turning down as it opens. */
+.ws-assistant-chevron {
+    flex: none;
+    color: var(--cm-icon-secondary);
+    transform: rotate(-90deg);
+    transition: transform 120ms ease;
+}
+
+[aria-expanded="true"] > .ws-assistant-chevron {
+    transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ws-assistant-chevron {
+        transition: none;
+    }
+}
+
+/* The key field's help: numbered steps, numbers inside the popover's edge. */
+.ws-assistant-key-steps {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.ws-assistant-step {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    text-align: left;
+}
+
+/* A step's Asked for and Result: under its line, indented past its chevron. */
+.ws-assistant-step-detail {
+    margin: 0;
+    padding: 0 0 2px 16px;
+    overflow-wrap: anywhere;
+    -webkit-user-select: text;
+    user-select: text;
+}
+
+.ws-assistant-step-detail dd {
+    margin: 0 0 0 8px;
+}
+
+.ws-assistant-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.ws-assistant-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+}
+
+.ws-assistant-change {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ws-assistant-waiting {
+    flex: none;
+    overflow-y: auto;
+    max-height: 40%;
+    padding: 8px;
+    border-top: 1px solid var(--cm-border);
+}
+
+.ws-assistant-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ws-assistant-list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 0;
+    border-bottom: 1px solid var(--cm-border);
+}
+
+/* The header's chat switch, and each row's open button: the title gives way with an ellipsis. */
+.ws-assistant-switch,
+.ws-chat-open,
+.ws-chat-rename {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.ws-assistant-switch {
+    flex: 0 1 auto;
+}
+
+/* Mantine's inner box centers its content and does not shrink: it starts the title at the left and
+   gives way, so the label can, and the title in it ends in an ellipsis inside the button. */
+.ws-assistant-switch .mantine-Button-inner,
+.ws-chat-open .mantine-Button-inner {
+    justify-content: flex-start;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.ws-assistant-switch .mantine-Button-label,
+.ws-chat-open .mantine-Button-label {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.ws-assistant-switch[aria-expanded="true"] .mantine-Button-section svg {
+    transform: rotate(180deg);
+}
+
+.ws-chat-title {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The check's slot keeps its width when a long title squeezes the row, so every title starts in
+   one column. */
+.ws-chat-open .mantine-Button-section {
+    flex: none;
+}
+
+/* Keeps the titles of rows without the check in line with the checked one. */
+.ws-chat-nocheck {
+    display: inline-block;
+    width: 12px;
+}
+
+.ws-chat-date {
+    flex: none;
+}
+
+.ws-assistant-foot {
+    position: relative;
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    border-top: 1px solid var(--cm-border);
+}
+
+/* One rounded box: the message field over the row of icons. */
+.ws-assistant-box {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid var(--cm-border);
+    border-radius: 8px;
+}
+
+.ws-assistant-box:has(textarea:focus-visible) {
+    border-color: var(--mantine-primary-color-filled);
+    /* Unseen until forced colors draw it: there every border is one color, so the outline marks focus. */
+    outline: 2px solid transparent;
+    outline-offset: -1px;
+}
+
+/* Forced colors replace a background with the page's color: the dots keep the text color. */
+@media (forced-colors: active) {
+    .ws-assistant-dots span {
+        background: CanvasText;
+        forced-color-adjust: none;
+    }
+}
+
+.ws-assistant-input {
+    padding: 2px 4px;
+}
+
+/* Send stays in its place while the box is empty, dimmed. */
+.ws-assistant-send[aria-disabled="true"] {
+    opacity: 0.45;
+}
+
+/* Talk while it listens: the stop square inside a thin accent ring. */
+.ws-assistant-listening {
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px var(--mantine-primary-color-filled);
+}
+
+/* What Talk last heard (or did not), laid over the log's foot above the composer. */
+.ws-assistant-voice {
+    position: absolute;
+    right: 0;
+    bottom: 100%;
+    left: 0;
+    padding: 2px 16px;
+    border-top: 1px solid var(--cm-border);
+    background: var(--cm-bg);
+    pointer-events: none;
+}

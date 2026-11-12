@@ -102,7 +102,10 @@ still-frame stage, and `summarize.mjs` pools rows per measure, so a measure reac
 needed `lean-m-tail` three times and `lean-m-dpr2-tail` twice.
 
 To see where a frame's CPU goes, set `BENCH_PROFILE=<path prefix>`: the run also profiles 60 still and 60 moving
-frames, outside the timed stages, into `<prefix>-still.cpuprofile` and `<prefix>-orbit.cpuprofile`.
+frames, outside the timed stages, into `<prefix>-still.cpuprofile` and `<prefix>-orbit.cpuprofile`. To see where the
+load's and the layout frame's CPU and garbage collector time go, set `BENCH_PROFILE_TIMED=<path prefix>`: those two
+stages are profiled while they are timed, into `<prefix>-load.cpuprofile` and `<prefix>-layout.cpuprofile`. The
+profiler slows them, so give such runs their own `BENCH_RESULTS` file.
 
 The `3d` flag keeps the lean mode's straight edges in 3D, where `batched` pulls them (a 2D line is not pulled), and
 fails the run if any edge is an object edge: the million-edge line program (cosmos-gap.md G12) is measured with it.
@@ -137,8 +140,8 @@ Then call `servherd_stop` with the name `cosmos-bench-<LABEL>`.
 ## What a row holds
 
 `results.jsonl` has one line per run: `sha`, `source`, `dirty`, `renderPath` (absent when unset), `renderer`, `flags`, `loadavgBefore`, `loadavgAfter` (the one-minute load average as the row was written), `floor` (the
-cost of the measurement itself), `load`, `canvas`, `still`, `gpuFrame` (the GPU time of 60 still frames from `EXT_disjoint_timer_query_webgl2`, null without the extension and for cosmos.gl; a serial still frame below it means the stamps ran early), `orbit` (the moving frame), `drag` (a frame with one node moved, null for cosmos.gl), `memory`, `hover`,
-`layoutFps`, `layoutSteps` (on the accelerated path also `publish`, one `publishPositions()`, `stepUndrawn`, the step with the frame loop stopped, and `repackUpload`, one row table repack and upload finished on the card, with `rowsCopied`, the fewest rows a timed flush really changed, which should be close to `rows`), and `failure` when it ended early. The order of the stages is fixed: still, moving, drag,
-memory, hover, layout. Hover comes before the layout so both libraries hover the same scene.
+cost of the measurement itself), `load`, `canvas`, `still`, `gpuFrame` (the GPU time of 60 still frames from `EXT_disjoint_timer_query_webgl2`, null without the extension and for cosmos.gl; a serial still frame below it means the stamps ran early), `orbit` (the moving frame), `drag` (a frame with one node moved, null for cosmos.gl), `memoryNoGc` (the JS heap and process RSS as the page holds them, before any forced collection), `memory` (the same after a forced collection), `hover`,
+`layoutFps` (with `landedBatches`, the GPU position batches that came back and were published during it; on an accelerated layout a row where none landed carries `refused` and `summarize.mjs` leaves it out, because a layout whose readback never lands does not move and its frames time a still scene), `hoverLayout` (the hover stage again, while the layout still runs), `layoutSteps` (on the accelerated path also `publish`, one `publishPositions()`, `stepUndrawn`, the step with the frame loop stopped, and `repackUpload`, one row table repack and upload finished on the card, with `rowsCopied`, the fewest rows a timed flush really changed, which should be close to `rows`), and `failure` when it ended early. The order of the stages is fixed: still, moving, drag,
+memory, hover, layout frame, hover during the layout, layout steps. Hover comes before the layout so both libraries hover the same scene; the second hover measures the readback while the layout's work shares the GPU.
 
 Screenshots of the last run of each configuration are in `../results/<label>/shots/`, which git ignores.

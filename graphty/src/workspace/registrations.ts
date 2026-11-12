@@ -4,6 +4,7 @@
  */
 
 import { registration as analyze } from "./analyze/commands";
+import { registration as assistantDoor } from "./assistant-door/commands";
 import { registration as canvas } from "./canvas/commands";
 import type { WorkspaceRegistration } from "./commands/registry";
 import { registration as dataPage } from "./data-page/commands";
@@ -28,6 +29,7 @@ import { registration as toolbar } from "./toolbar/commands";
 
 export const REGISTRATIONS: readonly WorkspaceRegistration[] = [
     frame,
+    assistantDoor,
     start,
     settings,
     privacy,

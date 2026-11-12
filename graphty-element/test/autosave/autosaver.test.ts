@@ -858,3 +858,19 @@ describe("timeline playback", () => {
         session.dispose();
     });
 });
+
+describe("unsaved changes", () => {
+    it("are outstanding while a change waits for its write, and never for a write of positions alone", async () => {
+        const { session, saver } = await written();
+        assert.isFalse(saver.unsavedChanges);
+        await session.config.set({ name: "Renamed" });
+        assert.isTrue(saver.unsavedChanges, "a change waits");
+        await saver.flush();
+        assert.isFalse(saver.unsavedChanges);
+
+        const positions = saver.flush(true);
+        assert.strictEqual(saver.status.state, "pending", "the positions are being written");
+        assert.isFalse(saver.unsavedChanges, "positions alone hold no change");
+        await positions;
+    });
+});

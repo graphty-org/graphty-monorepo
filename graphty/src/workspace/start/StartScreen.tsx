@@ -1,6 +1,6 @@
 import "./start.css";
 
-import { FileSource, useFileDrop } from "@graphty/compact-mantine";
+import { useFileDrop } from "@graphty/compact-mantine";
 import { type DatasetMeta, GENERATOR_DESCRIPTORS, type GeneratorDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
@@ -8,9 +8,8 @@ import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore }
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES } from "../../data/sampleManifest";
-import { onSiteConfig, siteNetwork, siteTimeline } from "../../siteConfig";
+import { onSiteConfig, siteTimeline } from "../../siteConfig";
 import { RecoveredWork } from "../autosave/RecoveredWork";
-import { holdsModel } from "../canvas/models";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
 import { count } from "../inspector/words";
@@ -19,7 +18,7 @@ import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
 import { agoWords } from "../project/words";
-import { openServerForm } from "../server/commands";
+import { NETWORK_DIALOG } from "../server/commands";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import lockupOnDark from "./brand/graphty-lockup-color-on-dark.svg";
@@ -28,9 +27,9 @@ import { HeroGraph, type HeroSample } from "./HeroGraph";
 import { Groups } from "./icons";
 import { isLarge } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
-import { openDataset, openFiles, openGenerated, openModel, openSample, openUrl } from "./open";
+import { openDataset, openFiles, openGenerated, openNetworkSample, openSample, pickFiles } from "./open";
 import { SampleCard } from "./SampleCard";
-import { GENERATED, type LibraryTile, offeredTiles } from "./sampleLibrary";
+import { GENERATED, type LibraryTile, NETWORK_TILES, type NetworkTile, offeredTiles } from "./sampleLibrary";
 
 /** Where the code and the license live. */
 const GITHUB = "https://github.com/graphty-org/graphty-monorepo";
@@ -223,6 +222,23 @@ function SampleLibrary(): React.JSX.Element {
     const [view, setView] = useState<"grid" | "list">("grid");
     const [asking, setAsking] = useState<DatasetMeta | null>(null);
     const [configuring, setConfiguring] = useState<GeneratorDescriptor | null>(null);
+    const [reading, setReading] = useState<string | null>(null);
+    const stopRead = useRef<AbortController | null>(null);
+    useEffect(() => () => stopRead.current?.abort(), []);
+    const read = (tile: NetworkTile): void => {
+        if (tile.id === reading) {
+            return;
+        }
+        stopRead.current?.abort();
+        const stop = new AbortController();
+        stopRead.current = stop;
+        setReading(tile.id);
+        void openNetworkSample(workspace.store, tile.name, tile.source, tile.example, stop.signal).finally(() => {
+            if (stopRead.current === stop) {
+                setReading(null);
+            }
+        });
+    };
     const openTile = ({ source }: LibraryTile): void => {
         if (source.kind === "sample") {
             openSample(workspace.store, source.sample);
@@ -237,16 +253,23 @@ function SampleLibrary(): React.JSX.Element {
     const query = text.trim().toLowerCase();
     // The first paint does not wait for the site's configuration.
     const timeline = useSyncExternalStore(onSiteConfig, siteTimeline);
-    const offered = offeredTiles(timeline);
+    const library = offeredTiles(timeline);
+    // In the order the sections are drawn: samples, network data, then generated.
+    const offered = [
+        ...library.filter((tile) => tile.field !== GENERATED),
+        ...NETWORK_TILES,
+        ...library.filter((tile) => tile.field === GENERATED),
+    ];
     const fields = [...new Set(offered.map((tile) => tile.field))];
-    const datasetCount = offered.filter((tile) => tile.field !== GENERATED).length;
-    const tiles = offered.filter(
-        (tile) => (field === "" || tile.field === field) && (query === "" || tile.words.includes(query)),
-    );
+    const datasetCount = library.filter((tile) => tile.field !== GENERATED).length;
+    const shown = <T extends LibraryTile | NetworkTile>(each: readonly T[]): T[] =>
+        each.filter((tile) => (field === "" || tile.field === field) && (query === "" || tile.words.includes(query)));
+    const tiles = shown(library);
     const samples = tiles.filter((tile) => tile.field !== GENERATED);
+    const networkSamples = shown(NETWORK_TILES);
     const generators = tiles.filter((tile) => tile.field === GENERATED);
     // How many the box and the field filter leave, said as they change; never on arrival.
-    useAnnounceChange(`${count(tiles.length, "sample")} shown`);
+    useAnnounceChange(`${count(tiles.length + networkSamples.length, "sample")} shown`);
     return (
         <section className="ws-land-band" id="ws-land-samples" aria-label="Sample library">
             <h2 className="ws-land-h2 cm-focus-inside" id="ws-land-samples-title" tabIndex={-1}>
@@ -317,6 +340,28 @@ function SampleLibrary(): React.JSX.Element {
                     ))}
                 </div>
             )}
+            {networkSamples.length === 0 ? null : (
+                <section aria-label="Load network data">
+                    <h3 className="ws-land-h3">Load network data</h3>
+                    <p className="ws-land-intro">
+                        Read a graph live from a server: a biology repository, a graph database, a linked-data endpoint
+                        or a web API.
+                    </p>
+                    <div className="ws-land-samples" data-view={view}>
+                        {networkSamples.map((tile) => (
+                            <SampleCard
+                                key={tile.id}
+                                card={tile}
+                                label={`Load network data: ${tile.name}`}
+                                busy={tile.id === reading}
+                                onClick={() => {
+                                    read(tile);
+                                }}
+                            />
+                        ))}
+                    </div>
+                </section>
+            )}
             {generators.length === 0 ? null : (
                 <section aria-label="Generate a graph">
                     <h3 className="ws-land-h3">Generate a graph</h3>
@@ -338,7 +383,7 @@ function SampleLibrary(): React.JSX.Element {
                     </div>
                 </section>
             )}
-            {tiles.length === 0 ? (
+            {tiles.length + networkSamples.length === 0 ? (
                 <p className="ws-land-empty">
                     No sample matches &quot;{text}&quot;. Try a field, such as biology or places.
                 </p>
@@ -442,10 +487,7 @@ export function StartScreen(): React.JSX.Element {
     const workspace = useWorkspace();
     const scheme = useComputedColorScheme("dark");
     const recent = useRecentProjects();
-    const openDoor = useCommand("file.open");
     const newDoor = useCommand("project.new");
-    // The first paint does not wait for the site's configuration.
-    const network = useSyncExternalStore(onSiteConfig, siteNetwork);
     const [session, setSession] = useState<GraphSession | null>(null);
     const onSession = useCallback((next: GraphSession) => {
         setSession(next);
@@ -461,20 +503,19 @@ export function StartScreen(): React.JSX.Element {
         };
     }, []);
 
-    // The drop target is the whole window ("drop a file anywhere in this window"). graphty-element
-    // says whether it is a model before it is read as graph data.
+    // The drop target is the whole window ("drop a file anywhere in this window").
     const onDrop = useCallback(
         (files: File[]) => {
-            void holdsModel(files).then((model) => {
-                if (model) {
-                    openModel(workspace.store, files[0]?.name ?? "Model", files);
-                } else {
-                    openFiles(workspace, files);
-                }
-            });
+            openFiles(workspace, files);
         },
         [workspace],
     );
+    // Open a file is the drop's Choose: the same files open the same way.
+    const choose = (): void => {
+        void pickFiles().then((files) => {
+            openFiles(workspace, files);
+        });
+    };
     const { over: dragging } = useFileDrop("window", onDrop);
 
     const returning = recent.length > 0;
@@ -493,7 +534,7 @@ export function StartScreen(): React.JSX.Element {
     const openButton = (variant: "primary" | "tint"): React.JSX.Element => (
         <Button
             className={variant === "primary" ? "ws-land-go ws-land-xl" : "ws-land-tint"}
-            onClick={openDoor?.run}
+            onClick={choose}
             leftSection={variant === "tint" ? <GLYPHS.openFile size={16} aria-hidden /> : undefined}
         >
             {variant === "primary" ? (
@@ -507,6 +548,18 @@ export function StartScreen(): React.JSX.Element {
             ) : (
                 "Open a file"
             )}
+        </Button>
+    );
+    const networkButton = (
+        <Button
+            className="ws-land-tint"
+            leftSection={<GLYPHS.data size={16} aria-hidden />}
+            aria-haspopup="dialog"
+            onClick={() => {
+                workspace.store.set({ dialog: NETWORK_DIALOG });
+            }}
+        >
+            Open network data
         </Button>
     );
     const newButton = (
@@ -609,6 +662,7 @@ export function StartScreen(): React.JSX.Element {
                                 <div className="ws-land-more">
                                     {openButton("tint")}
                                     {newButton}
+                                    <div className="ws-land-wide">{networkButton}</div>
                                 </div>
                                 {privacy}
                             </Paper>
@@ -624,18 +678,7 @@ export function StartScreen(): React.JSX.Element {
                             <Paper className="ws-land-launcher" withBorder>
                                 {openButton("primary")}
                                 <div className="ws-land-more">
-                                    {network ? (
-                                        <Button
-                                            className="ws-land-tint"
-                                            leftSection={<GLYPHS.data size={16} aria-hidden />}
-                                            aria-haspopup="dialog"
-                                            onClick={() => {
-                                                openServerForm(workspace.store);
-                                            }}
-                                        >
-                                            Open network data
-                                        </Button>
-                                    ) : null}
+                                    {networkButton}
                                     <Button
                                         className="ws-land-tint"
                                         leftSection={<GLYPHS.gridView size={16} aria-hidden />}
@@ -643,24 +686,7 @@ export function StartScreen(): React.JSX.Element {
                                     >
                                         Samples
                                     </Button>
-                                    {/* Without network data, New from data... sits beside Samples. */}
-                                    {network ? <div className="ws-land-wide">{newButton}</div> : newButton}
-                                    {/* A graph file at a web address opens as a new project. */}
-                                    <div className="ws-land-wide">
-                                        <FileSource
-                                            variant="row"
-                                            url
-                                            multiple
-                                            placeholder="Web address of a graph file"
-                                            openLabel="Open"
-                                            onUrl={(url) => {
-                                                openUrl(workspace.store, url);
-                                            }}
-                                            onFiles={(files) => {
-                                                openFiles(workspace, files);
-                                            }}
-                                        />
-                                    </div>
+                                    <div className="ws-land-wide">{newButton}</div>
                                 </div>
                                 {privacy}
                             </Paper>

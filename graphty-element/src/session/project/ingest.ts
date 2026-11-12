@@ -46,7 +46,7 @@ import {
     SOURCES_VALUE,
 } from "../commands/data";
 import { ISSUES_VALUE, type IssueState, loadFactsOf, withLoadFacts } from "../issues";
-import { DEFAULT_LIMITS, type DefaultableLimits } from "../limits";
+import { DEFAULT_LIMITS, type DefaultableLimits, tooLargeError } from "../limits";
 import type { ProgressChange } from "../shared";
 import { type Provenance, PROVENANCE_VALUE, withSupplied } from "../sources/provenance";
 import { HELD_READERS, type ImportOutcome } from "../styles/fileStyles/apply";
@@ -217,7 +217,8 @@ export interface AddEdgesOptions {
     readonly target?: string;
     /**
      * What to do with a record naming an ordered pair the graph already holds, overriding
-     * `data.knownFields.repeatedEdges` for this call alone.
+     * `data.knownFields.repeatedEdges` for this call alone. With {@link AddEdgesOptions.repeatedScope}
+     * it covers only pairs held before this call.
      *
      * The expand-a-node path passes `"first"`, because "fetch the neighbourhood of this node" is a
      * request that legitimately re-supplies edges the graph already has, and the element knows
@@ -229,6 +230,8 @@ export interface AddEdgesOptions {
      * `value` fallback; null reads none.
      */
     readonly weight?: string | null;
+    /** `"held"`: `repeated` covers only pairs held before this call; its own repeats keep the configured rule. */
+    readonly repeatedScope?: "held";
 }
 
 /** An edge the graph already holds, as the host hands it back; the host may carry more. */
@@ -279,6 +282,8 @@ export interface IngestHost<K extends KnownEdge> {
     nodeStored(id: NodeIdType, record: Record<string | number, unknown>, index: number): void;
     /** An edge the store has just taken. */
     edgeStored(edge: StoredEdge): void;
+    /** A batch of this many edge records is about to be stored, so whatever draws them can make room once. */
+    edgesArriving?(count: number): void;
     /** Rows have been removed from the store; whatever draws them goes. */
     rowsRemoved(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void;
     /** The graph has been emptied. */
@@ -433,6 +438,10 @@ interface EdgeBatch {
     readonly endpoints: ResolvedEndpoints;
     /** The repeat policy for this call. */
     readonly policy: DuplicatePolicy;
+    /** The edges this load made, when {@link EdgeBatch.policy} covers only earlier ones. */
+    readonly ownEdges?: Set<number>;
+    /** What a repeat of one of this load's own edges does. */
+    readonly ownPolicy: DuplicatePolicy;
     /** Where a record's own id is read, or null when none is. */
     readonly recordIdPath: string | null;
     /** Where a record's weight is read, or null when none is. */
@@ -480,6 +489,18 @@ function tablesOf(command: DataImportCommand): readonly string[] {
     return Object.freeze([...(command.tables ?? (command.source.name === undefined ? [] : [command.source.name]))]);
 }
 
+/** The ordered pairs a batched load stored; see `Ingest.storedPairs`. */
+interface StoredPairs {
+    /** The store the edges are in. */
+    readonly store: GraphStore;
+    /** The load they belong to, or null for one batch outside a load. */
+    readonly load: ImportTally | null;
+    /** How many edges the store held after the last one stored here. */
+    edges: number;
+    /** The target ids stored from each source id. */
+    readonly bySource: Map<NodeIdType, Set<NodeIdType>>;
+}
+
 /**
  * Turns node and edge records, and whole data sources, into the graph a host holds.
  *
@@ -496,6 +517,15 @@ export class Ingest<K extends KnownEdge> {
      * `knownFields.edgeIdPath` names one. Empty when it does not, which is the default.
      */
     private readonly edgesByRecordId = new Map<string | number, number>();
+
+    /**
+     * On the "batched" render path, every ordered pair the batch (or the load) in progress stored,
+     * kept while those are ALL the edges the store holds. A record whose pair is not in it repeats
+     * nothing, so the host is asked for the edges between a pair only for a real repeat, rather
+     * than per edge, which walks the builder's adjacency (0.7-1.0 s at 100k nodes + 1M edges).
+     * Null on the "objects" path and whenever the store held edges this ingest did not store.
+     */
+    private storedPairs: StoredPairs | null = null;
 
     /**
      * The endpoint expressions the load in progress resolved, so a chunked load probes ONCE.
@@ -604,6 +634,7 @@ export class Ingest<K extends KnownEdge> {
     /** Forget everything about the graph that was: called when the host discards its store. */
     reset(): void {
         this.edgesByRecordId.clear();
+        this.storedPairs = null;
     }
 
     /**
@@ -842,6 +873,7 @@ export class Ingest<K extends KnownEdge> {
             ...tableFacts(command),
             added,
             ...(leftOut === undefined ? {} : { leftOut }),
+            loadedAt: new Date().toISOString(),
             // What it supplied that the graph holds; `data.sources()` recounts it as the graph changes.
             counts: Object.freeze({ nodes: supplied.nodes.size, edges: supplied.edges.size }),
         });
@@ -960,6 +992,7 @@ export class Ingest<K extends KnownEdge> {
             supplied: this.supplied,
         };
         this.loadTally = null;
+        this.storedPairs = null;
         this.loadEndpoints = null;
         this.loadMadeEndpoints.clear();
         this.leaveOutUnmatched = false;
@@ -1181,6 +1214,7 @@ export class Ingest<K extends KnownEdge> {
         const legacyFallback = options?.weight === undefined;
         const tally = this.loadTally ?? newImportTally();
         let legacyWeights = 0;
+        this.storedPairs = this.pairsFor();
 
         // Decided before any record is stored: a batch the renderer cannot hold is refused whole,
         // so a caller never finds the first part of it held and the rest missing.
@@ -1197,13 +1231,23 @@ export class Ingest<K extends KnownEdge> {
             this.ceilings().renderCeiling,
         );
 
-        const batch: EdgeBatch = { endpoints, policy, recordIdPath, weightPath, legacyFallback, tally };
+        const batch: EdgeBatch = {
+            endpoints,
+            policy,
+            recordIdPath,
+            weightPath,
+            legacyFallback,
+            tally,
+            ...(options?.repeatedScope === "held" ? { ownEdges: new Set<number>() } : {}),
+            ownPolicy: knownFields.repeatedEdges,
+        };
         if (this.loadTally === null) {
             // An earlier push that threw mid-batch was rolled back, and the endpoints it noted
             // with it: they are not this batch's to draw.
             this.loadMadeEndpoints.clear();
         }
 
+        this.host.edgesArriving?.(edges.length);
         for (const edge of edges) {
             if (this.addEdgeRecord(edge, batch, writer)) {
                 legacyWeights++;
@@ -1308,6 +1352,8 @@ export class Ingest<K extends KnownEdge> {
             tally.edgesByPosition++;
         }
 
+        batch.ownEdges?.add(edgeIndex);
+        this.notePair(srcNodeId, dstNodeId, writer.store);
         tally.edgeIds.push(edgeIdOf(edgeId));
         this.noteSupplied(edgeIdOf(edgeId), srcNodeId, dstNodeId);
         this.host.edgeStored({ record, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId });
@@ -1341,7 +1387,8 @@ export class Ingest<K extends KnownEdge> {
         const known = this.knownEdgeFor(repeat.sourceId, repeat.targetId, recordId);
         if (known !== null) {
             tally.repeatedSeen++;
-            if (this.mergeRepeat(known, repeat, policy, tally, writer)) {
+            const own = batch.ownEdges?.has(known.edgeIndex) === true;
+            if (this.mergeRepeat(known, repeat, own ? batch.ownPolicy : policy, tally, writer)) {
                 // The edge it repeats is one this load supplied too.
                 this.noteSupplied(edgeIdOf(writer.store.edgeIdAt(known.edgeIndex)), repeat.sourceId, repeat.targetId);
                 tally.edgeIds.push(null);
@@ -1546,6 +1593,55 @@ export class Ingest<K extends KnownEdge> {
     }
 
     /**
+     * The pair map a batch starting now may use: the load's own while the store holds exactly the
+     * edges it stored, a new one when the store holds no edge, else none.
+     * @returns the map, or null to ask the host per pair
+     */
+    private pairsFor(): StoredPairs | null {
+        if (this.host.batched?.() !== true) {
+            return null;
+        }
+
+        const store = this.host.store();
+        const edges = store.builder.edgeCount;
+        const held = this.storedPairs;
+        // Outside a load each batch starts its own: between two pushes anything may write edges.
+        if (
+            held !== null &&
+            this.loadTally !== null &&
+            held.load === this.loadTally &&
+            held.store === store &&
+            held.edges === edges
+        ) {
+            return held;
+        }
+
+        return edges === 0 ? { store, load: this.loadTally, edges: 0, bySource: new Map() } : null;
+    }
+
+    /**
+     * Remember the pair an edge was stored between, when a pair map is kept.
+     * @param sourceId - its source
+     * @param targetId - its target
+     * @param store - the store it went into
+     */
+    private notePair(sourceId: NodeIdType, targetId: NodeIdType, store: GraphStore): void {
+        const pairs = this.storedPairs;
+        if (pairs === null) {
+            return;
+        }
+
+        pairs.edges = store.builder.edgeCount;
+        let targets = pairs.bySource.get(sourceId);
+        if (targets === undefined) {
+            targets = new Set();
+            pairs.bySource.set(sourceId, targets);
+        }
+
+        targets.add(targetId);
+    }
+
+    /**
      * The edge a record repeats, or null when it repeats none.
      * @param sourceId - the source endpoint id
      * @param targetId - the target endpoint id
@@ -1562,6 +1658,12 @@ export class Ingest<K extends KnownEdge> {
 
         // The oldest edge between the pair is the one a merge policy folds into, so that `first`
         // and `last` mean what they say when three records name one pair.
+        // A pair the map has never seen has no edge; one it has is asked of the host, which
+        // knows the oldest of them, built or pending. Only a real repeat pays that question.
+        if (this.storedPairs !== null && this.storedPairs.bySource.get(sourceId)?.has(targetId) !== true) {
+            return null;
+        }
+
         return this.host.edgesBetween(sourceId, targetId)[0] ?? null;
     }
 
@@ -2063,6 +2165,7 @@ export class Ingest<K extends KnownEdge> {
             // Whatever happened, this load is over: the next one probes for itself and counts into
             // its own tally.
             this.loadTally = null;
+            this.storedPairs = null;
             this.loadEndpoints = null;
             this.loadMadeEndpoints.clear();
         }
@@ -2224,15 +2327,7 @@ export class Ingest<K extends KnownEdge> {
             return;
         }
 
-        throw new GraphtyError({
-            code: "E_TOO_LARGE",
-            source: "data",
-            message:
-                `Loading ${adding.toLocaleString("en-US")} more ${of} would take the graph to ` +
-                `${(held + adding).toLocaleString("en-US")}, past the ${limit.toLocaleString("en-US")} ` +
-                `this renderer can draw. Load a subset of the graph.`,
-            details: { limit, count: held + adding, of, graph: { nodes, edges } },
-        });
+        throw tooLargeError(of, held, adding, limit, { nodes, edges });
     }
 }
 
@@ -2282,6 +2377,7 @@ function endpointOverridesOf(type: string, opts: object, held: HeldRows | undefi
         ...(typeof target === "string" ? { target } : {}),
         ...(held?.weight === undefined ? {} : { weight: held.weight }),
         ...(held?.repeated === undefined ? {} : { repeated: held.repeated }),
+        ...(held?.repeatedScope === undefined ? {} : { repeatedScope: held.repeatedScope }),
     };
 }
 

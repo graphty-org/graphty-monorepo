@@ -3,7 +3,7 @@
  * the rename box is a layer's or a folder's name; the Which row's name holds its rule; the
  * condition list and the Vary by list search "attributes" alike, each row with its fact; the
  * Vary by button, its tooltip and its pop-out share one name; the match menu is in sentence case;
- * the View button's name holds the "3D" it shows; Analyze's option names are separated.
+ * the Mode button's name holds the "3D" its icon shows; Analyze's option names are separated.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -115,10 +115,10 @@ describe("names and words", () => {
         await screen.findByRole("combobox", { name: "Find an attribute" });
     });
 
-    it("names the View button with the mode it shows, and separates Analyze's option names", async () => {
+    it("names the Mode button with the mode it shows, and separates Analyze's option names", async () => {
         await openScene();
         const toolbar = await screen.findByRole("toolbar", { name: "Canvas tools" });
-        within(toolbar).getByRole("button", { name: /^View, (2D|3D)$/ });
+        within(toolbar).getByRole("button", { name: /^Mode, (2D|3D)$/ });
 
         await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
         // The badge is part of the description, never of the name.

@@ -5,8 +5,8 @@
  * `teardown` hook (release the snapshot a run uploaded), the `gpu` field of every session (adapter identity, driver, the
  * requested limits, software flag, runtime, subgroup size) and the runner class, so numbers from the RTX 4070 SUPER, the
  * gpu-linux-t4 lane and a browser never mix. Every benchmark runs its body `runs` times (default 5) after one warm-up and
- * reports the MEDIAN wall time plus the median process.memoryUsage() heap-and-buffer delta of one run; with `--expose-gc`
- * the garbage collector runs before every measured iteration. Sessions are appended to benchmarks/out/<runner-class>.json
+ * reports the MEDIAN wall time plus the median process.memoryUsage() heap-and-buffer delta of one run; the garbage
+ * collector runs before every measured iteration (the harness switches `--expose-gc` on itself, issue #6565). Sessions are appended to benchmarks/out/<runner-class>.json
  * (gitignored, 6.4); the checked-in baseline is benchmarks/results/<runner-class>.json and scripts/bench-compare.js compares
  * the last session of each. The JSON shape is graph-format's plus the two fields, so a future merge tool reads both.
  */
@@ -15,6 +15,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { cpus, hostname } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { setFlagsFromString } from "node:v8";
+import { runInNewContext } from "node:vm";
 
 import { runnerClass } from "../scripts/runner-class.js";
 import { type GpuContext } from "../src/context.js";
@@ -72,8 +74,14 @@ export interface BenchOptions {
     readonly unit?: string | undefined;
 }
 
-/** The global gc hook exposed by `node --expose-gc`. */
-declare const gc: (() => void) | undefined;
+/**
+ * The garbage collector, switched on here rather than by a `node --expose-gc` flag every caller must remember. Without it
+ * no collection ran before the timer: each run's fresh input left the previous one's arrays for V8 to collect INSIDE a
+ * later timed run, so the 16 MB upload alternated 8 / 14 ms run to run and a median of 5 flipped between the two (issue
+ * #6565).
+ */
+setFlagsFromString("--expose-gc");
+const gc = runInNewContext("gc") as () => void;
 
 /** The process-wide default run count (5); run.ts sets it from --runs N. */
 let defaultRuns = 5;
@@ -130,12 +138,10 @@ export function setBenchRuns(runs: number): void {
 }
 
 /**
- * Run the garbage collector when `--expose-gc` is on.
+ * Run the garbage collector.
  */
 function collectGarbage(): void {
-    if (typeof gc === "function") {
-        gc();
-    }
+    gc();
 }
 
 /**
@@ -306,7 +312,7 @@ export interface BenchSession {
     readonly node: string;
     /** CPU model string. */
     readonly cpu: string;
-    /** Whether --expose-gc was on. */
+    /** Whether the garbage collector ran before every measured run (always true since issue #6565; false in older sessions). */
     readonly exposeGc: boolean;
     /** The adapter the session ran on. */
     readonly gpu: GpuSessionInfo;
@@ -372,7 +378,7 @@ export function appendSession(
         host: hostname(),
         node: process.version,
         cpu: cpus()[0]?.model ?? "unknown",
-        exposeGc: typeof gc === "function",
+        exposeGc: true,
         gpu,
         runnerClass: cls,
         results,

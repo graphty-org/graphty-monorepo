@@ -27,7 +27,7 @@ import {
     type WorkflowState,
 } from "../model/snapshots.js";
 import { isLive, type Item, type Store } from "../model/store.js";
-import type { DeployBuilds } from "./aws.js";
+import type { AwsCostDay, DeployBuilds } from "./aws.js";
 import { flakyMembers } from "./flaky.js";
 import { type Fetch, type GitHub, HttpError, runJobs } from "./github.js";
 import { definedJobs, jobMembers, nonGatingJobs } from "./jobs.js";
@@ -132,7 +132,7 @@ export interface Deps {
     /** Plain fetch for public sources (npm, Coveralls). */
     fetch: Fetch;
     /** Cost Explorer's daily cost, ISO days [from, to). Undefined: the AWS line is skipped. */
-    awsCosts?: (from: string, to: string) => Promise<{ day: string; usd: number }[]>;
+    awsCosts?: (from: string, to: string) => Promise<AwsCostDay[]>;
     rates: Rates;
     limits: { linux_windows: number; macos: number };
     org: string;
@@ -771,6 +771,8 @@ async function runners(c: Cycle, xs: Collected[], elapsed: number): Promise<void
     c.o("ci.jobs_queued", use.queued);
     // Only the jobs waiting for a runner, by the not-assigned flag's own rule: the runners page's count and gate.
     c.o("ci.jobs_waiting_runner", use.queuedOver2);
+    // Jobs our own workflows hold back (max-parallel) while runners are free: not GitHub's runner limit.
+    c.o("ci.jobs_held_by_run", use.heldByRun);
     c.o("ci.longest_queued_ms", use.longestQueuedMs);
     c.o("ci.saturated_ms", saturated ? elapsed : 0);
     c.o("ci.unassigned_ms", unassigned ? c.now - start : 0);
@@ -1497,7 +1499,8 @@ async function coverage(c: Cycle): Promise<void> {
 }
 
 /**
- * Money lines by day for this month: AWS from Cost Explorer, the fixed plans spread over the month.
+ * Money lines by day for this month: AWS from Cost Explorer (with its split by service), the fixed plans spread over
+ * the month.
  * @param c - the cycle
  */
 async function costs(c: Cycle): Promise<void> {
@@ -1515,6 +1518,7 @@ async function costs(c: Cycle): Promise<void> {
                 line: "aws",
                 day: Date.parse(r.day),
                 usd: r.usd,
+                ...(r.services ? { services: r.services } : {}),
             });
         }
     }

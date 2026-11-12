@@ -1,7 +1,7 @@
 /**
  * The sample library: one list of every sample the app offers, in one order, which the start
- * page's library and the Samples dialog both draw with the same card (SampleCard.tsx). The main
- * menu's Open sample list is its first part: the app's own samples, from offeredSamples().
+ * page's library and the Samples dialog both draw with the same card (SampleCard.tsx): the samples,
+ * then one network sample of each kind of network source, then the generators.
  */
 
 import {
@@ -12,7 +12,10 @@ import {
 } from "@graphty/graphty-element/catalog";
 
 import { offeredSamples, START_SAMPLES, type StartSample } from "../../data/sampleManifest";
+import { serverKinds } from "../server/commands";
+import { kindName } from "../server/words";
 import { countWords, fitsInBrowser, isLarge, megabytes } from "./library";
+import NETWORK_SAMPLES from "./network-samples.json";
 import { copyOf, OWN_COPIES, pictureOf, samplePicture } from "./open";
 
 /**
@@ -216,3 +219,46 @@ export function offeredTiles(timeline: boolean): readonly LibraryTile[] {
     const own = new Set(offeredSamples(timeline));
     return SAMPLE_TILES.filter((tile) => tile.source.kind !== "sample" || own.has(tile.source.sample));
 }
+
+/** The field of every network sample, for the field filter. */
+export const NETWORK = "Network";
+
+/** One network sample: a card, and the source and example it reads. */
+export interface NetworkTile extends SampleCardData {
+    readonly id: string;
+    readonly words: string;
+    readonly source: string;
+    readonly example: string;
+}
+
+/**
+ * One public example of each kind of network source (network-samples.json, small and quick to
+ * draw; Neptune has no public server and OpenAlex is one named service), from the catalog. Its
+ * load is graphty-element's; a kind or example the catalog lacks is left out. The library offers
+ * them between the samples and the generators.
+ */
+export const NETWORK_TILES: readonly NetworkTile[] = NETWORK_SAMPLES.flatMap(({ source, example: id }) => {
+    const entry = serverKinds().find((each) => each.id === source);
+    const example = entry?.descriptor.examples?.find((each) => each.id === id);
+    const { nodes, edges } = example?.counts ?? {};
+    if (entry === undefined || example === undefined || nodes === undefined || edges === undefined) {
+        return [];
+    }
+    const hook = kindName(entry);
+    const sentence = `Read from a public ${hook} server.`;
+    return [
+        {
+            id: `network-${source}`,
+            name: example.plainName,
+            hook,
+            field: NETWORK,
+            size: `${countWords(nodes)} nodes, ${countWords(edges)} edges`,
+            sentence,
+            picture: () => `${import.meta.env.BASE_URL}samples/network-${source}.webp`,
+            note: undefined,
+            words: `${example.plainName} ${hook} ${NETWORK} ${sentence}`.toLowerCase(),
+            source,
+            example: id,
+        },
+    ];
+});

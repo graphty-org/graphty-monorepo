@@ -116,6 +116,47 @@ export function batchableOf(paint: Pick<NodePaint, "style">, view: BatchView): b
     );
 }
 
+/**
+ * The paint a row past `limits.objectRows` is drawn with: its own, less everything no batch draws
+ * (a border, an outline, a model, a picture, a label or tooltip), so a batch draws it as a plain body.
+ * @param paint - The row's paint.
+ * @returns The plain paint, keyed apart from the full one.
+ */
+export function plainNodePaint(paint: NodePaint): NodePaint {
+    const { style } = paint;
+    const only = <T extends object>(bag: T | undefined, keys: ReadonlySet<string>): T | undefined =>
+        bag === undefined ? undefined : (Object.fromEntries(Object.entries(bag).filter(([key]) => keys.has(key))) as T);
+    const plain: NodeStyleConfig = {
+        ...(style.visible === undefined ? {} : { visible: style.visible }),
+        shape: only(style.shape, BATCHABLE_SHAPE_KEYS),
+        texture: only(style.texture, PLAIN_TEXTURE_KEYS),
+        effect: only(style.effect, BATCHABLE_EFFECT_KEYS),
+    };
+    return { meshKey: `plain|${paint.meshKey}`, style: plain, color: paint.color };
+}
+
+/** The line keys a plain line keeps. */
+const PLAIN_LINE_KEYS: ReadonlySet<string> = new Set(["width", "color", "opacity", "minScreenWidth"]);
+
+/**
+ * The paint an edge past `limits.objectEdges` is drawn with: its line's width, color and opacity
+ * alone, as a solid straight line with no caps, label or band.
+ * @param paint - The edge's paint.
+ * @returns The plain paint, keyed apart from the full one.
+ */
+export function plainEdgePaint(paint: EdgePaint): EdgePaint {
+    const { style } = paint;
+    const line = Object.fromEntries(Object.entries(style.line ?? {}).filter(([key]) => PLAIN_LINE_KEYS.has(key)));
+    const plain = {
+        ...(style.visible === undefined ? {} : { visible: style.visible }),
+        line,
+    } as EdgeStyleConfig;
+    return { meshKey: `plain|${paint.meshKey}`, style: plain };
+}
+
+/** The texture a plain body keeps: its color, never a picture. */
+const PLAIN_TEXTURE_KEYS: ReadonlySet<string> = new Set(["color"]);
+
 /** The colour a source mesh's material is built in when the instance carries the real one. */
 const NEUTRAL_HEX = "#FFFFFF";
 
@@ -728,6 +769,43 @@ function edgeIdentity(resolved: ResolvedStyle, meshKey: number, directed: boolea
 }
 
 /**
+ * The instance colour of a node no gradient fills, as {@link nodePaintOf} writes it.
+ * @param resolved - Everything the stack painted this node.
+ * @returns The colour, or the element's own default when no layer painted one.
+ */
+function rowColor(resolved: ResolvedStyle): Rgba | null {
+    const painted = asColorValue(resolved["node.color"]);
+    return painted === null ? bootstrapNodePaint().color : { r: painted.r, g: painted.g, b: painted.b, a: painted.a };
+}
+
+/**
+ * The look a node row shares with every row of the same mesh key, or null when its paint does not
+ * follow from the key: every channel it carries keys its mesh, or is the colour, the opacity or the
+ * visible flag. The colour's alpha (an opacity) and, under a gradient, its hex (the ramp's start)
+ * are folded into the mesh key by {@link nodePaintOf}, so they are in the identity too; the rest of
+ * the colour is only the instance's and is not.
+ * @param resolved - Everything the stack painted this node.
+ * @param meshKey - The key the interner gave this node's geometry.
+ * @returns The identity, or null when two rows with the same key may be painted differently.
+ */
+function nodeIdentity(resolved: ResolvedStyle, meshKey: number): string | null {
+    let gradient = false;
+    for (const name in resolved) {
+        const channel = name as Channel;
+        if (channelRole(channel) === "mesh") {
+            gradient ||= channel.startsWith("node.gradient");
+        } else if (channel !== "node.color" && channel !== "node.opacity" && channel !== "node.visible") {
+            return null;
+        }
+    }
+
+    const color = asColorValue(resolved["node.color"]);
+    const alpha = color !== null && color.a < 1 ? String(color.a) : "";
+    const hex = gradient ? (color?.hex ?? "") : "";
+    return `s${String(meshKey)}|${String(resolved["node.opacity"])}|${String(resolved["node.visible"])}|${alpha}|${hex}`;
+}
+
+/**
  * Whether an edge's paint follows from its key alone: every channel it carries keys its mesh, or
  * is the colour or the opacity the key folds back in. Content (a label, a bend) and the visible
  * flag are per edge and are not in the key.
@@ -891,6 +969,16 @@ let bootstrapNode: NodePaint | null = null;
 let bootstrapEdge: { readonly directed: EdgePaint; readonly undirected: EdgePaint } | null = null;
 
 /**
+ * The shader path part of a mesh key (`|shader:<path>:<id>`), or "" for a node drawn plainly.
+ * @param meshKey - The key.
+ * @returns The part.
+ */
+export function shaderPartOf(meshKey: string): string {
+    const at = meshKey.indexOf("|shader:");
+    return at === -1 ? "" : meshKey.slice(at);
+}
+
+/**
  * What a node looks like between its construction and the first repaint.
  *
  * Built on first use rather than at module load, because `defaultNodeStyle` is a mutable exported
@@ -965,6 +1053,9 @@ export class StylePainter {
     /** The paint of each edge key, for edges painted by their key alone; see {@link StylePainter.edgePaint}. */
     private readonly edgePaints = new Map<string, { mesh: ResolvedStyle | undefined; paint: EdgePaint }>();
 
+    /** The look of each node key, for rows painted by their key alone; see {@link StylePainter.rowPaint}. */
+    private readonly nodeLooks = new Map<string, { mesh: ResolvedStyle | undefined; paint: NodePaint }>();
+
     /** The nodes whose paint the renderer has not applied yet. */
     private readonly pendingNodes = new PendingRows();
 
@@ -999,6 +1090,7 @@ export class StylePainter {
         this.stopListening = null;
         this.paint = paint;
         this.edgePaints.clear();
+        this.nodeLooks.clear();
         this.pendingNodes.clear();
         this.pendingEdges.clear();
         this.nodesRowsOnly = false;
@@ -1136,6 +1228,14 @@ export class StylePainter {
     }
 
     /**
+     * How many edges are waiting to be drawn.
+     * @returns The count.
+     */
+    get pendingEdgeCount(): number {
+        return this.pendingEdges.size;
+    }
+
+    /**
      * Whether one node is waiting to be drawn.
      * @param index - Its dense index.
      * @returns True when its paint has not been applied yet.
@@ -1198,6 +1298,50 @@ export class StylePainter {
         return nodePaintOf(paint.styleOf("node", index), paint.meshKeyOf("node", index), (channel) =>
             paint.plainText("node", index, channel),
         );
+    }
+
+    /**
+     * What a row drawn with no `Node` is painted (`NodeBatches.paintRow`), the paint
+     * {@link StylePainter.nodePaint} gives it, built once per look rather than once per row.
+     *
+     * Rows painted by their mesh key alone share one style object, and each keeps its own colour,
+     * so a load of a hundred thousand rows of one shape builds one style, not a hundred thousand.
+     * Only rows with no `Node` take it: a `Node` keeps the style object it is handed, and the objects
+     * path, which builds a `Node` for every row, still builds a style of its own for each.
+     * @param index - The row's dense index.
+     * @returns The paint, or null when nothing is bound or the index is not an element's.
+     */
+    rowPaint(index: number): NodePaint | null {
+        const { paint } = this;
+        if (paint === null || index < 0) {
+            return null;
+        }
+
+        const resolved = paint.styleOf("node", index);
+        const meshKey = paint.meshKeyOf("node", index);
+        const make = (): NodePaint =>
+            nodePaintOf(resolved, meshKey, (channel) => paint.plainText("node", index, channel));
+        const identity = nodeIdentity(resolved, meshKey);
+        if (identity === null) {
+            return make();
+        }
+
+        // The interned mesh style is held beside it because a released mesh key is minted again
+        // for another style.
+        const mesh = paint.meshStyleOf("node", meshKey);
+        const known = this.nodeLooks.get(identity);
+        if (known !== undefined && known.mesh === mesh) {
+            const { meshKey: key, style, color } = known.paint;
+            return { meshKey: key, style, color: color === null ? null : rowColor(resolved) };
+        }
+
+        if (this.nodeLooks.size >= EDGE_PAINT_CACHE_LIMIT) {
+            this.nodeLooks.clear();
+        }
+
+        const made = make();
+        this.nodeLooks.set(identity, { mesh, paint: made });
+        return made;
     }
 
     /**

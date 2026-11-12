@@ -10,11 +10,10 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { defineSource, type GraphSession, registerSource } from "@graphty/graphty-element/session";
+import { credentials, defineSource, type GraphSession, registerSource } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -69,6 +68,62 @@ registerSource(
             }
             return Promise.resolve(ctx.finish({ next: null }));
         },
+    }),
+);
+
+/** What the settings server was last asked. */
+const edited: { query?: string } = {};
+
+/** A server with a query and a sign-in, which answers with one node per comma-separated name in the query. */
+const EDITABLE = "test-editable-server";
+
+registerSource(
+    defineSource({
+        id: EDITABLE,
+        descriptor: {
+            plainName: "Editable server",
+            defaultEndpoint: "https://editable.example",
+            auth: ["basic"],
+            authRequired: "optional",
+            params: [
+                { name: "query", plainName: "Query", type: "query", language: "cypher" },
+                {
+                    name: "mode",
+                    plainName: "Mode",
+                    type: "enum",
+                    values: [
+                        { value: "query", label: "Query" },
+                        { value: "all", label: "Everything" },
+                    ],
+                },
+                { name: "database", plainName: "Database", type: "string" },
+            ],
+        },
+        records: (params: Record<string, unknown>) => {
+            edited.query = String(params.query);
+            return Promise.resolve({
+                nodes: String(params.query)
+                    .split(",")
+                    .map((id) => ({ id })),
+                edges: [],
+            });
+        },
+    }),
+);
+
+/** A server whose query lives in undeclared template values, as a Web API's does. */
+const TEMPLATED = "test-templated-server";
+
+registerSource(
+    defineSource({
+        id: TEMPLATED,
+        descriptor: {
+            plainName: "Templated server",
+            defaultEndpoint: "https://templated.example",
+            params: [{ name: "mapping", plainName: "Mapping", type: "text" }],
+        },
+        records: (params: Record<string, unknown>) =>
+            Promise.resolve({ nodes: [{ id: String(params.package) }], edges: [] }),
     }),
 );
 
@@ -153,12 +208,14 @@ registerSource(
 );
 
 /**
- * Opens the server form from the Sources "+".
+ * Opens the server form from the Sources "+": Network data..., then the NDEx card in the chooser.
  * @returns the form.
  */
 async function openForm(): Promise<HTMLElement> {
     await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
+    const chooser = await screen.findByRole("dialog", { name: "Open network data" });
+    await userEvent.click(within(chooser).getByRole("button", { name: /^NDEx/ }));
     return screen.findByRole("form", { name: "Network data" });
 }
 
@@ -208,14 +265,136 @@ async function pointOn(element: ElementTag, node: string): Promise<{ x: number; 
     return point;
 }
 
-describe("server sources on the real element", () => {
-    withFeatures(["network-data"]);
+/**
+ * Opens a workspace with one network load, and shows that load in the right panel.
+ * @param source - the load.
+ * @returns the session, and the right panel.
+ */
+async function openLoaded(source: {
+    source: string;
+    config: Record<string, unknown>;
+}): Promise<{ session: GraphSession; panel: HTMLElement }> {
+    render(<Workspace store={createWorkspaceStore({ project: { name: "Edit", id: 1 }, place: "data" })} />);
+    const session = await waitFor(() => {
+        const found = document.querySelector<ElementTag>("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
+    await session.data.import(source);
+    const row = await screen.findByRole("listitem", { name: /server/ });
+    await userEvent.click(row.querySelector(".dp-source-main") ?? row);
+    const panel = await screen.findByRole("complementary", { name: "Inspector" });
+    await within(panel).findByRole("button", { name: "Edit source" });
+    return { session, panel };
+}
 
+describe("editing a network source", () => {
+    it("shows what it fetches, opens the form filled in, and Load replaces it in place; Undo restores", async () => {
+        const { session, panel } = await openLoaded({
+            source: EDITABLE,
+            config: { mode: "query", query: "a,b", database: "people" },
+        });
+        const [{ key }] = session.data.sources();
+        await within(panel).findByText("Database");
+        within(panel).getByText("people");
+        within(panel).getByText("a,b");
+
+        await userEvent.click(within(panel).getByRole("button", { name: "Edit source" }));
+        const form = await screen.findByRole("form", { name: "Network data" });
+        const query = within(form).getByRole<HTMLTextAreaElement>("textbox", { name: "Query" });
+        assert.strictEqual(query.value, "a,b");
+        assert.strictEqual(within(form).getByRole<HTMLInputElement>("textbox", { name: "Database" }).value, "people");
+        assert.strictEqual(within(form).getByLabelText<HTMLInputElement>("Password").value, "");
+        assert.isTrue(within(form).getByRole<HTMLInputElement>("combobox", { name: "Kind" }).disabled);
+
+        await userEvent.clear(query);
+        await userEvent.type(query, "x,y,z");
+        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("form", { name: "Network data" }));
+        });
+        assert.strictEqual(edited.query, "x,y,z");
+        assert.strictEqual(session.data.statistics().nodeCount, 3);
+        assert.strictEqual(session.data.sources()[0].key, key);
+
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await waitFor(() => {
+            assert.strictEqual(session.data.sourceSettings(key)?.config.query, "a,b");
+        });
+        assert.strictEqual(session.data.statistics().nodeCount, 2);
+    });
+
+    it("keeps a Web API's template values, shown and sent back", async () => {
+        const { session, panel } = await openLoaded({
+            source: TEMPLATED,
+            config: { mapping: { nodes: "$" }, package: "webpack", version: "5" },
+        });
+        within(panel).getByText("package");
+        await userEvent.click(within(panel).getByRole("button", { name: "Edit source" }));
+        const form = await screen.findByRole("form", { name: "Network data" });
+        const field = within(form).getByRole<HTMLInputElement>("textbox", { name: "package" });
+        assert.strictEqual(field.value, "webpack");
+        await userEvent.clear(field);
+        await userEvent.type(field, "vite");
+        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await waitFor(() => {
+            assert.isDefined(session.data.node("vite"));
+        });
+        assert.strictEqual(session.data.sourceSettings(session.data.sources()[0].key)?.config.version, "5");
+    });
+
+    it("shows no secret from a mapping in the panel or the form", async () => {
+        const { panel } = await openLoaded({
+            source: TEMPLATED,
+            config: { mapping: { requests: { nodes: { path: "/p?api_key=sekrit&page=1" } } } },
+        });
+        assert.notInclude(panel.textContent, "sekrit");
+        await userEvent.click(within(panel).getByRole("button", { name: "Edit source" }));
+        const form = await screen.findByRole("form", { name: "Network data" });
+        assert.notInclude(within(form).getByRole<HTMLTextAreaElement>("textbox", { name: "Mapping" }).value, "sekrit");
+    });
+
+    it("reuses the remembered login when the password is left empty", async () => {
+        const { panel, session } = await openLoaded({ source: EDITABLE, config: { query: "a,b" } });
+        const element = document.querySelector<ElementTag>("graphty-element");
+        await element?.credentials.remember(
+            { source: EDITABLE, endpoint: "https://editable.example" },
+            credentials.basic("reader", "hunter2"),
+        );
+        await userEvent.click(within(panel).getByRole("button", { name: "Edit source" }));
+        const form = await screen.findByRole("form", { name: "Network data" });
+        // A load saved with a query and no Start still shows its query.
+        assert.strictEqual(within(form).getByRole<HTMLTextAreaElement>("textbox", { name: "Query" }).value, "a,b");
+        await userEvent.click(within(form).getByRole("button", { name: "Load" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("form", { name: "Network data" }));
+        });
+        assert.strictEqual(session.data.loads()[0]?.credential?.username, "reader");
+        assert.notInclude(JSON.stringify(session.data.sourceSettings(session.data.sources()[0].key)), "hunter2");
+    });
+
+    it("offers no edit for a file", async () => {
+        render(<Workspace store={createWorkspaceStore({ project: { name: "Edit", id: 1 }, place: "data" })} />);
+        const session = await waitFor(() => {
+            const found = document.querySelector<ElementTag>("graphty-element")?.session;
+            assert.isDefined(found);
+            return found;
+        });
+        await session.data.import({ type: "csv", config: { data: "source,target\na,b\n" }, name: "ships.csv" });
+        const row = await screen.findByRole("listitem", { name: /ships/ });
+        await userEvent.click(row.querySelector(".dp-source-main") ?? row);
+        const panel = await screen.findByRole("complementary", { name: "Inspector" });
+        await within(panel).findByText("Type");
+        assert.isNull(within(panel).queryByRole("button", { name: "Edit source" }));
+    });
+});
+
+describe("server sources on the real element", () => {
     beforeAll(async () => {
         await page.viewport(1366, 900);
     });
 
-    it("opens Network data... from an open project, on NDEx, the first listed", async () => {
+    it("opens Network data... from an open project, and its NDEx card opens the form on NDEx", async () => {
         await openDataPlace();
         const form = await openForm();
         await waitFor(() => {
@@ -230,9 +409,7 @@ describe("server sources on the real element", () => {
     it("tests, loads with a limit, loads more, expands, collapses and refreshes", async () => {
         const { element, session } = await openDataPlace();
 
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
-        const form = await screen.findByRole("form", { name: "Network data" });
+        const form = await openForm();
         await pick(form, "Kind", "People server");
         // A server with a Start shows it; Query is its first, with the query box.
         assert.isNotNull(within(form).getByRole("radio", { name: "Query" }));
@@ -343,9 +520,7 @@ describe("server sources on the real element", () => {
 
     it("offers no Sign in, Start or Expand rows a source cannot use", async () => {
         await openDataPlace();
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
-        const form = await screen.findByRole("form", { name: "Network data" });
+        const form = await openForm();
         await pick(form, "Kind", "OpenAlex");
         assert.isNull(within(form).queryByRole("radio", { name: "Query" }), "OpenAlex has no Start");
         assert.isNull(within(form).queryByLabelText("Password"));
@@ -353,12 +528,8 @@ describe("server sources on the real element", () => {
         assert.isNotNull(within(form).getByRole("textbox", { name: "Work" }));
 
         await pick(form, "Kind", "Neo4j");
-        await pick(form, "Example", "Neo4j demo: movies");
-        assert.equal(
-            within(form).getByRole<HTMLInputElement>("textbox", { name: "Endpoint" }).value,
-            "https://demo.neo4jlabs.com:7473",
-        );
-        assert.equal(within(form).getByRole<HTMLInputElement>("textbox", { name: "User" }).value, "movies");
+        assert.isNull(within(form).queryByRole("combobox", { name: "Example" }), "samples are never in the form");
+        assert.isNotNull(within(form).getByRole("textbox", { name: "User" }));
         await userEvent.click(within(form).getByText("Seed nodes"));
         assert.isNotNull(within(form).getByRole("textbox", { name: "Seed ids" }));
         assert.isNull(within(form).queryByRole("textbox", { name: "Query" }));
@@ -369,7 +540,7 @@ describe("server sources on the real element", () => {
         });
     });
 
-    it("enables Test and Load only once the endpoint is filled, and takes an example's Start", async () => {
+    it("enables Test and Load only once the endpoint is filled", async () => {
         await openDataPlace();
         const form = await openForm();
         await pick(form, "Kind", "Neo4j");
@@ -386,15 +557,6 @@ describe("server sources on the real element", () => {
         assert.isNull(within(form).queryByRole("button", { name: /Advanced/ }));
         assert.isNull(within(form).queryByRole("button", { name: "Expand settings" }));
         assert.isNotNull(within(form).getByLabelText("Expand limit"));
-        await pick(form, "Example", "Hetionet (end-of-life server)");
-        await pick(form, "Example", "Neo4j demo: movies");
-        assert.isTrue(within(form).getByRole<HTMLInputElement>("radio", { name: "Everything" }).checked);
-        assert.equal(within(form).getByRole<HTMLInputElement>("textbox", { name: "Database" }).value, "movies");
-        assert.equal(
-            within(form).getByRole<HTMLInputElement>("combobox", { name: "Transport" }).value,
-            "",
-            "Hetionet's Bolt does not carry over",
-        );
     });
 
     it("names the server that answered on the failure chip", async () => {

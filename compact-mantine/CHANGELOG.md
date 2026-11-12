@@ -1,3 +1,49 @@
+## 0.9.41 (2026-11-12)
+
+### 🚀 Features
+
+- **compact-mantine:** usePopout hook closes a pop-out from inside it ([#315](https://github.com/graphty-org/graphty-monorepo/issues/315))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.43
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
+## 0.9.40 (2026-11-10)
+
+### 🚀 Features
+
+- **compact-mantine:** add a card list, an ordered stack of colored cards ([881e93030b](https://github.com/graphty-org/graphty-monorepo/commit/881e93030b))
+- **compact-mantine:** an InputBase button trigger draws as the Select, and FieldCaret is exported ([9e239017c3](https://github.com/graphty-org/graphty-monorepo/commit/9e239017c3))
+- **compact-mantine:** fileSource takes an opt-in openLabel, a button that opens the typed address ([709c77a053](https://github.com/graphty-org/graphty-monorepo/commit/709c77a053))
+- **graphty:** draw one role list for Fields and the header Role menu ([7430d1ce1d](https://github.com/graphty-org/graphty-monorepo/commit/7430d1ce1d))
+
+### 🩹 Fixes
+
+- **compact-mantine:** a card's grip no longer reorders by the arrow keys ([#5753](https://github.com/graphty-org/graphty-monorepo/issues/5753))
+- **compact-mantine:** a histogram's end bars are drawn whole ([#5753](https://github.com/graphty-org/graphty-monorepo/issues/5753))
+- **compact-mantine:** a card list's cards take their own class, off the Card's ([be876957ee](https://github.com/graphty-org/graphty-monorepo/commit/be876957ee))
+- **graphty:** with the workspace flag off, Edit stays the hover control it was ([#5753](https://github.com/graphty-org/graphty-monorepo/issues/5753))
+- **compact-mantine:** a slider's thumbs reach both ends of its scale exactly ([#5753](https://github.com/graphty-org/graphty-monorepo/issues/5753))
+- **compact-mantine:** name the card list's group role choice and map its cards explicitly ([01b5feceb5](https://github.com/graphty-org/graphty-monorepo/commit/01b5feceb5))
+- **compact-mantine:** close a pop-out on a click in the dialog that hosts it ([#5753](https://github.com/graphty-org/graphty-monorepo/issues/5753))
+- **graphty:** selection modal after the owner's review: folding, reordering, row tints, edges ([7ab6ecd8de](https://github.com/graphty-org/graphty-monorepo/commit/7ab6ecd8de))
+- **graphty:** an editor that starts picking keeps its own claim; tests follow the selection words ([be5811dc7f](https://github.com/graphty-org/graphty-monorepo/commit/be5811dc7f))
+- **graphty:** tier 5 polish round 2 fixes to the selection editor ([ce3968ce4e](https://github.com/graphty-org/graphty-monorepo/commit/ce3968ce4e))
+- **workspace:** tests and docs that the quick check found out of date ([bab29ccd4a](https://github.com/graphty-org/graphty-monorepo/commit/bab29ccd4a))
+- **compact-mantine:** a data table column's options tooltip shows its key, Alt+Down ([f54146c65e](https://github.com/graphty-org/graphty-monorepo/commit/f54146c65e))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.42
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
 ## 0.9.39 (2026-11-09)
 
 ### 🧱 Updated Dependencies

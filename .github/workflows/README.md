@@ -78,6 +78,9 @@ every tracked Markdown, MDX, HTML and package.json, `github.com/graphty-org` lin
 `https://graphty.app` link against the site the next deploy would publish (`tools/assemble-pages-site.sh`),
 including every Storybook deep link. VitePress fails on a dead link in Markdown, and graphty-element's TypeDoc
 run on a broken `{@link}`. `links-weekly.yml` checks every external link and files an issue, never a red build.
+The AI provider pages the graphty app links to (key and billing pages, in
+`graphty/src/workspace/assistant/providerPages.ts`) are checked by `tools/check-provider-links.mjs`: every pull
+request checks that each has a recorded landing, and the weekly run fails when one now lands somewhere else.
 A link to graphty.app must point at something `tools/assemble-pages-site.sh` publishes: a package's docs are at
 `https://graphty.app/docs/<package>/`, graphty-element's Storybook at `/storybook/graphty-element/`.
 
@@ -138,11 +141,21 @@ versions npm only had not listed yet closes itself, `tools/publish-hold.mjs`). T
 ### Versions and npm
 
 `nx release` bumps each package from the conventional commits since its last `{projectName}@{version}` tag. A
-commit with `!` or a `BREAKING CHANGE:` footer always means a major bump for the package in its scope, and
-nothing lowers it afterwards, so decide a package's next major before its first breaking commit lands (see
-"Breaking changes and major releases"). Check a release change with
+commit with `!` or a `BREAKING CHANGE:` footer means a major bump for the package in its scope, so a breaking
+change carries neither for now (see "Breaking changes and major releases"). Check a
+release change with
 `pnpm exec nx release --dry-run --skip-publish`. Changelogs are rendered by `tools/changelog-renderer.cjs`, which
 lists a commit under a package's "Breaking Changes" only when its scope names that package (or it has none).
+
+Only the owner can lower an already-pushed breaking commit, and history is never rewritten to do it: his ruling is
+an entry in `release-not-breaking.json` on master, one per commit, with the full commit id, the nx project, his
+reason and the date:
+`{ "notBreaking": [{ "commit": "<40-character id>", "project": "graphty-element", "reason": "owner 2026-11-09: ...", "since": "2026-11-09" }] }`.
+A listed commit is versioned by its type alone (`feat` a minor, `fix` a patch) and loses its changelog "Breaking
+Changes" entry (nx reads the list through `patches/nx@22.7.12.patch`), and `Lint PR Title`, PR Integrity and
+`tools/pr-open.sh` stop holding a pull request for it. Each reads master's list, never the branch's, so a pull
+request cannot clear its own commit; the file is in `pr-open.sh`'s `GUARD_PATHS`, so a change to it waits for the
+owner. `pnpm run check:release-hold` validates it (`tools/release-not-breaking.mjs`).
 
 To hold one package back from npm, add it to `release-hold.json` with a reason and the date:
 `{ "hold": [{ "project": "graphty-element", "reason": "...", "since": "2026-10-03" }] }` (the nx project name).
@@ -287,19 +300,16 @@ changes a file production already has (`tools/dataset-overlay.mjs`).
 
 ## Breaking changes and major releases
 
-Every major release costs every consumer a migration, so keep them few: think ahead and group
-breaking changes into as few majors as possible.
+The owner's rule (2026-11-10): "we have taken a softer stance on 'breaking' since we don't have
+anyone using our app yet. merge in the issues we have held as 'breaking' as non-breaking."
 
-- Before adding a breaking (`!`) commit to a published package, find the other breaking changes
-  already planned or in flight for that package -- unlanded branches carrying `!` commits,
-  deprecations scheduled for removal, the breaking-change registers in `design/` -- and land them
-  in the same major.
-- The full run promotes whatever has reached master to nightly and npm `next`, so a group of
-  breaking changes cannot be assembled by merging several branches over several days: a nightly
-  promotion in between would publish a major of its own. Put the grouped changes on one
-  branch and open it as one pull request.
-- Prefer deprecating now and removing in the next major that is already planned over a major of
-  its own. A breaking change that can wait for the next grouped major waits.
-- A branch that will bump a published package's major says so in its commit message, lists the
-  breaking changes it groups, and names any known breaking change it deliberately leaves for a
-  later major, with the reason.
+- While nobody outside consumes the packages, a change that would be breaking (removing or
+  renaming anything public, changing what an existing API does or returns, changing a default)
+  lands as an ordinary `feat` or `fix` commit with no `!` and no `BREAKING CHANGE:` footer, so it
+  bumps a minor or a patch, never a major.
+- Each such change goes through its own pull request with auto-merge, like any other; nothing is
+  held for a grouped major, and no `breaking-go` label is needed.
+- Its commit message says what changed for callers: what was removed, renamed or now behaves
+  differently, and what to use instead.
+- Ask the owner again only when a real outside consumer appears; then majors are one-way doors
+  again and are grouped into as few as possible.

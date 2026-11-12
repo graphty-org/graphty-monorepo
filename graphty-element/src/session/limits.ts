@@ -78,6 +78,7 @@
  */
 
 import type { Limits } from "../acceleration";
+import { GraphtyError } from "../errors/GraphtyError";
 import { DEFAULT_SELECTION_CAP } from "./selection";
 
 /**
@@ -115,20 +116,59 @@ export const DEFAULT_LIMITS: Readonly<DefaultableLimits> = Object.freeze({
      * `exactComputationSeconds`, which is a duration and answers a different question.
      */
     approximateAboveNodes: 2_000,
+    /**
+     * The most nodes drawn as objects of their own on `render-path="batched"`; past it a row whose
+     * look no batch draws is drawn as a plain body. The default ceiling, so it cannot bind at the
+     * defaults.
+     */
+    objectRows: 100_000,
+    /** The most edges drawn as objects of their own on `render-path="batched"`. The default ceiling. */
+    objectEdges: 1_000_000,
 });
 
 /**
- * The ceilings a consumer asks for through `limits`: the most nodes and edges a load may bring.
+ * The refusal of a load past what the renderer can draw.
+ * @param of - what is counted
+ * @param held - how many the graph holds already
+ * @param adding - how many the load would add
+ * @param limit - the most the renderer can draw
+ * @param graph - the graph's counts now
+ * @param graph.nodes - how many nodes it holds
+ * @param graph.edges - how many edges it holds
+ * @returns the `E_TOO_LARGE` error
+ */
+export function tooLargeError(
+    of: "nodes" | "edges",
+    held: number,
+    adding: number,
+    limit: number,
+    graph: { readonly nodes: number; readonly edges: number },
+): GraphtyError {
+    const count = held + adding;
+    return new GraphtyError({
+        code: "E_TOO_LARGE",
+        source: "data",
+        message:
+            `Loading ${adding.toLocaleString("en-US")} more ${of} would take the graph to ` +
+            `${count.toLocaleString("en-US")}, past the ${limit.toLocaleString("en-US")} ` +
+            `this renderer can draw. Load a subset of the graph.`,
+        details: { limit, count, of, graph: { nodes: graph.nodes, edges: graph.edges } },
+    });
+}
+
+/**
+ * The ceilings a consumer asks for through `limits`: the most nodes and edges a load may bring,
+ * and the most of each drawn as objects of their own (`objectRows`, `objectEdges`).
  *
  * Honored under `render-path="batched"`, whose rows cost no meshes of their own; under
  * `"objects"` the {@link DEFAULT_LIMITS} stand, because their reason (the heap a node of meshes
  * costs) still holds there. A field left out keeps its default.
  * @experimental cosmograph
  */
-export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn">>;
+export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn" | "objectRows" | "objectEdges">>;
 
-/** The two fields of {@link LimitsOption}, in a fixed order. */
-const CEILING_KEYS = ["renderCeiling", "edgesDrawn"] as const;
+/** The fields of {@link LimitsOption}, in a fixed order. */
+const CEILING_KEYS = ["renderCeiling", "edgesDrawn", "objectRows", "objectEdges"] as const;
 
 /**
  * The ceilings asked for and the ceilings in force, which differ while they are not honored.

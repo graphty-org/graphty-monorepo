@@ -173,31 +173,40 @@ try {
     });
     log("floor", await page.evaluate(() => B.floor()));
     log("gen", await page.evaluate(([n, m]) => B.gen(n, m), [N, M]));
+    // BENCH_PROFILE_TIMED names a file prefix: the engine setup, the load and the layout frame stages are then
+    // CPU-profiled while they are timed, into <prefix>-setup, -load and -layout .cpuprofile, to read their
+    // garbage collector and per-function time. The profiler slows them, so write those rows to their own file.
+    const profiled = async (stage, run, arg) => {
+        if (!process.env.BENCH_PROFILE_TIMED) return page.evaluate(run, arg);
+        await cdp.send("Profiler.enable");
+        await cdp.send("Profiler.start");
+        const out = await page.evaluate(run, arg);
+        const { profile: p } = await cdp.send("Profiler.stop");
+        writeFileSync(`${process.env.BENCH_PROFILE_TIMED}-${stage}.cpuprofile`, JSON.stringify(p));
+        return out;
+    };
     log(
         "setup",
-        await page.evaluate(
-            ([l, o]) => B.setup(l, o),
-            [
-                lib,
-                {
-                    mode,
-                    accel,
-                    dpr: DPR,
-                    labels,
-                    sampled,
-                    glyphs,
-                    curves,
-                    threeD,
-                    renderPath: RENDER_PATH,
-                    renderer: RENDERER,
-                    antialias: ANTIALIAS,
-                    limits: LIMITS,
-                    onDemand: !!process.env.LAYOUT_ONLY,
-                },
-            ],
-        ),
+        await profiled("setup", ([l, o]) => B.setup(l, o), [
+            lib,
+            {
+                mode,
+                accel,
+                dpr: DPR,
+                labels,
+                sampled,
+                glyphs,
+                curves,
+                threeD,
+                renderPath: RENDER_PATH,
+                renderer: RENDERER,
+                antialias: ANTIALIAS,
+                limits: LIMITS,
+                onDemand: !!process.env.LAYOUT_ONLY,
+            },
+        ]),
     );
-    const load = await page.evaluate(() => B.load());
+    const load = await profiled("load", () => B.load());
     log("load", load);
     if (load.error) throw new Error("load failed: " + load.error);
     log("canvas", await page.evaluate(() => B.canvasSize()));
@@ -263,10 +272,35 @@ try {
     if (!noMove) log("orbit", await page.evaluate(() => B.orbit(200)));
     if (!noMove) log("drag", await page.evaluate(() => B.drag(60)));
     if (!noMove) await checkBatched("drag");
+    // The heap as the page holds it, before the forced collection below shrinks it.
+    log("memoryNoGc", { ...(await page.evaluate(() => B.mem())), rssMB: rssMB() });
     await cdp.send("HeapProfiler.collectGarbage");
     log("memory", { ...(await page.evaluate(() => B.mem())), gpuMBDelta: gpuMB() - gpu0, rssMB: rssMB() });
     // Hover before the layout: a run of the layout moves cosmos.gl's points off the screen, which is
     // why its 10,000-node hover used to find no target. Both libraries hover the same still scene.
+    await hoverStage(page, "hover");
+    if (lib === "graphty") log("lasso", await page.evaluate(() => B.lasso(20)));
+    if (!skip) {
+        log("layoutFps", await profiled("layout", () => B.layoutFps(200, 30000)));
+        // The layout is still running: a hover reads the node under the pointer back from the GPU,
+        // which waits behind every frame queued ahead of it.
+        await hoverStage(page, "hoverLayout");
+        log("layoutSteps", await page.evaluate(() => B.layoutSteps()));
+    }
+} catch (e) {
+    log("failure", String(e?.message ?? e).slice(0, 500));
+} finally {
+    save();
+    await ctx.close();
+    rmSync(UDD, { recursive: true, force: true });
+}
+
+/**
+ * Hovers ten nodes and logs how long each took to answer, under a stage name.
+ * @param {import("playwright").Page} page - The page.
+ * @param {string} stage - The row's field.
+ */
+async function hoverStage(page, stage) {
     const K = 10;
     const targets = await page.evaluate((k) => B.hoverTargets(k), K);
     const lats = [];
@@ -289,16 +323,5 @@ try {
         lats.push(+r.hit.lat.toFixed(1));
     }
     await page.mouse.move(1260, 980);
-    log("hover", { targets: targets.length, latMs: lats });
-    if (lib === "graphty") log("lasso", await page.evaluate(() => B.lasso(20)));
-    if (!skip) {
-        log("layoutFps", await page.evaluate(() => B.layoutFps(200, 30000)));
-        log("layoutSteps", await page.evaluate(() => B.layoutSteps()));
-    }
-} catch (e) {
-    log("failure", String(e?.message ?? e).slice(0, 500));
-} finally {
-    save();
-    await ctx.close();
-    rmSync(UDD, { recursive: true, force: true });
+    log(stage, { targets: targets.length, latMs: lats });
 }

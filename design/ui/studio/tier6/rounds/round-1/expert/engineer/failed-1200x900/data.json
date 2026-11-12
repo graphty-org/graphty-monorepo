@@ -1,0 +1,88 @@
+{
+ "counts": {
+  "totalEdges": 9,
+  "totalNodes": 6,
+  "visibleEdges": 9,
+  "visibleNodes": 6,
+  "selectedNodes": 0,
+  "selectedEdges": 0
+ },
+ "sources": [
+  {
+   "key": "s1",
+   "name": "long-names.csv",
+   "kind": "file",
+   "counts": {
+    "nodes": 6,
+    "edges": 9
+   },
+   "recount": {
+    "nodes": 6,
+    "edges": 9
+   },
+   "chips": null,
+   "join": null,
+   "leftOut": null,
+   "mapping": {
+    "tables": {
+     "rows": {
+      "rowsAre": "edges",
+      "source": {
+       "column": "source"
+      },
+      "target": {
+       "column": "target"
+      },
+      "weight": "average_minutes_between_visits",
+      "time": null,
+      "edgeId": null
+     }
+    }
+   }
+  }
+ ],
+ "knownFields": {
+  "nodeIdPath": "id",
+  "nodeLabelPath": null,
+  "nodeWeightPath": null,
+  "nodeTimePath": null,
+  "edgeSrcIdPath": null,
+  "edgeDstIdPath": null,
+  "edgeIdPath": null,
+  "repeatedEdges": "keep",
+  "edgeWeightPath": "average_minutes_between_visits",
+  "edgeWeightMeaning": null,
+  "edgeTimePath": null,
+  "positionScale": 1,
+  "idCoercion": "canonical"
+ },
+ "weight": {
+  "attribute": "average_minutes_between_visits",
+  "meaning": null
+ },
+ "columns": [
+  {
+   "kind": "node",
+   "path": "data.id",
+   "name": "id",
+   "type": "string",
+   "roles": [
+    "key"
+   ],
+   "hidden": false
+  },
+  {
+   "kind": "edge",
+   "path": "data.average_minutes_between_visits",
+   "name": "average_minutes_between_visits",
+   "type": "integer",
+   "roles": [
+    "weight"
+   ],
+   "hidden": false
+  }
+ ],
+ "filters": [],
+ "filter": null,
+ "window": null
+}

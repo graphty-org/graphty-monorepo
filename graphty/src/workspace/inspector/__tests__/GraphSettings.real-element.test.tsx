@@ -54,16 +54,16 @@ describe("Graph settings", () => {
         });
     });
 
-    it("turns the declutter rule off and back on, and labels move off nodes until turned off", async () => {
+    it("turns the declutter rule on and back off, and labels move off nodes until turned off", async () => {
         const element = await openGraphSettings();
-        assert.isTrue(element.layoutBehavior?.labels?.declutter);
-        await userEvent.click(screen.getByRole("switch", { name: "Hide overlapping labels" }));
-        await waitFor(() => {
-            assert.isFalse(element.layoutBehavior?.labels?.declutter);
-        });
+        assert.isFalse(element.layoutBehavior?.labels?.declutter, "every label is drawn by default");
         await userEvent.click(screen.getByRole("switch", { name: "Hide overlapping labels" }));
         await waitFor(() => {
             assert.isTrue(element.layoutBehavior?.labels?.declutter);
+        });
+        await userEvent.click(screen.getByRole("switch", { name: "Hide overlapping labels" }));
+        await waitFor(() => {
+            assert.isFalse(element.layoutBehavior?.labels?.declutter);
         });
         assert.isTrue(element.layoutBehavior?.labels?.avoidNodesAndEdges, "labels move off nodes by default");
         await userEvent.click(screen.getByRole("switch", { name: "Move labels off nodes and edges" }));
@@ -154,7 +154,7 @@ describe("Graph settings", () => {
 
     it("hides Lighting and Same size at any depth in 2D, moves focus on, and the Values tab counts them", async () => {
         const element = await openGraphSettings();
-        // Focus on Same size at any depth, then 5, the toolbar View's key for 2D.
+        // Focus on Same size at any depth, then 5, the Mode menu's key for 2D.
         await userEvent.click(screen.getByRole("switch", { name: "Same size at any depth" }));
         await userEvent.click(screen.getByRole("switch", { name: "Same size at any depth" }));
         await userEvent.keyboard("5");
@@ -173,7 +173,7 @@ describe("Graph settings", () => {
         assert.strictEqual(note.textContent, "2 graph settings apply only in another view");
     });
 
-    it("draws no View switch and no Layout section: the toolbar is their one home", async () => {
+    it("draws no Mode switch and no Layout section: the toolbar is their one home", async () => {
         await openGraphSettings();
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
         const threeD = within(inspector)

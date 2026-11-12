@@ -1,3 +1,17 @@
+## 1.5.2 (2026-11-12)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** steady the upload benchmark's median ([#6565](https://github.com/graphty-org/graphty-monorepo/issues/6565))
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
+## 1.5.1 (2026-11-10)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
 ## 1.5.0 (2026-11-09)
 
 ### 🚀 Features

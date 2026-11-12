@@ -33,6 +33,7 @@ import {
     ciCommand,
     fitsCheckout,
     groupEntry,
+    GRAPHTY_PARTS,
     GROUPS,
     MATRIX_CAP,
     matrixLine,
@@ -197,8 +198,8 @@ describe("the test matrix", () => {
     // coverage-<shard> name; graphty-element and webgpu-graph-algorithms have upload steps of their own.
     it("uploads coverage for every shard with a job of its own that writes it", () => {
         const own = Object.fromEntries(plan(PACKAGES).map((e) => [e.shard, e.coverage]));
-        // the five graphty parts keep their reports apart
-        for (const n of [1, 2, 3, 4, 5]) {
+        // the graphty parts keep their reports apart
+        for (let n = 1; n <= GRAPHTY_PARTS; n++) {
             assert.equal(own[`graphty-${n}`], `graphty-${n}=graphty/.coverage-parts/graphty-${n}/lcov.info`);
         }
         assert.equal(own["graph-io"], "graph-io=graph-io/coverage/lcov.info");
@@ -2775,8 +2776,16 @@ describe("pr-title.yml", () => {
         assert.equal(pr.split(QUEUE).length, 2);
     });
     // The breaking-change step's script, against a stub gh: one GraphQL page with the commits, the labels and
-    // who added them; `fail` is gh's error output for a failed call.
-    const breaking = ({ title = "fix(tools): a", commits = ["fix: a"], labels = [], by = [], fail = "" } = {}) => {
+    // who added them; `fail` is gh's error output for a failed call; `ruled` is master's release-not-breaking.json
+    // list (commit `i` has the id `c<i>`).
+    const breaking = ({
+        title = "fix(tools): a",
+        commits = ["fix: a"],
+        labels = [],
+        by = [],
+        fail = "",
+        ruled,
+    } = {}) => {
         const pr = workflow("pr-title.yml");
         const body = pr.slice(pr.indexOf("- name: No breaking change without the owner's go"));
         const script = /run: \|\n([\s\S]*?)\n\n/.exec(body)[1].replaceAll(/^ {18}/gm, "");
@@ -2784,6 +2793,9 @@ describe("pr-title.yml", () => {
         const page = {
             data: {
                 repository: {
+                    notBreaking: ruled && {
+                        text: JSON.stringify({ notBreaking: ruled.map((commit) => ({ commit })) }),
+                    },
                     pullRequest: {
                         labels: { nodes: labels.map((name) => ({ name })) },
                         timelineItems: {
@@ -2791,7 +2803,7 @@ describe("pr-title.yml", () => {
                         },
                         commits: {
                             pageInfo: { hasNextPage: false, endCursor: null },
-                            nodes: commits.map((message) => ({ commit: { message } })),
+                            nodes: commits.map((message, i) => ({ commit: { oid: `c${i}`, message } })),
                         },
                     },
                 },
@@ -2830,6 +2842,16 @@ describe("pr-title.yml", () => {
         assert.equal(breaking({ commits: ["feat!: x"], labels: ["breaking-go"], by: ["graphty-agent"] }), 1);
         assert.equal(breaking({ commits: ["feat!: x"], labels: ["breaking-go"], by: ["apowers313"] }), 0);
         assert.equal(breaking({ commits: ["feat!: x"], by: ["apowers313"] }), 1, "the label was removed");
+    });
+    it("skips a breaking commit master's release-not-breaking.json rules not breaking", () => {
+        assert.equal(breaking({ commits: ["fix: a", "feat(x)!: y"], ruled: ["c1"] }), 0);
+        assert.equal(breaking({ commits: ["feat(x)!: y", "fix: b\n\nBREAKING CHANGE: z"], ruled: ["c0"] }), 1);
+        assert.equal(breaking({ commits: ["feat(x)!: y"], ruled: [] }), 1);
+        assert.equal(
+            breaking({ title: "feat!: x", commits: ["feat!: x"], ruled: ["c0"] }),
+            1,
+            "the title still counts",
+        );
     });
     it("fails closed, naming the cause, when the GitHub API cannot be asked", () => {
         assert.equal(breaking({ fail: "gh: API rate limit exceeded for installation ID 1. (HTTP 403)" }), 1);
@@ -3382,6 +3404,40 @@ describe("gpu.yml", () => {
             /- uses: actions\/checkout@v\d+\n {14}with: \{ ref: "\$\{\{ inputs.ref \}\}" \}/,
         );
         assert.doesNotMatch(gpu, /gpu-lane-needed|T4 GPU gate/);
+    });
+
+    it("checks the large-graph GPU screenshots, uploads them, and fails the job naming the stories that differ", () => {
+        const t4 = job(gpu, "test-gpu");
+        assert.match(
+            t4,
+            /git lfs pull --include "visual-fonts\/\*\*,cytoscape-extensions\/test\/gpu-screenshots\/\*\*"/,
+        );
+        assert.match(
+            t4,
+            /id: shots\n\s+if: \$\{\{ !inputs\.files \}\}\n\s+continue-on-error: true\n[\s\S]*?run: node scripts\/gpu-screenshots\.mjs --check\n/,
+        );
+        // a bisect point (inputs.files set) runs only its failing test files: no LFS pull, Storybook build or screenshots
+        for (const name of [
+            "Fetch the pinned fonts and the GPU screenshot references from Git LFS",
+            "Build the cytoscape-extensions Storybook",
+            "Large-graph story screenshots on NVIDIA against the reference images",
+        ]) {
+            const at = t4.indexOf(`- name: ${name}\n`);
+            assert.ok(at > 0, name);
+            const step = t4.slice(at, t4.indexOf("\n            - ", at + 1));
+            assert.match(step, /\n\s+if: \$\{\{ !inputs\.files \}\}\n/, name);
+        }
+        // git-lfs comes from the container's cached bootstrap packages, in both the cache key and the install
+        assert.equal(t4.match(/PACKAGES: ca-certificates curl git git-lfs /g)?.length, 2);
+        assert.match(t4, /name: "gpu-screenshots-\$\{\{ github\.run_id \}\}"/);
+        assert.match(
+            t4,
+            /if: \$\{\{ !cancelled\(\) && steps\.shots\.outcome == 'failure' \}\}[\s\S]*?::error::[\s\S]*?exit 1\n/,
+        );
+        // never cached: a dispatch of any branch could save a cache the release train restores (CodeQL cache poisoning)
+        assert.doesNotMatch(t4, /path: \.git\/lfs\/objects/);
+        // --update writes references; only a person on a GPU machine runs it
+        assert.doesNotMatch(gpu, /gpu-screenshots\.mjs --update/);
     });
 
     it("runs on an on-demand T4 by default, the release train included, with spot and hosted as dispatch options", () => {
@@ -4089,6 +4145,11 @@ describe("release.yml", () => {
     const landSh = readFileSync(new URL("./channel/land.sh", import.meta.url), "utf8");
     const publish = job(release, "publish");
     const approve = job(release, "approve");
+
+    it("gives the land its identity in the environment, so a local run cannot write the shared .git/config", () => {
+        assert.doesNotMatch(landSh, /^\s*git config/m);
+        assert.match(landSh, /^export GIT_AUTHOR_NAME=/m);
+    });
 
     it("opens no pull request and pushes to master only from the land job, with the deploy key", () => {
         assert.doesNotMatch(release, /gh pr create|head_commit/);
@@ -6478,6 +6539,10 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "figma-lock\\n");\n`,
             );
             writeFileSync(
+                join(dir, "tools/check-saved-format-allowlist.mjs"),
+                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "saved-format\\n");\n`,
+            );
+            writeFileSync(
                 join(dir, "tools/release-dry-run.mjs"),
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "release\\n");\n`,
             );
@@ -6554,6 +6619,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             writeFileSync(join(gate, "tools/sonar-gate.mjs"), sonar("gate-sonar"));
             writeFileSync(join(gate, "tools/check-committed-images.mjs"), sonar("gate-images"));
             writeFileSync(join(gate, "tools/check-figma-lock.mjs"), sonar("gate-figma-lock"));
+            writeFileSync(join(gate, "tools/check-saved-format-allowlist.mjs"), sonar("gate-saved-format"));
             writeFileSync(join(gate, "tools/release-dry-run.mjs"), sonar("gate-release"));
             writeFileSync(join(root, "tools/check-links.sh"), log("root-links"), { mode: 0o755 });
             writeFileSync(join(root, "tools/sonar-gate.mjs"), sonar("root-sonar"));

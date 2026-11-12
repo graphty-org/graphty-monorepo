@@ -12,10 +12,11 @@ import { withFeaturesOn } from "../tools/features-on.mjs";
 import { shardCacheDir } from "../tools/test-slots.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
+import { withBabylonCompilers } from "../vitest.babylon-compilers.mjs";
 import { baseTest } from "../vitest.base.mjs";
 import { mapTileCommands } from "../vitest.map-tiles.mjs";
 import { StoryShardSequencer } from "./test/story-shards";
-import { aliases } from "./vite.aliases";
+import { aliases, elementSourcePlugins } from "./vite.aliases";
 import { sampleDataPlugin } from "./vite.sample-data";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -167,7 +168,7 @@ const realElementProject = (
 });
 
 const config = defineConfig({
-    plugins: [react(), sampleDataPlugin()],
+    plugins: [react(), sampleDataPlugin(), ...elementSourcePlugins],
     // The same aliases as the dev server, so tests run graphty-element from source rather
     // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
     resolve: { alias: aliases },
@@ -342,4 +343,5 @@ config.test = {
 };
 
 // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
-export default withTestGuards(config);
+// Babylon.js's GLSL compilers come from a local copy, never cdn.babylonjs.com (vitest.babylon-compilers.mjs).
+export default withTestGuards(withBabylonCompilers(config));

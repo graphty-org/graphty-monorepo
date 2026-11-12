@@ -3,7 +3,7 @@
     "headroomPercent": 10,
     "minimumHeadroomBytes": 1024,
     "entries": {
-        ".": 920525,
+        ".": 1012700,
         "./session": 619509,
         "./schema": 15956,
         "./catalog": 249754,
@@ -13,9 +13,9 @@
         "./logging": 11037,
         "./react": 1044,
         "./webgpu": 5820,
-        "./ai": 248582,
+        "./ai": 344068,
         "./credentials": 6130,
-        "./bundle": 4551080
+        "./bundle": 5035579
     },
     "lazyChunks": {
         "models": {

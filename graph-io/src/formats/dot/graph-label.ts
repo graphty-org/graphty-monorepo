@@ -2,13 +2,13 @@
  * The root graph's own label (a DOT diagram's title) as text annotations, placed where Graphviz draws it
  * (lib/common/postproc.c `place_root_label`): at a stored `lp`, else against the side of the root `bb` that `labelloc`
  * (bottom by default) and `labeljust` (centered by default) name, in a region Graphviz adds to the drawing there, the
- * label's size plus its padding (4 GAP across, 2 GAP down). A graph with neither `lp` nor `bb` has no place for it
- * until it is laid out, so it gives none.
+ * label's size plus its padding (4 GAP across, 2 GAP down). A graph with neither `lp` nor `bb` is not laid out yet: its
+ * label is placed against that side of whatever drawing it gets (`TextAnnotation.beside`).
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import type { TextAnnotation } from "../../styles/annotations.js";
+import type { AnnotationBeside, TextAnnotation } from "../../styles/annotations.js";
 import { canonColor } from "../../styles/canon/color.js";
 import type { CanonSite } from "../../styles/canon/site.js";
 import { dotLabelText, htmlLabelSpans } from "../../styles/canon/text.js";
@@ -90,10 +90,11 @@ export function dotGraphLabel(snapshot: GraphSnapshot): TextAnnotation[] {
     const width = Math.max(...lines.map(lineWidth));
     const lineHeight = fontSize * LINE_SPACING;
     const height = lines.length * lineHeight;
-    const center = labelCenter(text, width + PAD.x, height + PAD.y);
-    if (center === null) {
-        return [];
-    }
+    const region = { width: width + PAD.x, height: height + PAD.y };
+    const placed = labelCenter(text, region.width, region.height);
+    // not laid out yet: against the side of whatever drawing it gets, measured from the region's center
+    const beside = placed === null ? { beside: { ...labelSide(text), ...region } } : {};
+    const center = placed ?? { x: 0, y: 0 };
     // ponytail: every line centered in the label (Graphviz lines ending \l or \r sit against its sides)
     return lines.flatMap((line, i) => {
         const y = center.y + height / 2 - (i + 0.5) * lineHeight;
@@ -116,6 +117,7 @@ export function dotGraphLabel(snapshot: GraphSnapshot): TextAnnotation[] {
                     anchor: "center" as const,
                     at: { x: x - w / 2, y },
                     ...style,
+                    ...beside,
                 },
             ];
         });
@@ -183,13 +185,30 @@ function labelCenter(text: (name: string) => string | null, dx: number, dy: numb
         return null;
     }
     const [x0, y0, x1, y1] = bb;
-    const just = (text("labeljust") ?? "").trim().toLowerCase();
-    const top = (text("labelloc") ?? "").trim().toLowerCase().startsWith("t");
+    const { side, align } = labelSide(text);
     let x = (x0 + x1) / 2;
-    if (just.startsWith("l")) {
+    if (align === "left") {
         x = x0 + dx / 2;
-    } else if (just.startsWith("r")) {
+    } else if (align === "right") {
         x = x1 - dx / 2;
     }
-    return { x, y: top ? y1 + dy / 2 : y0 - dy / 2 };
+    return { x, y: side === "top" ? y1 + dy / 2 : y0 - dy / 2 };
+}
+
+/**
+ * The side of the drawing the root label goes against (`labelloc`, bottom by default) and where along it
+ * (`labeljust`, centered by default).
+ * @param text - reads a graph attribute
+ * @returns the side and the place along it
+ */
+function labelSide(text: (name: string) => string | null): Pick<AnnotationBeside, "side" | "align"> {
+    const just = (text("labeljust") ?? "").trim().toLowerCase();
+    const top = (text("labelloc") ?? "").trim().toLowerCase().startsWith("t");
+    let align: AnnotationBeside["align"] = "center";
+    if (just.startsWith("l")) {
+        align = "left";
+    } else if (just.startsWith("r")) {
+        align = "right";
+    }
+    return { side: top ? "top" : "bottom", align };
 }

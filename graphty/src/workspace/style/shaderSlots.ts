@@ -7,12 +7,14 @@
  * `styles.counts`); nothing here decides it.
  */
 
-import type {
-    ShaderDescriptor,
-    ShaderParams as Params,
-    ShaderParamValue,
-    ShaderPlace,
-    ShaderUse,
+import {
+    formatShaderDraft,
+    type ShaderDescriptor,
+    type ShaderParams as Params,
+    type ShaderParamValue,
+    type ShaderPlace,
+    type ShaderUse,
+    splitShaderText,
 } from "@graphty/graphty-element/catalog";
 import type { Channel, ChannelValue, Encoding } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
@@ -20,7 +22,18 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import type { RowContext } from "./PropertyRow";
 import { type DataBinding, EVERYTHING_KEY, lineIn, writeLine } from "./row";
 import { focusLineNext } from "./useFocusLine";
-import { SHADER_STEP_WORDS } from "./words";
+import { copyNameWords, SHADER_STEP_WORDS } from "./words";
+
+/**
+ * A known shader's source as a copy of it, named the way Duplicate and edit names one.
+ * @param source - the source text.
+ * @param name - the shader's name.
+ * @returns the text.
+ */
+export function namedCopy(source: string, name: string): string {
+    const { draft, body } = splitShaderText(source);
+    return draft === undefined ? source : formatShaderDraft({ ...draft, name: copyNameWords(name) }, body);
+}
 
 /** What one value on a layer writes; undefined takes the channel off the layer. */
 type Writes = Partial<Record<Channel, ChannelValue | undefined>>;
@@ -57,13 +70,25 @@ function usesOf(layer: Layer | undefined, side: "node" | "edge"): readonly Shade
 }
 
 /**
- * A shader by id, from the catalog the element publishes.
+ * A shader by id: the project's own, else the catalog's entry.
  * @param session - the element's session.
  * @param id - the id.
  * @returns the entry, or undefined.
  */
 function shaderOf(session: GraphSession, id: string): ShaderDescriptor | undefined {
-    return session.catalog.shaders().find((descriptor) => descriptor.id === id);
+    return session.shaders.describe(id);
+}
+
+/**
+ * The id a gallery pick writes: a project shader's own id, else the id `fromCatalog` gives the
+ * catalog entry, so the save carries the shader's text and a file's own text under the same id is
+ * never picked in its place.
+ * @param session - the element's session.
+ * @param id - the picked tile's id.
+ * @returns the project id to write.
+ */
+export function pickedShader(session: GraphSession, id: string): Promise<string> {
+    return session.shaders.describe(id)?.origin === "pasted" ? Promise.resolve(id) : session.shaders.fromCatalog(id);
 }
 
 /**
@@ -482,3 +507,17 @@ export function fixedParams(entry: ShaderEntry): Params {
         Object.entries(paramsOf(entry)).filter(([, value]) => typeof value !== "object"),
     ) as Params;
 }
+
+/**
+ * The fields in a row's gear, whose problems mark the gear. `clock` is the dialog's name for a
+ * problem with a default bound to a clock, which the gear's Starts fields edit.
+ */
+export const GEAR_FIELDS: ReadonlySet<string> = new Set([
+    "plainName",
+    "min",
+    "max",
+    "step",
+    "values",
+    "varies",
+    "clock",
+]);

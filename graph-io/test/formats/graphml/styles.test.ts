@@ -90,6 +90,24 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "labelPosition", snapshot)[n5]).toBe("bottom");
     });
 
+    it("keeps a preserved label's leading line break, which yEd draws as a blank first line", async () => {
+        // graphml-stm32-func n30: "\nCS" is stored two Times New Roman lines tall (35.0 = 2 x 15.5 + 4), and yEd
+        // draws "CS" on the second line; a trailing break adds no line (crocs-muni scrutiny "User's\nprofile\n" is
+        // stored two lines tall), and text without xml:space is trimmed as before
+        const node = (id: string, attrs: string, text: string): string =>
+            `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +
+            `<y:NodeLabel ${attrs}>${text}</y:NodeLabel></y:ShapeNode></data></node>`;
+        const doc = [
+            YED_HEAD,
+            node("lead", 'xml:space="preserve"', "\nCS"),
+            node("trail", 'xml:space="preserve"', "User's\nprofile\n"),
+            node("plain", "", "\n  padded  "),
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "label", snapshot)).toEqual(["\nCS", "User's\nprofile", "padded"]);
+    });
+
     it("draws Java's logical fonts in the faces Java draws them in, and writes them back as yEd names them", async () => {
         const node = (id: string, label: string): string =>
             `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +
@@ -1322,6 +1340,36 @@ describe("GraphML styles: writing", () => {
         expect(text).toContain('<y:Fill color="#E8EEF7" transparent="false" color2="#B7C9E3"/>');
         expect(text).toContain('modelName="internal" modelPosition="tr"');
         expect(text).toContain('modelName="eight_pos" modelPosition="n"');
+    });
+
+    it("notes a gradient on a node with no fill color, which a y:Fill cannot hold", () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("a");
+        const snapshot = b.freeze();
+        const styles = planStyles(
+            {
+                format: "test",
+                node: {
+                    values: {
+                        fillGradient: ["#b7c9e3"],
+                        fillGradientColors: ["#ffffff #0000ff #ffffff"],
+                        fillGradientStops: ["0 0.5 1"],
+                    },
+                },
+                fingerprint: styleFingerprint(snapshot),
+            },
+            { node: featuresOf(snapshot, "node"), edge: featuresOf(snapshot, "edge") },
+        );
+        const losses = registry.checkExport(snapshot, "graphml", { styles });
+        expect(
+            losses
+                .filter((l) => l.code === "W_STYLE_APPROXIMATED")
+                .map((l) => [l.style?.target, l.style?.property, l.count]),
+        ).toEqual([
+            ["node", "fillGradient", 1],
+            ["node", "fillGradientColors", 1],
+            ["node", "fillGradientStops", 1],
+        ]);
     });
 
     it("an outside edit of a yEd color comes back as its fill and ramp only; any other new exception fails", async () => {

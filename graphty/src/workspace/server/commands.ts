@@ -1,9 +1,9 @@
 /**
- * Network data (data prototype spec section 3.9): the Sources "+" Network data... door, the
+ * Network data (data prototype spec section 3.9): the Sources "+" Network data... door (the start
+ * page's Open network data chooser, whose cards open the server form), the
  * Expand... and Collapse verbs on a node a server load brought, and how the form's rows become one
  * `data.import` call. graphty-element reads the server, pages, refreshes and expands; this file
- * only turns what the reader picked into its inputs. Every door here is drawn only with the
- * `network-data` experiment on.
+ * only turns what the reader picked into its inputs.
  */
 
 import { type SourceCatalogEntry, sourceDescriptors } from "@graphty/graphty-element/catalog";
@@ -14,14 +14,19 @@ import {
     type GraphSession,
     type NodeId,
     type SourceInput,
+    type SourceKey,
     type SourceLoadOptions,
+    type SourceParamDescriptor,
+    type SourceSettings,
 } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
-import { networkOn } from "../features";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { codeWords, failureOf, kindName } from "./words";
+
+/** The `dialog` value that opens Open network data, the chooser of servers, a web address and a file. */
+export const NETWORK_DIALOG = "network";
 
 /** The `dialog` value that opens the server form beside the Sources section. */
 export const SERVER_DIALOG = "server";
@@ -73,8 +78,6 @@ export interface ServerFormState {
         /** Edge types, comma separated; blank for any. */
         readonly types: string;
     };
-    /** The example the form was filled from, which names the load. */
-    readonly example?: string;
 }
 
 /** What an expansion fetches until the reader changes it (spec section 3.9). */
@@ -104,6 +107,130 @@ export function freshForm(entry: SourceCatalogEntry): ServerFormState {
         expand: entry.features.expand,
         expandWith: EXPAND_DEFAULTS,
     };
+}
+
+/**
+ * How a load started, as its settings say (graphty-element fills in the mode a query source read in).
+ * @param config - the load's params.
+ * @returns the Start value, or null when the params name none.
+ */
+function startOf(config: Readonly<Record<string, unknown>>): string | null {
+    return typeof config.mode === "string" ? config.mode : null;
+}
+
+/**
+ * A form opened to edit a load: its settings, with the sign-in rows empty. User stays empty on
+ * purpose: a user with a blank password would be a login that overrides the remembered one.
+ * @param entry - the source.
+ * @param settings - what the load holds, from `data.sourceSettings`.
+ * @returns the form.
+ */
+export function formFromSettings(entry: SourceCatalogEntry, settings: SourceSettings): ServerFormState {
+    const { expand, config } = settings;
+    return {
+        kind: entry.id,
+        endpoint: settings.endpoint ?? "",
+        user: "",
+        secret: "",
+        apiKey: "",
+        params: { ...config },
+        limit: settings.limits?.maxNodes ?? 0,
+        expand: expand !== undefined,
+        expandWith:
+            expand === undefined
+                ? EXPAND_DEFAULTS
+                : {
+                      depth: expand.depth ?? EXPAND_DEFAULTS.depth,
+                      direction: expand.direction ?? EXPAND_DEFAULTS.direction,
+                      limit: expand.limit ?? EXPAND_DEFAULTS.limit,
+                      types: (expand.relationshipTypes ?? []).join(", "),
+                  },
+    };
+}
+
+/**
+ * The params a load holds that its source does not declare (a Web API's template values), as
+ * params the form can draw.
+ * @param entry - the source.
+ * @param params - the params the form holds.
+ * @returns one descriptor per undeclared param, named by itself.
+ */
+export function undeclaredParams(
+    entry: SourceCatalogEntry,
+    params: Readonly<Record<string, unknown>>,
+): readonly SourceParamDescriptor[] {
+    const declared = new Set(entry.descriptor.params.map((p) => p.name));
+    return Object.keys(params)
+        .filter((name) => !declared.has(name))
+        .map((name) => ({ name, plainName: name, type: "string" as const }));
+}
+
+/** What the right panel draws about a load's settings. */
+export interface SettingsFacts {
+    /** Short values, one row each. */
+    readonly rows: readonly { readonly name: string; readonly value: string | number }[];
+    /** Long values (a query, a mapping), each its own section. */
+    readonly long: readonly { readonly name: string; readonly value: string }[];
+}
+
+/**
+ * A param's value as the panel shows it.
+ * @param value - the value.
+ * @returns the text, or null for nothing to show.
+ */
+function shownValue(value: unknown): string | null {
+    if (Array.isArray(value)) {
+        return value.join(", ");
+    }
+    if (typeof value === "object" && value !== null) {
+        return JSON.stringify(value, null, 2);
+    }
+    if (typeof value === "boolean") {
+        return value ? "Yes" : "No";
+    }
+    return typeof value === "string" || typeof value === "number" ? String(value) : null;
+}
+
+/**
+ * What a load connects to and fetches, as the right panel draws it: Start, each param with a
+ * value, Limit and Expand. A query or a mapping is long, and goes in a section of its own.
+ * @param entry - the source.
+ * @param settings - what the load holds.
+ * @returns the rows.
+ */
+export function settingsFacts(entry: SourceCatalogEntry, settings: SourceSettings): SettingsFacts {
+    const { config } = settings;
+    const { params } = entry.descriptor;
+    const rows: SettingsFacts["rows"][number][] = [];
+    const long: SettingsFacts["long"][number][] = [];
+    const start = startOf(config);
+    if (start !== null && params.some((p) => p.name === "mode")) {
+        rows.push({ name: "Start", value: START_WORDS[start] ?? start });
+    }
+    for (const { name, plainName, type } of [...params, ...undeclaredParams(entry, config)]) {
+        const value = name === "mode" ? null : shownValue(config[name]);
+        if (value !== null && value !== "") {
+            (type === "query" || type === "text" ? long : rows).push({ name: plainName, value });
+        }
+    }
+    if (settings.limits?.maxNodes !== undefined) {
+        rows.push({ name: "Limit", value: settings.limits.maxNodes });
+    }
+    if (settings.expand !== undefined) {
+        rows.push({ name: "Expand", value: "On double-click" });
+    }
+    return { rows, long };
+}
+
+/**
+ * Whether a source can be edited in the form: a network load of a kind this browser can reach.
+ * @param session - the session.
+ * @param key - the source's key.
+ * @returns its settings, or undefined when it cannot be edited.
+ */
+export function editableSettings(session: GraphSession | null, key: SourceKey): SourceSettings | undefined {
+    const settings = session?.data.sourceSettings(key);
+    return settings !== undefined && serverKinds().some((each) => each.id === settings.source) ? settings : undefined;
 }
 
 /**
@@ -141,90 +268,6 @@ export function formReady(entry: SourceCatalogEntry, form: ServerFormState): boo
             (hasMode && param.type === "node-id" && mode === "neighborhood");
         return !needed || !isBlank(form.params[param.name]);
     });
-}
-
-/**
- * The cap a form holds for an example: its first page when it is too big to load whole, else none,
- * so the form loads what the example promises.
- * @param example - the example.
- * @param example.firstPage - its first page, if it has one.
- * @returns the form's Limit.
- */
-function exampleLimit(example: { readonly firstPage?: number | undefined }): number {
-    return example.firstPage ?? 0;
-}
-
-/**
- * The form filled from one of the source's examples: its endpoint, sign-in, params (its Start
- * among them) and its own cap, with the params the previous example set cleared first and the
- * transport always the example's (a source picks it from the endpoint when the example names
- * none). Load then loads what the example promises, as `session.data.loadExample` does.
- * @param entry - the source.
- * @param form - the form now.
- * @param id - the example's id; null clears the example.
- * @returns the filled form, the form with no example for null, or the form unchanged for an unknown id.
- */
-export function withExample(entry: SourceCatalogEntry, form: ServerFormState, id: string | null): ServerFormState {
-    if (id === null) {
-        return withoutExample(entry, form);
-    }
-    const examples = entry.descriptor.examples ?? [];
-    const example = examples.find((each) => each.id === id);
-    if (example === undefined) {
-        return form;
-    }
-    return {
-        ...form,
-        example: example.plainName,
-        limit: exampleLimit(example),
-        endpoint: example.endpoint ?? "",
-        params: { ...example.params },
-        user: example.publicLogin?.username ?? "",
-        secret: example.publicLogin?.password ?? "",
-    };
-}
-
-/**
- * Whether a field still holds what an example put there.
- * @param held - what the form holds.
- * @param filled - what the example filled.
- * @returns true when unchanged.
- */
-function untouched(held: unknown, filled: unknown): boolean {
-    return JSON.stringify(held) === JSON.stringify(filled);
-}
-
-/**
- * The form with its example let go: the endpoint, sign-in and params the example filled and the
- * reader left as they were go back to a fresh form's, so nothing of the example's server rides
- * along to the reader's; whatever the reader typed stays.
- * @param entry - the source.
- * @param form - the form now.
- * @returns the form with no example.
- */
-export function withoutExample(entry: SourceCatalogEntry, form: ServerFormState): ServerFormState {
-    const { example, ...rest } = form;
-    const filled = (entry.descriptor.examples ?? []).find((each) => each.plainName === example);
-    if (filled === undefined) {
-        return rest;
-    }
-    const freshOne = freshForm(entry);
-    const fresh = freshOne.params;
-    const params: Record<string, unknown> = { ...fresh, ...form.params };
-    for (const [name, value] of Object.entries(filled.params)) {
-        if (untouched(params[name], value)) {
-            params[name] = fresh[name];
-        }
-    }
-    const login = filled.publicLogin;
-    return {
-        ...rest,
-        limit: form.limit === exampleLimit(filled) ? freshOne.limit : form.limit,
-        endpoint: untouched(form.endpoint, filled.endpoint ?? "") ? "" : form.endpoint,
-        params: Object.fromEntries(Object.entries(params).filter(([, value]) => value !== undefined)),
-        user: untouched(form.user, login?.username ?? "") ? "" : form.user,
-        secret: untouched(form.secret, login?.password ?? "") ? "" : form.secret,
-    };
 }
 
 /**
@@ -290,7 +333,7 @@ function paramValue(type: string, value: unknown): unknown {
  * @param form - the form.
  * @returns the credential.
  */
-export function formCredential(entry: SourceCatalogEntry, form: ServerFormState): Credential | undefined {
+function formCredential(entry: SourceCatalogEntry, form: ServerFormState): Credential | undefined {
     const auth = entry.descriptor.auth ?? [];
     if (auth.includes("basic") && form.user !== "") {
         return credentials.basic(form.user, form.secret);
@@ -307,8 +350,7 @@ export function formCredential(entry: SourceCatalogEntry, form: ServerFormState)
 
 /**
  * The form as one `data.import` call: the source and its params, and the endpoint, the cap and
- * the load's own double-click expand. The credential is not in it: the form remembers it in the
- * element's credential store, so Load more, Refresh and Expand find it.
+ * the load's own double-click expand. The credential is not in it: `serverLoad` adds it.
  * @param entry - the source.
  * @param form - the form.
  * @returns the input and the options.
@@ -317,12 +359,9 @@ export function serverRequest(
     entry: SourceCatalogEntry,
     form: ServerFormState,
 ): { input: SourceInput; options: SourceLoadOptions } {
-    // A param the descriptor does not declare (an example's template values) goes as it is.
-    const declared = new Map(entry.descriptor.params.map((param) => [param.name, param.type]));
     const config: Record<string, unknown> = {};
-    for (const [name, typed] of Object.entries(form.params)) {
-        const type = declared.get(name);
-        const value = type === undefined ? typed : paramValue(type, typed);
+    for (const { name, type } of [...entry.descriptor.params, ...undeclaredParams(entry, form.params)]) {
+        const value = paramValue(type, form.params[name]);
         if (value !== undefined) {
             config[name] = value;
         }
@@ -337,7 +376,7 @@ export function serverRequest(
         ...(types.length === 0 ? {} : { relationshipTypes: types }),
     };
     const host = URL.canParse(endpoint) ? new URL(endpoint).host : null;
-    const name = form.example ?? (host === null ? kindName(entry) : `${kindName(entry)} ${host}`);
+    const name = host === null ? kindName(entry) : `${kindName(entry)} ${host}`;
     return {
         input: { source: entry.id, config, name },
         options: {
@@ -348,21 +387,55 @@ export function serverRequest(
     };
 }
 
+/** What Load and Test send: the read, and the sign-in to remember in memory. */
+export interface ServerLoad {
+    readonly input: SourceInput;
+    /** The load's options, the credential among them. */
+    readonly options: SourceLoadOptions;
+    readonly credential: Credential | undefined;
+    /** Where the credential goes: the typed endpoint, else the source's default. */
+    readonly endpoint: string | undefined;
+}
+
+/**
+ * The form as what Load hands over.
+ * @param entry - the source.
+ * @param form - the form.
+ * @returns the load.
+ */
+export function serverLoad(entry: SourceCatalogEntry, form: ServerFormState): ServerLoad {
+    const { input, options } = serverRequest(entry, form);
+    const credential = formCredential(entry, form);
+    return {
+        input,
+        options: credential === undefined ? options : { ...options, credential },
+        credential,
+        endpoint: options.endpoint ?? entry.descriptor.defaultEndpoint ?? undefined,
+    };
+}
+
 /**
  * Opens the server form on the Data place, opening an empty project first when none is open
  * (the start screen's Open network data).
  * @param store - the workspace store.
  * @param kind - the source the form opens on, or none for its first.
+ * @param editing - the network source the form opens filled in with, whose Load replaces it.
  */
-export function openServerForm(store: WorkspaceStore, kind: string | null = null): void {
+export function openServerForm(
+    store: WorkspaceStore,
+    kind: string | null = null,
+    editing: SourceKey | null = null,
+): void {
     store.set((state) => ({
-        ...(state.project === null ? { project: { name: "Untitled", id: newProjectId(state) }, inspected: null } : {}),
+        ...(state.project === null
+            ? { project: { name: "Untitled", id: newProjectId(state), blank: true as const }, inspected: null }
+            : {}),
         page: "panels",
         place: "data",
         ...panelsInView(),
         dialog: SERVER_DIALOG,
         serverKind: kind,
-        serverFromStart: state.project === null,
+        serverEdit: editing,
     }));
 }
 
@@ -431,7 +504,7 @@ function collapseNode(workspace: WorkspaceStore, session: GraphSession, id: Node
 
 /**
  * The server package's registration: Network data... on the Sources "+", and Expand... and
- * Collapse; each drawn only with the network-data experiment on.
+ * Collapse.
  */
 export const registration = defineRegistration({
     owner: "server",
@@ -441,9 +514,9 @@ export const registration = defineRegistration({
             label: "Network data...",
             group: "Data",
             keywords: ["add", "source", "server", "database", "neo4j", "cypher", "sparql", "ndex", "openalex", "rest"],
-            shown: (ctx) => networkOn(ctx.session),
+            shown: (ctx) => ctx.session !== null,
             run: (ctx) => {
-                openServerForm(ctx.workspace);
+                ctx.workspace.set({ dialog: NETWORK_DIALOG });
             },
         },
         {
@@ -458,7 +531,7 @@ export const registration = defineRegistration({
             },
             shown: (ctx) => {
                 const id = selectedNode(ctx);
-                return networkOn(ctx.session) && id !== undefined && expandableSource(ctx.session, id) !== undefined;
+                return id !== undefined && expandableSource(ctx.session, id) !== undefined;
             },
             run: (ctx) => {
                 ctx.workspace.set({ dialog: EXPAND_DIALOG });
@@ -471,13 +544,24 @@ export const registration = defineRegistration({
             keywords: ["neighbors", "server"],
             shown: (ctx) => {
                 const id = selectedNode(ctx);
-                return networkOn(ctx.session) && id !== undefined && collapsible(ctx.session, id);
+                return id !== undefined && collapsible(ctx.session, id);
             },
             run: (ctx) => {
                 const id = selectedNode(ctx);
                 if (id !== undefined && ctx.session !== null) {
                     collapseNode(ctx.workspace, ctx.session, id);
                 }
+            },
+        },
+    ],
+    sourceRow: [
+        {
+            id: "source.edit-network",
+            label: "Edit...",
+            order: 15,
+            shown: (ctx, source) => editableSettings(ctx.session, source.key) !== undefined,
+            run: (ctx, source) => {
+                openServerForm(ctx.workspace, editableSettings(ctx.session, source.key)?.source ?? null, source.key);
             },
         },
     ],

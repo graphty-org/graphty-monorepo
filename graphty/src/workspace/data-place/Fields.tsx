@@ -25,6 +25,7 @@ import {
     FIELD_ROWS,
     type FieldEntry,
     type FieldSide,
+    fileKindChoices,
     isNumeric,
     KIND_OF,
     kindChoices,
@@ -50,6 +51,7 @@ const SHARED_IDS = ["Same node", "Different nodes"];
 const ENTRY_GLYPHS: Readonly<Record<EntryId, (typeof GLYPHS)[keyof typeof GLYPHS]>> = {
     label: GLYPHS.label,
     kind: GLYPHS.category,
+    kindName: GLYPHS.category,
     weight: GLYPHS.weight,
     time: GLYPHS.time,
     latitude: GLYPHS.location,
@@ -502,20 +504,21 @@ function SideGroup({
         if (entry.load !== undefined) {
             const key = entry.load;
             const endKind = key === "sourceKind" || key === "targetKind";
+            const offered = endKind ? kindChoices(roles, holder) : null;
+            const named = key === "kindName" ? fileKindChoices(source, holder) : offered;
             return (
                 <EntryRow
                     key={entry.id}
                     {...common}
                     choices={
-                        endKind
-                            ? kindChoices(roles, holder)
-                            : columnOptions(
-                                  session,
-                                  attributes,
-                                  side,
-                                  entry.id,
-                                  columnChoices(attributes, source, side, holder),
-                              )
+                        named ??
+                        columnOptions(
+                            session,
+                            attributes,
+                            side,
+                            entry.id,
+                            columnChoices(attributes, source, side, holder),
+                        )
                     }
                     onPick={(picked) => {
                         if (source !== undefined) {

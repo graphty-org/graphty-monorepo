@@ -94,6 +94,11 @@ work is not reopened over it, stays listed, and fires `graphty-autosave-availabl
 
 Restored work that was never saved to a file stays unsaved (`session.project.dirty` is true).
 
+An entry carries the code of every shader the work used, so it comes back the same after the page
+updates graphty-element. If a shader in it no longer reads, its uses are dropped and the rest comes
+back; the entry is then kept as it was and further changes go to a new entry, so the older copy is
+never written over.
+
 ## What each browser guarantees
 
 Autosave keeps what it has written. What it has not yet written when the page dies is lost, so
@@ -114,16 +119,17 @@ draws nothing but still loads the data and restores the work, so the reader can 
 
 ## Choices
 
-| Option, on `autosaveOptions` | Default       | What it does                                                                     |
-| ---------------------------- | ------------- | -------------------------------------------------------------------------------- |
-| `key`                        | the attribute | the key, overriding the attribute's value                                        |
-| `restore`                    | `"auto"`      | `"manual"` restores nothing by itself; see below                                 |
-| `delayMs`, `maxWaitMs`       | 500, 2000     | the debounce of a write while visible, and the most a change waits               |
-| `dataMaxWaitMs`              | 10000         | the most a change to the graph's data waits                                      |
-| `keep`                       | 10            | entries per key beyond which clean ones are deleted; unsaved work never is       |
-| `persist`                    | `false`       | ask for persistent storage after the first write that follows a reader's gesture |
-| `unloadGuard`                | `"pending"`   | when to ask the reader before the page closes; see below                         |
-| `store`                      | IndexedDB     | a store of your own (`AutosaveStore` from `@graphty/graphty-element/extend`)     |
+| Option, on `autosaveOptions` | Default       | What it does                                                                         |
+| ---------------------------- | ------------- | ------------------------------------------------------------------------------------ |
+| `key`                        | the attribute | the key, overriding the attribute's value                                            |
+| `restore`                    | `"auto"`      | `"manual"` restores nothing by itself; see below                                     |
+| `delayMs`, `maxWaitMs`       | 500, 2000     | the debounce of a write while visible, and the most a change waits                   |
+| `dataMaxWaitMs`              | 10000         | the most a change to the graph's data waits                                          |
+| `keep`                       | 10            | entries per key beyond which clean ones are deleted; unsaved work never is           |
+| `persist`                    | `false`       | ask for persistent storage after the first write that follows a reader's gesture     |
+| `unloadGuard`                | `"pending"`   | when to ask the reader before the page closes; see below                             |
+| `store`                      | IndexedDB     | a store of your own (`AutosaveStore` from `@graphty/graphty-element/extend`)         |
+| `keepCamera`                 | `false`       | put the camera back where this tab left it when its work reopens, instead of framing |
 
 `autosave-restore="manual"` (or `restore: "manual"`) turns automatic restore off: the element fires
 `graphty-autosave-available` with reason `"manual"` when an entry exists, and you call
@@ -214,6 +220,10 @@ await removeAutosave("acme.org-chart", latest.id);
 ```
 
 Both take `{ store }` for a store of your own. Where the browser keeps no storage, the list is empty.
+
+An entry listed with `own: true` is the one this tab was writing before a reload or a discarded
+tab: open it without asking. After a reload the call waits up to two seconds for the page that left
+to let go of the entry; a duplicated tab gets `own: false` while its original is still writing.
 
 ## Status and codes
 

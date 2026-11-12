@@ -20,13 +20,34 @@ import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import { z } from 'zod';
 
 // @public
+export const AI_CONVERSATION_FORMAT = "graphty-ai-conversation";
+
+// @public
+export const AI_CONVERSATION_FORMAT_VERSION = 1;
+
+// @public
+export const AI_EFFECT_CODES: readonly ["AI_EFFECT_STYLE", "AI_EFFECT_LAYOUT", "AI_EFFECT_FILTER", "AI_EFFECT_RUN", "AI_EFFECT_RUN_REMOVED", "AI_EFFECT_DATA", "AI_EFFECT_SELECTION", "AI_EFFECT_VIEW", "AI_EFFECT_FOUND", "AI_EFFECT_EMPTY", "AI_EFFECT_OTHER", "AI_EFFECT_READ"];
+
+// @public
+export const AI_HOSTED_TOOL_CAPABILITIES: Readonly<Record<AiProviderId, AiToolCapabilities>>;
+
+// @public
+export const AI_HOSTED_TOOL_IDS: readonly ["web-search", "web-fetch", "in-page-code"];
+
+// @public
+export const AI_INPUT_KINDS: readonly ["rule", "result", "ids", "column", "layer", "run", "algorithm", "layout", "format", "values", "number", "yes-no", "choice", "text", "other"];
+
+// @public
 export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[];
 
 // @public
 export const AI_PROVIDER_IDS: readonly ["openai", "anthropic", "google", "webllm", "mock"];
 
 // @public
-export const AI_RESULT_CODES: readonly ["AI_COMPLETED", "AI_NO_RESPONSE", "AI_NOT_ENABLED", "AI_DISPOSED", "AI_KEY_MISSING", "AI_KEY_REJECTED", "AI_PROVIDER_ERROR", "AI_CANCELLED", "AI_UNDONE", "AI_TOOL_UNKNOWN", "AI_TOOL_INVALID_ARGUMENTS", "AI_TOOL_FAILED", "AI_TOOL_THREW", "AI_FAILED"];
+export const AI_REASONING_EFFORTS: readonly ["minimal", "low", "medium", "high"];
+
+// @public
+export const AI_RESULT_CODES: readonly ["AI_COMPLETED", "AI_NO_RESPONSE", "AI_NOT_ENABLED", "AI_DISPOSED", "AI_KEY_MISSING", "AI_KEY_REJECTED", "AI_PROVIDER_ERROR", "AI_CANCELLED", "AI_UNDONE", "AI_TOOL_UNKNOWN", "AI_TOOL_INVALID_ARGUMENTS", "AI_TOOL_FAILED", "AI_TOOL_THREW", "AI_FAILED", "AI_CONFIRMATION_NEEDED", "AI_ROLLBACK_PARTIAL", "AI_APPROVAL_STALE", "AI_APPROVAL_DENIED", "AI_TOOL_DENIED_BY_POLICY", "AI_TOOL_NOT_RUN", "AI_HISTORY_UNAVAILABLE", "AI_HISTORY_NEWER_FORMAT", "AI_STORAGE_FAILED", "AI_QUESTION_ASKED", "AI_ANSWER_INVALID", "AI_CONFIG_INVALID", "AI_HOSTED_TOOL_UNSUPPORTED", "AI_PROVIDER_PAUSED", "AI_VOICE_UNAVAILABLE"];
 
 // @public
 export const AI_STAGES: readonly ["processing", "generating", "executing"];
@@ -36,6 +57,57 @@ export const AI_STATES: readonly ["ready", "submitted", "streaming", "executing"
 
 // @public
 export const AI_TOOL_CALL_STATUSES: readonly ["pending", "executing", "complete", "error"];
+
+// @public
+export const AI_TOOL_CAUSE_CODES: readonly ["AI_OK", "AI_UNKNOWN_ACTION", "AI_ARG_INVALID", "AI_ARG_OUT_OF_RANGE", "AI_UNKNOWN_ENTRY", "AI_UNKNOWN_NODE", "AI_UNKNOWN_EDGE", "AI_UNKNOWN_COLUMN", "AI_UNKNOWN_RUN", "AI_BAD_SELECTOR", "AI_EMPTY_MATCH", "AI_NOT_AVAILABLE", "AI_CONFIRM_REQUIRED", "AI_IMPORT_URL_REFUSED", "AI_UNDO_NOTHING", "AI_UNDO_NOT_ALONE", "AI_UNDO_NOT_MINE", "AI_UNDO_IN_MESSAGE", "AI_CURSOR_STALE", "AI_TOOL_NOT_RUN", "AI_UNKNOWN_TOOL", "AI_PAINTED_NOTHING"];
+
+// @public
+export const AI_VOICE_APPROVABLE_GATES: readonly string[];
+
+// @public
+export const AI_VOICE_CAPABILITIES: Readonly<Record<AiProviderId, AiProviderVoice>>;
+
+// @public
+export const AI_VOICE_UNAVAILABLE_REASONS: readonly ["no-recognition", "no-microphone", "permission-denied", "insecure-context", "no-provider-transcription", "no-provider-speech", "no-key", "no-synthesis", "playback-failed", "unknown-voice", "recognition-network", "no-provider-live", "live-custom-base-url", "no-live-transport", "output-off", "live-busy", "recognition-failed"];
+
+// @public
+export interface AiCallInput {
+    readonly kind: AiInputKind;
+    readonly name: string;
+    readonly plainName: string;
+    readonly rule?: AiRule;
+    readonly value: unknown;
+}
+
+// @public
+export interface AiCapabilities {
+    readonly model: string;
+    readonly provider: AiProviderId | (string & {});
+    readonly tools: AiToolCapabilities;
+}
+
+// @public
+export type AiCapabilityStatus = "available" | "unsupported" | "results-not-returned" | "unknown";
+
+// @public
+export interface AiEffect {
+    readonly code: AiEffectCode;
+    readonly params: AiResultParams;
+    readonly rule?: AiRule;
+    readonly target?: AiTarget;
+}
+
+// @public
+export type AiEffectCode = (typeof AI_EFFECT_CODES)[number];
+
+// @public
+export type AiHostedToolId = (typeof AI_HOSTED_TOOL_IDS)[number];
+
+// @public
+export function aiHostedToolStatus(provider: AiProviderId, model: string, tool: AiHostedToolId): AiCapabilityStatus;
+
+// @public
+export type AiInputKind = (typeof AI_INPUT_KINDS)[number];
 
 // @public
 export interface AiKeyShape {
@@ -68,12 +140,38 @@ export type AiKeyShapeCheck = {
 export type AiKeyShapeCode = "E_KEY_EMPTY" | "E_KEY_PREFIX" | "E_KEY_TOO_SHORT";
 
 // @public
+export interface AiMessageScope {
+    readonly edges: number;
+    readonly hiddenEdges: number;
+    readonly hiddenNodes: number;
+    readonly kind: "selection" | "graph";
+    readonly nodes: number;
+}
+
+// @public
 export interface AiModelDescriptor {
     readonly downloadMB?: number;
     readonly id: string;
     readonly plainName: string;
+    readonly reasoning?: AiModelReasoning;
     readonly supportsTools: boolean;
+    readonly temperature?: {
+        readonly min: number;
+        readonly max: number;
+    };
 }
+
+// @public
+export type AiModelReasoning = {
+    readonly efforts: readonly AiReasoningEffort[];
+} | {
+    readonly budgetTokens: {
+        readonly min: number;
+    };
+};
+
+// @public
+export type AiPageRetrieval = "loaded" | "failed" | "paywalled" | "unsafe" | "unknown";
 
 // @public
 export interface AiProviderDescriptor {
@@ -94,10 +192,91 @@ export function aiProviderDescriptor(id: AiProviderId): AiProviderDescriptor;
 export type AiProviderId = (typeof AI_PROVIDER_IDS)[number];
 
 // @public
+export interface AiProviderVoice {
+    readonly live?: {
+        readonly status: AiCapabilityStatus;
+        readonly model?: string;
+    };
+    readonly speech: {
+        readonly status: AiCapabilityStatus;
+        readonly model?: string;
+    };
+    readonly transcription: {
+        readonly status: AiCapabilityStatus;
+        readonly model?: string;
+        readonly viaChatModel?: boolean;
+    };
+}
+
+// @public
+export type AiReasoningEffort = (typeof AI_REASONING_EFFORTS)[number];
+
+// @public
 export type AiResultCode = (typeof AI_RESULT_CODES)[number];
 
 // @public
 export type AiResultParams = Readonly<Record<string, string | number>>;
+
+// @public
+export interface AiRule {
+    readonly join: "all" | "any";
+    readonly terms: readonly AiRuleTerm[];
+}
+
+// @public
+export interface AiRuleTerm {
+    readonly column: string;
+    readonly op: "==" | "!=" | "<" | "<=" | ">" | ">=";
+    readonly values: readonly (string | number | boolean | null)[];
+}
+
+// @public
+export type AiTarget = {
+    readonly where: string;
+} | {
+    readonly text: string;
+} | {
+    readonly layer: string;
+} | {
+    readonly range: {
+        readonly run: string;
+        readonly field?: string;
+    };
+} | {
+    readonly top: {
+        readonly run: string;
+        readonly field?: string;
+        readonly n: number;
+    };
+} | {
+    readonly ids: readonly (string | number)[];
+} | {
+    readonly scope: "graph" | "visible";
+};
+
+// @public
+export type AiToolCapabilities = Readonly<Record<AiHostedToolId, AiCapabilityStatus>>;
+
+// @public
+export type AiToolCauseCode = (typeof AI_TOOL_CAUSE_CODES)[number] | (string & {});
+
+// @public
+export type AiVoiceDestination = "on-device" | "browser-vendor" | "provider" | "none";
+
+// @public
+export type AiVoiceDirection = "input" | "output";
+
+// @public
+export type AiVoiceReadiness = "ready" | "needs-permission" | "unavailable";
+
+// @public
+export type AiVoiceRoute = "browser" | "provider" | "on-device" | "none";
+
+// @public
+export function aiVoiceStatus(provider: AiProviderId, direction: AiVoiceDirection): AiCapabilityStatus;
+
+// @public
+export type AiVoiceUnavailableReason = (typeof AI_VOICE_UNAVAILABLE_REASONS)[number];
 
 // @public
 export function algorithmByKey(key: string): BuiltInAlgorithmDescriptor | undefined;
@@ -152,7 +331,25 @@ export interface AlgorithmDescriptor {
 export type AlgorithmKey = KnownAlgorithm | (string & {});
 
 // @public
+export function assetFileExtensions(kind: AssetKind): readonly string[];
+
+// @public
 export type AssetKind = "model" | "image";
+
+// @public
+export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[];
+
+// @public
+export interface AssistantToolDescriptor {
+    readonly actions: readonly string[];
+    readonly core: boolean;
+    readonly name: string;
+    readonly plainName: string;
+    readonly profiles: readonly AssistantToolProfile[];
+}
+
+// @public
+export type AssistantToolProfile = "standard" | "small";
 
 // @public
 export const ATTRIBUTE_TYPES: readonly ["string", "number", "integer", "boolean", "time", "category", "mixed"];
@@ -257,6 +454,9 @@ export interface BindingStop {
 }
 
 // @public
+export function bindShaderParamClock(param: ShaderParamDraft, by: ShaderClock | undefined): ShaderParamDraft;
+
+// @public
 export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[];
 
 // @public
@@ -291,6 +491,9 @@ export interface BySizeLeaf {
     // (undocumented)
     readonly top?: number;
 }
+
+// @public
+export function calledAlgorithm(tool: string, args: Readonly<Record<string, unknown>> | undefined): BuiltInAlgorithmDescriptor | undefined;
 
 // @public
 export const CAMERA_DESCRIPTORS: readonly CameraDescriptor[];
@@ -335,6 +538,9 @@ export interface CanvasKeyDescriptor {
 export type CanvasKeyView = "2d" | "3d";
 
 // @public
+export const CATALOG_KINDS: readonly ["algorithm", "layout", "format", "palette", "scale", "channel", "camera", "setting", "tool"];
+
+// @public
 export interface CatalogApi {
     // (undocumented)
     algorithms(): readonly AlgorithmDescriptor[];
@@ -375,6 +581,12 @@ export interface CatalogApi {
 }
 
 // @public
+export type CatalogKind = (typeof CATALOG_KINDS)[number];
+
+// @public
+export function changeShaderParamType(param: ShaderParamDraft, type: ShaderParamDescriptor["type"], labels?: readonly string[]): ShaderParamDraft;
+
+// @public
 export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.labelShiftOf" | "node.labelGapOf" | "node.labelBox" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.meshDetail" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.relativeExtents" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.outerBorderCount" | "node.raisedBorderWidth" | "node.raisedBorderLightColor" | "node.raisedBorderDarkColor" | "node.shadowColor" | "node.shadowOpacity" | "node.shadowBlur" | "node.shadowOffsetX" | "node.shadowOffsetY" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.cornerFraction" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeRotation" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.labelTable" | "node.shapeLineWidth" | "node.shapeLineHaloColor" | "node.shapeLineHaloWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.labelFitQuantum" | "node.labelFitImage" | "node.labelFitImagePadding" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.gradientCenterX" | "node.gradientCenterY" | "node.gradientRadius" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.stripeFrame" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartWidth" | "node.chartHeight" | "node.chartOffsetX" | "node.chartOffsetY" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "node.model" | "node.modelSourceUp" | "node.modelTurn" | "node.modelTint" | "node.modelFit" | "node.modelCenter" | "node.texture" | "node.groupPadding" | "node.groupPaddingRatio" | "node.groupPaddingOf" | "node.groupMinWidth" | "node.groupMinHeight" | "node.groupMinWidthBiasLeft" | "node.groupMinHeightBiasTop" | "node.groupIncludeLabels" | "edge.color" | "edge.width" | "edge.minScreenWidth" | "edge.fadeStart" | "edge.fadeEnd" | "edge.fadeOpacity" | "edge.blending" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.dashLength" | "edge.dashGap" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.supportModel" | "edge.supportSpringLength" | "edge.supportSpringConstant" | "edge.supportRepulsion" | "edge.supportCentralGravity" | "edge.supportUnit" | "edge.supportScale" | "edge.route" | "edge.arcHeight" | "edge.nodeGap" | "edge.sourceNodeGap" | "edge.targetNodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadOutlineWidth" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadStack" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailOutlineWidth" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailStack" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadOutlineWidth" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailOutlineWidth" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "node.shaders" | "edge.shaders" | "edge.taper" | "edge.lift" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelTable" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY" | "edge.labelShiftOf" | "edge.labelGapOf" | "edge.labelBox" | "node.xlabel" | "node.xlabelStyle" | "node.xlabelLocation" | "node.xlabelOffsetX" | "node.xlabelOffsetY" | "edge.xlabel" | "edge.xlabelStyle" | "edge.xlabelLocation" | "edge.xlabelOffsetX" | "edge.xlabelOffsetY";
 
 // @public
@@ -406,6 +618,11 @@ export interface ChannelDescriptor {
     readonly step?: number;
     readonly stylePath: string;
     readonly target: "node" | "edge";
+    readonly unsupported?: {
+        readonly code: "channel.not-drawn";
+        readonly params: Readonly<Record<string, never>>;
+    };
+    // @deprecated
     readonly unsupportedReason?: string;
     readonly values?: readonly string[];
 }
@@ -540,6 +757,7 @@ export type ElementState = "selected" | "hovered" | "ghosted" | "pinned";
 // @public
 export interface EnabledFeatures {
     readonly enabled: readonly FeatureId[];
+    has(id: FeatureId): boolean;
     readonly unknown: readonly string[];
 }
 
@@ -557,7 +775,7 @@ export interface FeatureDescriptor {
 }
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "network-data" | "file-styles";
+export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "file-styles" | "node-models";
 
 // @public
 export const FEATURES: readonly FeatureDescriptor[];
@@ -672,6 +890,9 @@ export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 
 // @public
 export function formatsForExtension(extension: string): readonly FormatDescriptor[];
+
+// @public
+export function formatShaderDraft(draft: ShaderTextDraft, body: string): ShaderText;
 
 // @public
 export function formatShaderText(registration: ShaderRegistration): ShaderText;
@@ -1472,6 +1693,9 @@ export const LABEL_LOOKS: readonly LabelLookDescriptor[];
 export const LABEL_STYLE_DEFAULTS: Readonly<LabelStyle>;
 
 // @public
+export const LABEL_STYLE_DESCRIPTORS: readonly LabelStyleFieldDescriptor[];
+
+// @public
 export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[];
 
 // @public
@@ -1482,6 +1706,9 @@ export type LabelBadge = "notification" | "label" | "label-success" | "label-war
 
 // @public
 export type LabelDeclutterOrder = "degree" | "size";
+
+// @public
+export type LabelFieldValueKind = "color" | "colors" | "number" | "text" | "boolean" | "enum";
 
 // @public
 export type LabelGradientDirection = "vertical" | "horizontal" | "diagonal";
@@ -1547,6 +1774,7 @@ export interface LabelStyle {
     icon?: string;
     iconPosition?: LabelIconPosition;
     italic?: boolean;
+    keepBlankLines?: boolean;
     keepInView?: boolean;
     letterSize?: number;
     lineHeight?: number;
@@ -1556,6 +1784,7 @@ export interface LabelStyle {
     marginLeft?: number;
     marginRight?: number;
     marginTop?: number;
+    maxLines?: number;
     maxNumber?: number;
     minNodeScreenSize?: number;
     minScreenSize?: number;
@@ -1602,6 +1831,19 @@ export interface LabelStyle {
     wrapSpaceCount?: number;
     wrapTrailingSpace?: boolean;
     wrapWidth?: number;
+}
+
+// @public
+export interface LabelStyleFieldDescriptor {
+    readonly accepts: LabelFieldValueKind;
+    readonly default?: string | number | boolean | readonly string[];
+    readonly exclusiveMin?: boolean;
+    readonly field: keyof LabelStyle;
+    readonly integer?: boolean;
+    readonly max?: number;
+    readonly min?: number;
+    readonly plainName: string;
+    readonly values?: readonly string[];
 }
 
 // @public
@@ -1848,6 +2090,9 @@ export interface MetricAvailability {
     technicalName: string;
 }
 
+// @public
+export function minSizeApplies(places: readonly ShaderPlace[]): boolean;
+
 // @beta
 export type MissingValues = "include" | "exclude";
 
@@ -1952,6 +2197,8 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
     technicalName?: string;
     // (undocumented)
     type: OptionType;
+    unsupported?: OptionUnsupported;
+    // @deprecated
     unsupportedReason?: string;
     // (undocumented)
     values?: readonly OptionChoice[];
@@ -1974,6 +2221,19 @@ export type OptionType = (typeof OPTION_TYPES)[number];
 
 // @public
 export type OptionUiMeta = OptionsSchema[string]["meta"];
+
+// @public
+export interface OptionUnsupported {
+    // (undocumented)
+    readonly code: OptionUnsupportedCode;
+    // (undocumented)
+    readonly params: {
+        readonly types?: readonly string[];
+    };
+}
+
+// @public
+export type OptionUnsupportedCode = "option.recursive" | "option.only-null" | "option.no-type" | "option.union" | "option.array" | "option.object" | "option.untyped" | "option.not-convertible";
 
 // @public
 export const PALETTE_DESCRIPTORS: readonly PaletteDescriptor[];
@@ -2072,6 +2332,12 @@ export interface ReadableValue {
 export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
 
 // @public
+export function removeShaderParam(draft: ShaderTextDraft, name: string, index?: number): ShaderTextDraft;
+
+// @public
+export function renameShaderParam(draft: ShaderTextDraft, from: string, to: string, index?: number): ShaderTextDraft;
+
+// @public
 export function resolveFeatures(requested?: readonly string[]): EnabledFeatures;
 
 // @public
@@ -2089,6 +2355,9 @@ export interface ResultItem {
 
 // @public
 export type ResultShape = (typeof RESULT_SHAPES)[number];
+
+// @public
+export function retypeShaderParam(draft: ShaderTextDraft, index: number, type: ShaderParamDescriptor["type"], labels?: readonly string[]): ShaderTextDraft;
 
 // @public
 export interface Rgba {
@@ -2453,6 +2722,24 @@ export type SetOperand = Scope | {
 };
 
 // @public
+export const SHADER_CLOCKS: readonly ShaderClock[];
+
+// @public
+export const SHADER_MIN_SIZE_RANGE: {
+    readonly min: number;
+    readonly max: number;
+};
+
+// @public
+export const SHADER_PARAM_TYPES: readonly ShaderParamDescriptor["type"][];
+
+// @public
+export const SHADER_REACH_RANGE: {
+    readonly min: number;
+    readonly max: number;
+};
+
+// @public
 export function shaderAnimates(descriptor: Pick<ShaderDescriptor, "motion" | "reads" | "params">): boolean;
 
 // @public
@@ -2476,6 +2763,7 @@ export interface ShaderDescriptor {
     readonly blend?: "over" | "add";
     readonly bloom?: boolean;
     readonly categories?: readonly string[];
+    readonly copyOf?: string;
     readonly cost: ShaderCost;
     readonly form?: "field" | "sphere";
     readonly hash?: string;
@@ -2492,6 +2780,7 @@ export interface ShaderDescriptor {
     readonly reachParam?: string;
     readonly reads: readonly ShaderInput[];
     readonly requires?: readonly ShaderRequirement[];
+    readonly tags?: readonly string[];
     readonly target: ShaderTarget;
     readonly thumbnail?: string;
     readonly webgpu: ShaderWebGpu;
@@ -2504,6 +2793,9 @@ export interface ShaderGlyph {
     // (undocumented)
     readonly path: string;
 }
+
+// @public
+export function shaderIdForName(name: string): string;
 
 // @public
 export type ShaderInput = "color" | "opacity" | "size" | "shape" | "width" | "selected" | "hovered" | "pinned" | "times" | "members" | "light";
@@ -2535,6 +2827,16 @@ export interface ShaderParamChoice {
 }
 
 // @public
+export interface ShaderParamClock {
+    readonly by: ShaderClock;
+    readonly domain: readonly [number, number];
+    readonly range?: readonly [unknown, unknown];
+}
+
+// @public
+export function shaderParamClock(param: ShaderParamDraft): ShaderParamClock | undefined;
+
+// @public
 export type ShaderParamDescriptor = OptionDescriptor & {
     readonly varies?: boolean;
     readonly primary?: boolean;
@@ -2542,13 +2844,32 @@ export type ShaderParamDescriptor = OptionDescriptor & {
 };
 
 // @public
+export interface ShaderParamDraft {
+    // (undocumented)
+    readonly [key: string]: unknown;
+}
+
+// @public
+export function shaderParamPlainName(name: string): string;
+
+// @public
 export type ShaderParams = Readonly<Record<string, number | string | boolean>>;
+
+// @public
+export function shaderParamShape(type: ShaderParamDescriptor["type"]): {
+    readonly default: unknown;
+    readonly fields: readonly ("min" | "max" | "step" | "values" | "varies")[];
+    readonly clock: boolean;
+};
 
 // @public
 export type ShaderParamValue = number | string | boolean | ShaderClockBinding;
 
 // @public
 export type ShaderPlace = "paint" | "replace" | "over" | "around" | "behind" | "along" | "group";
+
+// @public
+export function shaderPlaceUsesReach(place: ShaderPlace): boolean;
 
 // @public
 export interface ShaderPreview {
@@ -2563,7 +2884,7 @@ export interface ShaderProblem {
 }
 
 // @public
-export type ShaderProblemCode = "shader.header-missing" | "shader.header-json" | "shader.header-key" | "shader.id-invalid" | "shader.id-taken" | "shader.param-invalid" | "shader.too-many-params" | "shader.too-large" | "shader.too-many" | "shader.not-ascii" | "shader.preprocessor" | "shader.reserved" | "shader.loop-unbounded" | "shader.loop-too-long" | "shader.too-costly" | "shader.too-deep" | "shader.texture-unsupported" | "shader.entry-missing" | "shader.entry-signature" | "shader.compile" | "shader.over-budget" | "shader.webgpu-unsupported" | "shader.unknown" | "shader.target-mismatch" | "shader.place-unsupported" | "shader.uses-not-a-list" | "shader.min-size-place" | "shader.held" | "shader.quarantined" | "shader.flashing" | "shader.guard-off" | "shader.still" | "shader.program-cap" | "shader.param-unused" | "shader.stack-cap" | "shader.group-cap" | "shader.apply-target" | "shader.no-data" | "shader.no-canvas";
+export type ShaderProblemCode = "shader.header-missing" | "shader.header-json" | "shader.header-key" | "shader.id-invalid" | "shader.id-taken" | "shader.param-invalid" | "shader.too-many-params" | "shader.too-large" | "shader.too-many" | "shader.not-ascii" | "shader.preprocessor" | "shader.reserved" | "shader.loop-unbounded" | "shader.loop-too-long" | "shader.too-costly" | "shader.too-deep" | "shader.texture-unsupported" | "shader.entry-missing" | "shader.entry-signature" | "shader.compile" | "shader.over-budget" | "shader.webgpu-unsupported" | "shader.unknown" | "shader.target-mismatch" | "shader.place-unsupported" | "shader.uses-not-a-list" | "shader.min-size-place" | "shader.held" | "shader.quarantined" | "shader.flashing" | "shader.guard-off" | "shader.still" | "shader.program-cap" | "shader.param-unused" | "shader.stack-cap" | "shader.group-cap" | "shader.apply-target" | "shader.no-data" | "shader.no-canvas" | "shader.not-saved" | "shader.not-loaded" | "shader.not-copyable" | "shader.revoked" | (string & {});
 
 // @public
 export interface ShaderRegistration {
@@ -2601,9 +2922,27 @@ export interface ShaderTemplatePlace {
 export type ShaderText = string;
 
 // @public
+export interface ShaderTextDraft {
+    // (undocumented)
+    readonly [key: string]: unknown;
+    // (undocumented)
+    readonly params?: readonly ShaderParamDraft[];
+}
+
+// @public
 export interface ShaderTextOptions {
+    readonly namespaced?: boolean;
     readonly place?: ShaderPlace;
     readonly target?: ShaderTarget;
+}
+
+// @public
+export interface ShaderTextParts {
+    readonly body: string;
+    readonly bodyLine: number;
+    readonly draft?: ShaderTextDraft;
+    readonly headed: boolean;
+    readonly problems: readonly ShaderProblem[];
 }
 
 // @public
@@ -2654,6 +2993,9 @@ export { SourceInfo }
 export type SourceKey = string;
 
 // @public
+export function splitShaderText(text: ShaderText): ShaderTextParts;
+
+// @public
 export interface StateLeaf {
     // (undocumented)
     readonly kind: "state";
@@ -2681,6 +3023,7 @@ export interface StyleDocument {
     layers: readonly LayerSpec[];
     // (undocumented)
     palettes?: readonly PaletteDescriptor[];
+    problems?: readonly ShaderProblem[];
     shaders?: readonly {
         readonly id: string;
         readonly text: ShaderText;

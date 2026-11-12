@@ -37,9 +37,9 @@ export function edgeIdOf(counter: number): EdgeId {
  */
 export function edgeCounterOf(id: EdgeId): number {
     // Number() would accept "", " 3 ", "0x10" and "1e2", all of which would resolve to a real
-    // edge under an id no element ever handed out. An id is the decimal printing of a
-    // non-negative integer and nothing else.
-    if (!/^\d+$/.test(id)) {
+    // edge under an id no element ever handed out. An id is the canonical decimal printing of a
+    // non-negative integer and nothing else, so "017" is not edge "17" (nodeIdSpelling.ts).
+    if (!/^(?:0|[1-9]\d*)$/.test(id)) {
         return INVALID_INDEX;
     }
 

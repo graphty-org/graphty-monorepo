@@ -333,13 +333,7 @@ export class History<P> {
             return top.id;
         }
 
-        if (this.counted !== null && this.cursor < this.counted.steps) {
-            this.counted = null;
-        }
-
-        for (const step of this.entries.splice(this.cursor)) {
-            this.total -= this.size(step, false);
-        }
+        this.discardUndone();
 
         const id = `step-${this.nextId++}`;
         this.entries.push({
@@ -568,6 +562,17 @@ export class History<P> {
     }
 
     /**
+     * Forget the undone steps, as a new edit would, with nothing recorded: Redo has nothing left.
+     * Published as an eviction: steps left the history and the graph did not change.
+     */
+    dropUndone(): void {
+        if (this.cursor < this.entries.length) {
+            this.discardUndone();
+            this.changed("evict");
+        }
+    }
+
+    /**
      * Move to the state just after a step, or to the baseline, as the equivalent sequence of undos
      * or redos.
      * @param id - The step, or null for the baseline.
@@ -658,6 +663,17 @@ export class History<P> {
         // A boundary, as `clear()` is: the next edit does not coalesce into a step before it.
         this.mergeable = false;
         this.changed("clear");
+    }
+
+    /** Discard the redo tail. */
+    private discardUndone(): void {
+        if (this.counted !== null && this.cursor < this.counted.steps) {
+            this.counted = null;
+        }
+
+        for (const step of this.entries.splice(this.cursor)) {
+            this.total -= this.size(step, false);
+        }
     }
 
     /**

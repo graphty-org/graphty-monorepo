@@ -17,7 +17,7 @@ import {
 } from "@graphty/graphty-element/schema";
 import type { GraphSession, GraphSettingKey } from "@graphty/graphty-element/session";
 import { ActionIcon, Menu, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { selectionWorkspaceOn } from "../features";
 import { useSizeBound } from "../frame/useSizeBound";
@@ -272,6 +272,8 @@ function backgroundOf({ color, image, shader }: BackgroundParts): GraphBackgroun
  * @returns The section
  */
 function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
+    const { store } = useWorkspace();
+    const plusId = useId();
     const [waiting, setWaiting] = useState<readonly BackgroundKind[]>([]);
     const { background, backgroundColor } = session.config;
     const parts: BackgroundParts = {
@@ -359,15 +361,25 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
                             shader={parts.shader?.id}
                             params={parts.shader?.params ?? {}}
                             startOpen={parts.shader === undefined}
-                            onWrite={(id, params, scope = session) => {
+                            onWrite={async (id, params, scope = session) => {
+                                // Settled once written: a row neither waiting nor in the config unmounts,
+                                // and the settings its pick opens would go with it.
+                                await write({ shader: { id, params } }, scope);
                                 settle("shader");
-                                return write({ shader: { id, params } }, scope);
                             }}
                         />
                     </FieldRow>
                 );
         }
     };
+    // Show in Style on a notice about a background shader asks for this "+".
+    const shaderNext = useWorkspaceState((state) => state.shaderNext);
+    useEffect(() => {
+        if (shaderNext === "background") {
+            store.set({ shaderNext: null });
+            document.getElementById(plusId)?.focus();
+        }
+    }, [shaderNext, plusId, store]);
     const addButton = (
         <Menu position="bottom-end">
             <Menu.Target>
@@ -377,6 +389,7 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
                         size="sm"
                         className="cm-section-add"
                         aria-label={BACKGROUND_SECTION_WORDS.add}
+                        id={plusId}
                         data-plus
                     >
                         <GLYPHS.add size={14} aria-hidden />

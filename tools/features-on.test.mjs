@@ -94,7 +94,7 @@ describe("the On shards", () => {
     });
 
     it("run the Off shard's projects as their -features-on twins, without coverage or a blob report", () => {
-        assert.equal(FEATURES_ON_SHARDS.length, 17);
+        assert.equal(FEATURES_ON_SHARDS.length, 18);
         for (const on of FEATURES_ON_SHARDS) {
             const cmd = on["test-command"];
             assert.doesNotMatch(cmd, /--coverage|--reporter=blob/, on.shard);

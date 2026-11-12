@@ -15,22 +15,18 @@
  * and `config.set` refuses it. See design/undo/undo-design.md sections 3.1, 3.2 and 10.1.
  */
 
-import { z } from "zod";
-
-import { DataConfig } from "../../config/DataConfig";
-import { GraphBehaviorOpts } from "../../config/GraphBehavior";
 import {
     type GraphBackgroundConfig,
     type GraphSelectionStyleConfig,
-    GraphStyle,
-    LayoutTransition,
     type LayoutTransitionConfig,
 } from "../../config/GraphStyle";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { CONFIG_KEYS } from "../configKeys";
 import type { UndoableDefinition } from "../project/Dispatcher";
 import { deepFreeze } from "../project/draft";
 import { deepEquals } from "../styles/predicate";
 import type { GraphFraming, ProjectConfig, ProjectConfigPatch, RunPlacement, SessionDataConfig } from "../types";
+import { dropUnusedShaderCopies, namedShaders, settleShaderCopies, shaderIdsIn } from "./shaderCopies";
 
 /** `config.set`: write project settings. */
 export interface ConfigSetCommand {
@@ -38,110 +34,11 @@ export interface ConfigSetCommand {
     readonly values: ProjectConfigPatch;
 }
 
-/** Which part of the project settings a key belongs to: the discriminant of `config.set`. */
-type ConfigGroup =
-    | "data"
-    | "runAlgorithmsOnLoad"
-    | "background"
-    | "selectionStyle"
-    | "pinnedStyle"
-    | "startingRows"
-    | "runPlacement"
-    | "layoutBehavior"
-    | "layoutTransition"
-    | "viewRotation"
-    | "framing"
-    | "author"
-    | "name";
-
-/** One key of the `config` slice. */
-interface ConfigKey {
-    readonly group: ConfigGroup;
-    /** Validates a value set, and reads a stored value (or `undefined`) as the setting. */
-    readonly schema: z.ZodType;
-}
-
-/**
- * Strip the default, prefault and optional wrappers off a schema.
- * @param schema - The schema.
- * @returns The schema inside them.
- */
-function unwrap(schema: z.ZodType): z.ZodType {
-    let inner = schema;
-    while ("innerType" in inner.def) {
-        inner = inner.def.innerType as z.ZodType;
-    }
-
-    return inner;
-}
-
-/**
- * Every leaf of an object schema, by dotted path.
- * @param shape - The object's shape.
- * @param prefix - The path of the object.
- * @returns The leaves and their schemas.
- */
-function leavesOf(shape: Readonly<Record<string, z.ZodType>>, prefix: string): [string, z.ZodType][] {
-    return Object.entries(shape).flatMap(([name, schema]): [string, z.ZodType][] => {
-        const inner = unwrap(schema);
-        return inner instanceof z.ZodObject
-            ? leavesOf(inner.shape, `${prefix}${name}.`)
-            : [[`${prefix}${name}`, schema]];
-    });
-}
-
-const LAYOUT = unwrap(GraphBehaviorOpts.shape.layout) as z.ZodObject;
-
-/** Every key of the `config` slice, with its group and schema. */
-export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, ConfigKey>([
-    ...leavesOf(DataConfig.shape, "data.").map(([path, schema]): [string, ConfigKey] => [
-        path,
-        { group: "data", schema },
-    ]),
-    ["runAlgorithmsOnLoad", { group: "runAlgorithmsOnLoad", schema: z.boolean().default(false) }],
-    ["background", { group: "background", schema: GraphStyle.shape.background }],
-    ["selectionStyle", { group: "selectionStyle", schema: unwrap(GraphStyle.shape.selection).prefault({}) }],
-    // Unset by default: set, the starting rows gain the Pinned row, drawing this halo.
-    ["pinnedStyle", { group: "pinnedStyle", schema: unwrap(GraphStyle.shape.selection) }],
-    ["startingRows", { group: "startingRows", schema: z.boolean().default(false) }],
-    // The base look's home goes with the starting rows: one round-trip fixture covers both.
-    ["editableBase", { group: "startingRows", schema: z.boolean().default(false) }],
-    ["runPlacement", { group: "runPlacement", schema: z.enum(["beneath", "top"]).default("beneath") }],
-    ...(["preSteps", "stepMultiplier", "minDelta"] as const).map((name): [string, ConfigKey] => [
-        `layoutBehavior.${name}`,
-        { group: "layoutBehavior", schema: LAYOUT.shape[name] as z.ZodType },
-    ]),
-    ["layoutTransition", { group: "layoutTransition", schema: LayoutTransition.optional() }],
-    ["viewRotation", { group: "viewRotation", schema: z.number().min(-360).max(360).optional() }],
-    [
-        "framing",
-        {
-            group: "framing",
-            schema: z
-                .strictObject({ extent: z.enum(["drawn", "centers"]), padding: z.number().min(0).optional() })
-                .optional(),
-        },
-    ],
-    // Who is writing, stamped on each note. Never blank: a blank name is written as no name.
-    [
-        "author",
-        {
-            group: "author",
-            schema: z.string().refine((name) => Array.from(name).length <= 256, "An author is at most 256 characters."),
-        },
-    ],
-    // The project's name, which a project file carries. Never blank, as the author.
-    [
-        "name",
-        {
-            group: "name",
-            schema: z.string().refine((name) => Array.from(name).length <= 256, "A name is at most 256 characters."),
-        },
-    ],
-]);
-
 /**
  * Whether a value is a plain object, which a patch recurses into.
+ *
+ * Twin of `utils/isPlainObject`, kept apart on purpose: that one also accepts a null-prototype
+ * object, and a config patch does not, so merging them would change what `config.set` accepts.
  * @param value - The value.
  * @returns True for `{...}`.
  */
@@ -247,7 +144,8 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
     // One round-trip fixture per group of keys.
     variants: [...new Set([...CONFIG_KEYS.values()].map((key) => key.group))],
     lane: { kind: "immediate" },
-    keys: (command) => configLeaves(command.values).map(([path]) => `config/${path}`),
+    // A background naming a catalog shader copies it into the project in this step.
+    keys: (command) => [...configLeaves(command.values).map(([path]) => `config/${path}`), "shaders"],
     undo: {
         kind: "undoable",
         label: labelOf,
@@ -264,6 +162,8 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
     },
     execute: (command, ctx) => {
         const effective = ctx.services.config?.();
+        const named = namedShaders(ctx.state);
+        settleShaderCopies(shaderIdsIn(command.values), ctx.draft, ctx.services);
         let restore = false;
         for (const [path, value] of configLeaves(command.values)) {
             // What the key reads as now, and whether this write changes it.
@@ -284,6 +184,8 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
 
             restore ||= restoresStartingRows(path, value, same, ctx.services.timeline?.() !== false);
         }
+
+        dropUnusedShaderCopies(named, ctx.state, ctx.draft, ctx.services);
 
         // The starting rows arrive with the setting, in its step: undo takes both back. Added once
         // every key is written, so an Everything row added with `editableBase` holds the base look.

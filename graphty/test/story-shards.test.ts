@@ -9,6 +9,7 @@ import {
     FILE_SECONDS,
     isRealElementProject,
     isStoryProject,
+    REAL_ELEMENT_SECONDS,
     realElementSeconds,
     STORY_SECONDS,
     TEST_SECONDS,
@@ -90,6 +91,8 @@ describe("isRealElementProject", () => {
     it("takes the real-element project and not large-graph, whose parts are one file each", () => {
         assert.isTrue(isRealElementProject("real-element (chromium)"));
         assert.isTrue(isRealElementProject("real-element"));
+        // the experiments-on twin's parts split the same files by time, not by vitest's hash
+        assert.isTrue(isRealElementProject("real-element-features-on (chromium)"));
         for (const name of ["large-graph (chromium)", "browser (chromium)", "storybook (chromium)", "node"]) {
             assert.isFalse(isRealElementProject(name), name);
         }
@@ -113,13 +116,15 @@ describe("realElementSeconds", () => {
 describe("the graphty-N parts' real-element files", () => {
     const root = join(import.meta.dirname, "..");
     const files = readdirSync(join(root, "src"), { recursive: true, encoding: "utf8" })
-        .filter((f) => f.endsWith(".real-element.test.tsx") && !/LargeGraph\./.test(f))
+        .filter((f) => f.endsWith(".real-element.test.tsx") && !/LargeGraph\.|__screenshots__/.test(f))
         .map((f) => `src/${f}`);
-    const cost = new Map(files.map((f) => [f, realElementSeconds(readFileSync(join(root, f), "utf8"))]));
+    const cost = new Map(
+        files.map((f) => [f, REAL_ELEMENT_SECONDS[f] ?? realElementSeconds(readFileSync(join(root, f), "utf8"))]),
+    );
     const seconds = (f: string): number => cost.get(f) ?? 0;
 
-    it("come out within the slowest file of each other in five parts", () => {
-        const parts = [1, 2, 3, 4, 5].map((i) => balancedPart(files, i, 5, seconds));
+    it("come out within the slowest file of each other in six parts", () => {
+        const parts = [1, 2, 3, 4, 5, 6].map((i) => balancedPart(files, i, 6, seconds));
         assert.deepEqual(parts.flat().sort(), [...files].sort());
         const loads = parts.map((p) => p.reduce((sum, f) => sum + seconds(f), 0));
         assert.isAtMost(Math.max(...loads) - Math.min(...loads), Math.max(...cost.values()));

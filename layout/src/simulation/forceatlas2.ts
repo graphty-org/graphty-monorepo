@@ -22,9 +22,10 @@
  * force-based swing / traction `m |F(t) - F(t-1)|` over free nodes, fresh global sums each iteration; `"networkx"`
  * reproduces NetworkX 3.4.2 `forceatlas2_layout` -- origin gravity, the position-mixed per-node swing / traction,
  * the global sums accumulated across iterations from 1 (test/simulation/forceatlas2.test.ts checks it against the
- * NetworkX fixtures the GPU package pins). `nodeSize` (adjustSizes, deferred: design 7.14, Q-25), `dissuadeHubs`
- * (ignored exactly like the legacy CPU) and `maxInFlight` (GPU only) are accepted and unused. `seed` seeds the
- * non-finite start rows in load() with seedPositions, exactly as the GPU simulation does.
+ * NetworkX fixtures the GPU package pins). `dissuadeHubs` and `nodeSize` are the paper's "Dissuade Hubs" and
+ * "Prevent Overlapping" modes (Jacomy et al. 2014, sections 2.4 and 2.6); with both off (the default) the formulas are
+ * the oracle's. `maxInFlight` (GPU only) is accepted and unused. `seed` seeds the non-finite start rows in load()
+ * with seedPositions, exactly as the GPU simulation does.
  *
  * The u32 hash of the coincident kick (kickDir) re-implements the GPU prelude's lowbias32 / pair_hash / hash_dir with
  * JavaScript's 32-bit operators on HASH WORDS and node indices below 2^32.
@@ -74,6 +75,8 @@ interface ResolvedOptions {
     readonly strongGravity: boolean;
     readonly distributedAction: boolean;
     readonly linlog: boolean;
+    readonly dissuadeHubs: boolean;
+    readonly nodeSize: F32 | string | Readonly<Record<NodeId, number>> | null;
     readonly nodeMass: F32 | string | Readonly<Record<NodeId, number>> | null;
     readonly weight: boolean | string | null;
     readonly dim: 2 | 3;
@@ -90,6 +93,10 @@ interface ResolvedOptions {
 
 /** Gephi's default Barnes-Hut opening angle. */
 const BARNES_HUT_THETA = 1.2;
+/** The paper's kr' (Jacomy et al. 2014, 2.6): the repulsion of two overlapping nodes is this times the usual k m m. */
+const OVERLAP_REPULSION = 100;
+/** Gephi's cap on one node's move per iteration while preventing overlap (ForceAtlas2.java, adjustSizes branch). */
+const OVERLAP_MAX_MOVE = 10;
 
 /** The per-load scratch of one iteration (allocated by load(), released by dispose()). */
 interface Scratch {
@@ -233,6 +240,8 @@ function resolveOptions(options: ForceAtlas2SimulationOptions | undefined): Reso
         strongGravity: pickBoolean("strongGravity", o.strongGravity, FA2_DEFAULTS.strongGravity),
         distributedAction: pickBoolean("distributedAction", o.distributedAction, FA2_DEFAULTS.distributedAction),
         linlog: pickBoolean("linlog", o.linlog, FA2_DEFAULTS.linlog),
+        dissuadeHubs: pickBoolean("dissuadeHubs", o.dissuadeHubs, FA2_DEFAULTS.dissuadeHubs),
+        nodeSize: o.nodeSize ?? null,
         nodeMass: o.nodeMass ?? null,
         weight: o.weight ?? null,
         dim,
@@ -521,6 +530,10 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
     private mass: Float64Array = new Float64Array(0);
     /** The resolved mass, kept so that a row made live again gets it back. */
     private liveMass: Float64Array = new Float64Array(0);
+    /** With dissuadeHubs, degree + 1 per node (what each node's attraction is divided by), else null. */
+    private hubDivisor: Float64Array | null = null;
+    /** With nodeSize, each node's radius in layout units, else null (nodes are points). */
+    private sizes: Float64Array | null = null;
     /** The owner's stride-3 scene-unit array (empty until load()). */
     private owner: F32 = new Float32Array(0);
     /** Layout-unit positions, stride 3 (z = 0 in 2D). */
@@ -625,6 +638,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         }
         // resolveWeights returns arcCount values (the snapshot's arc array or an edge column expanded to arcs)
         const weights = weightSource === null ? null : Float64Array.from(weightSource);
+        const sizes = this.resolveSizes(snapshot);
         if (n !== this.n) {
             this.fixed = null;
             this.inert = null;
@@ -635,6 +649,8 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         this.rowPtr = snapshot.rowPtr;
         this.colIdx = snapshot.colIdx;
         this.liveMass = mass;
+        this.hubDivisor = this.options.dissuadeHubs ? Float64Array.from(degree, (d) => d + 1) : null;
+        this.sizes = sizes;
         this.mass = this.inertMass();
         this.liveRows = this.liveCount();
         this.weights = weights;
@@ -821,6 +837,8 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         this.oldForce = new Float64Array(0);
         this.mass = new Float64Array(0);
         this.liveMass = new Float64Array(0);
+        this.hubDivisor = null;
+        this.sizes = null;
         this.inert = null;
         this.clusters = null;
         this.collision = null;
@@ -988,7 +1006,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
                 near[2] += kick[2] * magnitude;
                 return;
             }
-            const scale = (k * mass[j]) / Math.max(d2, FA2_DISTANCE_FLOOR_SQ);
+            const scale = this.pairScale(i, j, d2, k * mass[j]);
             near[0] += dx * scale;
             near[1] += dy * scale;
             near[2] += dz * scale;
@@ -1045,12 +1063,84 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
     }
 
     /**
+     * The nodeSize radii in layout units, validated, or null without nodeSize.
+     * @param snapshot - the snapshot being loaded
+     * @returns n radii or null
+     */
+    private resolveSizes(snapshot: GraphSnapshot): Float64Array | null {
+        const spec = this.options.nodeSize;
+        if (spec === null) {
+            return null;
+        }
+        const source = resolveNodeVector(spec, snapshot, () => 0);
+        const sizes = new Float64Array(snapshot.nodeCount);
+        for (let i = 0; i < sizes.length; i++) {
+            if (!(source[i] >= 0 && Number.isFinite(source[i]))) {
+                throw new RangeError(`ForceAtlas2Simulation: nodeSize[${i}] must be a finite number >= 0`);
+            }
+            sizes[i] = source[i] / this.options.scale;
+        }
+        return sizes;
+    }
+
+    /**
+     * The repulsion between i and j as a multiple of their offset (i less j), given k m_i m_j. Points: k / d^2, so
+     * |F| = k m_i m_j / d (7.2 row "Repulsion"). With nodeSize, d' = d less both radii (paper 2.6): k / d' while apart,
+     * OVERLAP_REPULSION k while overlapping, 0 while touching.
+     * @param i - one node
+     * @param j - the other
+     * @param d2 - their squared distance, not floored
+     * @param k - scalingRatio m_i m_j
+     * @returns the factor on the offset
+     */
+    private pairScale(i: number, j: number, d2: number, k: number): number {
+        const floored = Math.max(d2, FA2_DISTANCE_FLOOR_SQ); // d >= 0.01 (7.2 row "Distance floor")
+        if (this.sizes === null) {
+            return k / floored;
+        }
+        const d = Math.sqrt(floored);
+        const gap = d - this.sizes[i] - this.sizes[j];
+        if (gap > 0) {
+            return k / (gap * d);
+        }
+        return gap < 0 ? (OVERLAP_REPULSION * k) / d : 0;
+    }
+
+    /**
+     * The attraction of edge i-j as a multiple of their offset (j less i), before the divisors. |F| = w d, or
+     * w log(1 + d) with linlog (7.2 rows "Attraction", "Attraction (linlog)"); with nodeSize d is replaced by
+     * d' = d less both radii, and nodes that touch or overlap do not attract (paper 2.6).
+     * @param i - the node
+     * @param j - its neighbour
+     * @param w - the arc's weight
+     * @param dx - the offset, x
+     * @param dy - y
+     * @param dz - z
+     * @returns the factor on the offset
+     */
+    private attractionScale(i: number, j: number, w: number, dx: number, dy: number, dz: number): number {
+        if (this.sizes === null) {
+            if (!this.options.linlog) {
+                return w;
+            }
+            const len = Math.max(len3(dx, dy, dz), FA2_DISTANCE_FLOOR);
+            return (w * detLog(1 + len)) / len;
+        }
+        const len = Math.max(len3(dx, dy, dz), FA2_DISTANCE_FLOOR);
+        const gap = len - this.sizes[i] - this.sizes[j];
+        if (gap <= 0) {
+            return 0;
+        }
+        return this.options.linlog ? (w * detLog(1 + gap)) / len : (w * gap) / len;
+    }
+
+    /**
      * K2 on one node: the attraction of its CSR row, in arc order, into scratch.attraction.
      * @param i - the node
      */
     private attract(i: number): void {
         const { positions: pos, mass, rowPtr, colIdx, weights } = this;
-        const { linlog, distributedAction: distributed } = this.options;
+        const { distributedAction: distributed } = this.options;
         const { attraction } = this.scratch;
         let fx = 0;
         let fy = 0;
@@ -1067,21 +1157,18 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
             const dx = pos[3 * j] - px;
             const dy = pos[3 * j + 1] - py;
             const dz = pos[3 * j + 2] - pz;
-            let mag = w;
-            if (linlog) {
-                const len = Math.max(len3(dx, dy, dz), FA2_DISTANCE_FLOOR);
-                mag = (w * detLog(1 + len)) / len; // |F| = w log(1 + d) (7.2 row "Attraction (linlog)")
-            }
+            const mag = this.attractionScale(i, j, w, dx, dy, dz);
             fx = fx + dx * mag;
             fy = fy + dy * mag;
             fz = fz + dz * mag;
         }
-        if (distributed && mass[i] > 0) {
-            // an inert row weighs 0 and never moves: its force is left undivided, so it stays finite
-            fx = fx / mass[i];
-            fy = fy / mass[i];
-            fz = fz / mass[i];
-        }
+        // distributed action divides by the mass, dissuade hubs by degree + 1 (paper 2.4); an inert row weighs 0 and
+        // never moves: its force is left undivided by the mass, so it stays finite
+        const divisor =
+            (distributed && mass[i] > 0 ? mass[i] : 1) * (this.hubDivisor === null ? 1 : this.hubDivisor[i]);
+        fx = fx / divisor;
+        fy = fy / divisor;
+        fz = fz / divisor;
         attraction[3 * i] = fx;
         attraction[3 * i + 1] = fy;
         attraction[3 * i + 2] = fz;
@@ -1161,7 +1248,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
             const dx = px - pos[3 * j];
             const dy = py - pos[3 * j + 1];
             const dz = pz - pos[3 * j + 2];
-            let d2 = dx * dx + dy * dy + dz * dz;
+            const d2 = dx * dx + dy * dy + dz * dz;
             if (d2 < FA2_COINCIDENT_SQ) {
                 // coincident: antisymmetric unit kick of magnitude k m_i m_j / 0.01 (7.2 row "Coincident nodes")
                 const kick = kickDir(i, j, this.dim);
@@ -1171,9 +1258,7 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
                 fz = fz + kick[2] * magnitude;
                 continue;
             }
-            d2 = Math.max(d2, FA2_DISTANCE_FLOOR_SQ); // d >= 0.01 (7.2 row "Distance floor")
-            const k = scalingRatio * mi * mj;
-            const scale = k / d2; // |F| = k m_i m_j / d along d / d (7.2 row "Repulsion")
+            const scale = this.pairScale(i, j, d2, scalingRatio * mi * mj);
             fx = fx + dx * scale;
             fy = fy + dy * scale;
             fz = fz + dz * scale;
@@ -1268,7 +1353,12 @@ export class ForceAtlas2Simulation implements LayoutSimulation {
         if (this.swingMode === 0) {
             swingI = mi * len3(Fx - oldForce[3 * i], Fy - oldForce[3 * i + 1], Fz - oldForce[3 * i + 2]);
         }
-        const factor = speed / (1 + Math.sqrt(speed * swingI));
+        let factor = speed / (1 + Math.sqrt(speed * swingI));
+        if (this.sizes !== null) {
+            // preventing overlap: a tenth of the speed and at most OVERLAP_MAX_MOVE per iteration, as Gephi does
+            const df = len3(Fx, Fy, Fz);
+            factor = df > 0 ? Math.min(0.1 * factor * df, OVERLAP_MAX_MOVE) / df : 0;
+        }
         const fixed = this.isFixed(i);
         const dx = fixed ? 0 : Fx * factor; // no clamp on dp (D25)
         const dy = fixed ? 0 : Fy * factor;

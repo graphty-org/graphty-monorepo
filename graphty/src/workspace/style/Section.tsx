@@ -23,6 +23,7 @@ import {
     OPACITY_OF,
     PICTURE_WORD,
     type SectionSpec,
+    SETTING_OF,
     settingWord,
     TWO_WORDS,
 } from "./words";
@@ -76,6 +77,16 @@ function modelSet(ctx: RowContext, channel: Channel): boolean {
  * @param descriptor - the property.
  * @returns the menu items, keyed `<channel>` or `<channel>=<value>`.
  */
+/**
+ * The row a property is a setting of: the app's {@link SETTING_OF}, else graphty-element's
+ * `modifies` (Halo for Halo size).
+ * @param descriptor - the property.
+ * @returns the parent row's channel, or undefined for a property that is a row of its own.
+ */
+function parentOf(descriptor: ChannelDescriptor): Channel | undefined {
+    return SETTING_OF[descriptor.channel] ?? descriptor.modifies;
+}
+
 function optionsFor(descriptor: ChannelDescriptor): AddOption[] {
     if (descriptor.channel === "node.visible" || descriptor.channel === "edge.visible") {
         return [
@@ -187,12 +198,15 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
     ].filter((d) => !folded.has(d.channel));
     // A style's settings (graphty-element's `modifies`: Halo's size and opacity, Glow's strength)
     // are added from the style's own row and drawn under it, never listed by the section's "+".
-    const isSetting = (d: ChannelDescriptor): boolean =>
-        d.modifies !== undefined && descriptors.some((style) => style.channel === d.modifies);
-    const under = (d: ChannelDescriptor): boolean => isSetting(d) && flat.some((style) => style.channel === d.modifies);
+    const isSetting = (d: ChannelDescriptor): boolean => {
+        const parent = parentOf(d);
+        return parent !== undefined && descriptors.some((style) => style.channel === parent);
+    };
+    const under = (d: ChannelDescriptor): boolean =>
+        isSetting(d) && flat.some((style) => style.channel === parentOf(d));
     const lines = flat
         .filter((d) => !under(d))
-        .flatMap((d) => [d, ...flat.filter((each) => each.modifies === d.channel && under(each))]);
+        .flatMap((d) => [d, ...flat.filter((each) => parentOf(each) === d.channel && under(each))]);
     const fail = (verb: string) => (error: unknown) => {
         focusLineNext(ctx.session, null);
         startingAdds.delete(ctx.session);
@@ -253,7 +267,7 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
     // A style's own "+": the settings it does not set yet, named under it ("Size" under Halo).
     const settingsAdd = (style: ChannelDescriptor): React.ReactNode => {
         const options = unset.flatMap((d) =>
-            d.modifies === style.channel ? [{ key: d.channel, label: settingWord(style.channel, d.channel) }] : [],
+            parentOf(d) === style.channel ? [{ key: d.channel, label: settingWord(style.channel, d.channel) }] : [],
         );
         return options.length === 0 ? undefined : (
             <AddButton
@@ -306,7 +320,7 @@ function PropertySection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Sectio
                             key={d.channel}
                             ctx={ctx}
                             descriptor={d}
-                            word={under(d) && d.modifies !== undefined ? settingWord(d.modifies, d.channel) : undefined}
+                            word={under(d) ? settingWord(parentOf(d) ?? d.channel, d.channel) : undefined}
                             setting={under(d)}
                             settings={settingsAdd(d)}
                             pending={pending.includes(d)}

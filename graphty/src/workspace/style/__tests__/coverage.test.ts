@@ -8,7 +8,7 @@ import {
     GRAPH_SETTING_HOMES,
     homeless,
     LABEL_FIELD_HOMES,
-    NO_VARY,
+    noVaryReason,
     PER_VALUE_CONTROLS,
     publishedGraphSettings,
 } from "../coverage";
@@ -113,14 +113,14 @@ describe("every style has a home", () => {
 
     it("records why a drawn property has no vary glyph: yes-or-no properties and label looks, by decision", () => {
         const descriptors = [...channelsFor("node"), ...channelsFor("edge")].filter((d) => DRAWN.has(d.channel));
-        const neither = descriptors.filter((d) => !takesBinding(d) && NO_VARY[d.channel] === undefined);
+        const neither = descriptors.filter((d) => !takesBinding(d) && noVaryReason(d) === undefined);
         assert.deepEqual(
             neither.map((d) => d.channel),
             [],
         );
         // A reason is never given for a property that does vary.
         assert.deepEqual(
-            descriptors.filter((d) => takesBinding(d) && NO_VARY[d.channel] !== undefined).map((d) => d.channel),
+            descriptors.filter((d) => takesBinding(d) && noVaryReason(d) !== undefined).map((d) => d.channel),
             [],
         );
         for (const d of descriptors.filter((x) => x.accepts === "boolean")) {

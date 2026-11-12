@@ -19,6 +19,7 @@ import type { GraphSession, GraphSettingKey } from "@graphty/graphty-element/ses
 import { ActionIcon, Menu, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
+import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
 import { selectionWorkspaceOn } from "../features";
 import { useSizeBound } from "../frame/useSizeBound";
 import { GLYPHS } from "../glyphs";
@@ -207,6 +208,7 @@ export function GraphSettings(): React.JSX.Element | null {
                             )}
                         </div>
                     )}
+                    <HighlightColor session={session} />
                 </Stack>
             </ControlSection>
             <ControlSection label="Labels" collapsible={false} headingLevel={3}>
@@ -231,6 +233,39 @@ export function GraphSettings(): React.JSX.Element | null {
             </ControlSection>
             <ShaderSection />
         </>
+    );
+}
+
+/**
+ * Highlight color: the color a highlight paints when it names no style of its own (a route, a
+ * chosen set). graphty-element keeps it as a view setting, so it records no undo step, is not
+ * saved, and repaints only highlights painted after it. The app's color is its starting value.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @returns The row
+ */
+function HighlightColor({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
+    const read = (): string | undefined => {
+        const color = session.styles.highlightStyle("node")["node.color"];
+        return typeof color === "string" ? color : undefined;
+    };
+    const [color, setColor] = useState(read);
+    return (
+        <PanelLabelsProvider showLabels>
+            <FieldRow>
+                <CompactColorInput
+                    label="Highlight color"
+                    valueText={colorWord(color ?? APP_HIGHLIGHT_COLOR)}
+                    color={color === APP_HIGHLIGHT_COLOR ? undefined : color}
+                    defaultColor={APP_HIGHLIGHT_COLOR}
+                    showOpacity={false}
+                    onChangeEnd={(next) => {
+                        session.styles.setHighlightColor(next ?? APP_HIGHLIGHT_COLOR);
+                        setColor(read());
+                    }}
+                />
+            </FieldRow>
+        </PanelLabelsProvider>
     );
 }
 

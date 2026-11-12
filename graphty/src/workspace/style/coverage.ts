@@ -1,4 +1,4 @@
-import type { Channel, LabelStyle } from "@graphty/graphty-element/catalog";
+import type { Channel, ChannelDescriptor, LabelStyle } from "@graphty/graphty-element/catalog";
 import { GraphBackground, GraphSelectionStyleOpts } from "@graphty/graphty-element/schema";
 
 /**
@@ -497,16 +497,10 @@ const VARY_DECISIONS = {
 } as const;
 
 /**
- * The drawn properties with no vary glyph, each with its decision. Every other drawn property
- * varies by a value; an opacity varies from its settings pop-out ({@link VARY_DECISIONS}.opacity).
+ * The drawn properties with no vary glyph, each with its decision; a yes-or-no property needs no
+ * entry, its kind is its reason ({@link noVaryReason}). Every other drawn property varies by a value; an opacity varies from its settings pop-out ({@link VARY_DECISIONS}.opacity).
  */
 export const NO_VARY: Readonly<Partial<Record<Channel, string>>> = {
-    "node.wireframe": VARY_DECISIONS.yesOrNo,
-    "node.relativeExtents": VARY_DECISIONS.yesOrNo,
-    "node.visible": VARY_DECISIONS.yesOrNo,
-    "edge.visible": VARY_DECISIONS.yesOrNo,
-    "edge.curvature": VARY_DECISIONS.yesOrNo,
-    "edge.blending": VARY_DECISIONS.yesOrNo,
     "node.labelStyle": VARY_DECISIONS.look,
     "node.tooltipStyle": VARY_DECISIONS.look,
     "edge.labelStyle": VARY_DECISIONS.look,
@@ -515,6 +509,16 @@ export const NO_VARY: Readonly<Partial<Record<Channel, string>>> = {
     "node.shaders": VARY_DECISIONS.shader,
     "edge.shaders": VARY_DECISIONS.shader,
 };
+
+/**
+ * Why a drawn property has no vary glyph, or undefined when it varies: its decision in
+ * {@link NO_VARY}, else, for any yes-or-no property, {@link VARY_DECISIONS}.yesOrNo by its kind.
+ * @param descriptor - the property.
+ * @returns the decision, or undefined.
+ */
+export function noVaryReason(descriptor: Pick<ChannelDescriptor, "channel" | "accepts">): string | undefined {
+    return NO_VARY[descriptor.channel] ?? (descriptor.accepts === "boolean" ? VARY_DECISIONS.yesOrNo : undefined);
+}
 
 /**
  * The styles the design places in the panel (tier3 design, section 6) that are easy to leave
@@ -566,7 +570,7 @@ export function publishedGraphSettings(): string[] {
 export const GRAPH_SETTING_HOMES: Readonly<Record<string, Home>> = {
     "background.color": at("Graph settings, Canvas, Background color"),
     "background.skybox": at("Graph settings, Canvas, Background image"),
-    "background.shader": NOT_PLACED,
+    "background.shader": at("Graph settings, Canvas, Background shader"),
     "selection.color": at("Selected row, Effects, Halo"),
     "selection.scale": at("Selected row, Effects, Halo settings"),
     "selection.opacity": at("Selected row, Effects, Halo settings"),
@@ -577,7 +581,7 @@ export const GRAPH_SETTING_HOMES: Readonly<Record<string, Home>> = {
     lighting: at("Graph settings, Canvas, Lighting"),
     "layoutBehavior.labels": at("Graph settings, Labels"),
     "layoutBehavior.node.depthIndependentSize": at("Graph settings, Canvas, Same size at any depth"),
-    highlightColor: no("the app keeps one highlight color; a route's color is its layer's Fill"),
+    highlightColor: at("Graph settings, Canvas, Highlight color"),
     "layoutBehavior.node.outlineWidth": at("Graph settings, Canvas, Outline width"),
     twoD: no("deprecated: View sets it"),
     addDefaultStyle: no("ignored by graphty-element"),

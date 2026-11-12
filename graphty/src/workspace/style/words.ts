@@ -256,6 +256,13 @@ export const OPACITY_OF: Partial<Readonly<Record<Channel, Channel>>> = {
 };
 
 /**
+ * The row a property is a setting of, where graphty-element names none (its `modifies`): the
+ * property is added from that row's own "+" and drawn under it, as Halo size is under Halo. Which
+ * row a setting sits under is the panel's choice, so it is the app's table.
+ */
+export const SETTING_OF: Partial<Readonly<Record<Channel, Channel>>> = {};
+
+/**
  * The two words of each yes-or-no property, in the order its select lists them. Empty means not
  * set, as in every other field, so a yes-or-no property is a select and never a switch.
  */
@@ -285,6 +292,21 @@ export const TWO_WORDS: Partial<Readonly<Record<Channel, readonly (readonly [boo
         [false, "Off"],
     ],
 };
+
+/** The words of a yes-or-no property that names none of its own in {@link TWO_WORDS}. */
+const ON_OFF: readonly (readonly [boolean, string])[] = [
+    [true, "On"],
+    [false, "Off"],
+];
+
+/**
+ * The two words of a yes-or-no property: its own in {@link TWO_WORDS}, else On and Off.
+ * @param descriptor - the property.
+ * @returns the words, or undefined for a property that is not yes-or-no.
+ */
+export function twoWords(descriptor: ChannelDescriptor): readonly (readonly [boolean, string])[] | undefined {
+    return TWO_WORDS[descriptor.channel] ?? (descriptor.accepts === "boolean" ? ON_OFF : undefined);
+}
 
 /**
  * A field's full name, kind first: "Node size", "Edge head".
@@ -1164,7 +1186,7 @@ export function valueWords(descriptor: ChannelDescriptor, value: unknown): strin
         const hex = hexOf(value);
         return hex === null ? String(value) : colorName(hex);
     }
-    const two = TWO_WORDS[descriptor.channel];
+    const two = twoWords(descriptor);
     if (two !== undefined && typeof value === "boolean") {
         return two.find(([v]) => v === value)?.[1] ?? String(value);
     }

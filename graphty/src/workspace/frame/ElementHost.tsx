@@ -149,7 +149,7 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
         const element = ref.current;
         const session: GraphSession | undefined = element?.session;
         if (defined && element !== null && session?.status.ready === true) {
-            // The app keeps one highlight color, a presentation choice (constants/highlight.ts).
+            // The app's starting highlight color (constants/highlight.ts); Graph settings changes it.
             session.styles.setHighlightColor(APP_HIGHLIGHT_COLOR);
             // The Cosmograph-inspired rendering experiment draws with the batched render path (#3247).
             if (cosmographOn(session)) {

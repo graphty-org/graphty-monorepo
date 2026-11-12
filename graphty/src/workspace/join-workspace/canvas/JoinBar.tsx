@@ -18,13 +18,10 @@ import { formatKey } from "../../keys/keys";
 import { useJoinWorkspace } from "../context";
 import { ROW_FATE_WORDS } from "../words";
 import { ConflictsButton } from "./ConflictsReview";
-import { type CanvasBox, reached, refusalWords, stepColor, stepName } from "./model";
+import { BAR_KEYS, type CanvasBox, reached, refusalWords, stepColor, stepName } from "./model";
 import type { CanvasFocusKey } from "./ModelCanvas";
 import { OP_GLYPHS } from "./opGlyphs";
 import { addsThings, choicesFor, columnOf, type JoinOp, mainCount, OP_WORDS, opOf, OPS, pathOf } from "./ops";
-
-/** The bar's keys, shown on their buttons. */
-export const BAR_KEYS = { remove: "Delete", conflicts: "C" } as const;
 
 /** How a pair's rows become one value, in menu order. */
 const PAIR_REDUCTIONS: readonly { readonly value: JoinReduce; readonly label: string }[] = [

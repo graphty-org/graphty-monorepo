@@ -9,6 +9,9 @@ import type { JoinInput, JoinStepEntry, JoinStepOutcome } from "@graphty/graphty
 import { columnOf, kindsOf, opOf } from "./ops";
 
 /** A box's width, its header's height and a column row's height, in CSS pixels. */
+/** The join bar's keys, shown on its buttons. */
+export const BAR_KEYS = { remove: "Delete", conflicts: "C" } as const;
+
 export const BOX_W = 220;
 export const HEAD = 29;
 export const ROW = 22;

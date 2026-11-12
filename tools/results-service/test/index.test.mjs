@@ -50,12 +50,13 @@ const master = (file) =>
         ref: "refs/heads/master",
         job_workflow_ref: `${REPO}/.github/workflows/${file}@refs/heads/master`,
     });
-const pr = () =>
+const pr = (claims = {}) =>
     oidc({
         event_name: "pull_request",
         ref: "refs/pull/7/merge",
         sha: "merge7",
         job_workflow_ref: `${REPO}/.github/workflows/ci.yml@refs/pull/7/merge`,
+        ...claims,
     });
 
 function service() {
@@ -622,17 +623,49 @@ describe("GET /v1/plan", () => {
 describe("POST /v1/base-checks", () => {
     const ask = { base: "b".repeat(40), file: "a.test.ts", variant: "graphty-1|flags=off|selected", pr: 7 };
 
-    it("answers dispatch once per base, file and variant, whoever asks again", async () => {
+    it("answers dispatch once per base, file and variant, whichever other run asks again", async () => {
         const { call } = service();
         assert.deepEqual(await call("POST", "/v1/base-checks", { token: pr(), body: ask }), {
             status: 200,
             body: { dispatch: true },
         });
-        assert.deepEqual((await call("POST", "/v1/base-checks", { token: pr(), body: { ...ask, pr: 8 } })).body, {
-            dispatch: false,
-        });
+        for (const token of [pr({ run_id: "4011" }), pr({ run_attempt: "2" })]) {
+            assert.deepEqual((await call("POST", "/v1/base-checks", { token, body: { ...ask, pr: 8 } })).body, {
+                dispatch: false,
+            });
+        }
         const other = { ...ask, variant: "graphty-2|flags=off|selected" };
         assert.deepEqual((await call("POST", "/v1/base-checks", { token: pr(), body: other })).body, {
+            dispatch: true,
+        });
+    });
+
+    it("#7265: answers the run holding the claim dispatch again, so a re-sent ask keeps its check", async () => {
+        const { call, rows } = service();
+        for (let i = 0; i < 2; i++) {
+            assert.deepEqual((await call("POST", "/v1/base-checks", { token: pr(), body: ask })).body, {
+                dispatch: true,
+            });
+        }
+        assert.deepEqual(rows("SELECT base, file, variant, pr, asked_at, run_id, attempt FROM base_check"), [
+            { base: ask.base, file: ask.file, variant: ask.variant, pr: 7, asked_at: NOW, run_id: 4010, attempt: 1 },
+        ]);
+    });
+
+    it("#7265: lets only the run holding the claim give it back, and the next ask dispatches", async () => {
+        const { call } = service();
+        await call("POST", "/v1/base-checks", { token: pr(), body: ask });
+        const other = pr({ run_id: "4011" });
+        assert.deepEqual((await call("DELETE", "/v1/base-checks", { token: other, body: ask })).body, {
+            released: false,
+        });
+        assert.deepEqual((await call("POST", "/v1/base-checks", { token: other, body: ask })).body, {
+            dispatch: false,
+        });
+        assert.deepEqual((await call("DELETE", "/v1/base-checks", { token: pr(), body: ask })).body, {
+            released: true,
+        });
+        assert.deepEqual((await call("POST", "/v1/base-checks", { token: other, body: ask })).body, {
             dispatch: true,
         });
     });
@@ -641,6 +674,7 @@ describe("POST /v1/base-checks", () => {
         const { call } = service();
         for (const token of [master("ci.yml"), LOCAL_TOKEN]) {
             assert.equal((await call("POST", "/v1/base-checks", { token, body: ask })).status, 403);
+            assert.equal((await call("DELETE", "/v1/base-checks", { token, body: ask })).status, 403);
         }
         assert.equal((await call("POST", "/v1/base-checks", { token: pr(), body: { ...ask, base: "x" } })).status, 400);
         assert.equal((await call("POST", "/v1/base-checks", { token: pr(), body: { ...ask, file: "" } })).status, 400);
@@ -708,6 +742,9 @@ describe("flaky tests from master's records", () => {
             [["graphty-element-browser", X, "camera > zooms", null]],
         );
         assert.match(second.body.flaky[0].proof, /4010\.1\.base\.r1\.1 failed it, 4010\.1\.base\.r2\.1 passed it/);
+        // #7265: the client re-sends a record whose answer was lost; the re-post stores nothing and names it again
+        const resent = await call("POST", "/v1/invocations", { token, body: passing("4010.1.base.r2.1") });
+        assert.deepEqual([resent.body.stored, resent.body.flaky.map((t) => t.name)], [false, ["camera > zooms"]]);
         // a third repeat, before any issue was posted back, names the test again without a second entry
         const third = await call("POST", "/v1/invocations", { token, body: failing("4010.1.base.r3.1") });
         assert.deepEqual(
@@ -1145,6 +1182,7 @@ describe("GET /v1/site (promote.yml's record of a nightly, #4495)", () => {
             "POST /v1/issues",
             "POST /v1/sites",
             "POST /v1/base-checks",
+            "DELETE /v1/base-checks",
             "POST /v1/channel-moves",
             "POST /v1/story-captures",
             "POST /v1/story-reach",

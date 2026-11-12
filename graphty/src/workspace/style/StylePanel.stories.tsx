@@ -674,12 +674,12 @@ export const CustomModelMissingParts: Story = nodeModelsStory(
     "Custom model, missing parts",
 );
 
-/** The dialog after an address on this site that holds no model: why, under the address field. */
+/** The dialog after an address that cannot be reached (a host that never resolves, so the picture is the same on every machine): why, under the address field. */
 export const CustomModelUrlError: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         const address = within(dialog).getByRole("textbox", { name: "Model address" });
-        await userEvent.type(address, `${location.origin}/no-such-model/police.glb{Enter}`);
+        await userEvent.type(address, "https://example.invalid/no-such-model/police.glb{Enter}");
         await waitFor(() => {
             expect(address.getAttribute("aria-invalid")).toBe("true");
         });

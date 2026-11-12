@@ -596,6 +596,25 @@ interface RowLook {
     readonly source: Mesh;
 }
 
+/**
+ * Whether two paints of a row are drawn the same size and shape, as `RowTable.measure` records it.
+ * @param a - One paint.
+ * @param b - The other.
+ * @returns True when they measure the same.
+ */
+function sameSize(a: RowMeasure, b: RowMeasure): boolean {
+    const ah = a.drawnHalfExtents;
+    const bh = b.drawnHalfExtents;
+    return (
+        a.drawnScale === b.drawnScale &&
+        a.roundRadius === b.roundRadius &&
+        a.borderReach === b.borderReach &&
+        ah.x === bh.x &&
+        ah.y === bh.y &&
+        ah.z === bh.z
+    );
+}
+
 /** What {@link NodeBatches} needs of the graph. */
 export interface NodeBatchHost {
     readonly cache: MeshCache;
@@ -610,6 +629,8 @@ export interface NodeBatchHost {
     sourceOf(paint: NodePaint): Mesh;
     /** Babylon's list of active meshes no longer holds. */
     meshesChanged(): void;
+    /** A row drawn with no `Node` changed its drawn size or shape, which a `nodeGap` layout spaces it by. */
+    resized?(): void;
 }
 
 /** Decides which rows are batched and keeps the batches up to date, once a frame. */
@@ -871,6 +892,11 @@ export class NodeBatches {
         this.columnRows.set(index, row);
         // what a fit, an edge's trim and a layout's gap read of the row, which no `Node` measures
         this.host.places.measure(row);
+        if (had === undefined || !sameSize(had, row)) {
+            // as `Node` tells the layout when it is resized: nothing else re-reads a row's size
+            this.host.resized?.();
+        }
+
         this.sync(row);
         return true;
     }

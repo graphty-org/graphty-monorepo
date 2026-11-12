@@ -14,7 +14,11 @@ import { ariaKey, formatKey } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { audioWords, voiceWords, WORDS } from "./words";
 
-/** A press longer than this stops on release; a shorter one latches, and ends when the reader stops talking (design 4.12). */
+/**
+ * A press longer than this stops on release; a shorter one latches, and ends when the reader stops talking (design 4.12).
+ * Measured between the input events' own times, not when the page got round to handling them: a quick
+ * click on a busy page is still a click.
+ */
 const HOLD_MS = 300;
 const TALK_KEY = "Shift+Mod+Space";
 /** Marks that the reader was told where the audio goes. */
@@ -144,40 +148,46 @@ export function Talk({ provider, linked, onLine, onHeard }: Readonly<TalkProps>)
         };
     }, [element, linked, store, onLine]);
 
-    const press = useCallback((): void => {
-        if (element === null) {
-            return;
-        }
-        // The element says whether talk is on: a press it ended itself, or one still loading, is
-        // never mistaken for the other.
-        if (element.isAiTalking()) {
-            pressedAt.current = null;
-            element.aiTalk(false);
+    const press = useCallback(
+        (at: number = performance.now()): void => {
+            if (element === null) {
+                return;
+            }
+            // The element says whether talk is on: a press it ended itself, or one still loading, is
+            // never mistaken for the other.
+            if (element.isAiTalking()) {
+                pressedAt.current = null;
+                element.aiTalk(false);
+                setListening(element.isAiTalking());
+                return;
+            }
+            pressedAt.current = at;
+            before.current = store.get().assistantDraft;
+            heardAny.current = false;
+            onLine(firstUse(audioWords(support?.input.destination ?? "none", provider)));
+            element.aiTalk(true);
             setListening(element.isAiTalking());
-            return;
-        }
-        pressedAt.current = performance.now();
-        before.current = store.get().assistantDraft;
-        heardAny.current = false;
-        onLine(firstUse(audioWords(support?.input.destination ?? "none", provider)));
-        element.aiTalk(true);
-        setListening(element.isAiTalking());
-    }, [element, store, support, provider, onLine]);
+        },
+        [element, store, support, provider, onLine],
+    );
 
-    const release = useCallback((): void => {
-        const held = pressedAt.current === null ? 0 : performance.now() - pressedAt.current;
-        pressedAt.current = null;
-        if (!element?.isAiTalking()) {
-            return;
-        }
-        if (held > HOLD_MS) {
-            element.aiTalk(false);
-            setListening(element.isAiTalking());
-        } else {
-            // Latched: nobody is holding it, so it ends when the reader stops talking.
-            element.aiTalk(true, { endOnSilence: true });
-        }
-    }, [element]);
+    const release = useCallback(
+        (at: number = performance.now()): void => {
+            const held = pressedAt.current === null ? 0 : at - pressedAt.current;
+            pressedAt.current = null;
+            if (!element?.isAiTalking()) {
+                return;
+            }
+            if (held > HOLD_MS) {
+                element.aiTalk(false);
+                setListening(element.isAiTalking());
+            } else {
+                // Latched: nobody is holding it, so it ends when the reader stops talking.
+                element.aiTalk(true, { endOnSilence: true });
+            }
+        },
+        [element],
+    );
 
     const available = support !== null && support.input.status !== "unavailable";
     useEffect(() => {
@@ -193,9 +203,9 @@ export function Talk({ provider, linked, onLine, onHeard }: Readonly<TalkProps>)
         // Any key: a Mac sends no Space keyup while Cmd is down.
         globalThis.addEventListener(
             "keyup",
-            () => {
+            (event) => {
                 keyDown.current = false;
-                release();
+                release(event.timeStamp);
             },
             { once: true },
         );
@@ -231,10 +241,14 @@ export function Talk({ provider, linked, onLine, onHeard }: Readonly<TalkProps>)
                 aria-keyshortcuts={ariaKey(TALK_KEY)}
                 onPointerDown={(event) => {
                     event.currentTarget.setPointerCapture(event.pointerId);
-                    press();
+                    press(event.timeStamp);
                 }}
-                onPointerUp={release}
-                onPointerCancel={release}
+                onPointerUp={(event) => {
+                    release(event.timeStamp);
+                }}
+                onPointerCancel={(event) => {
+                    release(event.timeStamp);
+                }}
                 onClick={(event) => {
                     // A click with no pointer behind it: Enter, Space, or a screen reader's press.
                     if (event.detail === 0) {

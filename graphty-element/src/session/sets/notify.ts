@@ -14,9 +14,9 @@
  *   owner's input tick;
  * - a snapshot replacement, announced on the same tick once a freeze has been delivered.
  *
- * Ingest writes attributes too, but announces nothing: it also touches the store, and the freeze
- * that follows re-queues every watch. Announcing it would make a watch resolve mid-load and force
- * a freeze per ingested chunk.
+ * Ingest writes attributes too, but announces nothing: it also tells the store its records
+ * changed, and the freeze that follows re-queues every watch. Announcing it would make a watch
+ * resolve mid-load and force a freeze per ingested chunk.
  *
  * On the SAME snapshot a notification is synchronous: every watch whose signature moved resolves
  * at once and is handed the new resolution with the inputs that moved, so a layer can repaint the

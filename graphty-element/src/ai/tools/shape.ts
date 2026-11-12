@@ -81,22 +81,44 @@ export function toJson(value: unknown, depth = 0): JsonValue {
 }
 
 /**
+ * The record key a requested field reads: the field itself, or, for `data.<name>` (the spelling
+ * the facts block and selectors use), the record's bare `<name>`.
+ * @param record - The record.
+ * @param field - The field asked for.
+ * @returns The key, or undefined when the record has neither.
+ */
+function keyOf(record: Readonly<Record<string, unknown>>, field: string): string | undefined {
+    if (field in record) {
+        return field;
+    }
+
+    const bare = field.startsWith("data.") ? field.slice("data.".length) : undefined;
+    return bare !== undefined && bare in record ? bare : undefined;
+}
+
+/**
  * One record, compact: at most twelve fields, long strings cut and flagged.
  * @param record - The record.
- * @param fields - The fields asked for, or all.
+ * @param fields - The fields asked for, or all; each comes back under the name it was asked by.
  * @returns The record.
  */
 export function compactRecord(record: Readonly<Record<string, unknown>>, fields?: readonly string[]): JsonObject {
-    const keys = fields === undefined ? Object.keys(record) : fields.filter((key) => key in record);
+    const keys =
+        fields === undefined
+            ? Object.keys(record).map((key) => [key, key] as const)
+            : fields.flatMap((field) => {
+                  const key = keyOf(record, field);
+                  return key === undefined ? [] : [[field, key] as const];
+              });
     const out: JsonObject = {};
     let truncated = false;
-    for (const key of keys.slice(0, MAX_FIELDS)) {
+    for (const [name, key] of keys.slice(0, MAX_FIELDS)) {
         const value = record[key];
         if (typeof value === "string" && value.length > MAX_TEXT) {
             truncated = true;
         }
 
-        out[key] = toJson(value);
+        out[name] = toJson(value);
     }
 
     if (keys.length > MAX_FIELDS) {

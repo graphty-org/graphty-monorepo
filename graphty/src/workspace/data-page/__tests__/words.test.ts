@@ -1,6 +1,7 @@
+import { GraphtyError } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { addWords, graphName, loadedWords, previewCaption, roleWords } from "../words";
+import { addWords, graphName, loadedWords, previewCaption, refusalFor, roleWords } from "../words";
 
 describe("the Data page's role words", () => {
     it("names the time role as a date, so a column of minutes is not taken for it", () => {
@@ -55,5 +56,27 @@ describe("the sample grid's caption", () => {
         assert.equal(previewCaption(1, 1), "1 row");
         assert.equal(previewCaption(50, 3000), "The first 50 rows of 3,000");
         assert.equal(previewCaption(1, 2), "The first 1 row of 2");
+    });
+});
+
+describe("a load past the element's limit", () => {
+    it("words the limit from the error's typed details", () => {
+        const error = new GraphtyError({
+            code: "E_TOO_LARGE",
+            message: "ELEMENT MESSAGE",
+            source: "data",
+            details: { limit: 1000, count: 1500, of: "edges", graph: { nodes: 10, edges: 990 } },
+        });
+
+        const refusal = refusalFor(error, "big.csv");
+        assert.include(refusal.what, "edge");
+        assert.notInclude(refusal.what, "ELEMENT MESSAGE");
+        assert.notInclude(refusal.what, "could not be read");
+    });
+
+    it("says the file could not be read when the details leave out the counts", () => {
+        const error = new GraphtyError({ code: "E_TOO_LARGE", message: "ELEMENT MESSAGE", source: "data" });
+
+        assert.include(refusalFor(error, "big.csv").what, "could not be read");
     });
 });

@@ -337,7 +337,11 @@ describe("the code dialog on the real element", () => {
         await waitFor(() => {
             assert.deepEqual(usesOn(session, id), [{ shader: "uncertainty-aura" }]);
         });
-        assert.lengthOf(session.shaders.list(), 0, "no copy was added");
+        assert.deepEqual(
+            session.shaders.list().map((each) => each.id),
+            ["uncertainty-aura"],
+            "the project keeps its one copy of the preset; no second copy was added",
+        );
     });
 
     it("Delete from project on a project tile removes it, undoably", async () => {

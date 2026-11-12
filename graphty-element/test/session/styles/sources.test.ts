@@ -166,7 +166,7 @@ function fixture(options: { execute?: (context: RunExecutionContext) => Promise<
     builder.setNodeValue(tier, 0, "core");
     builder.setEdgeValue(link, 0, "copper");
     builder.setEdgeValue(link, 2, "fibre");
-    harness.store.touch();
+    harness.store.account();
 
     const parts: SelectorSourceParts = {
         snapshot: () => harness.store.getSnapshot(),
@@ -458,7 +458,7 @@ describe("a selector source reading past what it holds", () => {
         assert.deepStrictEqual(asked, ["a"]);
 
         harness.store.builder.removeNode("a");
-        harness.store.touch();
+        harness.store.account();
         source.nodeValue(0, "data.label");
 
         assert.deepStrictEqual(asked, ["a", "b"]);
@@ -574,7 +574,7 @@ describe("a freeze that renumbers the rows", () => {
         assert.strictEqual(source.nodeValue(0, "data.kind"), "host", "before: row 0 is a");
 
         harness.store.builder.removeNode("a");
-        harness.store.touch();
+        harness.store.account();
 
         assert.strictEqual(harness.session.snapshot().nodeCount, 3);
         assert.strictEqual(source.nodeValue(0, "data.kind"), "switch", "after: row 0 is b");
@@ -594,7 +594,7 @@ describe("a freeze that renumbers the rows", () => {
         assert.strictEqual(source.edgeIdOf(0), edgeBetween(harness, "a", "b"));
 
         harness.store.builder.removeNode("a");
-        harness.store.touch();
+        harness.store.account();
 
         assert.strictEqual(source.nodeIdOf(0), "b");
         assert.strictEqual(
@@ -618,7 +618,7 @@ describe("a freeze that renumbers the rows", () => {
         assert.strictEqual(source.nodeValue(0, "results.groups.group"), "left", "before: row 0 is a");
 
         harness.store.builder.removeNode("a");
-        harness.store.touch();
+        harness.store.account();
 
         assert.strictEqual(source.nodeValue(0, "results.groups.group"), "left", "after: row 0 is b, also left");
         assert.strictEqual(source.nodeValue(2, "results.groups.group"), "right", "and row 2 is d");
@@ -640,7 +640,7 @@ describe("a freeze that renumbers the rows", () => {
         assert.deepStrictEqual(Array.from(before), [0, 3]);
 
         harness.store.builder.removeNode("a");
-        harness.store.touch();
+        harness.store.account();
 
         const after = source.measured("results.groups.group", "node");
         assert.isDefined(after);
@@ -662,7 +662,7 @@ describe("a freeze that renumbers the rows", () => {
         assert.deepStrictEqual(Array.from(before), [0, 2]);
 
         harness.store.builder.removeNode("a");
-        harness.store.touch();
+        harness.store.account();
 
         const after = source.measured("results.flow.value", "edge");
         assert.isDefined(after);
@@ -725,7 +725,7 @@ describe("wired to the selector engine it was written for", () => {
         );
 
         harness.store.builder.removeNode("a");
-        harness.store.touch();
+        harness.store.account();
 
         assert.deepStrictEqual(
             [0, 1, 2].map((index) => selector.test?.(index)),

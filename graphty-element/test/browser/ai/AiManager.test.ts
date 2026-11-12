@@ -78,7 +78,7 @@ describe("AiManager", () => {
             manager.dispose();
             const result = await manager.execute("test");
             assert.strictEqual(result.success, false);
-            assert.ok(result.message.toLowerCase().includes("disposed"));
+            assert.strictEqual(result.code, "AI_DISPOSED");
         });
     });
 

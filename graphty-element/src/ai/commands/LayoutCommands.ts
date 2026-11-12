@@ -61,6 +61,8 @@ export const setLayout: GraphCommand = {
             };
         } catch (error) {
             const errorMessage = (error as Error).message;
+            // The session's own code (E_UNKNOWN_LAYOUT, E_OPTION_RANGE), the result's `cause`.
+            const coded = isGraphtyError(error) ? { code: error.code } : {};
 
             // Provide helpful error messages for common issues
             if (
@@ -72,12 +74,14 @@ export const setLayout: GraphCommand = {
                 return {
                     success: false,
                     message: `Invalid layout type "${type}". Try 'circular', 'ngraph', 'random', 'spiral', 'shell', or 'd3'.`,
+                    ...coded,
                 };
             }
 
             return {
                 success: false,
                 message: `Failed to set layout to "${type}": ${errorMessage}`,
+                ...coded,
             };
         }
     },

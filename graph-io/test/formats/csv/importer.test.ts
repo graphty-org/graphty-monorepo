@@ -847,17 +847,6 @@ describe("csvImporter: node tables", () => {
         expect(column(headerless.snapshot, "nodes", "column2")).toEqual(["a", "b"]);
     });
 
-    it("keys a node table by a first column ending in id before name, so shared names stay apart", async () => {
-        const nodes = "person_id,badge_id,name\nP1,B1,Aisha Garcia\nP2,B2,Aisha Garcia\n";
-        const people = await load(nodes, { table: "nodes" });
-        expect(people.snapshot.ids.toArray()).toEqual(["P1", "P2"]);
-        expect(people.report.issues).toEqual([]);
-        const named = await load("name,dept_id\nA,1\nB,1\n", { table: "nodes" });
-        expect(named.snapshot.ids.toArray()).toEqual(["A", "B"]);
-        const strong = await load("PersonId,id\nP1,x\nP2,y\n", { table: "nodes" });
-        expect(strong.snapshot.ids.toArray()).toEqual(["x", "y"]);
-    });
-
     it("keeps node-table row order and lets the edges add missing nodes after it", async () => {
         const { snapshot, report } = await load("source,target\nz,a\n", { nodes: "id\nb\na\n" });
         expect(snapshot.ids.toArray()).toEqual(["b", "a", "z"]);

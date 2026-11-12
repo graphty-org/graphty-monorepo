@@ -59,31 +59,6 @@ export const TARGET_NAMES: readonly string[] = Object.freeze([
  */
 export const ID_NAMES: readonly string[] = Object.freeze(["id", "node", "name", "key"]);
 
-/** The id names a node table's first column outranks when its own name ends in "id" (`person_id`). */
-const WEAK_ID_NAMES: ReadonlySet<string> = new Set(["name", "key"]);
-
-/**
- * Find a node table's id column: `id` or `node` by name; else the first column when its name ends
- * in "id" (`person_id`, `PersonId`), the usual place for a table's key; else `name` or `key`. A
- * `person_id,name` table so keys by `person_id`, where two people may share a name.
- * @param names - the header names
- * @returns the column index, or -1
- * @category Plugin helpers
- */
-export function findIdColumn(names: readonly string[]): number {
-    const strong = findColumn(
-        names,
-        ID_NAMES.filter((n) => !WEAK_ID_NAMES.has(n)),
-    );
-    if (strong >= 0) {
-        return strong;
-    }
-    if (names.length > 0 && /id$/i.test(names[0])) {
-        return 0;
-    }
-    return findColumn(names, ID_NAMES);
-}
-
 /**
  * Header candidates of a label column (node or edge).
  * @category Plugin helpers

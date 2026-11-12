@@ -810,7 +810,10 @@ export function createdNodes(log: readonly OpLogEntry[]): NodeId[] {
     for (const entry of log) {
         if (entry instanceof GraphEntry) {
             for (const op of entry.ops) {
-                out.push(...createdBy(op));
+                // One push per id: spreading a run's 200,000 ids as arguments overflows the stack.
+                for (const id of createdBy(op)) {
+                    out.push(id);
+                }
             }
         }
     }

@@ -69,10 +69,12 @@ export function readChecks(dir) {
  * @param gh `(args) => stdout`
  * @param [o] options
  * @param [o.claim] `async (check) => boolean | undefined`: false skips a check the store already has
+ * @param [o.release] `async (check) => void`: gives back the claim of a check gh could not dispatch (#7265), so a later
+ *   pull request dispatches it
  * @param [o.pr] the pull request number, passed on so a base check that passes on master comments there
  * @returns how many were dispatched
  */
-export async function dispatchChecks(checks, gh, { claim, pr } = {}) {
+export async function dispatchChecks(checks, gh, { claim, release, pr } = {}) {
     let n = 0;
     for (const c of checks) {
         if (claim && (await claim(c)) === false) {
@@ -89,6 +91,7 @@ export async function dispatchChecks(checks, gh, { claim, pr } = {}) {
             console.log(`base check dispatched: ${c.file} (${c.variant}) at ${c.base}, ${c.repeat} run(s)`);
         } catch (e) {
             console.log(`::warning::base check not dispatched: ${c.file} (${e.message.split("\n")[0]})`);
+            await release?.(c);
         }
     }
     return n;
@@ -104,6 +107,10 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
         console.log(`results store: base check not claimed (${r.why}); dispatching it anyway: ${c.file}`);
         return undefined;
     };
-    const n = await dispatchChecks(checks, gh, { claim, pr: process.env.PR });
+    const release = async (c) => {
+        const r = await call(cfg, "DELETE", "/v1/base-checks", c);
+        if (!r.ok) console.log(`::warning::results store: base check claim not released (${r.why}): ${c.file}`);
+    };
+    const n = await dispatchChecks(checks, gh, { claim, release, pr: process.env.PR });
     console.log(`${n} of ${checks.length} base checks dispatched`);
 }

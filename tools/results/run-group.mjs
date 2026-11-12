@@ -7,8 +7,8 @@
 // Computes the group's inputs key, runs the shard's command (or <command>, run shape `selected`) through
 // tools/test-quarantine.mjs runShard() -- which retries the failed test files once and decides as it does
 // today -- then posts one record per try (1 = the run, 2 = the retry) and exits with runShard()'s code. The
-// reporter (tools/results/reporter.mjs) sends each failure while the group runs. A record it does not take
-// within 5 s is written to test-results/results-spool/<id>.json.
+// reporter (tools/results/reporter.mjs) sends each failure while the group runs. A record the store does not take
+// is lost, and the log says so.
 //
 // On a pull request with RESULTS_PLAN set (the light check's `results-plan` artifact: GET /v1/plan's answer plus
 // `base`, `affected` (the test files whose file or import closure the pull request changed) and `unknownFamilies`
@@ -413,7 +413,7 @@ function fileFailingOnMaster(gh, f, sha) {
  * @param [o.onMaster] whether a base run that failed files `Failing on master` (false for one repeat of several,
  *   which alone proves nothing: the repeats together decide, through the store's flaky verdict)
  * @param [o.base] whether this is a base run (`cli.mjs base-check` sets RESULTS_REPEAT); also true when any answer
- *   the store gave says kind `base`, so a spooled last answer cannot turn a base run into a master one
+ *   the store gave says kind `base`, so a lost last answer cannot turn a base run into a master one
  * @param [o.file] the one test file a base check asked about; `Failing on master` files only its tests
  * @returns the issues filed or commented on: `{ signature, number }`
  */
@@ -572,26 +572,24 @@ export function recordsOf(o) {
 }
 
 /**
- * Posts a group's records. A store that did not take one is not asked again: the rest go straight to the spool,
- * so a store that never answers costs one timeout, not one per record.
+ * Posts a group's records. A store that never answered one (or answered 5xx) is not asked again, so a store that
+ * is down costs one timeout, not one per record; one that refused a record (4xx) is still asked for the next. A
+ * record the store did not take is lost, and the log says so (#7266).
  * @param cfg config()
  * @param recs recordsOf()
- * @param spool the spool directory
  * @param [ms] the timeout of each post
  * @returns postInvocation()'s results
  */
-export async function postRecords(cfg, recs, spool, ms = undefined) {
+export async function postRecords(cfg, recs, ms = undefined) {
     const out = [];
     let store = cfg;
     for (const rec of recs) {
         // the health API still gets the records the store is no longer asked for
         if (!store && cfg?.health) sendHealth(cfg, "/v1/invocations", rec);
-        const r = await postInvocation(store, rec, spool, ms);
-        if (!r.ok) store = null;
+        const r = await postInvocation(store, rec, ms);
+        if (r.down) store = null;
         console.log(
-            r.ok
-                ? `run-group: recorded ${rec.id}`
-                : `run-group: ${rec.id} not recorded (${r.why}); spooled to ${r.spooled}`,
+            r.ok ? `run-group: recorded ${rec.id}` : `run-group: ${rec.id} not recorded (${r.why}); the record is lost`,
         );
         out.push(r);
     }
@@ -715,7 +713,7 @@ export async function runGroup(
         const facts = { cmd, root, env, id, runId, code, resultFile, startedAt, endedAt };
         await record(shardName, shard, { ...facts, command, head, gh, storeMs, storyProjects: STORY_PROJECTS });
     } catch (e) {
-        // The store never changes the verdict: a record that cannot be built, sent or spooled is only a warning.
+        // The store never changes the verdict: a record that cannot be built or sent is only a warning.
         console.log(`run-group: ${shardName}: no record (${e.message.split("\n")[0]}); the shard's result stands`);
     }
     return code;
@@ -787,7 +785,7 @@ export function runShape(env, selected) {
 }
 
 /**
- * Builds a finished group's records, posts them (spooling what the store does not take) and files the
+ * Builds a finished group's records, posts them and files the
  * quarantine issues the store asks for.
  * @param shardName the shard
  * @param shard its SHARDS entry, or undefined
@@ -808,7 +806,7 @@ async function record(shardName, shard, o) {
     });
     const cfg = config(env, root);
     if (cfg && storeMs.retry) cfg.retryMs = storeMs.retry;
-    const answers = await postRecords(cfg, recs, join(root, "test-results/results-spool"), storeMs.record);
+    const answers = await postRecords(cfg, recs, storeMs.record);
     await fileIssues(cfg, recs, answers, result.failing ?? [], gh, Date.now(), {
         onMaster: env.RESULTS_FILE_FAILING !== "0",
         base: Boolean(env.RESULTS_REPEAT),

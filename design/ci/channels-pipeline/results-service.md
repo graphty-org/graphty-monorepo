@@ -303,8 +303,10 @@ fails test T in file F:
    needed a base check nothing dispatched; the full run with bisect and revert is the net). In the background
    ci.yml's `base-checks` job dispatches `base-check.yml` on master (`workflow_dispatch`, inputs `base`,
    `file`, `variant`, `repeat`, `pr`) once per test file, variant and base: it asks the store first
-   (`POST /v1/base-checks`, kind `pr`, which answers `dispatch: true` only the first time), so later pull
-   requests and re-runs on the same base reuse the one check. The base check checks out the base, builds the
+   (`POST /v1/base-checks`, kind `pr`, which answers `dispatch: true` only to the first run that asks, and to
+   that run again when it re-sends), so later pull requests and re-runs on the same base reuse the one check.
+   A check `gh` could not dispatch gives its claim back (`DELETE /v1/base-checks`, that run only), so the next
+   pull request that asks dispatches it. The base check checks out the base, builds the
    package from nx's cache, runs F and posts kind `base`. If F fails there, it files or updates one
    priority:critical `Failing on master` issue per signature (the same failure on several pull requests
    lands on that one issue); if F passes there, it comments on the pull request so the round looks for a
@@ -369,16 +371,15 @@ failure event, one try (the full run's plan read gets one retry, 5.3). Unknown m
 
 - **Plan unavailable** (Worker or D1 down, slow, erroring): empty plan, so no reuse, no quarantine, no
   excuse. The job summary says `results service unreachable: ran everything, applied no quarantine`.
-- **Record unavailable:** written to `test-results/results-spool/<id>.json` and uploaded as artifact
-  `results-spool-<job>`. A `Results backfill` job at the end of `ci.yml` (`if: always()`, not required,
-  about 20 seconds) re-posts them. Still down: that history is lost, so later runs only reuse less.
+- **Record unavailable:** after its retries the record is lost, and the job log says so; later runs only
+  reuse less. A store that never answered (or answered 5xx) is not asked for the group's later records; one
+  that refused a record is. There is no spool and no backfill (#7266).
 - **Failure event lost:** the record carries it; only the early bisect start is lost.
 - **Job killed before its record:** its events are stored and read as `infra` (5.2).
-- **Duplicate post** (a retried step, a backfill): `INSERT OR IGNORE` on the id.
+- **Duplicate post** (a retried request or step): `INSERT OR IGNORE` on the id; the re-post is judged again,
+  so the answer whose first copy was lost still names the flaky tests to file.
 - **No OIDC token** (a fork, a missing permission, a run Dependabot triggered, which gets a read-only
-  token and no `id-token: write`): nothing read, empty plan, the record spooled; the `Results backfill`
-  job of a Dependabot run cannot post either, so `results-backfill.yml` (on `workflow_run`, master's
-  ref) posts spooled records of such runs as kind `pr`. Reason in the summary.
+  token and no `id-token: write`): nothing read, empty plan, no record. Reason in the summary.
 - **GitHub down for issues or dispatch:** the acting job fails and says so; a red verdict with no
   bisect record shows in `GET /v1/status`, and the pipeline round dispatches it.
 - **Lost or damaged database:** D1 Time Travel restores any minute of the last 30 days. Nothing is

@@ -297,7 +297,10 @@ async function postInvocation(body, who, db, nowMs) {
         ),
     ]);
     const stored = first.meta.changes === 1;
-    const judged = stored && MASTER_EVIDENCE.has(who.kind) && ["passed", "failed"].includes(body.outcome);
+    // a re-post is judged too (#7265): an id names its run, so it is the client re-sending a record whose answer was
+    // lost, and that answer (the flaky tests to file) must not be lost with it. concludeFlaky names a test again
+    // until its issue is posted back, so judging twice files nothing twice.
+    const judged = MASTER_EVIDENCE.has(who.kind) && ["passed", "failed"].includes(body.outcome);
     if (!judged) return { stored, kind: who.kind, flaky: [] };
     const flaky = await concludeFlakySafely(db, body.id, nowMs);
     const tracked = await trackedIssues(db, body.variant.split("|")[0], nowMs).catch(() => []);
@@ -305,7 +308,7 @@ async function postInvocation(body, who, db, nowMs) {
 }
 
 // The record is stored by now: a verdict that cannot be computed costs the verdict, never the answer (a 5xx would
-// make the client spool and re-post a record the store already has, whose re-post is never judged).
+// make the client re-post a record the store already has).
 async function concludeFlakySafely(db, id, nowMs) {
     try {
         return await concludeFlaky(db, id, nowMs);
@@ -491,9 +494,7 @@ async function postSite(body, who, db, nowMs) {
     return { stored: meta.changes === 1, sha: body.sha };
 }
 
-// A pull request's base check (#3925, 6.3): the first ask for a base, file and variant answers `dispatch: true`;
-// every later ask (another pull request, a re-run) answers false, so base-check.yml runs once per test per base.
-async function postBaseCheck(body, who, db, nowMs) {
+function baseCheckOf(body, who) {
     if (who.kind !== "pr") refuse(403, "only a pull request's ci.yml asks for a base check");
     if (!/^[0-9a-f]{7,40}$/.test(body?.base ?? "")) refuse(400, "base must be a commit id");
     for (const field of ["file", "variant"]) {
@@ -501,12 +502,36 @@ async function postBaseCheck(body, who, db, nowMs) {
             refuse(400, `${field} must be a string of 1 to 300 characters`);
         }
     }
+    return [body.base, body.file, body.variant, Number(who.claims.run_id), Number(who.claims.run_attempt)];
+}
+
+// A pull request's base check (#3925, 6.3): the first ask for a base, file and variant answers `dispatch: true`;
+// a later ask by another run (another pull request, a re-run) answers false, so base-check.yml runs once per test
+// per base. The run holding the claim is answered true again (#7265): the client re-sends an ask whose answer was
+// lost, and that re-send must not cost the check. The no-op update counts as a change only for the holder.
+async function postBaseCheck(body, who, db, nowMs) {
+    const [base, file, variant, runId, attempt] = baseCheckOf(body, who);
     const pr = Number.isInteger(body.pr) ? body.pr : null;
     const { meta } = await db
-        .prepare("INSERT OR IGNORE INTO base_check (base, file, variant, pr, asked_at) VALUES (?, ?, ?, ?, ?)")
-        .bind(body.base, body.file, body.variant, pr, nowMs)
+        .prepare(
+            "INSERT INTO base_check (base, file, variant, pr, asked_at, run_id, attempt) VALUES (?, ?, ?, ?, ?, ?, ?) " +
+                "ON CONFLICT (base, file, variant) DO UPDATE SET asked_at = asked_at " +
+                "WHERE run_id = excluded.run_id AND attempt = excluded.attempt",
+        )
+        .bind(base, file, variant, pr, nowMs, runId, attempt)
         .run();
     return { dispatch: meta.changes === 1 };
+}
+
+// The run holding a base check's claim gives it back when it could not dispatch the check (#7265), so the next pull
+// request that asks dispatches it. Another run's claim is left alone.
+async function deleteBaseCheck(body, who, db) {
+    const [base, file, variant, runId, attempt] = baseCheckOf(body, who);
+    const { meta } = await db
+        .prepare("DELETE FROM base_check WHERE base = ? AND file = ? AND variant = ? AND run_id = ? AND attempt = ?")
+        .bind(base, file, variant, runId, attempt)
+        .run();
+    return { released: meta.changes === 1 };
 }
 
 const SHA = /^[0-9a-f]{40}$/;
@@ -801,6 +826,7 @@ const ROUTES = {
     "POST /v1/issues": postIssue,
     "POST /v1/sites": postSite,
     "POST /v1/base-checks": postBaseCheck,
+    "DELETE /v1/base-checks": deleteBaseCheck,
     "POST /v1/channel-moves": postChannelMove,
     "POST /v1/story-captures": postStoryCaptures,
     "POST /v1/story-reach": postStoryReach,

@@ -119,16 +119,25 @@ function launch(entry) {
 }
 
 /**
- * A free port.
+ * A free port below the kernel's ephemeral range. A port the kernel handed out for `listen(0)` and
+ * then closed goes back into that range, where any other process's `listen(0)` or outgoing
+ * connection can take it before the daemon binds it, and the daemon then dies on EADDRINUSE (issue
+ * #7331). Nothing takes a port below the range unless asked for it by number.
+ * ponytail: two fakes running at once may still draw the same port; claim it in a shared file if
+ * that ever shows.
  * @returns {Promise<number>} the port
  */
-function freePort() {
-    return new Promise((resolve) => {
-        const server = createServer().listen(0, "127.0.0.1", () => {
-            const { port } = /** @type {import("node:net").AddressInfo} */ (server.address());
-            server.close(() => resolve(port));
+async function freePort() {
+    const low = Number(readFileSync("/proc/sys/net/ipv4/ip_local_port_range", "utf8").split(/\s+/)[0]);
+    for (;;) {
+        const port = 1024 + Math.floor(Math.random() * (low - 1024));
+        const free = await new Promise((resolve) => {
+            const server = createServer();
+            server.once("error", () => resolve(false));
+            server.listen(port, "127.0.0.1", () => server.close(() => resolve(true)));
         });
-    });
+        if (free) return port;
+    }
 }
 
 if (argv[0] === "pm2") {

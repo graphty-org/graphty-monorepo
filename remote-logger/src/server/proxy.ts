@@ -226,20 +226,20 @@ export function isValidProxyTarget(targetUrl: string): boolean {
 const PRIVATE_ADDRESSES = new net.BlockList();
 for (const [address, prefix] of [
     ["0.0.0.0", 8],
-    ["10.0.0.0", 8],
-    ["100.64.0.0", 10],
+    ["10.0.0.0", 8], // NOSONAR(typescript:S1313): a range the proxy refuses, not an address it uses
+    ["100.64.0.0", 10], // NOSONAR(typescript:S1313): a range the proxy refuses, not an address it uses
     ["127.0.0.0", 8],
-    ["169.254.0.0", 16],
-    ["172.16.0.0", 12],
-    ["192.168.0.0", 16],
+    ["169.254.0.0", 16], // NOSONAR(typescript:S1313): a range the proxy refuses, not an address it uses
+    ["172.16.0.0", 12], // NOSONAR(typescript:S1313): a range the proxy refuses, not an address it uses
+    ["192.168.0.0", 16], // NOSONAR(typescript:S1313): a range the proxy refuses, not an address it uses
 ] as const) {
     PRIVATE_ADDRESSES.addSubnet(address, prefix, "ipv4");
 }
 for (const [address, prefix] of [
     ["::", 128],
     ["::1", 128],
-    ["fc00::", 7],
-    ["fe80::", 10],
+    ["fc00::", 7], // NOSONAR(typescript:S1313): a range the proxy refuses, not an address it uses
+    ["fe80::", 10], // NOSONAR(typescript:S1313): a range the proxy refuses, not an address it uses
 ] as const) {
     PRIVATE_ADDRESSES.addSubnet(address, prefix, "ipv6");
 }
@@ -407,7 +407,8 @@ export function createProxy(proxyBasePath: string, quiet: boolean, allowPrivate 
         }
 
         // Literal IP hosts never reach the agent's lookup, so check them here
-        const hostname = new URL(targetUrl).hostname.replace(/^\[|\]$/g, "");
+        const { hostname: urlHost } = new URL(targetUrl);
+        const hostname = urlHost.startsWith("[") ? urlHost.slice(1, -1) : urlHost;
         if (!allowPrivate && isPrivateAddress(hostname)) {
             res.writeHead(403, { "Content-Type": "application/json" });
             res.end(

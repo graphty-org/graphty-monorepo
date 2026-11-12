@@ -64,13 +64,14 @@ export function isStoryProject(name: string): boolean {
 }
 
 /**
- * Whether a spec's project is the real-element project: its files mount the real graphty-element and run one at a
- * time (fileParallelism: false), so in a graphty-N part they take most of the part's time.
+ * Whether a spec's project is the real-element project or its experiments-on twin: its files mount the real
+ * graphty-element and run one at a time (fileParallelism: false), so in a graphty-N or graphty-features-on-N part
+ * they take most of the part's time. The twin once fell to vitest's hash split, and its parts ran 529 to 1,446 s.
  * @param name - the spec's project name.
- * @returns true for the real-element project (not large-graph, whose parts are one file each).
+ * @returns true for real-element and real-element-features-on (not large-graph, whose parts are one file each).
  */
 export function isRealElementProject(name: string): boolean {
-    return /^real-element(?: \(|$)/.test(name);
+    return /^real-element(?:-features-on)?(?: \(|$)/.test(name);
 }
 
 /** What a real-element file costs before its tests: loading the element and the page, between files. */
@@ -79,11 +80,21 @@ export const FILE_SECONDS = 15;
 export const TEST_SECONDS = 3.2;
 
 /**
- * What a real-element file is taken to cost, from how many tests it declares. Fitted to the 36 real-element files
- * of full run 42537878114's graphty-4 part (about 8 s a file plus 3.2 s a test, r = 0.65, and about 7 s between
- * files). Vitest's hash split put 293 of these tests in graphty-4 and 180 to 225 in each other part, so graphty-4
- * ran 25 minutes of them one after another and reached its job's deadline (issue #6373).
- * ponytail: a test count, not a measured time; if the parts drift apart again, weight by per-file durations.
+ * Each real-element file's measured seconds on a CI runner, loading included: the median of four full runs'
+ * graphty-N logs (release.yml runs 42921328419, 42942000609, 42966344736 and 42996342490), written by
+ * real-element-seconds.mjs. The test count below missed by up to 130 s a file (Timeline 26 tests, 98 s counted,
+ * 225 s run) and gave one part 1,440 s while another had 1,010 s (issue #6620).
+ * ponytail: refreshed by hand; when a graphty-N part drifts more than about 100 s from the others, run
+ * real-element-seconds.mjs on the newest full runs' graphty-N logs.
+ */
+export const REAL_ELEMENT_SECONDS: Readonly<Record<string, number>> = JSON.parse(
+    readFileSync(new URL("real-element-seconds.json", import.meta.url), "utf8"),
+) as Record<string, number>;
+
+/**
+ * What a real-element file the table has no time for yet (a new file) is taken to cost, from how many tests it
+ * declares. Fitted to the 36 real-element files of full run 42537878114's graphty-4 part (about 8 s a file plus
+ * 3.2 s a test, r = 0.65, and about 7 s between files).
  * @param source - the file's text.
  * @returns its seconds.
  */
@@ -95,8 +106,9 @@ export function realElementSeconds(source: string): number {
 /**
  * Vitest's sequencer with a --shard split by time where vitest's hash split comes out uneven: a run of the
  * storybook project alone (ci.yml's Story tests (graphty-N) legs) splits its story files by STORY_SECONDS, and a
- * run with the real-element project (the graphty-N parts) splits that project's files by realElementSeconds and
- * every other file as vitest splits it.
+ * run with the real-element project or its twin (the graphty-N and graphty-features-on-N parts) splits that
+ * project's files by REAL_ELEMENT_SECONDS (realElementSeconds for a file it lacks) and every other file as vitest
+ * splits it.
  */
 export class StoryShardSequencer extends BaseSequencer {
     override async shard(files: TestSpecification[]): Promise<TestSpecification[]> {
@@ -113,7 +125,12 @@ export class StoryShardSequencer extends BaseSequencer {
         if (timed.length === 0) {
             return super.shard(files);
         }
-        const cost = new Map(timed.map((spec) => [rel(spec), realElementSeconds(readFileSync(spec.moduleId, "utf8"))]));
+        const cost = new Map(
+            timed.map((spec) => [
+                rel(spec),
+                REAL_ELEMENT_SECONDS[rel(spec)] ?? realElementSeconds(readFileSync(spec.moduleId, "utf8")),
+            ]),
+        );
         const keep = new Set(balancedPart([...cost.keys()], index, count, (file) => cost.get(file) ?? FILE_SECONDS));
         const rest = files.filter((f) => !isRealElementProject(f.project.name));
         return [...timed.filter((spec) => keep.has(rel(spec))), ...(rest.length > 0 ? await super.shard(rest) : [])];

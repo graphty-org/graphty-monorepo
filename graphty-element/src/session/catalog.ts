@@ -146,11 +146,8 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
      * @returns the preset descriptors
      */
     screenshotPresets: () => SCREENSHOT_PRESET_DESCRIPTORS,
-    /**
-     * Every shader a layer can name: the element's presets, then the registered ones.
-     * @returns the shader descriptors, the element's own first
-     */
-    shaders: () => shaderDescriptors(),
+    // No `shaders` table here: a shader id names one of the project's own shaders, so the list
+    // is built per session (`createSessionCatalog`), never read from the catalog by id.
     /**
      * Every layout transition `layoutTransition` can name: the element's presets, then the
      * registered ones.
@@ -266,13 +263,22 @@ export function createSessionCatalog(
          */
         channels: (target) => sessionChannels(target, fileStyles()),
         /**
-         * Every shader a layer can name: the element's presets, the registered ones, then the
-         * project's own (pasted, or carried in by a file).
+         * Every shader, one entry per id: the element's presets, the registered ones, then the
+         * project's own (pasted, or carried in by a file). A project shader replaces a catalog entry
+         * with its id, since a use of that id draws the project's text; `copyOf` says which catalog
+         * entry a project shader's content equals.
          * @returns the shader descriptors, the element's own first
          */
         shaders: () => {
             const pasted = source.projectShaders?.() ?? [];
-            return pasted.length === 0 ? shaderDescriptors() : Object.freeze([...shaderDescriptors(), ...pasted]);
+            if (pasted.length === 0) {
+                return shaderDescriptors();
+            }
+
+            const own = new Map(pasted.map((descriptor) => [descriptor.id, descriptor]));
+            const listed = shaderDescriptors().map((descriptor) => own.get(descriptor.id) ?? descriptor);
+            const catalog = new Set(listed.map((descriptor) => descriptor.id));
+            return Object.freeze([...listed, ...pasted.filter((descriptor) => !catalog.has(descriptor.id))]);
         },
         /**
          * Every metric the element could compute on this graph, with what it would cost and

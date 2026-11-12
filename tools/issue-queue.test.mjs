@@ -99,6 +99,7 @@ describe("list", () => {
             "dead-links",
             "research",
             "enhancement",
+            "ux-owner",
             "githerd-heartbeat",
             "ci-budget",
         ].map((l, i) => issue(100 + i, `t${i}`, ["bug", l]));
@@ -114,15 +115,17 @@ describe("list", () => {
                 issue(7, "Nightly held on ca38ff3c3d02", ["bug"]),
                 issue(8, "Nightly missed slot 2026-11-02 18:00 UTC: waiting", ["bug"]),
                 issue(6, "kept", ["bug"]),
+                issue(9, "ux-safe enhancement", ["enhancement", "ux-safe"]),
+                issue(10, "ux-owner enhancement", ["enhancement", "ux-owner"]),
             ],
         ];
         assert.deepEqual(
             numbers(pages).sort((a, b) => a - b),
-            [2, 6],
+            [2, 6, 9],
         );
     });
 
-    it("sorts load-sensitive, priority, bug before infrastructure, effort, then oldest", () => {
+    it("sorts load-sensitive, priority, bug, infrastructure, enhancement, effort, then oldest", () => {
         const at = (d) => ({ createdAt: `2026-10-${d}T00:00:00Z` });
         const pages = [
             [
@@ -134,9 +137,10 @@ describe("list", () => {
                 issue(6, "high", ["bug", "priority:high"], at(30)),
                 issue(7, "Load-sensitive test: x", ["bug", "priority:low"], at(30)),
                 issue(8, "body says it", ["bug", "priority:low"], { ...at(30), body: "fails under restricted CPU" }),
+                issue(9, "high ux-safe enhancement", ["enhancement", "ux-safe", "priority:high"], at(1)),
             ],
         ];
-        assert.deepEqual(numbers(pages), [7, 8, 6, 5, 4, 3, 2, 1]);
+        assert.deepEqual(numbers(pages), [7, 8, 6, 9, 5, 4, 3, 2, 1]);
     });
 
     it("pages through every open issue and honors --limit", () => {

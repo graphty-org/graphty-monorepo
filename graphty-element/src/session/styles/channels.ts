@@ -57,7 +57,7 @@
  */
 
 import type { LabelDeclutterOrder, LabelLocation, LabelTextAlign } from "../../catalog/label-style";
-import { shaderDescriptor } from "../../catalog/shaderRegistry";
+import { projectShaderDescriptor } from "../../catalog/shaderRegistry";
 import { isExclusivePlace, type ShaderPlace, type ShaderUse } from "../../catalog/shaders";
 import type { Binding, Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
@@ -885,8 +885,17 @@ export interface ChannelDescriptor {
      * Why the channel cannot be set, as a sentence for a reader beside a disabled control.
      * Present exactly when `renderable` is false; `caveat` is the longer note for an
      * implementer. The same field name as `OptionDescriptor.unsupportedReason`.
+     * @deprecated Read {@link ChannelDescriptor.unsupported} and word it in the application.
+     * Removed at the next major release.
      */
     readonly unsupportedReason?: string;
+    /**
+     * Why the channel cannot be set, as a code with no words. Present exactly when `renderable`
+     * is false. `channel.not-drawn`: the element does not draw this channel yet. New codes may be
+     * added in a minor release.
+     * @since 3.38.0
+     */
+    readonly unsupported?: { readonly code: "channel.not-drawn"; readonly params: Readonly<Record<string, never>> };
     /**
      * The value that draws nothing, on an effect that is off until a layer switches it on: the
      * outline's and the glow's `"none"`, the animation's 0, and a text background's `"none"` where
@@ -2593,6 +2602,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         shortName: "Marker",
         group: "effects",
         unsupportedReason: "The element draws no marker yet",
+        unsupported: { code: "channel.not-drawn", params: {} },
         accepts: "nothing",
         stylePath: "texture.icon",
         renderable: false,
@@ -5364,7 +5374,7 @@ export function isShaderListChannel(channel: string): boolean {
  * @returns The place, or undefined for a shader the catalog does not list.
  */
 export function placeOfUse(use: ShaderUse): ShaderPlace | undefined {
-    return use.place ?? shaderDescriptor(use.shader)?.place;
+    return use.place ?? projectShaderDescriptor(use.shader)?.place;
 }
 
 /**

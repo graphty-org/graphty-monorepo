@@ -54,6 +54,7 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { PUBLISH_HOLD } from "./channel/nightly.mjs";
+import { approvalOnMaster } from "./channel/resume.mjs";
 import { diffCommits } from "./release-diff.mjs";
 import { call, config } from "./results/client.mjs";
 
@@ -382,7 +383,8 @@ export function t4Refusal(failedSteps) {
 
 /**
  * The held head's verdicts a newer green run replaces (#5052, #6604): every judged one but approved (its promotion is
- * due) and a head no run judged yet (being tested). A green-images head awaiting the owner's review is replaced too
+ * due; the verdict also counts a green-images head whose approval is on master as approved, approvalMerged) and a
+ * head no run judged yet (being tested). A green-images head awaiting the owner's review is replaced too
  * (#6604): a newer green-clean run has no changed screenshots, so it promotes and ends the review; a newer
  * green-images one is held in its place, so the owner reviews the newest candidate once (the review page keeps his
  * per-file decisions) and nightly never waits behind an older review.
@@ -853,6 +855,37 @@ export function greenCloses(title, green, isAncestor) {
     const red = / on ([0-9a-f]{7,40})$/.exec(title ?? "")?.[1];
     return !!red && isAncestor(red, green);
 }
+/**
+ * Whether the owner's approval of a held candidate is on master now (#6604): the store records `approved` only when
+ * its promote-nightly run ends, and that run may wait hours behind this one in the release-train group, so a
+ * newer green run must not replace the head in between. Reads master fresh; a fetch that fails counts as merged, so
+ * an unanswered question never throws an approval away (the next slot asks again).
+ * @param held the held head
+ * @returns the answer
+ */
+function approvalMerged(held) {
+    try {
+        execFileSync("git", ["fetch", "--quiet", "--filter=blob:none", "origin", "master"], { stdio: "ignore" });
+        return approvalOnMaster(held, "FETCH_HEAD") !== null;
+    } catch (error) {
+        console.log(`::warning::could not read master for an approval of ${short(held)}: ${error.message}`);
+        return true;
+    }
+}
+
+/**
+ * The held head's state as holdAction weighs it: a held green-images head whose approval merged is approved in all
+ * but the store, so its promotion is due (master is read only when a newer green verdict could replace it).
+ * @param now the hold the store has now (heldNow)
+ * @param state this run's verdict
+ * @param newer whether this run's commit is newer than the held one
+ * @returns the state
+ */
+function heldStateNow(now, state, newer) {
+    const replaceable = now.state === "green-images" && newer && state.startsWith("green");
+    return replaceable && approvalMerged(now.head) ? "approved" : now.state;
+}
+
 const ancestor = (a, b) => {
     try {
         execFileSync("git", ["merge-base", "--is-ancestor", a, b], { stdio: "ignore" });
@@ -1265,8 +1298,9 @@ async function verdictMain(env) {
     const held = now.head;
     // newer: the held commit is in the judged one's history, so an older commit's late verdict never replaces it
     const newer = !!now.base && now.base !== env.SHA && ancestor(now.base, env.SHA);
-    const hold =
-        wait || red[0] === "pick" ? "none" : holdAction({ held, sha: env.SHA, state, heldState: now.state, newer });
+    const decides = !wait && red[0] !== "pick";
+    const heldState = decides ? heldStateNow(now, state, newer) : now.state;
+    const hold = decides ? holdAction({ held, sha: env.SHA, state, heldState, newer }) : "none";
     const owner = heldLine(env.VERSION_HELD);
     console.log("::endgroup::");
     output({

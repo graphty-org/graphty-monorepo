@@ -117,7 +117,8 @@ A link to graphty.app must point at something `tools/assemble-pages-site.sh` pub
 keeps merging, and nothing promotes past the held commit, except that a newer commit's green-clean or green-images
 run replaces a held head judged red, owner-item, rejected, refused or green-images (`hold.mjs replace`): that hold
 ends, and the newer commit promotes or is held for review in its place, so nightly never waits behind an older
-screenshot review (#6604); only an approved head, whose promotion is due, is never replaced. Fix it forward from the candidate's head, never
+screenshot review (#6604); only an approved head, or one whose approval is already on master, is never replaced
+(its promotion is due). Fix it forward from the candidate's head, never
 from newer master: `./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candidate --issue <n>`,
 `Refs #<hold issue>` in the commit message, then `tools/pr-open.sh`. When it merges, `mode: candidate` merges the
 fix commit (never master) into `channel/candidate` and re-tests the new head as a whole full run. A green-clean

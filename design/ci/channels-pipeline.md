@@ -235,7 +235,9 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   `rejected`, `refused` or `green-images` (`hold=replace`, `tools/channel/hold.mjs replace`): the hold
   ends (its issue closed, `channel/candidate` deleted by lease at that head), then a green-clean
   commit promotes in the same run and a green-images one is held in its place. Only a head judged
-  `approved` (its promotion is due) or not judged yet is never replaced.
+  `approved`, a green-images head whose approval is on master (read fresh by the verdict: the store
+  records `approved` only when the promote-nightly run, which may wait behind this one, ends), or one
+  not judged yet is never replaced.
   **A pending screenshot review is replaced too (#6604).** Until 2026-11-11 a held `green-images` head
   was never replaced, so the owner never reviewed a moving target; its cost was that one unreviewed
   hold stopped every slot (2026-11-09: three newer green runs waited 23 hours behind one review, and

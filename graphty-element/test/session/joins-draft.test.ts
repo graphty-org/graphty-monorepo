@@ -91,6 +91,11 @@ describe("data.prepareJoins", () => {
         const [input] = recipe.inputs;
         assert.include(input.columns, "name");
         assert.notInclude(input.columns, "_source.expansion");
+        const step = recipe.add({
+            from: input.key,
+            choices: { shape: "node-values", keys: [{ file: "person_id", graph: "id" }] },
+        });
+        assert.notProperty(recipe.rows(step).items[0]?.values, "_source.expansion");
         recipe.discard();
     });
 

@@ -1,4 +1,12 @@
-import { type GraphSnapshot, INVALID_INDEX, makeMask, maskSet, maskTest, type NodeMask, type U32 } from "@graphty/graph-format";
+import {
+    type GraphSnapshot,
+    INVALID_INDEX,
+    makeMask,
+    maskSet,
+    maskTest,
+    type NodeMask,
+    type U32,
+} from "@graphty/graph-format";
 import type {
     ForceAtlas2Options,
     FruchtermanReingoldOptions,
@@ -1827,7 +1835,7 @@ export class LayoutManager implements Manager {
         // An edge the working graph hides, by itself or with an end, is not laid out.
         const view = layoutEngineInternals.view(engine);
         const shown =
-            view === null || view.graph !== this.dataManager.getSnapshot()
+            view?.graph !== this.dataManager.getSnapshot()
                 ? undefined
                 : (row: number): boolean => row < view.graph.edgeCount && maskTest(view.edges, row);
         return dataManagerInternals.unbuiltEdgeRows(this.dataManager, shown);

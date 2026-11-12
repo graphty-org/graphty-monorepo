@@ -907,6 +907,27 @@ export abstract class LayoutEngine {
     }
 
     /**
+     * Whether a publish leaves a row where it is: one the working graph hides keeps its place
+     * undrawn, and a pinned or held row keeps its place drawn.
+     * @param row - The row.
+     * @param placed - Whether it has a coordinate.
+     * @param pinned - Whether it is pinned.
+     * @param holds - Whether any row is held.
+     * @returns `"hidden"` or `"kept"` when the publish skips it, else null.
+     */
+    private keptInPlace(row: number, placed: boolean, pinned: boolean, holds: boolean): "hidden" | "kept" | null {
+        if (placed && this.hidesRow(row)) {
+            return "hidden";
+        }
+
+        if (pinned || (holds && placed && this.isHeld(row))) {
+            return placed ? "kept" : "hidden";
+        }
+
+        return null;
+    }
+
+    /**
      * Reads a `clusterBy` path through the session; set by `LayoutManager` before `init()`.
      * @internal
      */
@@ -1183,14 +1204,11 @@ export abstract class LayoutEngine {
             const base = POSITION_COMPONENTS * row;
             const placed = row < live && isStorableCoordinate(array[base]);
             const guarded = placed || !firstPlacement;
-            if (guarded && placed && this.hidesRow(row)) {
-                // A row the working graph hides is not drawn: it keeps its place, outside the box.
-                continue;
-            }
-
-            if (guarded && (pins[row] === 1 || (holds && placed && this.isHeld(row)))) {
-                // A kept row is still drawn, where it was kept; an unplaced one is not drawn.
-                grow(box, array[base], array[base + 1], array[base + 2], placed);
+            const kept = guarded ? this.keptInPlace(row, placed, pins[row] === 1, holds) : null;
+            if (kept !== null) {
+                // A kept row is still drawn, where it was kept; an unplaced one, or one the working
+                // graph hides, is not drawn.
+                grow(box, array[base], array[base + 1], array[base + 2], kept === "kept");
                 continue;
             }
 

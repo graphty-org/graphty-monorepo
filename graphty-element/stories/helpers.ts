@@ -832,6 +832,12 @@ export interface RealInput {
     hover(element: Element, point: { x: number; y: number }): Promise<void>;
     /** Press and release the left button at a point in CSS pixels from the element's top-left corner. */
     click(element: Element, point: { x: number; y: number }): Promise<void>;
+    /** Click twice at a point, as one double-click, in CSS pixels from the element's top-left corner. */
+    doubleClick(element: Element, point: { x: number; y: number }): Promise<void>;
+    /** Move to a point and press the left button there, holding it, in CSS pixels from the element's top-left corner. */
+    press(element: Element, point: { x: number; y: number }): Promise<void>;
+    /** Release the left button at a point, as after `press`. */
+    release(element: Element, point: { x: number; y: number }): Promise<void>;
 }
 
 /**

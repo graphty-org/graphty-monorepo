@@ -9,6 +9,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+import { assertSafeMarker } from "./marker-utils.js";
+
 /**
  * A JSONL log entry.
  */
@@ -70,8 +72,10 @@ export class JsonlWriter {
      * Get the file path for a project marker.
      * @param projectMarker - The project marker
      * @returns Full path to the JSONL file
+     * @throws {Error} If the marker could name a path outside its own directory
      */
     getFilePath(projectMarker: string): string {
+        assertSafeMarker(projectMarker);
         return path.join(this.baseDir, projectMarker, "logs.jsonl");
     }
 

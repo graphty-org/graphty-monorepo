@@ -716,7 +716,8 @@ export async function checkInput(input: StyleInput): Promise<StyleCheck> {
     } catch (e) {
         const result = emptyResult(input.name);
         result.import = (e as { details?: { code?: string } }).details?.code ?? (e as Error).name;
-        return { result, failures: [] };
+        // every corpus file is meant to import; a throw is an importer regression, not a row to accept
+        return { result, failures: [`import threw ${result.import}`] };
     }
     const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
     const again = extractStyles(loaded.importer, loaded.snapshot, loaded.report);

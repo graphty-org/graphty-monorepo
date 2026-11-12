@@ -107,6 +107,8 @@ describe("Reverse proxy", () => {
             httpHost: "127.0.0.1",
             mcpEnabled: false,
             quiet: true,
+            // the target server listens on loopback
+            proxyAllowPrivate: true,
         });
         proxyPort = dualServer.httpPort!;
     });
@@ -211,6 +213,8 @@ describe("Reverse proxy", () => {
             httpHost: "127.0.0.1",
             mcpEnabled: false,
             quiet: true,
+            // the target server listens on loopback
+            proxyAllowPrivate: true,
             logReceiveOnly: true,
         });
         proxyPort = dualServer.httpPort!;

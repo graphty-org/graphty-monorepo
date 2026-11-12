@@ -39,6 +39,7 @@ import type {
     EdgeEnd,
     Endpoint,
     JoinChoices,
+    JoinLookup,
     JoinReport,
     JoinShape,
     JoinSuggestion,
@@ -1107,6 +1108,16 @@ export class Draft implements LoadDraft {
     }
 
     /**
+     * The table read as a mapping table for a join's `lookup`, held apart from the graph.
+     * @returns The table.
+     */
+    lookup(): JoinLookup {
+        const read = this.live("lookup");
+        const { name, columns, rows } = tableOf(read, joinedHeld(read));
+        return Object.freeze({ name, columns: Object.freeze([...columns]), rows: Object.freeze([...rows]) });
+    }
+
+    /**
      * The host's join half, or a refusal for a draft not prepared onto the graph.
      * @param verb - The method asked.
      * @returns The host.
@@ -1431,7 +1442,7 @@ export class Draft implements LoadDraft {
 }
 
 /** A graph with nothing in it, for a host that lends none. */
-const NO_GRAPH: JoinGraph = { nodes: [], edges: [], joins: new Map(), directed: true };
+const NO_GRAPH: JoinGraph = { nodes: [], edges: [], table: () => undefined, directed: true };
 
 /**
  * The table a join reads: the first table with rows, a table of the reader's own before a

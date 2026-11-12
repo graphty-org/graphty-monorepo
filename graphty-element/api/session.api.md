@@ -2949,15 +2949,28 @@ export type ItemKey = {
 
 // @public
 export interface JoinChoices {
+    readonly aggregate?: Readonly<Record<string, JoinReduce | readonly JoinReduce[]>>;
     readonly clash?: Readonly<Record<string, "keep" | "overwrite" | "both">>;
     readonly columns?: readonly string[];
+    readonly compare?: boolean;
+    readonly endKinds?: {
+        readonly source?: string;
+        readonly target?: string;
+    };
     readonly ignore?: readonly JoinWarning[];
     readonly ignoreCase?: boolean;
     readonly ignoreSpaces?: boolean;
     readonly keys: readonly JoinKey[];
+    readonly kindIds?: "shared" | "scoped";
+    readonly link?: JoinLink;
+    readonly lookup?: JoinLookup;
+    readonly mapping?: JoinMapping;
+    readonly membership?: string;
+    readonly names?: Readonly<Record<string, string>>;
     readonly repeated?: "first" | "last" | "both";
     readonly shape?: JoinShape;
     readonly unknownEnds?: "add" | "leave-out";
+    readonly unmatchedFrom?: "keep" | "drop";
     readonly unmatchedRows?: "leave-out" | "add";
     readonly via?: SourceKey;
 }
@@ -2966,6 +2979,28 @@ export interface JoinChoices {
 export interface JoinKey {
     readonly file: string;
     readonly graph: Path;
+}
+
+// @public
+export interface JoinLink {
+    readonly as?: "edges" | "nodes";
+    readonly columns: readonly string[];
+    readonly kind?: string;
+    readonly maxShared?: number;
+    readonly minShared?: number;
+}
+
+// @public
+export interface JoinLookup {
+    readonly columns?: readonly string[];
+    readonly name?: string;
+    readonly rows: readonly Readonly<Record<string, unknown>>[];
+}
+
+// @public
+export interface JoinMapping {
+    readonly columns?: readonly [from: string, to: string];
+    readonly many?: "first" | "list";
 }
 
 // @public
@@ -2987,6 +3022,12 @@ export interface JoinRecord {
 }
 
 // @public
+export type JoinReduce = "count" | "sum" | "min" | "max" | "mean" | "first" | "last" | "list";
+
+// @public
+export type JoinRegion = "both" | "only-from" | "only-onto";
+
+// @public
 export interface JoinReport {
     readonly clashes: readonly {
         readonly column: string;
@@ -2994,30 +3035,43 @@ export interface JoinReport {
     }[];
     readonly extraIgnoringCase: number;
     readonly extraIgnoringSpaces: number;
+    readonly fanOut: number;
+    readonly mappedToMany: number;
     readonly matched: number;
+    readonly merged: number;
     readonly newEdges: number;
     readonly newNodes: number;
     readonly notInGraph: number;
+    readonly onlyFrom: number;
+    readonly onlyOnto: number;
+    readonly pairsBelowMin: number;
+    readonly pairsLinked: number;
+    readonly regions?: {
+        readonly nodes: Readonly<Record<JoinRegion, number>>;
+    };
     readonly repeatedKeys: number;
     readonly rowFates: readonly JoinRowFate[];
     readonly rowMatches: readonly (readonly (NodeId_2 | EdgeId)[])[];
     readonly unknownEndRows: number;
+    readonly unmapped: number;
     readonly unreadRows: number;
     readonly updatedNodes: number;
+    readonly valuesOverCap: number;
     readonly withoutValue: number;
     readonly withoutValueIds: readonly (NodeId_2 | EdgeId)[];
 }
 
 // @public
-export type JoinRowFate = "joined" | "new-end" | "repeat" | "left-out";
+export type JoinRowFate = "joined" | "new-end" | "repeat" | "left-out" | "merged" | "linked" | "over-cap";
 
 // @public
-export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace";
+export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "replace" | "merge" | "link";
 
 // @public
 export interface JoinSuggestion {
     readonly confident: boolean;
     readonly keys: readonly JoinKey[];
+    readonly link?: JoinLink;
     readonly repeated?: "both";
     readonly shape: JoinShape;
 }
@@ -3350,6 +3404,7 @@ export interface LoadDraft {
     readonly graphtyDocument?: "project" | "document";
     joinReport(choices: JoinChoices): JoinReport;
     load(choices?: LoadChoices): Promise<void>;
+    lookup(): JoinLookup;
     readonly mapping: LoadMappingRead;
     missing(choices?: LoadChoices): Readonly<Record<string, readonly ColumnRole[]>>;
     report(choices?: LoadChoices): Promise<LoadReport>;

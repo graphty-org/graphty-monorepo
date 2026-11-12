@@ -56,6 +56,7 @@ import { isWeightField, parseWeightText } from "../../common/weights.js";
 import {
     isWhitespace,
     localName,
+    MAX_HINT_RESERVE,
     sniffXmlText,
     tokenizeXml,
     xmlDeclaredEncoding,
@@ -1399,7 +1400,7 @@ class GraphmlReader implements XmlHandler {
             return null;
         }
         try {
-            this.sink.reserve(nodes ?? undefined, edges ?? undefined);
+            this.sink.reserve(capHint(nodes), capHint(edges));
         } catch (err) {
             if (!(err instanceof GraphFormatError)) {
                 throw err;
@@ -2845,6 +2846,15 @@ class GraphmlReader implements XmlHandler {
             );
         }
     }
+}
+
+/**
+ * A count hint as the amount to reserve: at most MAX_HINT_RESERVE, since the file's word is untrusted.
+ * @param count - the hint, or null
+ * @returns the amount to reserve, or undefined for none
+ */
+function capHint(count: number | null): number | undefined {
+    return count === null ? undefined : Math.min(count, MAX_HINT_RESERVE);
 }
 
 /**

@@ -7,9 +7,10 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { type GraphSnapshot } from "@graphty/graph-format";
-import { describe, expect, it } from "vitest";
+import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
+import { describe, expect, it, vi } from "vitest";
 
+import { MAX_HINT_RESERVE } from "../../src/common/xml.js";
 import { GEXF_ISSUE } from "../../src/formats/gexf/index.js";
 import { bytesOf, codes, gexf, GEXF_NS, ids, issuesOf, load } from "./xml-helpers.js";
 
@@ -330,6 +331,18 @@ describe("GEXF count hints", () => {
             );
             expect(codes(huge.report), count).toEqual([GEXF_ISSUE.COUNT_HINT]);
         }
+    });
+
+    it("gexf-count-hint-huge: an in-range but huge count reserves a bounded amount and the import finishes", async () => {
+        const doc = `<gexf xmlns="${GEXF_NS}" version="1.3"><graph><nodes count="4294967294"><node id="a"/></nodes><edges count="4294967294"><edge source="a" target="a"/></edges></graph></gexf>`;
+        const reserve = vi.spyOn(GraphBuilder.prototype, "reserve");
+        const { snapshot, report } = await load("gexf", doc);
+        expect(codes(report)).toEqual([GEXF_ISSUE.COUNT_MISMATCH, GEXF_ISSUE.COUNT_MISMATCH]);
+        expect(snapshot.edgeCount).toBe(1);
+        const reserved = reserve.mock.calls.flat().filter((n) => n !== undefined);
+        reserve.mockRestore();
+        expect(reserved.length).toBeGreaterThan(0);
+        expect(Math.max(...reserved)).toBeLessThanOrEqual(MAX_HINT_RESERVE);
     });
 
     it("gexf-count-hint-number-coercion: a count that is not decimal digits is W_COUNT_HINT and ignored", async () => {

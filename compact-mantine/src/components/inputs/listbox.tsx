@@ -77,8 +77,12 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
         return { mainAxis: LISTBOX_BELOW_GAP, alignmentAxis: 0 };
     }
     const { anchor, reference } = boxes;
-    // The listbox inside the dropdown is what scrolls; the dropdown is clamped around it.
-    const scroller = floating.querySelector<HTMLElement>('[role="listbox"]') ?? floating;
+    // A field's own list scrolls its role="listbox", which the dropdown frames (cm-listbox-frame);
+    // a list built on Combobox directly scrolls the dropdown.
+    const scroller =
+        (floating.classList.contains("cm-listbox-frame")
+            ? floating.querySelector<HTMLElement>('[role="listbox"]')
+            : null) ?? floating;
     // floating-ui mirrors the alignment offset of a -start placement under rtl.
     const align = (edge: number): number =>
         rtl ? reference.right - anchor.right - edge : anchor.left - edge - reference.left;

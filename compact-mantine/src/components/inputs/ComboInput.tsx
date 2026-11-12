@@ -508,7 +508,7 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
                     inputContainer={discardNoteContainer(discardedText)}
                 />
             </Combobox.Target>
-            <Combobox.Dropdown className="cm-menu-surface cm-listbox">
+            <Combobox.Dropdown className="cm-menu-surface cm-listbox cm-listbox-frame">
                 <Combobox.Options id={listId} aria-label={label} className="cm-listbox-options cm-menu">
                     {options.map((item, index) =>
                         isSeparator(item) ? (

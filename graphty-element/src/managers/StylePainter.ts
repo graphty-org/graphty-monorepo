@@ -919,41 +919,108 @@ function spellEdgeColours(style: EdgeStyleConfig): EdgeStyleConfig {
 }
 
 /**
- * The rows waiting to be drawn, taken oldest first.
+ * The rows waiting to be drawn, taken oldest first, each held once.
  *
- * ONE ITERATOR ACROSS THE BATCHES. A Set keeps the entries it deleted as holes until it next
- * rehashes, and a fresh iterator steps over all of them, so starting one for each batch made
- * taking a million rows a batch at a time quadratic. A running iterator stays past the holes, and
- * still reaches rows added after it started.
+ * A FLAG PER ROW AND A RING OF ROWS, NOT A SET. A load queues every edge it builds, and a Set of a
+ * million rows spent about 0.2 s hashing and rehashing them (design/rendering/row-renderer.md,
+ * stage G8). A row is a small dense index, so a byte per row says whether it waits and an array
+ * of rows keeps the order a Set's insertion order kept: a row taken and added again goes to the
+ * back. Exported for its test.
  */
-class PendingRows extends Set<number> {
-    private cursor: Iterator<number> | null = null;
+export class PendingRows {
+    private waiting = new Uint8Array(64);
+    private order = new Int32Array(64);
+    private head = 0;
+    private tail = 0;
 
     /**
-     * Take up to `limit` rows.
+     * How many rows wait.
+     * @returns The count.
+     */
+    get size(): number {
+        return this.tail - this.head;
+    }
+
+    /**
+     * Whether a row waits.
+     * @param row - Its dense index.
+     * @returns True when it was added and not yet taken.
+     */
+    has(row: number): boolean {
+        return row < this.waiting.length && this.waiting[row] === 1;
+    }
+
+    /**
+     * Queue a row at the back, unless it already waits.
+     * @param row - Its dense index, at least 0.
+     */
+    add(row: number): void {
+        if (this.has(row)) {
+            return;
+        }
+
+        if (row >= this.waiting.length) {
+            const grown = new Uint8Array(Math.max(row + 1, this.waiting.length * 2));
+            grown.set(this.waiting);
+            this.waiting = grown;
+        }
+
+        if (this.tail === this.order.length) {
+            this.makeRoom();
+        }
+
+        this.waiting[row] = 1;
+        this.order[this.tail++] = row;
+    }
+
+    /** Drop every row. */
+    clear(): void {
+        this.waiting.fill(0);
+        this.head = 0;
+        this.tail = 0;
+    }
+
+    /**
+     * Take up to `limit` rows, oldest first.
      * @param limit - The most to take.
-     * @returns The rows taken, which leave the set.
+     * @returns The rows taken, which leave the queue.
      */
     take(limit: number): readonly number[] {
         if (this.size === 0) {
             return NOTHING;
         }
 
-        const taken: number[] = [];
-        this.cursor ??= this.values();
+        const end = this.head + Math.min(limit, this.size);
+        const taken = Array.from(this.order.subarray(this.head, end));
 
-        while (taken.length < limit && this.size > 0) {
-            const next = this.cursor.next();
+        for (const row of taken) {
+            this.waiting[row] = 0;
+        }
 
-            if (next.done === true) {
-                this.cursor = this.values();
-            } else {
-                taken.push(next.value);
-                this.delete(next.value);
-            }
+        this.head = end;
+
+        if (this.head === this.tail) {
+            this.head = 0;
+            this.tail = 0;
         }
 
         return taken;
+    }
+
+    /** Slide the waiting rows to the front, and grow the ring when that frees too little. */
+    private makeRoom(): void {
+        const { size } = this;
+
+        if (size * 2 > this.order.length) {
+            const grown = new Int32Array(this.order.length * 2);
+            grown.set(this.order.subarray(this.head, this.tail));
+            this.order = grown;
+        } else {
+            this.order.copyWithin(0, this.head, this.tail);
+        }
+
+        this.head = 0;
+        this.tail = size;
     }
 }
 

@@ -1257,6 +1257,20 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   `GraphOps.addEdge` self 0.98 s, the first frame's `readPixels` 0.41 s, `StylePainter.queue` 0.23 s,
   `unbuiltRowOf` 0.21 s, `endBehindEdges` 0.19 s (a node row read per end), garbage collection 0.23 s: what is left
   is one random read or write per edge into a map or array the size of the graph.
+- **Every feeder through the column door (cosmos-gap.md G8), fourth pull request: measured, not built.** Line-level
+  profiling of an unminified build (100k + 1M columns, master `b0e47122f5`) puts 0.81 s of `GraphOps.addEdge`'s 0.99 s
+  self time on one statement, `slice.edges.set(edgeIdOf(counter), record)`. That cost is not the string key or the
+  hash map: a `Map` subclass keeping records in an array indexed by edge counter (no string, no hash, written in order)
+  moved the same 0.83 s into its own `set` and left the first frame where it was (interleaved, same session: master
+  5.42 s at load average 2.7 and 5.35 s at 1.5; the table 5.36 s at 1.6 and 5.49 s at 1.1), so it was reverted. What
+  costs is keeping a million live record objects reachable from one growing store while the garbage collector marks
+  them, whatever holds them. It goes only when a load stops making a record per edge, which is stage 29's records on
+  demand, not a change to the slice's map. What this pull request does build: the painter's
+  queue of rows to draw (`PendingRows` in StylePainter.ts) was a `Set`, and queueing a million edges cost about 0.2 s of
+  hashing; it is now a byte per row plus an array of rows, in the same oldest-first order, on both render paths.
+  Interleaved, same session: 100k + 1M first frame master 5.35 s and 5.15 s, branch 4.975 s and 5.003 s (load average
+  3.6-3.9 in the first round, 1.8-2.0 in the second), so the typed 5 s target is met by one run and missed by 3 ms in the
+  other; 100k + 1k is unchanged at about 0.90 s against its 0.8 s target.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.

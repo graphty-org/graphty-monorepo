@@ -15,8 +15,8 @@ import { Quaternion, Vector3 } from "@babylonjs/core";
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import { twoHandGestureDelta } from "../../../src/cameras/InputUtils";
 import type { PivotController } from "../../../src/cameras/PivotController";
+import { twoHandGestureDelta } from "../../../src/cameras/twoHandGesture";
 import type { Graph } from "../../../src/Graph";
 import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup";
 import { createXRInputDriver, type XRInputDriver } from "../helpers/xr-input-driver";

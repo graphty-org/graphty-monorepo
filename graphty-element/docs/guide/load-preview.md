@@ -367,8 +367,9 @@ try {
 | `E_DUPLICATE_ID`              | `load` with `duplicateIds: "refuse"` meets a repeated node id; `details.id` |
 | `E_DISPOSED`                  | The draft was loaded or disposed                                            |
 
-`details` is typed `Readonly<Record<string, unknown>>` for every code, so check a value's type
-before using it (`Array.isArray(error.details.candidates)`).
+Checking `code` narrows `details` to that code's facts (`GraphtyErrorDetailsMap`): after
+`error.code === "E_UNKNOWN_ATTRIBUTE"`, `error.details.candidates` is a `readonly string[]` or
+`undefined`. Every documented fact is optional, so check it before using it.
 
 Only one draft is held at a time. A new `prepare`, and any `import`, disposes the one before it,
 and a successful `load` disposes its own. Disposing lets go of the rows only: `draft.type`,

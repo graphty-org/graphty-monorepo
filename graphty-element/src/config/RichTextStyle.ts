@@ -91,6 +91,8 @@ export const RichTextStyle = z.strictObject({
     wrapAnywhere: z.boolean().optional(),
     // How many blanks a blank between two words counts as against wrapWidth; unset, one.
     wrapSpaceCount: z.number().min(0).optional(),
+    // The most lines drawn; the last one kept ends in an ellipsis when more were cut. Unset, every line.
+    maxLines: z.number().int().min(1).optional(),
     // Whether a blank line before or between lines of words is one line tall; unset, it takes no height.
     keepBlankLines: z.boolean().optional(),
     // Where runs of different sizes in one line meet: their alphabetic baselines, hanging baselines or middles.

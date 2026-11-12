@@ -174,7 +174,9 @@ export interface AssetRecord {
     readonly format: ModelFormat;
     readonly id: AssetId;
     readonly kind: "model" | "image";
+    readonly parts?: readonly ModelPart[];
     readonly path?: string;
+    readonly plainName?: string;
     readonly problems: readonly CodedFact[];
     readonly skipped?: readonly string[];
     readonly state: AssetState;
@@ -197,6 +199,7 @@ export interface AssetsApi {
         readonly signal?: AbortSignal;
     }): Promise<AssetRecord>;
     remove(id: string): void;
+    rename(ref: string, plainName?: string): AssetRecord;
     setLimits(limits: Partial<ModelLimits>): void;
     states(): readonly ModelChange[];
     supply(ref: string, answer: PartAnswer, options?: {
@@ -673,6 +676,28 @@ export interface CommandOutcomeMap {
 }
 
 // @public
+export interface ComparedField {
+    readonly field: string;
+    readonly runId: RunId;
+}
+
+// @public
+export interface CompareSide {
+    readonly field?: string;
+    readonly run: RunRef;
+}
+
+// @public
+export interface ComparisonBase {
+    readonly a: ComparedField;
+    readonly b: ComparedField;
+    readonly elements: "node" | "edge";
+    readonly onlyA: readonly NodeId[];
+    readonly onlyB: readonly NodeId[];
+    readonly shared: number;
+}
+
+// @public
 export interface ComponentStatistics {
     componentOf(id: NodeId_2): number | undefined;
     readonly count: number;
@@ -683,12 +708,27 @@ export interface ComponentStatistics {
 }
 
 // @public
+export interface CostBasis {
+    readonly derivationSeconds: number;
+    readonly edges: number | null;
+    readonly iterations: number | null;
+    readonly iterationsAssumed: boolean;
+    readonly nodes: number | null;
+    readonly provenance: CodedFact<CostProvenanceCode>;
+    readonly sample: number | null;
+    readonly sizesScaled: boolean;
+    readonly term: "class" | "algorithm" | "units" | null;
+}
+
+// @public
 export type CostConfidence = "measured" | "calibrated" | "modelled" | "unknown";
 
 // @public
 export interface CostEstimate {
     readonly available: boolean;
+    // @deprecated
     readonly basis: string;
+    readonly basisFacts: CostBasis;
     readonly blocksFrame: boolean;
     readonly cancellable: boolean;
     readonly confidence: CostConfidence;
@@ -734,6 +774,9 @@ export interface CostMeasurement {
     readonly nodes: number;
     readonly seconds: number;
 }
+
+// @public
+export type CostProvenanceCode = "cost.measured" | "cost.extrapolated" | "cost.declared-model" | "cost.calibrated" | "cost.built-in" | "cost.no-throughput" | "cost.size-unknown" | "cost.unbounded" | "cost.refused" | "cost.layout";
 
 // @public
 export function createGraphSession(options?: CreateGraphSessionOptions): GraphSession;
@@ -2284,6 +2327,45 @@ export type GraphtyErrorCode =
 | "E_IMAGE_LOAD" | "E_INTERNAL";
 
 // @public
+export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
+
+// @public
+export interface GraphtyErrorDetailsMap {
+    E_DUPLICATE_ID: {
+        readonly id?: string | number;
+    };
+    E_PARSE_FAILED: {
+        readonly format?: string;
+        readonly line?: number;
+    };
+    E_TOO_LARGE: {
+        readonly limit?: number;
+        readonly count?: number;
+        readonly of?: string;
+        readonly graph?: {
+            readonly nodes: number;
+            readonly edges: number;
+        };
+    };
+    E_UNKNOWN_ATTRIBUTE: {
+        readonly candidates?: readonly string[];
+        readonly available?: readonly string[];
+        readonly run?: string;
+        readonly field?: string;
+    };
+    E_UNKNOWN_LAYOUT: {
+        readonly layout?: string;
+        readonly available?: readonly string[];
+    };
+}
+
+// @public
+export type GraphtyErrorFor<C extends GraphtyErrorCode = GraphtyErrorCode> = C extends GraphtyErrorCode ? GraphtyError & {
+    readonly code: C;
+    readonly details: GraphtyErrorDetails<C>;
+} : never;
+
+// @public
 export interface GraphtyErrorInit {
     cause?: unknown;
     code: GraphtyErrorCode;
@@ -2574,10 +2656,25 @@ export interface GraphvizCapability {
 export type GroupMatchCode = "group.new" | "group.gone";
 
 // @public
+export interface GroupMove {
+    readonly a: string | number;
+    readonly b: string | number;
+    readonly id: NodeId;
+    readonly mostOfGroup: string | number;
+}
+
+// @public
 export interface GroupOutlineClick {
     readonly group: string | number | boolean | null;
     readonly layer: LayerId;
     readonly shader: string;
+}
+
+// @public
+export interface GroupOverlap {
+    readonly a: string | number;
+    readonly b: string | number;
+    readonly count: number;
 }
 
 // @public
@@ -2723,7 +2820,7 @@ export function isAlgorithmRunCommand(value: unknown): value is AlgorithmRunComm
 export function isAssetId(value: unknown): value is AssetId;
 
 // @public
-export function isGraphtyError(value: unknown): value is GraphtyError;
+export function isGraphtyError(value: unknown): value is GraphtyErrorFor;
 
 // @public
 export function isGraphtyErrorCode(value: unknown): value is GraphtyErrorCode;
@@ -3380,6 +3477,22 @@ export interface ModelLimits {
 }
 
 // @public
+export interface ModelPart {
+    readonly file?: string;
+    readonly name: string;
+    // (undocumented)
+    readonly role: ModelPartRole;
+    // (undocumented)
+    readonly state: ModelPartState;
+}
+
+// @public
+export type ModelPartRole = "model" | "geometry" | "materials" | "texture" | "other";
+
+// @public
+export type ModelPartState = "found" | "substituted" | "missing" | "ambiguous" | "skipped" | "unused";
+
+// @public
 export type ModelState = "pending" | "accepted" | "drawn" | "rejected" | "failed";
 
 // @public
@@ -3734,7 +3847,12 @@ export type PartAnswer =
     readonly name?: string;
     readonly file: NamedBlob | Uint8Array;
 }
-/** Use a file the set already holds for an ambiguous reference (`E_MODEL_PART_AMBIGUOUS`). */
+/**
+* Use a file the set already holds: one of an ambiguous reference's candidates
+* (`E_MODEL_PART_AMBIGUOUS`), or any file of the set for a missing part (`E_MODEL_MISSING_FILE`),
+* as when a picture's name differs from the one the model names. A file nothing else names is
+* moved to the part's name.
+*/
 | {
     readonly name: string;
     readonly use: string;
@@ -3751,6 +3869,18 @@ export type PartAnswer =
 
 // @public
 export type PartialCode = "partial.iteration-cap" | "partial.time-box" | "partial.canceled" | "partial.stopped" | "partial.batch-incomplete";
+
+// @public
+export interface PartitionComparison extends ComparisonBase {
+    readonly agreement: number | undefined;
+    readonly groups: {
+        readonly a: number;
+        readonly b: number;
+    };
+    readonly kind: "partition";
+    readonly moves: readonly GroupMove[];
+    readonly overlaps: readonly GroupOverlap[];
+}
 
 // @public
 export type Path = string;
@@ -4012,7 +4142,7 @@ export interface ProjectOpenReport {
 }
 
 // @public
-export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
+export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | "shader.unknown" | "shader.not-saved">;
 
 // @public
 export interface ProjectSaveOptions {
@@ -4092,6 +4222,24 @@ export type QueuePolicy = (typeof QUEUE_POLICIES)[number];
 
 // @public
 export function quotePath(path: Path): Query;
+
+// @public
+export interface RankChange {
+    readonly id: NodeId;
+    readonly move: number;
+    readonly rankA: number;
+    readonly rankB: number;
+    readonly tiedA: number;
+    readonly tiedB: number;
+}
+
+// @public
+export interface RankingComparison extends ComparisonBase {
+    readonly changes: readonly RankChange[];
+    readonly correlation: number | undefined;
+    readonly kind: "ranking";
+    readonly moved: number;
+}
 
 // @public
 export interface RankingEntry {
@@ -4501,6 +4649,9 @@ export interface ResultColumnDescriptor {
 }
 
 // @public
+export type ResultComparison = RankingComparison | PartitionComparison;
+
+// @public
 export type ResultId = RunId;
 
 // @public
@@ -4521,6 +4672,7 @@ export interface ResultRef {
 
 // @public
 export interface ResultsApi {
+    compare(a: RunRef | CompareSide, b: RunRef | CompareSide): ResultComparison;
     get(run: RunRef): RunResult | undefined;
     has(run: RunRef, field?: string): boolean;
     path(run: RunRef, field?: string): Path;
@@ -5752,6 +5904,8 @@ export interface SessionShaders {
         readonly compile?: boolean;
         readonly picture?: boolean;
     }): Promise<ShaderAddResult>;
+    describe(id: string): ShaderDescriptor | undefined;
+    fromCatalog(id: string): Promise<string>;
     // (undocumented)
     list(): readonly ProjectShader[];
     remove(id: string): Promise<void>;
@@ -6493,6 +6647,7 @@ export interface StyleDocument {
     layers: readonly LayerSpec[];
     // (undocumented)
     palettes?: readonly PaletteDescriptor[];
+    problems?: readonly ShaderProblem[];
     shaders?: readonly {
         readonly id: string;
         readonly text: ShaderText;
@@ -6734,7 +6889,7 @@ export type TemplatePosition = "top" | "aboveBase" | {
 // @public
 export interface TemplateReport {
     readonly applied: readonly LayerId[];
-    readonly shaders?: readonly CodedFact<"shader.held" | "shader.id-taken">[];
+    readonly shaders?: readonly CodedFact<"shader.held" | "shader.id-taken" | "shader.unknown">[];
     readonly unbound: readonly UnboundLayer[];
 }
 

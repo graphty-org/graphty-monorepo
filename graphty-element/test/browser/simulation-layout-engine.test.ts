@@ -27,6 +27,7 @@ import { Graph } from "../../src/Graph";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import { measureEnvelope, SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
+import { dataManagerInternals } from "../../src/managers/DataManager";
 import { createFakeAccelerator, type FakeAccelerator, type FakeSimulation } from "../../src/testing/fakeAccelerator";
 import { cleanupE2EGraph, createE2EGraph } from "../helpers/e2e-graph-setup";
 
@@ -307,8 +308,23 @@ describe("the simulation layout bridge", () => {
         // What `UpdateManager` iterates. A bridge that kept no list of its own and answered these
         // with nothing would let the simulation rewrite the position array every frame while not
         // one mesh moved, no bounding box was computed and the camera never framed the graph.
-        assert.lengthOf(Array.from(layout.nodes), 5, "every node reaches the frame loop");
-        assert.lengthOf(Array.from(layout.edges), 4, "and every edge");
+        // Under renderPath "batched" a row may be stored with no `Node`: it is drawn and moved by its row, so it is not
+        // handed out here (building a `Node` for every row stalled a 100k-row layout's start for seconds, #6389).
+        const nodesBuilt = dataManagerInternals.nodesBuilt(graph.getDataManager());
+        assert.lengthOf(Array.from(layout.nodes), nodesBuilt, "every node with a Node reaches the frame loop");
+        if (graph.getEdgeRowLines() === null) {
+            assert.strictEqual(nodesBuilt, 5, "which on the objects path is every node");
+        }
+
+        // Under renderPath "batched" an edge may be stored with no `Edge`: the frame draws it as a row line, so it is
+        // not handed out here (building its `Edge` each frame ran a million-edge tab out of memory).
+        const dm = graph.getDataManager();
+        assert.strictEqual(dm.edges.size, 4, "every edge is stored");
+        const built = dataManagerInternals.edgesBuilt(dm);
+        assert.lengthOf(Array.from(layout.edges), built, "and every edge with an Edge");
+        if (graph.getEdgeRowLines() === null) {
+            assert.strictEqual(built, 4, "which on the objects path is every edge");
+        }
 
         const node = graph.getDataManager().getNode("n0");
         assert.isDefined(node);

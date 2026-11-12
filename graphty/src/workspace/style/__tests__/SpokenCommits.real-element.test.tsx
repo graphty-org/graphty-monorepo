@@ -13,6 +13,7 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { nodeModelsOn } from "../../features";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
@@ -60,8 +61,12 @@ async function openPaint(): Promise<GraphSession> {
 
 describe("a committed change is said", () => {
     it("says a color committed with Enter, with how many nodes it paints", async () => {
-        await openPaint();
+        const session = await openPaint();
         await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
+        if (nodeModelsOn(session)) {
+            // With the node-models experiment on, Fill also offers Picture, so its "+" opens a menu.
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Color" }));
+        }
         const box = await waitFor(() => {
             const found = document.querySelector<HTMLInputElement>(
                 '[data-testid="style-tab"] .ws-row[data-line="node.color"] [data-testid="compact-color-input-hex"]',

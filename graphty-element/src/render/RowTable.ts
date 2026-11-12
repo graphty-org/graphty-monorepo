@@ -231,6 +231,10 @@ export class RowTable {
     private readonly extents: RowTexture;
     private flags: Uint8Array<ArrayBuffer>;
     private laneChanges = -1;
+    /** How many of the first {@link RowTable.rows} rows are hidden. */
+    private hiddenCount = 0;
+    /** The widest half extent {@link RowTable.measure} has written since the last clear. */
+    private widest = 0;
     /** A landing was copied to the card since the last repack, which then sends no row of it. */
     private copied = false;
     private twoD = false;
@@ -254,6 +258,23 @@ export class RowTable {
         this.stopFlush = batchUploadFrames.join(scene, () => {
             this.flush();
         });
+    }
+
+    /**
+     * How many rows are filtered out, hidden by a style or dropped, kept as rows change rather than counted.
+     * @returns The count.
+     */
+    get hiddenRows(): number {
+        return this.hiddenCount;
+    }
+
+    /**
+     * At least the widest half extent of any row, on any axis: what a box around the rows' centres
+     * grows by to hold the rows. It never shrinks until the dataset is cleared, so it may be wider.
+     * @returns The half extent.
+     */
+    get widestHalf(): number {
+        return this.widest;
     }
 
     /**
@@ -493,6 +514,10 @@ export class RowTable {
         }
 
         const flags = this.flags[row] ?? 0;
+        if (((flags & HIDDEN) !== 0) !== hidden) {
+            this.hiddenCount += hidden ? 1 : -1;
+        }
+
         this.flags[row] = hidden ? flags | HIDDEN : flags & ~HIDDEN;
         if (!hidden && (flags & (HIDDEN | SHRUNK)) === SHRUNK) {
             // Still drawn, part of the way through a shrink: its W is the shrink's.
@@ -508,6 +533,7 @@ export class RowTable {
      */
     drop(row: number): void {
         if (row < this.rows) {
+            this.hiddenCount += ((this.flags[row] ?? 0) & HIDDEN) === 0 ? 1 : 0;
             this.flags[row] = HIDDEN;
             this.writeW(row, 0);
         }
@@ -525,6 +551,7 @@ export class RowTable {
         }
 
         const half = node.drawnHalfExtents;
+        this.widest = Math.max(this.widest, half.x, half.y, half.z);
         const outline = node.outlineHalfExtents;
         const round = node.roundRadius;
         const base = row * EXTENT_FLOATS;
@@ -584,12 +611,19 @@ export class RowTable {
                 }
             }
         }
+
+        this.hiddenCount = 0;
+        for (let row = 0; row < this.rows; row++) {
+            this.hiddenCount += ((this.flags[row] ?? 0) & HIDDEN) === 0 ? 0 : 1;
+        }
     }
 
     /** Forget every row: the dataset was cleared. */
     cleared(): void {
         this.moves++;
         this.flags.fill(0);
+        this.hiddenCount = 0;
+        this.widest = 0;
         this.rows = 0;
         this.laneChanges = -1;
     }

@@ -635,9 +635,34 @@ async function encodeLayer(tx: TransactionScope, spec: LayerSpec): Promise<Layer
     return coded(() => tx.styles.add(spec));
 }
 
-const values = inputKind(z.record(z.string().max(100), z.unknown()), "values", "Set")
-    .optional()
-    .describe('e.g. {"node.color":"red","node.size":2}; channels: catalog search');
+/** The channels `values` lists by name and type; every other channel is still taken (catalog search). */
+const LISTED_CHANNELS: readonly Channel[] = ["node.color", "node.size", "edge.color", "edge.width"];
+
+/**
+ * The `values` field: channel to value, with the common channels listed by type, so a model sees
+ * what goes in it (an object with no listed properties was sent as `{}`). Each value's range, any
+ * other channel and the nested form are `checkValues`' to check; null removes a channel in an update.
+ * @param channels - The channel table.
+ * @returns The field.
+ */
+function valuesField(channels: readonly ChannelDescriptor[]): z.ZodType {
+    const listed = Object.fromEntries(
+        channels
+            .filter((descriptor) => LISTED_CHANNELS.includes(descriptor.channel))
+            .map((descriptor) => [
+                descriptor.channel,
+                (descriptor.accepts === "number" ? z.number() : z.string()).nullable().optional(),
+            ]),
+    );
+    return inputKind(
+        z.looseObject(listed).refine((value) => Object.keys(value).every((key) => key.length <= 100)),
+        "values",
+        "Set",
+    )
+        .optional()
+        .describe("Channel: value. More channels: catalog search kind channel");
+}
+
 const layer = inputKind(z.string().max(MAX_STRING), "layer", "Layer").optional().describe("Layer id or name.");
 const name = z.string().max(200).optional().describe("The layer's name.");
 const position = z.enum(["top", "bottom", "above", "below"]).optional().describe("Where in the stack.");
@@ -651,6 +676,7 @@ const relativeTo = inputKind(z.string().max(MAX_STRING), "layer", "Next to")
  * @returns The tool.
  */
 export function styleTool(catalog: CatalogView): ToolDefinition {
+    const values = valuesField(catalog.channels);
     const encodeField = z
         .strictObject({
             channel: z.string().max(100).describe("e.g. node.color, node.size, edge.width."),

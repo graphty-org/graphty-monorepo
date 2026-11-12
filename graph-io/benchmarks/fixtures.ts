@@ -105,8 +105,9 @@ class LineWriter {
 
 /**
  * Generate a file once: the generator runs only when the file is absent or empty, writing to a
- * `.partial` name that is renamed into place when complete (a crashed generation never leaves a
- * truncated fixture behind under the real name).
+ * `.<pid>.partial` name that is renamed into place when complete (a crashed generation never leaves a
+ * truncated fixture behind under the real name, and two test processes generating the same file at
+ * once each write their own and rename identical bytes into place).
  * @param name - the file name under FIXTURE_DIR
  * @param generate - writes the content
  * @returns the absolute path
@@ -117,7 +118,7 @@ function fixture(name: string, generate: (out: LineWriter, rnd: Lcg) => void): s
     if (existsSync(path) && statSync(path).size > 0) {
         return path;
     }
-    const partial = `${path}.partial`;
+    const partial = `${path}.${String(process.pid)}.partial`;
     const out = new LineWriter(partial);
     generate(out, new Lcg(seedOf(name)));
     out.close();

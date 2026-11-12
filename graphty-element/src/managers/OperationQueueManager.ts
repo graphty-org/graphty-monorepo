@@ -939,9 +939,10 @@ export class OperationQueueManager implements Manager {
      * Clear all pending operations
      */
     clear(): void {
-        // Cancel all active operations
+        // Cancel every operation that has not finished. A finished one keeps its controller until
+        // its cleanup runs, and is not cancelled: its work is done.
         this.activeControllers.forEach((controller, id) => {
-            if (!controller.signal.aborted) {
+            if (!controller.signal.aborted && this.rankOf(id) !== -1) {
                 controller.abort();
                 this.eventManager.emit("operation-cancelled", {
                     type: "operation-cancelled",
@@ -1094,7 +1095,8 @@ export class OperationQueueManager implements Manager {
      */
     cancelOperation(operationId: string): boolean {
         const controller = this.activeControllers.get(operationId);
-        if (controller && !controller.signal.aborted) {
+        // A finished operation keeps its controller until its cleanup runs; it is not cancelled.
+        if (controller && !controller.signal.aborted && this.rankOf(operationId) !== -1) {
             controller.abort();
 
             // Emit cancellation event

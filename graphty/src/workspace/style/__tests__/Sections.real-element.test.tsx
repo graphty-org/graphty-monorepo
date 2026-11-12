@@ -158,13 +158,24 @@ function drawn(session: GraphSession): string[] {
         .sort();
 }
 
+/**
+ * Whether a node section is drawn with the file-styles experiment off, as here: Borders holds only
+ * experiment channels, so it is not drawn (its rows are NodeBorders.real-element.test.tsx's).
+ * @param spec - the section.
+ * @param spec.id - its id.
+ * @returns true when it is drawn.
+ */
+function drawnHere(spec: { readonly id: string }): boolean {
+    return spec.id !== "border";
+}
+
 describe("the Style tab's sections", () => {
     it("lists only what a layer sets, and draws nothing it does not set as a value", async () => {
         await openScene();
         let tab = await openStyle("Key people");
         const fill = section("node", "fill");
         assert.isNotNull(fill.querySelector('.ws-row[data-line="node.color"]'), "Fill lists Color");
-        for (const spec of SECTIONS.node.filter((each) => each.id !== "fill")) {
+        for (const spec of SECTIONS.node.filter((each) => each.id !== "fill" && drawnHere(each))) {
             assert.isTrue(isEmpty(section("node", spec.id)), `${spec.title} is its dimmed title and "+"`);
             within(section("node", spec.id)).getByRole("button", { name: `Add to node ${spec.title.toLowerCase()}` });
         }
@@ -187,7 +198,7 @@ describe("the Style tab's sections", () => {
 
         tab = await openStyle("Hovered");
         assert.isNull(tab.querySelector(".ws-row"), "Hovered sets nothing");
-        for (const spec of SECTIONS.node) {
+        for (const spec of SECTIONS.node.filter(drawnHere)) {
             assert.isTrue(isEmpty(section("node", spec.id)), `Hovered: ${spec.title} is dimmed`);
         }
 
@@ -204,7 +215,11 @@ describe("the Style tab's sections", () => {
             SECTIONS[kind]
                 // Les Miserables is undirected, so Arrowheads add nothing there (tested on its own).
                 .filter(
-                    (spec) => spec.id !== "text" && spec.shaders !== true && !(kind === "edge" && spec.id === "ends"),
+                    (spec) =>
+                        spec.id !== "text" &&
+                        spec.shaders !== true &&
+                        !(kind === "edge" && spec.id === "ends") &&
+                        drawnHere(spec),
                 )
                 .map((spec) => [kind, spec.id, spec.title] as const),
         ),

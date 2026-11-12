@@ -13,6 +13,7 @@ import {
     type GraphSession,
     type NodeId,
     sourceEndpoint,
+    sourceFileName,
     type SourceInput,
     type SourceKey,
     type SourceLoadOptions,
@@ -383,29 +384,21 @@ export function serverRequest(
 }
 
 /**
- * What a load from the form is called: a file's name ("buildings.csv"), else its host, for a
- * source whose address is a param; else the kind and the endpoint's host ("Neo4j db.example.com").
+ * What a load from the form is called: a file's name ("buildings.csv") for a source whose address
+ * is a param; else the kind and the endpoint's host ("Neo4j db.example.com", "Load from URL
+ * dev.ato.ms:9565").
  * @param entry - the source.
  * @param endpoint - the typed endpoint.
  * @param config - the params.
  * @returns the name.
  */
 function loadName(entry: SourceCatalogEntry, endpoint: string, config: Readonly<Record<string, unknown>>): string {
-    const { endpointParam } = entry.descriptor;
-    const address = endpointParam === undefined ? undefined : config[endpointParam];
-    if (typeof address === "string" && URL.canParse(address)) {
-        const url = new URL(address);
-        const last = url.pathname.split("/").pop() ?? "";
-        if (last === "") {
-            return url.host;
-        }
-        try {
-            return decodeURIComponent(last);
-        } catch {
-            return last;
-        }
+    const file = sourceFileName(entry.descriptor, config);
+    if (file !== undefined) {
+        return file;
     }
-    const host = URL.canParse(endpoint) ? new URL(endpoint).host : null;
+    const address = endpoint === "" ? sourceEndpoint(entry.descriptor, config) : endpoint;
+    const host = typeof address === "string" && URL.canParse(address) ? new URL(address).host : null;
     return host === null ? kindName(entry) : `${kindName(entry)} ${host}`;
 }
 

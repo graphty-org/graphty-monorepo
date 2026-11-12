@@ -326,6 +326,7 @@ const VALUE_EXPORTS = [
     "URL_SOURCE_ID",
     "URL_DESCRIPTOR",
     "sourceEndpoint",
+    "sourceFileName",
 ];
 
 describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {

@@ -6,7 +6,7 @@
  * name, its Content-Type and its first bytes. Its CSV options and `directed` reach the importer.
  */
 
-import { defineSource } from "../define.js";
+import { defineSource, sourceFileName } from "../define.js";
 import { failOn } from "../fail.js";
 import { URL_SOURCE_ID } from "../ids.js";
 import { type GraphSource } from "../types.js";
@@ -49,20 +49,6 @@ function csvOptions(params: UrlParams): Record<string, unknown> {
 }
 
 /**
- * The last path segment of a URL, decoded, as a file name hint ("buildings.csv").
- * @param url - the URL
- * @returns the name, or undefined for none
- */
-function fileName(url: URL): string | undefined {
-    const last = url.pathname.split("/").pop() ?? "";
-    try {
-        return last === "" ? undefined : decodeURIComponent(last);
-    } catch {
-        return last;
-    }
-}
-
-/**
  * The URL source. Experimental.
  * @category Network sources
  */
@@ -78,7 +64,7 @@ export const urlSource: GraphSource<UrlParams> = defineSource<UrlParams>({
         return {
             body: response,
             format: params.format,
-            filename: fileName(url),
+            filename: sourceFileName(URL_DESCRIPTOR, { ...params }),
             formatOptions: { csv: csvOptions(params) },
             ...(params.directed === undefined ? {} : { importOptions: { defaultDirected: params.directed === "yes" } }),
         };

@@ -92,4 +92,5 @@ export {
     replayFetch,
     SOURCE_ISSUE,
     sourceEndpoint,
+    sourceFileName,
 } from "@graphty/graph-io";

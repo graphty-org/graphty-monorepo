@@ -102,7 +102,7 @@ describe("the server form's request", () => {
         assert.strictEqual(load.credential?.kind, "bearer");
         assert.strictEqual(
             serverRequest(url, { ...form, params: { url: "https://dev.ato.ms:9565/" } }).input.name,
-            "dev.ato.ms:9565",
+            "Load from URL dev.ato.ms:9565",
         );
     });
 });

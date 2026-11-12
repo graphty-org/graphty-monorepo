@@ -5,7 +5,14 @@
 
 import { describe, expect, it } from "vitest";
 
-import { credentials, loadFromSource, replayFetch, sourceEndpoint, URL_DESCRIPTOR } from "../../src/index.js";
+import {
+    credentials,
+    loadFromSource,
+    replayFetch,
+    sourceEndpoint,
+    sourceFileName,
+    URL_DESCRIPTOR,
+} from "../../src/index.js";
 import { urlSource } from "../../src/sources/url/index.js";
 import { runSourceConformance } from "./harness.js";
 import { rejection } from "./helpers.js";
@@ -100,5 +107,13 @@ describe("sourceEndpoint", () => {
         expect(sourceEndpoint(URL_DESCRIPTOR, { url })).toBe(url);
         expect(sourceEndpoint(URL_DESCRIPTOR, {})).toBeNull();
         expect(sourceEndpoint({ plainName: "x", params: [], defaultEndpoint: HOST }, {})).toBe(HOST);
+    });
+
+    it("names a load by its address's last path segment, decoded", () => {
+        expect(sourceFileName(URL_DESCRIPTOR, { url: `${HOST}/data/my%20graph.csv?v=2` })).toBe("my graph.csv");
+        expect(sourceFileName(URL_DESCRIPTOR, { url: `${HOST}/bad%E0.csv` })).toBe("bad%E0.csv");
+        expect(sourceFileName(URL_DESCRIPTOR, { url: `${HOST}/` })).toBeUndefined();
+        expect(sourceFileName(URL_DESCRIPTOR, { url: "not a url" })).toBeUndefined();
+        expect(sourceFileName({ plainName: "x", params: [] }, { url: `${HOST}/a.csv` })).toBeUndefined();
     });
 });

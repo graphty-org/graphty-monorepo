@@ -129,7 +129,7 @@ export {
     type StorableCredential,
     storableCredential,
 } from "./sources/credentials.js";
-export { defineSource, sourceEndpoint } from "./sources/define.js";
+export { defineSource, sourceEndpoint, sourceFileName } from "./sources/define.js";
 export {
     CYPHER_SOURCE_ID,
     NDEX_SOURCE_ID,

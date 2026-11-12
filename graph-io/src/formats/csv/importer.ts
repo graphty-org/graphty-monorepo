@@ -74,8 +74,8 @@ import {
     type CsvColumnRef,
     EDGE_ID_NAMES,
     findColumn,
+    findIdColumn,
     headerNames,
-    ID_NAMES,
     LABEL_NAMES,
     looksLikeHeader,
     positionalNames,
@@ -154,7 +154,8 @@ export interface CsvImportOptions extends CommonImportOptions {
     typeColumn?: CsvColumnRef | null | undefined;
     /**
      * The id column of a node table, by name or position. The default is the column the header
-     * names `id` (or `node`, `name`, `key`).
+     * names `id` or `node`, else the first column when its name ends in `id` (`person_id`), else
+     * `name` or `key`.
      * @defaultValue from the header
      */
     idColumn?: CsvColumnRef | undefined;
@@ -1197,7 +1198,7 @@ class TableReader {
                 { columns: [...names] },
             );
         }
-        const idResolves = header ? findColumn(names, ID_NAMES) >= 0 : names.length >= 1;
+        const idResolves = header ? findIdColumn(names) >= 0 : names.length >= 1;
         if (this.kind === "auto" && csv.idColumn === null && !idResolves && !this.rowNumbers) {
             report.fail(
                 NO_ENDPOINT_COLUMNS_CODE,
@@ -1470,7 +1471,7 @@ class TableReader {
             return resolveColumnRef(names, idColumn, "idColumn");
         }
         if (header) {
-            return findColumn(names, ID_NAMES);
+            return findIdColumn(names);
         }
         return names.length >= 1 ? 0 : -1;
     }
@@ -2125,7 +2126,7 @@ function sniff(head: Uint8Array): number {
         return 0.9;
     }
     // a space-split row naming an id is as likely a line of text ("1 First node") as a header
-    if (delimiter !== " " && findColumn(names, ID_NAMES) >= 0) {
+    if (delimiter !== " " && findIdColumn(names) >= 0) {
         return 0.6;
     }
     if (delimiter === " " && names.length > 3) {

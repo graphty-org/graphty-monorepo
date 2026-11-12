@@ -1,3 +1,23 @@
+## 0.0.36 (2026-11-12)
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** find the large-graph stories under Gallery/Large graphs ([c2a678d343](https://github.com/graphty-org/graphty-monorepo/commit/c2a678d343))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.69
+- Updated graph-samples to 0.1.47
+- Updated visual-review to 0.2.43
+- Updated graph-format to 1.5.2
+- Updated algorithms to 3.4.22
+- Updated graph-io to 0.3.56
+- Updated layout to 2.7.1
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
 ## 0.0.35 (2026-11-10)
 
 ### 🚀 Features

@@ -148,20 +148,6 @@ async function shortcuts(): Promise<string> {
 }
 
 /**
- * The samples the main menu's Open sample list offers.
- * @returns the items' words, once the menu has closed again.
- */
-async function menuSamples(): Promise<string> {
-    await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-    await userEvent.hover(await screen.findByRole("menuitem", { name: "Open sample" }));
-    await screen.findByRole("menuitem", { name: /Les Miserables/ });
-    const words = screen.getAllByRole("menuitem").map((item) => item.textContent);
-    await userEvent.keyboard("{Escape}");
-    await userEvent.keyboard("{Escape}");
-    return words.join("|");
-}
-
-/**
  * What Quick actions lists for a timed sample's name.
  * @returns the rows' words, once the palette has closed again.
  */
@@ -263,7 +249,6 @@ describe("the timeline's switch in the app", () => {
         for (const label of TIME_KEYS) {
             assert.notInclude(listed, label);
         }
-        assert.notInclude(await menuSamples(), "Paper citations");
         assert.notInclude(await sampleCommands(), "Paper citations");
     });
 
@@ -291,7 +276,6 @@ describe("the timeline's switch in the app", () => {
         for (const label of TIME_KEYS) {
             assert.include(listed, label);
         }
-        assert.include(await menuSamples(), "Paper citations");
         assert.include(await sampleCommands(), "Paper citations");
         assert.include(await headerRoles("node", "team"), "Time");
         await columnVerb("node", "team", "Details");

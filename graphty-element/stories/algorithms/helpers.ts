@@ -122,7 +122,10 @@ export const createAlgorithmStory = (
             runAlgorithmsOnLoad: true,
         },
         play: async ({ canvasElement }) => {
-            // Wait for the graph to fully settle before applying algorithm styles
+            // The algorithm's colours do NOT wait for this: the load-time run paints as soon as it
+            // finishes, while the layout is still moving (test/browser/algorithms-on-load-options
+            // pins it). This wait is the story's own, so the reader's layers and the re-applied
+            // suggestion below land on a settled picture the assertions can read (issue #35).
             await waitForGraphSettled(canvasElement);
 
             // Get the graphty-element

@@ -416,6 +416,39 @@ describe("a saved project with source loads", () => {
         });
     });
 
+    it("never runs a saved load on a local address on the policy alone, only on the reader's allow", async () => {
+        const local = "http://127.0.0.1:7474";
+        const localFetch = (): ReturnType<typeof replayFetch> =>
+            replayFetch(peopleRecordings.map((each) => ({ ...each, url: each.url.replace(ENDPOINT, local) })));
+        let text = "";
+        await withSession(async (session) => {
+            await session.data.import(
+                { source: "people-load", config: { team: "core" } },
+                { endpoint: local, fetch: localFetch() },
+            );
+            ({ text } = await session.project.save());
+        });
+
+        await withSession(async (session) => {
+            await session.project.open(text);
+            const fetch = localFetch();
+            vi.stubGlobal("fetch", fetch);
+            try {
+                session.network.setPolicy("allow");
+                session.network.setProjectHosts(() => ["127.0.0.1:7474"]);
+                const [request] = session.network.pending();
+                assert.strictEqual(request.params.host, "127.0.0.1:7474", "still asked about");
+                assert.lengthOf(session.data.pendingSourceLoads(), 1);
+
+                await session.network.allow(request.params.id);
+                assert.strictEqual(fetch.calls.length, 1, "the reader's allow runs it");
+                assert.deepEqual(session.network.pending(), []);
+            } finally {
+                vi.unstubAllGlobals();
+            }
+        });
+    });
+
     it("forgets the load records when the graph is cleared", async () => {
         await withSession(async (session) => {
             await session.data.import(

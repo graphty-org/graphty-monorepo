@@ -196,30 +196,72 @@ export function measureEnvelope(
     scalingFactor: number,
     held: ((row: number) => boolean) | null = null,
 ): LayoutEnvelope {
-    let placed = 0;
-    let cx = 0;
-    let cy = 0;
-    let cz = 0;
+    // ONE LOOP PER FUNCTION, ITS SUMS KEPT IN A TYPED ARRAY. This runs once a publish, so V8 optimizes
+    // it on the stack mid-loop (OSR), and code after a loop that had not yet run when it was compiled
+    // threw that code away again, every call: the rest of the walk then ran unoptimized, boxing a heap
+    // number per coordinate, about 300 KB of garbage a publish at 100,000 rows (issue #6389).
+    sumPlaced(positions, nodeCount, held, ENVELOPE_SUMS);
+    const placed = ENVELOPE_SUMS[0];
+    if (placed === 0) {
+        return { scale: 1, centre: [0, 0, 0], placed };
+    }
+
+    const cx = ENVELOPE_SUMS[1] / placed;
+    const cy = ENVELOPE_SUMS[2] / placed;
+    const cz = ENVELOPE_SUMS[3] / placed;
+    const radius = Math.sqrt(furthestSquared(positions, nodeCount, held, cx, cy, cz));
+    return { scale: radius > POINT_RADIUS ? scalingFactor / radius : 1, centre: [cx, cy, cz], placed };
+}
+
+/** The count and coordinate sums {@link sumPlaced} writes: placed, x, y, z. */
+const ENVELOPE_SUMS = new Float64Array(4);
+
+/**
+ * Count and sum the finite rows not held, into `out` (placed, x, y, z), accumulated in place so no
+ * code runs after the loop.
+ * @param positions - A stride-3 array.
+ * @param nodeCount - How many rows of it.
+ * @param held - Answers true for a row to leave out, or null.
+ * @param out - Where the sums go.
+ */
+function sumPlaced(
+    positions: ArrayLike<number>,
+    nodeCount: number,
+    held: ((row: number) => boolean) | null,
+    out: Float64Array,
+): void {
+    out.fill(0);
     for (let row = 0; row < nodeCount; row += 1) {
         const x = positions[3 * row];
         const y = positions[3 * row + 1];
         const z = positions[3 * row + 2];
         if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z) && held?.(row) !== true) {
-            placed += 1;
-            cx += x;
-            cy += y;
-            cz += z;
+            out[0] += 1;
+            out[1] += x;
+            out[2] += y;
+            out[3] += z;
         }
     }
+}
 
-    if (placed === 0) {
-        return { scale: 1, centre: [0, 0, 0], placed };
-    }
-
-    cx /= placed;
-    cy /= placed;
-    cz /= placed;
-
+/**
+ * The largest squared distance of a row not held from a centre.
+ * @param positions - A stride-3 array.
+ * @param nodeCount - How many rows of it.
+ * @param held - Answers true for a row to leave out, or null.
+ * @param cx - The centre's x.
+ * @param cy - The centre's y.
+ * @param cz - The centre's z.
+ * @returns The squared distance, 0 for none.
+ */
+function furthestSquared(
+    positions: ArrayLike<number>,
+    nodeCount: number,
+    held: ((row: number) => boolean) | null,
+    cx: number,
+    cy: number,
+    cz: number,
+): number {
     let furthest = 0;
     for (let row = 0; row < nodeCount; row += 1) {
         if (held?.(row) === true) {
@@ -235,8 +277,7 @@ export function measureEnvelope(
         }
     }
 
-    const radius = Math.sqrt(furthest);
-    return { scale: radius > POINT_RADIUS ? scalingFactor / radius : 1, centre: [cx, cy, cz], placed };
+    return furthest;
 }
 
 /**
@@ -405,6 +446,20 @@ interface DrawnTransform {
 }
 
 /**
+ * Whether two drawn transforms are the same map.
+ * @param a - One.
+ * @param b - The other.
+ * @returns True when every number matches.
+ */
+function sameTransform(a: DrawnTransform, b: DrawnTransform): boolean {
+    return (
+        a.scale === b.scale &&
+        a.center.every((v, i) => v === b.center[i]) &&
+        a.target.every((v, i) => v === b.target[i])
+    );
+}
+
+/**
  * What an accelerated simulation offers to fill the row table on the card
  * (design/rendering/row-renderer.md 4.5); optional members of the GPU package's simulation.
  */
@@ -448,6 +503,15 @@ interface DrawnRun {
     readonly told: Map<number, number>;
     /** The mirror this run gave the table, which only this run takes back. */
     readonly mirror: (row: number, x: number, y: number, z: number, w: number) => void;
+    /** Whether a landing of this run has been published, so the transforms sent since were measured over one. */
+    stepped: boolean;
+    /**
+     * The transforms sent before that, measured over the coordinates the run was loaded with (each distinct one
+     * once; they change only when a landing does). A batch drawn with one is no picture of the graph: a seeded
+     * ForceAtlas2 spreads some 3,000 times over in its first batches, so its first landing drawn this way stood
+     * some 2,000 times the size of the next (#6584). Such a landing goes up by upload.
+     */
+    readonly unstepped: DrawnTransform[];
 }
 
 /**
@@ -1300,10 +1364,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // texture the ring is copied into hold the same rows; the envelope measured now is the next batches'.
         const drawn = this.#drawnRun();
         const landed = drawn?.simulation.landedDrawn ?? null;
-        const viaCard =
-            landed !== null && drawn?.suspended === false && !(this.#simulation?.settled ?? true)
-                ? (drawn?.simulation.landedDrawnTransform ?? null)
-                : null;
+        const viaCard = drawn === null || landed === null ? null : this.#cardTransform(drawn);
         this.#fitEnvelope(snapshot, simPositions);
 
         const scale = viaCard?.scale ?? this.#envelopeScale;
@@ -1351,8 +1412,25 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // A pinned or dragged row was left out of the publish above; it is still drawn, where it is kept.
         this.keepInPublishedBox(first, this.#fixedRows);
         if (drawn !== null) {
+            drawn.stepped ||= landed !== null;
             this.#publishDrawn(drawn, viaCard === null ? null : landed);
         }
+    }
+
+    /**
+     * The transform a landed batch drew with, when its copy may stand for the landing: not while a
+     * transition draws the rows or the simulation is at rest, and not when the batch drew with the
+     * transform measured before the run stepped.
+     * @param run - The run, with a landing.
+     * @returns The transform, or null to publish the landing by upload.
+     */
+    #cardTransform(run: DrawnRun): DrawnTransform | null {
+        const batch = run.simulation.landedDrawnTransform ?? null;
+        if (batch === null || run.suspended || (this.#simulation?.settled ?? true)) {
+            return null;
+        }
+
+        return run.unstepped.some((seed) => sameTransform(batch, seed)) ? null : batch;
     }
 
     /**
@@ -1392,6 +1470,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
             skip: new Uint32Array(Math.ceil(nodeCount / 32)),
             suspended: false,
             told: new Map(),
+            stepped: false,
+            unstepped: [],
             mirror: (row, x, y, z, w): void => {
                 if (this.#drawn === run && row < nodeCount) {
                     drawn.writeDrawn(row, x, y, z, w);
@@ -1500,6 +1580,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
             target: [this.#targetCentre[0], this.#targetCentre[1], this.#targetCentre[2]],
         };
         run.simulation.setDrawnTransform(transform);
+        const last = run.unstepped.at(-1);
+        if (!run.stepped && (last === undefined || !sameTransform(last, transform))) {
+            run.unstepped.push(transform);
+        }
     }
 
     /**

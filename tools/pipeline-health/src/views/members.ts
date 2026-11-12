@@ -18,6 +18,7 @@ import type {
     Value,
     WordValue,
 } from "../../web/src/contract.js";
+import { type BenchItem, readBenches } from "../model/benchmarks.js";
 import { type Bucket, DAY, floorTo, HOUR, type IssueItem, ISSUES_PK, MIN, type Step, STEP_MS } from "../model/items.js";
 import { loadSeries, type MetricWindow, type WindowName, windowValue } from "../model/rollup.js";
 import { type PrStockPrs, readSnapshot } from "../model/snapshots.js";
@@ -291,6 +292,14 @@ export class Reads {
     }
 
     /**
+     * Every live benchmark, read once: the CI page's three ranges share one read of the partition (#6813).
+     * @returns the live benchmark items
+     */
+    benches(): Promise<BenchItem[]> {
+        return this.once("benches", () => readBenches(this.store, this.now));
+    }
+
+    /**
      * The pull requests behind the PR stocks, as the collector last wrote them.
      * @returns the snapshot, or undefined before the collector wrote one
      */
@@ -535,6 +544,11 @@ async function noteOf(reads: Reads, s: MemberStatus): Promise<Fact | undefined> 
     if (s.id === "ci.chronic_jobs") {
         const n = s.facts?.["ci.chronic_no_issue"];
         return n ? f("note.chronic_no_issue", { n }) : undefined;
+    }
+    if (s.id === "flaky.net_new") {
+        const added = s.facts?.["flaky.net_added"];
+        const resolved = s.facts?.["flaky.net_resolved"];
+        return added === undefined || resolved === undefined ? undefined : f("flaky.net_new.note", { added, resolved });
     }
     if (!s.value || !["pr.oldest_open", "pr.automerge_green_stuck", "pr.automerge_armed_long"].includes(s.id)) {
         return undefined;

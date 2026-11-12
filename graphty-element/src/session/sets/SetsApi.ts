@@ -40,6 +40,7 @@ import type {
 } from "../../catalog/types";
 import { canonicalEdgeEnds, edgeCounterOf, stableEdgeMember } from "../../data/edgeIdentity";
 import { readEndpoint } from "../../data/endpoints";
+import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { quoteEach } from "../../utils/quote-each";
 import type { MintedSetCreateCommand, SetCommand, SetService } from "../commands/sets";
@@ -98,6 +99,12 @@ interface SetsDependencies {
     readonly pairsOrdered?: () => boolean;
     /** The most edge members one member edit may touch. */
     readonly maxEdgeMembers?: number;
+    /**
+     * Whether the graph holds a node under exactly this id. A member edit naming an integer node
+     * in its other spelling edits the member the set holds, unless the graph holds both spellings
+     * as two nodes (`data/nodeIdSpelling.ts`). Absent: the graph never holds both.
+     */
+    readonly hasNode?: (id: NodeId) => boolean;
     /**
      * Where the references a rule makes are looked up (kept sets, saved scopes, the visibility
      * filter), so a write that would make a cycle is refused. Absent: the kept sets alone.
@@ -343,6 +350,45 @@ export function createSetsApi(
 
             return stable(ref);
         };
+
+    /**
+     * A member edit's nodes under the one id-spelling rule (`data/nodeIdSpelling.ts`): a node named
+     * in the other spelling of an integer id is the same node unless the graph holds both spellings
+     * as two nodes, when the exact id wins. An add of a node the set already holds, or the edit
+     * already adds, in the other spelling is dropped; a remove names both spellings, so the member and the edge members
+     * touching it go whichever spelling the set stored.
+     * @param id - The set.
+     * @param nodes - The nodes as the caller named them.
+     * @param removing - Whether the nodes are being removed.
+     * @returns The nodes to hand the edit.
+     */
+    const spelledAsHeld = (id: SetId, nodes: readonly NodeId[], removing: boolean): NodeId[] => {
+        const definition = store.get(id)?.definition;
+        const held = definition?.kind === "fixed" ? definition.nodes : [];
+        const hasNode = dependencies.hasNode ?? (() => false);
+        const added = new Set<NodeId>();
+
+        return nodes.flatMap((node) => {
+            const other = otherIdSpelling(node);
+            if (other === undefined || (hasNode(node) && hasNode(other))) {
+                return [node];
+            }
+
+            if (removing) {
+                return [node, other];
+            }
+
+            if (held.includes(other) || added.has(other)) {
+                return [];
+            }
+
+            added.add(node);
+            return [node];
+        });
+    };
+
+    const spelledDelta = (id: SetId, delta: SetMemberDelta, removing: boolean): SetMemberDelta =>
+        delta.nodes === undefined ? delta : { ...delta, nodes: spelledAsHeld(id, delta.nodes, removing) };
 
     const references: DependencySources = dependencies.dependencies ?? { referent: (id) => store.get(id)?.definition };
 
@@ -860,10 +906,17 @@ export function createSetsApi(
                     store,
                     {
                         id: command.id,
-                        ...(command.add === undefined ? {} : { add: stableDelta(command.add) }),
+                        ...(command.add === undefined
+                            ? {}
+                            : { add: stableDelta(spelledDelta(command.id, command.add, false)) }),
                         ...(command.remove === undefined
                             ? {}
-                            : { remove: stableDelta(command.remove, removable(command.id)) }),
+                            : {
+                                  remove: stableDelta(
+                                      spelledDelta(command.id, command.remove, true),
+                                      removable(command.id),
+                                  ),
+                              }),
                     },
                     limit,
                 ),

@@ -661,7 +661,7 @@ export interface GraphtyElementJSXProps {
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
     "onlifecycle-initialized"?: (event: CustomEvent<EventOfType<"lifecycle-initialized">>) => void;
     /**
-     * Emitted when the `limits` the element was given are not in force: under `render-path="objects"` the shipped ceilings stand (`W_LIMITS_IGNORED`, `params.renderPath`). A code and its parameters, never a sentence.
+     * Emitted when the `limits` the element was given are not in force: under `render-path="objects"` the shipped ceilings stand (`W_LIMITS_IGNORED`, `params.renderPath`); or when more rows ask to be objects than `objectRows` or `objectEdges` allows, so the rest are drawn plain (`W_OBJECT_CAP`, `params.of`, `params.wanted`, `params.cap`). A code and its parameters, never a sentence.
      */
     "onlimits-warning"?: (event: CustomEvent<EventOfType<"limits-warning">>) => void;
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;

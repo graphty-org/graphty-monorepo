@@ -2553,6 +2553,14 @@ export type GraphtyWarningCode =
 */
 | "W_LIMITS_IGNORED"
 /**
+* More rows ask to be drawn as objects of their own (a look no batch draws, such as a border)
+* than `limits.objectRows` allows, on `render-path="batched"`: the rows past it are drawn as
+* plain bodies and plain lines. `params.of` is `"nodes"` or `"edges"`, `params.wanted` how
+* many asked, `params.cap` the budget.
+* @experimental cosmograph
+*/
+| "W_OBJECT_CAP"
+/**
 * A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
 * which draws no text. `params.channel` is the channel, `params.path` where in the layer the
 * size sits, and `params.value` the size.
@@ -3293,12 +3301,14 @@ export interface Limits {
     edgesDrawn: number;
     graphMemoryBudgetBytes: number;
     largeGraphThreshold: number;
+    objectEdges: number;
+    objectRows: number;
     renderCeiling: number;
     selectionCap: number;
 }
 
 // @public
-export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn">>;
+export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn" | "objectRows" | "objectEdges">>;
 
 // @public
 export function listAutosaves(key: string, options?: AutosaveLookupOptions): Promise<readonly AutosaveEntry[]>;

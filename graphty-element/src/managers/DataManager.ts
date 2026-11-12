@@ -368,6 +368,10 @@ export const dataManagerInternals = {} as {
      * of design/rendering/row-renderer.md drives toward zero under `"batched"`.
      */
     edgesBuilt(manager: DataManager): number;
+    /** How many `Node`s exist now: built and not yet removed or cleared (what `limits.objectRows` caps). */
+    nodesLive(manager: DataManager): number;
+    /** How many `Edge`s exist now: built and not yet removed or cleared (what `limits.objectEdges` caps). */
+    edgesLive(manager: DataManager): number;
     /** The `Edge`s built so far by id, building none: what a check of the drawn edges walks. */
     builtEdges(manager: DataManager): ReadonlyMap<string, Edge>;
     /** A stored node id's row in the store, read with no `Node`; `INVALID_INDEX` for an id it does not hold. */
@@ -661,6 +665,8 @@ export class DataManager implements Manager {
     static {
         dataManagerInternals.nodesBuilt = (manager) => manager.builtNodes;
         dataManagerInternals.edgesBuilt = (manager) => manager.builtEdges;
+        dataManagerInternals.nodesLive = (manager) => manager.nodeMap.builtView().size;
+        dataManagerInternals.edgesLive = (manager) => manager.edgeMap.builtView().size;
         dataManagerInternals.builtEdges = (manager) => manager.edgeMap.builtView();
         dataManagerInternals.rowOf = (manager, id) => manager.store.builder.indexOf(id);
         dataManagerInternals.builtNodes = (manager) => manager.nodeMap.built();
@@ -898,7 +904,16 @@ export class DataManager implements Manager {
      * sets it from its render path and `limits`. Unset, a load meets the shipped defaults.
      * @internal
      */
-    renderLimits: { ceilings(): Readonly<Ceilings> | undefined; batched(): boolean } | null = null;
+    renderLimits: {
+        ceilings(): Readonly<Ceilings> | undefined;
+        batched(): boolean;
+        /** The most rows drawn as a `Node` of their own (`limits.objectRows`). */
+        objectRows?(): number;
+        /** The most edge rows drawn as an `Edge` of their own (`limits.objectEdges`). */
+        objectEdges?(): number;
+        /** Rows past a budget are drawn plain: `wanted` rows asked for an object, `cap` were given one. */
+        objectCap?(of: "nodes" | "edges", wanted: number, cap: number): void;
+    } | null = null;
 
     /**
      * The graph primitives every write goes through. A data manager on its own has nothing to

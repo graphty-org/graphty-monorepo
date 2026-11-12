@@ -8,7 +8,7 @@
  */
 
 import type { JsonlWriter } from "./jsonl-writer.js";
-import { extractMarkerFromSessionId } from "./marker-utils.js";
+import { assertSafeMarker, extractMarkerFromSessionId } from "./marker-utils.js";
 import { parseIntegerSetting } from "./parse-integer.js";
 
 /**
@@ -293,12 +293,15 @@ export class LogStorage {
      * @param sessionId - Unique identifier for the session
      * @param logs - Array of log entries to add
      * @param options - Additional options (projectMarker, worktreePath, pageUrl)
+     * @throws {Error} If the project marker could name a path outside the log directory
      */
     addLogs(sessionId: string, logs: LogEntry[], options: AddLogsOptions = {}): void {
         let sessionData = this.sessions.get(sessionId);
 
         // Determine project marker for new sessions
         const projectMarker = options.projectMarker || extractMarkerFromSessionId(sessionId);
+        // Refuse before storing anything: the marker becomes a directory name for the JSONL file
+        assertSafeMarker(projectMarker);
 
         if (!sessionData) {
             // Create new session

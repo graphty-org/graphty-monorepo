@@ -41,7 +41,7 @@ import { loadLineOf, supersededError } from "../session/loadLine";
 import type { SessionCommand } from "../session/planning";
 import type { Dispatcher, UndoableContext } from "../session/project/Dispatcher";
 import type { Draft } from "../session/project/draft";
-import { GraphOps, type GraphWriter } from "../session/project/graphOps";
+import { forEachEdgeOfKey, GraphOps, type GraphWriter } from "../session/project/graphOps";
 import {
     type AddEdgesOptions,
     type Ceilings,
@@ -1355,6 +1355,9 @@ export class DataManager implements Manager {
         const doomed = new Set<NodeIdType>();
         const moves: UnbuiltMove[] = [];
         for (const key of dirty) {
+            // A forward batched add's range key (`e+:`) is skipped: its edges were drawn as they were
+            // ingested, and undo, redo, restore and rollback touch each edge they move by its own
+            // `e:` key (cosmos-gap.md G4).
             if (key.startsWith("e:")) {
                 edgeKeys.push(key.slice(2));
             } else if (key.startsWith("n:")) {
@@ -2416,6 +2419,10 @@ export class DataManager implements Manager {
         } else {
             for (const key of [...dirty, ...this.lateKeysPainting]) {
                 this.unpainted.delete(key);
+                // A batched add's range key names its edges' per-edge keys (cosmos-gap.md G4).
+                if (key.startsWith("e+:") && this.unpainted.size > 0) {
+                    forEachEdgeOfKey(key, (id) => this.unpainted.delete(`e:${id}`));
+                }
             }
         }
 

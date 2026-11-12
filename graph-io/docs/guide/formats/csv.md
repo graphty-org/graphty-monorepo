@@ -153,7 +153,8 @@ Dev
 - The delimiter is detected from the first rows (`,`, tab, `;`, `|` or space) unless you pass
   `delimiter`. Excel's `sep=;` first line is understood. A space delimiter reads the format of SNAP
   and KONECT files: runs of spaces and tabs are one separator.
-- The first row is a header when it names known columns or is all text above a row of numbers
+- The first row is a header when it names known columns, has a name ending in id (`person_id`,
+  `personId`), or is all text above a row of numbers
   (`header` overrides this). The column names decide what each column is; the next section lists
   every name graph-io recognizes. A header whose names it does not recognize (`s,t,weight`) fails
   with `E_CSV_NO_ENDPOINT_COLUMNS`: pass `sourceColumn` and `targetColumn` to name the columns.
@@ -175,7 +176,9 @@ Dev
 - Lines starting with `#` or `%` before the first row are comments.
 - The `nodes` option takes a node table to read alongside the edge list (a string, bytes, a stream,
   or a `File` or `Blob`); its ids become nodes and its other columns node attributes. A node table
-  on its own is read when the header has an id column but no source and target.
+  on its own is read when the header has no source and target but has an `id`, `node`, `name` or
+  `key` column, or a column ending in id whose values are distinct and appear in no other column
+  (an edge list headed `user_id,friend_id` names the same ids in both columns, and fails).
 - `header` and `delimiter` apply to both tables, the input and the `nodes` table. A node table whose
   shape differs (an edge list without a header next to a node table with one) cannot be read in one
   call: load the node table yourself, or add the missing header line to the edge list first. With

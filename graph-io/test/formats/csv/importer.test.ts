@@ -899,6 +899,14 @@ describe("csvImporter: node tables", () => {
         expect((await failure("user_id,friend_id\nu1,u2\nu2,u3\n", { header: true })).report.issues[0].code).toBe(
             NO_ENDPOINT_COLUMNS_CODE,
         );
+        // a header of *_id names over text rows is a header, and a column of its own distinct ids
+        // keys the table (door_entries.csv); entry ids appear in no other column
+        const doors = await load(
+            "entry_id,person_id,badge_id,time,door\nE1,,B-1,2026-10-01 07:58,north\nE2,P45,B-2,2026-10-01 08:19,north\n",
+            {},
+        );
+        expect(doors.snapshot.ids.toArray()).toEqual(["E1", "E2"]);
+        expect(doors.report.resolved).toEqual({ idColumn: "entry_id" });
         // an explicit idColumn is never second-guessed
         const explicit = await load("person_id,name\nP1,A\nP2,A\n", { table: "nodes", idColumn: "name" });
         expect(explicit.snapshot.ids.toArray()).toEqual(["A"]);

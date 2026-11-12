@@ -40,6 +40,16 @@ import { LEAN_TEMPLATE, PulledLineBatch } from "./PulledLineBatch";
 import type { WaveShape } from "./shapeOutlines";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
+/**
+ * A style's `line.width` in world units. The one conversion every line renderer is handed its
+ * width through, so the same width draws the same thickness whatever draws the line.
+ * @param width - The style's `line.width`.
+ * @returns The line's thickness in world units.
+ */
+export function lineWidthInWorldUnits(width: number): number {
+    return width / EDGE_CONSTANTS.LINE_WIDTH_PER_WORLD_UNIT;
+}
+
 /** The line types drawn as a run of pattern elements rather than as one line. */
 /** The animated edge lines of each scene, behind one before-render observer; see {@link FrameRoster}. */
 export const animatedEdgeFrames = new FrameRoster();
@@ -200,12 +210,6 @@ export class EdgeMesh {
     /** How far a self-loop stays outside a node too big for {@link EdgeMesh.SELF_LOOP_RADIUS}. */
     static readonly SELF_LOOP_CLEARANCE = 0.5;
     private static shadersRegistered = false;
-
-    /**
-     * Feature flag: Use custom line renderer instead of GreasedLine
-     * Set to true to test the new custom rendering system
-     */
-    private static readonly USE_CUSTOM_RENDERER = true;
 
     private static _registerShaders(): void {
         if (this.shadersRegistered) {
@@ -381,7 +385,7 @@ void main() {
             new Vector3(0, 0, 0.5), // Placeholder end (Edge.update() will set real positions)
             scene,
             {
-                width: options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
+                width: lineWidthInWorldUnits(options.width),
                 color: options.color,
                 opacity: this.opacityOf(style),
                 is2DMode: this.is2DMode(scene), // Pass 2D mode detection flag
@@ -404,7 +408,7 @@ void main() {
         }
 
         // world units per unit of line width, as createPatternedLine converts the width
-        const perWidth = 1 / 40;
+        const perWidth = lineWidthInWorldUnits(1);
         const period = style.line?.wavePeriod || 4 * amplitude;
         return period > 0 ? { amplitude: amplitude * perWidth, period: period * perWidth } : undefined;
     }
@@ -563,7 +567,7 @@ void main() {
         // edge is as thick as the straight one beside it.
         if (lineType === "dash" || lineType === "dot") {
             const is2D = this.is2DMode(scene);
-            const width = options.width / 40;
+            const width = lineWidthInWorldUnits(options.width);
             return cache.getBatch(
                 `${key}-joined${is2D ? "-2d" : ""}`,
                 made(() =>
@@ -596,7 +600,7 @@ void main() {
                 `${key}-2d`,
                 made(() =>
                     Simple2DLineRenderer.createBatchMesh(
-                        options.width / 40, // Convert back from scaled width to match 3D line thickness
+                        lineWidthInWorldUnits(options.width),
                         options.color,
                         this.opacityOf(style),
                         scene,
@@ -733,7 +737,7 @@ void main() {
     private static createFlatPulledLine(options: EdgeMeshOptions, style: EdgeStyleConfig, scene: Scene): Mesh {
         return CustomLineRenderer.createJoinedLineMesh(
             {
-                width: options.width / 40,
+                width: lineWidthInWorldUnits(options.width),
                 color: options.color,
                 opacity: this.opacityOf(style),
                 worldWidth: true,
@@ -1080,48 +1084,25 @@ void main() {
         widened = false,
         pulled: boolean | "curve" | "lean" = false,
     ): Mesh {
-        // Use custom line renderer if flag is enabled
-
-        if (this.USE_CUSTOM_RENDERER || widened) {
-            // A joined line: a straight edge is one piece with square ends, as it always was; a
-            // curve's or a bent edge's pieces meet at their corners (design/edges/sharp-corners.md).
-            return CustomLineRenderer.createJoinedLineMesh(
-                {
-                    width: options.width * 20, // Scale factor to match GreasedLine sizing
-                    color: options.color,
-                    opacity: this.opacityOf(style),
-                    widened,
-                    minScreenWidth: style.line?.minScreenWidth,
-                    fade: widened ? this.fadeOf(style) : undefined,
-                    opaque: this.drawsOpaque(style),
-                    pulled: pulled !== false,
-                    pulledCurve: pulled === "curve",
-                    pulledLean: pulled === "lean",
-                },
-                scene,
-            );
-        }
-
-        // Fallback to GreasedLine
-        const mesh = CreateGreasedLine(
-            "edge-plain",
+        // A joined line: a straight edge is one piece with square ends; a curve's or a bent edge's
+        // pieces meet at their corners (design/edges/sharp-corners.md). Its width is in world units,
+        // as every edge renderer's is.
+        return CustomLineRenderer.createJoinedLineMesh(
             {
-                points: this.UNIT_VECTOR_POINTS,
-            },
-            {
-                color: Color3.FromHexString(options.color),
-                width: options.width,
+                width: lineWidthInWorldUnits(options.width),
+                color: options.color,
+                opacity: this.opacityOf(style),
+                worldWidth: true,
+                widened,
+                minScreenWidth: style.line?.minScreenWidth,
+                fade: widened ? this.fadeOf(style) : undefined,
+                opaque: this.drawsOpaque(style),
+                pulled: pulled !== false,
+                pulledCurve: pulled === "curve",
+                pulledLean: pulled === "lean",
             },
             scene,
         );
-        this.followResolution(mesh);
-
-        // Apply opacity if specified
-        if (style.line?.opacity !== undefined) {
-            mesh.visibility = style.line.opacity;
-        }
-
-        return mesh;
     }
 
     /**
@@ -1151,16 +1132,10 @@ void main() {
                 points: this.UNIT_VECTOR_POINTS,
             },
             {
-                // IN SCENE UNITS, WHICH IS NOT THE UNIT THE STYLE'S WIDTH IS IN. A greased line
-                // takes its width in world space, and the element's `edge.width` is a screen-space
-                // pixel width -- `CustomLineRenderer` multiplies it by 20 and expands the line by
-                // that many pixels in the vertex shader. Handing the pixel number straight over
-                // drew the element's own width of 8 as a ribbon eight scene units thick, which on
-                // a graph ten units across is a band taller than the graph. `/ 40` is the
-                // conversion the other two world-space renderers already use for exactly this --
-                // see `Simple2DLineRenderer` and `PatternedLineRenderer`, both of which call it
-                // "convert back from scaled width to match 3D line thickness".
-                width: options.width / 40,
+                // A greased line takes its width in world units, as every other line renderer
+                // does. Handing it the style's number unconverted drew the element's own width of
+                // 8 as a ribbon eight units thick, a band taller than a graph ten units across.
+                width: lineWidthInWorldUnits(options.width),
                 colorMode: GreasedLineMeshColorMode.COLOR_MODE_MULTIPLY,
                 // Babylon otherwise binds one colours texture shared by every engine on the page
                 // and disposed with whichever engine goes first. WebGL tolerates the stale

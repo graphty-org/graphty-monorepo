@@ -726,12 +726,18 @@ algorithm class with no descriptor, a command named like a built-in tool.
 restores itself after a reload: a new manager finds the keys an earlier page saved and turns
 remembering back on, so the host only enables, disables and sets keys.
 
+Saved keys are encrypted with the browser's Web Crypto (AES-GCM), which is asynchronous: keys in
+memory change at once and the saved copy follows. `ready()` resolves once everything started so
+far is stored, including the restore a new manager starts, so read restored keys after it.
+`Graph.createApiKeyManager()` and `enableAiControl()` wait for it for you.
+
 ```typescript
 import { ApiKeyManager } from "@graphty/graphty-element/ai";
 
-const keys = new ApiKeyManager(); // restores keys saved by an earlier page
+const keys = new ApiKeyManager();
+await keys.ready(); // keys saved by an earlier page are back
 
-keys.enablePersistence(); // save keys in localStorage, obscured (see below), from now on
+await keys.enablePersistence(); // save keys in localStorage, obscured (see below), from now on
 keys.setKey("anthropic", apiKey);
 keys.setDefaultProvider("anthropic"); // saved with the keys
 
@@ -739,8 +745,12 @@ const provider = keys.getDefaultProvider() ?? keys.getConfiguredProviders()[0];
 
 keys.disablePersistence(); // forget them on the next load (they stay in memory)
 
-keys.forgetKey("anthropic"); // out of memory and both storages, wherever it was kept (experimental)
+await keys.forgetKey("anthropic"); // out of memory and both storages, wherever it was kept (experimental)
 ```
+
+Keys saved by graphty-element before Web Crypto (with the `encrypt-storage` package) cannot be
+read: the manager leaves them in storage, starts without them, and the first save replaces them,
+so the reader enters each key once more.
 
 With no argument, `enablePersistence()` uses a built-in key, and that key is public in the
 package's source. **Keys saved that way are obscured, not encrypted**: they are not in plain

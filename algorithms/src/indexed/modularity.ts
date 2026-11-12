@@ -1,9 +1,10 @@
 import { type AdjacencyView, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
 
 import { withCode } from "../errors.js";
+import type { WeightedOptions } from "./weights.js";
 
 /** Options of the index-based modularity. @public */
-export interface ModularityOptions {
+export interface ModularityOptions extends WeightedOptions {
     /** Resolution gamma: above 1 favours smaller communities; default 1. */
     readonly resolution?: number | undefined;
     /** Per-arc weight override, arcCount long -- the facade passes `expandEdges(s, shadow.data)`. */
@@ -106,7 +107,7 @@ function addRow(s: AdjacencyView, labels: U32, weights: NumericVector | null, u:
  */
 export function modularity(s: AdjacencyView, labels: U32, options: ModularityOptions = {}): number {
     const resolution = options.resolution ?? 1;
-    const weights = options.weights ?? s.weights;
+    const weights = options.weighted === false ? null : (options.weights ?? s.weights);
     checkModularityInputs(s, labels, weights);
     const sums: CommunitySums = { tot: new Map(), inside: new Map(), m2: 0 };
     for (let u = 0; u < s.nodeCount; u++) {

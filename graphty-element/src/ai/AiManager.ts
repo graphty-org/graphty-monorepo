@@ -56,9 +56,6 @@ import type { AssistantGateLimits } from "./tools/types";
 import type * as VoicePrime from "./voice/prime";
 import type { ProviderLiveSpeech, ProviderSpeech, VoiceSession } from "./voice/VoiceSession";
 
-// Loaded before an AiManager is built: its key manager restores persisted keys as it is built.
-export { loadEncryptStorage } from "./keys";
-
 /** Default debounce delay for schema updates in milliseconds */
 const SCHEMA_UPDATE_DEBOUNCE_MS = 300;
 
@@ -469,6 +466,8 @@ export class AiManager {
     /** The priming, loaded with `voice` so the Enter VR / AR click can prime at once. */
     private voicePrime: typeof VoicePrime | undefined;
     private voicePrimeLoad: Promise<void> | undefined;
+    /** Settles once the key manager has loaded the stored keys. */
+    private keysLoad: Promise<void> | undefined;
     /** Unbinds the assistant from the immersive session it is bound to. */
     private xrUnbind: (() => void) | undefined;
     /** Counts binds and unbinds: a bind a later call superseded does nothing. */
@@ -526,6 +525,14 @@ export class AiManager {
             this.apiKeyManager.setKey(config.provider, config.apiKey);
         }
         this.provider = config.providerInstance ?? this.configuredProvider(config);
+        // Stored keys load asynchronously (Web Crypto): a provider given no key takes the restored one.
+        this.keysLoad = this.apiKeyManager.ready().then(() => {
+            const restored = this.apiKeyManager.getKey(config.provider);
+            const fromStorage = !config.apiKey && config.providerInstance === undefined && restored !== undefined;
+            if (fromStorage && this.provider?.name === config.provider) {
+                this.provider.configure({ ...this.providerOptions, apiKey: restored });
+            }
+        });
 
         const toolset = config.toolset ?? "commands";
         if (toolset === "generated") {
@@ -570,12 +577,13 @@ export class AiManager {
             return;
         }
 
-        this.apiKeyManager.enablePersistence({
+        // Both are queued on the key manager; `ready()` waits for them.
+        void this.apiKeyManager.enablePersistence({
             ...(persistence.encryptionKey === undefined ? {} : { encryptionKey: persistence.encryptionKey }),
             storage: persistence.storage ?? "localStorage",
             prefix: persistence.prefix,
         });
-        this.apiKeyManager.retireOtherStorage();
+        void this.apiKeyManager.retireOtherStorage();
     }
 
     /**
@@ -1184,11 +1192,12 @@ export class AiManager {
     }
 
     /**
-     * Resolves once the saved conversation is open: at once without `history`.
+     * Resolves once the saved conversation is open and the stored keys are loaded: at once without
+     * `history` or `keyPersistence`.
      * @returns When ready.
      */
     async ready(): Promise<void> {
-        await Promise.all([this.controller?.ready(), this.voicePrimeLoad]);
+        await Promise.all([this.controller?.ready(), this.voicePrimeLoad, this.keysLoad]);
     }
 
     /**

@@ -637,7 +637,7 @@ function assertNoOrphans(orphans: number): void {
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
  * @param source - the source node index
- * @param options - `cutoff` and `weights`, plus dest / signal / onProgress
+ * @param options - `cutoff`, `weights` and `weighted` (false counts hops), plus dest / signal / onProgress
  * @param tuning - the knobs
  * @returns the distances, the predecessor arcs and the reached count
  */
@@ -654,7 +654,8 @@ export async function ssspWithTuning(
     assertSource(ALGORITHM, source, n);
     const roundsPerSubmit = checkTuning(tuning);
     const dest = checkDest(ALGORITHM, options?.dest, n);
-    const vector = resolveWeights(ALGORITHM, s, options?.weights);
+    // weighted: false counts hops: no weight vector, so the run takes the breadth-first route
+    const vector = options?.weighted === false ? null : resolveWeights(ALGORITHM, s, options?.weights);
     const cutoff = normaliseCutoff(ALGORITHM, options?.cutoff);
     if (options?.signal?.aborted) {
         throw aborted(ALGORITHM);
@@ -836,7 +837,7 @@ export async function ssspWithTuning(
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
  * @param source - the source node index (E_INVALID_ARGUMENT outside `[0, n)`)
- * @param options - `cutoff` and `weights`, plus dest (a Float32Array of length n for `dist`) / signal / onProgress
+ * @param options - `cutoff`, `weights` and `weighted` (false counts hops), plus dest (a Float32Array of length n for `dist`) / signal / onProgress
  * @returns the distances, the predecessor arcs and the reached count
  */
 export function sssp(

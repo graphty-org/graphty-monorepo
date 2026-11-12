@@ -1,10 +1,15 @@
 import type { AdjacencyView, F32, F64, GraphSnapshot } from "@graphty/graph-format";
 
+import { readsWeights } from "./weights.js";
+
 /** Options of the index-based HITS, matching the legacy `hits`. @public */
 export interface HitsOptions {
     /** Iteration cap; default 100. */
     readonly maxIterations?: number | undefined;
-    /** Convergence tolerance on the largest single-node change; default 1e-6. */
+    /**
+     * Convergence tolerance; default 1e-6. The run stops at the first iteration whose summed (L1) change over both
+     * vectors is below `tolerance` times their summed size, a change of `tolerance` relative to the vectors.
+     */
     readonly tolerance?: number | undefined;
     /**
      * `false` rescales both vectors so their largest entry is 1, which is what the legacy function
@@ -12,7 +17,7 @@ export interface HitsOptions {
      * norm. Default true, i.e. the L2-normalized vectors are returned unchanged.
      */
     readonly normalized?: boolean | undefined;
-    /** Weight a neighbour's contribution by the arc weight; default false. */
+    /** Weight a neighbour's contribution by the arc weight when the snapshot has weights; default true. */
     readonly weighted?: boolean | undefined;
 }
 
@@ -24,7 +29,7 @@ export interface HitsResult {
     readonly authorities: F64;
     /** Iterations actually run. */
     readonly iterations: number;
-    /** Whether the largest single-node change fell below the tolerance. */
+    /** Whether the summed change fell below `tolerance` times the vectors' summed size. */
     readonly converged: boolean;
 }
 
@@ -85,29 +90,6 @@ function rowSums(adj: AdjacencyView, w: F32 | null, scores: Float64Array, out: F
 }
 
 /**
- * The largest single-node change between two pairs of vectors.
- * @param h1 - New hubs
- * @param h0 - Old hubs
- * @param a1 - New authorities
- * @param a0 - Old authorities
- * @returns The largest absolute difference
- */
-function maxChange(h1: Float64Array, h0: Float64Array, a1: Float64Array, a0: Float64Array): number {
-    let maxDiff = 0;
-    for (let v = 0; v < h1.length; v++) {
-        const dh = Math.abs(h1[v] - h0[v]);
-        if (dh > maxDiff) {
-            maxDiff = dh;
-        }
-        const da = Math.abs(a1[v] - a0[v]);
-        if (da > maxDiff) {
-            maxDiff = da;
-        }
-    }
-    return maxDiff;
-}
-
-/**
  * HITS by alternating power iteration: an authority sums the hub scores of the nodes pointing at
  * it, a hub sums the authority scores of the nodes it points at, and both vectors are
  * L2-normalized every round. On an undirected snapshot the two adjacencies are the same array, so
@@ -122,8 +104,9 @@ export function hits(s: GraphSnapshot, o: HitsOptions = {}): HitsResult {
     const maxIter = o.maxIterations ?? 100;
     const tol = o.tolerance ?? 1e-6;
     const rev = s.reverse();
-    const fwdW = o.weighted === true ? s.weights : null;
-    const revW = o.weighted === true ? rev.weights : null;
+    const weighted = readsWeights(s, o.weighted);
+    const fwdW = weighted ? s.weights : null;
+    const revW = weighted ? rev.weights : null;
     let hubs = new Float64Array(n).fill(n === 0 ? 0 : 1 / Math.sqrt(n));
     let authorities = new Float64Array(n).fill(n === 0 ? 0 : 1 / Math.sqrt(n));
     let nextHubs = new Float64Array(n);
@@ -135,10 +118,15 @@ export function hits(s: GraphSnapshot, o: HitsOptions = {}): HitsResult {
         rowSums(s, fwdW, authorities, nextHubs);
         l2Normalize(nextAuthorities);
         l2Normalize(nextHubs);
-        const maxDiff = maxChange(nextHubs, hubs, nextAuthorities, authorities);
+        let change = 0;
+        let size = 0;
+        for (let v = 0; v < n; v++) {
+            change += Math.abs(nextHubs[v] - hubs[v]) + Math.abs(nextAuthorities[v] - authorities[v]);
+            size += Math.abs(nextHubs[v]) + Math.abs(nextAuthorities[v]);
+        }
         [hubs, nextHubs] = [nextHubs, hubs];
         [authorities, nextAuthorities] = [nextAuthorities, authorities];
-        converged = maxDiff < tol;
+        converged = change < tol * size;
     }
     if (o.normalized === false) {
         maxNormalize(hubs);

@@ -85,7 +85,8 @@ export class EdgeBetweennessCentralityAlgorithm extends DeclaredAlgorithm<EdgeBe
 
         context.report({ phase: "Tracing shortest paths", total: null });
         const { value, precision } = await run((dispatch, s) =>
-            dispatch.edgeBetweennessCentrality(s, sampled ? { k: drawn } : undefined),
+            // Path lengths count edges (the caveat says so); @graphty/algorithms reads weights by default.
+            dispatch.edgeBetweennessCentrality(s, sampled ? { k: drawn, weighted: false } : { weighted: false }),
         );
         context.signal.throwIfAborted();
 

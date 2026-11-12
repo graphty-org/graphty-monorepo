@@ -7,10 +7,11 @@
 
 import assert from "node:assert";
 
-import { type F32, fromEdgeArrays, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
+import { type F32, type F64, fromEdgeArrays, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
 import { describe, it } from "vitest";
 
 import { arf } from "../../src/indexed/arf";
+import { rescaleInPlace } from "../../src/positions";
 import { ForceAtlas2Simulation } from "../../src/simulation/forceatlas2";
 import { FruchtermanReingoldSimulation } from "../../src/simulation/fruchterman-reingold";
 
@@ -40,6 +41,11 @@ function clique(n: number): GraphSnapshot {
 
 /** NetworkX's arf_layout iteration in 2D from `pos`, with no guard: the drawing a stable run must keep, bit for bit. */
 function networkxArf(g: GraphSnapshot, pos: F32, a: number, maxIter: number): F32 {
+    return Float32Array.from(networkxArfF64(g, pos, a, maxIter));
+}
+
+/** {@link networkxArf} in float64, before the f32 rounding. */
+function networkxArfF64(g: GraphSnapshot, pos: F32, a: number, maxIter: number): F64 {
     const n = g.nodeCount;
     const rho = Math.sqrt(n);
     const p = Float64Array.from(pos);
@@ -67,7 +73,7 @@ function networkxArf(g: GraphSnapshot, pos: F32, a: number, maxIter: number): F3
             error += Math.sqrt(change[2 * i] * change[2 * i] + change[2 * i + 1] * change[2 * i + 1]);
         }
     }
-    return Float32Array.from(p);
+    return p;
 }
 
 /** A stride-2 start of radius about `r`, with no two rows equal. */
@@ -237,7 +243,9 @@ describe("no tick throws a node beyond the layout", () => {
             it(`ARF keeps NetworkX's drawing on a stable run: ${name}, ${maxIter} ticks`, () => {
                 const pos = wideStart(g.nodeCount, r);
                 const { positions } = arf(g, { pos, a, dim: 2, maxIter });
-                assert.deepStrictEqual(positions, networkxArf(g, pos, a, maxIter));
+                // arf rescales its result as every one-shot layout does: NetworkX's drawing, rescaled the same way
+                const drawn = networkxArfF64(g, pos, a, maxIter);
+                assert.deepStrictEqual(positions, Float32Array.from(rescaleInPlace(drawn, 2)));
             });
         }
     }

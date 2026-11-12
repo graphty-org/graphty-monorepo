@@ -180,10 +180,6 @@ const INVENTORY: Record<string, Covered> = {
     },
     "src/ai/voice/SpeechInput.ts": { count: 2, reason: "the microphone's level meter frames; they draw nothing" },
     "src/ai/voice/VoiceSession.ts": { count: 2, reason: "the voice modules; they draw nothing" },
-    "src/ai/keys/encryptStorage.ts": {
-        count: 1,
-        reason: "encrypt-storage, the optional peer that persists API keys; it draws nothing",
-    },
     "src/layout/graphviz/loader.ts": {
         count: 1,
         reason: "the Graphviz package, loaded inside the layout Worker; the layout's own run is what draws",

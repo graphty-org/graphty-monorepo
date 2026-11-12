@@ -1,5 +1,7 @@
 import type { AdjacencyView, F64, GraphSnapshot, U32 } from "@graphty/graph-format";
 
+import { refuseWeights } from "./weights.js";
+
 /** Options of the index-based degree centrality, matching the legacy `degreeCentrality`. @public */
 export interface DegreeCentralityOptions {
     /** On a directed snapshot, which neighbours to count; ignored when undirected. Default `"total"`. */
@@ -37,6 +39,7 @@ function addDistinctNeighbours(g: AdjacencyView, out: F64): void {
  * @public
  */
 export function degreeCentrality(s: GraphSnapshot, options: DegreeCentralityOptions = {}): F64 {
+    refuseWeights("degreeCentrality", options);
     const scores = new Float64Array(s.nodeCount);
     const mode = s.directed ? (options.mode ?? "total") : "out";
     if (mode !== "in") {

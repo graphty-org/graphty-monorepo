@@ -1,29 +1,18 @@
 /**
  * @file What an edge's `line.width` measures on screen, whatever draws the line (issue #125).
  *
- * A study reader set a width of 8 and saw hairlines, then 30 and saw a thick line, and read the
- * number as broken. This measures the drawn thickness of a solid 3D edge against its width and
- * its distance from the camera, the way `EdgeMesh` draws it: the style's width times 20 is the
- * line shader's width uniform, and the shader widens the line in clip space before the
- * perspective divide, so the line tapers with distance like the nodes do.
- *
- * Measured: a line `width` W, `depth` units in front of the camera, draws 10 x W / depth pixels
- * thick. So W is pixels only at a depth of 10; a graph framed from 50 units away draws the
- * default width of 8 under 2 pixels. Every width keeps that ratio, at every depth: the units are
- * consistent, not a rendering fault.
+ * `line.width` is a length in world units, 40 to one unit (`lineWidthInWorldUnits`), for every
+ * line renderer. The line shader widens a camera-facing ribbon by that world length, so a line
+ * `L` world units wide at clip depth `w` draws `L * projection[1][1] * height / (2 w)` pixels: it
+ * grows and shrinks with zoom as a node does, and thins with distance only by perspective.
  *
  * The second half holds the three ways an edge line is drawn -- solid, patterned and curved --
  * to one thickness for one width. It reads the thickness off the scene, not off pixels: a line
  * drawn as geometry is measured across that geometry under its slot's matrix and projected
- * through the camera, and a line the shader widens is measured by the shader's own arithmetic,
- * its width uniform over twice the clip-space w. A curve in 2D used to be drawn by the 3D line
- * shader, ten pixels per unit of width at every zoom, beside straight edges drawn `width / 40`
- * world units thick: on a dense file graph the curves were wide hatched bands.
- *
- * Not held here: a 3D patterned edge against a 3D solid one. The solid line's width is screen
- * pixels that taper with depth and the pattern's is world units, so their ratio moves with the
- * canvas size. Moving the solid line to world units changes every 3D graph's edges, and waits
- * for graphty-element's next major release.
+ * through the camera, and a line the shader widens is measured by the shader's own arithmetic.
+ * A curve in 2D used to be drawn by the 3D line shader, ten pixels per unit of width at every
+ * zoom, beside straight edges drawn `width / 40` world units thick: on a dense file graph the
+ * curves were wide hatched bands.
  */
 
 import {
@@ -45,13 +34,11 @@ import type { Edge } from "../../src/Edge";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { CustomLineRenderer } from "../../src/meshes/CustomLineRenderer";
 import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
+import { lineWidthInWorldUnits } from "../../src/meshes/EdgeMesh";
 import { styleEveryEdge } from "../helpers/testSetup";
 
 const WIDTH = 800;
 const HEIGHT = 400;
-
-/** `EdgeMesh` hands the shader the style's width times this. */
-const EDGE_MESH_SCALE = 20;
 
 describe("edge width units", () => {
     let canvas: HTMLCanvasElement;
@@ -91,7 +78,7 @@ describe("edge width units", () => {
         const mesh = CustomLineRenderer.create(
             {
                 points: [new Vector3(-depth, 0, 0), new Vector3(depth, 0, 0)],
-                width: width * EDGE_MESH_SCALE,
+                width: lineWidthInWorldUnits(width),
                 color: "#FF0000",
             },
             scene,
@@ -112,11 +99,12 @@ describe("edge width units", () => {
         return lit;
     }
 
-    test("a line of width W at depth d draws 10 x W / d pixels, for every width and depth", async () => {
+    test("a line of width W at depth d draws its world width projected at d, for every width and depth", async () => {
         const seen: string[] = [];
         for (const depth of [10, 20, 50]) {
-            for (const width of [1, 8, 30]) {
-                const want = (10 * width) / depth;
+            for (const width of [8, 30, 80]) {
+                const want =
+                    (lineWidthInWorldUnits(width) * camera.getProjectionMatrix(true).m[5] * HEIGHT) / (2 * depth);
                 const drawn = await drawnThickness(width, depth);
                 seen.push(`width ${String(width)} at depth ${String(depth)}: ${String(drawn)} px`);
                 // Rasterization rounds a thin line to whole pixels.

@@ -10,12 +10,13 @@ import {
 import { withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
 import { type LabelResult, withGroups } from "./components.js";
+import type { WeightedOptions } from "./weights.js";
 
 /** Which graph Laplacian the embedding comes from. @public */
 export type LaplacianType = "unnormalized" | "normalized" | "randomWalk";
 
 /** Options of the index-based spectral clustering. @public */
-export interface SpectralOptions {
+export interface SpectralOptions extends WeightedOptions {
     /** Number of clusters, a positive integer. */
     readonly k: number;
     /** `D - A`, `I - D^-1/2 A D^-1/2` (rows of the embedding scaled to unit length) or `I - D^-1 A`; default normalized. */
@@ -790,7 +791,7 @@ function tightestKMeans(pr: KMeansProblem, maxIterations: number, tolerance: num
 export function spectralClustering(s: GraphSnapshot, options: SpectralOptions): SpectralResult {
     const { k } = options;
     const type = options.laplacianType ?? "normalized";
-    const weights = options.weights ?? s.weights;
+    const weights = options.weighted === false ? null : (options.weights ?? s.weights);
     checkSpectralOptions(s, options, type, weights);
     const n = s.nodeCount;
     if (k >= n) {

@@ -212,9 +212,26 @@ data:
 | `graphty.inDegree`, `graphty.outDegree`     | How many edges reach a node, and how many leave it                                                                        |
 | `graphty.style.<format>.<node\|edge>.<key>` | A value a load with `styles: "file"` wrote for the element; see [Styles from Files](./file-styles#values-the-load-writes) |
 
-They work in a layer's `selector` and in a binding's `by`. A label or tooltip bound to one is drawn
-as literal text: a note reading `<bold>x</bold>` shows the tags, never bold text. See
-[Notes](./notes#notes-in-styles).
+They work in a layer's `selector` and in a binding's `by`. See [Notes](./notes#notes-in-styles).
+
+### Label text is drawn as written
+
+A label or tooltip whose words come from a binding -- a data column, a result or a note -- is
+drawn as literal text: a value reading `<bold>x</bold>` shows the tags, never bold text, so data
+can never restyle its own label. Label markup (`<bold>`, `<italic>`, `<color='...'>` and the rest)
+is read only in a literal label the layer itself writes:
+
+```typescript
+await session.styles.add({
+    name: "Hubs",
+    target: "node",
+    selector: { match: "ids", nodes: ["hub"] },
+    set: { "node.label": "<bold>Hub</bold>" }, // drawn bold
+});
+```
+
+A binding's `map`, `missing` and `other` values are part of the binding, so they are drawn as
+written too.
 
 The degrees follow the graph: add an edge and a layer that selects
 `` graphty.degree > `2` `` repaints the nodes it now reaches, with nothing recomputed by hand.
@@ -304,7 +321,7 @@ A channel is one visual property with one name. These are all of them:
 | Edge channel                  | Takes                                                                                                            |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `edge.color`                  | any CSS colour                                                                                                   |
-| `edge.width`                  | 0 or more; 0 draws no line (the caps and label still draw)                                                       |
+| `edge.width`                  | world units, 40 to one unit (see below); default 4.5; 0 draws no line (the caps and label still draw)            |
 | `edge.opacity`                | 0 to 1                                                                                                           |
 | `edge.fadeEnd`                | CSS pixels: a line this long on screen or longer draws at `edge.fadeOpacity` times its opacity; unset, no fade   |
 | `edge.fadeStart`              | CSS pixels: a line this long on screen or shorter does not fade (0)                                              |
@@ -354,6 +371,14 @@ A channel is one visual property with one name. These are all of them:
 | `edge.labelMinScreenSize`     | as `node.labelMinScreenSize`                                                                                     |
 | `edge.labelOnTop`             | as `node.labelOnTop`                                                                                             |
 | `edge.labelRotation`          | as `node.labelRotation`                                                                                          |
+
+`edge.width` is a length in the graph's own world, the space nodes are sized and placed in:
+40 is one world unit, so the default of 4.5 is about a ninth of a unit. Every kind of line --
+solid, patterned, curved, animated, 2D and 3D -- draws the same width at the same thickness.
+Because it is a world length, an edge grows and shrinks with zoom as a node does, and in 3D a
+farther edge looks thinner only by normal perspective, exactly as much as a node at the same
+distance; it is not tapered beyond that. A width of 0 draws no line; the arrow caps and the
+label still draw.
 
 A color may carry an alpha (`#ff000080`, `rgba(255, 0, 0, 0.5)`). On `node.color`,
 `edge.color` and the two arrow colors the alpha multiplies the matching opacity channel, so

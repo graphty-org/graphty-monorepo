@@ -93,8 +93,3 @@ See [Graph Data Structure](../guide/graph.md) for building a snapshot and mappin
 - `PriorityQueue`, `UnionFind` - General-purpose structures
 - `IndexedMinHeap`, `IntUnionFind`, `arcSourceIn()` - The index-based structures the algorithms share
 - `ConvergenceError`, `PathWalkError` - What an algorithm throws when it cannot finish
-
-## Deprecated
-
-- `indexed` - The namespace algorithms 2.x offered these functions under; `indexed.pageRank` is `pageRank`. Removed in
-  4.0. The [migration guide](../guide/migrating-to-3.md) lists the replacement for every other 2.x export.

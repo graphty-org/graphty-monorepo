@@ -59,7 +59,6 @@ import { withLabelLook } from "../../catalog/label-looks";
 import type { ShaderUse } from "../../catalog/shaders";
 import type { Binding, Channel, GraphtyErrorCode, LabelStyle, LayerId, Path } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
-import { isNotePath } from "../notes/paths";
 import {
     asColorValue,
     type ChannelDescriptor,
@@ -217,8 +216,8 @@ export interface ElementPaint {
     styleOf(target: SelectorTarget, index: number): ResolvedStyle;
     /**
      * Whether one element's words in a text channel are drawn as plain text, every character as
-     * written, never as label markup: true where they came from a `graphty.notes.*` binding
-     * (design/notes 6.3).
+     * written, never as label markup: true where they came from a binding that reads a path (data,
+     * a result or a note), false for a literal the layer writes.
      * @param target - Whether it is a node or an edge.
      * @param index - Its dense index.
      * @param channel - A text channel, such as `node.label`.
@@ -533,9 +532,8 @@ type ChannelColumn =
           readonly kind: "ref";
           values: unknown[];
           /**
-           * For a text channel, 1 where the words came from a `graphty.notes.*` binding and are
-           * drawn as plain text, never as label markup (design/notes 6.3); null for any other
-           * channel.
+           * For a text channel, 1 where the words came from a binding that reads a path and are
+           * drawn as plain text, never as label markup; null for any other channel.
            */
           plainText: Uint8Array | null;
       }
@@ -958,7 +956,7 @@ interface PreparedChannel {
     readonly path: Path | null;
     /** The binding, prepared against the whole column exactly once. */
     readonly binding: PreparedBinding;
-    /** Whether it reads a note, whose text is drawn as plain text. */
+    /** Whether it reads a path, whose values are drawn as plain text, never as markup. */
     readonly plainText: boolean;
     /**
      * How a number it writes meets what lies beneath, or null to write over it. Set only on a
@@ -1472,7 +1470,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 column: columnFor(store, labelField?.into ?? channel),
                 toColumn: labelField === undefined ? null : labelPatcher(labelField.field),
                 path,
-                plainText: path !== null && isNotePath(path),
+                // A value read from data, a result or a note is drawn as written; only a literal the
+                // layer itself writes is read as label markup.
+                plainText: path !== null,
                 combine: combineOf(descriptor, binding),
                 template: "template" in binding,
                 binding: prepareBinding({

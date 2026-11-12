@@ -20,13 +20,9 @@ export interface ArfOptions {
     readonly a?: number | undefined;
     /** The iteration cap; default 1000. The run also stops once the summed force falls to 1e-6. */
     readonly maxIter?: number | undefined;
-    /**
-     * When given (or when `center` is), the result is rescaled so the farthest node is `scale` from `center`, as every
-     * other one-shot layout's is; default 1 then. When neither is given the result keeps the scale the forces settled
-     * at.
-     */
+    /** The distance of the farthest node from `center`, as in every other one-shot layout; default 1. */
     readonly scale?: number | undefined;
-    /** The centre the result is rescaled about (missing components are 0); see `scale`. */
+    /** The centre the result is rescaled about (missing components are 0); default the origin. */
     readonly center?: ArrayLike<number> | undefined;
 }
 
@@ -160,9 +156,9 @@ function arfMove(st: ArfState, dt: number): number {
 }
 
 /**
- * The attractive and repulsive forces layout (networkx's `arf_layout`). Without `scale` or `center` its result is not
- * rescaled: the forces settle at their own scale, which `scaling` sets. With either, the farthest node ends `scale`
- * from `center`. Two departures from networkx, both only where it has no answer: nodes on one exact point are kicked
+ * The attractive and repulsive forces layout (networkx's `arf_layout`). The forces settle at their own scale, which
+ * `scaling` sets; the result is then rescaled so the farthest node is `scale` from `center`, as every one-shot
+ * layout's is. Two departures from networkx, both only where it has no answer: nodes on one exact point are kicked
  * apart (its 0 / 0 leaves them together), and a run whose Euler step diverges, which takes a summed spring stiffness
  * past 2000, has its ticks held to twice the settled radius (networkx runs on to Infinity). Every other run takes
  * networkx's steps exactly, however wide its start.
@@ -208,8 +204,6 @@ export function arf(g: GraphSnapshot, options: ArfOptions = {}): LayoutResult {
         arfChange(st);
         error = arfMove(st, dt);
     }
-    if (options.scale !== undefined || options.center !== undefined) {
-        rescaleInPlace(p, dim, options.scale ?? 1, options.center);
-    }
+    rescaleInPlace(p, dim, options.scale ?? 1, options.center);
     return { positions: Float32Array.from(p), dim, n };
 }

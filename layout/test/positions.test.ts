@@ -9,11 +9,11 @@ import {
     type LayoutResult,
     type PositionMap,
     rescaleInPlace,
-    rescaleLayout,
     toLayoutSnapshot,
     toPositionColumn,
     toPositionMap,
 } from "../src";
+import { rescaleLayout } from "./layouts/rescale-oracle";
 
 const { ids } = toLayoutSnapshot(["a", "b", 7]);
 

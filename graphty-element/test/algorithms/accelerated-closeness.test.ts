@@ -111,7 +111,7 @@ describe("closeness centrality through accelerated()", () => {
         const graph = await graphWith(LES_MIS);
         const { values, caveats } = await measured(graph, new ClosenessCentralityAlgorithm(graph, { k: 12 }));
         const s = referenceSnapshot(graph.getDataManager(), "undirected");
-        const reference = byId(s, closenessCentrality(s, { k: 12 }).scores);
+        const reference = byId(s, closenessCentrality(s, { weighted: false, k: 12 }).scores);
         for (const [id, value] of values) {
             assert.strictEqual(value, reference.get(id), `score of ${String(id)}`);
         }

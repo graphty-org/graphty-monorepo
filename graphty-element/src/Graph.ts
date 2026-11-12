@@ -8984,9 +8984,7 @@ export class Graph implements GraphContext {
         checkAiConfig(config);
 
         // Dynamically import to avoid loading AI code when not needed
-        const { AiManager, assistantXr, loadEncryptStorage } = await import("./ai/AiManager");
-        // Its key manager restores persisted keys as it is built, so the store's package loads first.
-        await loadEncryptStorage();
+        const { AiManager, assistantXr } = await import("./ai/AiManager");
 
         // The in-browser provider loads asynchronously, and only when it is picked. Built before
         // the old assistant goes, so a missing package leaves the current one in place.
@@ -9466,35 +9464,32 @@ export class Graph implements GraphContext {
         const { provider, prefix } = options;
         const keys =
             this.getApiKeyManager() ?? (await Graph.createApiKeyManager(prefix === undefined ? {} : { prefix }));
-        if (provider === undefined) {
-            keys.forgetKeys();
-        } else {
-            keys.forgetKey(provider);
-        }
+        await (provider === undefined ? keys.forgetKeys() : keys.forgetKey(provider));
     }
 
     /**
      * Create a standalone ApiKeyManager for key management without enabling AI.
      * Useful for settings UIs that configure keys before AI activation.
      *
-     * ASYNCHRONOUS, AND THE REASON IS THE BUNDLE. The key store encrypts what it persists, so it
-     * imports `encrypt-storage`. This method used to construct one directly, which made that a
-     * STATIC import of `Graph` -- and `Graph` is what the root entry point pulls in. The result
-     * was that an encryption library shipped to every consumer who drew a graph and never touched
-     * the AI layer, which is exactly what the separate `./ai` entry point exists to prevent. The
-     * entry point's own comment claimed no such cost; for the three LLM SDKs that was true, and
-     * for this one it was not.
+     * Asynchronous for two reasons. The key store lives behind the `./ai` entry point, so this
+     * method imports it dynamically rather than making it a static import of `Graph`, which the
+     * root entry point pulls in for every consumer who draws a graph. And the store restores keys
+     * an earlier page saved with Web Crypto, which is asynchronous: the returned manager has
+     * finished that restore.
      *
      * A consumer who wants it synchronously imports `ApiKeyManager` from
-     * `@graphty/graphty-element/ai` and constructs it themselves -- which is the honest shape,
-     * because they are then choosing to load the encryption library.
+     * `@graphty/graphty-element/ai`, constructs it, and awaits `ready()` before reading keys.
+     *
+     * Keys saved without an `encryptionKey` are only obscured, not encrypted: anyone with access
+     * to the page or the browser profile can read them. Use `enablePersistenceWithPassphrase` with
+     * a passphrase the reader types.
      * @param options - Where persisted keys live
      * @returns A new ApiKeyManager instance
      * @example
      * ```typescript
      * // In a settings UI component
      * const keyManager = await Graph.createApiKeyManager();
-     * keyManager.enablePersistence({
+     * await keyManager.enablePersistence({
      *   encryptionKey: userSecret,
      *   storage: 'localStorage',
      * });
@@ -9502,10 +9497,10 @@ export class Graph implements GraphContext {
      * ```
      */
     static async createApiKeyManager(options?: import("./ai/keys").ApiKeyManagerOptions): Promise<ApiKeyManager> {
-        const { ApiKeyManager: KeyManager, loadEncryptStorage } = await import("./ai/keys");
-        await loadEncryptStorage();
-
-        return new KeyManager(options);
+        const { ApiKeyManager: KeyManager } = await import("./ai/keys");
+        const manager = new KeyManager(options);
+        await manager.ready();
+        return manager;
     }
 
     // ===========================================

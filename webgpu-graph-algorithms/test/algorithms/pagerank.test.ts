@@ -5,6 +5,7 @@
  * sizes, bitwise repeatability, the run options and G7's leak clause (ONE mapAsync per batch of 8).
  */
 
+import { pageRank as cpuPageRank } from "@graphty/algorithms";
 import { type GraphSnapshot } from "@graphty/graph-format";
 import { type TestContext } from "vitest";
 
@@ -130,14 +131,44 @@ describe("pageRank / personalizedPageRank (GPU, spec 8.2 / 9.7)", () => {
         });
     }
 
-    it("converged is identical to the oracle's and iterations within +-1 on every fixture", async (t) => {
+    it("the CPU pageRank of @graphty/algorithms stops at exactly the oracle's iteration on every fixture, so both packages share one stopping rule", () => {
+        for (const name of FIXTURE_NAMES) {
+            const { snapshot } = fixture(name, gpuScale());
+            const cpu = cpuPageRank(snapshot);
+            const expected = pageRankOracle(snapshot, OPTS);
+            expect({ iterations: cpu.iterations, converged: cpu.converged }, name).toEqual({
+                iterations: expected.iterations,
+                converged: expected.converged,
+            });
+        }
+    });
+
+    it("converged is identical to the oracle's and the scores within 1e-5 summed of its converged scores on every fixture; iterations within +-1 at 1e-5", async (t) => {
         const ctx = await context(t);
+        // At the default 1e-6 the summed change of a vector summing to 1 is a few f32 steps of its largest score,
+        // so where an f32 run crosses it is rounding: on star200 an NVIDIA run's iterate stops moving (summed
+        // change 1.8e-7) six passes before the f64 oracle's change falls below 1e-6. The scores agree all the same,
+        // to the summed difference two runs stopped by this rule can have.
+        // At 1e-5 the change is far above f32 resolution, and the stopping pass must match.
+        const coarse = { ...OPTS, tolerance: 1e-5 };
         for (const name of FIXTURE_NAMES) {
             const { snapshot } = fixture(name, gpuScale());
             const result = await pageRank(ctx, snapshot);
             const expected = pageRankOracle(snapshot, OPTS);
             expect(result.converged, `${name}: converged`).toBe(expected.converged);
-            expect(Math.abs(result.iterations - expected.iterations), `${name}: iterations`).toBeLessThanOrEqual(1);
+            let summed = 0;
+            for (let v = 0; v < snapshot.nodeCount; v++) {
+                summed += Math.abs(result.scores[v] - expected.scores[v]);
+            }
+            // each run stops within about tolerance / (1 - alpha) of the fixed point, summed over the nodes
+            expect(summed, `${name}: summed difference of the converged scores`).toBeLessThan(10 * OPTS.tolerance);
+            const atCoarse = await pageRank(ctx, snapshot, { tolerance: coarse.tolerance });
+            const expectedCoarse = pageRankOracle(snapshot, coarse);
+            expect(atCoarse.converged, `${name}: converged at 1e-5`).toBe(expectedCoarse.converged);
+            expect(
+                Math.abs(atCoarse.iterations - expectedCoarse.iterations),
+                `${name}: iterations at 1e-5`,
+            ).toBeLessThanOrEqual(1);
             ctx.release(snapshot);
         }
     });

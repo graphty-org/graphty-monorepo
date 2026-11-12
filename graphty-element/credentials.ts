@@ -7,13 +7,8 @@
  * ```
  *
  * `<graphty-element>` has its own store as `element.credentials`; this entry point is for an
- * application with no element, or one that wants the store's types. It loads the optional
- * `encrypt-storage` peer the AI key manager persists with, like `./ai`. Experimental.
+ * application with no element, or one that wants the store's types. Experimental.
  */
-
-// encrypt-storage, which ApiKeyManager persists with: this entry point's consumers construct it
-// synchronously (src/ai/keys/encryptStorage.ts).
-import "./src/ai/keys/withEncryptStorage";
 
 export type { ApiKeyManagerOptions, PassphrasePersistenceConfig, PersistenceConfig } from "./src/ai/keys/ApiKeyManager";
 export { ApiKeyManager } from "./src/ai/keys/ApiKeyManager";

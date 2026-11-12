@@ -19,7 +19,7 @@ export const OPTION_NAMES: Readonly<Record<string, readonly string[]>> = {
         "gpu",
         "harmonic",
         "k",
-        "normalized",
+        "normalization",
         "sources",
         "weight",
     ],
@@ -121,7 +121,7 @@ export const OPTION_NAMES: Readonly<Record<string, readonly string[]>> = {
     graphtyMaximumBipartiteMatching: ["arcs", "directed", "gpu", "left", "right"],
     graphtyMinSTCut: ["algorithm", "directed", "field", "gpu", "sink", "source", "weight"],
     graphtyModularity: ["clusters", "directed", "gpu", "resolution", "weight"],
-    graphtyNodeClosenessCentrality: ["cutoff", "directed", "gpu", "harmonic", "normalized", "root", "weight"],
+    graphtyNodeClosenessCentrality: ["cutoff", "directed", "gpu", "harmonic", "normalization", "root", "weight"],
     graphtyPageRank: [
         "convergenceNorm",
         "dampingFactor",

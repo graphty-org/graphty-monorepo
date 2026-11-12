@@ -128,8 +128,19 @@ describe("3D Camera Controls", () => {
     test("AD keys control yaw (spin)", async () => {
         graph.canvas.focus();
 
+        // The camera turns on its own (autoRotate) only while the reader is not moving it. Checked
+        // past the step one press owes (8 frames), so only the key being held keeps it off.
+        const pastTap = (): void => {
+            for (let frame = 0; frame < 8; frame++) {
+                graph.camera.update();
+            }
+        };
+        assert.isTrue(graph.camera.autoTurn(0.01), "nothing held: the camera may turn on its own");
+
         // Test A key registration and spin method call
         await holdKey("a");
+        pastTap();
+        assert.isFalse(graph.camera.autoTurn(0.01), "a held A key holds off the camera's own turning");
 
         // Spy on the spin method to verify it's called
         const spinSpy = vi.spyOn(cameraController, "spin");
@@ -146,6 +157,8 @@ describe("3D Camera Controls", () => {
         // Test D key
         await releaseKey("a");
         await holdKey("d");
+        pastTap();
+        assert.isFalse(graph.camera.autoTurn(0.01), "a held D key holds off the camera's own turning");
 
         spinSpy.mockClear();
         graph.camera.update();
@@ -227,20 +240,28 @@ describe("3D Camera Controls", () => {
         assert.notDeepEqual(view(), before, "the camera moved once input was enabled");
     });
 
-    test("a two-finger pinch stops a mouse drag from turning the camera until the fingers lift", async () => {
-        const { canvas } = graph;
-        const lift = await holdPinch(canvas, { x: 300, y: 100 }, 40, 100);
-        const rotate = vi.spyOn(cameraController, "rotate");
-        const during = view();
+    test.for([
+        ["lift", false],
+        ["are cancelled", true],
+    ] as const)(
+        "a two-finger pinch stops a mouse drag from turning the camera until the fingers %s",
+        async ([, cancelled]) => {
+            const { canvas } = graph;
+            const lift = await holdPinch(canvas, { x: 300, y: 100 }, 40, 100);
+            const rotate = vi.spyOn(cameraController, "rotate");
+            try {
+                const during = view();
+                await drag(canvas, { x: 100, y: 100 }, { x: 200, y: 150 });
+                assert.equal(rotate.mock.calls.length, 0, "the mouse did not turn the camera during the pinch");
+                assert.deepEqual(view(), during, "the camera stayed put during the pinch");
+            } finally {
+                await lift(cancelled);
+            }
 
-        await drag(canvas, { x: 100, y: 100 }, { x: 200, y: 150 });
-        assert.equal(rotate.mock.calls.length, 0, "the mouse did not turn the camera during the pinch");
-        assert.deepEqual(view(), during, "the camera stayed put during the pinch");
-
-        await lift();
-        await drag(canvas, { x: 100, y: 100 }, { x: 200, y: 150 });
-        assert.isAbove(rotate.mock.calls.length, 0, "the mouse turns the camera once the fingers lift");
-    });
+            await drag(canvas, { x: 100, y: 100 }, { x: 200, y: 150 });
+            assert.isAbove(rotate.mock.calls.length, 0, "the mouse turns the camera once the fingers are gone");
+        },
+    );
 
     test("camera position updates on rotation", async () => {
         graph.canvas.focus();

@@ -380,6 +380,11 @@ describe("group outlines, Around the group in the gallery", () => {
                 assert.deepEqual(shadersOf(session.styles.get(id)), ["soap-bubble"], `${id} draws its own`);
             }
         });
+        // The layers show the edit while its transaction is still open: it records its step only
+        // once it closes, so the count is read after nothing is pending.
+        await waitFor(() => {
+            assert.isEmpty(session.history.pending, "the edit is recorded");
+        });
         assert.strictEqual(session.history.position, steps + 1, "one undo step");
         await waitFor(() => {
             const drawn = element.drawnShaders().groupOutlines.filter((each) => layers.includes(each.layer));

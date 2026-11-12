@@ -898,7 +898,16 @@ export class DataManager implements Manager {
      * sets it from its render path and `limits`. Unset, a load meets the shipped defaults.
      * @internal
      */
-    renderLimits: { ceilings(): Readonly<Ceilings> | undefined; batched(): boolean } | null = null;
+    renderLimits: {
+        ceilings(): Readonly<Ceilings> | undefined;
+        batched(): boolean;
+        /** The most rows drawn as a `Node` of their own (`limits.objectRows`). */
+        objectRows?(): number;
+        /** The most edge rows drawn as an `Edge` of their own (`limits.objectEdges`). */
+        objectEdges?(): number;
+        /** Rows past a budget are drawn plain: `wanted` rows asked for an object, `cap` were given one. */
+        objectCap?(of: "nodes" | "edges", wanted: number, cap: number): void;
+    } | null = null;
 
     /**
      * The graph primitives every write goes through. A data manager on its own has nothing to

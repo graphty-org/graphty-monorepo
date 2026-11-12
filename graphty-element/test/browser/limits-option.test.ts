@@ -158,6 +158,74 @@ describe("the limits option", () => {
         assert.deepStrictEqual(changes, [300_000, 100_000, 300_000]);
     });
 
+    it("draws rows past the objectRows budget plain, and says so with W_OBJECT_CAP", async () => {
+        const element = await mounted("batched");
+        const seen = heard(element);
+        element.limits = { objectRows: 10 };
+        assert.strictEqual(element.session.capabilities.limits.objectRows, 10);
+
+        await element.session.data.addNodes(nodes(50));
+        await element.session.styles.add({
+            name: "ring",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.borderColor": "#000000", "node.borderWidth": 0.1 },
+        } as never);
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+
+        assert.strictEqual(element.rowCounts.objectNodes, 10);
+        assert.strictEqual(element.rowCounts.batchedNodes, 40);
+        assert.deepStrictEqual(
+            seen.filter(({ code }) => code === "W_OBJECT_CAP"),
+            [{ type: "limits-warning", code: "W_OBJECT_CAP", params: { of: "nodes", wanted: 50, cap: 10 } }],
+        );
+    });
+
+    it("draws edges past the objectEdges budget as plain lines, and says so with W_OBJECT_CAP", async () => {
+        const element = await mounted("batched");
+        const seen = heard(element);
+        element.limits = { objectEdges: 5 };
+
+        await element.session.data.addNodes(nodes(31));
+        await element.session.data.addEdges(Array.from({ length: 30 }, (_, i) => ({ src: "n0", dst: `n${i + 1}` })));
+        await element.session.styles.add({
+            name: "arrowed",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "normal" },
+        } as never);
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+
+        assert.strictEqual(element.rowCounts.objectEdges, 5);
+        assert.strictEqual(element.rowCounts.pulledEdges, 25);
+        assert.deepStrictEqual(
+            seen.filter(({ code }) => code === "W_OBJECT_CAP"),
+            [{ type: "limits-warning", code: "W_OBJECT_CAP", params: { of: "edges", wanted: 30, cap: 5 } }],
+        );
+    });
+
+    it("keeps every bordered row an object row at the default budget", async () => {
+        const element = await mounted("batched");
+        const seen = heard(element);
+        assert.strictEqual(element.session.capabilities.limits.objectRows, 100_000);
+        assert.strictEqual(element.session.capabilities.limits.objectEdges, 1_000_000);
+
+        await element.session.data.addNodes(nodes(50));
+        await element.session.styles.add({
+            name: "ring",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.borderColor": "#000000", "node.borderWidth": 0.1 },
+        } as never);
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+
+        assert.strictEqual(element.rowCounts.objectNodes, 50);
+        assert.deepStrictEqual(seen, []);
+    });
+
     it("refuses a switch to objects above its defaults, and the path stays batched", async () => {
         const element = await mounted("batched");
         element.limits = { renderCeiling: 200_000 };

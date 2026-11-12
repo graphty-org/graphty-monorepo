@@ -1314,6 +1314,15 @@ object per element. Stages 26 to 28 remove that reason.
 - **Object budgets.** `objectRows` defaults to 100,000 and `objectEdges` to 1,000,000, the default ceilings, so a budget cannot bind at or
   below them. Past a budget under a raised ceiling, later rows draw as plain bodies and edges as plain lines, and
   `{ code: "W_OBJECT_CAP", params: { wanted, cap } }` reports it.
+- **As stage 30 built it** (corrections to the bullet above). An object row is a row the batches cannot draw, so a
+  `Node` (or an `Edge`) is built for it; the budget counts those built objects, and is checked where a row stored with
+  no `Node` would get one (`UpdateManager.unbuiltPainted`, `unbuiltEdgePainted`). Past it, the row is drawn from a plain
+  paint (`plainNodePaint`, `plainEdgePaint` in `StylePainter.ts`: shape, color, opacity and line width only, keyed
+  `plain|...`) and gets no object. A row that already has its `Node` is left as it is. `W_OBJECT_CAP` carries
+  `params.of` (`"nodes"` or `"edges"`) beside `wanted` and `cap`, since one code serves both budgets; it arrives on
+  `limits-warning` once a repaint settles, and again only when the number held plain changes. The app's
+  `fitsInBrowser` and `isLarge` take the limits as an optional parameter, defaulting to `DEFAULT_LIMITS`; no caller
+  passes raised ones yet, because the app does not raise `limits` on the element.
 
 ## 9. Edge-case rulings (input -> expected result)
 

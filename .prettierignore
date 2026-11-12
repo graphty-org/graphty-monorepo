@@ -10,6 +10,8 @@ storybook-static/
 graph-samples/public-data/
 # pipeline-health's CDK synth output: written by `pnpm run synth`, ignored by tools/pipeline-health/.gitignore
 tools/pipeline-health/cdk.out/
+# benchmark page builds: written by benchmarks/compare, ignored by benchmarks/.gitignore
+benchmarks/compare/builds/
 
 # Generated files
 # API reports: written by tools/api-report.mjs (api-extractor), compared byte for byte

@@ -1084,30 +1084,7 @@ export function joinReport(table: JoinTable, graph: JoinGraph, choices: JoinChoi
         mappedToMany: now.translation.mappedToMany,
     };
     if (chosen === "merge") {
-        const merge = mergeOf(table, graph, choices);
-        const kept = choices.unmatchedFrom === "drop" ? 0 : merge.onlyFrom;
-        return report(
-            {
-                ...base,
-                rowFates: frozen(merge.fates),
-                merged: now.matched.size,
-                onlyFrom: merge.onlyFrom,
-                onlyOnto: elements.length - now.matched.size,
-                newNodes: kept,
-                ...(choices.compare === true
-                    ? {
-                          regions: frozen({
-                              nodes: {
-                                  "only-from": kept,
-                                  both: now.matched.size,
-                                  "only-onto": elements.length - now.matched.size,
-                              },
-                          }),
-                      }
-                    : {}),
-            },
-            elements,
-        );
+        return report(mergeCounts(table, graph, choices, base, now.matched.size), elements);
     }
 
     if (chosen === "link") {
@@ -1116,6 +1093,37 @@ export function joinReport(table: JoinTable, graph: JoinGraph, choices: JoinChoi
     }
 
     return report(base, elements);
+}
+
+/**
+ * A merge's counts: the values join's, with the merge's fates and, with `compare`, its regions.
+ * @param table - The incoming table.
+ * @param graph - The graph.
+ * @param choices - The join.
+ * @param base - The values join's counts.
+ * @param merged - The nodes rows merge into.
+ * @returns The counts.
+ */
+function mergeCounts(
+    table: JoinTable,
+    graph: JoinGraph,
+    choices: JoinChoices,
+    base: Partial<JoinReport>,
+    merged: number,
+): Partial<JoinReport> {
+    const merge = mergeOf(table, graph, choices);
+    const kept = choices.unmatchedFrom === "drop" ? 0 : merge.onlyFrom;
+    const onlyOnto = graph.nodes.length - merged;
+    const regions = { "only-from": kept, both: merged, "only-onto": onlyOnto };
+    return {
+        ...base,
+        rowFates: frozen(merge.fates),
+        merged,
+        onlyFrom: merge.onlyFrom,
+        onlyOnto,
+        newNodes: kept,
+        ...(choices.compare === true ? { regions: frozen({ nodes: regions }) } : {}),
+    };
 }
 
 /**

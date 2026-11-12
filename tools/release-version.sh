@@ -11,7 +11,8 @@
 # separated nx project names, read by tools/release-hold.mjs) leaves those out as well, for this run only.
 #
 # Usage: tools/release-version.sh [packages]
-# Needs: pnpm install done, git user.name and user.email set, GITHUB_TOKEN for the changelog's author handles.
+# Needs: pnpm install done, a git identity, GITHUB_TOKEN for the changelog's author handles. On this machine the
+# session already has one: setting it with git config in a worktree writes the .git/config they all share (#5974).
 
 set -euo pipefail
 

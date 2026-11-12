@@ -90,6 +90,28 @@ export function normalizePlace(value: unknown): string {
 }
 
 /**
+ * The keys a place is found by: its name, its alternates, and a country's code. A one-character
+ * alternate is a postal code (Natural Earth gives the Maldives' Baa atoll "B"), never a name a table
+ * holds; indexed, it would make a column of labels "A", "B" read as regions, so it is left out.
+ * @param name - The place's name.
+ * @param alternates - Its other names and codes.
+ * @param code - A country's ISO code, or null.
+ * @returns The keys, none blank.
+ */
+function placeKeys(name: string, alternates: readonly string[], code: string | null): Set<string> {
+    const keys = new Set([name, ...(code === null ? [] : [code])].map(normalizePlace));
+    for (const alternate of alternates) {
+        const key = normalizePlace(alternate);
+        if (key.length > 1) {
+            keys.add(key);
+        }
+    }
+
+    keys.delete("");
+    return keys;
+}
+
+/**
  * A layer from its file, indexed by every name it lists (and, for a country, its code).
  * @param file - The parsed file.
  * @returns The layer.
@@ -109,22 +131,12 @@ function layerFromFile(file: unknown): GazetteerLayer {
     const byName = new Map<string, Place[]>();
     for (const [name, alternates, country, region, lat, lon, population] of f.places) {
         const place: Place = { name, country, region, lat, lon, population };
-        // A one-character alternate is a postal code (Natural Earth gives the Maldives' Baa atoll "B"),
-        // never a name a table holds; indexed, it makes a column of labels "A", "B" read as regions.
-        const others = alternates.map(normalizePlace).filter((key: string) => key.length > 1);
-        const keys = new Set([
-            normalizePlace(name),
-            ...others,
-            ...(f.layer === "country" ? [country] : []).map(normalizePlace),
-        ]);
-        for (const key of keys) {
-            if (key !== "") {
-                const list = byName.get(key);
-                if (list === undefined) {
-                    byName.set(key, [place]);
-                } else {
-                    list.push(place);
-                }
+        for (const key of placeKeys(name, alternates, f.layer === "country" ? country : null)) {
+            const list = byName.get(key);
+            if (list === undefined) {
+                byName.set(key, [place]);
+            } else {
+                list.push(place);
             }
         }
     }

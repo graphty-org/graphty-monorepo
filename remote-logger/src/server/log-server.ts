@@ -148,6 +148,8 @@ export interface LogServerOptions {
     httpOnly?: boolean;
     /** Suppress startup banner (default: false) */
     quiet?: boolean;
+    /** Let the proxy reach loopback, private and link-local addresses (default: false) */
+    proxyAllowPrivate?: boolean;
 }
 
 // Re-export LogEntry from log-storage for backward compatibility
@@ -278,7 +280,9 @@ function receiveLogBatch(req: http.IncomingMessage, res: http.ServerResponse, qu
                 console.error("Error parsing log data:", error);
             }
             res.writeHead(400, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: "Invalid JSON" }));
+            res.end(
+                JSON.stringify({ error: error instanceof SyntaxError ? "Invalid JSON" : (error as Error).message }),
+            );
         }
     });
 }
@@ -414,7 +418,76 @@ function serveViewerRoute(
 }
 
 /**
- * Handle incoming HTTP request.
+ * Whether a route is meant to be called from any web page: the routes the browser client
+ * and the script tag use. Only these get the wildcard CORS header.
+ * @param url - The request path and query
+ * @returns True for /log, /health and /remote-logger.js
+ */
+function isBrowserRoute(url: string): boolean {
+    return url === "/log" || url === "/health" || url === "/remote-logger.js" || url.startsWith("/remote-logger.js?");
+}
+
+/**
+ * Whether a request was sent by a web page on another origin. Browsers send Origin on
+ * cross-origin POSTs and fetches; tools such as curl and the MCP server send none.
+ * @param req - The incoming HTTP request
+ * @returns True if the request carries an Origin that is not this server's own
+ */
+function isCrossOriginRequest(req: http.IncomingMessage): boolean {
+    const { origin } = req.headers;
+    if (origin === undefined) {
+        return false;
+    }
+    try {
+        return new URL(origin).host !== req.headers.host;
+    } catch {
+        // "null" (sandboxed frames, file: pages) and anything unparsable
+        return true;
+    }
+}
+
+/**
+ * Answer a request with a JSON error.
+ * @param res - The HTTP response object
+ * @param status - The HTTP status code
+ * @param error - The error text
+ */
+function sendError(res: http.ServerResponse, status: number, error: string): void {
+    res.writeHead(status, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error }));
+}
+
+/**
+ * Hand a /proxy/<url> request to the proxy, or answer 400 if the target is not a
+ * well-formed percent-encoded URL.
+ * @param req - The incoming HTTP request
+ * @param res - The HTTP response object
+ * @param proxy - The proxy instance
+ * @param url - The request path and query
+ * @param protocol - "https" or "http"
+ * @param defaultHost - The host:port to use when the request has no Host header
+ */
+function serveProxyRoute(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    proxy: ProxyInstance,
+    url: string,
+    protocol: string,
+    defaultHost: string,
+): void {
+    let targetUrl: string;
+    try {
+        targetUrl = decodeURIComponent(url.substring("/proxy/".length));
+    } catch {
+        sendError(res, 400, "Invalid target URL: malformed percent-encoding");
+        return;
+    }
+    proxy.handleRequest(req, res, targetUrl, protocol, req.headers.host ?? defaultHost);
+}
+
+/**
+ * Handle incoming HTTP request. Called synchronously from the server's request callback,
+ * so a throw here would end the whole process (and the MCP server with it): answer 500 instead.
  * @param req - The incoming HTTP request
  * @param res - The HTTP response object
  * @param host - The server hostname
@@ -432,10 +505,52 @@ function handleRequest(
     quiet: boolean,
     logReceiveOnly: boolean = false,
 ): void {
-    // CORS headers
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    try {
+        routeRequest(req, res, host, port, useHttps, quiet, logReceiveOnly);
+    } catch (error) {
+        if (!quiet) {
+            console.error("Error handling request:", error);
+        }
+        if (!res.headersSent) {
+            sendError(res, 500, "Internal server error");
+        } else {
+            res.end();
+        }
+    }
+}
+
+/**
+ * Route an incoming HTTP request.
+ * @param req - The incoming HTTP request
+ * @param res - The HTTP response object
+ * @param host - The server hostname
+ * @param port - The server port number
+ * @param useHttps - Whether HTTPS is being used
+ * @param quiet - If true, suppress terminal output
+ * @param logReceiveOnly - If true, only serve /log POST and /health GET endpoints
+ */
+function routeRequest(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    host: string,
+    port: number,
+    useHttps: boolean,
+    quiet: boolean,
+    logReceiveOnly: boolean,
+): void {
+    const url = req.url ?? "/";
+
+    // Only the browser routes may be called (and read) from any web page. The proxy and
+    // the log viewer routes get no CORS header, so other pages cannot read their answers.
+    if (isBrowserRoute(url)) {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    } else if (isCrossOriginRequest(req)) {
+        // ...and cannot fire them blind either (POST /logs/clear, POSTs through the proxy)
+        sendError(res, 403, "Cross-origin requests are only accepted on /log, /health and /remote-logger.js");
+        return;
+    }
 
     if (req.method === "OPTIONS") {
         res.writeHead(204);
@@ -443,7 +558,6 @@ function handleRequest(
         return;
     }
 
-    const url = req.url ?? "/";
     const protocol = useHttps ? "https" : "http";
 
     // Handle log endpoint - receive logs from browser
@@ -468,9 +582,7 @@ function handleRequest(
 
     // Reverse proxy with auto-injection (available in all modes including logReceiveOnly)
     if (url.startsWith("/proxy/") && sharedProxy) {
-        const targetUrl = decodeURIComponent(url.substring("/proxy/".length));
-        const hostHeader = req.headers.host ?? `${host}:${port}`;
-        sharedProxy.handleRequest(req, res, targetUrl, protocol, hostHeader);
+        serveProxyRoute(req, res, sharedProxy, url, protocol, `${host}:${port}`);
         return;
     }
 
@@ -698,6 +810,7 @@ Options:
   --http-only             Start only HTTP server (legacy mode)
   --mcp                   Alias for --mcp-only (deprecated)
   --quiet, -q             Suppress startup banner
+  --proxy-allow-private   Let /proxy/ reach loopback, private and link-local hosts
   --help                  Show this help message
 
 Protocol:
@@ -796,6 +909,9 @@ export function parseArgs(args: string[], env: NodeJS.ProcessEnv = process.env):
             case "-q":
                 options.quiet = true;
                 break;
+            case "--proxy-allow-private":
+                options.proxyAllowPrivate = true;
+                break;
             case "--help":
                 return { options, showHelp: true };
             default:
@@ -836,6 +952,7 @@ export async function main(): Promise<void> {
         quiet: options.quiet ?? false,
         certPath: options.certPath,
         keyPath: options.keyPath,
+        proxyAllowPrivate: options.proxyAllowPrivate,
     };
 
     // Determine mode: mcp-only, http-only, or dual (default)

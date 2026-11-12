@@ -29,6 +29,6 @@ everything stored per neighbour entry (`colIdx`, `weights`) uses arc indices. Se
 
 - If you already hold node and edge objects, [`fromElements()`](./building#from-your-own-objects)
   builds a snapshot from them in one call.
-- To read a file, use [graph-io](/graph-io/): it returns a snapshot.
-- To run an algorithm or a layout on a snapshot, see [algorithms](/algorithms/) and
-  [layout](/layout/).
+- To read a file, use [graph-io](https://graphty.app/docs/graph-io/): it returns a snapshot.
+- To run an algorithm or a layout on a snapshot, see [algorithms](https://graphty.app/docs/algorithms/) and
+  [layout](https://graphty.app/docs/layout/).

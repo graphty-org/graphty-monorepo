@@ -2598,6 +2598,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edge: READ,
             nodes: READ,
             edges: READ,
+            // Two numbers off the snapshot.
+            count: READ,
             // Deep-frozen records, read a window at a time.
             nodePage: READ,
             edgePage: READ,
@@ -3052,6 +3054,19 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             fingerprint: READ,
             addNodes: calls([[{ id: "door-a" }]], [addNodes({ id: "door-a" })]),
             addEdges: calls([[{ src: "door-a", dst: "door-b" }]], [addEdges({ src: "door-a", dst: "door-b" })]),
+            importColumns: calls(
+                [{ sources: [0], targets: [1], nodeCount: 2, ids: ["door-c", "door-d"] }],
+                batchOf("Set the graph data", addNodesBy("id", { id: "door-c" }, { id: "door-d" }), {
+                    op: "data.apply",
+                    mutation: {
+                        kind: "add-edges",
+                        records: [{ source: "door-c", target: "door-d" }],
+                        source: "source",
+                        target: "target",
+                        weight: "weight",
+                    },
+                }),
+            ),
             updateNodes: calls(
                 [[{ id: "door-a", values: { weight: 2 } }]],
                 [updateRow("node", "door-a", { weight: 2 })],
@@ -3142,6 +3157,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             styles: READ,
             suggestJoin: READ,
             joinReport: READ,
+            lookup: READ,
             // A draft of TINY_JSON: the rows it held, loaded without reading the source again, its
             // nodes named by the file's label column, as `data.import` names them.
             load: calls([], [{ op: "batch", steps: [DRAFT_LABEL, DRAFT_LOAD] }, DRAFT_LABEL, DRAFT_LOAD]),
@@ -4047,6 +4063,7 @@ export const GESTURE_DOORS: Readonly<Record<string, string>> = {
 export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear">> = {
     "SessionDataApi.addNodes": "edit",
     "SessionDataApi.addEdges": "edit",
+    "SessionDataApi.importColumns": "edit",
     "SessionDataApi.updateNodes": "edit",
     "SessionDataApi.updateEdges": "edit",
     "SessionDataApi.removeNodes": "edit",

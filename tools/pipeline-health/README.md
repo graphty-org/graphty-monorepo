@@ -262,7 +262,7 @@ and keeps the cursor, so the next pass sends the same rows; delete the cursor to
 | `/graphty-health/release-scheduler/app-id`, `installation-id`, `private-key` | The App the slice dispatcher dispatches as     |
 
 **When everything goes dark.** The backend stops itself before it costs money: a daily write budget
-(past it, writes get 429 and Data sources turns red), a 10 USD monthly AWS Budget whose action denies
+(past it, writes get 429 and Data sources turns red), a 50 USD monthly AWS Budget whose action denies
 the Lambdas at 100%, and the AWS project's own spend limit. Any of them silences the collector; the
 CloudWatch alarm `graphty-health-collector-dead-man` (no successful collector run in 20 minutes) emails
 the SNS topic `graphty-health-alarms` when that happens.

@@ -218,7 +218,7 @@ describe("label entries on the real element", () => {
         });
     });
 
-    it("the entry's eye off removes its labels from the canvas, and the minus removes the entry", async () => {
+    it("the entry has no eye, and the minus removes the entry", async () => {
         const { session, element } = await openWithGraph();
         await screen.findByTestId("style-tab", {});
         await userEvent.click(within(textList()).getByRole("button", { name: "Add to node text" }));
@@ -227,18 +227,33 @@ describe("label entries on the real element", () => {
         await waitFor(() => {
             assert.equal(element.labelOf("2")?.text, "Beta");
         });
-
-        await userEvent.click(within(textList()).getByRole("button", { name: "Hide label" }));
-        await waitFor(() => {
-            assert.isFalse(labelStyle(session).enabled);
-            assert.notEqual(element.labelOf("2")?.drawn, true, "the label is gone from the canvas");
-        });
+        assert.isNull(within(textList()).queryByRole("button", { name: /^(Hide|Show) label$/ }));
 
         await userEvent.click(within(textList()).getByRole("button", { name: "Remove label" }));
         await waitFor(() => {
             assert.isUndefined(writer(session, "node.label"));
             assert.isUndefined(writer(session, "node.labelStyle"));
-            assert.isNull(within(textList()).queryByRole("button", { name: "Hide label" }));
+            assert.isNull(within(textList()).queryByRole("button", { name: "Remove label" }));
+        });
+    });
+
+    it("a label saved hidden by the old eye stays hidden until the reader changes it on its entry", async () => {
+        const { session, element, store } = await openWithGraph();
+        const layer = await session.styles.add({
+            name: "Saved",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.label": "Saved", "node.labelStyle": { enabled: false, look: "default" } },
+        });
+        store.set({ inspected: { kind: "layer-row", id: layer.id } });
+        await within(textList()).findByRole("combobox", { name: /^Node label look/ });
+        assert.notEqual(element.labelOf("1")?.drawn, true, "the saved label opens as it was saved: not drawn");
+
+        await choose("Node label look", "Dark", textList());
+        await waitFor(() => {
+            assert.equal(labelStyle(session).look, "dark");
+            assert.isUndefined(labelStyle(session).enabled);
+            assert.isTrue(element.labelOf("1")?.drawn, "the changed label is drawn");
         });
     });
 

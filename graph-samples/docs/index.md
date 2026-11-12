@@ -8,7 +8,7 @@
   football, road and citation networks with hundreds of thousands of nodes), with their known
   groupings where they have one.
 
-A generator returns typed arrays that [graph-format](/graph-format/) turns into a snapshot in one
+A generator returns typed arrays that [graph-format](https://graphty.app/docs/graph-format/) turns into a snapshot in one
 call; a dataset downloads from graphty.app as a snapshot when you ask for it. No dataset's data is
 in the npm package.
 

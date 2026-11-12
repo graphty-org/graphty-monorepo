@@ -7,8 +7,8 @@ edge attributes, and an id map from your own node ids to the dense indices the a
 It has no runtime dependencies and contains no algorithms, no drawing and no file parsers. Those
 live in the packages that read and write snapshots:
 
-- [graph-io](/graph-io/) reads and writes graph files (GraphML, GEXF, CSV, JSON, ...) as snapshots.
-- [algorithms](/algorithms/) and [layout](/layout/) run over a snapshot.
+- [graph-io](https://graphty.app/docs/graph-io/) reads and writes graph files (GraphML, GEXF, CSV, JSON, ...) as snapshots.
+- [algorithms](https://graphty.app/docs/algorithms/) and [layout](https://graphty.app/docs/layout/) run over a snapshot.
 - graph-samples generates graphs and downloads well-known datasets as snapshots.
 - webgpu-graph-algorithms uploads a snapshot to the GPU in one call.
 

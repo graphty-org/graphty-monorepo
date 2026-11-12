@@ -13,13 +13,13 @@ graphty-element can also load samples itself, without this package in your code:
 `session.data.loadDataset("football")` loads a dataset and
 `session.data.generate("barabasi-albert", { n: 500 })` runs a generator, while
 `session.catalog.datasets()` and `session.catalog.generators()` list what it can load. See
-[Data sources](/graphty-element/guide/data-sources) in the graphty-element guide.
+[Data sources](https://graphty.app/docs/graphty-element/guide/data-sources) in the graphty-element guide.
 
 ## Into other graphty packages
 
 Everything else takes a graph-format snapshot. A generated graph becomes one with
 `fromEdgeArrays()`, and `fetchDataset()` returns one, so a sample goes straight into
-[algorithms](/algorithms/), [layout](/layout/) or graph-io's exporters:
+[algorithms](https://graphty.app/docs/algorithms/), [layout](https://graphty.app/docs/layout/) or graph-io's exporters:
 
 ```ts
 import { fromEdgeArrays } from "@graphty/graph-format";

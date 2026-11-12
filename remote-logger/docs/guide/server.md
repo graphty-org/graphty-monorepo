@@ -13,6 +13,7 @@ Options:
   --key, -k <path>        Path to SSL private key file (enables HTTPS)
   --log-file, -l <path>   Write logs to file (JSONL format)
   --quiet, -q             Suppress startup banner
+  --proxy-allow-private   Let /proxy/ reach loopback, private and link-local hosts
   --mcp-only              Start only MCP server (no HTTP)
   --http-only             Start only HTTP server (no MCP)
   --help                  Show help message

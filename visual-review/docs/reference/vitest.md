@@ -2,7 +2,7 @@
 
 visual-review can take its screenshots inside your Storybook's story tests (Vitest's browser mode)
 instead of a separate capture run. Two entry points make that work; the guide's section
-[Taking the screenshots inside the story tests](../guide/github-actions#taking-the-screenshots-inside-the-story-tests)
+[Taking the screenshots inside the story tests](../guide/github-actions)
 shows them in a complete Vitest config. Both ship their own TypeScript declarations.
 
 ## `@graphty/visual-review/vitest`

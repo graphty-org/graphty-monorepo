@@ -37,12 +37,12 @@ async function loadRing(canvasElement: HTMLElement): Promise<void> {
  * @param canvasElement - the story's root.
  * @param name - the control's aria-label.
  */
-function click(canvasElement: HTMLElement, name: string): void {
+async function click(canvasElement: HTMLElement, name: string): Promise<void> {
     const control = canvasElement.querySelector<HTMLElement>(`[aria-label="${name}"]`);
     if (control === null) {
         throw new Error(`no control named "${name}"`);
     }
-    control.click();
+    await userEvent.click(control);
 }
 
 const meta: Meta<typeof Workspace> = {
@@ -81,7 +81,7 @@ export const MainMenuOpen: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRing(canvasElement);
-        click(canvasElement, "Main menu");
+        await click(canvasElement, "Main menu");
     },
 };
 

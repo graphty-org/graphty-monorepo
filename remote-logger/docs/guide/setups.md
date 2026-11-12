@@ -82,3 +82,12 @@ Point your browser (including iOS Safari) at the proxy URL. The proxy:
 - OAuth redirect flows that check the origin domain will not work
 - WebSocket connections are not proxied
 - Sites with very aggressive bot detection may still block the proxy
+
+**Security:**
+
+The server listens on all interfaces (`0.0.0.0`) by default so phones and headsets on your network can send logs, and it has no authentication. Anyone who can reach the port can send logs, read them (`/logs`) and use the proxy. To limit that:
+
+- The proxy refuses targets on loopback, private, link-local (including cloud metadata at `169.254.169.254`) and unique-local addresses, so it cannot be used to reach services only your machine can see. Start the server with `--proxy-allow-private` to proxy such a host anyway.
+- The proxy verifies upstream TLS certificates.
+- Only `/log`, `/health` and `/remote-logger.js` answer web pages on other origins. A page on another origin cannot read or clear the logs, or drive the proxy.
+- Bind to `127.0.0.1` with `--host 127.0.0.1` when no other device needs to reach the server.

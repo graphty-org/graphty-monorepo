@@ -1084,17 +1084,17 @@
                 "dim": "aws",
                 "projected": false
             },
-            "ok": ["<=", 8],
-            "fail": [">", 10],
+            "ok": ["<=", 40],
+            "fail": [">", 50],
             "sources": ["billing"],
             "alert": {
                 "afterMs": 3600000,
                 "priority": 0,
                 "floorMs": 604800000,
-                "value": [">", 8],
-                "title": "Health alerts stop at $10 AWS spend (forecast {pace}): raise the limit?",
-                "text": "AWS hosting for the dashboard: {value} spent so far, about {pace} by {end} at this pace. At $10 the dashboard's AWS Budget locks it, which stops the dashboard and these alerts.",
-                "action": "Pick one: raise the dashboard's own AWS Budget from $10 to $15 (still under the $20 project spend limit), or have the agents find and cut what grew.",
+                "value": [">", 40],
+                "title": "Health alerts stop at $50 AWS spend (forecast {pace}): raise the limit?",
+                "text": "AWS hosting for the dashboard: {value} spent so far, about {pace} by {end} at this pace. At $50 the dashboard's AWS Budget locks it, which stops the dashboard and these alerts.",
+                "action": "Pick one: raise the dashboard's own AWS Budget above $50, or have the agents find and cut what grew.",
                 "daytime": true,
                 "then": "Tell any Claude session your choice; it applies it."
             }

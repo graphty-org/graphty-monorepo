@@ -1714,8 +1714,12 @@ export class UpdateManager implements Manager {
             return node.isDrawnBehindEdges;
         }
 
+        if (!this.graphContext.is2D()) {
+            return false;
+        }
+
         const look = this.graphContext.getNodeBatches?.()?.lookOf(row) ?? null;
-        return this.graphContext.is2D() && (look?.paint.style.shape?.zIndex ?? 0) < 0;
+        return (look?.paint.style.shape?.zIndex ?? 0) < 0;
     }
 
     /**

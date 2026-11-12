@@ -26,6 +26,7 @@ import {
     type ResultShape,
     type RunId,
     type SetDefinitionInput,
+    type StyleDocument,
 } from "../catalog/types";
 import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
@@ -41,6 +42,7 @@ import {
     withAcceptedAssetIds,
 } from "./assets/projectMember";
 import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
+import { shaderIdsIn } from "./commands/shaderCopies";
 import type { SessionData } from "./data";
 import { ISSUES_VALUE, type IssueState } from "./issues";
 import { loadLineOf } from "./loadLine";
@@ -135,12 +137,16 @@ const EXTENSION_NAME = /^(?!graphty(\.|$))[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
 /**
  * Something about a save or an open, as a code and the values it is about.
  *
- * The codes are the element's error and warning codes. The params a project problem may carry:
+ * The codes are the element's error and warning codes, and two shader codes: `shader.unknown`, a
+ * shader use an opened file names whose text it does not carry or that does not read, dropped
+ * while the rest opens (`slice` `"styles"` with the layer's `id` and the `channel`, or `slice`
+ * `"config"` with `channel` `"background"`; `shader` names the id); and `shader.not-saved`, a
+ * shader the saved file names but does not carry (`id`). The params a project problem may carry:
  * `slice` (the {@link ProjectSlice} it concerns), `id` (the run, layer or set), `index` (the
  * member's position in the file), `kind` (the member's kind), `found` (a version), `needs` (the
  * paths a layer reads that nothing answers) and `pointer` (a JSON pointer inside a member).
  */
-export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
+export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | "shader.unknown" | "shader.not-saved">;
 
 export type { AssetStorage, ProjectAssetChoice } from "./assets/projectMember";
 
@@ -963,7 +969,30 @@ export function resultsMember(
  * @returns The member.
  */
 export function styleMember(session: GraphSession): Record<string, unknown> {
-    return { kind: "graphty-style", ...withAcceptedAssetIds(session, session.styles.toDocument()) };
+    // What the document found wrong is reported in the save's `leftOut`, not written to the file.
+    const { problems: _problems, ...document } = session.styles.toDocument();
+    return { kind: "graphty-style", ...withAcceptedAssetIds(session, document) };
+}
+
+/**
+ * The shaders a save names but does not carry: what `toDocument` reports, and the background's
+ * shader when the style member, which carries the project's shaders, is left out.
+ * @param sources - The session and its dispatcher.
+ * @param leaveOut - The members left out.
+ * @returns One `shader.not-saved` per id.
+ */
+function shadersNotSaved(sources: ProjectSources, leaveOut: ReadonlySet<string>): ProjectProblem[] {
+    const { session, dispatcher } = sources;
+    if (!leaveOut.has("graphty-style")) {
+        return (session.styles.toDocument().problems ?? []).map((problem) => ({
+            code: "shader.not-saved",
+            params: { id: String(problem.params.id) },
+        }));
+    }
+
+    const background = dispatcher.state.config.get("background") as { shader?: { id?: unknown } } | undefined;
+    const id = background?.shader?.id;
+    return typeof id === "string" ? [{ code: "shader.not-saved", params: { id } }] : [];
 }
 
 /**
@@ -1070,6 +1099,7 @@ function write(
             .map((run): ProjectProblem => ({ code: "W_RUN_PENDING", params: { slice: "runs", id: run.id } })),
         ...assets.leftOut,
         ...(file?.problems ?? []),
+        ...shadersNotSaved(sources, leaveOut),
     ];
     return { document: documentAround(session, members, extensions), leftOut };
 }
@@ -1675,6 +1705,71 @@ async function attempt(
 }
 
 /**
+ * Copy in the catalog's text for each shader id a file names but does not carry, where the project
+ * does not hold it either. Files saved before files carried their shaders named presets by id
+ * alone, and meant the catalog's shader: this keeps their look. A file saved since carries every
+ * shader it names, so for it this copies nothing.
+ * @param opening - The open.
+ * @param styles - The file's style members.
+ * @param config - The file's saved settings, for the background's shader.
+ */
+async function addLegacyShaders(
+    opening: Opening,
+    styles: readonly Record<string, unknown>[],
+    config: unknown,
+): Promise<void> {
+    const carried = new Set(
+        styles.flatMap((style) =>
+            Array.isArray(style.shaders) ? (style.shaders as { id?: unknown }[]).map((entry) => entry.id) : [],
+        ),
+    );
+    const named = shaderIdsIn([
+        styles.map((style) => style.layers),
+        (config as { background?: unknown } | undefined)?.background,
+    ]);
+    const shaders: { id: string; text: string }[] = [];
+    for (const id of named) {
+        if (carried.has(id) || opening.services.shaderReadable?.(id) === true) {
+            continue;
+        }
+
+        const text = await opening.services.legacyShaderText?.(id);
+        if (text !== undefined) {
+            shaders.push({ id, text });
+        }
+    }
+
+    if (shaders.length > 0) {
+        await attempt(opening, "styles", async () => {
+            await opening.tx.styles.applyTemplate({ version: 1, layers: [], shaders });
+        });
+    }
+}
+
+/**
+ * Saved settings without a background shader the project cannot read (its file does not carry it,
+ * or its text does not parse): that shader is dropped and reported, and the rest of the
+ * background opens.
+ * @param opening - The open.
+ * @param config - The saved settings.
+ * @returns The settings to write.
+ */
+function withReadableBackground(opening: Opening, config: Record<string, unknown>): Record<string, unknown> {
+    const background = config.background as { shader?: { id?: unknown } } | undefined;
+    const id = background?.shader?.id;
+    if (id === undefined || (typeof id === "string" && opening.services.shaderReadable?.(id) === true)) {
+        return config;
+    }
+
+    const { shader: _shader, ...rest } = background as Record<string, unknown>;
+    opening.problems.push({
+        code: "shader.unknown",
+        params: { slice: "config", channel: "background", shader: typeof id === "string" ? id : JSON.stringify(id) },
+    });
+    return { ...config, background: rest };
+}
+
+/**
  * Add the style and notes members.
  * @param opening - The open.
  * @param members - The document's members.
@@ -1691,6 +1786,13 @@ async function addStylesAndNotes(
     for (const { kind: _kind, ...style } of members.get("graphty-style") ?? []) {
         await attempt(opening, "styles", async () => {
             const report = await tx.styles.applyTemplate(remap(style) as never);
+            for (const fact of report.shaders ?? []) {
+                if (fact.code === "shader.unknown") {
+                    const { layer, channel, shader } = fact.params;
+                    problems.push({ code: "shader.unknown", params: { slice: "styles", id: layer, channel, shader } });
+                }
+            }
+
             for (const unbound of report.unbound) {
                 problems.push({
                     code: "E_UNKNOWN_ATTRIBUTE",
@@ -1736,7 +1838,23 @@ async function readProject(
     const state = first("graphty-session");
 
     await clearInto(tx, opening.playback);
-    await attempt(opening, "config", () => tx.config.set({ ...withAddedDefaults(state.config), name }));
+    await addLegacyShaders(opening, doc.members.get("graphty-style") ?? [], state.config);
+    // The style member's shaders first, so the background never names one the project lacks.
+    for (const style of doc.members.get("graphty-style") ?? []) {
+        if (Array.isArray(style.shaders)) {
+            await attempt(opening, "styles", async () => {
+                await tx.styles.applyTemplate({
+                    version: 1,
+                    layers: [],
+                    shaders: style.shaders as StyleDocument["shaders"],
+                });
+            });
+        }
+    }
+
+    await attempt(opening, "config", () =>
+        tx.config.set({ ...withReadableBackground(opening, withAddedDefaults(state.config)), name }),
+    );
     const records =
         loads.graph === undefined ? graph : { ...graph, nodes: loads.graph.nodes, links: loads.graph.links };
     const edgeIds = await importInto(tx, records, source, sources, provenance);
@@ -2505,6 +2623,7 @@ export function projectOf(
                     }
                 }
 
+                await addLegacyShaders(opening, doc.members.get("graphty-style") ?? [], undefined);
                 await addStylesAndNotes(opening, doc.members, (value) => value, doc.name ?? null);
             },
             starts ? { ...OPEN_DOCUMENT, starts } : OPEN_DOCUMENT,

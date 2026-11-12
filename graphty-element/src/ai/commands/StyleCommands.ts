@@ -405,6 +405,15 @@ export const findAndStyleNodes: GraphCommand = {
 
         const { set, unsupported } = nodeChannels(styleParams);
         const writer = writerOf(graph, context);
+        if (styleParams.shader !== undefined) {
+            // A catalog pick names the project's copy of the catalog's shader, never a file's own
+            // text that happens to share its id. An id the catalog lacks is left for the layer's
+            // check to refuse.
+            const picked = await writer.shaders
+                .fromCatalog(styleParams.shader)
+                .catch(() => styleParams.shader as string);
+            set["node.shaders"] = [{ shader: picked }];
+        }
 
         if (styleParams.shaderText !== undefined) {
             // Text from a model is content, never the reader's own: it is held until the reader

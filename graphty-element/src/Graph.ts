@@ -128,6 +128,7 @@ import {
     GraphBehaviorOpts,
     type GraphSelectionStyleInput,
     GraphSelectionStyleOpts,
+    type NodeStyleConfig,
     type StyleSchemaV1,
     StyleTemplate,
     type ViewMode,
@@ -210,9 +211,16 @@ import { NodeEffects } from "./meshes/NodeEffects";
 import { sceneLighting } from "./meshes/NodeLighting";
 import { NodeMesh } from "./meshes/NodeMesh";
 import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
-import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
+import {
+    modelThumbnail,
+    type ModelThumbnailOptions,
+    nodeThumbnail,
+    type NodeThumbnailOptions,
+} from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { pulledEdgesDefault } from "./meshes/PulledLineBatch";
+import { loadChunk, loadModel } from "./models/loadModel";
+import { optionsOf } from "./models/ModelCache";
 import { Node, releaseNodeMesh } from "./Node";
 import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./NodeBehavior";
 import { EdgeIdTarget } from "./render/EdgeIdTarget";
@@ -4771,7 +4779,8 @@ export class Graph implements GraphContext {
         }
 
         if (path === "objects") {
-            // Every row stored with no `Node` gets one: only a batch draws it otherwise.
+            // Every row stored with no `Node` gets one, and every edge stored with no `Edge`: only a batch or a row
+            // line draws them otherwise.
             dataManagerInternals.buildAll(this.dataManager);
         }
 
@@ -4846,16 +4855,17 @@ export class Graph implements GraphContext {
      */
     get rowCounts(): RowCounts {
         const batchedNodes = this.#nodeBatches?.batchedNodes ?? 0;
-        let pulledEdges = 0;
-        for (const edge of this.dataManager.edges.values()) {
-            pulledEdges += edge.isPulled ? 1 : 0;
+        // An edge stored with no `Edge` is drawn from the row tables (`EdgeRowLines`), never as an object.
+        let objectEdges = 0;
+        for (const edge of this.builtEdges()) {
+            objectEdges += edge.isPulled ? 0 : 1;
         }
 
         return {
             batchedNodes,
             objectNodes: this.dataManager.nodes.size - batchedNodes,
-            pulledEdges,
-            objectEdges: this.dataManager.edges.size - pulledEdges,
+            pulledEdges: this.dataManager.edges.size - objectEdges,
+            objectEdges,
         };
     }
 
@@ -4894,6 +4904,11 @@ export class Graph implements GraphContext {
                     meshesChanged: () => {
                         this.updateManager.thawActiveMeshes();
                         this.updateManager.meshesShownOrHidden();
+                    },
+                    resized: () => {
+                        if (this.layoutManager.layoutEngine?.wakeForResize() === true) {
+                            this.layoutManager.running = true;
+                        }
                     },
                 },
                 this.scene,
@@ -6915,6 +6930,99 @@ export class Graph implements GraphContext {
             this.#thumbnailQueue = shot.catch(() => undefined);
             this.#thumbnails.set(key, shot);
             // A failed picture is not kept: the next call tries again.
+            shot.catch(() => {
+                this.#thumbnails.delete(key);
+            });
+        }
+        return shot;
+    }
+
+    /**
+     * One node drawn as a model, alone, as the graph draws it, on a transparent background. See
+     * {@link ModelThumbnailOptions}. Waits for the asset to settle; queued with `nodeThumbnail` and
+     * drawn once per asset digest, size, style values, 2D and lighting.
+     * @param ref - What `node.model` takes: an asset id, a sample's id, or a URL the session holds.
+     * @param options - The size and the node's style values.
+     * @returns The picture as a PNG data URL.
+     * @throws GraphtyError `E_MODEL_UNKNOWN_ASSET` when the session holds nothing under `ref`; for a
+     *     rejected or waiting model, its first problem's code and params.
+     */
+    async modelThumbnail(ref: string, options: ModelThumbnailOptions = {}): Promise<string> {
+        const { assets } = this.getSession();
+        const held = assets.find(ref); // NOSONAR(S7754): the session's find, not Array.find
+        if (held === undefined && !ref.startsWith("asset:sample/")) {
+            throw new GraphtyError({
+                code: "E_MODEL_UNKNOWN_ASSET",
+                source: "data",
+                message: `No model is held as ${ref}.`,
+                details: { ref },
+            });
+        }
+
+        const record = await assets.ready(ref);
+        const problem =
+            record.kind === "image"
+                ? {
+                      code: "E_MODEL_FORMAT_UNSUPPORTED",
+                      params: { format: record.format, fileName: record.path ?? "", assetKind: "image" },
+                  }
+                : record.problems[0];
+        if (record.state !== "accepted" || record.kind === "image") {
+            throw new GraphtyError({
+                code: (problem?.code ?? "E_MODEL_UNKNOWN_ASSET") as GraphtyError["code"],
+                source: "data",
+                message: `The model ${ref} cannot be drawn.`,
+                details: problem?.params ?? { ref },
+            });
+        }
+
+        const style = options.style ?? {};
+        const shape = {
+            type: "box",
+            model: ref,
+            modelSourceUp: style["node.modelSourceUp"],
+            modelTurn: style["node.modelTurn"],
+            modelCenter: style["node.modelCenter"],
+            modelFit: style["node.modelFit"],
+            modelTint: style["node.modelTint"],
+        } as NonNullable<NodeStyleConfig["shape"]>;
+        const is2D = this.getViewMode() === "2d";
+        const key = JSON.stringify([
+            "model",
+            record.digest,
+            options.size,
+            style["node.color"],
+            shape.modelSourceUp,
+            shape.modelTurn,
+            shape.modelCenter,
+            shape.modelFit,
+            shape.modelTint,
+            is2D,
+            this.#lighting,
+        ]);
+        let shot = this.#thumbnails.get(key);
+        if (shot === undefined) {
+            shot = this.#thumbnailQueue.then(async () => {
+                const files = assets.files(record.id);
+                const container = await loadModel(this.scene, files, record.path ?? "", record.format, record.skipped);
+                const chunk = await loadChunk();
+                const template = await chunk.prepareTemplate(
+                    this.scene,
+                    container,
+                    `graphty-model-thumbnail-${record.digest.slice(0, 8)}`,
+                    optionsOf(shape, record.format),
+                    () => chunk.neutralEnvironment(this.scene),
+                );
+                try {
+                    // As nodeThumbnail: the instance is made now, so the frozen list must not leave it out.
+                    this.updateManager.thawActiveMeshes();
+                    return await modelThumbnail(this.engine, this.scene, is2D, template, options);
+                } finally {
+                    template.dispose();
+                }
+            });
+            this.#thumbnailQueue = shot.catch(() => undefined);
+            this.#thumbnails.set(key, shot);
             shot.catch(() => {
                 this.#thumbnails.delete(key);
             });

@@ -4136,7 +4136,7 @@ export interface ProjectOpenReport {
 }
 
 // @public
-export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
+export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | "shader.unknown" | "shader.not-saved">;
 
 // @public
 export interface ProjectSaveOptions {
@@ -5898,6 +5898,8 @@ export interface SessionShaders {
         readonly compile?: boolean;
         readonly picture?: boolean;
     }): Promise<ShaderAddResult>;
+    describe(id: string): ShaderDescriptor | undefined;
+    fromCatalog(id: string): Promise<string>;
     // (undocumented)
     list(): readonly ProjectShader[];
     remove(id: string): Promise<void>;
@@ -6639,6 +6641,7 @@ export interface StyleDocument {
     layers: readonly LayerSpec[];
     // (undocumented)
     palettes?: readonly PaletteDescriptor[];
+    problems?: readonly ShaderProblem[];
     shaders?: readonly {
         readonly id: string;
         readonly text: ShaderText;
@@ -6880,7 +6883,7 @@ export type TemplatePosition = "top" | "aboveBase" | {
 // @public
 export interface TemplateReport {
     readonly applied: readonly LayerId[];
-    readonly shaders?: readonly CodedFact<"shader.held" | "shader.id-taken">[];
+    readonly shaders?: readonly CodedFact<"shader.held" | "shader.id-taken" | "shader.unknown">[];
     readonly unbound: readonly UnboundLayer[];
 }
 

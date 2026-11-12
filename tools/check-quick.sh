@@ -140,6 +140,7 @@ step "Legacy graph API use" pnpm run check:legacy-use
 step "No special style layers" pnpm run check:special-layers
 step "No committed walk screenshots" pnpm run check:committed-images
 step "compact-mantine Figma lock" pnpm run check:figma-lock
+step "Saved-format exceptions" pnpm run check:saved-format-allowlist
 # The dry run walks graphty/dist, so it never runs on a build the app step failed to refresh.
 dry_run() { pnpm exec nx run graphty:build && node graphty/acceptance/run.mjs; }
 if [ "$DRY_RUN" = 1 ]; then

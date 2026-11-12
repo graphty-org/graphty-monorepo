@@ -12,9 +12,12 @@
 //       opens an issue with a type, a priority and an effort label, and prints its number
 //   node tools/branch-note.mjs check-issue --issue N
 //       exits 0 when N is an open issue, 1 when it is closed, a pull request or missing
+//   node tools/branch-note.mjs issue-of <branch>
+//       prints the branch's issue and exits 0, or exits 1 when it has none; tools/pr-open.sh, tools/pr-review.sh
+//       and tools/worktree-new.sh ask this, so every tool reads a branch's issue the same way
 //
 // A branch's issue: --issue, else `git config branch.<branch>.issue` (tools/worktree-new.sh writes it), else
-// the first number of three or more digits in the branch's name. The owner: --owner, else the Claude Code
+// the number of three or more digits right after the type prefix of its name (fix/1234-topic; issueInName). The owner: --owner, else the Claude Code
 // session (CLAUDE_CODE_SESSION_ID, else the session file of a parent process in ~/.claude/sessions), else
 // user@host. Every GitHub call is tried three times (DNS for github.com fails now and then).
 import { spawnSync } from "node:child_process";
@@ -62,12 +65,14 @@ export function parseNote(body) {
 }
 
 /**
- * The issue number in a branch's name: its first run of three or more digits.
+ * The issue number in a branch's name: three or more digits right after the type prefix, as in fix/1234 or
+ * fix/1234-topic. A number anywhere else is not an issue: a date (integrate/pipeline-2026-10-24 once labelled
+ * pull request #2026 in-progress) or a commit id (revert/a5512f0).
  * @param branch the branch
  * @returns the number, or null
  */
 export function issueInName(branch) {
-    const m = /(?:^|\D)(\d{3,})(?!\d)/.exec(branch);
+    const m = /^[a-z0-9-]+\/(\d{3,})(-[a-zA-Z].*)?$/.exec(branch);
     return m ? Number(m[1]) : null;
 }
 
@@ -281,6 +286,12 @@ export function main(argv, run = gh, cwd = process.cwd()) {
         return 0;
     }
     if (command === "check-issue") return checkIssue(run, Number(o.issue));
+    if (command === "issue-of") {
+        if (!rest[0]) return usage();
+        const n = branchIssue(cwd, rest[0]);
+        if (n) console.log(n);
+        return n ? 0 : 1;
+    }
     const branch = o.branch ?? git(cwd, ["symbolic-ref", "-q", "--short", "HEAD"]);
     if (!["start", "update", "commit"].includes(command) || !branch) return usage();
     const n = branchIssue(cwd, branch, o.issue);
@@ -316,6 +327,7 @@ function usage() {
             "     | update [--branch B] [--done T] [--left T] [--next T] [--owner O] [--worktree P]\n" +
             "     | commit [--branch B]\n" +
             "     | check-issue --issue N\n" +
+            "     | issue-of <branch>\n" +
             "     | new-issue --title T --branch B [--type T] [--priority P] [--effort E]",
     );
     return 1;

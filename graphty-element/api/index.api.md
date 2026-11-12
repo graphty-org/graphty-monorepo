@@ -1323,6 +1323,7 @@ export const EdgeStyle: z.ZodObject<{
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+            maxLines: z.ZodOptional<z.ZodNumber>;
             keepBlankLines: z.ZodOptional<z.ZodBoolean>;
             runAlign: z.ZodOptional<z.ZodEnum<{
                 baseline: "baseline";
@@ -1599,6 +1600,7 @@ export const EdgeStyle: z.ZodObject<{
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+            maxLines: z.ZodOptional<z.ZodNumber>;
             keepBlankLines: z.ZodOptional<z.ZodBoolean>;
             runAlign: z.ZodOptional<z.ZodEnum<{
                 baseline: "baseline";
@@ -2026,6 +2028,7 @@ export const EdgeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        maxLines: z.ZodOptional<z.ZodNumber>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -2249,6 +2252,7 @@ export const EdgeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        maxLines: z.ZodOptional<z.ZodNumber>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -2940,6 +2944,7 @@ export class Graph implements GraphContext {
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
+    modelThumbnail(ref: string, options?: ModelThumbnailOptions): Promise<string>;
     // @deprecated
     needRays: boolean;
     // @deprecated
@@ -3499,6 +3504,7 @@ export class Graphty extends LitElement {
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
+    modelThumbnail(ref: string, options?: ModelThumbnailOptions): Promise<string>;
     newAiConversation(): Promise<AiConversationSnapshot | null>;
     get nodeData(): Record<string, unknown>[] | undefined;
     set nodeData(value: Record<string, unknown>[] | undefined);
@@ -4395,6 +4401,45 @@ export type GraphtyErrorCode =
 | "E_IMAGE_LOAD" | "E_INTERNAL";
 
 // @public
+export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
+
+// @public
+export interface GraphtyErrorDetailsMap {
+    E_DUPLICATE_ID: {
+        readonly id?: string | number;
+    };
+    E_PARSE_FAILED: {
+        readonly format?: string;
+        readonly line?: number;
+    };
+    E_TOO_LARGE: {
+        readonly limit?: number;
+        readonly count?: number;
+        readonly of?: string;
+        readonly graph?: {
+            readonly nodes: number;
+            readonly edges: number;
+        };
+    };
+    E_UNKNOWN_ATTRIBUTE: {
+        readonly candidates?: readonly string[];
+        readonly available?: readonly string[];
+        readonly run?: string;
+        readonly field?: string;
+    };
+    E_UNKNOWN_LAYOUT: {
+        readonly layout?: string;
+        readonly available?: readonly string[];
+    };
+}
+
+// @public
+export type GraphtyErrorFor<C extends GraphtyErrorCode = GraphtyErrorCode> = C extends GraphtyErrorCode ? GraphtyError & {
+    readonly code: C;
+    readonly details: GraphtyErrorDetails<C>;
+} : never;
+
+// @public
 export interface GraphtyErrorInit {
     cause?: unknown;
     code: GraphtyErrorCode;
@@ -4853,7 +4898,7 @@ export interface InputWheelEvent {
 export function isAccelerationPolicy(value: unknown): value is AccelerationPolicy;
 
 // @public
-export function isGraphtyError(value: unknown): value is GraphtyError;
+export function isGraphtyError(value: unknown): value is GraphtyErrorFor;
 
 // @public
 export function isGraphtyErrorCode(value: unknown): value is GraphtyErrorCode;
@@ -4919,8 +4964,12 @@ export abstract class LayoutEngine {
     isNodeXlabelLeftOut(_n: Node_2): boolean;
     // (undocumented)
     abstract get isSettled(): boolean;
+    // @internal
+    protected keepInPublishedBox(n: Node_2 | ElementPositions | undefined, rows: ReadonlySet<number>): void;
     protected keptEdges(graph: GraphSnapshot): EdgeMask | null;
     protected keptRows(rows: number): NodeMask | null;
+    // @internal
+    protected lastPublishedBox(): Readonly<Float64Array> | null;
     loadArrangement(): void;
     // (undocumented)
     static maxDimensions: number;
@@ -4934,6 +4983,8 @@ export abstract class LayoutEngine {
     protected abstract pin(n: Node_2): void;
     // @internal
     protected publishColumn(n: Node_2 | ElementPositions | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
+    // @internal
+    publishedBounds(): Readonly<Float64Array> | null;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     // @internal
@@ -5144,6 +5195,12 @@ export interface MarkSuggestion {
     readonly as: "mark";
     readonly channels: readonly Channel[];
     readonly spec: MarkSpec;
+}
+
+// @public
+export interface ModelThumbnailOptions {
+    readonly size?: number;
+    readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
 }
 
 // @public
@@ -6047,6 +6104,7 @@ export const NodeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        maxLines: z.ZodOptional<z.ZodNumber>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -6270,6 +6328,7 @@ export const NodeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        maxLines: z.ZodOptional<z.ZodNumber>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -6493,6 +6552,7 @@ export const NodeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        maxLines: z.ZodOptional<z.ZodNumber>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -7084,7 +7144,7 @@ export interface ProjectOpenReport {
 }
 
 // @public
-export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
+export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | "shader.unknown" | "shader.not-saved">;
 
 // @public
 export interface ProjectSaveOptions {
@@ -7295,6 +7355,7 @@ export const RichTextStyle: z.ZodObject<{
     wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
     wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
     wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+    maxLines: z.ZodOptional<z.ZodNumber>;
     keepBlankLines: z.ZodOptional<z.ZodBoolean>;
     runAlign: z.ZodOptional<z.ZodEnum<{
         baseline: "baseline";

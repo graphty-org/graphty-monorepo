@@ -35,6 +35,7 @@ import {
     PopoutRegion,
     ToggleWithContent,
     UiGlyph,
+    usePopout,
     usePopoutManager,
     usePopoutRegion,
 } from "../../../src";
@@ -97,6 +98,9 @@ const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
  * panel (a width, a title or tab header, its content); `Popout.Content` pads what goes inside;
  * `Popout.Anchor` wraps a sidebar so every panel inside it meets the sidebar's edge. Pass
  * `opened` and `onOpenChange` to drive a pop-out from your own state.
+ *
+ * Content inside a panel closes its own pop-out with `usePopout().close()` -- an "Apply" button,
+ * a row that picks a value (see `CloseFromInside`).
  *
  * Two more pieces sit beside `PopoutManager` (see `RegionsAndCloseAll`):
  *
@@ -1194,6 +1198,56 @@ export const RegionsAndCloseAllInteractions: Story = {
         await expect(within(dialog).getByText('Opened from the "inspector" region.')).toBeVisible();
         await userEvent.keyboard("{Control>}.{/Control}");
         await waitFor(() => expect(body.queryByRole("dialog")).toBeNull());
+    },
+};
+
+/**
+ * An "Apply" button that closes the pop-out it sits in.
+ * @returns the button
+ */
+function ApplyButton(): React.JSX.Element {
+    const { close } = usePopout();
+    return (
+        <Button size="xs" onClick={() => close()}>
+            Apply
+        </Button>
+    );
+}
+
+/**
+ * Content that closes its own pop-out: the panel's "Apply" button calls `usePopout().close()`.
+ * Closing this way is the same as any other close: focus returns to the trigger.
+ */
+export const CloseFromInside: Story = {
+    render: () => (
+        <Box p={16} ml={300}>
+            <Popout>
+                <Popout.Trigger>
+                    <PopoutButton icon={<UiGlyph name="settings" size={12} />} aria-label="Label settings" />
+                </Popout.Trigger>
+                <Popout.Panel width={240} header={{ variant: "title", title: "Label settings" }}>
+                    <Popout.Content>
+                        <ApplyButton />
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>
+        </Box>
+    ),
+};
+
+/** The assertions for closing from inside: Apply closes the panel and focus goes back to the trigger. */
+export const CloseFromInsideInteractions: Story = {
+    ...CloseFromInside,
+    tags: INTERACTION_TEST_TAGS,
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const body = within(canvasElement.ownerDocument.body);
+        const trigger = canvas.getByRole("button", { name: "Label settings" });
+        await userEvent.click(trigger);
+        const dialog = await body.findByRole("dialog", { name: "Label settings" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
+        await waitFor(() => expect(body.queryByRole("dialog")).toBeNull());
+        await expect(trigger).toHaveFocus();
     },
 };
 

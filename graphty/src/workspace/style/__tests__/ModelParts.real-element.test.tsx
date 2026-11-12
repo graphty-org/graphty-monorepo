@@ -1,9 +1,9 @@
 /**
  * A model missing parts with the node models experiment on (issue #3396), on the real
  * graphty-element, by real input: the Kenney car kit's police.glb names its picture as the separate
- * file Textures/colormap.png. By a folder or a .zip it draws at once; alone it shows the
- * "1 missing" chip, whose Parts pop-over takes the picture dropped on its row, dropped anywhere in
- * the pop-over, chosen, or by address -- or draws without it. Every assertion reads what the
+ * file Textures/colormap.png. By a folder or a .zip in the Load custom model dialog it draws at
+ * once; a layer naming it alone shows the "1 missing" chip, whose Parts pop-over takes the picture
+ * dropped on its row, dropped anywhere in the pop-over, chosen, or by address -- or draws without it. Every assertion reads what the
  * element reports: its layers and its model states.
  */
 
@@ -17,7 +17,7 @@ import { userEvent } from "vitest/browser";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import policeUrl from "../__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
-import { dropOn, fileInput, openModels, openShapes, shapeField, written } from "./modelHarness";
+import { addModel, dropOn, fileInput, openCustom, openShapes, previewOf, shapeField, written } from "./modelHarness";
 
 /** The car kit's folder, as the file chooser reads it (relative to the graphty project). */
 const KIT_FOLDER = "src/workspace/style/__fixtures__/car-kit";
@@ -139,28 +139,17 @@ async function drawn(session: GraphSession): Promise<void> {
 }
 
 /**
- * police.glb chosen alone in the Models pop-over: the layer names it while it waits, the Parts
- * pop-over opens in the Models pop-over's place with focus in the first row's address, one Escape
- * closes it, and the Shape field keeps the chip.
+ * A layer naming police.glb, added alone, as a saved project whose picture moved names it: the
+ * Shape field shows police with the "1 missing" chip.
  * @returns the session, the Style tab and the chip.
  */
 async function policeAlone(): Promise<{ session: GraphSession; tab: HTMLElement; chip: HTMLElement }> {
-    const { session, tab } = await openShapes();
-    const models = await openModels(tab);
-    await userEvent.upload(fileInput(models), [await policeFile()]);
-    const parts = await screen.findByRole("dialog", { name: "police.glb" });
-    assert.isNull(screen.queryByRole("dialog", { name: "Models" }), "one pop-over at a time");
-    await waitFor(() => {
-        assert.equal(document.activeElement?.getAttribute("aria-label"), `${PART_NAME} address`);
-    });
-    assert.isTrue(parts.contains(document.activeElement));
-    await userEvent.keyboard("{Escape}");
-    await waitFor(() => {
-        assert.isNull(screen.queryByRole("dialog", { name: "police.glb" }));
-    });
+    const police = await policeFile();
+    const { session, tab } = await openShapes(["node-models"], async (each) => ({
+        "node.model": (await each.assets.add(police)).id,
+    }));
     const chip = await within(tab).findByRole("button", { name: CHIP });
     assert.equal(chip.textContent, "1 missing");
-    assert.isString(written(session, "node.model"), "the layer names the model while it waits");
     assert.isNotNull(within(tab).getByRole("combobox", { name: "Node shape, police" }));
     return { session, tab, chip };
 }
@@ -196,24 +185,28 @@ async function finished(session: GraphSession, tab: HTMLElement): Promise<void> 
 }
 
 describe("a model missing parts, on the real element", () => {
-    it("draws police from the folder chooser with its Textures folder, with no chip", async () => {
+    it("draws police from the dialog's folder chooser with its Textures folder, with no chip", async () => {
         const { session, tab } = await openShapes();
-        const models = await openModels(tab);
-        await userEvent.upload(fileInput(models, true), KIT_FOLDER);
+        const dialog = await openCustom(tab);
+        await userEvent.upload(fileInput(dialog, true), KIT_FOLDER);
+        await previewOf(dialog, "police");
+        await addModel(dialog);
         await drawn(session);
         assert.isNull(within(tab).queryByRole("button", { name: CHIP }));
     });
 
-    it("draws police from a dropped .zip of the two files, with no chip", async () => {
+    it("draws police from a .zip of the two files dropped in the dialog, with no chip", async () => {
         const { session, tab } = await openShapes();
-        const models = await openModels(tab);
+        const dialog = await openCustom(tab);
         const zip = storedZip(
             new Map([
                 ["police.glb", await bytesOf(policeUrl)],
                 [PART, await bytesOf(colormapUrl)],
             ]),
         );
-        dropOn(within(models).getByTestId("models-popover"), [new File([zip], "car-kit.zip")]);
+        dropOn(within(dialog).getByTestId("model-drop"), [new File([zip], "car-kit.zip")]);
+        await previewOf(dialog, "police");
+        await addModel(dialog);
         await drawn(session);
         assert.isNull(within(tab).queryByRole("button", { name: CHIP }));
     });
@@ -263,10 +256,9 @@ describe("a model missing parts, on the real element", () => {
             const url = input instanceof Request ? input.url : String(input);
             return url === main ? Promise.resolve(new Response(police, { status: 200 })) : original(input, init);
         });
-        const { session, tab } = await openShapes();
-        const models = await openModels(tab);
-        await userEvent.type(within(models).getByRole("textbox", { name: "Model address" }), `${main}{Enter}`);
-        let parts = await screen.findByRole("dialog", { name: "police.glb" });
+        // A layer naming the address, as a saved project does.
+        const { session, tab } = await openShapes(["node-models"], { "node.model": main });
+        let parts = await openParts(await within(tab).findByRole("button", { name: CHIP }));
 
         // Another site: the web-address question comes first, worded for a part the reader supplied.
         await userEvent.type(

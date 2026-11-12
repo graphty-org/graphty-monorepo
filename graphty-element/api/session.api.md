@@ -5894,6 +5894,7 @@ export interface SessionDataApi {
     setValueLabel(path: Path, value: string | number | boolean, label: string | null): Promise<void>;
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;
+    sourceInput(key: SourceKey): DataSourceInput | undefined;
     sources(): readonly LoadedSource[];
     sourceSettings(key: SourceKey): SourceSettings | undefined;
     sourcesOf(id: NodeId_2 | EdgeId, options?: {

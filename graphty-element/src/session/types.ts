@@ -1354,6 +1354,25 @@ export interface SessionDataApi {
      */
     reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport>;
     /**
+     * What this session read a load from, as `import` and `prepare` took it (the file itself, or
+     * the text), so an application can read the load again into a draft, such as to show its rows
+     * and change its roles. Only a load this session read itself has one
+     * (`LoadedSource.reloadable`): what a file was is never saved in a project.
+     *
+     * ```ts
+     * const [first] = session.data.sources();
+     * const input = session.data.sourceInput(first.key);
+     * if (input !== undefined) {
+     *     const draft = await session.data.prepare(input);
+     *     draft.tables[0].columns; // the load's columns, as it read them
+     * }
+     * ```
+     * @param key - The load's key, from {@link SessionDataApi.sources}.
+     * @returns What the load was read from, or undefined for a load this session did not read.
+     * @since 3.47.0
+     */
+    sourceInput(key: SourceKey): DataSourceInput | undefined;
+    /**
      * The load whose rows carry the same columns as a file's header (in any order), newest
      * first: the load a dropped file is most likely a newer copy of. Reads the file; loads nothing.
      * @param source - The file, as `import` takes it.

@@ -1105,6 +1105,8 @@ class GraphEntry implements OpLogEntry {
             if (store.deferring) {
                 store.dropAdded([op.id], []);
             } else if (store.builder.hasNode(op.id)) {
+                // A row-numbered node keeps its id through the freeze that compacts it away.
+                store.builder.keepIds();
                 store.builder.removeNode(op.id);
             }
         }
@@ -1157,6 +1159,7 @@ class GraphEntry implements OpLogEntry {
 
             for (const id of created) {
                 if (store.builder.hasNode(id)) {
+                    store.builder.keepIds();
                     store.builder.removeNode(id);
                 }
             }

@@ -362,6 +362,11 @@ export interface GraphBuilderContract extends GraphSink {
      */
     addAnonymousNodes(count: number): number;
     /**
+     * Give every anonymous node its current index as a lasting id, so a later removal and freeze
+     * keeps it instead of renumbering it; a no-op once the builder holds ids.
+     */
+    keepIds(): void;
+    /**
      * Whether a live node has this id.
      * @param id - the node id
      * @returns true when present and alive

@@ -654,6 +654,25 @@ describe("Globe", () => {
         scene.getEngine().dispose();
     });
 
+    it("fetches the root tile of a small globe once and keeps no second texture", async () => {
+        // A globe this far away wants only the root tile, which the pole caps also ask for: both
+        // asks once queued it twice, so it was fetched twice and the first picture never disposed.
+        const scene = new Scene(new NullEngine());
+        new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 5000, Vector3.Zero(), scene);
+        const tiles = loader(scene);
+        const disposed = vi.spyOn(BaseTexture.prototype, "dispose");
+        const globe = new Globe(scene, { sources: [OSM], loadTexture: tiles.load });
+        globe.update();
+        expect(tiles.requests.map((r) => r.url)).toEqual(["https://tile.openstreetmap.org/0/0/0.png"]);
+        await tiles.answerAll();
+        globe.update();
+        expect(tiles.requests).toHaveLength(0);
+        expect(disposed).not.toHaveBeenCalled();
+        globe.dispose();
+        expect(disposed).toHaveBeenCalledTimes(1);
+        scene.getEngine().dispose();
+    });
+
     it("loads finer tiles as the camera nears the surface, only around the point below it", async () => {
         const scene = new Scene(
             new NullEngine({

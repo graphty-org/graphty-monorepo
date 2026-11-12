@@ -99,12 +99,17 @@ export class HealthStack extends Stack {
                 environment: { TABLE_NAME: table.tableName },
                 bundling: { minify: true },
             });
+            return f;
+        };
+        // Each function reads only the SSM parameters its code names (#7274); Read reads none. The names match
+        // src (pinned by test/stack.test.ts): infra cannot import src, whose .js specifiers plain node cannot load.
+        const readParams = (f: NodejsFunction, actions: string[], names: string[]): void => {
             f.addToRolePolicy(
                 new iam.PolicyStatement({
-                    actions: ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"],
-                    resources: [
-                        this.formatArn({ service: "ssm", resource: "parameter", resourceName: "graphty-health/*" }),
-                    ],
+                    actions,
+                    resources: names.map((n) =>
+                        this.formatArn({ service: "ssm", resource: "parameter", resourceName: `graphty-health/${n}` }),
+                    ),
                 }),
             );
             f.addToRolePolicy(
@@ -114,13 +119,27 @@ export class HealthStack extends Stack {
                     conditions: { StringEquals: { "kms:ViaService": `ssm.${this.region}.amazonaws.com` } },
                 }),
             );
-            return f;
         };
+        const appParams = (app: string): string[] =>
+            ["app-id", "installation-id", "private-key"].map((k) => `${app}/${k}`);
         // 1024 MB for the CPU share (at 256 MB a 200-row local post took 4-10 s); 28 s stays under the HTTP API 30 s.
         const ingest = fn("Ingest", 20, 28, 1024);
         const read = fn("Read", 5, 10);
+        readParams(ingest, ["ssm:GetParameter"], ["local-token-sha256"]);
         // The collector also recomputes rollups, runs the SLA engine and writes about 40 gzipped page items.
         const collector = fn("Collector", 1, 240, 512);
+        readParams(
+            collector,
+            ["ssm:GetParameter", "ssm:GetParameters"],
+            [
+                ...appParams("github-app"),
+                ...appParams("release-scheduler"),
+                "results/url",
+                "results/token",
+                "pushover/app-token",
+                "pushover/user-key",
+            ],
+        );
         // The collector's AWS money line (design section 7): Cost Explorer, read once a day.
         collector.addToRolePolicy(new iam.PolicyStatement({ actions: ["ce:GetCostAndUsage"], resources: ["*"] }));
         // The collector starts the deploy build (deploy-stack.ts) when master's tools/pipeline-health changes. The
@@ -141,6 +160,7 @@ export class HealthStack extends Stack {
         // 15-minute slices that resume from a cursor, so it never holds up the scheduled cycle's one slot.
         const backfill = fn("Backfill", 1, 900, 512, "collector", "graphty-health-backfill");
         table.grantReadWriteData(backfill);
+        readParams(backfill, ["ssm:GetParameters"], appParams("github-app"));
 
         // HTTP API: public reads, CI writes behind the GitHub OIDC JWT authorizer, local writes
         // checked by the ingest Lambda's own token comparison.

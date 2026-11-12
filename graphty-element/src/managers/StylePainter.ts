@@ -806,6 +806,35 @@ function nodeIdentity(resolved: ResolvedStyle, meshKey: number): string | null {
 }
 
 /**
+ * Whether two resolved styles carry the same channels with the same values, by reference.
+ * @param a - One style.
+ * @param b - The other.
+ * @returns True when they are the same.
+ */
+function sameStyle(a: ResolvedStyle, b: ResolvedStyle): boolean {
+    const left = a as Record<string, unknown>;
+    const right = b as Record<string, unknown>;
+    let count = 0;
+    for (const channel in right) {
+        if (left[channel] !== right[channel]) {
+            return false;
+        }
+
+        count++;
+    }
+
+    // Every channel of `b` is in `a` with its value (no channel is held as undefined), so equal counts mean
+    // the same channels.
+    for (const channel in left) {
+        if (left[channel] !== undefined) {
+            count--;
+        }
+    }
+
+    return count === 0;
+}
+
+/**
  * Whether an edge's paint follows from its key alone: every channel it carries keys its mesh, or
  * is the colour or the opacity the key folds back in. Content (a label, a bend) and the visible
  * flag are per edge and are not in the key.
@@ -1053,6 +1082,18 @@ export class StylePainter {
     /** The paint of each edge key, for edges painted by their key alone; see {@link StylePainter.edgePaint}. */
     private readonly edgePaints = new Map<string, { mesh: ResolvedStyle | undefined; paint: EdgePaint }>();
 
+    /**
+     * The last edge {@link StylePainter.edgePaint} found among {@link edgePaints}: the next edge painted the same
+     * reuses its paint with no identity built, as the rows of a load mostly are (cosmos-gap.md G8).
+     */
+    private lastEdgePaint: {
+        resolved: ResolvedStyle;
+        meshKey: number;
+        directed: boolean;
+        mesh: ResolvedStyle | undefined;
+        paint: EdgePaint;
+    } | null = null;
+
     /** The look of each node key, for rows painted by their key alone; see {@link StylePainter.rowPaint}. */
     private readonly nodeLooks = new Map<string, { mesh: ResolvedStyle | undefined; paint: NodePaint }>();
 
@@ -1090,6 +1131,7 @@ export class StylePainter {
         this.stopListening = null;
         this.paint = paint;
         this.edgePaints.clear();
+        this.lastEdgePaint = null;
         this.nodeLooks.clear();
         this.pendingNodes.clear();
         this.pendingEdges.clear();
@@ -1359,6 +1401,17 @@ export class StylePainter {
         const resolved = paint.styleOf("edge", index);
         const meshKey = paint.meshKeyOf("edge", index);
         const directed = this.directed();
+        const last = this.lastEdgePaint;
+        if (
+            last !== null &&
+            last.meshKey === meshKey &&
+            last.directed === directed &&
+            sameStyle(last.resolved, resolved) &&
+            last.mesh === paint.meshStyleOf("edge", meshKey)
+        ) {
+            return last.paint;
+        }
+
         const make = (): EdgePaint =>
             edgePaintOf(resolved, meshKey, (channel) => paint.plainText("edge", index, channel), directed);
 
@@ -1376,6 +1429,7 @@ export class StylePainter {
         const known = this.edgePaints.get(identity);
 
         if (known !== undefined && known.mesh === mesh) {
+            this.lastEdgePaint = { resolved, meshKey, directed, mesh, paint: known.paint };
             return known.paint;
         }
 
@@ -1385,6 +1439,7 @@ export class StylePainter {
 
         const made = make();
         this.edgePaints.set(identity, { mesh, paint: made });
+        this.lastEdgePaint = { resolved, meshKey, directed, mesh, paint: made };
 
         return made;
     }

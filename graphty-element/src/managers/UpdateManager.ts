@@ -1714,8 +1714,12 @@ export class UpdateManager implements Manager {
             return node.isDrawnBehindEdges;
         }
 
+        if (!this.graphContext.is2D()) {
+            return false;
+        }
+
         const look = this.graphContext.getNodeBatches?.()?.lookOf(row) ?? null;
-        return this.graphContext.is2D() && (look?.paint.style.shape?.zIndex ?? 0) < 0;
+        return (look?.paint.style.shape?.zIndex ?? 0) < 0;
     }
 
     /**
@@ -3306,6 +3310,13 @@ export class UpdateManager implements Manager {
 
         this.followRenumberedRows();
 
+        // Under "batched" the table is brought up to the lane before the walk, as updateNodes does: on a frame that
+        // ran no updateNodes (the switch to "batched", a resting layout) the frame's own upload repacked the rows
+        // after the walk, and the next frame, at rest, walked every batched row again for that repack.
+        if (this.dataManager.renderLimits?.batched() === true) {
+            this.graphContext.getRowTable?.()?.flush();
+        }
+
         // No frame is drawn while a load holds the draw, so asking whether anything moved, a walk of
         // every node on each of a load's thousands of frames, waits for the first frame it releases.
         const walk = !this.dataManager.drawHeld && this.edgesNeedWalking();
@@ -3598,6 +3609,9 @@ export class UpdateManager implements Manager {
     private walkedEverything(edgeCount: number, edgeVersion: number): void {
         this.lastWalkedEdgeCount = edgeCount;
         this.lastWalkedEdgeVersion = edgeVersion;
+        // The table's moves too: left behind, the next frame took every row as moved and compared each batched row
+        // again, on a frame at rest.
+        this.lastRowMoves = this.graphContext.getRowTable?.()?.moves ?? -1;
         let highest = -1;
         for (const { index } of this.layoutManager.nodes) {
             highest = Math.max(highest, index === INVALID_INDEX ? -1 : index);

@@ -1034,9 +1034,14 @@ class GmlImport {
         }
         // GraphIO::drawSVG draws a cluster's outline solid whatever its stipple: it is kept under a name of its own
         const { x, y, width, height, color, style, stipple, ...rest } = g;
-        if (typeof x === "number" && typeof y === "number" && typeof width === "number" && typeof height === "number") {
+        if (isFiniteNumber(x) && isFiniteNumber(y) && isFiniteNumber(width) && isFiniteNumber(height)) {
             this.sink.setNodeValue(this.handleOf(graphics.position, "node"), index, [x + width / 2, y + height / 2, 0]);
             Object.assign(rest, { w: width, h: height });
+        } else if (x !== undefined || y !== undefined || width !== undefined || height !== undefined) {
+            const box = Object.entries({ x, y, width, height }).filter(([, v]) => v !== undefined);
+            Object.assign(rest, Object.fromEntries(box));
+            const what = `cluster ${id}'s graphics x / y / width / height is not one number each`;
+            this.graphicsWarning("cluster box", what, { line: t.line[open], element: id });
         }
         Object.assign(
             rest,
@@ -1942,14 +1947,12 @@ class GmlImport {
     ): unknown {
         const { x, y, z } = record;
         let rest: unknown = record;
-        if (typeof x === "number" && typeof y === "number") {
-            const depth = typeof z === "number" ? z : 0;
+        if (isFiniteNumber(x) && isFiniteNumber(y) && (z === undefined || isFiniteNumber(z))) {
+            const depth = z ?? 0;
             this.sink.setNodeValue(this.handleOf(positionPlan, "node"), index, [x, y, depth]);
             delete record.x;
             delete record.y;
-            if (typeof z === "number") {
-                delete record.z;
-            }
+            delete record.z;
             rest = Object.keys(record).length > 0 ? record : undefined;
         }
         if ("x" in record || "y" in record || "z" in record) {
@@ -2383,4 +2386,13 @@ function tokenize(text: string, report: ImportReportBuilder): GmlTokens {
         }
         throw err;
     }
+}
+
+/**
+ * Whether a graphics value is a finite number: GML spells NAN and INF, which no coordinate or size can be.
+ * @param value - the value
+ * @returns true for a finite number
+ */
+function isFiniteNumber(value: unknown): value is number {
+    return typeof value === "number" && Number.isFinite(value);
 }

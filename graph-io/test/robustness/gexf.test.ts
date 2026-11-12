@@ -119,6 +119,21 @@ describe("GEXF namespaces and structure", () => {
         expect(undeclared.snapshot.nodes.value("size", 0)).toBe(3);
     });
 
+    it("gexf-viz-not-finite: an INF or overflowing position, size or thickness is skipped and reported", async () => {
+        const doc = gexf(
+            `<node id="a"><viz:position x="INF" y="1"/><viz:size value="1e400"/></node>` +
+                `<node id="b"><viz:position x="1" y="2" z="-Infinity"/></node><node id="c"><viz:position x="3" y="4"/></node>`,
+            `<edge source="a" target="b"><viz:thickness value="Infinity"/></edge>`,
+        );
+        const { snapshot, report } = await load("gexf", doc);
+        expect(codes(report)).toEqual(Array(4).fill(GEXF_ISSUE.VIZ_VALUE));
+        const position = snapshot.nodes.byRole("position");
+        expect([0, 1, 2].map((row) => position?.isSet(row))).toEqual([false, false, true]);
+        expect(Array.from(position?.value(2) as ArrayLike<number>)).toEqual([3, 4, 0]);
+        expect(snapshot.nodes.has("size") && snapshot.nodes.isSet("size", 0)).toBe(false);
+        expect(snapshot.edges.byRole("thickness")?.isSet(0) ?? false).toBe(false);
+    });
+
     it("gexf-two-nodes-sections: both sections are read", async () => {
         const doc = `<gexf xmlns="${GEXF_NS}" version="1.3"><graph><nodes><node id="a"/></nodes><nodes><node id="b"/></nodes><edges><edge source="a" target="b"/></edges></graph></gexf>`;
         const { snapshot, report } = await load("gexf", doc);

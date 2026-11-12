@@ -32,7 +32,7 @@ import type { Edge } from "../src/Edge";
 import type { Graph } from "../src/Graph";
 import type { Graphty } from "../src/graphty-element";
 import type { GraphSession } from "../src/session";
-import { isVisualCapture } from "./helpers";
+import { isVisualCapture, type RealInput } from "./helpers";
 
 // Outside Storybook (render-parity, and every test that runs a story's play) nothing has run
 // .storybook/preview.ts, so storybook/test's waitFor would keep Testing Library's 1000 ms default
@@ -1962,15 +1962,22 @@ export async function assertSkyboxDrawn(scene: Drawn): Promise<void> {
  *
  * Pointer events on the canvas rather than `selectNode`, because these stories exist to show that
  * a CLICK selects: a story that selected through the API passed with the canvas's pointer
- * listeners gone. `button: -1` on the move, as a real move carries no button (a hand-built one
- * defaults to the left button, which Babylon reads as a press).
+ * listeners gone. Under the test runner, the browser's own pointer (`realInput`); in Storybook's
+ * own UI, pointer events dispatched on the canvas, with `button: -1` on the move, as a real move
+ * carries no button (a hand-built one defaults to the left button, which Babylon reads as a press).
  * @param scene - What the story drew.
  * @param id - The node to click.
+ * @param input - The runner's real input (`realInput(parameters)`), if any.
  */
-export async function clickNode(scene: Drawn, id: string): Promise<void> {
+export async function clickNode(scene: Drawn, id: string, input?: RealInput): Promise<void> {
     const at = scene.element.nodeScreenPosition(id);
 
     await holds(at?.visible === true, `${scene.story}: node "${id}" is not on screen to be clicked`);
+
+    if (input !== undefined && at !== undefined) {
+        await input.click(scene.element, { x: at.x, y: at.y });
+        return;
+    }
 
     const { canvas } = scene.graph;
     const box = canvas.getBoundingClientRect();
@@ -1983,6 +1990,42 @@ export async function clickNode(scene: Drawn, id: string): Promise<void> {
 }
 
 /**
+ * Double-click a node the way a mouse does, at the spot the element says the node is drawn: the
+ * browser's own pointer under the test runner (`realInput`); in Storybook's own UI, two presses and
+ * releases dispatched on the canvas, then the `dblclick` the browser would add.
+ * @param element - The element.
+ * @param id - The node to double-click.
+ * @param input - The runner's real input (`realInput(parameters)`), if any.
+ */
+export async function doubleClickNode(element: Graphty, id: string, input?: RealInput): Promise<void> {
+    const at = element.nodeScreenPosition(id);
+    await holds(at?.visible === true, `node "${id}" is not on screen to be double-clicked`);
+    if (input !== undefined && at !== undefined) {
+        await input.doubleClick(element, { x: at.x, y: at.y });
+        return;
+    }
+
+    const { canvas } = element.graph;
+    const box = canvas.getBoundingClientRect();
+    const pointer = {
+        clientX: box.left + (at?.x ?? 0),
+        clientY: box.top + (at?.y ?? 0),
+        bubbles: true,
+        pointerId: 1,
+        pointerType: "mouse",
+        isPrimary: true,
+    };
+    canvas.dispatchEvent(new PointerEvent("pointermove", { ...pointer, button: -1, buttons: 0 }));
+    for (let press = 1; press <= 2; press++) {
+        canvas.dispatchEvent(new PointerEvent("pointerdown", { ...pointer, button: 0, buttons: 1, detail: press }));
+        canvas.dispatchEvent(new PointerEvent("pointerup", { ...pointer, button: 0, buttons: 0, detail: press }));
+        canvas.dispatchEvent(new MouseEvent("click", { ...pointer, button: 0, detail: press }));
+    }
+    // The browser's own word that the two clicks were one double-click, which the element expands on.
+    canvas.dispatchEvent(new MouseEvent("dblclick", { ...pointer, button: 0, detail: 2 }));
+}
+
+/**
  * Clicking a node puts the element's own highlight on screen.
  *
  * THE SCENE'S ANSWER TO "IS IT SELECTED", rather than the session's. The element draws a halo
@@ -1990,9 +2033,10 @@ export async function clickNode(scene: Drawn, id: string): Promise<void> {
  * compared with each other -- which is the whole subject of the four selection stories.
  * @param scene - What the story drew.
  * @param id - The node the story clicks.
+ * @param input - The runner's real input (`realInput(parameters)`), if any.
  */
-export async function assertSelectionDrawn(scene: Drawn, id: string): Promise<void> {
-    await clickNode(scene, id);
+export async function assertSelectionDrawn(scene: Drawn, id: string, input?: RealInput): Promise<void> {
+    await clickNode(scene, id, input);
 
     // The halo is drawn by the render loop after the selection lands, so wait for the element to
     // say the frame on screen shows it.

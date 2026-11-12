@@ -47,6 +47,16 @@ interface RowLine {
     readonly target: number;
 }
 
+/** What a style draws a row line with ({@link EdgeRowLines.paintRow}); `setLook` copies `rgb`, so it is shared. */
+interface RowLook {
+    readonly style: EdgeStyleConfig;
+    readonly draws: boolean;
+    readonly width: number;
+    readonly color: string;
+    readonly rgb: Color3;
+    readonly opacity: number;
+}
+
 /** What {@link EdgeRowLines} reads from the graph. */
 export interface EdgeRowLinesHost {
     readonly scene: Scene;
@@ -66,6 +76,7 @@ export interface EdgeRowLinesHost {
  */
 export class EdgeRowLines {
     private readonly lines = new Map<number, RowLine>();
+    private lastLook: RowLook | null = null;
 
     /**
      * Start with no edge row drawn.
@@ -116,6 +127,15 @@ export class EdgeRowLines {
      * @returns True when no `Edge` is needed.
      */
     draws(style: EdgeStyleConfig): boolean {
+        return this.drawsStyle(style) && !batchUploadFrames.edgeAges(this.host.scene).on;
+    }
+
+    /**
+     * Whether a style alone is one a row line draws ({@link EdgeRowLines.draws} but for the scene's fading by age).
+     * @param style - The resolved style.
+     * @returns True when it is.
+     */
+    private drawsStyle(style: EdgeStyleConfig): boolean {
         const line = style.line ?? {};
         return (
             style.visible !== false &&
@@ -128,9 +148,30 @@ export class EdgeRowLines {
             drawnText(style.label) === undefined &&
             noCap(style.arrowHead) &&
             noCap(style.arrowTail) &&
-            style.band?.color === undefined &&
-            !batchUploadFrames.edgeAges(this.host.scene).on
+            style.band?.color === undefined
         );
+    }
+
+    /**
+     * What a style draws a row line with, decided once for every row painted with that style in a row: a load paints
+     * a million rows with one style object (`StylePainter.edgePaint` reuses it).
+     * @param style - The resolved style.
+     * @returns Its look.
+     */
+    private lookOf(style: EdgeStyleConfig): RowLook {
+        if (this.lastLook?.style !== style) {
+            const color = style.line?.color ?? "#FFFFFF";
+            this.lastLook = {
+                style,
+                draws: this.drawsStyle(style),
+                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+                color,
+                rgb: Color3.FromHexString(color),
+                opacity: EdgeMesh.opacityOf(style),
+            };
+        }
+
+        return this.lastLook;
     }
 
     /**
@@ -144,13 +185,13 @@ export class EdgeRowLines {
     paintRow(row: number, source: number, target: number, paint: EdgePaint): boolean {
         this.unpaintRow(row);
         const { style, meshKey } = paint;
-        if (!this.draws(style)) {
+        const look = this.lookOf(style);
+        const { scene, cache, rows } = this.host;
+        if (!look.draws || batchUploadFrames.edgeAges(scene).on) {
             return false;
         }
 
-        const { scene, cache, rows } = this.host;
-        const width = style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
-        const color = style.line?.color ?? "#FFFFFF";
+        const { width, color } = look;
         const batch = EdgeMesh.pulledBatch(
             cache,
             { styleId: meshKey, width, color },
@@ -161,12 +202,7 @@ export class EdgeRowLines {
         );
         const piece = batch.acquire();
         // as `Edge.pullLine` gives its piece the look: in 2D a world width
-        batch.setLook(
-            piece,
-            Color3.FromHexString(color),
-            EdgeMesh.opacityOf(style),
-            EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20,
-        );
+        batch.setLook(piece, look.rgb, look.opacity, EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20);
         batch.setRows(piece, source, target);
         this.lines.set(row, { batch, piece, source, target });
         this.host.requestFrame();

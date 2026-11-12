@@ -210,6 +210,7 @@ type GraphOp =
           /** The identity cells it was completed with, kept by its first undo for its redo. */
           identity?: EdgeIdentityCells;
       }
+    | NodeRange
     | EdgeRange
     | { readonly kind: "weight"; readonly edgeId: number; readonly prior: number; readonly next: number }
     | {
@@ -260,6 +261,41 @@ interface EdgeRange {
     readonly created: Map<number, readonly NodeId[]>;
     /** The identity cells each edge was completed with, kept by the first undo for its redo. */
     identities?: (EdgeIdentityCells | undefined)[];
+}
+
+/**
+ * A run of nodes one forward add wrote under the `"batched"` render path, kept as columns: the op
+ * log's bulk entry for nodes, as `EdgeRange` is for edges. Undo takes the nodes back and redo puts
+ * them again node by node, in one op, with no object per node.
+ */
+interface NodeRange {
+    readonly kind: "nodes";
+    readonly ids: NodeId[];
+    readonly records: GraphRecord[];
+    readonly seeds: (readonly [number, number, number] | null)[];
+    readonly existed: boolean[];
+    /** The record the slice held before, by the node's place in the run; most had none. */
+    readonly priors: Map<number, GraphRecord>;
+}
+
+/** One node added, as a node op holds it. */
+type NodeOp = Extract<GraphOp, { kind: "node" }>;
+
+/**
+ * Node `at` of a run, as a node op.
+ * @param range - The run.
+ * @param at - The node's place in it.
+ * @returns The op.
+ */
+function nodeAt(range: NodeRange, at: number): NodeOp {
+    return {
+        kind: "node",
+        id: range.ids[at],
+        record: range.records[at],
+        seed: range.seeds[at],
+        existed: range.existed[at],
+        prior: range.priors.get(at),
+    };
 }
 
 /** One edge added, as an edge op holds it. */
@@ -793,6 +829,8 @@ function createdBy(op: GraphOp): readonly NodeId[] {
             return op.existed ? [] : [op.id];
         case "edge":
             return op.created;
+        case "nodes":
+            return op.ids.filter((_, at) => !op.existed[at]);
         case "edges":
             return [...op.created.values()].flat();
         default:
@@ -810,7 +848,13 @@ export function reshapes(log: readonly OpLogEntry[]): boolean {
     return log.some(
         (entry) =>
             entry instanceof GraphEntry &&
-            entry.ops.some((op) => (op.kind === "node" ? !op.existed : op.kind !== "record" && op.kind !== "value")),
+            entry.ops.some((op) => {
+                if (op.kind === "node") {
+                    return !op.existed;
+                }
+
+                return op.kind === "nodes" ? op.existed.includes(false) : op.kind !== "record" && op.kind !== "value";
+            }),
     );
 }
 
@@ -824,6 +868,11 @@ function touchOp(op: GraphOp, into: TouchedIds): boolean {
     switch (op.kind) {
         case "node":
             into.node(op.id);
+            break;
+        case "nodes":
+            op.ids.forEach((id) => {
+                into.node(id);
+            });
             break;
         case "edge":
             into.edge(edgeIdOf(op.edgeId));
@@ -932,6 +981,34 @@ class GraphEntry implements OpLogEntry {
     }
 
     /**
+     * Keep one node added in the run the last op holds, or start a run: what a forward add under
+     * the `"batched"` render path records instead of one op per node.
+     * @param op - The node.
+     */
+    pushNodeRange(op: NodeOp): void {
+        const last = this.ops.at(-1);
+        let range: NodeRange;
+        if (last?.kind === "nodes") {
+            range = last;
+        } else {
+            range = { kind: "nodes", ids: [], records: [], seeds: [], existed: [], priors: new Map() };
+            this.ops.push(range);
+            this.retained += 48;
+        }
+
+        if (op.prior !== undefined) {
+            range.priors.set(range.ids.length, op.prior);
+        }
+
+        range.ids.push(op.id);
+        range.records.push(op.record);
+        range.seeds.push(op.seed);
+        range.existed.push(op.existed);
+        // Four array slots per node and a seed reference, not an op object.
+        this.retained += 20 + recordBytes(op.record);
+    }
+
+    /**
      * Keep one edge added in the run the last op holds, or start a run: what a forward add under
      * the `"batched"` render path records instead of one op per edge.
      * @param op - The edge.
@@ -1029,6 +1106,12 @@ class GraphEntry implements OpLogEntry {
             case "node":
                 this.undoNode(op, maps.nodes, seen);
                 break;
+            case "nodes":
+                for (let at = op.ids.length - 1; at >= 0; at--) {
+                    this.undoNode(nodeAt(op, at), maps.nodes, seen);
+                }
+
+                break;
             case "edge":
                 op.identity ??= store.frozenEdgeIdentity(op.edgeId);
                 this.undoEdge(op.edgeId, op.record, op.created, maps, seen);
@@ -1095,7 +1178,7 @@ class GraphEntry implements OpLogEntry {
      * @param nodes - The node records.
      * @param seen - The fields this batch bumped already.
      */
-    private undoNode(op: Extract<GraphOp, { kind: "node" }>, nodes: Map<NodeId, GraphRecord>, seen: Bumped): void {
+    private undoNode(op: NodeOp, nodes: Map<NodeId, GraphRecord>, seen: Bumped): void {
         const { store } = this;
         bumpFields(store, "node", op.record, op.prior, seen);
         restore(nodes, op.id, op.prior);
@@ -1198,6 +1281,12 @@ class GraphEntry implements OpLogEntry {
                     this.redoNode(op, nodes, seen);
                     added.add(NODES_ADDED);
                     break;
+                case "nodes":
+                    op.ids.forEach((_, at) => {
+                        this.redoNode(nodeAt(op, at), nodes, seen);
+                    });
+                    added.add(NODES_ADDED);
+                    break;
                 case "edge":
                     this.redoEdge(op, op.identity, edges, seen);
                     added.add(EDGES_ADDED);
@@ -1273,7 +1362,7 @@ class GraphEntry implements OpLogEntry {
      * @param nodes - The node records.
      * @param seen - The fields this batch bumped already.
      */
-    private redoNode(op: Extract<GraphOp, { kind: "node" }>, nodes: Map<NodeId, GraphRecord>, seen: Bumped): void {
+    private redoNode(op: NodeOp, nodes: Map<NodeId, GraphRecord>, seen: Bumped): void {
         const { store } = this;
         if (isStorableId(op.id)) {
             const row = store.builder.addNode(op.id);
@@ -1836,7 +1925,12 @@ class Writer implements GraphWriter {
             return;
         }
 
-        this.entry.push(op);
+        if (op.kind === "node" && this.graph.touchesRanges) {
+            this.entry.pushNodeRange(op);
+        } else {
+            this.entry.push(op);
+        }
+
         this.graph.touch(key);
 
         if (rows !== null) {

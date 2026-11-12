@@ -34,7 +34,7 @@ const planarLayoutOptionsSchema = defineOptions({
         },
     },
     seed: {
-        schema: z.number().nullable().default(null),
+        schema: z.number().int().nonnegative().nullable().default(null),
         meta: {
             label: "Random Seed",
             description: "Seed for reproducible layout",
@@ -49,7 +49,7 @@ const PlanarLayoutConfig = z.strictObject({
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
     dim: z.number().default(2),
-    seed: z.number().or(z.null()).default(null),
+    seed: z.number().int().nonnegative().or(z.null()).default(null),
 });
 type PlanarLayoutConfigType = z.infer<typeof PlanarLayoutConfig>;
 type PlanarLayoutOpts = Partial<PlanarLayoutConfigType>;

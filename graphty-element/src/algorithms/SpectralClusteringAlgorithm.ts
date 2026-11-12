@@ -5,6 +5,7 @@ import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config
 import type { ResultElementValues } from "../session/results";
 import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
+import { drawSeed } from "./drawSeed";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
     type AlgorithmOutput,
@@ -19,7 +20,7 @@ import type { OptionsSchema } from "./types/OptionSchema";
 const CLUSTERS_DESCRIPTION = "How many clusters to split the nodes into, at most";
 const LAPLACIAN_DESCRIPTION = "Which graph Laplacian the embedding comes from";
 const MAX_ITERATIONS_DESCRIPTION = "Maximum k-means rounds";
-const SEED_DESCRIPTION = "Seed of the k-means start: one seed gives one result";
+const SEED_DESCRIPTION = "Seed of the k-means start: one seed gives one result; empty draws a new one every run";
 
 const LAPLACIANS = ["normalized", "unnormalized", "randomWalk"] as const;
 
@@ -37,7 +38,7 @@ const spectralClusteringOptionsSchema = defineOptions({
         meta: { label: "Max Iterations", description: MAX_ITERATIONS_DESCRIPTION, advanced: true },
     },
     seed: {
-        schema: z.number().int().min(0).max(2147483647).default(42),
+        schema: z.number().int().min(0).max(2147483647).nullable().default(null),
         meta: { label: "Random Seed", description: SEED_DESCRIPTION, advanced: true },
     },
 });
@@ -50,8 +51,8 @@ interface SpectralClusteringOptions extends Record<string, unknown> {
     laplacian: (typeof LAPLACIANS)[number];
     /** Cap on k-means rounds. */
     maxIterations: number;
-    /** Seed of the k-means start. */
-    seed: number;
+    /** Seed of the k-means start, or null for a new one every run. */
+    seed: number | null;
 }
 
 /**
@@ -99,11 +100,12 @@ export class SpectralClusteringAlgorithm extends DeclaredAlgorithm<SpectralClust
         },
         seed: {
             type: "integer",
-            default: 42,
+            default: null,
             label: "Random Seed",
             description: SEED_DESCRIPTION,
             min: 0,
             max: 2147483647,
+            required: false,
             advanced: true,
         },
     };
@@ -123,7 +125,8 @@ export class SpectralClusteringAlgorithm extends DeclaredAlgorithm<SpectralClust
 
         // Undirected: the Laplacian is symmetric. No accelerator implements spectral clustering.
         const { snapshot } = input.derived();
-        const { clusters, laplacian, maxIterations, seed } = this.schemaOptions;
+        const { clusters, laplacian, maxIterations } = this.schemaOptions;
+        const seed = this.schemaOptions.seed ?? drawSeed();
 
         context.report({ phase: "Embedding nodes", total: null });
         const value = spectralClustering(snapshot, { k: clusters, laplacianType: laplacian, maxIterations, seed });

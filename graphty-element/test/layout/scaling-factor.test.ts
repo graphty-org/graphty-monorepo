@@ -23,7 +23,7 @@ const engines: [string, object][] = [
     ["multipartite", { subsetKey: { first: ["a", "c"], second: ["b", "d"] } }],
     ["planar", {}],
     ["radial", {}],
-    ["random", {}],
+    ["random", { seed: 1 }],
     ["shell", {}],
     ["spectral", {}],
     ["spiral", {}],

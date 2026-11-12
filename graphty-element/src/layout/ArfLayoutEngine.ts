@@ -51,7 +51,7 @@ const arfLayoutOptionsSchema = defineOptions({
         },
     },
     seed: {
-        schema: z.number().positive().nullable().default(null),
+        schema: z.number().int().nonnegative().nullable().default(null),
         meta: {
             label: "Random Seed",
             description: "Seed for reproducible layout",
@@ -68,7 +68,7 @@ const ArfLayoutConfig = z.strictObject({
     scale: z.number().positive().default(1),
     a: z.number().positive().default(1.1),
     maxIter: z.number().positive().default(1000),
-    seed: z.number().positive().or(z.null()).default(null),
+    seed: z.number().int().nonnegative().or(z.null()).default(null),
 });
 type ArfLayoutConfigType = z.infer<typeof ArfLayoutConfig>;
 type ArfLayoutOpts = Partial<ArfLayoutConfigType>;

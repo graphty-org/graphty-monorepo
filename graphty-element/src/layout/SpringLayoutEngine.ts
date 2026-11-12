@@ -63,7 +63,7 @@ const springLayoutOptionsSchema = defineOptions({
     nodeGap: nodeGapOption,
     nodeGapFront: nodeGapFrontOption,
     seed: {
-        schema: z.number().positive().nullable().default(null),
+        schema: z.number().int().nonnegative().nullable().default(null),
         meta: {
             label: "Random Seed",
             description: "Seed for reproducible layout",

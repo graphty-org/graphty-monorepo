@@ -3,9 +3,8 @@
  *
  * - ngraph.forcelayout never reads a generator handed to it: it seeds its own with a hard-coded
  *   42, so the element places each node from the `seed` itself before the simulation starts.
- * - The random layout ("Scattered") is what the element recommends for a large graph, with the
- *   promise "the same every time". A consumer applies it by name alone, so its seed has a fixed
- *   default rather than a fresh `Math.random()` one per load.
+ * - The random layout is unseeded by default (a seed is the consumer's choice), so only a passed
+ *   seed promises the same picture; 0 is a seed like any other.
  */
 import { assert, describe, it, vi } from "vitest";
 
@@ -86,8 +85,13 @@ describe("seeded placement", () => {
         }
     });
 
-    it("scatters the random layout the same way twice when no seed is given", () => {
-        assert.deepEqual(runRandom({}), runRandom({}));
+    it("scatters the random layout the same way twice for the same seed, 0 included", () => {
+        assert.deepEqual(runRandom({ seed: 0 }), runRandom({ seed: 0 }));
+        assert.deepEqual(runRandom({ seed: 5 }), runRandom({ seed: 5 }));
+    });
+
+    it("scatters the random layout differently each time when no seed is given", () => {
+        assert.notDeepEqual(runRandom({}), runRandom({}));
     });
 
     it("still lets an explicit seed change the random layout", () => {

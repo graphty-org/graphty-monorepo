@@ -11,7 +11,6 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TimeChip } from "../time/TimeChip";
 import { CommandButton } from "./CommandButton";
 import { MainMenu } from "./menus";
-import { SiteChip } from "./SiteChip";
 
 /**
  * Re-renders on every change of the element's undo history, so Undo and Redo follow it.
@@ -86,7 +85,6 @@ export function Header(): React.JSX.Element {
             <CommandButton id="history.redo" icon={<GLYPHS.redo size={16} aria-hidden />} keepsPopouts />
             <FilterChip />
             <TimeChip />
-            <SiteChip />
         </header>
     );
 }

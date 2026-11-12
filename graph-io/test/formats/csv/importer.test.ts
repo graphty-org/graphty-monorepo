@@ -883,9 +883,12 @@ describe("csvImporter: node tables", () => {
         expect(report.issues.map((i) => i.code)).toEqual(["W_CSV_NO_UNIQUE_ID"]);
         expect(report.issues[0].params).toMatchObject({ columns: ["badge_id", "name"] });
         expect(column(snapshot, "nodes", "name")).toEqual(["A", "A"]);
-        // a node table paired with edges keeps the first candidate: the edges name nodes by it
+        // a node table paired with edges keeps the header-name choice: the edges name nodes by it
         const paired = await load("source,target\na,b\n", { nodes: "id\na\na\nb\n" });
         expect(paired.snapshot.ids.toArray()).toEqual(["a", "b"]);
+        const external = await load("source,target\na,b\nb,c\n", { nodes: "name,uniprot_id\na,P1\nb,P2\nc,P3\n" });
+        expect(external.snapshot.ids.toArray()).toEqual(["a", "b", "c"]);
+        expect(column(external.snapshot, "nodes", "uniprot_id")).toEqual(["P1", "P2", "P3"]);
         // an explicit idColumn is never second-guessed
         const explicit = await load("person_id,name\nP1,A\nP2,A\n", { table: "nodes", idColumn: "name" });
         expect(explicit.snapshot.ids.toArray()).toEqual(["A"]);

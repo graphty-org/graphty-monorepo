@@ -157,7 +157,8 @@ export interface CsvImportOptions extends CommonImportOptions {
      * The id column of a node table, by name or position. The default is the first of these whose
      * values are all present and distinct: the column named `id`, a column whose name ends in `id`
      * (`person_id`, `personId`), then `node`, `key`, `name`. When none is, the nodes are numbered
-     * by row (W_CSV_NO_UNIQUE_ID); a node table paired with edges keeps the first instead.
+     * by row (W_CSV_NO_UNIQUE_ID). A node table passed as `nodes` beside an edge table is keyed by
+     * the column named `id` (or `node`, `name`, `key`), since the edges name its nodes by it.
      * @defaultValue from the header
      */
     idColumn?: CsvColumnRef | undefined;
@@ -1006,7 +1007,8 @@ class TableReader {
             return false;
         }
         if (this.kind === "nodes") {
-            return true;
+            // a node table paired with edges keeps the header-name choice: the edges name its nodes
+            return csv.nodes === null;
         }
         return (
             this.kind === "auto" &&
@@ -1552,11 +1554,11 @@ class TableReader {
     }
 
     /**
-     * The id column of a node table: the idColumn option, else the first header candidate
-     * (idCandidates) whose values are all present and distinct, else the first column of a
-     * headerless table. When every candidate repeats or misses a value, an unpaired table is
-     * numbered by row (NO_UNIQUE_ID_CODE) and a node table paired with edges keeps the first
-     * candidate, since the edges name its nodes by those values.
+     * The id column of a node table: the idColumn option; else, for a table read whole (an unpaired
+     * node table), the first header candidate (idCandidates) whose values are all present and
+     * distinct, or row numbers (NO_UNIQUE_ID_CODE) when none is; else a header column named `id`,
+     * `node`, `name` or `key` (a node table paired with edges, which name its nodes by it); else the
+     * first column of a headerless table.
      * @param names - the column names
      * @param header - whether the file has a header row
      * @param line - the header line
@@ -1573,14 +1575,11 @@ class TableReader {
         const candidates = idCandidates(names);
         const rows = this.drained;
         if (rows === null || candidates.length === 0) {
-            return candidates[0] ?? -1;
+            return findColumn(names, ID_NAMES);
         }
         const unique = candidates.find((column) => isKey(rows, column));
         if (unique !== undefined) {
             return unique;
-        }
-        if (this.kind === "nodes" && this.state.csv.nodes !== null) {
-            return candidates[0];
         }
         const columns = candidates.map((c) => names[c]);
         this.state.report.warning(

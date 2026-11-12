@@ -29,15 +29,25 @@ describe("the value a line starts with", () => {
         session = null;
     });
 
-    it("is the element's own value for every channel a line can add, but a pattern count", () => {
+    it("is the element's own value for every channel a line can add, but a pattern count and a chart's range", () => {
+        // Unset, a pattern count follows the element's spacing rule edge by edge; its floor (2)
+        // draws a mark at each end only, so the app starts it at 10 marks. A chart's range unset
+        // follows each node's values, so the app starts it at 0 to 1.
+        const appStarts: Partial<Record<string, number>> = {
+            "edge.patternCount": 10,
+            "node.chartMin": 0,
+            "node.chartMax": 1,
+        };
         for (const descriptor of addable()) {
             const value = startingValue(descriptor);
-            // Unset, a pattern count follows the element's spacing rule edge by edge; its floor (2)
-            // draws a mark at each end only, so the app starts it at 10 marks.
             const own =
-                descriptor.channel === "edge.patternCount"
-                    ? 10
-                    : (descriptor.default ?? descriptor.off ?? descriptor.min ?? descriptor.values?.[0] ?? "");
+                appStarts[descriptor.channel] ??
+                descriptor.default ??
+                descriptor.off ??
+                (descriptor.follows === undefined ? undefined : CHANNEL_DESCRIPTORS[descriptor.follows].default) ??
+                descriptor.min ??
+                descriptor.values?.[0] ??
+                "";
             assert.deepEqual(value, own, descriptor.channel);
         }
     });

@@ -3575,6 +3575,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Chart Border Color",
         shortName: "Chart border color",
         group: "shape",
+        // The color a bar's or a box's outline is drawn in once node.chartBorderWidth is above 0.
+        default: "#000000",
         accepts: "color",
         stylePath: "chart.borderColor",
         renderable: true,

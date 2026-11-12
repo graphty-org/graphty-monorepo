@@ -659,7 +659,7 @@ export function chartPieces(chart: NodeStyleConfig["chart"], width: number, heig
     const color = (i: number): Pick<ColorPiece, "rgb" | "opacity"> | null =>
         paint(colors[Math.min(i, colors.length - 1)]);
     const lineWidth = chart.lineWidth === undefined ? CHART_LINE_SHARE * Math.min(w, h) : chart.lineWidth * scale;
-    const border = paint(chart.borderColor);
+    const border = paint(chart.borderColor ?? "#000000");
     const borderWidth = (chart.borderWidth ?? 0) * scale;
     const filled = (outline: Point2[], c: Pick<ColorPiece, "rgb" | "opacity"> | null): ChartPiece[] => [
         // a bar of no length has no face to fill

@@ -710,7 +710,6 @@ describe("what a style editor needs to draw a row", () => {
         "node.chartMin",
         "node.chartMax",
         "node.chartLineWidth",
-        "node.chartBorderColor",
         "node.stripeColors",
         "node.stripeSizes",
         "node.stripeOpacities",

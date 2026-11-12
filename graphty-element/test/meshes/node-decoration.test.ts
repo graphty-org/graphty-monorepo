@@ -360,6 +360,10 @@ describe("a chart", () => {
             outlined.filter((p) => p.line !== true),
             3,
         );
+        // a border width with no color outlines in the catalog's default, black
+        const black = chartPieces({ ...bars, borderWidth: 0.125 }, 60, 60).filter((p) => p.line === true);
+        assert.lengthOf(black, 12);
+        assert.deepEqual(black[0].rgb, [0, 0, 0]);
         const [down] = chartPieces({ ...bars, values: "-3", min: -10 }, 60, 60).map((p) => boxOf(p.outline));
         assert.approximately(down.y1, 0, 1e-9);
         assert.approximately(down.y0, -7.815, 0.01);

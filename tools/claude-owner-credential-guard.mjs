@@ -14,7 +14,11 @@
 //   `gh auth status --show-token`, `ssh-add`, and `env -i` (it drops GIT_CONFIG_GLOBAL, so git falls back to
 //   ~/.gitconfig and its credential helper);
 // - setting or unsetting GIT_CONFIG_GLOBAL, GH_CONFIG_DIR, NPM_CONFIG_USERCONFIG, GNUPGHOME or SSH_AUTH_SOCK,
-//   except to /dev/null or an agent path (`*-agent*`).
+//   except to /dev/null or an agent path (`*-agent*`);
+// - writing a git identity with `git config` (user.name, user.email, user.signingkey). From a worktree it lands
+//   in the .git/config every session shares and outranks the agent's config: on 2026-10-27 one command copied
+//   from a release.yml job made every later commit github-actions[bot], which GitHub could not verify (#5974).
+//   `git -c user.name=...` or GIT_AUTHOR_NAME and friends give one command an identity; reading one is allowed.
 //
 // Bash commands, the paths of Read, Edit, Write, MultiEdit and NotebookEdit, the path and glob of Grep
 // and Glob, and the command of servherd_start (which runs in servherd's environment, the owner's: there it
@@ -73,6 +77,10 @@ const COMMAND_RULES = [
     [
         "env -i (it drops the agent identity)",
         /\benv(?:\s+(?:-u\s+\S+|-[^\s]+|\w+=\S*))*?\s+(?:-i|--ignore-environment|-)(?=\s|$)/,
+    ],
+    [
+        "a git identity in a shared config (for one command use git -c user.name=... or GIT_AUTHOR_NAME)",
+        /\bgit\b[^;|&\n]*\sconfig\s(?![^;|&\n]*--(?:get|unset))[^;|&\n]*\buser\.(?:name|email|signingkey)["']?\s+(?!\d*>)[^\s;|&)]/,
     ],
 ];
 const NETWORK = /\bgh\s|\bgit\b[^;|&\n]*\b(?:push|fetch|pull|clone|ls-remote)\b/;

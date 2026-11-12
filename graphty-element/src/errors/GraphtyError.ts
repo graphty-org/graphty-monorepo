@@ -89,6 +89,73 @@ export interface GraphtyErrorJson {
     causeMessage?: string;
 }
 
+/**
+ * The facts a `GraphtyError` of one code carries in `details`, for the codes whose facts are
+ * documented. Every field is optional: an error re-reported from a sibling package carries that
+ * package's facts, which may leave one out. More codes and fields may be added in a minor release.
+ * @since 3.38.0
+ */
+export interface GraphtyErrorDetailsMap {
+    /** A name that is not a column, attribute or result field. */
+    E_UNKNOWN_ATTRIBUTE: {
+        /** The names closest to the one asked for, nearest first. */
+        readonly candidates?: readonly string[];
+        /** Every name that would have been accepted, when the list is short enough to give. */
+        readonly available?: readonly string[];
+        /** The run whose fields were searched, when the name was a run's field. */
+        readonly run?: string;
+        /** The field asked for, when the name was a run's field. */
+        readonly field?: string;
+    };
+    /** A layout id no layout is registered under. */
+    E_UNKNOWN_LAYOUT: {
+        /** The id asked for. */
+        readonly layout?: string;
+        /** Every registered layout id. */
+        readonly available?: readonly string[];
+    };
+    /** A size past a limit. */
+    E_TOO_LARGE: {
+        /** The limit. */
+        readonly limit?: number;
+        /** The count that passed it. */
+        readonly count?: number;
+        /** What `count` counts: `"nodes"`, `"edges"`, `"bytes"` and so on. */
+        readonly of?: string;
+        /** The nodes and edges the graph held when the limit was passed. */
+        readonly graph?: { readonly nodes: number; readonly edges: number };
+    };
+    /** A file or source that cannot be read as its format. */
+    E_PARSE_FAILED: {
+        /** The format it was read as. */
+        readonly format?: string;
+        /** The 1-based line the reader stopped at, when it knows one. */
+        readonly line?: number;
+    };
+    /** An id that is already taken. */
+    E_DUPLICATE_ID: {
+        /** The repeated id. */
+        readonly id?: string | number;
+    };
+}
+
+/**
+ * The `details` of a `GraphtyError` with code `C`: the documented facts of that code, over the
+ * plain record every error carries.
+ * @since 3.38.0
+ */
+export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> &
+    (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
+
+/**
+ * A `GraphtyError` whose `details` follow its `code`: one member per code, so checking `code`
+ * narrows `details`. What {@link isGraphtyError} narrows a caught value to.
+ * @since 3.38.0
+ */
+export type GraphtyErrorFor<C extends GraphtyErrorCode = GraphtyErrorCode> = C extends GraphtyErrorCode
+    ? GraphtyError & { readonly code: C; readonly details: GraphtyErrorDetails<C> }
+    : never;
+
 const EMPTY_DETAILS: Readonly<Record<string, unknown>> = Object.freeze({});
 
 /**
@@ -290,10 +357,12 @@ export class GraphtyError extends Error {
  * Narrows an unknown caught value to a `GraphtyError`.
  *
  * The shape of every `catch` block that handles element failures: test it, then switch on
- * `err.code`.
+ * `err.code`. Checking the code narrows `details` to that code's facts
+ * ({@link GraphtyErrorDetailsMap}), so `err.details.candidates` after
+ * `err.code === "E_UNKNOWN_ATTRIBUTE"` is a `readonly string[] | undefined`.
  * @param value - The caught value.
  * @returns True when the value is a `GraphtyError`.
  */
-export function isGraphtyError(value: unknown): value is GraphtyError {
+export function isGraphtyError(value: unknown): value is GraphtyErrorFor {
     return value instanceof GraphtyError;
 }

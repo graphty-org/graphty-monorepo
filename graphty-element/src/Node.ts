@@ -32,6 +32,7 @@ import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
+import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
@@ -40,6 +41,7 @@ import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { labelFitExtent } from "./meshes/labelFit";
 import { layoutLabelTable, readLabelTable } from "./meshes/labelTable";
+import { drawLast, moveInstance } from "./meshes/moveInstance";
 import type { PieceBox } from "./meshes/nodeDecoration";
 import {
     createNodeDecorations,
@@ -159,6 +161,16 @@ const GROUP_RESIZE_EPSILON = 0.01;
 /** How opaque a group following its members is drawn when no layer styled it: a faint region. */
 const GROUP_REGION_OPACITY = 0.25;
 
+/**
+ * A node style with its fill's color and opacity left out: what two paints must agree on for a
+ * node to keep its mesh when only its source changes (`Node.movesFor`).
+ * @param style - The style.
+ * @returns The style without `texture.color`.
+ */
+function withoutFill(style: NodeStyleConfig): NodeStyleConfig {
+    return { ...style, texture: { ...style.texture, color: undefined } };
+}
+
 /** The flat shape a group following its members is drawn as when its style names a solid. */
 const GROUP_REGION_SHAPE = "round-rectangle";
 
@@ -259,6 +271,9 @@ export function releaseNodeMesh(node: Node): void {
 /** Collects the nodes whose size or shape changed while {@link collectResizedNodes} runs. */
 let resizedSink: Set<Node> | null = null;
 
+/** Collects the meshes moved onto another source while {@link collectResizedNodes} runs (`drawLast`). */
+let movedSink: AbstractMesh[] | null = null;
+
 /**
  * Run a repaint and collect the nodes whose size or shape it changed, instead of each of them
  * walking every edge in the graph to find its own. The caller then finds their edges in one walk
@@ -268,11 +283,15 @@ let resizedSink: Set<Node> | null = null;
  */
 export function collectResizedNodes(work: () => void): Set<Node> {
     const resized = new Set<Node>();
+    const moved: AbstractMesh[] = [];
     resizedSink = resized;
+    movedSink = moved;
     try {
         work();
     } finally {
         resizedSink = null;
+        movedSink = null;
+        drawLast(moved);
     }
 
     return resized;
@@ -417,7 +436,10 @@ export class Node implements ModelUser {
             }
 
             const shaded = node.shadedPaint(paint.meshKey, paint.style);
-            return !node.keepsMeshFor(shaded.meshKey, shaded.style, paint.color);
+            return (
+                !node.keepsMeshFor(shaded.meshKey, shaded.style, paint.color) &&
+                !node.movesFor(shaded.meshKey, shaded.style)
+            );
         };
     }
 
@@ -2666,11 +2688,94 @@ export class Node implements ModelUser {
         this.setDrawn(null, image);
         return NodeMesh.create(
             this.context.getMeshCache(),
+            ...this.sourceArgs(meshKey, o, image),
+            this.context.getScene(),
+        );
+    }
+
+    /**
+     * What {@link NodeMesh.create} and {@link NodeMesh.source} are asked for this node's source mesh.
+     * @param meshKey - The source mesh key.
+     * @param o - The resolved style.
+     * @param image - The picture on its shape, or null.
+     * @returns The mesh options and the creation options.
+     */
+    private sourceArgs(
+        meshKey: string,
+        o: NodeStyleConfig,
+        image: BaseTexture | null,
+    ): [Parameters<typeof NodeMesh.source>[1], Parameters<typeof NodeMesh.source>[2]] {
+        return [
             // A source mesh with its picture is another source mesh than the one drawn while it loads.
             { styleId: image === null ? meshKey : `${meshKey}|image`, is2D: this.context.is2D(), size: this.size },
             { shape: o.shape, texture: o.texture, effect: o.effect, border: o.border, picture: image },
-            this.context.getScene(),
+        ];
+    }
+
+    /**
+     * Whether a paint that does not keep this node's mesh can move the mesh onto its source instead
+     * of building another (`moveInstance`): a paint that differs from the drawn one only in its
+     * fill's color and opacity, which are in the source's material and `visibility` alone, so the
+     * geometry, the label, the border and every other part hanging from the mesh stay as they are.
+     * A faint view moves every node outside its branches this way (issue #6047). See `paintFrom`.
+     * @param meshKey - Which source mesh the paint draws from.
+     * @param o - The resolved style.
+     * @returns Whether the mesh moves.
+     */
+    private movesFor(meshKey: string, o: NodeStyleConfig): boolean {
+        const mesh = this.#mesh;
+        const drawn = this.drawnStyle;
+        return (
+            mesh instanceof InstancedMesh &&
+            mesh === this.#anchor &&
+            !mesh.isDisposed() &&
+            drawn !== null &&
+            this.drawnModel === null &&
+            shaderPartOf(meshKey) === shaderPartOf(this.meshKey) &&
+            isEqual(withoutFill(o), withoutFill(drawn)) &&
+            !this.fitIsStale(o) &&
+            this.modelFor(o) === null &&
+            this.imageFor(o) === this.drawnImage
         );
+    }
+
+    /**
+     * Draw this node's mesh from the source a paint names, keeping the mesh: see `movesFor`.
+     * @param meshKey - Which source mesh the paint draws from.
+     * @param o - The resolved style.
+     * @param color - The per-instance color.
+     */
+    private moveTo(meshKey: string, o: NodeStyleConfig, color: Rgba | null): void {
+        const mesh = this.#mesh as InstancedMesh;
+        const fit = this.fitToLabel(meshKey, o);
+        const scene = this.context.getScene();
+        const source = NodeMesh.source(
+            this.context.getMeshCache(),
+            ...this.sourceArgs(fit.meshKey, fit.style, this.drawnImage),
+            scene,
+        );
+        moveInstance(mesh, source);
+        // A repaint of many nodes reorders the scene's list once, after it (see collectResizedNodes).
+        if (movedSink === null) {
+            drawLast([mesh]);
+        } else {
+            movedSink.push(mesh);
+        }
+        this.#fit = { meshKey: fit.meshKey, style: fit.style };
+        this.#source = source;
+        this.meshKey = meshKey;
+        this.drawnStyle = o;
+        this.drawnColor = color;
+        const metadata = mesh.metadata as { styleId?: string } | null | undefined;
+        if (metadata) {
+            metadata.styleId = meshKey;
+        }
+        // A pie or a stripe is drawn in the fill's opacity: they are built again, the mesh is not.
+        this.syncDecorations(fit.meshKey, fit.style);
+        this.applyInstancePaint(o, color);
+        this.syncLabel(o, false);
+        this.syncTooltip(o);
+        this.syncHalo();
     }
 
     /**
@@ -2736,7 +2841,8 @@ export class Node implements ModelUser {
             return;
         }
 
-        for (const edge of this.context.getDataManager().edges.values()) {
+        // Built `Edge`s only: an edge stored with no `Edge` keeps no cached ends to invalidate.
+        for (const edge of dataManagerInternals.builtEdges(this.context.getDataManager()).values()) {
             // By id: reading an end's `Node` would build one for a row drawn with none.
             if (edge.srcId === this.id || edge.dstId === this.id) {
                 edge.invalidatePositionCache();
@@ -2823,6 +2929,12 @@ export class Node implements ModelUser {
             this.syncLabel(o, false);
             this.syncTooltip(o);
             this.syncHalo();
+            this.context.getStatsManager().endMeasurement("Node.updateMesh");
+            return;
+        }
+
+        if (this.movesFor(meshKey, o)) {
+            this.moveTo(meshKey, o, color);
             this.context.getStatsManager().endMeasurement("Node.updateMesh");
             return;
         }

@@ -43,6 +43,15 @@ describe("pipeline-round skill", () => {
         assert.match(flat, /the round's last line leads with nightly's age/);
     });
 
+    it("drives master onto nightly before step 1: master checks, doomed-run cancels and the restart (#6654)", () => {
+        const goal = flat.indexOf("### Master onto nightly");
+        assert.ok(goal >= 0 && goal < step("Red master"));
+        assert.match(flat, /gh workflow run base-check\.yml --ref master/);
+        assert.match(flat, /grep features-on/);
+        assert.match(flat, /gh run cancel <id>/);
+        assert.match(flat, /gh workflow run release\.yml --ref master -f mode=restart/);
+    });
+
     it("handles red master first, then red pull requests, then finished branches with no pull request", () => {
         const red = step("Red master");
         const prs = step("Red or conflicted agent pull requests");
@@ -89,7 +98,7 @@ describe("pipeline-round skill", () => {
         assert.ok(prs >= 0);
         const body = flat.slice(prs, step("Finished branches with no pull request"));
         assert.match(body, /opened by graphty-agent \(its `author`\)/);
-        assert.match(body, /#1677/);
+        assert.match(body, /A pull request anyone else opened -- the owner's/);
     });
 
     it("reopens a master-guard revert as graphty-agent before arming it, and keeps the main checkout on master", () => {

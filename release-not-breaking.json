@@ -5,6 +5,78 @@
             "project": "graphty-element",
             "reason": "owner 2026-11-09: the AI assistant API is experimental; experimental APIs may change in a minor release",
             "since": "2026-11-09"
+        },
+        {
+            "commit": "ffde65538b84ff5e91532e24899239491c6917c4",
+            "project": "graphty-element",
+            "reason": "owner 2026-11-11: approved #1677 to land as a non-breaking change (no consumers yet; rule of 2026-11-10)",
+            "since": "2026-11-11"
+        },
+        {
+            "commit": "2e13fd127ef8b93a2a669820b9e4e31c8f8adc60",
+            "project": "algorithms",
+            "reason": "owner 2026-11-11: approved #1677 to land as a non-breaking change (no consumers yet; rule of 2026-11-10)",
+            "since": "2026-11-11"
+        },
+        {
+            "commit": "058192c488d35b07c1e537ffd081a31df777b489",
+            "project": "layout",
+            "reason": "owner 2026-11-11: approved #1677 to land as a non-breaking change (no consumers yet; rule of 2026-11-10)",
+            "since": "2026-11-11"
+        },
+        {
+            "commit": "cf2d383af6777eadb7534ba00e3128b7dd0ea45e",
+            "project": "layout",
+            "reason": "owner 2026-11-11: approved #1677 to land as a non-breaking change (no consumers yet; rule of 2026-11-10)",
+            "since": "2026-11-11"
+        },
+        {
+            "commit": "ca365964064dae4e00f972feb63c8150e3c292a2",
+            "project": "algorithms",
+            "reason": "owner 2026-11-11: approved #1677 to land as a non-breaking change (no consumers yet; rule of 2026-11-10)",
+            "since": "2026-11-11"
+        },
+        {
+            "commit": "49bc5dd3a9673155ea497d579feaaf32ccef08d1",
+            "project": "layout",
+            "reason": "owner 2026-11-11: approved #1677 to land as a non-breaking change (no consumers yet; rule of 2026-11-10)",
+            "since": "2026-11-11"
+        },
+        {
+            "commit": "9e310f2edf2fdd981364b61fd75f85357c20ccaf",
+            "project": "webgpu-graph-algorithms",
+            "reason": "owner 2026-11-11: approved #1677 to land as a non-breaking change (no consumers yet; rule of 2026-11-10)",
+            "since": "2026-11-11"
+        },
+        {
+            "commit": "9d00081d14b4692ecbdcebff2696e14fb3400006",
+            "project": "algorithms",
+            "reason": "owner 2026-11-11: approved #1677 to land as a non-breaking change (no consumers yet; rule of 2026-11-10)",
+            "since": "2026-11-11"
+        },
+        {
+            "commit": "3e4f01fd96320d575c3d70dfb6ff52531e6ba27d",
+            "project": "algorithms",
+            "reason": "owner 2026-11-11: approved #1677 to land as a non-breaking change (no consumers yet; rule of 2026-11-10)",
+            "since": "2026-11-11"
+        },
+        {
+            "commit": "123922be78c78fef8d93ca4ee684344cfa501959",
+            "project": "algorithms",
+            "reason": "owner 2026-11-11: approved #1677 to land as a non-breaking change (no consumers yet; rule of 2026-11-10)",
+            "since": "2026-11-11"
+        },
+        {
+            "commit": "4d92c833fc752d81bfca79870bcf62b8b4edcad8",
+            "project": "graphty-element",
+            "reason": "owner 2026-11-11: approved #1677 to land as a non-breaking change (no consumers yet; rule of 2026-11-10)",
+            "since": "2026-11-11"
+        },
+        {
+            "commit": "c0a421f8f94de7390ed98b746d793aadd182a047",
+            "project": "graphty-element",
+            "reason": "owner 2026-11-11: approved #1677 to land as a non-breaking change (no consumers yet; rule of 2026-11-10)",
+            "since": "2026-11-11"
         }
     ]
 }

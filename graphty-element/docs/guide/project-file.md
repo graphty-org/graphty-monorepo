@@ -124,6 +124,11 @@ report.leftOut; // what is not in it: a run still computing, as { code: "W_RUN_P
 | ----------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `W_RUN_PENDING`         | `id`          | A run still computing                                                                                                                                                   |
 | `W_SOURCE_URL_REDACTED` | `id`, `names` | Values whose names mark a credential (`api_key`, `token`, `X-Goog-Signature`, ...) from a load's URL, or from a network load's endpoint, next-page link or REST mapping |
+| `shader.not-saved`      | `id`          | The code of a shader the file names. With `leaveOut: ["graphty-style"]`, the background's shader; otherwise an element bug                                              |
+
+The file carries the code of every shader the project uses, shipped ones included, so it opens
+the same on a release that no longer ships them (see
+[Writing Shaders](./shaders.md#saving-and-opening)).
 
 A save never writes a credential: a network load records only the name of the credential slot it
 used, and the reader's own machine keeps the credential (`element.credentials`).
@@ -230,23 +235,27 @@ Opening never fails half way through. A part that cannot be restored is left out
 skipped, not that the open failed; the open failed only if `open` threw. `slice` is the slice of
 the project the problem is about, one of the `report.restored` values below:
 
-| Code                             | Params                            | What happened                                                                                                                              |
-| -------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `E_UNKNOWN_ALGORITHM`            | `slice`, `id`                     | A run's algorithm is not registered here; the run is left out                                                                              |
-| `E_UNKNOWN_LAYOUT`               | `slice`                           | The layout is not registered here; the positions still come back                                                                           |
-| `E_UNKNOWN_ATTRIBUTE`            | `slice`, `id`, `needs`            | A style layer reads something nothing answers; it is added switched off                                                                    |
-| `W_DATA_DIFFERS`                 | `slice`, `id`                     | The data was edited by hand; the run's per-edge values are left out                                                                        |
-| `W_FILTER_CONDITION_SKIPPED`     | `slice`, `id`                     | A saved filter condition this release cannot read; the filter is read from the file's steps instead                                        |
-| `W_FILTER_CONDITIONS_UNREADABLE` | `slice`, `version`                | The saved filter conditions are of a version this release cannot read; the filter is read from the file's steps instead                    |
-| `W_FILTER_STEPS_DIFFER`          | `slice`                           | The file's steps and conditions disagree, as when a tool that knows only steps edited it; the conditions win and the steps edit is dropped |
-| `W_UNKNOWN_KIND`                 | `index`, `kind`                   | A member this release does not read; skipped                                                                                               |
-| `E_UNSUPPORTED_VERSION`          | `index`, `kind`, `found`          | A member written by a newer release; skipped                                                                                               |
-| `E_UNSUPPORTED`                  | `kind` (and `index`)              | A member this kind of open does not apply; skipped                                                                                         |
-| `E_BAD_DOCUMENT`                 | `index`                           | A malformed member; skipped                                                                                                                |
-| `W_VERSION_UPGRADED`             | `kind`, `found`, `version`        | A member of an older version, read and upgraded; a save writes the new one                                                                 |
-| `W_SOURCE_STEPS_IGNORED`         | `kind`, `pointer`, `graph`        | The loads member says to rebuild the graph, but the file holds it; the held graph opened                                                   |
-| `W_SOURCE_UNREGISTERED`          | `kind`, `pointer`, `id`, `source` | A load from a network source this release lacks: its nodes are there, it cannot run                                                        |
-| `W_UNKNOWN_KIND`                 | `kind`, `pointer`, `found`        | A load of a kind this release does not know: kept, never run                                                                               |
+| Code                             | Params                             | What happened                                                                                                                                 |
+| -------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E_UNKNOWN_ALGORITHM`            | `slice`, `id`                      | A run's algorithm is not registered here; the run is left out                                                                                 |
+| `E_UNKNOWN_LAYOUT`               | `slice`                            | The layout is not registered here; the positions still come back                                                                              |
+| `E_UNKNOWN_ATTRIBUTE`            | `slice`, `id`, `needs`             | A style layer reads something nothing answers; it is added switched off                                                                       |
+| `W_DATA_DIFFERS`                 | `slice`, `id`                      | The data was edited by hand; the run's per-edge values are left out                                                                           |
+| `W_FILTER_CONDITION_SKIPPED`     | `slice`, `id`                      | A saved filter condition this release cannot read; the filter is read from the file's steps instead                                           |
+| `W_FILTER_CONDITIONS_UNREADABLE` | `slice`, `version`                 | The saved filter conditions are of a version this release cannot read; the filter is read from the file's steps instead                       |
+| `W_FILTER_STEPS_DIFFER`          | `slice`                            | The file's steps and conditions disagree, as when a tool that knows only steps edited it; the conditions win and the steps edit is dropped    |
+| `W_UNKNOWN_KIND`                 | `index`, `kind`                    | A member this release does not read; skipped                                                                                                  |
+| `E_UNSUPPORTED_VERSION`          | `index`, `kind`, `found`           | A member written by a newer release; skipped                                                                                                  |
+| `E_UNSUPPORTED`                  | `kind` (and `index`)               | A member this kind of open does not apply; skipped                                                                                            |
+| `E_BAD_DOCUMENT`                 | `index`                            | A malformed member; skipped                                                                                                                   |
+| `W_VERSION_UPGRADED`             | `kind`, `found`, `version`         | A member of an older version, read and upgraded; a save writes the new one                                                                    |
+| `W_SOURCE_STEPS_IGNORED`         | `kind`, `pointer`, `graph`         | The loads member says to rebuild the graph, but the file holds it; the held graph opened                                                      |
+| `W_SOURCE_UNREGISTERED`          | `kind`, `pointer`, `id`, `source`  | A load from a network source this release lacks: its nodes are there, it cannot run                                                           |
+| `W_UNKNOWN_KIND`                 | `kind`, `pointer`, `found`         | A load of a kind this release does not know: kept, never run                                                                                  |
+| `shader.unknown`                 | `slice`, `id`, `channel`, `shader` | A shader the file names but does not carry, or whose code no longer reads; its uses are dropped (`channel` `"background"` for the background) |
+
+Shaders that arrive in a file wait for the reader's approval unless their code is trusted; see
+[Writing Shaders](./shaders.md#opening-files-from-someone-else).
 
 Any other code (such as `E_BAD_SELECTOR` for a style layer) means a slice could not be
 restored for that reason, with `slice`, and `id` when it is about one item; a note that was
@@ -312,7 +321,7 @@ You need this section only to read or write the file yourself. A graphty documen
 | `graphty-session`     | the settings, layout, filter and time window, sets and named views                                                  |
 | `graphty-arrangement` | each placed node's id and position, and the pinned nodes                                                            |
 | `graphty-results`     | each finished run: what ran, its fields, and its values as columns                                                  |
-| `graphty-style`       | the style layers                                                                                                    |
+| `graphty-style`       | the style layers, and the code of every shader they or the background use                                           |
 | `graphty-notes`       | the notes                                                                                                           |
 | `graphty-view-state`  | the selection; never needed to open the file                                                                        |
 | `graphty-sources`     | every load still in the graph: a file, a URL, a network source or a sample, with its options                        |

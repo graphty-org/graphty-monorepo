@@ -22,12 +22,14 @@ export {
     resetCalibration,
 } from "./calibrate";
 export type {
+    CostBasis,
     CostConfidence,
     CostEstimate,
     CostGateDecision,
     CostGateLimits,
     CostInput,
     CostMeasurement,
+    CostProvenanceCode,
     EstimateRefusal,
     EstimateRefusalCode,
     MachineCalibration,
@@ -35,6 +37,7 @@ export type {
 } from "./estimate";
 export {
     ASSUMED_ITERATION_BOUND,
+    bareBasis,
     DEFAULT_COST_GATE_LIMITS,
     DEFAULT_COST_RATES,
     DEFAULT_EXACT_COMPUTATION_CAP_SECONDS,

@@ -9,7 +9,7 @@ import { chooseAndOpenFile, openSample, pasteSource } from "./open";
  * @param sample - the sample.
  * @returns the command id.
  */
-export function sampleCommandId(sample: StartSample): string {
+function sampleCommandId(sample: StartSample): string {
     return `sample.open.${sample.id}`;
 }
 

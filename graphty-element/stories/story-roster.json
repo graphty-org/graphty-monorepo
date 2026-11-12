@@ -279,6 +279,7 @@
         "Styles/Label::TextPath",
         "Styles/Label::TextShadow",
         "Styles/Label::UnicodeText",
+        "Styles/Label::WrappedLabels",
         "Styles/Layered::ArrowHeadStyles",
         "Styles/Layered::ArrowSizeVariations",
         "Styles/Layered::AxisAlignedColoredSpheres",

@@ -1141,6 +1141,13 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   `nodeData`'s are. graph-io and graph-samples route through it.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` serves `JoinScreen.tsx:636`.
+- **The load's position publish is already one typed write.** The 2026-11-09 profile credits 1.0 s of the 100k + 1M
+  load to `publishPositions` in the derivation pass's position hook. Correction: the publish itself (`publishComputed`)
+  is 9 ms and already writes the position column whole. The second is the fixed layout's first run reading its graph:
+  freezing the element's snapshot, about 810 ms, 670 of it the load's edge identity pass, which the next paint's freeze
+  would pay anyway, and making the graph undirected, 183 ms. A one-pass layout now makes the graph undirected only when
+  it reads it (`test/layout/undirected-on-demand.test.ts`), so the fixed layout never does; on both render paths, with
+  no change to any picture.
 - **Records into columns is conditional.** Records and op log are 3.8% of the heap; removing `Edge`, `Node` and per-node Babylon objects
   alone leaves about 515 MB. Stage 29 is built only if stage 30's harness run misses the heap target; otherwise #3249 closes at stage 28,
   citing that measurement. If built: attribute columns where `storedAttributeOf` already looks first, the rest in

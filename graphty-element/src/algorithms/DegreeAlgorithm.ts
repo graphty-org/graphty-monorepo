@@ -21,6 +21,7 @@ const DEGREE_FIELDS: readonly FieldDescriptor[] = [
         technicalName: "inDegree",
         kind: "node",
         type: "integer",
+        directedOnly: true,
     }),
     metricField({
         name: "outDegree",
@@ -28,6 +29,7 @@ const DEGREE_FIELDS: readonly FieldDescriptor[] = [
         technicalName: "outDegree",
         kind: "node",
         type: "integer",
+        directedOnly: true,
     }),
 ];
 
@@ -39,10 +41,10 @@ const DEGREE_FIELDS: readonly FieldDescriptor[] = [
  * total throws away.
  */
 export class DegreeAlgorithm extends MetricAlgorithm {
-    static namespace = "graphty";
-    static type = "degree";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "degree";
     /** Counts over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * The fields a degree result publishes.

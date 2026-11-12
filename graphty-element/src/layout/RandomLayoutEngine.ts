@@ -1,6 +1,6 @@
 import type { F32 } from "@graphty/graph-format";
 import { random } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
@@ -55,9 +55,9 @@ type RandomLayoutOpts = Partial<RandomLayoutConfigType>;
  * Random layout engine that places nodes at random positions
  */
 export class RandomLayout extends SnapshotLayoutEngine {
-    static type = "random";
-    static maxDimensions = 3;
-    static zodOptionsSchema: OptionsSchema = randomLayoutOptionsSchema;
+    static readonly type: string = "random";
+    static readonly maxDimensions: number = 3;
+    static readonly zodOptionsSchema: OptionsSchema = randomLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: RandomLayoutConfigType;
 

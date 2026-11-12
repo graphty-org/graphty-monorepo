@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { DirectionResolver } from "../../src/common/direction.js";
 import { ImportReportBuilder } from "../../src/common/report.js";
+import { itemAt } from "../../src/common/text.js";
 import { type GraphExporter, type GraphImporter, type ImportInput, type ImportReport } from "../../src/types.js";
 import {
     byteChunks,
@@ -338,7 +339,9 @@ const toyImporter: GraphImporter = {
         const lines = (input as string).split("\n").filter((l) => l.length > 0);
         sink.setDirected(lines[0] === "directed");
         for (const line of lines.slice(1)) {
-            const [u, v, w] = line.split(" ");
+            const parts = line.split(" ");
+            const [u, v] = parts;
+            const w = itemAt(parts, 2);
             sink.addEdge(Number(u), Number(v), w === undefined ? undefined : Number(w));
             report.counts.edges++;
         }

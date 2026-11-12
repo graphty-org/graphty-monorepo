@@ -1,6 +1,6 @@
 import type { F32 } from "@graphty/graph-format";
 import { grid } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { SimpleLayoutConfig } from "./LayoutEngine";
@@ -15,6 +15,7 @@ const gridLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     columns: {
@@ -48,9 +49,9 @@ type GridLayoutOpts = Partial<GridLayoutConfigType>;
  * Grid layout engine that places nodes in rows and columns on an evenly spaced lattice
  */
 export class GridLayout extends SnapshotLayoutEngine {
-    static type = "grid";
-    static maxDimensions = 2;
-    static zodOptionsSchema: OptionsSchema = gridLayoutOptionsSchema;
+    static readonly type: string = "grid";
+    static readonly maxDimensions: number = 2;
+    static readonly zodOptionsSchema: OptionsSchema = gridLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: GridLayoutConfigType;
 

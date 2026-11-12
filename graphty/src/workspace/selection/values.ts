@@ -1,0 +1,836 @@
+/**
+ * What a selection step can test, and how a step reads back as a condition card: the value
+ * picker's sections in the spec's order (design/ui/selection-groups/spec.md, section 4), the rule
+ * each entry writes, and the card (or reference form) a step's test is edited with. Every entry
+ * and kind comes from graphty-element (`data.readableValues`, `catalog.algorithms`, `runs`); the
+ * app only arranges and names them.
+ */
+
+import {
+    type ElementState,
+    type FilterCondition,
+    type GraphSession,
+    type MeasureTest,
+    type RuleTree,
+    type Scope,
+    type Selector,
+    selectorRule,
+    type StepReading,
+    type StepReference,
+    type UnionBranch,
+    type UnionLeaf,
+    type UnionStep,
+} from "@graphty/graphty-element/session";
+
+import { groupAlgorithms, HEADINGS, wordsFor } from "../analyze/words";
+import { GLYPHS } from "../glyphs";
+import { ranOverWords } from "../runWords";
+import {
+    type Card,
+    type CardField,
+    cardFields,
+    cardOf,
+    leafOf,
+    type Side,
+    SOURCE_PATH,
+    TEXT_WORDS,
+    type TextMode,
+} from "../style/cards";
+import type { ExtraItem } from "../style/WhichPicker";
+
+/** The While preset's name until it has a reference: the reference goes where the dots are. */
+export const WHILE = "While ... has nodes";
+
+/** Plain words for the structure values readers guessed at (spec 3.5), by path. */
+const STRUCTURE_WORDS: Readonly<Record<string, string>> = {
+    "graphty.degree": "Edges at a node",
+    "graphty.inDegree": "Incoming edges at a node",
+    "graphty.outDegree": "Outgoing edges at a node",
+};
+
+/** The reader's words a search finds Degree by. */
+const LINK_ALIASES: readonly string[] = ["links", "connections"];
+
+/** The While preset's tooltip: what it holds, in plain words. */
+const WHILE_TIP = "Everything while it holds a node, else nothing";
+
+/** What a state condition is called. */
+export const STATE_WORDS: Readonly<Record<ElementState, string>> = {
+    selected: "Selected",
+    hovered: "Hovered",
+    pinned: "Pinned",
+    ghosted: "Outside the time window",
+};
+
+/** The hosts a selection is edited in: a style layer's selector, or an import filter card. */
+export type Host = "selector" | "filter";
+
+/** A section of the value picker past the field groups. */
+export interface PickSection {
+    readonly group: string;
+    readonly items: readonly ExtraItem[];
+}
+
+/**
+ * The card side a selection speaks.
+ * @param rule - the selection.
+ * @returns node or edge.
+ */
+export const sideOf = (rule: Pick<UnionLeaf, "side">): Side => (rule.side === "nodes" ? "node" : "edge");
+
+/**
+ * A field's rule before its test is set: inert (graphty-element reads it as "test-unset"), so a
+ * step with a value and no test changes nothing (spec 1).
+ * @param field - the field.
+ * @returns the leaf.
+ */
+function untested(field: CardField): RuleTree {
+    switch (field.kind) {
+        case "number":
+            return { kind: "range", attribute: field.path };
+        case "date":
+            return { kind: "range", attribute: field.path, as: "time" };
+        case "category":
+            return { kind: "categories", attribute: field.path, values: [] };
+        case "yes-no":
+            // An empty pick is graphty-element's inert form on any value: never "is Yes" unasked.
+            return { kind: "categories", attribute: field.path, values: [] };
+        case "source":
+            return { kind: "source", sources: [] };
+        default:
+            return { kind: "text", reads: field.path, mode: "substring", text: "" };
+    }
+}
+
+/**
+ * Every field a step on one side can read: the readable values, and on the node side the
+ * structure values (Degree, and In and Out degree on a directed graph), read with no run.
+ * @param session - the element's session.
+ * @param side - nodes or edges.
+ * @param within - the selection's base, which a structure value's range is read over.
+ * @returns the fields.
+ */
+function stepFields(session: GraphSession, side: Side, within?: UnionLeaf["within"]): CardField[] {
+    const fields = cardFields(session, side);
+    if (side !== "node") {
+        return fields;
+    }
+    const structure = session.data.structureValues().map((value): CardField => {
+        const histogram = session.scope.histogram(value.path, within === undefined ? {} : { within });
+        const range =
+            histogram.kind === "numeric" && histogram.min !== undefined && histogram.max !== undefined
+                ? { range: { min: histogram.min, max: histogram.max } }
+                : {};
+        const words = STRUCTURE_WORDS[value.path];
+        return {
+            path: value.path,
+            on: "node",
+            kind: "number",
+            name: value.plainName,
+            group: "Structure",
+            // A structure value is a count of links.
+            integer: true,
+            ...range,
+            ...(words === undefined ? {} : { tip: words, aliases: LINK_ALIASES }),
+        };
+    });
+    return [...fields, ...structure];
+}
+
+/**
+ * The fields of the selection's side for the picker: Data first (Node id, the columns, Degree),
+ * then Results (a finished run's main values; no rank or percentile entries).
+ * @param session - the element's session.
+ * @param side - nodes or edges.
+ * @param within - the selection's base, which a structure value's range is read over.
+ * @param perAlgorithm - an algorithm's default run is its entry, not a Results field.
+ * @returns the fields, regrouped.
+ */
+export function pickerFields(
+    session: GraphSession,
+    side: Side,
+    within?: UnionLeaf["within"],
+    perAlgorithm = false,
+): CardField[] {
+    // A run's rank and percentile companions are left out; a data column of that name is kept.
+    // Listed one entry per algorithm (the workspace's cards), a run of an algorithm's default
+    // settings over the base is that entry, so it is not listed again under Results.
+    const fields = stepFields(session, side, within).filter(
+        (field) =>
+            field.group !== "Results" ||
+            (!field.path.endsWith(".rank") &&
+                !field.path.endsWith(".percentile") &&
+                !(perAlgorithm && isAlgorithmEntry(session, field.path, within))),
+    );
+    const data = fields
+        .filter((field) => field.group !== "Results")
+        .map((field) => ({ ...field, group: "Data" as const }));
+    // A result computed over another part of the graph than the step's base says which part, so
+    // the entry is not read as the same values over the base (the step stays bound to that run).
+    const results = fields
+        .filter((field) => field.group === "Results")
+        // A filter (based on the full graph) never reads a run over the visible graph: what it
+        // hides would move the run it reads (graphty-element refuses it).
+        .filter((field) => within !== "graph" || runFieldOf(session, field.path)?.scope !== "visible")
+        .map((field) => {
+            const run = runFieldOf(session, field.path);
+            return run === undefined || sameScope(run.scope, baseOf(within))
+                ? field
+                : { ...field, name: `${field.name} (${ranOverWords(session, run.scope, run.nodes)})` };
+        });
+    return [...data, ...results];
+}
+
+/**
+ * Whether a Results field is what an algorithm's own picker entry reads: a run of the algorithm's
+ * default settings over the selection's base.
+ * @param session - the element's session.
+ * @param path - the field's path.
+ * @param within - the selection's base.
+ * @returns true when the algorithm's entry covers it.
+ */
+function isAlgorithmEntry(session: GraphSession, path: string, within?: UnionLeaf["within"]): boolean {
+    const run = runFieldOf(session, path);
+    if (run === undefined || !sameScope(run.scope, baseOf(within))) {
+        return false;
+    }
+    const options = session.catalog.algorithms().find((each) => each.key === run.algorithm)?.options ?? [];
+    return Object.entries(run.params).every(
+        ([name, value]) =>
+            JSON.stringify(value) === JSON.stringify(options.find((option) => option.name === name)?.default),
+    );
+}
+
+/**
+ * The scope a step reads a run over when it names none: its selection's base.
+ * @param within - the selection's base.
+ * @returns the scope.
+ */
+const baseOf = (within?: UnionLeaf["within"]): Scope => (within === "visible" ? "visible" : "graph");
+
+/**
+ * Whether two scopes are written the same.
+ * @param a - one scope.
+ * @param b - the other.
+ * @returns true when equal.
+ */
+const sameScope = (a: Scope, b: Scope): boolean => JSON.stringify(a) === JSON.stringify(b);
+
+/**
+ * The run a Results field reads, and that field's name in the run.
+ * @param session - the element's session.
+ * @param path - the field's path.
+ * @returns the run's algorithm, params, scope and field, or undefined for a data column.
+ */
+function runFieldOf(
+    session: GraphSession,
+    path: string,
+):
+    | { algorithm: string; params: Readonly<Record<string, unknown>>; field: string; scope: Scope; nodes: number }
+    | undefined {
+    const value = session.data.readableValues().find((each) => each.path === path && each.runId !== undefined);
+    const run = value?.runId === undefined ? undefined : session.runs.get(value.runId);
+    if (run === undefined) {
+        return undefined;
+    }
+    const field = run.fields.find((each) => session.results.path(run.id, each.name) === path);
+    return field === undefined
+        ? undefined
+        : {
+              algorithm: run.algorithm,
+              params: run.params,
+              field: field.name,
+              scope: run.scope.spec,
+              nodes: run.scope.nodeCount,
+          };
+}
+
+/**
+ * The test a new algorithm step starts with, so its rule says what its control shows: an empty pick
+ * for a field read as a checklist or a yes-or-no (nothing ticked selects nothing), none for a
+ * number (an unbounded range, every measured element, as the slider with both handles at the ends
+ * shows).
+ * @param field - the algorithm's field, as the catalog declares it.
+ * @param field.type - its value type.
+ * @param field.measurement - how it is measured.
+ * @returns the test, or undefined.
+ */
+export function freshTest(field: {
+    readonly type: string;
+    readonly measurement?: string;
+}): Extract<RuleTree, { kind: "measure" }>["test"] {
+    const listed = field.measurement === "categorical" || field.type === "boolean" || field.type === "string";
+    return listed ? { kind: "categories", values: [] } : undefined;
+}
+
+/**
+ * The rule a picked field writes: a data column's new leaf, or for a run's value a `measure` of
+ * that algorithm, settings and field (spec 6: every algorithm step saves as algorithm, settings,
+ * field and test). A number's leaf has no bounds: graphty-element reads it as every measured
+ * value, which is what its untouched slider shows.
+ * @param session - the element's session.
+ * @param field - the picked field.
+ * @param within - the selection's base: a run over another scope is named in the rule.
+ * @returns the step's rule.
+ */
+export function ruleOfField(session: GraphSession, field: CardField, within?: UnionLeaf["within"]): RuleTree {
+    if (field.group !== "Results") {
+        return untested(field);
+    }
+    const run = runFieldOf(session, field.path);
+    const listed = field.kind === "category" || field.kind === "yes-no";
+    return run === undefined
+        ? untested(field)
+        : {
+              kind: "measure",
+              algorithm: run.algorithm,
+              ...(Object.keys(run.params).length === 0 ? {} : { params: run.params }),
+              field: run.field,
+              ...(listed ? { test: { kind: "categories" as const, values: [] } } : {}),
+              // Picked from a run over another part of the graph: the step reads that run.
+              ...(sameScope(run.scope, baseOf(within)) ? {} : { scope: run.scope }),
+          };
+}
+
+/**
+ * The value picker's sections after Data and Results: the Analyze categories (algorithms not yet
+ * run, named by method, a single-field result by its method alone), Added (user-registered
+ * algorithms), Structure, Relative to, and On the canvas (what the reader is doing, for a host that
+ * follows the reader).
+ * @param session - the element's session.
+ * @param rule - the selection.
+ * @param onPick - takes the rule an entry writes.
+ * @param host - where the selection is edited.
+ * @param perAlgorithm - one entry per algorithm, run or not (the workspace's cards).
+ * @returns the sections, in order; an empty one is left out.
+ */
+export function pickSections(
+    session: GraphSession,
+    rule: UnionLeaf,
+    onPick: (stepRule: RuleTree) => void,
+    host: Host,
+    perAlgorithm = false,
+): PickSection[] {
+    const side = sideOf(rule);
+    const ran = new Set(
+        session.runs
+            .list()
+            .filter((run) => run.status === "succeeded")
+            .map((run) => run.algorithm),
+    );
+    const algorithmItems = (custom: boolean): { heading: string; items: ExtraItem[] }[] =>
+        groupAlgorithms(session.catalog.algorithms()).map(({ heading, entries }) => ({
+            heading: heading.title,
+            items: entries
+                // Degree is listed under Data, read with no run (spec 4).
+                .filter(
+                    (each) =>
+                        (each.category === "custom") === custom &&
+                        (perAlgorithm || !ran.has(each.key)) &&
+                        each.key !== "degree",
+                )
+                .flatMap((each) => {
+                    // No rank or percentile entries (spec 4): the test's By position covers them.
+                    const fields = each.fields.filter(
+                        (field) =>
+                            field.kind === side &&
+                            field.type !== "table" &&
+                            field.name !== "rank" &&
+                            field.name !== "percentile",
+                    );
+                    const method = wordsFor(each).name;
+                    // The catalog's own words find it too: its keywords and its technical name.
+                    const aliases = [...(each.keywords ?? []), each.technicalName];
+                    // One entry per algorithm (the workspace's cards): its card chooses the field.
+                    const listed = perAlgorithm ? fields.slice(0, 1) : fields;
+                    return listed.map((field) => ({
+                        key: `alg:${each.key}:${field.name}`,
+                        name: fields.length === 1 || perAlgorithm ? method : `${method}: ${field.plainName}`,
+                        glyph: GLYPHS.analyze,
+                        ...(each.description === undefined || each.description === "" ? {} : { tip: each.description }),
+                        // Its field's name finds it too: "Label propagation: comm".
+                        aliases: [...aliases, field.plainName],
+                        onPick: () => {
+                            const test = freshTest(field);
+                            onPick({
+                                kind: "measure",
+                                algorithm: each.key,
+                                field: field.name,
+                                ...(test === undefined ? {} : { test }),
+                            });
+                        },
+                    }));
+                }),
+        }));
+    // Results with nothing per node or edge (pairs, series, graph facts) are not entries.
+    const shown = new Set(HEADINGS.filter((heading) => heading.id !== "measure").map((heading) => heading.title));
+    const analyze = algorithmItems(false).filter((each) => shown.has(each.heading) && each.items.length > 0);
+    const added = algorithmItems(true).flatMap((each) => each.items);
+    const other: Side = side === "node" ? "edge" : "node";
+    const across = cardFields(session, other)
+        .filter((field) => field.group === "Data" && field.path !== SOURCE_PATH)
+        .map((field) => ({
+            key: `other:${field.path}`,
+            name: field.name,
+            glyph: GLYPHS[other],
+            ...(field.fact === undefined ? {} : { fact: field.fact }),
+            onPick: () => {
+                onPick(untested(field));
+            },
+        }));
+    const item = (key: string, name: string, glyph: ExtraItem["glyph"], leaf: RuleTree): ExtraItem => ({
+        key,
+        name,
+        glyph,
+        onPick: () => {
+            onPick(leaf);
+        },
+    });
+    const structure =
+        side === "node"
+            ? [
+                  item("largest", "Largest component", GLYPHS.graph, { kind: "member", of: "largest-component" }),
+                  item("isolated", "Isolated", GLYPHS.node, { kind: "isolated" }),
+              ]
+            : [
+                  item("self-loop", "Self-loops", GLYPHS.edge, { kind: "self-loop" }),
+                  item("repeated", "Repeated edges", GLYPHS.edge, { kind: "repeated-edge" }),
+              ];
+    const directed = session.data.statistics().directedness === "directed";
+    const relative =
+        side === "node"
+            ? [
+                  item("is-in", "Is in", GLYPHS.neighborhood, { kind: "hops", max: 0 }),
+                  item("within", "Within hops of", GLYPHS.neighborhood, { kind: "hops", max: 2 }),
+                  item("neighbors", "Neighbors of selection", GLYPHS.neighborhood, {
+                      kind: "hops",
+                      of: "selection",
+                      max: 1,
+                  }),
+                  item("connected", "Connected to", GLYPHS.neighborhood, { kind: "hops" }),
+                  ...(directed
+                      ? [
+                            item("downstream", "Downstream of", GLYPHS.neighborhood, {
+                                kind: "hops",
+                                direction: "out",
+                            }),
+                            item("upstream", "Upstream of", GLYPHS.neighborhood, { kind: "hops", direction: "in" }),
+                        ]
+                      : []),
+                  { ...item("while", WHILE, GLYPHS.selection, { kind: "nonempty" }), tip: WHILE_TIP },
+              ]
+            : [
+                  item("touching", "Edges touching", GLYPHS.edge, { kind: "touching", ends: "either" }),
+                  item("within-edges", "Edges within", GLYPHS.edge, { kind: "touching", ends: "both" }),
+                  item("leaving", "Edges leaving", GLYPHS.edge, { kind: "touching", ends: "one" }),
+                  { ...item("while", WHILE, GLYPHS.selection, { kind: "nonempty" }), tip: WHILE_TIP },
+              ];
+    const sections: PickSection[] = [
+        ...analyze.map((each) => ({ group: each.heading, items: each.items })),
+        { group: "Added", items: added },
+        { group: side === "node" ? "Edges (nodes touching)" : "Nodes (edge ends)", items: across },
+        { group: "Structure", items: structure },
+        { group: "Relative to", items: relative },
+        { group: "On the canvas", items: host === "selector" ? stateItems(side, item) : [] },
+    ];
+    return sections.filter((each) => each.items.length > 0);
+}
+
+/**
+ * On the canvas's entries: the states a side's elements can be in. No edge is hovered or pinned.
+ * @param side - nodes or edges.
+ * @param item - makes an entry.
+ * @returns the entries.
+ */
+function stateItems(
+    side: Side,
+    item: (key: string, name: string, glyph: ExtraItem["glyph"], leaf: RuleTree) => ExtraItem,
+): ExtraItem[] {
+    const states: readonly ElementState[] =
+        side === "node" ? ["selected", "hovered", "pinned", "ghosted"] : ["selected", "ghosted"];
+    return states.map((state) => item(state, STATE_WORDS[state], GLYPHS.selection, { kind: "state", state }));
+}
+
+/** A rule that tests against a reference: Relative to's forms. */
+export type RelativeRule = Extract<RuleTree, { kind: "hops" | "touching" | "nonempty" | "same-value" }>;
+
+/**
+ * Whether a step's rule is one of Relative to's forms.
+ * @param rule - the rule.
+ * @returns true for hops, touching, nonempty and same-value.
+ */
+export const isRelative = (rule: RuleTree): rule is RelativeRule =>
+    rule.kind === "hops" || rule.kind === "touching" || rule.kind === "nonempty" || rule.kind === "same-value";
+
+/**
+ * A measure test as a leaf on a path, so the card a data column draws can edit it.
+ * @param test - the test.
+ * @param path - the run field's path.
+ * @returns the leaf.
+ */
+function testLeaf(test: MeasureTest, path: string): RuleTree {
+    return { ...test, attribute: path, path, reads: path } as unknown as RuleTree;
+}
+
+/**
+ * A leaf's test without its path: the body a `measure` holds.
+ * @param leaf - the leaf a card made.
+ * @returns the test, or undefined for a leaf no measure test has.
+ */
+function testOf(leaf: RuleTree): MeasureTest | undefined {
+    switch (leaf.kind) {
+        case "range":
+        case "categories": {
+            const { attribute: _attribute, ...test } = leaf;
+            return test;
+        }
+        case "threshold": {
+            const { path: _path, ...test } = leaf;
+            return test;
+        }
+        case "text": {
+            const { reads: _reads, ...test } = leaf;
+            return test;
+        }
+        default:
+            return undefined;
+    }
+}
+
+/** A step as its card edits it. */
+interface StepCardRead {
+    /** The card, or null while a run's values are not there yet, or for a rule no card edits. */
+    readonly card: Card | null;
+    /** The field the step reads, when known. */
+    readonly field?: CardField;
+}
+
+/**
+ * The card a step's test is edited with: the card a data column's leaf draws, or, for a
+ * `measure`, the card of the run field it reads once that run is there, or of the values its own
+ * computation gave (computed on So far). Every count the card shows is taken over the selection's
+ * base.
+ * @param session - the element's session.
+ * @param step - the step.
+ * @param reading - its reading.
+ * @param side - the selection's side.
+ * @param within - the selection's base; absent, the whole graph.
+ * @returns the card.
+ */
+export function stepCard(
+    session: GraphSession,
+    step: UnionStep,
+    reading: StepReading | undefined,
+    side: Side,
+    within?: UnionLeaf["within"],
+): StepCardRead {
+    const read = testCard(session, step, reading, side, within);
+    return read.card === null ? read : { ...read, card: withMode(read.card, step.mode) };
+}
+
+/**
+ * A card in the mode its step holds: the mode is the reader's pick, kept before any bound is set
+ * (By position with no number yet) and where the bounds cannot say it (Between with only its "to").
+ * @param card - the card its rule draws.
+ * @param mode - the step's mode.
+ * @returns the card.
+ */
+function withMode(card: Card, mode: string | undefined): Card {
+    if (card.type === "number" && mode?.split(" ")[0] === "top" && card.match === "range") {
+        return topMode(card, mode);
+    }
+    // A text test picked before any text is typed: the empty rule cannot hold it, the step does.
+    if (card.type === "text" && card.text === "" && card.match === "substring" && isTextMode(mode)) {
+        return { ...card, match: mode };
+    }
+    const dated =
+        card.type === "date" && (card.match === "before" || card.match === "after" || card.match === "between");
+    if (!dated || (mode !== "before" && mode !== "after" && mode !== "between")) {
+        return card;
+    }
+    // A bound the mode has no box for is not the reader's: the rule's bounds win.
+    const fits = mode === "between" || (mode === "before" ? card.min === undefined : card.max === undefined);
+    return fits ? { ...card, match: mode } : card;
+}
+
+/**
+ * A number card in By position when its step says so, with its end and its unit, kept before its
+ * count is typed: the step's mode is "top", "top low", "top percent" or "top low percent".
+ * @param card - the card its rule draws.
+ * @param mode - the step's mode.
+ * @returns the card.
+ */
+function topMode(card: Extract<Card, { type: "number" }>, mode: string | undefined): Card {
+    const words = mode?.split(" ") ?? [];
+    if (words[0] !== "top" || card.match !== "range" || card.min !== undefined || card.max !== undefined) {
+        return card;
+    }
+    return {
+        ...card,
+        match: "top",
+        ...(words.includes("low") ? { from: "low" as const } : {}),
+        ...(words.includes("percent") ? { percent: true } : {}),
+    };
+}
+
+/**
+ * Whether a mode is one of a text test's ways to match (Contains, Is exactly, ...).
+ * @param mode - the mode.
+ * @returns true for a text match.
+ */
+const isTextMode = (mode: string | undefined): mode is TextMode => mode !== undefined && mode in TEXT_WORDS;
+
+/**
+ * The mode a step keeps for its card: a number test's By value or By position, a date test's
+ * Before, After or Between; none for any other test.
+ * @param card - the card as edited.
+ * @returns the mode.
+ */
+export function modeOf(card: Card): string | undefined {
+    if (card.type === "number" && card.match === "top") {
+        return ["top", card.from === "low" ? "low" : "", card.percent === true ? "percent" : ""]
+            .filter((each) => each !== "")
+            .join(" ");
+    }
+    if (card.type === "number" && card.match === "range") {
+        return card.match;
+    }
+    if (card.type === "text") {
+        return isTextMode(card.match) ? card.match : undefined;
+    }
+    return card.type === "date" && card.match !== "present" && card.match !== "absent" ? card.match : undefined;
+}
+
+/**
+ * The card a step's rule draws, before its mode is applied.
+ * @param session - the element's session.
+ * @param step - the step.
+ * @param reading - its reading.
+ * @param side - the selection's side.
+ * @param within - the selection's base.
+ * @returns the card and its field.
+ */
+function testCard(
+    session: GraphSession,
+    step: UnionStep,
+    reading: StepReading | undefined,
+    side: Side,
+    within?: UnionLeaf["within"],
+): StepCardRead {
+    const fields = [
+        ...stepFields(session, side, within),
+        ...stepFields(session, side === "node" ? "edge" : "node", within),
+    ].map((field) => (within === undefined ? field : { ...field, within }));
+    const { rule, links } = step;
+    // A degree step scoped by its Links counts only the links that pass: its range and bars too.
+    const scoped =
+        links === undefined
+            ? fields
+            : fields.map((field) => {
+                  if (field.group !== "Structure") {
+                      return field;
+                  }
+                  const histogram = session.scope.histogram(field.path, {
+                      ...(within === undefined ? {} : { within }),
+                      links,
+                  });
+                  const range =
+                      histogram.kind === "numeric" && histogram.min !== undefined && histogram.max !== undefined
+                          ? { range: { min: histogram.min, max: histogram.max } }
+                          : {};
+                  return { ...field, links, ...range };
+              });
+    if (rule.kind !== "measure") {
+        const card = cardOf(session, rule, scoped, 0);
+        return card.type === "fixed" ? { card: null } : { card, ...("field" in card ? { field: card.field } : {}) };
+    }
+    const run = reading?.run ?? null;
+    if (run === null) {
+        return ownCard(session, step, rule, reading, side);
+    }
+    const path = session.results.path(run, rule.field);
+    const found = fields.find((each) => each.path === path);
+    if (found === undefined || path === undefined) {
+        return { card: null };
+    }
+    // What the catalog declares a yes-or-no stays one when a run left it nowhere set (no route found).
+    const declared = session.catalog.algorithms().find((each) => each.key === rule.algorithm);
+    const yesNo = declared?.fields.find((each) => each.name === rule.field)?.type === "boolean";
+    const field = yesNo ? { ...found, kind: "yes-no" as const } : found;
+    const known = yesNo ? fields.map((each) => (each.path === path ? field : each)) : fields;
+    const card =
+        rule.test === undefined
+            ? cardOf(session, untested(field), known, 0)
+            : cardOf(session, testLeaf(rule.test, path), known, 0);
+    return { card: card.type === "fixed" ? null : card, field };
+}
+
+/**
+ * The card of a step whose own computation gave its values (computed on So far): a number card
+ * over the range graphty-element reports for them, its test read from the step.
+ * @param session - the element's session.
+ * @param step - the step.
+ * @param rule - its measure.
+ * @param reading - its reading.
+ * @param side - the selection's side.
+ * @returns the card, or none while the values are not there yet.
+ */
+function ownCard(
+    session: GraphSession,
+    step: UnionStep,
+    rule: Extract<RuleTree, { kind: "measure" }>,
+    reading: StepReading | undefined,
+    side: Side,
+): StepCardRead {
+    const values = reading?.values ?? null;
+    const descriptor = session.catalog.algorithms().find((each) => each.key === rule.algorithm);
+    if (values?.kind === "categorical") {
+        // Names a step computed for itself (a community on some edges only): the card lists them.
+        const listed: CardField = {
+            path: `${SO_FAR_PATH}${step.id ?? ""}`,
+            on: side,
+            kind: "category",
+            name: descriptor === undefined ? rule.algorithm : wordsFor(descriptor).name,
+            group: "Results",
+            listed: values,
+        };
+        const leaf = rule.test === undefined ? untested(listed) : testLeaf(rule.test, listed.path);
+        const card = cardOf(session, leaf, [listed], 0);
+        return { card: card.type === "fixed" ? null : card, field: listed };
+    }
+    if (values?.kind !== "numeric") {
+        return { card: null };
+    }
+    const field: CardField = {
+        path: `${SO_FAR_PATH}${step.id ?? ""}`,
+        on: side,
+        kind: "number",
+        name: descriptor === undefined ? rule.algorithm : wordsFor(descriptor).name,
+        group: "Results",
+        missing: values.missing,
+        spread: values,
+        ...(descriptor?.fields.find((each) => each.name === rule.field)?.type === "integer" ? { integer: true } : {}),
+        ...(values.min === undefined || values.max === undefined
+            ? {}
+            : { range: { min: values.min, max: values.max } }),
+    };
+    const leaf = rule.test === undefined ? untested(field) : testLeaf(rule.test, field.path);
+    const card = cardOf(session, leaf, [field], 0);
+    return { card: card.type === "fixed" ? null : card, field };
+}
+
+/** The path a So far step's own values go by in its card: no element path names them. */
+const SO_FAR_PATH = "so-far:";
+
+/** A checklist's test with nothing ticked. */
+const NOTHING_TICKED: MeasureTest = { kind: "categories", values: [] };
+
+/**
+ * A step's rule after its card was edited: the card's leaf (untested while it holds no test), or
+ * for a `measure`, its test with the path taken off.
+ * @param step - the step.
+ * @param card - the card as edited.
+ * @returns the rule.
+ */
+export function ruleOfCard(step: UnionStep, card: Card): RuleTree {
+    const field = "field" in card ? card.field : undefined;
+    const leaf = leafOf(card) ?? (field === undefined ? step.rule : untested(field));
+    if (step.rule.kind !== "measure") {
+        return leaf;
+    }
+    // A checklist with nothing ticked selects nothing, as a fresh one does; only a number's untouched
+    // range has no test, which reads as every measured element.
+    const empty = card.type === "category" || card.type === "yes-no" ? NOTHING_TICKED : undefined;
+    const test = leafOf(card) === null ? empty : testOf(leaf);
+    const { test: _old, ...rest } = step.rule;
+    return test === undefined ? rest : { ...rest, test };
+}
+
+/**
+ * A relative rule's reference.
+ * @param rule - the rule.
+ * @returns its reference, or undefined while none is chosen.
+ */
+export const referenceOf = (rule: RelativeRule): StepReference | undefined =>
+    rule.kind === "same-value" ? rule.as : rule.of;
+
+/**
+ * A relative rule with a new reference.
+ * @param rule - the rule.
+ * @param reference - the reference.
+ * @returns the rule.
+ */
+export const withReference = (rule: RelativeRule, reference: StepReference): RuleTree =>
+    rule.kind === "same-value" ? { ...rule, as: reference } : { ...rule, of: reference };
+
+/**
+ * A layer's selector as a selection: its `union` rule, a flat rule converted by the element, or
+ * one group starting All with no step for a layer that picks everything (what it paints, so the
+ * layer's row, the folded row and the editor read one count); null for a selector the editor does
+ * not edit (ids picked by hand). A state reads over the whole graph: a ghost is never visible.
+ * @param session - the element's session.
+ * @param selector - the layer's selector.
+ * @param side - nodes or edges.
+ * @returns the selection, or null.
+ */
+export function layerSelection(session: GraphSession, selector: Selector, side: Side): UnionLeaf | null {
+    if (selector.match === "everything") {
+        return {
+            kind: "union",
+            side: side === "node" ? "nodes" : "edges",
+            within: "visible",
+            branches: [{ start: "all", steps: [] }],
+        };
+    }
+    const rule = selectorRule(selector, { states: true })?.where;
+    if (rule === undefined) {
+        return null;
+    }
+    if (rule.kind === "union") {
+        return rule;
+    }
+    return session.scope.asUnion(rule, {
+        side: side === "node" ? "nodes" : "edges",
+        within: rule.kind === "state" ? "graph" : "visible",
+    });
+}
+
+/**
+ * A condition as a selection of what stays: its `union` rule, or a flat rule converted by the
+ * element; a removing (Filter out) condition's rule read as what it leaves.
+ * @param session - the element's session.
+ * @param rule - the condition's rule.
+ * @param side - nodes or edges.
+ * @param effect - the condition's effect.
+ * @returns the selection, or null for a rule the editor does not edit.
+ */
+export function filterSelection(
+    session: GraphSession,
+    rule: RuleTree,
+    side: Side,
+    effect: FilterCondition["effect"] = "keep",
+): UnionLeaf | null {
+    const exclude = effect === "exclude";
+    if (rule.kind === "union" && !exclude) {
+        return rule;
+    }
+    return session.scope.asUnion(rule, {
+        side: side === "node" ? "nodes" : "edges",
+        within: "graph",
+        effect: exclude ? "exclude" : "keep",
+    });
+}
+
+/**
+ * The paths a group's steps already read, so the picker marks them used.
+ * @param rule - the selection.
+ * @param branch - the group.
+ * @returns the picker keys.
+ */
+export function usedPaths(rule: UnionLeaf, branch: UnionBranch): string[] {
+    return branch.steps.flatMap((step) => {
+        const path =
+            (step.rule as { attribute?: string; reads?: string }).attribute ?? (step.rule as { reads?: string }).reads;
+        return path === undefined ? [] : [`${sideOf(rule)}:${path}`];
+    });
+}

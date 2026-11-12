@@ -25,8 +25,8 @@
  *
  * - `texture.color.colorType` and `texture.color.value` come out UNREACHABLE even though the
  *   painter writes both. It pins them to a neutral solid so a node's per-instance colour can
- *   show, so no channel can change them -- which is precisely why a gradient node fill cannot
- *   survive the paint path, and precisely the kind of thing a restated list would have hidden.
+ *   show (or, for `colorType`, to "gradient" whenever a gradient channel is painted), so no one
+ *   channel can choose them -- precisely the kind of thing a restated list would have hidden.
  * - `node.color` writes nothing into the style at all; its value is diverted into
  *   `NodePaint.color`, beside the style, so that one material is not minted per colour. The run
  *   below sees that divergence in the paint and credits the channel's declared `stylePath` with
@@ -48,7 +48,7 @@
  */
 
 import { assert, describe, it } from "vitest";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { LABEL_STYLE_FIELDS } from "../../src/catalog/label-style";
 import type { Channel } from "../../src/catalog/types";
@@ -134,11 +134,20 @@ function painterOf(style: ResolvedStyle): StylePainter {
     const painter = new StylePainter();
     const stub: Pick<
         ElementPaint,
-        "styleOf" | "plainText" | "meshKeyOf" | "meshCount" | "lastPainted" | "onPainted" | "painting" | "problems"
+        | "styleOf"
+        | "plainText"
+        | "meshKeyOf"
+        | "meshStyleOf"
+        | "meshCount"
+        | "lastPainted"
+        | "onPainted"
+        | "painting"
+        | "problems"
     > = {
         styleOf: () => style,
         plainText: () => false,
         meshKeyOf: () => 1,
+        meshStyleOf: () => style,
         meshCount: () => 1,
         lastPainted: () => [],
         onPainted: () => () => undefined,
@@ -167,12 +176,16 @@ function painterOf(style: ResolvedStyle): StylePainter {
  * @param run - Which of the two probe runs this is.
  * @returns The probe.
  */
-function labelProbe(run: 0 | 1): Record<string, string> {
-    const probe: Record<string, string> = {};
+function labelProbe(run: 0 | 1): Record<string, string | boolean> {
+    const probe: Record<string, string | boolean> = {};
 
     for (const field of LABEL_STYLE_FIELDS) {
         probe[field] = `probe-${String(run)}-${field}`;
     }
+
+    // The one switch in the vocabulary that the painter reads as on or off rather than passing
+    // through, so it needs two values that differ as switches do.
+    probe.italic = run === 0;
 
     return probe;
 }
@@ -194,6 +207,10 @@ function probeValue(descriptor: ChannelDescriptor, run: 0 | 1): unknown {
             return run === 0 ? low + (high - low) * 0.25 : low + (high - low) * 0.75;
         }
         case "text":
+            // A gradient's stops are numbers, one per colour: the node's own colour alone takes one.
+            if (descriptor.channel === "node.gradientStops") {
+                return run === 0 ? "0.25" : "0.75";
+            }
             return run === 0 ? "probe-one" : "probe-two";
         case "boolean":
             return run === 0;
@@ -222,7 +239,11 @@ function reachedBy(descriptor: ChannelDescriptor): Set<string> {
     }
 
     const runs = ([0, 1] as const).map((run) => {
-        const painter = painterOf({ [descriptor.channel]: probeValue(descriptor, run) });
+        // A radial gradient's middle and reach are drawn only on a radial gradient.
+        const radial = /^node\.gradient(CenterX|CenterY|Radius)$/.test(descriptor.channel)
+            ? { "node.gradientKind": "radial" as const }
+            : {};
+        const painter = painterOf({ ...radial, [descriptor.channel]: probeValue(descriptor, run) });
         const paint = descriptor.target === "node" ? painter.nodePaint(0) : painter.edgePaint(0);
 
         assert.isNotNull(paint, `the painter returned no paint for ${descriptor.channel}`);

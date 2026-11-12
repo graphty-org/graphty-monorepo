@@ -1,0 +1,133 @@
+{
+  "version": 2,
+  "pr": 2639,
+  "subject": {
+    "builtMerge": "6042829c15ca386a77f7420e15b495d518730357",
+    "head": "2cfe015e4489e94dd12438a7ce05dd92f94f98b5",
+    "runId": 38559822978,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 9V45 96-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "6042829c15ca386a77f7420e15b495d518730357"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty-element/styles-edge--three-d-curvature-width.png",
+      "from": null,
+      "to": "085f7a85d2266ce70626bacba6509652825189680862477d7ea06b65a1630a0a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/styles-edge--two-d-curvature-width.png",
+      "from": null,
+      "to": "dd647f47a0e486e8ecc11a084bcf90f50971891070d19caa50864b693abece97",
+      "reason": null
+    }
+  ],
+  "rejects": [
+    {
+      "path": "visual-baselines/graphty-element/styles-edge--two-d-arrow-head-outline.png",
+      "capture": "897c8749cc4ddcc57ca544b11bf5284fd26c833362a1e6eb4797b06ae3c40c45",
+      "reason": "default outline of nodes is too thick; story is named \"arrow head outline\" but only the nodes are outlined"
+    },
+    {
+      "path": "visual-baselines/graphty-element/styles-layered--opacity-layers.png",
+      "capture": "910f8d8d00131c18ef610fce36095412be68841faad1d9dbc3102e80eae13148",
+      "reason": "arrowheads now incorrectly drawn over nodes"
+    },
+    {
+      "path": "visual-baselines/graphty-element/styles-node--opacity.png",
+      "capture": "a9984f79c89493c0dbc6484cbcc086efd08bd6e5ac171fad86ff4c0884e1b2b5",
+      "reason": "arrowheads now incorrectly drawn over nodes"
+    },
+    {
+      "path": "visual-baselines/graphty-element/styles-selection-highlight--color.png",
+      "capture": "31ab7b0e2ec01743fc90b2033a9d3a2231a0c26225e3940af8d0c10c711bda83",
+      "reason": "arrowheads now incorrectly drawn over nodes"
+    },
+    {
+      "path": "visual-baselines/graphty-element/styles-selection-highlight--default.png",
+      "capture": "a60222ad3aa5790cbffe54d7276a864bafa187de5dba8edd77232c6b4ada1cc2",
+      "reason": "arrowheads now incorrectly drawn over nodes"
+    },
+    {
+      "path": "visual-baselines/graphty-element/styles-selection-highlight--opacity.png",
+      "capture": "e39fdb7018fab519d8e00c48e382195286474d561e7919e7f191ab5d7fc3016c",
+      "reason": "arrowheads now incorrectly drawn over nodes"
+    },
+    {
+      "path": "visual-baselines/graphty-element/styles-selection-highlight--restyled-while-selected.png",
+      "capture": "aab7f7c90912b8afe784a8d891f9ad3387108c0982f4c30d588195efcd1bf3d7",
+      "reason": "arrowheads now incorrectly drawn over nodes"
+    },
+    {
+      "path": "visual-baselines/graphty-element/styles-selection-highlight--scale.png",
+      "capture": "740297fa37c46e2ced764fbbd6f6752b27dba64a745495be262b50c83d3b9a35",
+      "reason": "arrowheads now incorrectly drawn over nodes"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-data.dark.png",
+      "capture": "b6a31aa49de24446ad4d12dd44f0efe6ef02bbf59e4e1c375c6838876473e37d",
+      "reason": "arrowheads now incorrectly drawn over highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-data.light.png",
+      "capture": "137522ee4131c484c702e4c1bd8782fc5d640ff7fade43bb4c119c4d683dcf92",
+      "reason": "arrowheads now incorrectly drawn over highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-why-this-look.dark.png",
+      "capture": "d15d9dcac3a830cc777f131085379471fa2e05a093b9c6029d09bf56a052b440",
+      "reason": "arrowheads now incorrectly drawn over highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-why-this-look.light.png",
+      "capture": "9afde3ce041aa602dc2e06f5e6334377d6144c33e57c15e3f62520605e5f6222",
+      "reason": "arrowheads now incorrectly drawn over highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-neighborhood.dark.png",
+      "capture": "26063ef1d4cee5f5cbc3812adc9a4d7296699d6ab474e24c8683dd2c9628bb20",
+      "reason": "arrowheads now incorrectly drawn over highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-neighborhood.light.png",
+      "capture": "a98949e02319d4afca440bb3bdce72a75192e10fbf08678492e77e1eef8cc204",
+      "reason": "arrowheads now incorrectly drawn over highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-summary.dark.png",
+      "capture": "00f503c2efb814c5d0ff612cd91cf31d5b446d13abd0dbb3bfa378b45a8a5941",
+      "reason": "arrowheads now incorrectly drawn over highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-summary.light.png",
+      "capture": "15e1cf83a4f6f0f3b67462a0a94a3ee19a4118367db407833d188dc24a020f61",
+      "reason": "arrowheads now incorrectly drawn over highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--selection-bar.dark.png",
+      "capture": "74a2109a878b59f742bed901e0d7051e163c4cb2006ca033363714cb54e013e8",
+      "reason": "arrowheads now incorrectly drawn over highlight"
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--selection-bar.light.png",
+      "capture": "1d281b1d1e3ed6f6e13e8b48befc128b1145136526608d4c3a79f81559e981dc",
+      "reason": "arrowheads now incorrectly drawn over highlight"
+    }
+  ],
+  "reviewedAt": "2026-10-14T21:36:15.734Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiTERLWTExTXppZ01tMVZWQk85V01LbEtuVHNCaFV2eFBqXzlETjZnSGphOCIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEQCIDHW7alYrs4umVp2K_YMjovvWIn8taB5TyyjpgYFsIINAiAsz9bxR9_DTDVa4nqywfC6fjwCW65uVaidWKZw9T3zgg"
+  }
+}

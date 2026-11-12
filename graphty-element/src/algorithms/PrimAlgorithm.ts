@@ -10,7 +10,7 @@
  */
 
 import { INVALID_INDEX } from "@graphty/graph-format";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -56,14 +56,16 @@ interface PrimOptions extends Record<string, unknown> {
  * the tree from a starting node.
  */
 export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
-    static namespace = "graphty";
-    static type = "prim";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "prim";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static readonly weightMeaning = "distance" as const;
     /** Spans the run's scope: the edge list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = primOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = primOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         startNode: {
             type: "nodeId",
             default: null,
@@ -140,7 +142,7 @@ export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
             caveats: declaredCaveats({
                 method: "prim",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "distance" },
+                ...this.weightCaveats(),
                 precision,
                 facts: [caveat("tree.edge-count", { edges: tree.edges.length })],
             }),

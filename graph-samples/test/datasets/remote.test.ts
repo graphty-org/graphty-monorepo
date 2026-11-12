@@ -29,6 +29,14 @@ describe("fetchDataset", () => {
         expect(snapshot.nodes.get("club")?.value(33)).toBe("Officer");
     });
 
+    it("decodes a file the server sent with Content-Encoding: gzip, which arrives unzipped", async () => {
+        const original = fromEdgeArrays(karate());
+        const fake = (): Promise<Response> => Promise.resolve(new Response(original.toBytes().slice()));
+        const snapshot = await fetchDataset("karate", { fetch: fake });
+        expect(equalsTopology(snapshot, original)).toBe(true);
+        expect(snapshot.nodes.get("club")?.value(33)).toBe("Officer");
+    });
+
     it("honours a base URL with or without a trailing slash", async () => {
         const body = await gzip(fromEdgeArrays(karate()).toBytes());
         const urls: string[] = [];

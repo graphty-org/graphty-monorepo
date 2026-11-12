@@ -56,7 +56,7 @@
  */
 
 import { maskTest } from "@graphty/graph-format";
-import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
+import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 
 import { LAYOUT_CATALOG, LAYOUT_DESCRIPTORS, layoutDescriptor, layoutIdForEngine } from "../../../catalog";
 import {
@@ -94,9 +94,6 @@ const EDGES = [
     { src: "c", dst: "d" },
     { src: "d", dst: "e" },
 ];
-
-/** How long any single wait below is allowed to take before it is called a failure. */
-const PATIENCE_MS = 5000;
 
 /** The ring radius `RingLayout` uses when the consumer asks for nothing in particular. */
 const DEFAULT_RADIUS = 120;
@@ -763,22 +760,15 @@ function distanceFromSegment(point: Coords, from: Coords, to: Coords): number {
 }
 
 /**
- * Poll until something becomes true, or give up loudly.
- * @param condition - what is being waited for
- * @param what - how to describe it if the wait fails
+ * Poll until something becomes true. No deadline of its own: the one hang guard
+ * (tools/test-wait-guard.mjs) ends a wait that never comes true, naming what it waited for.
+ * @param condition - What is being waited for.
+ * @param what - How to describe it if the wait fails.
  */
 async function waitFor(condition: () => boolean, what: string): Promise<void> {
-    const deadline = Date.now() + PATIENCE_MS;
-
-    while (Date.now() < deadline) {
-        if (condition()) {
-            return;
-        }
-
-        await nextFrame();
-    }
-
-    throw new Error(`timed out waiting for ${what}`);
+    await vi.waitFor(() => {
+        assert.isTrue(condition(), `waiting for ${what}`);
+    });
 }
 
 describe("a third party's layout engine", () => {
@@ -1248,7 +1238,7 @@ describe("a third party's layout engine", () => {
             // string. The element's own nineteen engines sit behind fourteen arrangement names, which
             // is why this question exists at all.
             assert.strictEqual(layoutIdForEngine("test-ring"), "test-ring");
-            assert.strictEqual(layoutIdForEngine("arf"), "force-2d", "the element's own answer is unchanged");
+            assert.strictEqual(layoutIdForEngine("arf"), "force", "the element's own answer is unchanged");
             assert.isUndefined(layoutIdForEngine("no-such-engine"));
         });
 
@@ -1260,7 +1250,7 @@ describe("a third party's layout engine", () => {
             assert.isFalse(offeredLayout("test-ring").honoursWeights);
             assert.isFalse(offeredLayout("test-grid").honoursWeights);
             assert.strictEqual(
-                layoutDescriptor("force-2d")?.honoursWeights,
+                layoutDescriptor("circular")?.honoursWeights,
                 false,
                 "the element's own arrangements answer the same question the same way",
             );

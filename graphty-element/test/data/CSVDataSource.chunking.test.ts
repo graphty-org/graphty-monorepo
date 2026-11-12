@@ -30,10 +30,10 @@ describe("CSVDataSource paired files chunking", () => {
         assert.strictEqual(chunks[1].nodes.length, 1000);
         assert.strictEqual(chunks[2].nodes.length, 500);
 
-        // All edges should be in first chunk
-        assert.strictEqual(chunks[0].edges.length, 100);
+        // All edges should be in the last chunk, after every node
+        assert.strictEqual(chunks[0].edges.length, 0);
         assert.strictEqual(chunks[1].edges.length, 0);
-        assert.strictEqual(chunks[2].edges.length, 0);
+        assert.strictEqual(chunks[2].edges.length, 100);
     });
 
     test("handles small paired files", async () => {

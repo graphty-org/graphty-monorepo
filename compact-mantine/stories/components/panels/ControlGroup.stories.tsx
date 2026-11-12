@@ -20,7 +20,6 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  * |---|---|
  * | **ControlGroup** | A named cluster of rows inside a section or a pop-out -- Figma's "Position" or "Alignment" legends. Always open. |
  * | **ControlSection** | A subject of the panel, with a 40px header, a rule below, and a chevron where it folds. |
- * | **ControlSubGroup** | A fold one level below a section for rarely-opened settings. |
  *
  * If you find yourself wanting a group that folds, you wanted a section.
  *

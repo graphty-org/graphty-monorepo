@@ -80,6 +80,16 @@ export interface ProbeResult {
     readonly summary: AdapterSummary | null;
 }
 
+/** Options of GpuContext.from. */
+export interface FromOptions {
+    /**
+     * Listen for the device's uncaptured errors and fail the next public call with them; default true. Pass false on
+     * a device shared with a renderer, whose errors are not this context's: each batch then learns of its own errors
+     * from a validation scope around its submit, and its readback rejects with them.
+     */
+    readonly errorSink?: boolean | undefined;
+}
+
 /** Options of GpuContext.probe (spec 2.2). `gpu` may be undefined so an app can pass `navigator.gpu` without a guard: undefined -> E_NO_WEBGPU. */
 export interface ProbeOptions {
     readonly gpu: GPU | undefined;

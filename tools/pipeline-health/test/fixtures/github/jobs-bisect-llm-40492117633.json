@@ -1,0 +1,486 @@
+{
+    "total_count": 6,
+    "jobs": [
+        {
+            "id": 122148368275,
+            "run_id": 40492117633,
+            "workflow_name": "Bisect",
+            "head_branch": "master",
+            "run_url": "https://api.github.com/repos/graphty-org/graphty-monorepo/actions/runs/40492117633",
+            "run_attempt": 1,
+            "node_id": "CR_kwDOQuemQs8AAAAccJwvkw",
+            "head_sha": "70f16583b21037cdee7df863da54759bea3d013e",
+            "url": "https://api.github.com/repos/graphty-org/graphty-monorepo/actions/jobs/122148368275",
+            "html_url": "https://github.com/graphty-org/graphty-monorepo/actions/runs/40492117633/job/122148368275",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-27T10:54:41Z",
+            "started_at": "2026-10-27T10:54:44Z",
+            "completed_at": "2026-10-27T10:55:07Z",
+            "name": "Plan the round",
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-27T10:54:44Z",
+                    "completed_at": "2026-10-27T10:54:45Z"
+                },
+                {
+                    "name": "Run actions/checkout@v7",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-27T10:54:45Z",
+                    "completed_at": "2026-10-27T10:55:04Z"
+                },
+                {
+                    "name": "Run node tools/bisect-ci.mjs plan --out state.json",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-27T10:55:04Z",
+                    "completed_at": "2026-10-27T10:55:04Z"
+                },
+                {
+                    "name": "Run actions/upload-artifact@v7",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-27T10:55:04Z",
+                    "completed_at": "2026-10-27T10:55:05Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v7",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-27T10:55:05Z",
+                    "completed_at": "2026-10-27T10:55:05Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-27T10:55:05Z",
+                    "completed_at": "2026-10-27T10:55:05Z"
+                }
+            ],
+            "check_run_url": "https://api.github.com/repos/graphty-org/graphty-monorepo/check-runs/122148368275",
+            "labels": ["ubuntu-24.04"],
+            "runner_id": 1000147150,
+            "runner_name": "GitHub Actions 1000147150",
+            "runner_group_id": 0,
+            "runner_group_name": "GitHub Actions"
+        },
+        {
+            "id": 122148555385,
+            "run_id": 40492117633,
+            "workflow_name": "Bisect",
+            "head_branch": "master",
+            "run_url": "https://api.github.com/repos/graphty-org/graphty-monorepo/actions/runs/40492117633",
+            "run_attempt": 1,
+            "node_id": "CR_kwDOQuemQs8AAAAccJ8KeQ",
+            "head_sha": "70f16583b21037cdee7df863da54759bea3d013e",
+            "url": "https://api.github.com/repos/graphty-org/graphty-monorepo/actions/jobs/122148555385",
+            "html_url": "https://github.com/graphty-org/graphty-monorepo/actions/runs/40492117633/job/122148555385",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-27T10:55:07Z",
+            "started_at": "2026-10-27T10:55:13Z",
+            "completed_at": "2026-10-27T11:20:00Z",
+            "name": "Point 2490aa3b4add9775f78f1d6631e243dad3689a81",
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-27T10:55:14Z",
+                    "completed_at": "2026-10-27T10:55:16Z"
+                },
+                {
+                    "name": "Run actions/checkout@v7",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-27T10:55:16Z",
+                    "completed_at": "2026-10-27T10:55:28Z"
+                },
+                {
+                    "name": "Run actions/checkout@v7",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-27T10:55:28Z",
+                    "completed_at": "2026-10-27T10:55:29Z"
+                },
+                {
+                    "name": "Move the tool out of the tree under test",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-27T10:55:29Z",
+                    "completed_at": "2026-10-27T10:55:29Z"
+                },
+                {
+                    "name": "Run actions/download-artifact@v8",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-27T10:55:29Z",
+                    "completed_at": "2026-10-27T10:55:30Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v6",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-27T10:55:30Z",
+                    "completed_at": "2026-10-27T10:55:34Z"
+                },
+                {
+                    "name": "Run actions/setup-node@v7",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-27T10:55:34Z",
+                    "completed_at": "2026-10-27T10:55:43Z"
+                },
+                {
+                    "name": "Run pnpm install --frozen-lockfile",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-27T10:55:43Z",
+                    "completed_at": "2026-10-27T10:55:50Z"
+                },
+                {
+                    "name": "Run git lfs pull --include \"visual-fonts/**\"",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-27T10:55:50Z",
+                    "completed_at": "2026-10-27T10:55:52Z"
+                },
+                {
+                    "name": "Pull the oracle images the browser shards read",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-27T10:55:52Z",
+                    "completed_at": "2026-10-27T10:55:53Z"
+                },
+                {
+                    "name": "Run ./.github/actions/drop-microsoft-apt-source",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 11,
+                    "started_at": "2026-10-27T10:55:53Z",
+                    "completed_at": "2026-10-27T10:55:53Z"
+                },
+                {
+                    "name": "Run ./.github/actions/playwright-system-deps",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-27T10:55:53Z",
+                    "completed_at": "2026-10-27T10:56:01Z"
+                },
+                {
+                    "name": "Run pnpm exec playwright install chromium firefox webkit",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 13,
+                    "started_at": "2026-10-27T10:56:01Z",
+                    "completed_at": "2026-10-27T10:56:15Z"
+                },
+                {
+                    "name": "Install Mesa lavapipe (the webgpu-graph-algorithms shards)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 14,
+                    "started_at": "2026-10-27T10:56:15Z",
+                    "completed_at": "2026-10-27T10:56:21Z"
+                },
+                {
+                    "name": "Build every package",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 15,
+                    "started_at": "2026-10-27T10:56:21Z",
+                    "completed_at": "2026-10-27T10:59:33Z"
+                },
+                {
+                    "name": "Run the failing files",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 16,
+                    "started_at": "2026-10-27T10:59:33Z",
+                    "completed_at": "2026-10-27T11:19:56Z"
+                },
+                {
+                    "name": "Record a point that could not build",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 17,
+                    "started_at": "2026-10-27T11:19:56Z",
+                    "completed_at": "2026-10-27T11:19:56Z"
+                },
+                {
+                    "name": "Run actions/upload-artifact@v7",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 18,
+                    "started_at": "2026-10-27T11:19:56Z",
+                    "completed_at": "2026-10-27T11:19:57Z"
+                },
+                {
+                    "name": "Post Run ./.github/actions/playwright-system-deps",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 32,
+                    "started_at": "2026-10-27T11:19:57Z",
+                    "completed_at": "2026-10-27T11:19:57Z"
+                },
+                {
+                    "name": "Post Run actions/setup-node@v7",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 33,
+                    "started_at": "2026-10-27T11:19:57Z",
+                    "completed_at": "2026-10-27T11:19:58Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v6",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 34,
+                    "started_at": "2026-10-27T11:19:58Z",
+                    "completed_at": "2026-10-27T11:19:58Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v7",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 35,
+                    "started_at": "2026-10-27T11:19:58Z",
+                    "completed_at": "2026-10-27T11:19:58Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v7",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 36,
+                    "started_at": "2026-10-27T11:19:58Z",
+                    "completed_at": "2026-10-27T11:19:58Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 37,
+                    "started_at": "2026-10-27T11:19:58Z",
+                    "completed_at": "2026-10-27T11:19:58Z"
+                }
+            ],
+            "check_run_url": "https://api.github.com/repos/graphty-org/graphty-monorepo/check-runs/122148555385",
+            "labels": ["ubuntu-24.04"],
+            "runner_id": 1000147152,
+            "runner_name": "GitHub Actions 1000147152",
+            "runner_group_id": 0,
+            "runner_group_name": "GitHub Actions"
+        },
+        {
+            "id": 122148557034,
+            "run_id": 40492117633,
+            "workflow_name": "Bisect",
+            "head_branch": "master",
+            "run_url": "https://api.github.com/repos/graphty-org/graphty-monorepo/actions/runs/40492117633",
+            "run_attempt": 1,
+            "node_id": "CR_kwDOQuemQs8AAAAccJ8Q6g",
+            "head_sha": "70f16583b21037cdee7df863da54759bea3d013e",
+            "url": "https://api.github.com/repos/graphty-org/graphty-monorepo/actions/jobs/122148557034",
+            "html_url": "https://github.com/graphty-org/graphty-monorepo/actions/runs/40492117633/job/122148557034",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-27T10:55:07Z",
+            "started_at": "2026-10-27T10:55:07Z",
+            "completed_at": "2026-10-27T10:55:07Z",
+            "name": "gpu",
+            "steps": [],
+            "check_run_url": "https://api.github.com/repos/graphty-org/graphty-monorepo/check-runs/122148557034",
+            "labels": [],
+            "runner_id": null,
+            "runner_name": null,
+            "runner_group_id": null,
+            "runner_group_name": null
+        },
+        {
+            "id": 122148557381,
+            "run_id": 40492117633,
+            "workflow_name": "Bisect",
+            "head_branch": "master",
+            "run_url": "https://api.github.com/repos/graphty-org/graphty-monorepo/actions/runs/40492117633",
+            "run_attempt": 1,
+            "node_id": "CR_kwDOQuemQs8AAAAccJ8SRQ",
+            "head_sha": "70f16583b21037cdee7df863da54759bea3d013e",
+            "url": "https://api.github.com/repos/graphty-org/graphty-monorepo/actions/jobs/122148557381",
+            "html_url": "https://github.com/graphty-org/graphty-monorepo/actions/runs/40492117633/job/122148557381",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-27T10:55:07Z",
+            "started_at": "2026-10-27T10:55:07Z",
+            "completed_at": "2026-10-27T10:55:07Z",
+            "name": "macos",
+            "steps": [],
+            "check_run_url": "https://api.github.com/repos/graphty-org/graphty-monorepo/check-runs/122148557381",
+            "labels": [],
+            "runner_id": null,
+            "runner_name": null,
+            "runner_group_id": null,
+            "runner_group_name": null
+        },
+        {
+            "id": 122148557714,
+            "run_id": 40492117633,
+            "workflow_name": "Bisect",
+            "head_branch": "master",
+            "run_url": "https://api.github.com/repos/graphty-org/graphty-monorepo/actions/runs/40492117633",
+            "run_attempt": 1,
+            "node_id": "CR_kwDOQuemQs8AAAAccJ8Tkg",
+            "head_sha": "70f16583b21037cdee7df863da54759bea3d013e",
+            "url": "https://api.github.com/repos/graphty-org/graphty-monorepo/actions/jobs/122148557714",
+            "html_url": "https://github.com/graphty-org/graphty-monorepo/actions/runs/40492117633/job/122148557714",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-27T10:55:07Z",
+            "started_at": "2026-10-27T10:55:07Z",
+            "completed_at": "2026-10-27T10:55:07Z",
+            "name": "hosts",
+            "steps": [],
+            "check_run_url": "https://api.github.com/repos/graphty-org/graphty-monorepo/check-runs/122148557714",
+            "labels": [],
+            "runner_id": null,
+            "runner_name": null,
+            "runner_group_id": null,
+            "runner_group_name": null
+        },
+        {
+            "id": 122159244048,
+            "run_id": 40492117633,
+            "workflow_name": "Bisect",
+            "head_branch": "master",
+            "run_url": "https://api.github.com/repos/graphty-org/graphty-monorepo/actions/runs/40492117633",
+            "run_attempt": 1,
+            "node_id": "CR_kwDOQuemQs8AAAAccUIjEA",
+            "head_sha": "70f16583b21037cdee7df863da54759bea3d013e",
+            "url": "https://api.github.com/repos/graphty-org/graphty-monorepo/actions/jobs/122159244048",
+            "html_url": "https://github.com/graphty-org/graphty-monorepo/actions/runs/40492117633/job/122159244048",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-27T11:20:00Z",
+            "started_at": "2026-10-27T11:20:03Z",
+            "completed_at": "2026-10-27T11:20:10Z",
+            "name": "Judge the round",
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-27T11:20:04Z",
+                    "completed_at": "2026-10-27T11:20:05Z"
+                },
+                {
+                    "name": "Run actions/checkout@v7",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-27T11:20:05Z",
+                    "completed_at": "2026-10-27T11:20:06Z"
+                },
+                {
+                    "name": "Run actions/download-artifact@v8",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-27T11:20:06Z",
+                    "completed_at": "2026-10-27T11:20:07Z"
+                },
+                {
+                    "name": "Run actions/download-artifact@v8",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-27T11:20:07Z",
+                    "completed_at": "2026-10-27T11:20:07Z"
+                },
+                {
+                    "name": "A lane point is judged by its one run",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 5,
+                    "started_at": "2026-10-27T11:20:07Z",
+                    "completed_at": "2026-10-27T11:20:07Z"
+                },
+                {
+                    "name": "Judge",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-27T11:20:07Z",
+                    "completed_at": "2026-10-27T11:20:08Z"
+                },
+                {
+                    "name": "Dispatch the next round",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 7,
+                    "started_at": "2026-10-27T11:20:08Z",
+                    "completed_at": "2026-10-27T11:20:08Z"
+                },
+                {
+                    "name": "Keep the answer",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-27T11:20:08Z",
+                    "completed_at": "2026-10-27T11:20:08Z"
+                },
+                {
+                    "name": "Run actions/upload-artifact@v7",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-27T11:20:08Z",
+                    "completed_at": "2026-10-27T11:20:09Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v7",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 18,
+                    "started_at": "2026-10-27T11:20:09Z",
+                    "completed_at": "2026-10-27T11:20:09Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 19,
+                    "started_at": "2026-10-27T11:20:09Z",
+                    "completed_at": "2026-10-27T11:20:09Z"
+                }
+            ],
+            "check_run_url": "https://api.github.com/repos/graphty-org/graphty-monorepo/check-runs/122159244048",
+            "labels": ["ubuntu-24.04"],
+            "runner_id": 1000147217,
+            "runner_name": "GitHub Actions 1000147217",
+            "runner_group_id": 0,
+            "runner_group_name": "GitHub Actions"
+        }
+    ]
+}

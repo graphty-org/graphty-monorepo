@@ -1,6 +1,6 @@
 import type { F32 } from "@graphty/graph-format";
 import { radial } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { SimpleLayoutConfig } from "./LayoutEngine";
@@ -15,6 +15,7 @@ const radialLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     root: {
@@ -48,9 +49,9 @@ type RadialLayoutOpts = Partial<RadialLayoutConfigType>;
  * Radial layout engine that places nodes on rings by hop distance from a root node
  */
 export class RadialLayout extends SnapshotLayoutEngine {
-    static type = "radial";
-    static maxDimensions = 2;
-    static zodOptionsSchema: OptionsSchema = radialLayoutOptionsSchema;
+    static readonly type: string = "radial";
+    static readonly maxDimensions: number = 2;
+    static readonly zodOptionsSchema: OptionsSchema = radialLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: RadialLayoutConfigType;
 

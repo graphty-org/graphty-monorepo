@@ -1,4 +1,4 @@
-import type { F32, GraphSnapshot, NodeId, NodeMask } from "@graphty/graph-format";
+import type { F32, GraphSnapshot, NodeId, NodeMask, U32 } from "@graphty/graph-format";
 
 /** graph-format design 14.3 CommonLayoutOptions. */
 export interface CommonLayoutOptions {
@@ -47,6 +47,18 @@ export interface ForceAtlas2Options extends CommonLayoutOptions, SimulationOptio
     readonly weight?: boolean | string | null | undefined;
     /** Accepted for compatibility with Gephi's options and not used yet. */
     readonly dissuadeHubs?: boolean | undefined;
+    /**
+     * Approximate the repulsion with a Barnes-Hut tree, as Gephi does: a group of nodes far enough away repels as one
+     * body at its centre of mass. Each iteration then costs O(n log n) instead of O(n^2), so graphs of thousands of
+     * nodes settle in a fraction of the time, with a slightly different drawing. The CPU simulation reads it; a
+     * GPU simulation computes every pair. Default false.
+     */
+    readonly barnesHutOptimize?: boolean | undefined;
+    /**
+     * The Barnes-Hut opening angle: a group repels as one body when its width over its distance is below it. Lower
+     * is closer to every pair and slower; Gephi uses 1.2 too. Read only with `barnesHutOptimize`. Default 1.2.
+     */
+    readonly barnesHutTheta?: number | undefined;
 }
 
 /** Design 9.3 FruchtermanReingoldOptions. */
@@ -84,6 +96,30 @@ export interface SpringElectricalOptions extends CommonLayoutOptions, Simulation
     readonly timeStep?: number | undefined;
 }
 
+/** What `LayoutSimulation.setClusters` pulls together. */
+export interface ClusterOptions {
+    /** One community number per row, each below the node count, or `NO_CLUSTER` for a row in none. */
+    readonly communities: U32;
+    /**
+     * How hard a node is pulled toward its community's centroid: 1 is the pull of one more edge, per unit of the node's
+     * mass, tying it there. Default 1.
+     */
+    readonly strength?: number | undefined;
+}
+
+/**
+ * What `LayoutSimulation.setCollision` keeps apart: every two nodes end up at least the sum of their radii from each
+ * other, as with d3's `forceCollide`.
+ */
+export interface CollisionOptions {
+    /** One radius per node, >= 0, in the units of the owner's position array. Add half a wanted gap to each. */
+    readonly radii: F32;
+    /** What every radius is multiplied by; for an owner whose units change as the arrangement grows. Default 1. */
+    readonly scale?: number | undefined;
+    /** In a 3D simulation, compare and push across x and y only, so nodes do not cover each other from the front. Default false. */
+    readonly flat?: boolean | undefined;
+}
+
 /** graph-format design 14.3 LayoutSimulation, verbatim: steppable layouts over the owner's stride-3 scene-unit array. */
 export interface LayoutSimulation {
     /** positions: the owner's stride-3 scene-unit array, read AND written in place. */
@@ -93,6 +129,30 @@ export interface LayoutSimulation {
     readonly settled: boolean;
     /** The same bitmap layout as a bool column with role "fixed". */
     setFixed(mask: NodeMask): void;
+    /**
+     * Takes rows out of the forces, in the same bitmap layout: an inert row never moves and exerts no force on any
+     * other row -- no repulsion and no pull along its edges -- and it is left out of the centroid, the spread and every
+     * count the simulation keeps, so the rest lay out as if it were absent. For a node the owner places itself, such
+     * as a group drawn round its members. Call it after load(); a same-size reload keeps it, a new node count clears it. The mask is copied; an all-zero mask makes every row live again. Optional, so an
+     * accelerator written before it still type-checks; every simulation in this package and in
+     * `@graphty/webgpu-graph-algorithms` implements it.
+     */
+    setInert?(mask: NodeMask): void;
+    /**
+     * Pulls each community toward its own mass-weighted centroid, on top of the forces, until called with null. Call it
+     * after load(); a same-size reload keeps it, a new node count clears it. Copied; never reheats. Optional, so an
+     * accelerator written before it still type-checks; every simulation in this package and in
+     * `@graphty/webgpu-graph-algorithms` implements it.
+     */
+    setClusters?(clusters: ClusterOptions | null): void;
+    /**
+     * Keeps nodes from overlapping (see {@link CollisionOptions}), or stops doing so with null, the default. Call it
+     * after load(); a same-size reload keeps it, a new node count clears it. The values are copied, so a changed
+     * radius or scale takes effect by calling it again, which does not reheat. A collision moves nodes after the
+     * forces of every iteration and does not count toward `settled`. Optional, so an accelerator written before it
+     * still type-checks; every simulation in this package and in `@graphty/webgpu-graph-algorithms` implements it.
+     */
+    setCollision?(collision: CollisionOptions | null): void;
     /** A drag during the simulation: one node's scene-unit position. */
     setPosition(index: number, x: number, y: number, z: number): void;
     dispose(): void;

@@ -61,6 +61,7 @@ import {
     bindingOf,
     bitsOf,
     checkDest,
+    countReached,
     normaliseCutoff,
     predBufferWords,
     predecessorPass,
@@ -127,26 +128,11 @@ function assertSymmetric(s: GraphSnapshot, vector: F32): void {
 }
 
 /**
- * Bellman-Ford with the test knobs of PD-26's shape; `bellmanFord` is this with an empty tuning.
- * @internal
- * @param ctx - the context whose device runs the kernels
- * @param s - the snapshot (uploaded through ctx.residency, or found there)
- * @param source - the source node index
- * @param options - `cutoff` and `weights`, plus dest / signal / onProgress
+ * Reads and checks the tuning knobs.
  * @param tuning - the knobs
- * @returns the result, the rounds run and the retry-exhausted tally
+ * @returns the retry bound and the rounds per batch
  */
-export async function bellmanFordWithTuning(
-    ctx: GpuContext,
-    s: GraphSnapshot,
-    source: number,
-    options: (SsspOptions & GpuRunOptions) | undefined,
-    tuning: BellmanFordTuning,
-): Promise<BellmanFordRun> {
-    ctx.assertReady();
-    await assertDeviceComputes(ctx);
-    const n = s.nodeCount;
-    assertSource(ALGORITHM, source, n);
+function checkTuning(tuning: BellmanFordTuning): { maxRetries: number; roundsPerBatch: number } {
     const maxRetries = tuning.maxRetries ?? MAX_RETRIES;
     if (!Number.isInteger(maxRetries) || maxRetries < 1) {
         throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${ALGORITHM}: maxRetries must be an integer >= 1`, {
@@ -167,6 +153,104 @@ export async function bellmanFordWithTuning(
             },
         );
     }
+    return { maxRetries, roundsPerBatch };
+}
+
+/** What one batch of relaxation rounds reports. */
+interface RoundsOutcome {
+    readonly changed: number;
+    readonly retryExhausted: number;
+    readonly id: number;
+}
+
+/**
+ * The decision round: a change after n - 1 rounds is a negative cycle reachable from the source.
+ * @param runRounds - records, submits and reads one batch of rounds
+ * @param maxRetries - the retry bound (for the message)
+ * @returns true when a negative cycle is reachable
+ */
+async function decisionRound(
+    runRounds: (count: number, label: string) => Promise<RoundsOutcome>,
+    maxRetries: number,
+): Promise<boolean> {
+    const decision = await runRounds(1, "decision");
+    if (decision.retryExhausted !== 0) {
+        throw new WebGpuGraphError(
+            "E_VALIDATION",
+            `${ALGORITHM}: a lane exhausted the ${maxRetries}-retry compare-exchange bound in the decision round, so its change is not a verdict`,
+            {
+                label: `${ALGORITHM}/retry`,
+                message: "retryExhausted in the decision round",
+                batchId: decision.id,
+            },
+        );
+    }
+    return decision.changed !== 0;
+}
+
+/**
+ * The rounds: roundsPerBatch per batch, the last batch clamped to n - 1 rounds in all, then the decision round;
+ * stops early when a batch changed nothing and no lane exhausted its retries.
+ * @param runRounds - records, submits and reads one batch of rounds
+ * @param n - the node count
+ * @param roundsPerBatch - rounds per batch
+ * @param maxRetries - the retry bound
+ * @param options - signal / onProgress
+ * @returns the rounds run, the retry-exhausted tally and the negative-cycle verdict
+ */
+async function relaxToFixedPoint(
+    runRounds: (count: number, label: string) => Promise<RoundsOutcome>,
+    n: number,
+    roundsPerBatch: number,
+    maxRetries: number,
+    options: GpuRunOptions | undefined,
+): Promise<{ rounds: number; retryExhaustedRounds: number; hasNegativeCycle: boolean }> {
+    let rounds = 0;
+    let retryExhaustedRounds = 0;
+    for (;;) {
+        const remaining = n - 1 - rounds;
+        if (remaining <= 0) {
+            const hasNegativeCycle = await decisionRound(runRounds, maxRetries);
+            return { rounds, retryExhaustedRounds, hasNegativeCycle };
+        }
+        const count = Math.min(roundsPerBatch, remaining);
+        const batch = await runRounds(count, "rounds");
+        rounds += count;
+        if (batch.retryExhausted !== 0) {
+            retryExhaustedRounds += 1;
+        }
+        if (options?.signal?.aborted) {
+            throw aborted(ALGORITHM, batch.id);
+        }
+        options?.onProgress?.(rounds, n);
+        if (batch.changed === 0 && batch.retryExhausted === 0) {
+            return { rounds, retryExhaustedRounds, hasNegativeCycle: false };
+        }
+    }
+}
+
+/**
+ * Bellman-Ford with the test knobs of PD-26's shape; `bellmanFord` is this with an empty tuning.
+ * @internal
+ * @param ctx - the context whose device runs the kernels
+ * @param s - the snapshot (uploaded through ctx.residency, or found there)
+ * @param source - the source node index
+ * @param options - `cutoff` and `weights`, plus dest / signal / onProgress
+ * @param tuning - the knobs
+ * @returns the result, the rounds run and the retry-exhausted tally
+ */
+export async function bellmanFordWithTuning(
+    ctx: GpuContext,
+    s: GraphSnapshot,
+    source: number,
+    options: (SsspOptions & GpuRunOptions) | undefined,
+    tuning: BellmanFordTuning,
+): Promise<BellmanFordRun> {
+    ctx.assertReady();
+    await assertDeviceComputes(ctx);
+    const n = s.nodeCount;
+    assertSource(ALGORITHM, source, n);
+    const { maxRetries, roundsPerBatch } = checkTuning(tuning);
     const dest = checkDest(ALGORITHM, options?.dest, n);
     const vector: WeightVector | null = resolveWeights(ALGORITHM, s, options?.weights);
     const cutoff = normaliseCutoff(ALGORITHM, options?.cutoff);
@@ -264,10 +348,7 @@ export async function bellmanFordWithTuning(
             cutoffBits: bitsOf(cutoff),
         };
         const zero = new Uint32Array(BF_FLAGS.byteLength / 4);
-        const runRounds = async (
-            count: number,
-            label: string,
-        ): Promise<{ readonly changed: number; readonly retryExhausted: number; readonly id: number }> => {
+        const runRounds = async (count: number, label: string): Promise<RoundsOutcome> => {
             queue.writeBuffer(flags.buffer, flags.offset, zero);
             const batch = new CommandBatch(ctx, `${ALGORITHM}/${label}`);
             const pass = batch.pass("relax");
@@ -284,42 +365,13 @@ export async function bellmanFordWithTuning(
             const block = BF_FLAGS.read(new DataView(back), request.offset);
             return { changed: Number(block.changed), retryExhausted: Number(block.retryExhausted), id: submitted.id };
         };
-        let rounds = 0;
-        let retryExhaustedRounds = 0;
-        let hasNegativeCycle = false;
-        for (;;) {
-            const remaining = n - 1 - rounds;
-            if (remaining <= 0) {
-                // the decision round: a change after n - 1 rounds is a negative cycle reachable from the source
-                const decision = await runRounds(1, "decision");
-                if (decision.retryExhausted !== 0) {
-                    throw new WebGpuGraphError(
-                        "E_VALIDATION",
-                        `${ALGORITHM}: a lane exhausted the ${maxRetries}-retry compare-exchange bound in the decision round, so its change is not a verdict`,
-                        {
-                            label: `${ALGORITHM}/retry`,
-                            message: "retryExhausted in the decision round",
-                            batchId: decision.id,
-                        },
-                    );
-                }
-                hasNegativeCycle = decision.changed !== 0;
-                break;
-            }
-            const count = Math.min(roundsPerBatch, remaining);
-            const batch = await runRounds(count, "rounds");
-            rounds += count;
-            if (batch.retryExhausted !== 0) {
-                retryExhaustedRounds += 1;
-            }
-            if (options?.signal?.aborted) {
-                throw aborted(ALGORITHM, batch.id);
-            }
-            options?.onProgress?.(rounds, n);
-            if (batch.changed === 0 && batch.retryExhausted === 0) {
-                break;
-            }
-        }
+        const { rounds, retryExhaustedRounds, hasNegativeCycle } = await relaxToFixedPoint(
+            runRounds,
+            n,
+            roundsPerBatch,
+            maxRetries,
+            options,
+        );
 
         // the predecessor pass (PD-11, PD-27) under the tight-subgraph rule; the flags block was read after the
         // decision round, so the batch reads dist, the arcs and the pass's two words
@@ -349,12 +401,7 @@ export async function bellmanFordWithTuning(
         }
         const distOut = dest ?? new Float32Array(n);
         distOut.set(passed.dist);
-        let reachedCount = 0;
-        for (const d of distOut) {
-            if (d !== Infinity) {
-                reachedCount += 1;
-            }
-        }
+        const reachedCount = countReached(distOut);
         return {
             result: { dist: distOut, predArc: passed.predArc, reachedCount, hasNegativeCycle },
             rounds,

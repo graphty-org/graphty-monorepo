@@ -273,9 +273,9 @@ export function indexOf(cs: CytoscapeSnapshot, sel: NodeSelection | undefined, w
     if (sel === undefined) {
         return undefined;
     }
-    const [i] = indicesOf(cs, sel);
-    if (i === undefined) {
+    const picked = indicesOf(cs, sel);
+    if (picked.length === 0) {
         throw new Error(`${what} matches no node of the collection`);
     }
-    return i;
+    return picked[0];
 }

@@ -141,7 +141,6 @@ describe("metrics (test/helpers/metrics.ts) on a hand-computed layout", () => {
 // ---------------------------------------------------------------- 100 iterations on the device vs the f64 oracle
 
 const ITERATIONS = 100;
-const CASE_TIMEOUT = 300_000;
 
 interface DistributionalCase {
     /** A parity graph, or the contract 5.2 named fixture "isolated" (the only multi-component case: it carries `separation`). */
@@ -204,50 +203,45 @@ describe("FA2 distributional parity: 100 iterations, metrics within the traced 1
 
     for (const c of CASES) {
         const label = `${c.graph}/${c.tuning.compat ?? "paper"}/${c.dim}d`;
-        // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 15 s on the T4 lane, 10 s on the dev box's RTX 4070 SUPER under load, more than a third of the 30 s budget; tracked in #1636
-        it(
-            `${label}: layoutMetrics of the GPU layout vs the f64 oracle's, coordinates never compared, twice bitwise`,
-            async (t) => {
-                requireGpu(t);
-                const s = distributionalSnapshot(c.graph);
-                try {
-                    const options: ForceAtlas2Options = { ...BASE_OPTIONS, dim: c.dim, maxIter: ITERATIONS };
-                    const start = startPositions(s, options, false);
-                    const a = await runLayout(ctx, s, start, options, c.tuning);
-                    const b = await runLayout(ctx, s, start, options, c.tuning);
-                    expectBitwiseEqual(a, b, `${label}: run 1 vs run 2`);
-                    const reference = forceAtlas2Oracle(
-                        s,
-                        Float32Array.from(start),
-                        oracleOptionsFor(s, options, c.tuning, null, "f64"),
-                        ITERATIONS,
-                    ).positions;
-                    const gpuMetrics = layoutMetrics(s, a, c.dim);
-                    const oracleMetrics = layoutMetrics(s, reference, c.dim);
-                    expect(Object.keys(gpuMetrics).sort()).toEqual(Object.keys(oracleMetrics).sort());
-                    // `separation` is present iff the graph has two or more components (a property of the snapshot, not of
-                    // the positions): the "isolated" fixture by construction, and random1k (seed 1234) through the few nodes
-                    // its G(n, 3n) draw left without an edge; the connected graphs must not carry it
-                    expect("separation" in gpuMetrics, `${label}: separation present`).toBe(
-                        Number.isFinite(componentSeparation(s, start, c.dim)),
-                    );
-                    const err = distributionalError(gpuMetrics, oracleMetrics);
-                    console.warn(
-                        `[fa2-distributional] ${label}: worst metric difference ${err.toExponential(3)} (spread gpu ${gpuMetrics.spread.toFixed(4)} oracle ${oracleMetrics.spread.toFixed(4)})`,
-                    );
-                    assertCheckPasses({
-                        worst: ratioOf(err, toleranceOf("fa2-distributional")),
-                        worstLabel: label,
-                        samples: Object.keys(oracleMetrics).length,
-                    });
-                    // the layout expanded from the unit square: FA2 has no unit-ball normalisation (spec 7.18)
-                    expect(gpuMetrics.spread).toBeGreaterThan(2);
-                } finally {
-                    ctx.release(s);
-                }
-            },
-            CASE_TIMEOUT,
-        );
+        it(`${label}: layoutMetrics of the GPU layout vs the f64 oracle's, coordinates never compared, twice bitwise`, async (t) => {
+            requireGpu(t);
+            const s = distributionalSnapshot(c.graph);
+            try {
+                const options: ForceAtlas2Options = { ...BASE_OPTIONS, dim: c.dim, maxIter: ITERATIONS };
+                const start = startPositions(s, options, false);
+                const a = await runLayout(ctx, s, start, options, c.tuning);
+                const b = await runLayout(ctx, s, start, options, c.tuning);
+                expectBitwiseEqual(a, b, `${label}: run 1 vs run 2`);
+                const reference = forceAtlas2Oracle(
+                    s,
+                    Float32Array.from(start),
+                    oracleOptionsFor(s, options, c.tuning, null, "f64"),
+                    ITERATIONS,
+                ).positions;
+                const gpuMetrics = layoutMetrics(s, a, c.dim);
+                const oracleMetrics = layoutMetrics(s, reference, c.dim);
+                expect(Object.keys(gpuMetrics).sort()).toEqual(Object.keys(oracleMetrics).sort());
+                // `separation` is present iff the graph has two or more components (a property of the snapshot, not of
+                // the positions): the "isolated" fixture by construction, and random1k (seed 1234) through the few nodes
+                // its G(n, 3n) draw left without an edge; the connected graphs must not carry it
+                expect("separation" in gpuMetrics, `${label}: separation present`).toBe(
+                    Number.isFinite(componentSeparation(s, start, c.dim)),
+                );
+                const err = distributionalError(gpuMetrics, oracleMetrics);
+                console.warn(
+                    `[fa2-distributional] ${label}: worst metric difference ${err.toExponential(3)} (spread gpu ${gpuMetrics.spread.toFixed(4)} oracle ${oracleMetrics.spread.toFixed(4)})`,
+                );
+                assertCheckPasses({
+                    worst: ratioOf(err, toleranceOf("fa2-distributional")),
+                    worstLabel: label,
+                    samples: Object.keys(oracleMetrics).length,
+                });
+                // the layout expanded from the unit square: FA2 has no unit-ball normalisation (spec 7.18)
+                expect(gpuMetrics.spread).toBeGreaterThan(2);
+            } finally {
+                ctx.release(s);
+            }
+        });
     }
 
     it("writes the UNSCALED random1k metrics after 100 iterations and the f64 reference's as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {

@@ -140,8 +140,8 @@ layer you add.
 
 #### How big the groups are
 
-`summary().groups` lists the largest groups; a run with hundreds of communities needs their
-spread instead. `result.groupSizes()` bins the groups by size and counts GROUPS, so the counts add
+`summary().groups` lists the ten largest groups and `summary().groupCount` says how many there are
+in all; a run with hundreds of communities needs their spread instead. `result.groupSizes()` bins the groups by size and counts GROUPS, so the counts add
 up to the number of groups. It returns the same `Histogram` `result.histogram(field)` does, so one
 chart draws both: one bar per size when there are few distinct sizes (`binning: "per-value"`),
 bands otherwise (`"banded"`):
@@ -215,7 +215,7 @@ Explore the graph systematically:
 | `dfs`     | Depth-first search   |
 
 ```typescript
-await graph.runAlgorithm("graphty", "bfs", { startNode: "node1" });
+await graph.runAlgorithm("graphty", "bfs", { algorithmOptions: { source: "node1" } });
 ```
 
 ### Shortest Path
@@ -231,8 +231,7 @@ Find optimal paths between nodes:
 
 ```typescript
 await graph.runAlgorithm("graphty", "dijkstra", {
-    source: "node1",
-    target: "node5",
+    algorithmOptions: { source: "node1", target: "node5" },
 });
 ```
 
@@ -279,8 +278,7 @@ Network flow analysis:
 
 ```typescript
 await graph.runAlgorithm("graphty", "max-flow", {
-    source: "source",
-    sink: "sink",
+    algorithmOptions: { source: "source", sink: "sink" },
 });
 ```
 
@@ -703,7 +701,10 @@ await element.session.styles.encode({ run, channel: "node.color", overflow: "sha
 await element.session.styles.encode({ run, channel: "node.color", overflow: "extend" });
 ```
 
-`"shape"` is for nodes only; an edge encoding refuses it. If you name a `palette` and no
+`"shape"` is for nodes only; an edge encoding refuses it. Its edge counterpart is `"pattern"`:
+the colours cycle and each cycle draws the edges in the next line pattern (solid, dashed, dotted,
+...), so two edge groups that share a colour never share a pattern. A layer that varies only the
+colour with either policy still draws the second cue. If you name a `palette` and no
 `overflow`, a palette too small for the groups is refused with `E_CAP_EXCEEDED` rather than
 folded, because you asked for exactly those colours; name an `overflow` as well to apply it.
 

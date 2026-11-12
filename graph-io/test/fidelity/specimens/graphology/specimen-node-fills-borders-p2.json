@@ -1,0 +1,619 @@
+{
+    "options": {
+        "type": "mixed",
+        "multi": true,
+        "allowSelfLoops": true
+    },
+    "attributes": {
+        "name": "specimen-node-fills-borders-p2"
+    },
+    "nodes": [
+        {
+            "key": "anchor-nw",
+            "attributes": {
+                "x": 20,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-ne",
+            "attributes": {
+                "x": 1180,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-sw",
+            "attributes": {
+                "x": 20,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-se",
+            "attributes": {
+                "x": 1180,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "color-aliceblue",
+            "attributes": {
+                "x": 152,
+                "y": 805.6666666666666,
+                "size": 18,
+                "color": "aliceblue"
+            }
+        },
+        {
+            "key": "color-antiquewhite",
+            "attributes": {
+                "x": 376,
+                "y": 805.6666666666666,
+                "size": 18,
+                "color": "antiquewhite"
+            }
+        },
+        {
+            "key": "color-aqua",
+            "attributes": {
+                "x": 600,
+                "y": 805.6666666666666,
+                "size": 18,
+                "color": "aqua"
+            }
+        },
+        {
+            "key": "color-aquamarine",
+            "attributes": {
+                "x": 824,
+                "y": 805.6666666666666,
+                "size": 18,
+                "color": "aquamarine"
+            }
+        },
+        {
+            "key": "color-azure",
+            "attributes": {
+                "x": 1048,
+                "y": 805.6666666666666,
+                "size": 18,
+                "color": "azure"
+            }
+        },
+        {
+            "key": "color-beige",
+            "attributes": {
+                "x": 152,
+                "y": 669,
+                "size": 18,
+                "color": "beige"
+            }
+        },
+        {
+            "key": "color-bisque",
+            "attributes": {
+                "x": 376,
+                "y": 669,
+                "size": 18,
+                "color": "bisque"
+            }
+        },
+        {
+            "key": "color-black",
+            "attributes": {
+                "x": 600,
+                "y": 669,
+                "size": 18,
+                "color": "black"
+            }
+        },
+        {
+            "key": "color-blanchedalmond",
+            "attributes": {
+                "x": 824,
+                "y": 669,
+                "size": 18,
+                "color": "blanchedalmond"
+            }
+        },
+        {
+            "key": "color-blue",
+            "attributes": {
+                "x": 1048,
+                "y": 669,
+                "size": 18,
+                "color": "blue"
+            }
+        },
+        {
+            "key": "color-blueviolet",
+            "attributes": {
+                "x": 152,
+                "y": 532.3333333333334,
+                "size": 18,
+                "color": "blueviolet"
+            }
+        },
+        {
+            "key": "color-brown",
+            "attributes": {
+                "x": 376,
+                "y": 532.3333333333334,
+                "size": 18,
+                "color": "brown"
+            }
+        },
+        {
+            "key": "color-burlywood",
+            "attributes": {
+                "x": 600,
+                "y": 532.3333333333334,
+                "size": 18,
+                "color": "burlywood"
+            }
+        },
+        {
+            "key": "color-cadetblue",
+            "attributes": {
+                "x": 824,
+                "y": 532.3333333333334,
+                "size": 18,
+                "color": "cadetblue"
+            }
+        },
+        {
+            "key": "color-chartreuse",
+            "attributes": {
+                "x": 1048,
+                "y": 532.3333333333334,
+                "size": 18,
+                "color": "chartreuse"
+            }
+        },
+        {
+            "key": "color-chocolate",
+            "attributes": {
+                "x": 152,
+                "y": 395.66666666666674,
+                "size": 18,
+                "color": "chocolate"
+            }
+        },
+        {
+            "key": "color-coral",
+            "attributes": {
+                "x": 376,
+                "y": 395.66666666666674,
+                "size": 18,
+                "color": "coral"
+            }
+        },
+        {
+            "key": "color-cornflowerblue",
+            "attributes": {
+                "x": 600,
+                "y": 395.66666666666674,
+                "size": 18,
+                "color": "cornflowerblue"
+            }
+        },
+        {
+            "key": "color-cornsilk",
+            "attributes": {
+                "x": 824,
+                "y": 395.66666666666674,
+                "size": 18,
+                "color": "cornsilk"
+            }
+        },
+        {
+            "key": "color-crimson",
+            "attributes": {
+                "x": 1048,
+                "y": 395.66666666666674,
+                "size": 18,
+                "color": "crimson"
+            }
+        },
+        {
+            "key": "color-cyan",
+            "attributes": {
+                "x": 152,
+                "y": 259,
+                "size": 18,
+                "color": "cyan"
+            }
+        },
+        {
+            "key": "color-darkblue",
+            "attributes": {
+                "x": 376,
+                "y": 259,
+                "size": 18,
+                "color": "darkblue"
+            }
+        },
+        {
+            "key": "color-darkcyan",
+            "attributes": {
+                "x": 600,
+                "y": 259,
+                "size": 18,
+                "color": "darkcyan"
+            }
+        },
+        {
+            "key": "color-darkgoldenrod",
+            "attributes": {
+                "x": 824,
+                "y": 259,
+                "size": 18,
+                "color": "darkgoldenrod"
+            }
+        },
+        {
+            "key": "color-darkgray",
+            "attributes": {
+                "x": 1048,
+                "y": 259,
+                "size": 18,
+                "color": "darkgray"
+            }
+        },
+        {
+            "key": "color-darkgreen",
+            "attributes": {
+                "x": 152,
+                "y": 122.33333333333337,
+                "size": 18,
+                "color": "darkgreen"
+            }
+        },
+        {
+            "key": "color-darkgrey",
+            "attributes": {
+                "x": 376,
+                "y": 122.33333333333337,
+                "size": 18,
+                "color": "darkgrey"
+            }
+        },
+        {
+            "key": "color-darkkhaki",
+            "attributes": {
+                "x": 600,
+                "y": 122.33333333333337,
+                "size": 18,
+                "color": "darkkhaki"
+            }
+        },
+        {
+            "key": "color-darkmagenta",
+            "attributes": {
+                "x": 824,
+                "y": 122.33333333333337,
+                "size": 18,
+                "color": "darkmagenta"
+            }
+        },
+        {
+            "key": "color-darkolivegreen",
+            "attributes": {
+                "x": 1048,
+                "y": 122.33333333333337,
+                "size": 18,
+                "color": "darkolivegreen"
+            }
+        },
+        {
+            "key": "cap-color-aliceblue",
+            "attributes": {
+                "x": 64,
+                "y": 765.6666666666667,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=aliceblue"
+            }
+        },
+        {
+            "key": "cap-color-antiquewhite",
+            "attributes": {
+                "x": 277.8,
+                "y": 765.6666666666667,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=antiquewhite"
+            }
+        },
+        {
+            "key": "cap-color-aqua",
+            "attributes": {
+                "x": 559,
+                "y": 765.6666666666667,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=aqua"
+            }
+        },
+        {
+            "key": "cap-color-aquamarine",
+            "attributes": {
+                "x": 762.6,
+                "y": 765.6666666666667,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=aquamarine"
+            }
+        },
+        {
+            "key": "cap-color-azure",
+            "attributes": {
+                "x": 1003.6,
+                "y": 765.6666666666667,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=azure"
+            }
+        },
+        {
+            "key": "cap-color-beige",
+            "attributes": {
+                "x": 77.6,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=beige"
+            }
+        },
+        {
+            "key": "cap-color-bisque",
+            "attributes": {
+                "x": 268.2,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=bisque"
+            }
+        },
+        {
+            "key": "cap-color-black",
+            "attributes": {
+                "x": 555.6,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=black"
+            }
+        },
+        {
+            "key": "cap-color-blanchedalmond",
+            "attributes": {
+                "x": 749,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=blanchedalmond"
+            }
+        },
+        {
+            "key": "cap-color-blue",
+            "attributes": {
+                "x": 1007,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=blue"
+            }
+        },
+        {
+            "key": "cap-color-blueviolet",
+            "attributes": {
+                "x": 90.6,
+                "y": 492.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=blueviolet"
+            }
+        },
+        {
+            "key": "cap-color-brown",
+            "attributes": {
+                "x": 331.6,
+                "y": 492.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=brown"
+            }
+        },
+        {
+            "key": "cap-color-burlywood",
+            "attributes": {
+                "x": 542,
+                "y": 492.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=burlywood"
+            }
+        },
+        {
+            "key": "cap-color-cadetblue",
+            "attributes": {
+                "x": 766,
+                "y": 492.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=cadetblue"
+            }
+        },
+        {
+            "key": "cap-color-chartreuse",
+            "attributes": {
+                "x": 986.6,
+                "y": 492.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=chartreuse"
+            }
+        },
+        {
+            "key": "cap-color-chocolate",
+            "attributes": {
+                "x": 64,
+                "y": 355.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=chocolate"
+            }
+        },
+        {
+            "key": "cap-color-coral",
+            "attributes": {
+                "x": 271.6,
+                "y": 355.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=coral"
+            }
+        },
+        {
+            "key": "cap-color-cornflowerblue",
+            "attributes": {
+                "x": 525,
+                "y": 355.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=cornflowerblue"
+            }
+        },
+        {
+            "key": "cap-color-cornsilk",
+            "attributes": {
+                "x": 769.4,
+                "y": 355.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=cornsilk"
+            }
+        },
+        {
+            "key": "cap-color-crimson",
+            "attributes": {
+                "x": 996.8,
+                "y": 355.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=crimson"
+            }
+        },
+        {
+            "key": "cap-color-cyan",
+            "attributes": {
+                "x": 81,
+                "y": 219,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=cyan"
+            }
+        },
+        {
+            "key": "cap-color-darkblue",
+            "attributes": {
+                "x": 261.4,
+                "y": 219,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkblue"
+            }
+        },
+        {
+            "key": "cap-color-darkcyan",
+            "attributes": {
+                "x": 545.4,
+                "y": 219,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkcyan"
+            }
+        },
+        {
+            "key": "cap-color-darkgoldenrod",
+            "attributes": {
+                "x": 752.4,
+                "y": 219,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkgoldenrod"
+            }
+        },
+        {
+            "key": "cap-color-darkgray",
+            "attributes": {
+                "x": 993.4,
+                "y": 219,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkgray"
+            }
+        },
+        {
+            "key": "cap-color-darkgreen",
+            "attributes": {
+                "x": 94,
+                "y": 82.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkgreen"
+            }
+        },
+        {
+            "key": "cap-color-darkgrey",
+            "attributes": {
+                "x": 321.4,
+                "y": 82.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkgrey"
+            }
+        },
+        {
+            "key": "cap-color-darkkhaki",
+            "attributes": {
+                "x": 542,
+                "y": 82.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkkhaki"
+            }
+        },
+        {
+            "key": "cap-color-darkmagenta",
+            "attributes": {
+                "x": 759.2,
+                "y": 82.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkmagenta"
+            }
+        },
+        {
+            "key": "cap-color-darkolivegreen",
+            "attributes": {
+                "x": 973,
+                "y": 82.33333333333337,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=darkolivegreen"
+            }
+        }
+    ],
+    "edges": []
+}

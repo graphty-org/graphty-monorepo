@@ -1,0 +1,162 @@
+*Vertices 80
+1 "v0" 0.9177 0.7046 0.5 ic Emerald bc Black x_fact -1 triangle
+2 "v1" 0.3691 0.5557 0.5 ic NoSuchColor bc Yellow x_fact -1 diamond
+3 "v2" 0.7726 0.3081 0.5 ic Red bc Yellow x_fact 0 triangle
+4 "v3" 0.6413 0.4415 0.5 ic Red bc Yellow x_fact 0 triangle
+5 "v4" 0.9133 0.1693 0.5 ic Red bc Yellow x_fact 9000000000.0 diamond
+6 "v5" 0.3617 0.7586 0.5 ic RGB(10,20,30) bc Yellow x_fact 0 cross
+7 "v6" 0.1629 0.9180 0.5 ic Emerald bc Black x_fact 9000000000.0 diamond
+8 "v7" 0.2919 0.3231 0.5 ic Emerald bc Black x_fact 2 triangle
+9 "v8" 0.0386 0.4156 0.5 ic NoSuchColor bc Yellow x_fact 2 box
+10 "v9" 0.6747 0.2279 0.5 ic Blue bc Yellow x_fact -1 ellipse
+11 "v10" 0.9049 0.9584 0.5 ic NoSuchColor bc Black x_fact -1 ellipse
+12 "v11" 0.8267 0.5898 0.5 ic RGB(10,20,30) bc Yellow x_fact 2 triangle
+13 "v12" 0.3213 0.7306 0.5 ic NoSuchColor bc Black x_fact 0 triangle
+14 "v13" 0.8496 0.0992 0.5 ic Emerald bc Yellow x_fact 2 triangle
+15 "v14" 0.7399 0.6495 0.5 ic Red bc Black x_fact 2 box
+16 "v15" 0.4976 0.6783 0.5 ic Blue bc Yellow x_fact 1 triangle
+17 "v16" 0.5942 0.4040 0.5 ic Emerald bc Yellow x_fact 0 diamond
+18 "v17" 0.7947 0.4616 0.5 ic Blue bc Black x_fact 1 box
+19 "v18" 0.7533 0.2559 0.5 ic NoSuchColor bc Black x_fact 1 box
+20 "v19" 0.2078 0.4865 0.5 ic Emerald bc Black x_fact 1 ellipse
+21 "v20" 0.1822 0.9624 0.5 ic Blue bc Yellow x_fact 2 triangle
+22 "v21" 0.7469 0.2412 0.5 ic NoSuchColor bc Black x_fact 2 diamond
+23 "v22" 0.8383 0.6557 0.5 ic Red bc Black x_fact 0 cross
+24 "v23" 0.0811 0.5287 0.5 ic RGB(10,20,30) bc Black x_fact -1 triangle
+25 "v24" 0.5084 0.1789 0.5 ic Emerald bc Black x_fact 9000000000.0 diamond
+26 "v25" 0.9360 0.1141 0.5 ic RGB(10,20,30) bc Black x_fact 9000000000.0 cross
+27 "v26" 0.8323 0.1157 0.5 ic RGB(10,20,30) bc Yellow x_fact 2 box
+28 "v27" 0.1706 0.7985 0.5 ic Emerald bc Yellow x_fact 2 cross
+29 "v28" 0.3138 0.6128 0.5 ic RGB(10,20,30) bc Yellow x_fact 2 ellipse
+30 "v29" 0.4882 0.4968 0.5 ic Blue bc Black x_fact 0 ellipse
+31 "v30" 0.9266 0.7244 0.5 ic NoSuchColor bc Yellow x_fact -1 box
+32 "v31" 0.6907 0.6059 0.5 ic Emerald bc Black x_fact 9000000000.0 triangle
+33 "v32" 0.5830 0.0988 0.5 ic Red bc Yellow x_fact 9000000000.0 ellipse
+34 "v33" 0.2016 0.2588 0.5 ic RGB(10,20,30) bc Yellow x_fact 1 diamond
+35 "v34" 0.3207 0.2241 0.5 ic Red bc Black x_fact 2 triangle
+36 "v35" 0.0616 0.2443 0.5 ic Emerald bc Black x_fact 0 ellipse
+37 "v36" 0.5940 0.8045 0.5 ic Emerald bc Yellow x_fact 2 box
+38 "v37" 0.8632 0.5701 0.5 ic RGB(10,20,30) bc Yellow x_fact -1 box
+39 "v38" 0.8713 0.5144 0.5 ic Emerald bc Yellow x_fact -1 ellipse
+40 "v39" 0.7643 0.6347 0.5 ic RGB(10,20,30) bc Yellow x_fact 1 diamond
+41 "v40" 0.0955 0.5029 0.5 ic Blue bc Yellow x_fact 0 cross
+42 "v41" 0.0554 0.5372 0.5 ic Red bc Yellow x_fact 2 diamond
+43 "v42" 0.3881 0.8319 0.5 ic RGB(10,20,30) bc Yellow x_fact 1 cross
+44 "v43" 0.9811 0.6906 0.5 ic Red bc Yellow x_fact -1 ellipse
+45 "v44" 0.9046 0.2967 0.5 ic Emerald bc Yellow x_fact 9000000000.0 box
+46 "v45" 0.2872 0.0708 0.5 ic NoSuchColor bc Black x_fact -1 cross
+47 "v46" 0.3449 0.0406 0.5 ic Emerald bc Yellow x_fact 2 diamond
+48 "v47" 0.0823 0.9671 0.5 ic Blue bc Black x_fact -1 ellipse
+49 "v48" 0.0508 0.3439 0.5 ic Emerald bc Black x_fact 1 triangle
+50 "v49" 0.1150 0.8205 0.5 ic Red bc Black x_fact 1 box
+51 "v50" 0.6691 0.1357 0.5 ic Blue bc Black x_fact -1 box
+52 "v51" 0.7965 0.7196 0.5 ic RGB(10,20,30) bc Yellow x_fact -1 cross
+53 "v52" 0.4018 0.7015 0.5 ic Blue bc Black x_fact 9000000000.0 triangle
+54 "v53" 0.7958 0.3596 0.5 ic Red bc Black x_fact -1 diamond
+55 "v54" 0.5043 0.3433 0.5 ic Red bc Black x_fact -1 diamond
+56 "v55" 0.0801 0.2302 0.5 ic Blue bc Black x_fact 9000000000.0 cross
+57 "v56" 0.9714 0.5645 0.5 ic Blue bc Yellow x_fact 0 cross
+58 "v57" 0.7561 0.1224 0.5 ic RGB(10,20,30) bc Black x_fact 0 triangle
+59 "v58" 0.3109 0.7555 0.5 ic Red bc Yellow x_fact -1 ellipse
+60 "v59" 0.2245 0.5887 0.5 ic Red bc Black x_fact 9000000000.0 triangle
+61 "v60" 0.5406 0.1353 0.5 ic Red bc Yellow x_fact 9000000000.0 box
+62 "v61" 0.3903 0.9122 0.5 ic RGB(10,20,30) bc Black x_fact 9000000000.0 triangle
+63 "v62" 0.0736 0.8232 0.5 ic RGB(10,20,30) bc Yellow x_fact 9000000000.0 cross
+64 "v63" 0.1763 0.8354 0.5 ic Blue bc Black x_fact -1 triangle
+65 "v64" 0.7411 0.6825 0.5 ic Blue bc Black x_fact -1 diamond
+66 "v65" 0.1818 0.5017 0.5 ic NoSuchColor bc Yellow x_fact 1 ellipse
+67 "v66" 0.6355 0.1637 0.5 ic Emerald bc Yellow x_fact 1 triangle
+68 "v67" 0.4290 0.4084 0.5 ic Blue bc Black x_fact -1 triangle
+69 "v68" 0.0234 0.0805 0.5 ic RGB(10,20,30) bc Black x_fact 0 triangle
+70 "v69" 0.2764 0.0148 0.5 ic Emerald bc Black x_fact -1 triangle
+71 "v70" 0.5512 0.7611 0.5 ic Emerald bc Black x_fact 2 ellipse
+72 "v71" 0.6946 0.9106 0.5 ic Blue bc Black x_fact 0 ellipse
+73 "v72" 0.9426 0.7030 0.5 ic RGB(10,20,30) bc Yellow x_fact 2 diamond
+74 "v73" 0.8782 0.9851 0.5 ic Emerald bc Black x_fact 9000000000.0 ellipse
+75 "v74" 0.1429 0.9024 0.5 ic Blue bc Yellow x_fact 1 triangle
+76 "v75" 0.7434 0.0848 0.5 ic Emerald bc Black x_fact 0 box
+77 "v76" 0.7485 0.8089 0.5 ic NoSuchColor bc Black x_fact 2 box
+78 "v77" 0.7283 0.6855 0.5 ic Emerald bc Black x_fact -1 triangle
+79 "v78" 0.1863 0.4929 0.5 ic RGB(10,20,30) bc Black x_fact 1 diamond
+80 "v79" 0.1041 0.8511 0.5 ic Blue bc Black x_fact 0 ellipse
+*Arcs
+22 60 1 c Red w 0 p Dots
+62 25 -1 c Red w 3 p Wavy
+49 19 2.5 c Red w 0 p Dots
+46 27 1 c Green w 1 p Dots
+17 64 1 c Weird w 3 p Dashed
+58 22 2.5 c Green w 1 p Solid
+79 39 1 c Weird w 0 p Dashed
+52 44 2.5 c Weird w 3 p Wavy
+6 11 2.5 c Weird w 3 p Solid
+32 12 -1 c Weird w 3 p Wavy
+12 67 2.5 c Green w 3 p Wavy
+58 38 2.5 c Red w 0 p Solid
+14 6 2.5 c Green w 3 p Wavy
+67 3 2.5 c Green w 3 p Wavy
+74 23 2.5 c Weird w 3 p Dots
+78 16 2.5 c Weird w 1 p Dots
+49 43 -1 c Weird w 1 p Dots
+32 22 2.5 c Green w 0 p Dots
+6 43 -1 c Red w 1 p Solid
+29 80 1 c Red w 1 p Solid
+29 13 2.5 c Weird w 1 p Solid
+18 23 -1 c Green w 0 p Wavy
+50 80 -1 c Weird w 3 p Dots
+52 48 2.5 c Red w 1 p Dashed
+20 4 1 c Green w 0 p Dots
+72 7 2.5 c Green w 0 p Dashed
+36 28 2.5 c Weird w 3 p Solid
+14 50 2.5 c Weird w 0 p Wavy
+22 67 1 c Red w 3 p Solid
+21 7 -1 c Green w 0 p Dashed
+9 56 2.5 c Green w 0 p Wavy
+27 46 -1 c Red w 3 p Dashed
+36 74 -1 c Green w 1 p Solid
+58 58 2.5 c Weird w 0 p Dots
+26 63 -1 c Red w 0 p Dashed
+60 75 1 c Red w 0 p Wavy
+71 25 1 c Weird w 0 p Dashed
+3 17 -1 c Red w 1 p Dashed
+5 1 2.5 c Weird w 0 p Dashed
+30 63 1 c Weird w 1 p Dots
+9 16 2.5 c Weird w 0 p Dashed
+29 57 -1 c Weird w 1 p Wavy
+39 77 1 c Green w 3 p Dots
+1 45 -1 c Weird w 1 p Dots
+65 36 1 c Red w 0 p Solid
+53 65 -1 c Green w 3 p Solid
+48 18 -1 c Weird w 1 p Wavy
+49 56 2.5 c Green w 0 p Wavy
+18 45 -1 c Red w 1 p Solid
+74 60 1 c Green w 3 p Dots
+60 60 1 c Green w 0 p Dashed
+74 58 -1 c Weird w 1 p Dots
+26 45 1 c Red w 3 p Dashed
+25 51 1 c Weird w 1 p Dashed
+72 71 2.5 c Weird w 3 p Wavy
+56 54 -1 c Weird w 1 p Dots
+30 33 1 c Red w 0 p Dots
+5 77 1 c Red w 0 p Dots
+33 79 2.5 c Red w 3 p Dashed
+68 41 2.5 c Green w 3 p Wavy
+77 75 1 c Weird w 1 p Solid
+79 16 2.5 c Weird w 1 p Dots
+41 54 2.5 c Green w 1 p Dots
+1 22 1 c Green w 0 p Wavy
+79 34 -1 c Red w 0 p Dashed
+73 62 2.5 c Green w 3 p Dots
+51 35 -1 c Red w 3 p Dashed
+21 9 1 c Green w 1 p Solid
+40 77 2.5 c Weird w 3 p Dashed
+58 37 1 c Green w 1 p Solid
+25 50 2.5 c Green w 0 p Dashed
+80 23 2.5 c Green w 1 p Dots
+12 42 -1 c Weird w 1 p Solid
+60 51 -1 c Weird w 3 p Dashed
+2 61 1 c Red w 3 p Dots
+21 52 1 c Green w 1 p Wavy
+3 5 1 c Red w 0 p Wavy
+55 1 -1 c Weird w 0 p Dots
+58 33 2.5 c Weird w 3 p Dashed
+63 7 1 c Weird w 1 p Dots

@@ -1,0 +1,6 @@
+{
+    "site": "nightly",
+    "features": [],
+    "datasets": "https://nightly.graphty.app/data/graph-samples/v1/",
+    "sentryEnvironment": "nightly"
+}

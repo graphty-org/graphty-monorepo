@@ -1,0 +1,44 @@
+{
+ "start": {
+  "runs": [
+   "pagerank PageRank (label Influence)"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "everything_1 Everything",
+   "edge-defaults_1 Edge defaults",
+   "influence_1 Influence"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "friends.csv"
+  ]
+ },
+ "end": {
+  "runs": [
+   "pagerank PageRank (label Influence)",
+   "shortest_path Shortest path (label Shortest route)"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "everything_1 Everything",
+   "edge-defaults_1 Edge defaults",
+   "influence_1 Influence",
+   "shortest-route-nodes_1 Shortest route (nodes)",
+   "shortest-route-edges_1 Shortest route (edges)"
+  ],
+  "notes": [
+   "note_01M4NNAQ2WRH2C9E4W5KAY4J2W Second note, about nothing in particular.",
+   "note_01M4NNAK916WVA9G0PCEMDS29E Gus links the two halves of the group through Hana and Farah"
+  ],
+  "steps": [
+   "step-1 on {\"kind\":\"range\",\"attribute\":\"data.weight\",\"min\":3,\"nodes\":\"ends\"}",
+   "step-2 on {\"kind\":\"neighborhood\",\"seeds\":[\"Gus\"],\"depth\":1}"
+  ],
+  "sources": [
+   "friends.csv"
+  ]
+ },
+ "gone": {}
+}

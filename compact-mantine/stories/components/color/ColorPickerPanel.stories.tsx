@@ -1,7 +1,7 @@
 import { AlphaSlider, ColorSwatch, Group, HueSlider, Stack } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
 import { useEffect, useState } from "react";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
@@ -137,8 +137,8 @@ export const Default: Story = {
 
 /**
  * Every state, light and dark side by side: the solid picker at rest, a keyboard-focused
- * slider, a focused reticle and value field (forced), no opacity in RGB, and the paint-type bar
- * with Gradient selected.
+ * slider, a focused reticle and value field (forced; the value field's ring goes round the hex and
+ * the opacity together), no opacity in RGB, and the paint-type bar with Gradient selected.
  */
 export const States: Story = {
     parameters: BOTH_SCHEMES,

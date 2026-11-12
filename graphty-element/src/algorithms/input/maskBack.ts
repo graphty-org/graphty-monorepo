@@ -138,28 +138,37 @@ export function checkNodeOptions(
         return;
     }
 
-    const { graph, resolution } = scope;
     for (const option of options) {
-        if (option.type !== "node-id" && option.type !== "node-set") {
+        if (option.type === "node-id" || option.type === "node-set") {
+            checkNodeOption(option.name, params[option.name], scope);
+        }
+    }
+}
+
+/**
+ * Refuse one node option's value (a node id, or a list of them) that names a node of the graph
+ * outside the run's scope.
+ * @param name - The option's name.
+ * @param given - The option's value.
+ * @param scope - The run's scope.
+ * @throws A `GraphtyError` with `E_OPTION_RANGE` and `details.reason: "outside-scope"`.
+ */
+function checkNodeOption(name: string, given: unknown, scope: ResolvedInputScope): void {
+    const { graph, resolution } = scope;
+    const values: readonly unknown[] = Array.isArray(given) ? given : [given];
+    for (const value of values) {
+        if (typeof value !== "string" && typeof value !== "number") {
             continue;
         }
 
-        const given = params[option.name];
-        const values: readonly unknown[] = Array.isArray(given) ? given : [given];
-        for (const value of values) {
-            if (typeof value !== "string" && typeof value !== "number") {
-                continue;
-            }
-
-            const row = graph.ids.indexOf(value);
-            if (row !== INVALID_INDEX && !has(resolution.nodes, row, graph.nodeCount)) {
-                throw new GraphtyError({
-                    code: "E_OPTION_RANGE",
-                    message: `"${option.name}" names node "${String(value)}", which is outside the run's scope`,
-                    source: "run",
-                    details: { option: option.name, value, reason: "outside-scope" },
-                });
-            }
+        const row = graph.ids.indexOf(value);
+        if (row !== INVALID_INDEX && !has(resolution.nodes, row, graph.nodeCount)) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: `"${name}" names node "${String(value)}", which is outside the run's scope`,
+                source: "run",
+                details: { option: name, value, reason: "outside-scope" },
+            });
         }
     }
 }

@@ -173,3 +173,27 @@ describe("session.visibility", () => {
         assert.isFalse(harness.session.status.ready);
     });
 });
+
+describe("session.visibility on an edge attribute", () => {
+    it("keeps the passing edges, and every node or only their ends", async () => {
+        const harness = makeSession();
+        harness.add(
+            [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }],
+            [
+                { src: "a", dst: "b", weight: 5 },
+                { src: "b", dst: "c", weight: 1 },
+                { src: "c", dst: "d", weight: 2 },
+            ],
+        );
+        const { visibility } = harness.session;
+
+        const all = await visibility.set({ kind: "range", attribute: "data.weight", min: 4 });
+        assert.deepStrictEqual(all.visible, { nodes: 4, edges: 1 });
+
+        const ends = await visibility.set({ kind: "range", attribute: "data.weight", min: 4, nodes: "ends" });
+        assert.deepStrictEqual(ends.visible, { nodes: 2, edges: 1 });
+        assert.isTrue(visibility.isVisible("a"));
+        assert.isFalse(visibility.isVisible("c"));
+        harness.session.dispose();
+    });
+});

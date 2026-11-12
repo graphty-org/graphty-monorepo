@@ -71,6 +71,20 @@ function pickPrefix(stream: RandomStream, candidates: number[], count: number): 
 }
 
 /**
+ * Check the forest fire model's burning probabilities.
+ * @param p - the forward burning probability, in [0, 1)
+ * @param r - the backward burning ratio, >= 0 with r p < 1
+ */
+function checkBurnRates(p: number, r: number): void {
+    if (!(p >= 0 && p < 1)) {
+        throw new RangeError(`forward must be a probability in [0, 1), got ${String(p)}`);
+    }
+    if (!(r >= 0 && r * p < 1)) {
+        throw new RangeError(`backward must be >= 0 with backward * forward < 1, got ${String(r)}`);
+    }
+}
+
+/**
  * The forest fire model (J. Leskovec, J. Kleinberg and C. Faloutsos, "Graphs over time:
  * densification laws, shrinking diameters and possible explanations", KDD 2005,
  * doi:10.1145/1081870.1081893). Directed; heavy-tailed degrees, densification, community locality.
@@ -92,12 +106,7 @@ export function forestFireGraph(options: ForestFireOptions): SampleGraph {
     const { n, forward: p, backward: r } = options;
     const maxBurn = options.maxBurn ?? 1000;
     checkInt("n", n, 1);
-    if (!(p >= 0 && p < 1)) {
-        throw new RangeError(`forward must be a probability in [0, 1), got ${String(p)}`);
-    }
-    if (!(r >= 0 && r * p < 1)) {
-        throw new RangeError(`backward must be >= 0 with backward * forward < 1, got ${String(r)}`);
-    }
+    checkBurnRates(p, r);
     checkInt("maxBurn", maxBurn, 1);
     const stream = new RandomStream(resolveSeed(options.seed), "forest-fire", 0);
     const pb = r * p;
@@ -287,6 +296,36 @@ export interface BianconiBarabasiOptions extends WeightOptions {
 }
 
 /**
+ * Check the given fitness values, or draw node i's as 1 - nextFloat() from (seed, "fitness", i).
+ * @param given - the fitness option
+ * @param seed - the resolved seed
+ * @param n - the node count
+ * @returns n finite positive values
+ */
+function resolveFitness(given: ArrayLike<number> | undefined, seed: number, n: number): Float64Array<ArrayBuffer> {
+    const fitness = new Float64Array(n);
+    if (given === undefined) {
+        const draw = new RandomStream(seed, "fitness", 0);
+        for (let i = 0; i < n; i++) {
+            draw.reset(i);
+            fitness[i] = 1 - draw.nextFloat();
+        }
+        return fitness;
+    }
+    if (given.length !== n) {
+        throw new RangeError(`fitness must have n = ${n} values, got ${given.length}`);
+    }
+    for (let i = 0; i < n; i++) {
+        const f = given[i];
+        if (!(f > 0 && Number.isFinite(f))) {
+            throw new RangeError(`fitness[${i}] must be finite and positive, got ${String(f)}`);
+        }
+        fitness[i] = f;
+    }
+    return fitness;
+}
+
+/**
  * The Bianconi-Barabasi fitness model (G. Bianconi and A.-L. Barabasi, "Competition and
  * multiscaling in evolving networks", Europhys. Lett. 54, 436-442, 2001,
  * doi:10.1209/epl/i2001-00260-6): preferential attachment weighted by fitness, so a fit latecomer
@@ -307,25 +346,7 @@ export function bianconiBarabasiGraph(options: BianconiBarabasiOptions): SampleG
     checkInt("n", n, m + 1);
     const seed = resolveSeed(options.seed);
     checkEdgeCount((m * (m + 1)) / 2 + (n - m - 1) * m);
-    const fitness = new Float64Array(n);
-    if (options.fitness === undefined) {
-        const draw = new RandomStream(seed, "fitness", 0);
-        for (let i = 0; i < n; i++) {
-            draw.reset(i);
-            fitness[i] = 1 - draw.nextFloat();
-        }
-    } else {
-        if (options.fitness.length !== n) {
-            throw new RangeError(`fitness must have n = ${n} values, got ${options.fitness.length}`);
-        }
-        for (let i = 0; i < n; i++) {
-            const f = options.fitness[i];
-            if (!(f > 0 && Number.isFinite(f))) {
-                throw new RangeError(`fitness[${i}] must be finite and positive, got ${String(f)}`);
-            }
-            fitness[i] = f;
-        }
-    }
+    const fitness = resolveFitness(options.fitness, seed, n);
     const edges = new EdgeBuffer((m * (m + 1)) / 2 + (n - m - 1) * m);
     const degree = new Uint32Array(n);
     for (let a = 0; a <= m; a++) {
@@ -456,6 +477,33 @@ export function randomApollonianGraph(options: RandomApollonianOptions): SampleG
     return applyWeights({ directed: false, nodeCount: n, src, dst }, options);
 }
 
+/**
+ * The grid neighbours of node u in the order left, right, up, down.
+ * @param u - the node, r cols + c
+ * @param rows - the number of rows
+ * @param cols - the number of columns
+ * @param into - receives the neighbours
+ * @returns how many neighbours were written
+ */
+function gridNeighbours(u: number, rows: number, cols: number, into: Uint32Array): number {
+    const r = Math.floor(u / cols);
+    const c = u - r * cols;
+    let count = 0;
+    if (c > 0) {
+        into[count++] = u - 1;
+    }
+    if (c + 1 < cols) {
+        into[count++] = u + 1;
+    }
+    if (r > 0) {
+        into[count++] = u - cols;
+    }
+    if (r + 1 < rows) {
+        into[count++] = u + cols;
+    }
+    return count;
+}
+
 /** Options of {@link wilsonMazeGraph}. */
 export interface WilsonMazeOptions extends WeightOptions {
     /** The number of rows, >= 1. */
@@ -498,21 +546,7 @@ export function wilsonMazeGraph(options: WilsonMazeOptions): SampleGraph {
     for (let start = 1; start < n; start++) {
         let u = start;
         while (inTree[u] === 0) {
-            const r = Math.floor(u / cols);
-            const c = u - r * cols;
-            let count = 0;
-            if (c > 0) {
-                options4[count++] = u - 1;
-            }
-            if (c + 1 < cols) {
-                options4[count++] = u + 1;
-            }
-            if (r > 0) {
-                options4[count++] = u - cols;
-            }
-            if (r + 1 < rows) {
-                options4[count++] = u + cols;
-            }
+            const count = gridNeighbours(u, rows, cols, options4);
             next[u] = options4[stream.nextBelow(count)];
             u = next[u];
         }

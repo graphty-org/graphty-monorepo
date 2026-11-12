@@ -92,7 +92,7 @@ describe("the graph-io import helper's policies", () => {
 
     it("lets a repeated declaration overwrite the first unless the first is to win", async () => {
         const merged = await importDocument(fixedImporter(), "doc", {});
-        const first = await importDocument(fixedImporter(), "doc", {}, [], { firstDeclarationWins: true });
+        const first = await importDocument(fixedImporter(), "doc", {}, { firstDeclarationWins: true });
 
         const labelOf = (imported: typeof merged): unknown =>
             toRecords(imported, columnsMapping(imported.snapshot)).nodes.find((node) => node.id === "a");

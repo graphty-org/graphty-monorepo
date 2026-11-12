@@ -1,4 +1,4 @@
-import { GraphBuilder, GraphFormatError, INVALID_INDEX } from "@graphty/graph-format";
+import { GraphBuilder, GraphFormatError, type GraphSink, INVALID_INDEX } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -7,6 +7,7 @@ import {
     declareAttribute,
     declareCompanion,
     declareOn,
+    declareResolved,
     DICT_SAMPLE_ROWS,
     DictHeuristic,
     losesPrecision,
@@ -17,6 +18,7 @@ import {
     uniqueColumnName,
     UNKNOWN_TYPE_CODE,
 } from "../../src/common/attributes.js";
+import { ImportReportBuilder } from "../../src/common/report.js";
 
 describe("declareAttribute (design 5.1, 5.5, 5.6)", () => {
     it("names the column after the title and records the source id, type and namespace in origin", () => {
@@ -444,5 +446,91 @@ describe("DictHeuristic (design 5.4)", () => {
         h.observe("d");
         expect(h.rows).toBe(7);
         expect(h.decide()).toBe("string");
+    });
+});
+
+describe("declareResolved", () => {
+    const issues = (report: ImportReportBuilder): unknown[] =>
+        report.issues.map((i) => [i.severity, i.category, i.code, i.message, i.line, i.element]);
+
+    it("renames a clashing column, then drops a taken role, recording both", () => {
+        const b = new GraphBuilder({ directed: true });
+        b.declareNodeColumn({ name: "w", dtype: "f64" });
+        b.declareNodeColumn({ name: "name", dtype: "string", role: "label" });
+        const report = new ImportReportBuilder("test", 100);
+        const r = declareResolved(
+            b,
+            "node",
+            { name: "w", dtype: "string", role: "label", origin: { format: "gexf", id: "7" } },
+            report,
+            { line: 4 },
+        );
+        expect(r.renamed).toBe(true);
+        expect(r.roleDropped).toBe(true);
+        expect(r.decl).toEqual({ name: "w#7", dtype: "string", origin: { format: "gexf", id: "7" } });
+        expect(r.handle).toBe(b.nodeColumn("w#7"));
+        expect(issues(report)).toEqual([
+            [
+                "warning",
+                "coercion",
+                "W_COLUMN_RENAMED",
+                'node column "w" renamed to "w#7": the sink already holds that name with another shape',
+                4,
+                "w",
+            ],
+            [
+                "warning",
+                "coercion",
+                "W_ROLE_TAKEN",
+                'node column "w#7" loses the label role: "name" already holds it',
+                4,
+                "w#7",
+            ],
+        ]);
+    });
+
+    it("keeps the caller's element and names an unknown role holder 'another column'", () => {
+        let calls = 0;
+        const sink = {
+            declareEdgeColumn: () => {
+                calls++;
+                if (calls === 1) {
+                    throw new GraphFormatError("E_DUPLICATE_ROLE", "taken", { holder: 3 });
+                }
+                return 5;
+            },
+        } as unknown as GraphSink;
+        const report = new ImportReportBuilder("test", 100);
+        const r = declareResolved(sink, "edge", { name: "x", dtype: "f64", role: "weight" }, report, { element: "e1" });
+        expect(r).toEqual({ handle: 5, decl: { name: "x", dtype: "f64" }, renamed: false, roleDropped: true });
+        expect(issues(report)).toEqual([
+            [
+                "warning",
+                "coercion",
+                "W_ROLE_TAKEN",
+                'edge column "x" loses the weight role: "another column" already holds it',
+                null,
+                "e1",
+            ],
+        ]);
+    });
+
+    it("rethrows a second clash, a role clash without a role, and errors that are not GraphFormatErrors", () => {
+        const throwing = (err: () => Error) =>
+            ({
+                declareNodeColumn: () => {
+                    throw err();
+                },
+            }) as unknown as GraphSink;
+        const report = new ImportReportBuilder("test", 100);
+        const exists = throwing(() => new GraphFormatError("E_COLUMN_EXISTS", "exists", {}));
+        Object.assign(exists, { nodeColumn: () => INVALID_INDEX });
+        expect(() => declareResolved(exists, "node", { name: "a", dtype: "f64" }, report)).toThrow("exists");
+        expect(report.issues.map((i) => i.code)).toEqual(["W_COLUMN_RENAMED"]);
+        const role = throwing(() => new GraphFormatError("E_DUPLICATE_ROLE", "role", {}));
+        expect(() => declareResolved(role, "node", { name: "a", dtype: "f64" }, report)).toThrow("role");
+        const plain = throwing(() => new TypeError("boom"));
+        expect(() => declareResolved(plain, "node", { name: "a", dtype: "f64" }, report)).toThrow(TypeError);
+        expect(report.issues).toHaveLength(1);
     });
 });

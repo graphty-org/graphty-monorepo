@@ -127,7 +127,15 @@ import { createIncidentActions, laneNotProgressing } from "./incident-actions.mj
 import { releaseFailedSummary, releaseHold } from "./release.mjs";
 import { failureKey, isSummaryJob, notePickups, queueAges } from "./lanes.mjs";
 import { createMcpServer, servedProtocols } from "./mcp.mjs";
-import { accumulateMerged, backfillRefs, commitRefs, landStacked, searchMerged } from "./merged.mjs";
+import {
+    accumulateMerged,
+    backfillRefs,
+    commitRefs,
+    droppableMergedIssues,
+    landStacked,
+    restoreMergedIssues,
+    searchMerged,
+} from "./merged.mjs";
 import { sessionWriteCheck } from "./session-writes.mjs";
 import {
     foldHead,
@@ -224,6 +232,7 @@ import {
     refreshReference,
     removeJobWorktree,
 } from "./worktrees.mjs";
+import { cleanupWorktrees } from "./worktree-cleanup.mjs";
 
 /** How the reference worktree is installed and built (design 4.9). */
 const REFERENCE_SETUP = ["sh", "-c", "pnpm install --frozen-lockfile && pnpm exec nx run-many -t build"];
@@ -237,11 +246,36 @@ export const PROTOCOL = 1;
 const GIT_TIMEOUT_MS = 60_000;
 /** GitHub unreachable this long raises a `blocked` escalation. */
 const GITHUB_DOWN_MS = 30 * 60_000;
+/**
+ * GitHub errors githerd waits out on its own: the hourly budget (it resets within the hour), the
+ * secondary limit and a network or DNS blip (an outage of 30 minutes raises `github-down`). The
+ * owner can do nothing about them, so a poll that failed only with these never pages him.
+ */
+const WAIT_KINDS = new Set(["rate", "secondary", "network", "timeout"]);
 /** Largest request body accepted. */
 /** How many handled hook event ids are remembered, to skip a spooled copy of one. */
 const HOOK_IDS = 500;
 /** The most compare pages read for one head's commits (100 each); past that it counts as breaking. */
 const COMPARE_PAGES = 30;
+
+/**
+ * When a pull request's own code last changed: the newest committer date among its commits,
+ * merge commits left out. A merge of the base branch moves the head without touching what the
+ * owner reviewed, so a reject made before it still stands (#2639: rejected at 03:55, master
+ * merged in at 06:15, and the reject no longer counted).
+ * ponytail: a merge whose conflict resolution changes the rejected stories still counts as no
+ * change; comparing the new capture's image hashes with the reject block's would settle it.
+ * @param {any[]} commits REST commit objects of the pull request
+ * @returns {string | null} the date, ISO; null when no commit has one
+ */
+function codeChangedAt(commits) {
+    const dates = commits
+        .filter((c) => (c.parents?.length ?? 0) < 2)
+        .map((c) => c.commit?.committer?.date)
+        .filter((d) => typeof d === "string")
+        .sort((a, b) => a.localeCompare(b));
+    return dates.at(-1) ?? null;
+}
 /** `POST /owner` ops that put the owner's words or decisions on record: only from his terminal. */
 const OWNER_WORDS = new Set(["answer", "order", "policy", "policy-end", "veto", "ack", "mine", "mine-drop"]);
 /** How the news of a refused `githerd_done` starts (board.verifyResult). */
@@ -932,6 +966,7 @@ export async function startDaemon({
         if (!mayWrite()) return;
         await dropEndedItems();
         await dropFinished();
+        await dropMergedIssues();
         for (const line of recordLines(state, recorded)) void ledger(line);
         await saveState(stateDir, state, { durable });
         writeChangedNews();
@@ -1048,6 +1083,43 @@ export async function startDaemon({
         for (const key of Object.keys(covers)) {
             if (!state.notified?.[key] && !n.failed?.[key] && !n.pending?.[key]) delete covers[key];
         }
+    }
+
+    /**
+     * Drops the merge record (`state.merged.refs` and `closed`) of each issue no longer in the state
+     * (`droppableMergedIssues`, issue #2661), once its record is in the ledger (a
+     * `merged-issue-dropped` line). `droppedMax` is the highest such issue: a new issue is numbered
+     * above it, so only an issue at or below it can come back (`restoreReturned`).
+     * @returns {Promise<void>}
+     */
+    async function dropMergedIssues() {
+        const m = state.merged;
+        if (!m) return;
+        for (const n of droppableMergedIssues(state)) {
+            try {
+                const record = { refs: m.refs?.[n] ?? [], closed: (m.closed ?? []).includes(Number(n)) };
+                await appendLedger(stateDir, { kind: "merged-issue-dropped", issue: Number(n), record }, { now });
+                m.droppedMax = Math.max(m.droppedMax ?? 0, Number(n));
+                delete m.refs?.[n];
+                m.closed = (m.closed ?? []).filter((c) => c !== Number(n));
+            } catch (err) {
+                say("error", `ledger: ${/** @type {Error} */ (err).message}; merge record of #${n} kept`);
+            }
+        }
+    }
+
+    /**
+     * Puts back from the ledger the merge record of each issue that came back into the state this
+     * poll (a reopen, or a closed one a reference keeps) and was dropped before (issue #2661), so
+     * its issue job still knows which merged pull requests closed or named it.
+     * @param {Set<string>} known the issues in the state before this poll
+     * @returns {Promise<void>}
+     */
+    async function restoreReturned(known) {
+        const most = state.merged?.droppedMax ?? 0;
+        const back = Object.keys(state.issues.byNumber).filter((n) => !known.has(n) && Number(n) <= most);
+        if (!back.length) return;
+        restoreMergedIssues(state.merged, await readLedger(stateDir, { since: new Date(0) }), back);
     }
 
     /** @type {Map<string, string>} each job's news as last written to `jobs/<id>/news` */
@@ -1350,37 +1422,45 @@ export async function startDaemon({
      * A new head's commit messages. GitHub lists at most 250 commits of a pull request; past that,
      * the compare API has them all.
      * @param {any} node the GraphQL node
-     * @returns {Promise<{messages: string[], truncated: boolean}>} the messages
+     * @returns {Promise<{messages: string[], truncated: boolean, codeAt: string | null}>} the messages,
+     *   and when the code last changed ({@link codeChangedAt})
      */
     async function readCommits(node) {
         const list = await pages(`repos/${config.repo}/pulls/${node.number}/commits?per_page=100`, 3);
         if (list.items.length >= 250) return allCommits(node);
-        return { messages: list.items.map((c) => c.commit.message), truncated: false };
+        return {
+            messages: list.items.map((c) => c.commit.message),
+            truncated: false,
+            codeAt: codeChangedAt(list.items),
+        };
     }
 
     /**
      * Every commit message of a pull request too long for its commit list, through the compare API
      * (base...head, the same commits), page by page. Read once per head, like the commit list.
      * @param {any} node the GraphQL node
-     * @returns {Promise<{messages: string[], truncated: boolean}>} the messages; `truncated` when
-     *   they could not all be read, so the pull request counts as breaking
+     * @returns {Promise<{messages: string[], truncated: boolean, codeAt: string | null}>} the messages;
+     *   `truncated` when they could not all be read, so the pull request counts as breaking
      */
     async function allCommits(node) {
         const messages = [];
+        /** @type {any[]} */
+        const all = [];
         try {
             for (let p = 1; p <= COMPARE_PAGES; p++) {
                 const path = `repos/${config.repo}/compare/${node.baseRefName}...${node.headRefOid}?per_page=100&page=${p}`;
                 const body = (await github().get(path)).body ?? {};
                 const commits = body.commits ?? [];
                 messages.push(...commits.map((/** @type {any} */ c) => c.commit.message));
+                all.push(...commits);
                 const total = body.total_commits ?? 0;
                 if (messages.length >= total || commits.length < 100)
-                    return { messages, truncated: messages.length < total };
+                    return { messages, truncated: messages.length < total, codeAt: codeChangedAt(all) };
             }
         } catch {
             // unread: counts as breaking until the next head
         }
-        return { messages, truncated: true };
+        return { messages, truncated: true, codeAt: null };
     }
 
     /**
@@ -1444,7 +1524,11 @@ export async function startDaemon({
         } else detail.gateRead = job;
         detail.gateJob = job;
         if (config.ownerGate?.rejectMarker) {
-            const since = node.commits?.nodes?.[0]?.commit?.committedDate ?? "1970-01-01T00:00:00Z";
+            // A record from before `codeChangedAt` was kept reads its commits once more.
+            if (!detail.commits && (prev?.headSha !== node.headRefOid || prev?.codeChangedAt === undefined))
+                detail.commits = await readCommits(node);
+            const codeAt = detail.commits ? detail.commits.codeAt : prev?.codeChangedAt;
+            const since = codeAt ?? node.commits?.nodes?.[0]?.commit?.committedDate ?? "1970-01-01T00:00:00Z";
             const res = await github().get(`repos/${repo}/issues/${node.number}/comments?since=${since}&per_page=100`);
             // Only the owner can reject: another account's comment never counts.
             detail.comments = (res.body ?? [])
@@ -2082,6 +2166,9 @@ export async function startDaemon({
         // rest still run, so one bad item never stops the whole poll.
         /** @type {string[]} the steps that threw, with their errors */
         const failed = [];
+        let waitsOnly = true;
+        /** @type {number | undefined} the latest time a waited-out error said to call again */
+        let retryAt;
         /**
          * Runs one step, recording an error instead of throwing it.
          * @param {string} name the step's name, for the error
@@ -2092,6 +2179,9 @@ export async function startDaemon({
                 await fn();
             } catch (err) {
                 failed.push(`${name}: ${/** @type {Error} */ (err).message}`);
+                const e = /** @type {any} */ (err);
+                if (!WAIT_KINDS.has(e?.kind)) waitsOnly = false;
+                if (e?.retryAt) retryAt = Math.max(retryAt ?? 0, e.retryAt);
             }
         };
         await run("master", async () => {
@@ -2146,6 +2236,7 @@ export async function startDaemon({
             untrustedCriticals(state, t);
         }
         await run("reference", () => referenceWork());
+        await run("worktrees", () => worktreeWork());
         await workerPass();
         if (state.trust.login && !state.settings?.paused) {
             await run("invites", async () => {
@@ -2203,7 +2294,7 @@ export async function startDaemon({
             });
         }
         // A step that threw may not have re-raised what still holds: nothing derived is cleared.
-        if (failed.length) throw new Error(failed.join("; "));
+        if (failed.length) throw Object.assign(new Error(failed.join("; ")), { waitsOnly, retryAt });
         for (const key of board.resolveDerived(state, (esc) => holding.has(esc.key), t)) {
             void ledger({ kind: "escalation", key, resolved: true, by: "daemon" });
         }
@@ -2871,6 +2962,49 @@ export async function startDaemon({
         );
     }
 
+    /** @type {Promise<void> | null} the finished-worktree removal, while it runs */
+    let treeWork = null;
+    /** @type {import("./worktree-cleanup.mjs").Seen} what the last removal pass saw */
+    const treeSeen = { fp: new Map(), would: "" };
+
+    /**
+     * Removes finished worktrees (worktree-cleanup.mjs), in the background so the reconcile goes on.
+     * A local write: it removes only while githerd acts and `worktrees.cleanup` is true; otherwise
+     * the batch it would remove is would-do lines. The outcome is one line on the board.
+     */
+    function worktreeWork() {
+        const wt = config?.worktrees;
+        if (treeWork !== null || !wt?.cleanup || !mayWrite()) return;
+        const jobs = Object.values(state.jobs ?? {}).filter((j) => !board.TERMINAL.includes(j.state));
+        const holds = {
+            dirs: jobs.flatMap((j) => [j.worktree, j.holder?.cwd]).filter(Boolean),
+            branches: [
+                ...Object.values(state.prs ?? {}).map((p) => /** @type {any} */ (p).headRef),
+                ...jobs.flatMap((j) => [j.facts?.branch, j.facts?.headRef]),
+            ].filter(Boolean),
+        };
+        const sessions = registeredSessions({ sessionsDir: join(env.HOME ?? homedir(), ".claude", "sessions") });
+        treeWork = cleanupWorktrees({
+            root,
+            base: `origin/${state.master?.branch ?? "master"}`,
+            acting: wt.cleanup === true && mode() === "acting",
+            removePerPoll: wt.removePerPoll,
+            holds,
+            busyPaths: sessions.map((x) => x.cwd).filter(Boolean),
+            seen: treeSeen,
+            env,
+            ledger,
+        })
+            .then((r) => {
+                state.worktreeCleanup = { at: now().toISOString(), text: r.text };
+            })
+            .catch(
+                (err) => void ledger({ kind: "error", where: "worktrees", error: /** @type {Error} */ (err).message }),
+            )
+            // Saved with the next poll's state: a save of its own here raced the poll's.
+            .finally(() => (treeWork = null));
+    }
+
     /** @type {Promise<void> | null} the reference worktree's work, while it runs */
     let refWork = null;
 
@@ -3113,10 +3247,12 @@ export async function startDaemon({
         for (const line of carryGitherdMoves(state)) void ledger(line);
         await inheritedUpdates(branch);
 
+        const known = new Set(Object.keys(state.issues?.byNumber ?? {}));
         const issues = await pollIssues(gh, config.repo, state.issues);
         state.issues = { since: issues.since, byNumber: issues.byNumber };
         for (const line of pruneSettledFlakes(state)) void ledger(line);
         pruneClosedIssues(state);
+        await restoreReturned(known);
         await pruneFinishedJobs();
         await checkOverrides();
     }
@@ -3452,7 +3588,8 @@ export async function startDaemon({
             state.github.lastError = lastPollError;
             say("error", `poll: ${lastPollError}`);
             void ledger({ kind: "error", where: "poll", error: lastPollError });
-            await pollEnded(lastPollError);
+            const e = /** @type {any} */ (err);
+            await pollEnded(lastPollError, e.waitsOnly ?? WAIT_KINDS.has(e.kind), e.retryAt);
         }
         if (!waited && !state.rate.downSince) await heartbeat({});
     }
@@ -3461,17 +3598,28 @@ export async function startDaemon({
      * Keeps count of the polls that failed in a row (`state.github.failing`, since the first, with its
      * error). The second in a row raises the `poll-failing` owner item and pages it at once, since a
      * failing poll may never reach its own owner-item step; the next complete poll ends it. Two, so
-     * one transient error pages nobody.
+     * one transient error pages nobody. A poll that failed only with errors githerd waits out
+     * (`WAIT_KINDS`) is recorded but counts toward no page until the time the first of them said to
+     * call again (`state.github.waitUntil`, the rate-limit reset): a wait still failing after it
+     * counts like any other error. One with no such time (a network blip) never counts here; an
+     * outage raises `github-down` instead.
      * @param {string | null} error the poll's error, or null when it completed
+     * @param {boolean} [waiting] every error was one githerd waits out
+     * @param {number} [retryAt] when the waited-out errors said to call again (ms since the epoch)
      */
-    async function pollEnded(error) {
+    async function pollEnded(error, waiting = false, retryAt = undefined) {
         const g = state.github;
         const id = "poll-failing";
         if (!error) {
             g.completeAt = loopTickAt;
             g.failing = null;
+            g.waitUntil = null;
             endItem(state, id, "cleared", now());
             return;
+        }
+        if (waiting) {
+            if (retryAt && !g.waitUntil) g.waitUntil = new Date(retryAt).toISOString();
+            if (!g.waitUntil || Date.parse(loopTickAt) <= Date.parse(g.waitUntil)) return;
         }
         g.failing ??= { since: loopTickAt, error: firstLine(error), count: 0 };
         g.failing.count += 1;
@@ -4597,6 +4745,7 @@ export async function startDaemon({
             if (left.length) say("error", `self-update: left behind: ${left.join("; ")}`);
         }
         await refWork;
+        await treeWork;
         await Promise.all(tasks.values());
         // A push killed here reaches its job as a failed push; the next start finds nothing running.
         pushQueue?.stop();

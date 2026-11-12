@@ -1,7 +1,7 @@
 import { ActionIcon, Stack, Tabs, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
 import React, { useId, useState } from "react";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { QuickActions, type QuickActionsProps } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -239,6 +239,10 @@ export const FieldChooser: Story = {
         await expect(canvas.getByRole("listbox")).not.toHaveFocus();
         await expect(canvas.getByRole("listbox")).not.toHaveAttribute("tabindex");
         await expect(input).toHaveAttribute("aria-activedescendant", canvas.getByRole("option", { name: "degree" }).id);
-        await expect(canvas.getByRole("option", { name: "community" })).toHaveAttribute("aria-disabled", "true");
+        // A disabled field's reason is part of its name (fa3b1b8fd8).
+        await expect(canvas.getByRole("option", { name: "community, Holds groups, not amounts" })).toHaveAttribute(
+            "aria-disabled",
+            "true",
+        );
     },
 };

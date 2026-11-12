@@ -1,0 +1,18 @@
+{
+    "sample": "graphml-yfiles-html-stag-flowchart",
+    "file": "graph-io/test/corpus/styles/graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml",
+    "sha256": "6ff9824d3bf89d590b264454fd291fdfc6c87f91bb0ed1a39d5c3dff7f2b7a37",
+    "program": "yEd Live",
+    "version": "8.5.16, updated 11/2/2026 (as yEd Live's About panel shows), run in headless Chromium",
+    "command": "An AI agent operated yEd Live's user interface at the owner's direction on 2026-11-04. No layout was run, so the file's stored coordinates are drawn. Main menu > Open > From Local File, welcome dialog closed with Skip, then main menu > Export > Export, saved from the browser download with no edits. One Export setting changed from its default: format PNG -> SVG. Left at defaults: Scale 1, Export only selected area off, Transparent background off, Export for dark theme off, Sketchy, hand-drawn style off. Headless Chromium, viewport 1400 x 1000.",
+    "standIn": false,
+    "canvas": {
+        "requested": "none: yEd Live's Export panel has no width or height field, so the SVG has the size of the file's stored layout plus its margins",
+        "widthPx": 1880,
+        "heightPx": 1079
+    },
+    "fonts": "Chromium with FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "svgPostprocessing": "none: the SVG is yEd Live's output byte for byte",
+    "date": "2026-11-04",
+    "regenerate": "no command: an AI agent operates yEd Live's user interface as in `command`, then node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/graphml-yfiles-html-stag-flowchart.svg"
+}

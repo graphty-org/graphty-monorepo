@@ -1,42 +1,14 @@
 /**
  * SchemaExtractor - Extracts schema information from graph data.
  *
- * Uses @jsonhero/schema-infer for type detection, format detection, and number ranges.
+ * Uses inferSchema for type detection, format detection, and number ranges.
  * Adds enum detection using Capital One's DataProfiler algorithm.
  * @module ai/schema/SchemaExtractor
  */
 
-import { inferSchema } from "@jsonhero/schema-infer";
-
 import type { Graph } from "../../Graph";
+import { type InferredSchema, inferSchema } from "./inferSchema";
 import type { PropertySummary, PropertyType, SchemaExtractorOptions, SchemaSummary } from "./types";
-
-/**
- * Internal type for schema-infer's InferredSchema.
- * We define this locally to avoid importing internal types.
- */
-interface InferredSchema {
-    type: "unknown" | "any" | "boolean" | "int" | "float" | "string" | "array" | "object" | "nullable";
-    range?: { min: number; max: number };
-    format?: { name: string };
-    items?: InferredSchema;
-    schema?: InferredSchema;
-    schemas?: Set<InferredSchema>;
-    properties?: {
-        required: Record<string, InferredSchema>;
-        optional: Record<string, InferredSchema>;
-    };
-}
-
-/**
- * Interface for the SchemaInferrer instance returned by schema-infer.
- * The second parameter type from the library.
- */
-interface SchemaInferrerLike {
-    inferredSchema: InferredSchema;
-    infer(value: unknown, inference?: SchemaInferrerLike): void;
-    toSnapshot(): InferredSchema;
-}
 
 /**
  * Default configuration options using Capital One's proven thresholds.
@@ -145,7 +117,7 @@ class EnumTracker {
 /**
  * Extracts schema information from graph node and edge data.
  *
- * Combines @jsonhero/schema-infer for type/format detection with
+ * Combines inferSchema for type/format detection with
  * Capital One's enum detection algorithm.
  */
 export class SchemaExtractor {
@@ -205,16 +177,10 @@ export class SchemaExtractor {
         const samples =
             items.length <= this.options.maxSampleSize ? items : this.sampleEvenly(items, this.options.maxSampleSize);
 
-        // Track 1: Use schema-infer for types, ranges, formats
-        // Process first item to initialize the inferrer, then continue with rest
-        const [firstItem, ...restItems] = samples;
-        let schemaInferrer = inferSchema(firstItem) as unknown as SchemaInferrerLike;
-
-        for (const item of restItems) {
-            schemaInferrer = inferSchema(item, schemaInferrer as Parameters<typeof inferSchema>[1]);
-        }
-
-        const inferredSchema = schemaInferrer.toSnapshot();
+        // Track 1: Use inferSchema for types, ranges, formats
+        const inferredSchema = samples.reduce<InferredSchema>((schema, item) => inferSchema(schema, item), {
+            type: "unknown",
+        });
 
         // Track 2: Use EnumTracker for enum detection
         const enumTracker = new EnumTracker(this.options);
@@ -228,8 +194,8 @@ export class SchemaExtractor {
     }
 
     /**
-     * Merge schema-infer results with enum detection results.
-     * @param schema - Inferred schema from schema-infer
+     * Merge inferSchema results with enum detection results.
+     * @param schema - Inferred schema from inferSchema
      * @param enumTracker - Enum tracker with detected categorical values
      * @returns Array of merged property summaries
      */
@@ -377,7 +343,7 @@ export class SchemaExtractor {
     }
 
     /**
-     * Convert schema-infer type to our PropertyType.
+     * Convert inferSchema type to our PropertyType.
      * @param schema - Inferred schema to convert type from
      * @returns Corresponding PropertyType
      */

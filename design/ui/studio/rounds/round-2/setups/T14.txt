@@ -1,0 +1,14 @@
+# T14 start: label line on Everything, then PageRank picked by click (a setup never depends on
+# Enter in the Analyze search). Run whole on 2026-10-06 (setup-check/01.png): an Influence row,
+# names drawn, "77 labels, 7 hidden to avoid overlap".
+--click No thanks
+--click Open the Les Miserables sample
+--click Everything
+--click role=tab:Style
+--click Add label line
+--click role=option:name
+--key Escape
+--key Shift+A
+--type PageRank
+--click PageRank
+--click Run

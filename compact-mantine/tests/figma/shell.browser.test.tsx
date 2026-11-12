@@ -24,6 +24,7 @@ import {
     ToolGroup,
     type ToolItem,
 } from "../../src";
+import { untilPasses } from "../../stories/helpers/settled";
 import {
     animationsSettled,
     drive,
@@ -235,19 +236,17 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             expectMeasured(chevron, await fig("bc/tool-chevron--focus", 34, ["outline", "outlineOffset"]));
         });
 
-        it("opens a dark menu 4px above, start-aligned, with radio rows; the chevron stays pressed", async () => {
+        // Figma's flyout is dark in both themes; ours follows the page (light here), so the
+        // surface and row colors are the page-themed menu's and only the geometry is Figma's.
+        it("opens a menu 4px above, start-aligned, with radio rows; the chevron stays pressed", async () => {
             const { container } = await renderFigma(group());
             const chevron = part(container, ".cm-tool-chevron");
             await drive(chevron, "open");
             const menu = part(document.body, "[role='menu']");
+            expectMeasured(menu, { backgroundColor: "#ffffff" });
             expectMeasured(
                 menu,
-                await fig("bt/flyout-ShapeTools-chevron", 115, [
-                    "backgroundColor",
-                    "borderRadius",
-                    "paddingTop",
-                    "paddingBottom",
-                ]),
+                await fig("bt/flyout-ShapeTools-chevron", 115, ["borderRadius", "paddingTop", "paddingBottom"]),
             );
             const c = chevron.getBoundingClientRect();
             const m = menu.getBoundingClientRect();
@@ -258,13 +257,7 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             const row = part(menu, "[role='menuitemradio'][aria-checked='true']");
             expectMeasured(
                 row,
-                await fig("bt/flyout-ShapeTools-chevron", 119, [
-                    "height",
-                    "color",
-                    "fontSize",
-                    "lineHeight",
-                    "fontWeight",
-                ]),
+                await fig("bt/flyout-ShapeTools-chevron", 119, ["height", "fontSize", "lineHeight", "fontWeight"]),
             );
             const check = part(row, ".cm-tool-flyout-check");
             const label = part(row, "[class*='itemLabel']");
@@ -515,9 +508,10 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             const tip = openTooltip();
             expect(tip).not.toBeNull();
             // floating-ui places the tooltip asynchronously after it mounts: wait for the placement,
-            // on the real clock so waiting steps no tooltip timer.
+            // on the real clock so waiting steps no tooltip timer, and on frames rather than a
+            // deadline that a stalled main thread runs out (#2719).
             vi.useRealTimers();
-            await vi.waitFor(() => {
+            await untilPasses(() => {
                 const t = (tip as HTMLElement).getBoundingClientRect();
                 const b = button.getBoundingClientRect();
                 const pill = part(button, ".cm-rail-pill").getBoundingClientRect();

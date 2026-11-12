@@ -250,6 +250,27 @@ describe.skipIf(!(await figmaAvailable()))("color package against Figma", () => 
         expect(onOpacityChange.mock.calls[0][0]).toBe(expected);
     });
 
+    it("a finger dragged on the % scrubs it, rather than landing on the text box beside it", async () => {
+        const onOpacityChange = vi.fn();
+        const { container } = await renderFigma(
+            <PopoutManager>
+                <CompactColorInput
+                    color="#3373E5"
+                    opacity={50}
+                    defaultColor="#000000"
+                    onOpacityChange={onOpacityChange}
+                />
+            </PopoutManager>,
+        );
+        container.querySelector(".cm-paint-suffix")?.setAttribute("data-testid", "touch-scrub");
+        await commands.touchDrag("[data-testid='touch-scrub']", -40);
+        await vi.waitFor(() => {
+            expect(onOpacityChange).toHaveBeenCalledTimes(1);
+        });
+        // The test frame may be scaled, so the exact pixels-to-percent ratio is not asserted here.
+        expect(onOpacityChange.mock.calls[0][0]).toBeLessThan(50);
+    });
+
     describe.each([
         ["light", "ii/colour-picker-solid"],
         ["dark", "dt/dark-color-picker"],
@@ -373,6 +394,13 @@ describe.skipIf(!(await figmaAvailable()))("color package against Figma", () => 
             );
             const picker = part(container, ".cm-color-picker");
             const buttons = [...picker.querySelectorAll<HTMLElement>(".cm-color-swatch-button")];
+            // Exactly the swatches passed in: the color the picker opened on is not added.
+            expect(buttons).toHaveLength(10);
+            // No ring, no dot: Figma marks no swatch.
+            for (const button of buttons) {
+                expect(getComputedStyle(button).outlineColor).toBe("rgba(0, 0, 0, 0)");
+                expect(getComputedStyle(button, "::after").content).toBe("none");
+            }
             expectMeasured(
                 buttons[0],
                 { ...figmaSpec(first, ["width", "height", "borderRadius"]), x: 16 },
@@ -391,7 +419,7 @@ describe.skipIf(!(await figmaAvailable()))("color package against Figma", () => 
                 expectMeasured(part(buttons[1], ".cm-chit-shadow"), figmaSpec(ringed, ["boxShadow"]));
             }
             expectMeasured(part(buttons[0], ".cm-chit-shadow"), { boxShadow: "none" });
-            expect(buttons[0]).toHaveAccessibleName("#D9D9D9");
+            expect(buttons[0]).toHaveAccessibleName("light gray D9D9D9");
         });
 
         it("keyboard focus on a slider grows the thumb and rings it at -2px", async () => {
@@ -737,7 +765,7 @@ describe.skipIf(!(await figmaAvailable()))("color package against Figma", () => 
             await userEvent.click(hexBox);
             await userEvent.keyboard("{Control>}a{/Control}123456{Escape}");
             expect(hexBox).toHaveValue("3373E5");
-            expect(document.activeElement).not.toBe(hexBox);
+            expect(document.activeElement).toBe(hexBox);
             const opacity = part(container, ".cm-paint-opacity .cm-paint-input");
             await userEvent.click(opacity);
             await userEvent.keyboard("{Control>}a{/Control}12{Escape}");

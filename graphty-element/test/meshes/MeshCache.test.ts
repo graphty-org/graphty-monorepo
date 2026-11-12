@@ -1,5 +1,5 @@
 import { MeshBuilder, NullEngine, RawTexture, Scene, StandardMaterial } from "@babylonjs/core";
-import { assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { MeshCache } from "../../src/meshes/MeshCache";
 
@@ -10,6 +10,10 @@ describe("MeshCache", () => {
     beforeEach(() => {
         scene = new Scene(new NullEngine());
         cache = new MeshCache();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     /**
@@ -62,5 +66,17 @@ describe("MeshCache", () => {
             "textured-material",
         );
         assert.include(scene.textures, shared, "a texture other materials may hold survives");
+    });
+
+    it("sourceFor makes the source with no instance, and get then instances that same source", () => {
+        const source = cache.sourceFor("shape", () => MeshBuilder.CreateBox("box", {}, scene));
+
+        assert.lengthOf(source.instances, 0);
+        assert.strictEqual(
+            cache.sourceFor("shape", () => assert.fail("built twice")),
+            source,
+        );
+        const instance = cache.get("shape", () => assert.fail("built twice"));
+        assert.strictEqual(instance.sourceMesh, source);
     });
 });

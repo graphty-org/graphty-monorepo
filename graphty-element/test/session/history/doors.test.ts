@@ -10,13 +10,19 @@
  * `test/browser/doors.test.ts`.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 
 import { COMMANDS } from "../../../commands";
+import { setDefaultFeatures } from "../../../src/features/resolve";
 import { type Door, DOOR_ROOTS, GESTURE_DOORS } from "../../../src/session/commands/doors";
 import { createElementSession, dispatcherOf } from "../../../src/session/GraphSession";
 import type { ElementSession } from "../../../src/session/types";
 import { callOf, checkDispatches, dispatchesOf } from "./door-harness";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 /** The document the `LoadDraft` row of `doors.ts` prepares. */
 const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] });
@@ -61,6 +67,30 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
         session.scope.save("door seed", "graph");
         return session.scope;
     },
+    // A visit whose one step has started the degree run over the graph.
+    ScopeEdit: async (session) => {
+        const edit = session.scope.edit();
+        const rule = {
+            kind: "union",
+            side: "nodes",
+            within: "graph",
+            branches: [
+                {
+                    start: "all",
+                    steps: [{ op: "keep", rule: { kind: "measure", algorithm: "degree", field: "value" } }],
+                },
+            ],
+        } as const;
+        await new Promise<void>((resolve) => {
+            const watch = session.scope.watchSteps(rule, (reading) => {
+                if (reading.branches[0]?.steps[0]?.run !== null) {
+                    watch.end();
+                    resolve();
+                }
+            });
+        });
+        return edit;
+    },
     SetsApi: async (session) => {
         await selectOne(session);
         session.sets.create({ kind: "fixed", nodes: ["d1"], reading: "induced" }, { name: "door seed" });
@@ -74,9 +104,11 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     SessionLayout: (session) => session.layout,
     SessionConfig: (session) => session.config,
     VisibilityApi: (session) => session.visibility,
+    TimeApi: (session) => session.time,
     SessionVisibilityApi: (session) => session.visibility,
     StylesApi: (session) => session.styles,
     SessionStylesApi: (session) => session.styles,
+    SessionShaders: (session) => session.shaders,
     SessionPositions: (session) => session.positions,
 };
 

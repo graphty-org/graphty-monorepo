@@ -1,3 +1,86 @@
+## 1.5.1 (2026-11-10)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.5.0 (2026-11-09)
+
+### 🚀 Features
+
+- **graph-format:** share the text grammar, the seeded generator and the plain-object check ([#736](https://github.com/graphty-org/graphty-monorepo/issues/736))
+
+## 1.4.12 (2026-11-02)
+
+### 🩹 Fixes
+
+- **graphty-element:** keep lint type checks inside the worktree ([#5296](https://github.com/graphty-org/graphty-monorepo/issues/5296))
+
+## 1.4.11 (2026-11-01)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.10 (2026-10-31)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.9 (2026-10-29)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.8 (2026-10-28)
+
+### 🩹 Fixes
+
+- **ci:** preset FC_FONTATIONS for every Chromium launch; one shared vitest base ([#3787](https://github.com/graphty-org/graphty-monorepo/issues/3787))
+- **graph-format:** keep the staging reservation growth constants module-private ([4f5da0fe17](https://github.com/graphty-org/graphty-monorepo/commit/4f5da0fe17))
+- **graph-format:** reserve staging address space in proportion to use ([26b32bef16](https://github.com/graphty-org/graphty-monorepo/commit/26b32bef16))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+- graphty-agent @graphty-agent
+
+## 1.4.7 (2026-10-21)
+
+### 🚀 Features
+
+- **graph-io:** network source framework (experimental) ([#2907](https://github.com/graphty-org/graphty-monorepo/issues/2907))
+
+### 🩹 Fixes
+
+- **graph-format:** keep the staging reservation growth constants module-private ([375d33678](https://github.com/graphty-org/graphty-monorepo/commit/375d33678))
+- **graph-format:** reserve staging address space in proportion to use ([89de6ec7d](https://github.com/graphty-org/graphty-monorepo/commit/89de6ec7d))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.4.6 (2026-10-20)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.5 (2026-10-18)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.4 (2026-10-17)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.3 (2026-10-17)
+
+### 🩹 Fixes
+
+- **graph-format:** keep the staging reservation growth constants module-private ([bd9e2bf64](https://github.com/graphty-org/graphty-monorepo/commit/bd9e2bf64))
+- **graph-format:** reserve staging address space in proportion to use ([328de8926](https://github.com/graphty-org/graphty-monorepo/commit/328de8926))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.4.2 (2026-10-15)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
 ## 1.4.1 (2026-10-14)
 
 This was a version bump only for graph-format to align it with other projects, there were no code changes.

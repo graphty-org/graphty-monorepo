@@ -1,13 +1,14 @@
 /**
  * API Key Manager Module - Session and persistent storage for API keys.
- * Uses encrypt-storage for AES encryption of persisted keys.
+ * Uses encrypt-storage for AES encryption of persisted keys (an optional peer; see ./encryptStorage).
  * @module ai/keys/ApiKeyManager
  */
 
-import { EncryptStorage } from "encrypt-storage";
+import type { EncryptStorage } from "encrypt-storage";
 
 import type { ProviderType } from "../providers";
 import { deriveKeyFromPassphrase } from "./deriveKeyFromPassphrase";
+import { encryptStorage } from "./encryptStorage";
 
 type StorageType = "localStorage" | "sessionStorage";
 
@@ -76,6 +77,8 @@ const MIN_ENCRYPTION_KEY_LENGTH = 10;
 /** Item names inside the encrypted store */
 const KEYS_ITEM = "keys";
 const DEFAULT_PROVIDER_ITEM = "default-provider";
+/** Other namespaces of the credential store (the network-source credentials), in the same store. */
+const EXTRAS_ITEM = "extras";
 
 /**
  * Manages API keys for LLM providers.
@@ -93,6 +96,7 @@ const DEFAULT_PROVIDER_ITEM = "default-provider";
  */
 export class ApiKeyManager {
     private readonly keys = new Map<ProviderType, string>();
+    private readonly extras = new Map<string, unknown>();
     private defaultProvider: ProviderType | null = null;
     private persistenceConfig: Required<PersistenceConfig> | null = null;
     private encryptStorage: EncryptStorage | null = null;
@@ -189,6 +193,9 @@ export class ApiKeyManager {
         // A store this key cannot read is left alone rather than overwritten with nothing
         if (this.loadPersistedKeys() !== "unreadable") {
             this.persistKeys();
+            if (this.extras.size > 0) {
+                this.persistExtras();
+            }
         }
 
         return true;
@@ -204,6 +211,7 @@ export class ApiKeyManager {
         if (clearStorage && this.encryptStorage) {
             this.encryptStorage.removeItem(KEYS_ITEM);
             this.encryptStorage.removeItem(DEFAULT_PROVIDER_ITEM);
+            this.encryptStorage.removeItem(EXTRAS_ITEM);
         }
 
         this.rememberSessionKey(null);
@@ -268,6 +276,108 @@ export class ApiKeyManager {
         if (this.encryptStorage) {
             this.persistKeys();
         }
+    }
+
+    /**
+     * Remove a provider's key from memory and from both storages, wherever an earlier page or
+     * another `storage` setting left it. {@link removeKey} reaches only the storage in use. The
+     * other providers' keys stay where they are.
+     * @experimental assistant
+     * @param provider - The provider type
+     */
+    forgetKey(provider: ProviderType): void {
+        this.keys.delete(provider);
+        this.eachStore((store) => {
+            const stored = readKeys(store);
+            if (stored !== null && provider in stored) {
+                const { [provider]: _forgotten, ...kept } = stored;
+                store.setItem(KEYS_ITEM, kept);
+            }
+        });
+    }
+
+    /**
+     * Remove every provider's key from memory and from both storages; see {@link forgetKey}.
+     * @experimental assistant
+     */
+    forgetKeys(): void {
+        this.keys.clear();
+        this.eachStore((store) => {
+            store.removeItem(KEYS_ITEM);
+        });
+    }
+
+    /**
+     * Move the keys another `storage` setting left into the storage in use, so a key is never kept
+     * in the one the host just moved away from. Nothing without persistence on.
+     * @experimental assistant
+     */
+    retireOtherStorage(): void {
+        const config = this.persistenceConfig;
+        if (config === null || globalThis.window === undefined) {
+            return;
+        }
+
+        const storage = config.storage === "localStorage" ? "sessionStorage" : "localStorage";
+        const store = this.openStorage({ ...config, storage });
+        const stored = readKeys(store);
+        if (stored === null) {
+            return;
+        }
+
+        for (const [provider, key] of Object.entries(stored)) {
+            if (!this.keys.has(provider as ProviderType)) {
+                this.keys.set(provider as ProviderType, key);
+            }
+        }
+
+        this.persistKeys();
+        store.removeItem(KEYS_ITEM);
+    }
+
+    /**
+     * Visit the encrypted store of both storages, under the key persistence uses.
+     * @param visit - What to do with each.
+     */
+    private eachStore(visit: (store: EncryptStorage) => void): void {
+        if (globalThis.window === undefined) {
+            return;
+        }
+
+        const { encryptionKey, prefix } = this.persistenceConfig ?? {
+            encryptionKey: DEFAULT_ENCRYPTION_KEY,
+            prefix: this.prefix,
+        };
+        for (const storage of ["localStorage", "sessionStorage"] as const) {
+            visit(this.openStorage({ encryptionKey, storage, prefix }));
+        }
+    }
+
+    /**
+     * Read a named item another namespace of the credential store keeps beside the keys, under the
+     * same persistence and encryption (`CredentialStore` keeps the network-source credentials
+     * here). In memory when persistence is off.
+     * @param name - The item's name
+     * @returns The value, or undefined
+     */
+    getStoredItem(name: string): unknown {
+        return this.extras.get(name);
+    }
+
+    /**
+     * Write, or with undefined remove, a named item kept beside the keys; see {@link getStoredItem}.
+     * It is persisted at once when persistence is on, and goes with the keys when it is turned off.
+     * @param name - The item's name
+     * @param value - Plain JSON data, or undefined to remove it
+     */
+    setStoredItem(name: string, value: unknown): void {
+        if (value === undefined) {
+            this.extras.delete(name);
+        } else {
+            this.extras.set(name, value);
+        }
+
+        this.persistExtras();
     }
 
     /**
@@ -348,9 +458,11 @@ export class ApiKeyManager {
      * Open the encrypted store for a configuration.
      * @param config - The persistence configuration
      * @returns The encrypted store
+     * @throws A `GraphtyError` with `E_MISSING_PACKAGE` when `encrypt-storage` is not installed.
      */
     private openStorage(config: Required<PersistenceConfig>): EncryptStorage {
-        return new EncryptStorage(config.encryptionKey, {
+        const EncryptStorageClass = encryptStorage();
+        return new EncryptStorageClass(config.encryptionKey, {
             prefix: config.prefix,
             storageType: config.storage,
         });
@@ -409,6 +521,18 @@ export class ApiKeyManager {
     }
 
     /**
+     * Persist the other namespaces' items. Written only by the manager that holds them, so a second
+     * manager on the same storage, which holds none, never overwrites them with nothing.
+     */
+    private persistExtras(): void {
+        if (!this.encryptStorage) {
+            return;
+        }
+
+        this.encryptStorage.setItem(EXTRAS_ITEM, Object.fromEntries(this.extras));
+    }
+
+    /**
      * Load persisted keys and the default provider into memory. Keys in memory win over stored ones.
      * @returns "absent" when nothing is stored, "unreadable" when the stored keys cannot be
      * decrypted with this encryption key, "loaded" otherwise
@@ -436,6 +560,12 @@ export class ApiKeyManager {
         }
 
         this.defaultProvider ??= readDefaultProvider(this.encryptStorage);
+        for (const [name, value] of Object.entries(readExtras(this.encryptStorage))) {
+            if (!this.extras.has(name)) {
+                this.extras.set(name, value);
+            }
+        }
+
         return "loaded";
     }
 }
@@ -470,5 +600,19 @@ function readDefaultProvider(store: EncryptStorage): ProviderType | null {
         return typeof value === "string" ? (value as ProviderType) : null;
     } catch {
         return null;
+    }
+}
+
+/**
+ * Read and decrypt the other namespaces' items.
+ * @param store - The encrypted store
+ * @returns The items by name; empty when absent or unreadable
+ */
+function readExtras(store: EncryptStorage): Record<string, unknown> {
+    try {
+        const value: unknown = store.getItem(EXTRAS_ITEM);
+        return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+    } catch {
+        return {};
     }
 }

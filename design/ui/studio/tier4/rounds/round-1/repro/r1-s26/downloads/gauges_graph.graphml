@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d0" for="graph" attr.name="graphty.styles" attr.type="string"/>
+  <key id="d1" for="node" attr.name="lat" attr.type="double"/>
+  <key id="d2" for="node" attr.name="lon" attr.type="double"/>
+  <key id="d3" for="node" attr.name="depth_cm" attr.type="string"/>
+  <key id="d4" for="node" attr.name="station" attr.type="string"/>
+  <key id="d5" for="node" attr.name="code" attr.type="string"/>
+  <key id="d6" for="node" attr.name="installed" attr.type="string"/>
+  <key id="d7" for="node" attr.name="telemetry" attr.type="string"/>
+  <key id="d8" for="node" attr.name="graphty.style.node.layer.2.member" attr.type="string"/>
+  <key id="d9" for="node" attr.name="graphty.style.node.layer.3.member" attr.type="string"/>
+  <key id="d10" for="node" attr.name="graphty.style.node.layer.4.member" attr.type="string"/>
+  <key id="d11" for="node" attr.name="graphty.style.node.hidden" attr.type="boolean"/>
+  <key id="d12" for="node" attr.name="nodegraphics" yfiles.type="nodegraphics"/>
+  <key id="d13" for="edge" attr.name="km" attr.type="double"/>
+  <key id="d14" for="edge" attr.name="graphty.style.edge.layer.2.member" attr.type="string"/>
+  <key id="d15" for="edge" attr.name="edgegraphics" yfiles.type="edgegraphics"/>
+  <graph id="G" edgedefault="directed">
+    <data key="d0">{"version":1,"source":{"format":"graphml","dialect":"graphty","tool":"graphty"},"units":{"length":"px"},"graph":{},"rules":[{"id":"node.defaults","target":"node","role":"defaults","origin":"tool","where":{"all":true},"set":{"fill":"#6366f1","width":1,"height":1,"graphty:node.shape":"icosphere"}},{"id":"edge.defaults","target":"edge","role":"defaults","origin":"tool","where":{"all":true},"set":{"color":"#a9a9a9","width":8,"lineStyle":"solid","graphty:edge.animationSpeed":0}},{"id":"Everything","target":"edge","role":"group","origin":"declared","where":{"all":true},"set":{"color":"#a9a9a9","width":8,"lineStyle":"solid","graphty:edge.animationSpeed":0},"facts":{"elements":14},"ext":{"@graphty/graphty-element":{"name":"Everything","target":"edge","kind":"custom","selector":{"match":"everything"},"set":{"edge.color":"darkgrey","edge.width":8,"edge.style":"solid","edge.animationSpeed":0}}}},{"id":"Everything","target":"node","role":"group","origin":"declared","where":{"all":true},"set":{"fill":"#6366f1","width":1,"height":1,"graphty:node.shape":"icosphere"},"facts":{"elements":12},"ext":{"@graphty/graphty-element":{"name":"Everything","target":"node","kind":"custom","selector":{"match":"everything"},"set":{"node.color":"#6366F1","node.size":1,"node.shape":"icosphere"}}}},{"id":"Pinned","target":"node","role":"group","origin":"declared","where":{"has":{"style":"layer.2.member"}},"set":{"graphty:node.haloColor":"#868E96","graphty:node.haloScale":1.3,"graphty:node.haloOpacity":1},"facts":{"elements":0},"ext":{"@graphty/graphty-element":{"name":"Pinned","target":"node","kind":"custom","selector":{"match":"state","state":"pinned"},"set":{"node.haloColor":"#868E96","node.haloScale":1.3,"node.haloOpacity":1}}}},{"id":"Selected","target":"edge","role":"group","origin":"declared","where":{"has":{"style":"layer.2.member"}},"set":{"graphty:edge.bandColor":"#0077BB","graphty:edge.bandWidth":2.5,"graphty:edge.bandOpacity":1},"facts":{"elements":0},"ext":{"@graphty/graphty-element":{"name":"Selected","target":"edge","kind":"custom","selector":{"match":"state","state":"selected"},"set":{"edge.bandColor":"#0077BB","edge.bandWidth":2.5,"edge.bandOpacity":1}}}},{"id":"Selected","target":"node","role":"group","origin":"declared","where":{"has":{"style":"layer.3.member"}},"set":{"graphty:node.haloColor":"#FFD700","graphty:node.haloScale":1.45,"graphty:node.haloOpacity":1,"graphty:node.glow":"#111111"},"facts":{"elements":0},"ext":{"@graphty/graphty-element":{"name":"Selected","target":"node","kind":"custom","selector":{"match":"state","state":"selected"},"set":{"node.haloColor":"#FFD700","node.haloScale":1.45,"node.haloOpacity":1,"node.glow":"#111111"}}}},{"id":"Hovered","target":"node","role":"group","origin":"declared","where":{"has":{"style":"layer.4.member"}},"facts":{"elements":0},"ext":{"@graphty/graphty-element":{"name":"Hovered","target":"node","kind":"custom","selector":{"match":"state","state":"hovered"}}}},{"id":"node.hidden","target":"node","role":"group","origin":"declared","where":{"has":{"style":"hidden"}},"set":{"visible":false},"facts":{"elements":1}}],"columns":{"node":["layer.2.member","layer.3.member","layer.4.member","hidden"],"edge":["layer.2.member"]},"booleans":{"node":["hidden"],"edge":[]},"data":{"node":{},"edge":{}},"fingerprint":{"nodes":12,"edges":14,"ids":"e1ea8f5d859e8379"}}</data>
+    <node id="G01">
+      <data key="d1">44.4759</data>
+      <data key="d2">-73.2121</data>
+      <data key="d3">118</data>
+      <data key="d4">Upper Falls</data>
+      <data key="d5">0041</data>
+      <data key="d6">1998-05-12</data>
+      <data key="d7">yes</data>
+      <data key="d12">
+        <y:ShapeNode>
+          <y:Geometry height="1" width="1" x="-0.333879292011261" y="-13.424702644348145"/>
+          <y:Fill color="#6366F1" transparent="false"/>
+        </y:ShapeNode>
+      </data>
+    </node>
+    <node id="G02">
+      <data key="d1">44.461</data>
+      <data key="d2">-73.205</data>
+      <data key="d3">96</data>
+      <data key="d4">Mill Pond</data>
+      <data key="d5">0042</data>
+      <data key="d6">2003-07-01</data>
+      <data key="d7">yes</data>
+      <data key="d12">
+        <y:ShapeNode>
+          <y:Geometry height="1" width="1" x="0.32379746437072754" y="-7.856139183044434"/>
+          <y:Fill color="#6366F1" transparent="false"/>
+        </y:ShapeNode>
+      </data>
+    </node>
+    <node id="G03">
+      <data key="d1">44.4502</data>
+      <data key="d2">-73.189</data>
+      <data key="d3">140</data>
+      <data key="d4">Cedar Bend</data>
+      <data key="d5">0057</data>
+      <data key="d6">2001-04-18</data>
+      <data key="d7">no</data>
+      <data key="d12">
+        <y:ShapeNode>
+          <y:Geometry height="1" width="1" x="-4.907193660736084" y="1.7755696773529053"/>
+          <y:Fill color="#6366F1" transparent="false"/>
+        </y:ShapeNode>
+      </data>
+    </node>
+    <node id="G04">
+      <data key="d1">44.4388</data>
+      <data key="d2">-73.1765</data>
+      <data key="d3">72</data>
+      <data key="d4">Fox Creek</data>
+      <data key="d5">0063</data>
+      <data key="d6">2010-09-09</data>
+      <data key="d7">yes</data>
+      <data key="d12">
+        <y:ShapeNode>
+          <y:Geometry height="1" width="1" x="-4.106024742126465" y="13.003890991210938"/>
+          <y:Fill color="#6366F1" transparent="false"/>
+        </y:ShapeNode>
+      </data>
+    </node>
+    <node id="G05">
+      <data key="d1">44.4291</data>
+      <data key="d2">-73.165</data>
+      <data key="d3">155</data>
+      <data key="d4">Old Bridge</data>
+      <data key="d5">0068</data>
+      <data key="d6">1995-06-30</data>
+      <data key="d7">no</data>
+      <data key="d12">
+        <y:ShapeNode>
+          <y:Geometry height="1" width="1" x="-9.488073348999023" y="14.245509147644043"/>
+          <y:Fill color="#6366F1" transparent="false"/>
+        </y:ShapeNode>
+      </data>
+    </node>
+    <node id="G06">
+      <data key="d1">44.487</data>
+      <data key="d2">-73.229</data>
+      <data key="d3">64</data>
+      <data key="d4">  Willow Run</data>
+      <data key="d5">0071</data>
+      <data key="d6">2012-03-14</data>
+      <data key="d7">yes</data>
+      <data key="d12">
+        <y:ShapeNode>
+          <y:Geometry height="1" width="1" x="2.1431031227111816" y="-14.65233039855957"/>
+          <y:Fill color="#6366F1" transparent="false"/>
+        </y:ShapeNode>
+      </data>
+    </node>
+    <node id="G07">
+      <data key="d1">44.417</data>
+      <data key="d2">-73.153</data>
+      <data key="d3">-</data>
+      <data key="d4">Stone Weir</data>
+      <data key="d5">0075</data>
+      <data key="d6">2008-08-22</data>
+      <data key="d7">yes</data>
+      <data key="d12">
+        <y:ShapeNode>
+          <y:Geometry height="1" width="1" x="-9.365165710449219" y="9.106644630432129"/>
+          <y:Fill color="#6366F1" transparent="false"/>
+        </y:ShapeNode>
+      </data>
+    </node>
+    <node id="G08">
+      <data key="d1">44.4055</data>
+      <data key="d2">-73.1402</data>
+      <data key="d3">48</data>
+      <data key="d4">Heron Marsh</data>
+      <data key="d5">0080</data>
+      <data key="d6">2015-05-05</data>
+      <data key="d7">no</data>
+      <data key="d12">
+        <y:ShapeNode>
+          <y:Geometry height="1" width="1" x="-0.03596612811088562" y="9.710025787353516"/>
+          <y:Fill color="#6366F1" transparent="false"/>
+        </y:ShapeNode>
+      </data>
+    </node>
+    <node id="G09">
+      <data key="d1">44.394</data>
+      <data key="d2">-73.129</data>
+      <data key="d3">210</data>
+      <data key="d4">Lake Inlet</data>
+      <data key="d5">0084</data>
+      <data key="d6">1999-10-11</data>
+      <data key="d7">yes</data>
+      <data key="d12">
+        <y:ShapeNode>
+          <y:Geometry height="1" width="1" x="10.804718017578125" y="6.453670024871826"/>
+          <y:Fill color="#6366F1" transparent="false"/>
+        </y:ShapeNode>
+      </data>
+    </node>
+    <node id="G10">
+      <data key="d1">44.4985</data>
+      <data key="d2">-73.241</data>
+      <data key="d3">57</data>
+      <data key="d4">Birch Hollow</data>
+      <data key="d5">0090</data>
+      <data key="d6">2018-06-27</data>
+      <data key="d7">no</data>
+      <data key="d12">
+        <y:ShapeNode>
+          <y:Geometry height="1" width="1" x="9.412895202636719" y="-19.145187377929688"/>
+          <y:Fill color="#6366F1" transparent="false"/>
+        </y:ShapeNode>
+      </data>
+    </node>
+    <node id="G11">
+      <data key="d1">44.444</data>
+      <data key="d2">-73.2005</data>
+      <data key="d3">88</data>
+      <data key="d4">Quarry Pool</data>
+      <data key="d5">0093</data>
+      <data key="d6">2006-01-16</data>
+      <data key="d7">yes</data>
+      <data key="d12">
+        <y:ShapeNode>
+          <y:Geometry height="1" width="1" x="-9.923934936523438" y="-6.981245040893555"/>
+          <y:Fill color="#6366F1" transparent="false"/>
+        </y:ShapeNode>
+      </data>
+    </node>
+    <node id="G12">
+      <data key="d11">true</data>
+      <data key="d12">
+        <y:ShapeNode>
+          <y:Geometry height="1" width="1" x="17.98944664001465" y="-1.5117782354354858"/>
+          <y:Fill color="#6366F1" transparent="false"/>
+        </y:ShapeNode>
+      </data>
+    </node>
+    <edge source="G06" target="G01">
+      <data key="d13">3.2</data>
+      <data key="d15">
+        <y:PolyLineEdge>
+          <y:LineStyle color="#A9A9A9" type="line" width="8"/>
+        </y:PolyLineEdge>
+      </data>
+    </edge>
+    <edge source="G10" target="G06">
+      <data key="d13">2.8</data>
+      <data key="d15">
+        <y:PolyLineEdge>
+          <y:LineStyle color="#A9A9A9" type="line" width="8"/>
+        </y:PolyLineEdge>
+      </data>
+    </edge>
+    <edge source="G01" target="G02">
+      <data key="d13">1.9</data>
+      <data key="d15">
+        <y:PolyLineEdge>
+          <y:LineStyle color="#A9A9A9" type="line" width="8"/>
+        </y:PolyLineEdge>
+      </data>
+    </edge>
+    <edge source="G02" target="G03">
+      <data key="d13">2.4</data>
+      <data key="d15">
+        <y:PolyLineEdge>
+          <y:LineStyle color="#A9A9A9" type="line" width="8"/>
+        </y:PolyLineEdge>
+      </data>
+    </edge>
+    <edge source="G11" target="G02">
+      <data key="d13">1.6</data>
+      <data key="d15">
+        <y:PolyLineEdge>
+          <y:LineStyle color="#A9A9A9" type="line" width="8"/>
+        </y:PolyLineEdge>
+      </data>
+    </edge>
+    <edge source="G03" target="G04">
+      <data key="d13">2.1</data>
+      <data key="d15">
+        <y:PolyLineEdge>
+          <y:LineStyle color="#A9A9A9" type="line" width="8"/>
+        </y:PolyLineEdge>
+      </data>
+    </edge>
+    <edge source="G04" target="G05">
+      <data key="d13">1.7</data>
+      <data key="d15">
+        <y:PolyLineEdge>
+          <y:LineStyle color="#A9A9A9" type="line" width="8"/>
+        </y:PolyLineEdge>
+      </data>
+    </edge>
+    <edge source="G05" target="G07">
+      <data key="d13">2.5</data>
+      <data key="d15">
+        <y:PolyLineEdge>
+          <y:LineStyle color="#A9A9A9" type="line" width="8"/>
+        </y:PolyLineEdge>
+      </data>
+    </edge>
+    <edge source="G07" target="G08">
+      <data key="d13">1.9</data>
+      <data key="d15">
+        <y:PolyLineEdge>
+          <y:LineStyle color="#A9A9A9" type="line" width="8"/>
+        </y:PolyLineEdge>
+      </data>
+    </edge>
+    <edge source="G08" target="G09">
+      <data key="d13">2.2</data>
+      <data key="d15">
+        <y:PolyLineEdge>
+          <y:LineStyle color="#A9A9A9" type="line" width="8"/>
+        </y:PolyLineEdge>
+      </data>
+    </edge>
+    <edge source="G09" target="G12">
+      <data key="d13">4</data>
+      <data key="d15">
+        <y:PolyLineEdge>
+          <y:LineStyle color="#A9A9A9" type="line" width="8"/>
+        </y:PolyLineEdge>
+      </data>
+    </edge>
+    <edge source="G11" target="G03">
+      <data key="d13">2</data>
+      <data key="d15">
+        <y:PolyLineEdge>
+          <y:LineStyle color="#A9A9A9" type="line" width="8"/>
+        </y:PolyLineEdge>
+      </data>
+    </edge>
+    <edge source="G04" target="G08">
+      <data key="d13">3.6</data>
+      <data key="d15">
+        <y:PolyLineEdge>
+          <y:LineStyle color="#A9A9A9" type="line" width="8"/>
+        </y:PolyLineEdge>
+      </data>
+    </edge>
+    <edge source="G05" target="G08">
+      <data key="d13">3.1</data>
+      <data key="d15">
+        <y:PolyLineEdge>
+          <y:LineStyle color="#A9A9A9" type="line" width="8"/>
+        </y:PolyLineEdge>
+      </data>
+    </edge>
+  </graph>
+</graphml>

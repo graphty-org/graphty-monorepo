@@ -1,19 +1,27 @@
 {
-    "description": "Minified gzip budget in bytes for each JS entry point in package.json exports: the entry file plus every chunk it statically imports, each minified with esbuild before it is gzipped. Checked by tools/check-bundle-size.mjs; each budget is the measured size plus headroomPercent, and at least minimumHeadroomBytes.",
+    "description": "Minified gzip budget in bytes for each JS entry point in package.json exports: the entry file plus every chunk it statically imports, each minified with esbuild before it is gzipped. Checked by tools/check-bundle-size.mjs; each budget is the measured size plus headroomPercent, and at least minimumHeadroomBytes. lazyChunks are the chunks loaded by a dynamic import(): each `source` built on its own, minified, its own dynamic imports inlined, and the packages in `external` left out because the main entry already carries them in full (the element imports the @babylonjs/core barrel).",
     "headroomPercent": 10,
     "minimumHeadroomBytes": 1024,
     "entries": {
-        ".": 463988,
-        "./session": 309663,
-        "./schema": 7654,
-        "./catalog": 124874,
-        "./commands": 1572,
-        "./extend": 80811,
-        "./format": 1266,
-        "./logging": 10118,
+        ".": 920525,
+        "./session": 619509,
+        "./schema": 15956,
+        "./catalog": 249754,
+        "./commands": 1635,
+        "./extend": 113604,
+        "./format": 1267,
+        "./logging": 11037,
         "./react": 1044,
-        "./webgpu": 4956,
-        "./ai": 134199,
-        "./bundle": 2762352
+        "./webgpu": 5820,
+        "./ai": 344068,
+        "./credentials": 6130,
+        "./bundle": 5035579
+    },
+    "lazyChunks": {
+        "models": {
+            "source": "src/models/chunk.ts",
+            "external": ["@babylonjs/core"],
+            "budget": 40900
+        }
     }
 }

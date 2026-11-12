@@ -17,7 +17,8 @@ export class RevisionCache<T> {
 
     /**
      * Create an empty cache.
-     * @param revision - Reads the revision now; any change of value drops every entry.
+     * @param revision - Reads the revision now; any change of value drops every entry. An array
+     *     is compared item by item, so a revision made of several parts needs no token of its own.
      * @param max - The most keys kept within one revision; the oldest is dropped past it.
      */
     constructor(revision: () => unknown, max = Infinity) {
@@ -33,7 +34,7 @@ export class RevisionCache<T> {
      */
     get(key: string, build: () => T): T {
         const revision = this.#revision();
-        if (!Object.is(revision, this.#at)) {
+        if (!sameRevision(revision, this.#at)) {
             this.#values.clear();
             this.#at = revision;
         }
@@ -50,4 +51,18 @@ export class RevisionCache<T> {
         this.#values.set(key, value);
         return value;
     }
+}
+
+/**
+ * Whether two revisions are the same: by identity, or item by item for two arrays.
+ * @param a - One revision.
+ * @param b - The other.
+ * @returns True when nothing in them differs.
+ */
+function sameRevision(a: unknown, b: unknown): boolean {
+    if (Array.isArray(a) && Array.isArray(b)) {
+        return a.length === b.length && a.every((each, at) => Object.is(each, b[at]));
+    }
+
+    return Object.is(a, b);
 }

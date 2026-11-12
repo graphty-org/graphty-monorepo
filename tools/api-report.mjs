@@ -15,10 +15,25 @@
  * a string-literal union of codes or a `CodedFact` `{ code, params }`, never free text. Fields that
  * already exist never fail; see plainStringAdditions.
  *
+ * The check also fails when a report imports an AI framework or provider package
+ * (FRAMEWORK_PACKAGES): graphty-element's assistant keeps every framework behind its internal
+ * engine seam, so no public type names one. And it fails when a report adds an open-ended member
+ * -- typed `unknown`, `any`, `object`, a record of unknown, or an index signature -- to the AI
+ * configuration (OPTION_ROOTS) or any type it reaches, compared with the merge base, unless
+ * OPEN_OPTION_EXCEPTIONS gives the reason: a provider setting becomes a named graphty field, never
+ * a pass-through to whatever the framework underneath takes. See
+ * design/ai/tanstack-ai-harness-design.md, section 7, rules 1 and 3.
+ *
+ * The same comparison fails a report that ADDS anything marking a style layer as special: a property
+ * of a layer or row type named like protected, system, builtin, owner or isBase, or an error code
+ * that protects a layer. Every layer is equal (issue #5905); see specialLayerAdditions. The reader's
+ * own lock (`styles.lockRow`, `StyleRow.locked`, `E_LOCKED`) is allowed.
+ *
  * Usage (after the package is built):
  *   node tools/api-report.mjs <package dir>           rewrite <package dir>/api/*.api.md
  *   node tools/api-report.mjs <package dir> --check   exit 1 when the built API differs from them,
- *                                                     or adds a plain string to a result type
+ *                                                     adds a plain string to a result type, or
+ *                                                     marks a style layer as special
  */
 import { Extractor, ExtractorConfig } from "@microsoft/api-extractor";
 import { execFileSync } from "node:child_process";
@@ -26,6 +41,9 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync }
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { frameworkFamily } from "./ai-framework-packages.mjs";
+
+export { FRAMEWORK_PACKAGES } from "./ai-framework-packages.mjs";
 import { pushBaseRef } from "./push-base.mjs";
 
 /**
@@ -125,26 +143,95 @@ const SESSION_ROOT = "GraphSession";
 export const PLAIN_STRING_ALLOWLIST = new Set([
     // identifiers and keys
     "id",
+    // the consumer's own name for how a step's test is edited (UnionStep.mode): written and read
+    // only by the consumer, never words graphty-element shows
+    "mode",
     "key",
     "nodeId",
     "edgeId",
     "runId",
+    // the credential slot a source load filled, as the project file names it (PendingSourceLoad)
+    "credentialSlot",
     "field",
     "column",
+    // a table's id in a load draft, ready for a mapping (TimeFound)
+    "table",
+    // the column a load read (the weight's attribute, the columns an edge's ends came from)
+    "attribute",
+    "source",
+    "target",
+    // a registered file format's id ("gexf", "graphml")
+    "format",
+    // an IANA time zone name
+    "timeZone",
+    "parseZone",
     // names the consumer or its data gave (an attribute, a set, a layer), and catalog names (#1332)
     "name",
     "technicalName",
     "plainName",
+    // the reader's own first message, their data, never the element's words (AiConversationSummary)
+    "firstWords",
     // machine values: versions, hashes, timestamps, paths, media types, colors
     "revision",
     "digest",
+    "dataDigest",
     "fingerprint",
+    // a shader text's SHA-256, which trust settings name
+    "hash",
     "version",
     "at",
     "startedAt",
+    "createdAt",
+    "updatedAt",
     "path",
+    // a model part's file: its path in the model's file set (ModelPart.file)
+    "file",
+    // the location a file's relative picture paths resolve against (FileStyleOptions, #5307)
+    "imageBaseUrl",
     "mediaType",
     "color",
+    // the hex color the background is drawn in (SessionConfig.backgroundColor)
+    "backgroundColor",
+    // network sources: a source's id, the service's address and origin, when a load finished,
+    // and the reader's own user name on that service
+    "source",
+    "endpoint",
+    "origin",
+    "loadedAt",
+    "username",
+    // a shader's id and the data path a layer's boundary groups its nodes by
+    "shader",
+    "groupBy",
+    // a shader's GLSL source and its low-detail body, the consumer's own text handed back parsed
+    // (ShaderTextResult.registration)
+    "glsl",
+    "lowDetail",
+    // a 3D model reference exactly as a style layer wrote it: a model id or a URL
+    "ref",
+    // where a model or picture came from, as the consumer gave it: its address, the address's host,
+    // and a dropped file's own name and folder path
+    "url",
+    "host",
+    "fileName",
+    "webkitRelativePath",
+    // the name of a source's credential slot, an identifier its descriptor declares ("api_key")
+    "slot",
+    // the consumer's own words handed back: a style folder's name (StyleDocumentRow.folder) and the
+    // text a reader typed into a find (FindContainsRow.text)
+    "folder",
+    "text",
+    // a BCP 47 locale tag the consumer chose to print numbers in (BindingNumberFormat.locale)
+    "locale",
+    // the names of the consumer's columns the location map reads (LocationColumns)
+    "location",
+    "latitude",
+    "longitude",
+    "within",
+    // the name of the credential slot a load filled, an identifier its source's descriptor declares
+    "credentialSlot",
+    // a branches view's held filter condition and marked branch, each by its id (BranchesView)
+    "hold",
+    "mark",
 ]);
 
 const DECLARATION =
@@ -233,6 +320,13 @@ export function sessionReachable(declarations) {
 }
 
 /**
+ * Types whose every plain string property is a column name of the consumer's table, whatever the
+ * property is called: a table's column roles (TableMapping, where `kind` names the column holding
+ * each row's kind) and a join key's incoming column (JoinKey.file).
+ */
+const COLUMN_NAME_TYPES = new Set(["TableMapping", "JoinKey"]);
+
+/**
  * Whether a result type may hold a plain string under this property name.
  * @param type - the declaring type's name
  * @param property - the property's name
@@ -240,6 +334,7 @@ export function sessionReachable(declarations) {
  */
 function allowedPlainString(type, property) {
     if (PLAIN_STRING_ALLOWLIST.has(property) || /[a-z](Id|Key)$/.test(property)) return true;
+    if (COLUMN_NAME_TYPES.has(type)) return true;
     // catalog descriptions describe the thing registered, not the consumer's graph (#1604)
     return property === "description" && type.endsWith("Descriptor");
 }
@@ -290,13 +385,236 @@ export function plainStringAdditions(baseTexts, headTexts) {
         );
 }
 
+/** A type that describes a style layer or a row of the style tree. */
+const LAYER_TYPE = /Layer|StyleRow|^Row[A-Z]/;
+/** A property, or a literal value of a layer type, that marks a layer as not like the others. */
+const SPECIAL_MARK =
+    /locked.?by|locked.?element|element.?locked|protected|system|built.?in|owner|owned|is.?base|^base$|^element$|editable.?base|special|reserved|immutable|deletable|removable/i;
+/** An error code that refuses a change because of which layer it is; `E_LOCKED` is the reader's own. */
+const SPECIAL_CODE = /"(E_(?:[A-Z]+_)*(?:PROTECT[A-Z]*|SYSTEM|BUILT_?IN|OWNE[DR]|RESERVED|BASE|SPECIAL)(?:_[A-Z]+)*)"/g;
+const PROPERTY_NAME = /^\s+(?:readonly )?([A-Za-z_$][\w$]*)\??:/;
+
 /**
- * Checks a package's committed reports against the merge base's for added plain string fields.
- * @param packageDir - the package's directory
- * @param [env] - the environment (API_REPORT_BASE, GITHUB_BASE_REF, PUSH_BASE_REF)
- * @returns the failure messages
+ * The AI framework or provider packages a report imports.
+ * @param name - the report's file name, for the message
+ * @param text - the report
+ * @returns one failure message per framework import
  */
-export function checkPlainStrings(packageDir, env = process.env) {
+export function frameworkImports(name, text) {
+    return [...text.matchAll(/^import .* from '([^']+)';$/gm)]
+        .map((m) => m[1])
+        .filter((specifier) => frameworkFamily(specifier) !== undefined)
+        .map(
+            (specifier) =>
+                `${name} imports '${specifier}', an AI framework or provider package. No public type may name one: ` +
+                `declare graphty's own type and translate inside src/ai/engine/ (design/ai/tanstack-ai-harness-design.md, rule 1).`,
+        );
+}
+
+/** The AI configuration types whose members, and the members of every type they reach, must be named graphty fields. */
+export const OPTION_ROOTS = ["AiManagerConfig", "ProviderOptions"];
+/**
+ * Open-ended members allowed on the AI configuration anyway, as `Type.member` -> the reason. A
+ * member that already exists on the merge base never fails, so this lists only deliberate additions.
+ */
+export const OPEN_OPTION_EXCEPTIONS = new Map([
+    [
+        "AiToolCallFacts.arguments",
+        "the model's tool-call arguments, handed to the consumer's approval policy as data to judge; not a setting passed through to a framework",
+    ],
+]);
+
+/** `unknown`, `any` or `object` anywhere in a type (not a property name), or an empty object type `{}`. */
+const OPEN_TYPE = /(?<![\w$.])(?:unknown|any|object)(?![\w$]|\??:)|\{\s*\}/;
+const INDEX_MEMBER = /^\s+(?:readonly )?\[[A-Za-z_$][\w$]*: (?:string|number|symbol|PropertyKey)\]\??: /;
+const MEMBER_NAME = /^\s+(?:readonly )?([A-Za-z_$][\w$]*)\??/;
+
+/**
+ * Whether a type text is open-ended: it admits anything somewhere, as a union member, a type
+ * argument (`Record<string, unknown>`, `Map<string, any>`, `unknown[]`), a parameter or return of a
+ * function type, or a property of an inline object type.
+ * @param type - the type text
+ * @returns true when it is open-ended
+ */
+function isOpenType(type) {
+    return OPEN_TYPE.test(type.replaceAll(/(["'`])(?:\\.|(?!\1)[^\\])*\1/g, '""'));
+}
+
+/**
+ * A type text as the failure names it: trimmed, without its `;` and trailing `| undefined`.
+ * @param type - the type text
+ * @returns the text
+ */
+function typeLabel(type) {
+    return type
+        .trim()
+        .replace(/;$/, "")
+        .replace(/(?: \| (?:undefined|null))+$/, "")
+        .replaceAll(/\s+/g, " ");
+}
+
+/**
+ * The type-parameter list at the start of a declaration's text after its name, such as `<T = unknown>`.
+ * @param text - the declaration line after its name
+ * @returns the list, or "" when there is none
+ */
+function typeParameters(text) {
+    if (!text.startsWith("<")) return "";
+    let depth = 0;
+    for (let i = 0; i < text.length; i++) {
+        if (text[i] === "<") depth++;
+        else if (text[i] === ">" && --depth === 0) return text.slice(0, i + 1);
+    }
+    return text;
+}
+
+/**
+ * Every declaration of several reports, the later report winning a name both declare.
+ * @param texts - the reports
+ * @returns declaration name -> its lines
+ */
+function parseReports(texts) {
+    return new Map(texts.flatMap((t) => [...parseReport(t)]));
+}
+
+/**
+ * The declarations the AI configuration reaches: OPTION_ROOTS, then every type named anywhere in a
+ * declaration already reached.
+ * @param declarations - from parseReports
+ * @returns the reached declaration names
+ */
+export function optionReachable(declarations) {
+    const reached = new Set();
+    const queue = OPTION_ROOTS.filter((root) => declarations.has(root));
+    while (queue.length > 0) {
+        const name = queue.pop();
+        if (reached.has(name)) continue;
+        reached.add(name);
+        const [head, ...rest] = declarations.get(name);
+        for (const [ref] of [head.replace(DECLARATION, ""), ...rest].join("\n").matchAll(/[A-Za-z_$][\w$]*/g)) {
+            if (declarations.has(ref) && !reached.has(ref)) queue.push(ref);
+        }
+    }
+    return reached;
+}
+
+/**
+ * Every open-ended member of the given declarations: a member whose type is open anywhere in it,
+ * an index signature, a type alias whose right-hand side is open, and a type parameter that
+ * defaults to `unknown` or `any`.
+ * @param declarations - from parseReports
+ * @param names - the declarations to read, or undefined for every one
+ * @returns `Type.member` (`Type.[index]`, `Type.[alias]`, `Type.[type parameter]`) -> what makes it open
+ */
+export function openOptionFields(declarations, names) {
+    const found = new Map();
+    for (const [name, lines] of declarations) {
+        if (!names || names.has(name)) addOpenMembers(found, name, lines);
+    }
+    return found;
+}
+
+/**
+ * Adds one declaration's open-ended members to `found`, keyed as openOptionFields keys them.
+ * @param found - where they go
+ * @param name - the declaration's name
+ * @param lines - its lines, the head first
+ */
+function addOpenMembers(found, name, lines) {
+    const [head, ...rest] = lines;
+    const afterName = head.replace(DECLARATION, "");
+    const parameters = typeParameters(afterName);
+    if (/=\s*(?:unknown|any)\b/.test(parameters)) found.set(`${name}.[type parameter]`, parameters);
+    if (/^(?:export )?(?:declare )?type /.test(head)) {
+        const body = [afterName.slice(parameters.length).replace(/^\s*=/, ""), ...rest].join("\n");
+        if (isOpenType(body)) found.set(`${name}.[alias]`, typeLabel(body));
+        return;
+    }
+    for (const member of members(rest)) {
+        if (INDEX_MEMBER.test(member)) {
+            found.set(`${name}.[index]`, "an index signature");
+            continue;
+        }
+        const named = MEMBER_NAME.exec(member);
+        const type = named ? member.slice(named[0].length).replace(/^\s*:/, "") : member;
+        if (named && isOpenType(type)) found.set(`${name}.${named[1]}`, typeLabel(type));
+    }
+}
+
+/**
+ * The open-ended members a report adds to the AI configuration, compared with the base reports.
+ * @param baseTexts - the base reports
+ * @param headTexts - the reports being checked
+ * @returns one failure message per added member
+ */
+export function openOptionFieldAdditions(baseTexts, headTexts) {
+    const before = new Set(openOptionFields(parseReports(baseTexts)).keys());
+    const head = parseReports(headTexts);
+    return [...openOptionFields(head, optionReachable(head))]
+        .filter(([key]) => !before.has(key) && !OPEN_OPTION_EXCEPTIONS.has(key))
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(
+            ([key, kind]) =>
+                `${key} is a new open-ended member (${kind}) of the AI configuration. Name the setting as a graphty ` +
+                `field, never a pass-through to a framework's options; or add it to OPEN_OPTION_EXCEPTIONS in ` +
+                `tools/api-report.mjs with the reason (design/ai/tanstack-ai-harness-design.md, rule 3).`,
+        );
+}
+
+/**
+ * What one line of a declaration marks as special.
+ * @param name - the declaration's name
+ * @param line - the line
+ * @returns its marks
+ */
+function lineMarks(name, line) {
+    const layerType = LAYER_TYPE.test(name);
+    const property = PROPERTY_NAME.exec(line)?.[1];
+    // A property naming a layer or row is judged on any type (`protectedLayers` on a config).
+    const marked = property && SPECIAL_MARK.test(property) && (layerType || /layer|row/i.test(property));
+    const literals = layerType ? [...line.matchAll(/"([A-Za-z_-]+)"/g)].map((match) => match[1]) : [];
+    return [
+        ...(marked ? [`${name}.${property}`] : []),
+        ...literals.filter((literal) => SPECIAL_MARK.test(literal)).map((literal) => `${name}."${literal}"`),
+    ];
+}
+
+/**
+ * Everything in a report that marks a style layer as special.
+ * @param text - the report
+ * @returns `Type.property`, `Type."literal"` and `"E_CODE"` entries
+ */
+export function specialLayerMarks(text) {
+    const codes = [...text.matchAll(SPECIAL_CODE)].map((match) => `"${match[1]}"`);
+    const declared = [...parseReport(text)].flatMap(([name, lines]) => lines.flatMap((line) => lineMarks(name, line)));
+    return new Set([...codes, ...declared]);
+}
+
+/**
+ * The marks of a special layer a report adds, compared with the base reports.
+ * @param baseTexts - the base reports
+ * @param headTexts - the reports being checked
+ * @returns one failure message per added mark
+ */
+export function specialLayerAdditions(baseTexts, headTexts) {
+    const before = new Set(baseTexts.flatMap((t) => [...specialLayerMarks(t)]));
+    const added = new Set(headTexts.flatMap((t) => [...specialLayerMarks(t)].filter((mark) => !before.has(mark))));
+    return [...added]
+        .sort((a, b) => a.localeCompare(b))
+        .map(
+            (mark) =>
+                `${mark} marks a style layer as special. Every layer may be deleted or changed (issue #5905): ` +
+                `nothing in the API may say a layer is protected or owned. The reader's own lock stays allowed.`,
+        );
+}
+
+/**
+ * A package's committed reports, and the reports on the merge base with the branch it merges into.
+ * @param packageDir - the package's directory
+ * @param env - the environment (API_REPORT_BASE, GITHUB_BASE_REF, PUSH_BASE_REF)
+ * @returns the texts of both sets of reports, and the file names of the committed ones
+ */
+function reportsAndBase(packageDir, env) {
     const apiDir = join(resolve(packageDir), "api");
     const top = execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd: apiDir, encoding: "utf8" }).trim();
     // from the top: ls-tree run in a subfolder lists only that subfolder's part of the tree
@@ -311,10 +629,38 @@ export function checkPlainStrings(packageDir, env = process.env) {
     const baseFiles = git("ls-tree", "--name-only", `${base}:${prefix}`)
         .split("\n")
         .filter((f) => f.endsWith(".api.md"));
-    return plainStringAdditions(
-        baseFiles.map((f) => git("show", `${base}:${prefix}/${f}`)),
-        files.map((f) => readFileSync(join(apiDir, f), "utf8")),
-    );
+    return {
+        baseTexts: baseFiles.map((f) => git("show", `${base}:${prefix}/${f}`)),
+        headTexts: files.map((f) => readFileSync(join(apiDir, f), "utf8")),
+        files,
+    };
+}
+
+/**
+ * Checks a package's committed reports: against the merge base's for added plain string fields and
+ * open-ended AI configuration members, and on their own for framework imports.
+ * @param packageDir - the package's directory
+ * @param [env] - the environment (API_REPORT_BASE, GITHUB_BASE_REF, PUSH_BASE_REF)
+ * @returns the failure messages
+ */
+export function checkPlainStrings(packageDir, env = process.env) {
+    const { baseTexts, headTexts, files } = reportsAndBase(packageDir, env);
+    return [
+        ...plainStringAdditions(baseTexts, headTexts),
+        ...openOptionFieldAdditions(baseTexts, headTexts),
+        ...files.flatMap((f, i) => frameworkImports(`api/${f}`, headTexts[i])),
+    ];
+}
+
+/**
+ * Checks a package's committed reports against the merge base's for added marks of a special layer.
+ * @param packageDir - the package's directory
+ * @param [env] - the environment (API_REPORT_BASE, GITHUB_BASE_REF, PUSH_BASE_REF)
+ * @returns the failure messages
+ */
+export function checkSpecialLayers(packageDir, env = process.env) {
+    const { baseTexts, headTexts } = reportsAndBase(packageDir, env);
+    return specialLayerAdditions(baseTexts, headTexts);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -329,7 +675,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         console.error("public API changed: run npm run api:report in the package and commit the new report");
         process.exit(1);
     }
-    const strings = flag ? checkPlainStrings(packageDir) : [];
+    const strings = flag ? [...checkPlainStrings(packageDir), ...checkSpecialLayers(packageDir)] : [];
     if (strings.length > 0) {
         for (const s of strings) console.error(`${packageDir}: ${s}`);
         process.exit(1);

@@ -1,0 +1,106 @@
+{
+    "options": {
+        "type": "mixed",
+        "multi": true,
+        "allowSelfLoops": true
+    },
+    "attributes": {
+        "name": "specimen-node-sizes-opacity-p2"
+    },
+    "nodes": [
+        {
+            "key": "anchor-nw",
+            "attributes": {
+                "x": 20,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-ne",
+            "attributes": {
+                "x": 1180,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-sw",
+            "attributes": {
+                "x": 20,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-se",
+            "attributes": {
+                "x": 1180,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "default",
+            "attributes": {
+                "x": 226.66666666666666,
+                "y": 464
+            }
+        },
+        {
+            "key": "z-200",
+            "attributes": {
+                "x": 600,
+                "y": 464,
+                "size": 18,
+                "color": "#c8c8c8",
+                "z": 200
+            }
+        },
+        {
+            "key": "z-negative",
+            "attributes": {
+                "x": 973.3333333333333,
+                "y": 464,
+                "size": 18,
+                "color": "#c8c8c8",
+                "z": -200
+            }
+        },
+        {
+            "key": "cap-default",
+            "attributes": {
+                "x": 182.26666666666665,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "nothing=set"
+            }
+        },
+        {
+            "key": "cap-z-200",
+            "attributes": {
+                "x": 576,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "z=200"
+            }
+        },
+        {
+            "key": "cap-z-negative",
+            "attributes": {
+                "x": 885.9333333333333,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "z=-200"
+            }
+        }
+    ],
+    "edges": []
+}

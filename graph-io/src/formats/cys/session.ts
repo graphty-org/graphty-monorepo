@@ -10,8 +10,10 @@ import { readBytes, textChunks } from "../../common/input.js";
 import { type ResolvedImportOptions } from "../../common/options.js";
 import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
+import { itemAt } from "../../common/text.js";
 import { tokenizeXml, xmlDeclaredEncoding, XmlSyntaxError } from "../../common/xml.js";
 import { readZipDirectory, readZipEntry, type ZipEntry, ZipError } from "../../common/zip.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { ImportError, type ImportInput } from "../../types.js";
 import { CYS_ISSUE, FORMAT, MAX_RATIO } from "./constants.js";
 
@@ -83,6 +85,8 @@ interface SessionLayout {
     readonly files: ReadonlyMap<string, SessionEntry>;
     /** The style entries (`session_vizmap.xml`, `session_vizmap.props`). */
     readonly styles: readonly SessionEntry[];
+    /** 3.x: the `graphty.styles` entry a session graphty wrote holds, if present. */
+    readonly block: SessionEntry | null;
     /** Every entry the importer does not read. */
     readonly skipped: readonly string[];
 }
@@ -250,6 +254,71 @@ const NOISE = /(^|\/)(__MACOSX\/|\.DS_Store$)/;
  * @returns the layout
  */
 function layoutOf(zipEntries: readonly ZipEntry[], report: ImportReportBuilder): SessionLayout {
+    const byName = entriesByName(zipEntries, report);
+    const names = [...byName.keys()];
+    const markers = shallowest(names, /(^|\/)[^/]+\.version$/);
+    const marker = markers.at(0);
+    const cysession = shallowest(names, /(^|\/)cysession\.xml$/).at(0);
+    if (markers.length > 1) {
+        report.warning(
+            "validation-error",
+            CYS_ISSUE.ENTRY_SKIPPED,
+            `the session has ${markers.length} version markers (${listed(markers)}); ${markers[0]} is used and the others are not read`,
+        );
+    }
+    const anchor = marker ?? cysession;
+    if (anchor === undefined) {
+        report.fail(
+            CYS_ISSUE.NOT_SESSION,
+            "the zip holds neither a session version marker (<x.y.z>.version) nor cysession.xml: it is not a Cytoscape session",
+        );
+    }
+    const root = anchor.slice(0, anchor.lastIndexOf("/") + 1);
+    const { era, version } = marker === undefined ? ERA_2 : versionOf(marker, root, report);
+    const layout = {
+        era,
+        version,
+        root,
+        networks: [] as NetworkEntry[],
+        views: [] as ViewEntry[],
+        tables: [] as TableEntry[],
+        cytables: null as SessionEntry | null,
+        networkList: null as SessionEntry | null,
+        cysession: null as SessionEntry | null,
+        files: new Map<string, SessionEntry>(),
+        styles: [] as SessionEntry[],
+        block: null as SessionEntry | null,
+        skipped: [] as string[],
+    };
+    for (const [name, zip] of byName) {
+        if (!name.startsWith(root) || name === marker) {
+            if (name !== marker && !markers.includes(name)) {
+                layout.skipped.push(name);
+            }
+            continue;
+        }
+        const path = name.slice(root.length);
+        const entry: SessionEntry = { path, name, zip };
+        if (era === "3") {
+            classify3(entry, layout);
+        } else {
+            classify2(entry, layout);
+        }
+    }
+    return layout;
+}
+
+/** The era and version of a session without a version marker. */
+const ERA_2 = { era: "2", version: "2.0.0" } as const;
+
+/**
+ * The entries of the central directory by name, for layoutOf(): directory entries and macOS noise dropped, the first
+ * of a repeated name kept (W_CYS_DUPLICATE_ENTRY).
+ * @param zipEntries - the central directory
+ * @param report - the report
+ * @returns the entries by name, in directory order
+ */
+function entriesByName(zipEntries: readonly ZipEntry[], report: ImportReportBuilder): Map<string, ZipEntry> {
     const byName = new Map<string, ZipEntry>();
     const repeated: string[] = [];
     for (const entry of zipEntries) {
@@ -271,74 +340,37 @@ function layoutOf(zipEntries: readonly ZipEntry[], report: ImportReportBuilder):
             `${repeated.length} entry name${plural(repeated.length)} appear more than once; the first of each is read: ${listed(repeated)}`,
         );
     }
-    const names = [...byName.keys()];
-    const markers = shallowest(names, /(^|\/)[^/]+\.version$/);
-    const marker = markers.at(0);
-    const cysession = shallowest(names, /(^|\/)cysession\.xml$/).at(0);
-    if (markers.length > 1) {
-        report.warning(
-            "validation-error",
-            CYS_ISSUE.ENTRY_SKIPPED,
-            `the session has ${markers.length} version markers (${listed(markers)}); ${markers[0]} is used and the others are not read`,
-        );
-    }
-    const anchor = marker ?? cysession;
-    if (anchor === undefined) {
+    return byName;
+}
+
+/**
+ * The era and version a session version marker names, for layoutOf(); E_CYS_VERSION when it does not parse or is
+ * newer than Cytoscape 3.
+ * @param marker - the marker's entry name
+ * @param root - the session's root folder
+ * @param report - the report
+ * @returns the era and version
+ */
+function versionOf(
+    marker: string,
+    root: string,
+    report: ImportReportBuilder,
+): { readonly era: "2" | "3"; readonly version: string } {
+    const version = marker.slice(root.length, -".version".length);
+    if (!/^\d+(\.\d+)*$/.test(version)) {
         report.fail(
-            CYS_ISSUE.NOT_SESSION,
-            "the zip holds neither a session version marker (<x.y.z>.version) nor cysession.xml: it is not a Cytoscape session",
+            CYS_ISSUE.VERSION,
+            `the session version marker ${marker} does not parse as a version (<major>.<minor>.<patch>.version)`,
         );
     }
-    const root = anchor.slice(0, anchor.lastIndexOf("/") + 1);
-    let era: "2" | "3" = "2";
-    let version = "2.0.0";
-    if (marker !== undefined) {
-        version = marker.slice(root.length, -".version".length);
-        if (!/^\d+(\.\d+)*$/.test(version)) {
-            report.fail(
-                CYS_ISSUE.VERSION,
-                `the session version marker ${marker} does not parse as a version (<major>.<minor>.<patch>.version)`,
-            );
-        }
-        const major = Number(version.split(".")[0]);
-        if (major > 3) {
-            report.fail(
-                CYS_ISSUE.VERSION,
-                `the session version ${version} is newer than the Cytoscape 3 sessions graph-io reads`,
-            );
-        }
-        era = major === 3 ? "3" : "2";
+    const major = Number(version.split(".")[0]);
+    if (major > 3) {
+        report.fail(
+            CYS_ISSUE.VERSION,
+            `the session version ${version} is newer than the Cytoscape 3 sessions graph-io reads`,
+        );
     }
-    const layout = {
-        era,
-        version,
-        root,
-        networks: [] as NetworkEntry[],
-        views: [] as ViewEntry[],
-        tables: [] as TableEntry[],
-        cytables: null as SessionEntry | null,
-        networkList: null as SessionEntry | null,
-        cysession: null as SessionEntry | null,
-        files: new Map<string, SessionEntry>(),
-        styles: [] as SessionEntry[],
-        skipped: [] as string[],
-    };
-    for (const [name, zip] of byName) {
-        if (!name.startsWith(root) || name === marker) {
-            if (name !== marker && !markers.includes(name)) {
-                layout.skipped.push(name);
-            }
-            continue;
-        }
-        const path = name.slice(root.length);
-        const entry: SessionEntry = { path, name, zip };
-        if (era === "3") {
-            classify3(entry, layout);
-        } else {
-            classify2(entry, layout);
-        }
-    }
-    return layout;
+    return { era: major === 3 ? "3" : "2", version };
 }
 
 /**
@@ -352,7 +384,7 @@ function classify3(entry: SessionEntry, layout: Mutable): void {
     const view = VIEW_FILE.exec(path);
     const table = TABLE_FILE.exec(path);
     if (network !== null) {
-        layout.networks.push({ ...entry, suid: network[1], title: urlDecode(network[2] ?? "") });
+        layout.networks.push({ ...entry, suid: network[1], title: urlDecode(itemAt(network, 2) ?? "") });
     } else if (view !== null) {
         layout.views.push({ ...entry, network: view[1], view: view[2] });
     } else if (path === "tables/cytables.xml") {
@@ -379,6 +411,8 @@ function classify3(entry: SessionEntry, layout: Mutable): void {
         layout.networkList = entry;
     } else if (/(^|\/)session_vizmap\.(xml|props)$/.test(path)) {
         layout.styles.push(entry);
+    } else if (path === STYLE_BLOCK_NAME) {
+        layout.block = entry;
     } else {
         layout.skipped.push(entry.name);
     }
@@ -509,8 +543,7 @@ export async function parseXmlTree(
             });
         }
     }
-    const [root] = stack[0].children;
-    return root ?? "the document is empty";
+    return itemAt(stack[0].children, 0) ?? "the document is empty";
 }
 
 /**

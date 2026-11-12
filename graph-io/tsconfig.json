@@ -11,6 +11,9 @@
         "types": ["node", "vitest/globals"],
         "paths": {
             "@graphty/graph-io": ["./src/index.ts"],
+            "@graphty/graph-io/sources/*": ["./src/sources/*/index.ts"],
+            "@graphty/graph-io/styles": ["./src/styles/index.ts"],
+            "@graphty/graph-io/positions": ["./src/positions/index.ts"],
             "@graphty/graph-io/*": ["./src/formats/*/index.ts"],
             "@graphty/graph-format": ["../graph-format/src/index.ts"]
         }

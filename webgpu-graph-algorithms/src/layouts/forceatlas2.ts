@@ -25,7 +25,6 @@ import {
     GRID_BBOX_MARGIN,
     GRID_EXTENT_FLOOR,
     LAYOUT_TUNING_DEFAULTS,
-    MAX_ITERATIONS_PER_STEP,
     SETTLE_FLOOR_UNBOUNDED,
     TRACE_RECORD_BYTES,
 } from "../constants.js";
@@ -54,16 +53,14 @@ import {
 } from "./force-simulation.js";
 import { resolveNodeMass, resolveWeights } from "./inputs.js";
 import {
+    assertMaxInFlightUnchanged,
     compileAttraction,
-    describeValue,
     invalid,
     isPositiveInteger,
     type Overrides,
     pickBoolean,
-    pickCenter,
-    pickDim,
     pickNumber,
-    pickSeed,
+    pickSharedForceOptions,
     scalar,
     subset,
 } from "./model-common.js";
@@ -127,13 +124,7 @@ export function resolveForceAtlas2Options(
 ): ResolvedForceAtlas2Options {
     const o: ForceAtlas2Options = options ?? {};
     const base = previous ?? DEFAULT_RESOLVED;
-    if (previous !== undefined && o.maxInFlight !== undefined && o.maxInFlight !== previous.maxInFlight) {
-        throw new WebGpuGraphError(
-            "E_INVALID_ARGUMENT",
-            `maxInFlight cannot change after creation (the uniform ring is sized by it): got ${describeValue(o.maxInFlight)}, current ${previous.maxInFlight}`,
-            { argument: "maxInFlight", value: o.maxInFlight, expected: previous.maxInFlight },
-        );
-    }
+    assertMaxInFlightUnchanged(o, previous);
     const nodeSize = o.nodeSize === undefined ? base.nodeSize : o.nodeSize;
     if (nodeSize !== null) {
         throw new WebGpuGraphError(
@@ -154,26 +145,7 @@ export function resolveForceAtlas2Options(
         nodeSize,
         weight: o.weight === undefined ? base.weight : o.weight,
         dissuadeHubs: pickBoolean("dissuadeHubs", o.dissuadeHubs, base.dissuadeHubs),
-        dim: pickDim(o.dim, base.dim),
-        scale: pickNumber("scale", o.scale, base.scale, (v) => v > 0, "> 0"),
-        center: pickCenter(o.center, base.center),
-        seed: pickSeed(o.seed, base.seed),
-        settleThreshold: pickNumber("settleThreshold", o.settleThreshold, base.settleThreshold, (v) => v >= 0, ">= 0"),
-        settleWindow: pickNumber(
-            "settleWindow",
-            o.settleWindow,
-            base.settleWindow,
-            isPositiveInteger,
-            "an integer >= 1",
-        ),
-        iterationsPerStep: pickNumber(
-            "iterationsPerStep",
-            o.iterationsPerStep,
-            base.iterationsPerStep,
-            (v) => isPositiveInteger(v) && v <= MAX_ITERATIONS_PER_STEP,
-            `an integer in [1, ${MAX_ITERATIONS_PER_STEP}]`,
-        ),
-        maxInFlight: pickNumber("maxInFlight", o.maxInFlight, base.maxInFlight, isPositiveInteger, "an integer >= 1"),
+        ...pickSharedForceOptions(o, base),
     };
     return Object.freeze(resolved);
 }
@@ -411,13 +383,14 @@ export class ForceAtlas2Model
      * the flags).
      * @param iteration - the trace slot of the iteration inside its batch
      * @param options - the simulation's current option record
+     * @param live - n less the inert rows (default n)
      * @returns the uniform values
      */
-    paramsFor(iteration: number, options: ForceAtlas2Options): UniformValues {
+    paramsFor(iteration: number, options: ForceAtlas2Options, live?: number): UniformValues {
         this.requireResources();
         const resolved = resolveForceAtlas2Options(options, this.current);
         return {
-            ...this.sharedParams(iteration, resolved),
+            ...this.sharedParams(iteration, resolved, live),
             scalingRatio: resolved.scalingRatio,
             gravity: resolved.gravity,
             jitterTolerance: resolved.jitterTolerance,

@@ -1,0 +1,23 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Color: GAL pathway 8 of 331 nodes",
+   "rows": [
+    {
+     "text": "Color: GAL pathway",
+     "color": "#800080"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#6366f1": 323,
+   "#800080": 8
+  },
+  "edges": {
+   "#a9a9a9": 361
+  }
+ }
+}

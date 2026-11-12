@@ -1,0 +1,75 @@
+[
+    {
+        "name": "karate",
+        "title": "Zachary's karate club",
+        "description": "Friendships among the 34 members of a university karate club, observed before the club split in two after a dispute between its instructor (node 0, Mr. Hi) and its administrator (node 33, the Officer). Edge weights count the contexts in which two members interacted.",
+        "citation": "W. W. Zachary, An information flow model for conflict and fission in small groups, Journal of Anthropological Research 33(4), 452-473 (1977). doi:10.1086/jar.33.4.3629752",
+        "source": "https://raw.githubusercontent.com/networkx/networkx/networkx-3.1/networkx/generators/social.py",
+        "license": "Facts published in a 1977 journal article; converted from the networkx 3.1 copy (BSD-3-Clause).",
+        "nodes": 34,
+        "edges": 78,
+        "directed": false,
+        "weighted": true,
+        "attributes": {
+            "club": "dict: the faction each member joined after the split, \"Mr. Hi\" or \"Officer\" (ground truth)"
+        },
+        "groundTruth": "club",
+        "showcases": [
+            "community detection against a known two-way split (Louvain, Leiden, label propagation, Girvan-Newman)",
+            "degree, betweenness and closeness centrality",
+            "minimum cut between nodes 0 and 33",
+            "spring and Kamada-Kawai layouts"
+        ],
+        "hosting": "remote",
+        "bytes": 1700,
+        "sha256": "ba7fdfa2c65f06d86c2b94a8eec68ce22975b65e3192a54cfc1a5989618832b6",
+        "url": "https://graphty.app/data/graph-samples/v1/karate.gsnp.gz",
+        "thumbnail": "karate.webp"
+    },
+    {
+        "name": "florentine-families",
+        "title": "Florentine families",
+        "description": "Marriage alliances between 15 leading families of Renaissance Florence around 1430. The Medici sit on most shortest paths. networkx drops the isolated Pucci family of the original 16.",
+        "citation": "J. F. Padgett and C. K. Ansell, Robust action and the rise of the Medici, 1400-1434, American Journal of Sociology 98(6), 1259-1319 (1993). doi:10.1086/230190; R. L. Breiger and P. E. Pattison, Cumulated social roles: the duality of persons and their algebras, Social Networks 8(3), 215-256 (1986).",
+        "source": "https://raw.githubusercontent.com/networkx/networkx/networkx-3.1/networkx/generators/social.py",
+        "license": "Facts published in the cited articles; converted from the networkx 3.1 copy (BSD-3-Clause).",
+        "nodes": 15,
+        "edges": 20,
+        "directed": false,
+        "weighted": false,
+        "attributes": {},
+        "groundTruth": null,
+        "showcases": [
+            "betweenness and closeness centrality (the Medici)",
+            "shortest paths",
+            "circular and shell layouts"
+        ],
+        "hosting": "remote",
+        "bytes": 918,
+        "sha256": "078222173ae56add6ef72673d832662bcf939d4d01cb7771cf83d143250966bb",
+        "url": "https://graphty.app/data/graph-samples/v1/florentine-families.gsnp.gz",
+        "thumbnail": "florentine-families.webp"
+    },
+    {
+        "name": "dolphins",
+        "title": "Doubtful Sound dolphins",
+        "description": "Frequent associations between 62 bottlenose dolphins of a community living off Doubtful Sound, New Zealand, observed 1994-2001; a standard two-community example for community detection.",
+        "citation": "D. Lusseau, K. Schneider, O. J. Boisseau, P. Haase, E. Slooten and S. M. Dawson, The bottlenose dolphin community of Doubtful Sound features a large proportion of long-lasting associations, Behavioral Ecology and Sociobiology 54, 396-405 (2003). doi:10.1007/s00265-003-0651-y",
+        "source": "https://web.archive.org/web/20231115052843id_/https://www-personal.umich.edu/~mejn/netdata/dolphins.zip",
+        "license": "unclear: posted on Mark Newman's data page with the permission of D. Lusseau, \"free for scientific use\"; the SuiteSparse Matrix Collection republishes the graph under CC BY 4.0.",
+        "nodes": 62,
+        "edges": 159,
+        "directed": false,
+        "weighted": false,
+        "attributes": {
+            "label": "string: the dolphin's name"
+        },
+        "groundTruth": null,
+        "showcases": ["community detection", "betweenness (the dolphins that bridge the two groups)", "spring layout"],
+        "hosting": "remote",
+        "bytes": 2594,
+        "sha256": "aaa60573df51f31776f633a3423284a1fa2d3aa6476816edde798e4b07b43b88",
+        "url": "https://graphty.app/data/graph-samples/v1/dolphins.gsnp.gz",
+        "thumbnail": "dolphins.webp"
+    }
+]

@@ -1,0 +1,30 @@
+{
+ "route": "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1-void/expert/a11y/k3/route.jsonl",
+ "steps": 14,
+ "matched": 2,
+ "diverged": {
+  "step": 3,
+  "steps": [
+   "--key",
+   "F6",
+   "--key",
+   "Tab",
+   "--key",
+   "Tab",
+   "--key",
+   "Tab",
+   "--key",
+   "Tab",
+   "--key",
+   "Tab",
+   "--key",
+   "Tab",
+   "--key",
+   "Tab"
+  ],
+  "why": "the step printed other things: recorded [\"focus: button \\\"Select what it paints\\\"\",\"focus: button \\\"Layer actions\\\" collapsed\",\"focus: tab \\\"Style\\\" selected\",\"focus: tab \\\"Node\\\" selected\",\"focus: checkbox \\\"Style nodes\\\" checked\",\"focus: treeitem \\\"Which nodes, 50000 of 50000 nodes\\\" selected\",\"focus: button \\\"Edit Which nodes\\\"\",\"focus: button \\\"Add to node shape\\\" collapsed\"], now [\"focus: heading \\\"Layer 1\\\"\",\"focus: button \\\"Select what it paints\\\"\",\"focus: button \\\"Layer actions\\\" collapsed\",\"focus: tab \\\"Style\\\" selected\",\"focus: tab \\\"Node\\\" selected\",\"focus: checkbox \\\"Style nodes\\\" checked\",\"focus: treeitem \\\"Which nodes, 50000 of 50000 nodes\\\" selected\",\"focus: button \\\"Edit Which nodes\\\"\"]",
+  "shot": "04.png",
+  "recordedShot": "04.png"
+ },
+ "seconds": 56
+}

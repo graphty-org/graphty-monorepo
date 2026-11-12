@@ -452,7 +452,7 @@ type Story = StoryObj<DijkstraArgs>;
  */
 export const Dijkstra: Story = {
     render: (args) => createDijkstraStory(args),
-    play: async ({ canvasElement, args }) => {
+    play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
         // Click play button to start animation
@@ -460,12 +460,9 @@ export const Dijkstra: Story = {
         await userEvent.click(playButton);
 
         // Wait for animation to complete
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("complete");
-            },
-            { timeout: (args.nodeCount * 5 + 10) * args.animationSpeed },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("complete");
+        });
     },
 };

@@ -75,6 +75,80 @@ interface Search {
 }
 
 /**
+ * Breadth-first search from `reached[0]`, whose distance is already 0.
+ * @param adj - The adjacency to search
+ * @param dist - Each node's hop count, Infinity when unreached
+ * @param reached - Filled with the reached nodes in visit order
+ * @param cutoff - Stop expanding nodes this far away or farther
+ * @returns How many nodes were reached, the source included
+ */
+function bfsFrom(adj: Adjacency, dist: Float64Array, reached: Uint32Array, cutoff: number): number {
+    const { rowPtr, colIdx } = adj;
+    let tail = 1;
+    for (let head = 0; head < tail; head++) {
+        const v = reached[head];
+        if (dist[v] >= cutoff) {
+            continue;
+        }
+        for (let a = rowPtr[v], end = rowPtr[v + 1]; a < end; a++) {
+            const w = colIdx[a];
+            if (dist[w] === Infinity) {
+                dist[w] = dist[v] + 1;
+                reached[tail++] = w;
+            }
+        }
+    }
+    return tail;
+}
+
+/**
+ * Dijkstra from `reached[0]`, whose distance is already 0; a popped node is final.
+ * @param adj - The adjacency to search
+ * @param weights - The weight of each arc
+ * @param heap - The empty frontier heap
+ * @param settled - Set for each popped node
+ * @param dist - Each node's distance, Infinity when unreached
+ * @param reached - Filled with the reached nodes in discovery order
+ * @param cutoff - Stop expanding nodes this far away or farther
+ * @returns How many nodes were reached, the source included
+ */
+function dijkstraFrom(
+    adj: Adjacency,
+    weights: NumericVector,
+    heap: IndexedMinHeap,
+    settled: Uint8Array,
+    dist: Float64Array,
+    reached: Uint32Array,
+    cutoff: number,
+): number {
+    const { rowPtr, colIdx } = adj;
+    let tail = 1;
+    heap.push(reached[0], 0);
+    while (!heap.isEmpty()) {
+        const v = heap.pop();
+        settled[v] = 1;
+        if (dist[v] >= cutoff) {
+            continue;
+        }
+        for (let a = rowPtr[v], end = rowPtr[v + 1]; a < end; a++) {
+            const w = colIdx[a];
+            if (settled[w] === 1) {
+                continue;
+            }
+            const d = dist[v] + weights[a];
+            if (d < dist[w]) {
+                if (dist[w] === Infinity) {
+                    reached[tail++] = w;
+                }
+                dist[w] = d;
+                heap.pushOrDecrease(w, d);
+            }
+        }
+    }
+    return tail;
+}
+
+/**
  * Build the search: a breadth-first search, or Dijkstra when the adjacency carries weights.
  * @param n - The node count
  * @param adj - The adjacency to search
@@ -82,7 +156,7 @@ interface Search {
  * @returns The search
  */
 function searcher(n: number, adj: Adjacency, cutoff: number): Search {
-    const { rowPtr, colIdx, weights } = adj;
+    const { weights } = adj;
     const dist = new Float64Array(n).fill(Infinity);
     const reached = new Uint32Array(n);
     const heap = weights === null ? null : new IndexedMinHeap(n);
@@ -93,48 +167,12 @@ function searcher(n: number, adj: Adjacency, cutoff: number): Search {
         dist,
         reached,
         run(source: number): number {
-            let tail = 0;
             dist[source] = 0;
-            reached[tail++] = source;
+            reached[0] = source;
             if (heap === null || weights === null) {
-                for (let head = 0; head < tail; head++) {
-                    const v = reached[head];
-                    if (dist[v] >= cutoff) {
-                        continue;
-                    }
-                    for (let a = rowPtr[v], end = rowPtr[v + 1]; a < end; a++) {
-                        const w = colIdx[a];
-                        if (dist[w] === Infinity) {
-                            dist[w] = dist[v] + 1;
-                            reached[tail++] = w;
-                        }
-                    }
-                }
-                return tail;
+                return bfsFrom(adj, dist, reached, cutoff);
             }
-            heap.push(source, 0);
-            while (!heap.isEmpty()) {
-                const v = heap.pop();
-                settled[v] = 1;
-                if (dist[v] >= cutoff) {
-                    continue;
-                }
-                for (let a = rowPtr[v], end = rowPtr[v + 1]; a < end; a++) {
-                    const w = colIdx[a];
-                    if (settled[w] === 1) {
-                        continue;
-                    }
-                    const d = dist[v] + weights[a];
-                    if (d < dist[w]) {
-                        if (dist[w] === Infinity) {
-                            reached[tail++] = w;
-                        }
-                        dist[w] = d;
-                        heap.pushOrDecrease(w, d);
-                    }
-                }
-            }
-            return tail;
+            return dijkstraFrom(adj, weights, heap, settled, dist, reached, cutoff);
         },
         clear(count: number): void {
             for (let i = 0; i < count; i++) {

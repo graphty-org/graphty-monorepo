@@ -10,6 +10,7 @@ import { CYS_ISSUE } from "../../../src/formats/cys/constants.js";
 import { cysImporter, sniffCys } from "../../../src/formats/cys/importer.js";
 import { urlDecode } from "../../../src/formats/cys/session.js";
 import { importAllGraphs, importGraph, listGraphs, registry } from "../../../src/registry.js";
+import { resolveStyles } from "../../../src/styles/internal.js";
 import { ImportError, type ImportReport } from "../../../src/types.js";
 import { makeZip, type ZipInput } from "../../helpers/zip.js";
 
@@ -571,5 +572,42 @@ describe("cysImporter: a 2.x session", () => {
         const err = await failure(importGraph(bytes, { format: "cys" }));
         expect(codes(err.report)).toContain(CYS_ISSUE.CORRUPT);
         expect(err.report.issues.at(-1)?.message).toContain("cysession.xml");
+    });
+});
+
+describe("cysImporter: group state", () => {
+    // a collapsed group whose members the session still lists in the network: Cytoscape keeps the collapse state
+    // only in the group network's hidden table (the nested graph's atts are written empty)
+    const body =
+        '<node id="10" label="G"><att name="__isGroup" type="boolean" value="1" cy:type="Boolean"/>' +
+        '<att><graph id="20" label="20" cy:registered="0"><node id="11" label="A"/><node id="12" label="B"/></graph></att></node>' +
+        '<node xlink:href="#11"/><node xlink:href="#12"/>';
+    const hidden = (collapsedIn: string): ZipInput =>
+        table("20-20/HIDDEN-org.cytoscape.model.CyNetwork-20+hidden+network.cytable", [
+            '"CyCSV-Version","1"',
+            '"SUID","__groupCollapsed.SUID"',
+            '"java.lang.Long","java.util.List<java.lang.Long>"',
+            '"",""',
+            '"20 hidden network",""',
+            `"20","${collapsedIn}"`,
+        ]);
+    const visible = async (bytes: Uint8Array): Promise<Record<string, unknown>> => {
+        const { snapshot, styles } = await importGraph(bytes, { format: "cys", styles: true });
+        if (styles === null || styles === undefined) {
+            throw new Error("no styles");
+        }
+        const shown = resolveStyles(styles, "node", "visible", snapshot);
+        return Object.fromEntries(["10", "11", "12"].map((id) => [id, shown[snapshot.ids.indexOf(id)]]));
+    };
+
+    it("draws a group collapsed in this network as its own node, from the group network's hidden table", async () => {
+        expect(await visible(session(body, [hidden("2")]))).toEqual({ "10": null, "11": false, "12": false });
+    });
+
+    it("draws a group expanded when its hidden table names no network or another one, as before", async () => {
+        const expanded = { "10": false, "11": null, "12": null };
+        expect(await visible(session(body, [hidden("")]))).toEqual(expanded);
+        expect(await visible(session(body, [hidden("99")]))).toEqual(expanded);
+        expect(await visible(session(body))).toEqual(expanded);
     });
 });

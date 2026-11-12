@@ -165,7 +165,8 @@ export function isBareDotId(text: string): boolean {
 
 /**
  * Whether a text is a DOT identifier: a letter, underscore or any character of code 128 and
- * above, followed by letters, digits, underscores or such characters.
+ * above other than U+FEFF, followed by letters, digits, underscores or characters of code 128 and
+ * above.
  * @param text - the text
  * @returns true for a bare identifier
  */
@@ -175,7 +176,9 @@ function isDotIdentifier(text: string): boolean {
     }
     for (let i = 0; i < text.length; i++) {
         const c = text.charCodeAt(i);
-        const letter = (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || c >= 128;
+        // A leading U+FEFF is read back as whitespace between tokens, so it must be quoted.
+        const letter =
+            (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || (c >= 128 && (i > 0 || c !== 0xfeff));
         const digit = c >= 48 && c <= 57;
         if (!letter && (i === 0 || !digit)) {
             return false;

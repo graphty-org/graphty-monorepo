@@ -1,6 +1,6 @@
 import { ActionIcon, Box, Group, Stack, Text, Tooltip } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { TooltipShortcut, UiGlyph } from "../../../src";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
@@ -209,7 +209,7 @@ export const WarmHandOffInteractions: Story = {
         const canvas = within(canvasElement);
         const first = canvas.getByRole("button", { name: "Align left" });
         await userEvent.hover(first);
-        await waitFor(() => expect(within(document.body).getByRole("tooltip")).toBeVisible(), { timeout: 2000 });
+        await waitFor(() => expect(within(document.body).getByRole("tooltip")).toBeVisible());
         await userEvent.hover(canvas.getByRole("button", { name: "Align right" }));
         await waitFor(() => expect(within(document.body).getByRole("tooltip")).toHaveTextContent("Align right"));
     },

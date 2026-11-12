@@ -374,6 +374,31 @@ export function summarizeClocks(samples, groups) {
 }
 
 /**
+ * The device the report measures: one with the adapter's raised limits, or, when the adapter refuses them, a default
+ * device from a fresh adapter.
+ * @param {GPU} gpu - the runtime's GPU object
+ * @param {GPUAdapter} adapter - the adapter the report describes
+ * @param {Record<string, number>} requiredLimits - the raised limits to ask for
+ * @returns {Promise<GPUDevice>} the device; throws when the fresh adapter request returns null
+ */
+async function requestReportDevice(gpu, adapter, requiredLimits) {
+    try {
+        return await adapter.requestDevice({ requiredLimits });
+    } catch (error) {
+        const refusal = error instanceof Error ? error.message : String(error);
+        console.error(
+            `[gpu-report] requestDevice with raised limits refused (${refusal}); ` +
+                "using a default device from a fresh adapter",
+        );
+        const fresh = await gpu.requestAdapter();
+        if (fresh === null) {
+            throw new Error("requestAdapter() returned null on the second request");
+        }
+        return fresh.requestDevice();
+    }
+}
+
+/**
  * Build the report.
  * @param {Readonly<Record<string, string | undefined>>} env - the environment
  * @returns {Promise<{ document: Record<string, unknown>, exitCode: number }>} the document and the exit code
@@ -439,21 +464,7 @@ export async function report(env) {
         ].join(" ");
         console.error(`[gpu-report] adapter ${adapterLine}`);
         const requiredLimits = pickLimits(adapter.limits);
-        let device;
-        try {
-            device = await adapter.requestDevice({ requiredLimits });
-        } catch (error) {
-            const refusal = error instanceof Error ? error.message : String(error);
-            console.error(
-                `[gpu-report] requestDevice with raised limits refused (${refusal}); ` +
-                    "using a default device from a fresh adapter",
-            );
-            const fresh = await handle.gpu.requestAdapter();
-            if (fresh === null) {
-                throw new Error("requestAdapter() returned null on the second request");
-            }
-            device = await fresh.requestDevice();
-        }
+        const device = await requestReportDevice(handle.gpu, adapter, requiredLimits);
         const deviceLimits = pickLimits(device.limits);
         let latency = null;
         try {

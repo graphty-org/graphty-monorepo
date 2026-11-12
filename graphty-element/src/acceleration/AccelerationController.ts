@@ -164,6 +164,12 @@ interface AccelerationControllerOptions {
      * through {@link AccelerationController.beginWork}, never opens one: it needs the frames.
      */
     readonly whileRunning?: () => () => void;
+    /**
+     * Answers each build with the device to pass the factory, or undefined for a device of its
+     * own. It waits for the renderer: the first build for the engine to open, a build after a
+     * loss for the engine's new device, so recovery never starts on the old one.
+     */
+    readonly sharedDevice?: () => Promise<unknown>;
 }
 
 /** One attached accelerator, whether this controller built it, and whether it has finished with it. */
@@ -278,6 +284,7 @@ export class AccelerationController {
     readonly #recoverOnDeviceLoss: boolean;
     readonly #maxRecoveryAttempts: number;
     readonly #whileRunning: (() => () => void) | undefined;
+    readonly #sharedDevice: (() => Promise<unknown>) | undefined;
 
     #policy: AccelerationPolicy;
     #minNodes: number;
@@ -297,6 +304,14 @@ export class AccelerationController {
     #busy = 0;
     #probe: Promise<AccelerationStatus> | null = null;
     #probeSettled = false;
+    /**
+     * Moves on every change a probe in flight must not outlive: a policy change, an injected
+     * accelerator, a dispose. A probe remembers the value it started under and, finding it moved
+     * after an await, releases what it built instead of attaching it -- otherwise switching
+     * acceleration off mid-probe still attached a device, and off then on ran two probes whose
+     * attachments replaced each other.
+     */
+    #generation = 0;
     #recoveryAttempts = 0;
     #disposed = false;
     #status: AccelerationStatus;
@@ -312,6 +327,7 @@ export class AccelerationController {
         this.#recoverOnDeviceLoss = options.recoverOnDeviceLoss ?? true;
         this.#maxRecoveryAttempts = options.maxRecoveryAttempts ?? 3;
         this.#whileRunning = options.whileRunning;
+        this.#sharedDevice = options.sharedDevice;
         this.#policy = options.policy ?? ACCELERATION_POLICY_DEFAULT;
         this.#minNodes = options.minNodes ?? ACCELERATION_MIN_NODES_DEFAULT;
         this.#explicitMinNodes = options.minNodes !== undefined;
@@ -417,6 +433,7 @@ export class AccelerationController {
         }
 
         this.#policy = policy;
+        this.#generation += 1;
 
         if (policy === "off") {
             this.#detach();
@@ -471,6 +488,7 @@ export class AccelerationController {
      */
     setAccelerator(accelerator: GraphAccelerator | null): void {
         this.#assertLive();
+        this.#generation += 1;
 
         if (accelerator === null) {
             this.#detach();
@@ -484,6 +502,39 @@ export class AccelerationController {
         this.#probeSettled = true;
         this.#recoveryAttempts = 0;
         this.#attach(accelerator, false);
+    }
+
+    /**
+     * Whether any accelerator could be built: acceleration is not off and a backend is registered.
+     * @returns True when one could.
+     * @internal
+     */
+    get offersAccelerator(): boolean {
+        return this.#policy !== "off" && this.#registry.list().length > 0;
+    }
+
+    /**
+     * Whether a registered backend would run on the device a renderer opens on this adapter.
+     * @param adapter - The `GPUAdapter`, opaque here.
+     * @returns True when the renderer should open a device fit for both. A registration that throws
+     * has said no: the renderer opens whatever the answer, and the backend then finds its own device.
+     */
+    sharesDevice(adapter: unknown): boolean {
+        if (this.#policy === "off") {
+            return false;
+        }
+
+        return this.#registry.list().some((entry) => {
+            try {
+                return entry.sharesDevice?.(adapter) === true;
+            } catch (error) {
+                logger.warn("A registered accelerator could not say whether it shares the device", {
+                    name: entry.name,
+                    reason: error instanceof Error ? error.message : String(error),
+                });
+                return false;
+            }
+        });
     }
 
     /**
@@ -557,15 +608,7 @@ export class AccelerationController {
 
         const { accelerator } = this;
         if (accelerator === null) {
-            if (required) {
-                throw this.#noAcceleratorError(work);
-            }
-
-            return {
-                accelerated: false,
-                reason: this.#reason ?? this.#missingAcceleratorReason(),
-                ...(this.#code === undefined ? {} : { code: this.#code }),
-            };
+            return this.#withoutAccelerator(work, required);
         }
 
         if (work.nodeCount < this.#minNodes) {
@@ -591,11 +634,48 @@ export class AccelerationController {
 
         // Last, after the feature test: a floor is a statement about a capability the accelerator
         // has, and an accelerator without the member is reported as that, not as "too small".
+        if (!this.#explicitMinNodes && !required) {
+            const belowFloor = this.#belowMeasuredFloor(work);
+            if (belowFloor !== undefined) {
+                return belowFloor;
+            }
+        }
+
+        return { accelerated: true, accelerator, precision: accelerator.precision ?? DEFAULT_ACCELERATOR_PRECISION };
+    }
+
+    /**
+     * The decision when no accelerator is attached: thrown under `"required"`, the CPU otherwise.
+     * @param work - The capability the work needs and the size of the graph it is over.
+     * @param required - Whether the policy is `"required"`.
+     * @returns The CPU decision, with the reason and code the accelerator went missing for.
+     * @throws A `GraphtyError` with `E_NO_ACCELERATOR` when the policy is `"required"`.
+     */
+    #withoutAccelerator(work: AcceleratedWork, required: boolean): AccelerationDecision {
+        if (required) {
+            throw this.#noAcceleratorError(work);
+        }
+
+        return {
+            accelerated: false,
+            reason: this.#reason ?? this.#missingAcceleratorReason(),
+            ...(this.#code === undefined ? {} : { code: this.#code }),
+        };
+    }
+
+    /**
+     * The built-in measured floors, checked only while the consumer has not set a threshold and
+     * the policy is not `"required"`: the node floor, then edge density, then source-edges.
+     * @param work - The capability the work needs and the size of the graph it is over.
+     * @returns The CPU decision of the first floor the work is below, or undefined when it clears
+     * every floor.
+     */
+    #belowMeasuredFloor(work: AcceleratedWork): AccelerationDecision | undefined {
         const capability = work.capability as FlooredCapability;
         const floor =
             (work.weighted === false ? ACCELERATION_MIN_NODES_UNWEIGHTED_BY_CAPABILITY[capability] : undefined) ??
             ACCELERATION_MIN_NODES_BY_CAPABILITY[capability];
-        if (floor !== undefined && !this.#explicitMinNodes && !required && work.nodeCount < floor) {
+        if (floor !== undefined && work.nodeCount < floor) {
             return {
                 accelerated: false,
                 reason:
@@ -608,7 +688,7 @@ export class AccelerationController {
         const densityFloor = ACCELERATION_MIN_EDGES_TIMES_DENSITY_BY_CAPABILITY[work.capability as FlooredCapability];
         const edges = work.edgeCount ?? 0;
         const density = work.nodeCount > 0 ? (edges * edges) / work.nodeCount : 0;
-        if (densityFloor !== undefined && !this.#explicitMinNodes && !required && density < densityFloor) {
+        if (densityFloor !== undefined && density < densityFloor) {
             return {
                 accelerated: false,
                 reason:
@@ -620,13 +700,7 @@ export class AccelerationController {
         }
 
         const sourceFloor = ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY[work.capability as FlooredCapability];
-        if (
-            sourceFloor !== undefined &&
-            work.sourceEdges !== undefined &&
-            !this.#explicitMinNodes &&
-            !required &&
-            work.sourceEdges < sourceFloor
-        ) {
+        if (sourceFloor !== undefined && work.sourceEdges !== undefined && work.sourceEdges < sourceFloor) {
             return {
                 accelerated: false,
                 reason:
@@ -636,7 +710,7 @@ export class AccelerationController {
             };
         }
 
-        return { accelerated: true, accelerator, precision: accelerator.precision ?? DEFAULT_ACCELERATOR_PRECISION };
+        return undefined;
     }
 
     /**
@@ -735,6 +809,7 @@ export class AccelerationController {
         }
 
         this.#disposed = true;
+        this.#generation += 1;
         this.#unsubscribeRegistry();
         this.#detach();
         this.#listeners.clear();
@@ -757,7 +832,16 @@ export class AccelerationController {
         }
 
         this.#transition("probing", undefined, undefined);
+        const generation = this.#generation;
         const attached = await this.#tryFactories();
+
+        if (generation !== this.#generation) {
+            // A policy change or an injection came while it ran; what it says is theirs now. A
+            // policy change that probes again left the state "probing": its probe's answer is the
+            // settled one, so a caller awaiting this probe gets that instead.
+            return this.#state === "probing" && !this.#disposed ? this.start() : this.#status;
+        }
+
         this.#probeSettled = true;
 
         if (!attached) {
@@ -780,13 +864,15 @@ export class AccelerationController {
             return false;
         }
 
+        const generation = this.#generation;
+
         const registrations = this.#registry.list();
 
         if (registrations.length === 0) {
             this.#reason =
                 'no accelerator is registered. Import "@graphty/graphty-element/webgpu" to use WebGPU, ' +
                 "or register your own accelerator factory.";
-            this.#code = undefined;
+            this.#code = "E_NO_ACCELERATOR_REGISTERED";
             return false;
         }
 
@@ -794,15 +880,15 @@ export class AccelerationController {
         let code: AccelerationErrorCode | undefined;
 
         for (const registration of registrations) {
+            if (this.#stale(generation)) {
+                return false;
+            }
+
             try {
                 const { accelerator, software } = await this.#build(registration.factory);
 
-                if (accelerator !== null) {
-                    await this.#verify(accelerator);
-                }
-
-                if (this.#disposed) {
-                    accelerator?.dispose?.();
+                if (this.#stale(generation)) {
+                    this.#disposeAccelerator(accelerator);
                     return false;
                 }
 
@@ -818,14 +904,29 @@ export class AccelerationController {
                     source: "acceleration",
                     details: { accelerator: registration.name },
                 });
-                code = accelerationCodeOf(failure) ?? code;
+                // A throw with no acceleration code of its own (a backend module that failed to load,
+                // a defect) still gets one, so a consumer can switch on every unavailable state.
+                code = accelerationCodeOf(failure) ?? code ?? "E_ACCELERATOR_FAILED";
                 declined.push(`${registration.name}: ${failure.message}`);
             }
         }
 
-        this.#reason = declined.join("; ");
-        this.#code = code;
+        if (!this.#stale(generation)) {
+            this.#reason = declined.join("; ");
+            this.#code = code;
+        }
+
         return false;
+    }
+
+    /**
+     * Whether a probe started under `generation` has been overtaken: by a dispose, a policy
+     * change or an injected accelerator.
+     * @param generation - The value of the generation counter when the probe started.
+     * @returns True when what the probe finds must not be attached.
+     */
+    #stale(generation: number): boolean {
+        return this.#disposed || generation !== this.#generation;
     }
 
     /**
@@ -834,23 +935,33 @@ export class AccelerationController {
      * Under `"required"` a software adapter is acceptable, but the factory is still asked for
      * hardware only first, and asked again accepting software only when it refused with
      * `E_SOFTWARE_ONLY`. That is how the controller learns an attachment is software -- the
-     * factory contract has no other way to say so -- and it costs a hardware host nothing.
+     * factory contract has no other way to say so -- and it costs a hardware host nothing. What
+     * it built has checked itself ({@link AccelerationController.#verify}) before it is returned.
      * @param factory - The registered factory.
      * @returns What it built, and whether that is on a software adapter.
-     * @throws Whatever the factory threw.
+     * @throws Whatever the factory or the self-check threw.
      */
     async #build(factory: AcceleratorFactory): Promise<{ accelerator: GraphAccelerator | null; software: boolean }> {
+        const device = this.#sharedDevice === undefined ? undefined : await this.#sharedDevice();
         const exactMaxNodes = this.#exactMaxNodes;
+        const asked = device === undefined ? { exactMaxNodes } : { exactMaxNodes, device };
+        let built: { accelerator: GraphAccelerator | null; software: boolean };
 
         try {
-            return { accelerator: await factory({ exactMaxNodes, acceptSoftware: false }), software: false };
+            built = { accelerator: await factory({ ...asked, acceptSoftware: false }), software: false };
         } catch (error) {
             if (this.#policy !== "required" || this.#disposed || !isSoftwareOnly(error)) {
                 throw error;
             }
+
+            built = { accelerator: await factory({ ...asked, acceptSoftware: true }), software: true };
         }
 
-        return { accelerator: await factory({ exactMaxNodes, acceptSoftware: true }), software: true };
+        if (built.accelerator !== null) {
+            await this.#verify(built.accelerator);
+        }
+
+        return built;
     }
 
     /**
@@ -943,11 +1054,11 @@ export class AccelerationController {
 
     /**
      * Disposes an accelerator, never letting its cleanup throw into the caller.
-     * @param accelerator - The accelerator to dispose.
+     * @param accelerator - The accelerator to dispose; null disposes nothing.
      */
-    #disposeAccelerator(accelerator: GraphAccelerator): void {
+    #disposeAccelerator(accelerator: GraphAccelerator | null): void {
         try {
-            accelerator.dispose?.();
+            accelerator?.dispose?.();
         } catch (error) {
             console.warn("graphty: an accelerator threw while being disposed", error);
         }
@@ -991,9 +1102,10 @@ export class AccelerationController {
      * @param lossReason - What the backend said about the loss, kept for the failure message.
      */
     async #recover(lossReason: string): Promise<void> {
+        const generation = this.#generation;
         const recovered = await this.#tryFactories();
 
-        if (this.#disposed || recovered) {
+        if (this.#disposed || recovered || generation !== this.#generation) {
             return;
         }
 

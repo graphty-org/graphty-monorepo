@@ -382,6 +382,6 @@ describe("run", () => {
                 return false;
             }
         };
-        await vi.waitFor(() => expect(alive()).toBe(false), { timeout: 1000, interval: 20 });
+        await vi.waitFor(() => expect(alive()).toBe(false));
     });
 });

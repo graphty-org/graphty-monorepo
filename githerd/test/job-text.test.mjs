@@ -211,6 +211,13 @@ describe("jobText", () => {
         );
     });
 
+    it("tells every session to rework a ready pull request as a draft and mark it ready when done (issue 2727)", () => {
+        const rule = RULES.find((r) => r.startsWith("Rework an open pull request as a draft"));
+        expect(rule).toContain("gh pr ready <n> --undo");
+        expect(rule).toContain("Mark it ready (gh pr ready <n>) once the rework is pushed and complete");
+        for (const spec of Object.values(JOBS)) expect(jobText(newJob(spec, NOW))).toContain(rule);
+    });
+
     it("writes plain ASCII in lines a pane shows whole", () => {
         for (const spec of Object.values(JOBS)) {
             const text = jobText(newJob(spec, NOW), { policies: [{ text: "p" }] });

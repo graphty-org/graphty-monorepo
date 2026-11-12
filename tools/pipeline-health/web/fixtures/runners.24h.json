@@ -1,0 +1,446 @@
+{
+    "generated": "2026-10-25T23:30:00Z",
+    "range": "24h",
+    "page": "runners",
+    "state": "bad",
+    "setBy": {
+        "member": "ci.runner_wait",
+        "state": "bad",
+        "value": {
+            "n": 31,
+            "unit": "min"
+        }
+    },
+    "others": [
+        {
+            "member": "ci.longest_queued",
+            "state": "bad",
+            "value": {
+                "n": 68,
+                "unit": "min"
+            }
+        },
+        {
+            "member": "ci.saturated",
+            "state": "bad",
+            "value": {
+                "n": 60,
+                "unit": "min"
+            }
+        },
+        {
+            "member": "ci.first_attempt",
+            "state": "bad",
+            "value": {
+                "n": 55,
+                "unit": "pct"
+            }
+        }
+    ],
+    "notes": [
+        {
+            "code": "runners.note.master_queued",
+            "params": {
+                "builds": 5,
+                "oldest_min": 68
+            }
+        }
+    ],
+    "members": [
+        {
+            "state": "bad",
+            "window": "1h",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 5,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 15,
+                    "unit": "min"
+                }
+            },
+            "link": "/ci/runners",
+            "id": "ci.runner_wait",
+            "value": {
+                "n": 24,
+                "unit": "min"
+            },
+            "value6h": {
+                "n": 24,
+                "unit": "min"
+            },
+            "n": 1008,
+            "minN": 20,
+            "spark": {
+                "step": "1h",
+                "ctx": [],
+                "trend": [
+                    1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 2.4, 4.5, 7.55,
+                    13.3, 17.92, 21.8, 25.67, 29.55
+                ],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "warn",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad"
+                ],
+                "target": 5
+            }
+        },
+        {
+            "state": "bad",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "<=",
+                    "n": 5,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">",
+                    "n": 15,
+                    "unit": "min"
+                }
+            },
+            "link": "/ci/runners",
+            "id": "ci.longest_queued",
+            "value": {
+                "n": 68,
+                "unit": "min"
+            },
+            "spark": {
+                "step": "1h",
+                "ctx": [],
+                "trend": [
+                    0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1.8, 4.5, 8, 13.5,
+                    24.13, 37.13, 50.13, 63.13
+                ],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "warn",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad"
+                ],
+                "target": 5
+            },
+            "note": {
+                "code": "ci.longest_queued.note"
+            }
+        },
+        {
+            "state": "bad",
+            "window": "1h",
+            "sla": {
+                "target": {
+                    "op": "==",
+                    "n": 0,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">=",
+                    "n": 15,
+                    "unit": "min"
+                }
+            },
+            "link": "/ci/runners",
+            "id": "ci.saturated",
+            "value": {
+                "n": 4.2,
+                "unit": "h"
+            },
+            "value6h": {
+                "n": 4.2,
+                "unit": "h"
+            },
+            "spark": {
+                "step": "1h",
+                "ctx": [],
+                "trend": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2.25, 15, 15, 15, 15],
+                "breach": [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad",
+                    "bad"
+                ],
+                "target": 0
+            }
+        },
+        {
+            "state": "ok",
+            "window": "now",
+            "sla": {
+                "target": {
+                    "op": "==",
+                    "n": 0,
+                    "unit": "min"
+                },
+                "red": {
+                    "op": ">=",
+                    "n": 15,
+                    "unit": "min"
+                }
+            },
+            "link": "https://www.githubstatus.com/",
+            "id": "ci.not_assigned",
+            "value": {
+                "n": 0,
+                "unit": "min"
+            }
+        },
+        {
+            "state": "info",
+            "window": "now",
+            "sla": null,
+            "link": "/ci/runners/superseded",
+            "id": "ci.superseded",
+            "value": {
+                "n": 2
+            }
+        }
+    ],
+    "sections": [
+        {
+            "kind": "jobs",
+            "id": "jobs",
+            "step": "1h",
+            "start": "2026-10-24T23:30:00Z",
+            "running": [6, 6, 6, 6, 6, 6, 6, 6, 6, 8, 14, 20, 26, 30, 32, 34, 36, 38, 44, 50, 54, 57, 57, 57, 57],
+            "queued": [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 4, 6, 8, 10, 12, 14, 18, 34, 69, 113, 165, 201, 235, 235],
+            "limit": 60,
+            "peak": {
+                "n": 58,
+                "at": "2026-10-25T22:40:00Z"
+            }
+        },
+        {
+            "kind": "bars",
+            "id": "holders",
+            "notes": [
+                {
+                    "code": "runners.queued_runs",
+                    "params": {
+                        "runs": 5,
+                        "workflow": "CI",
+                        "event": "push",
+                        "since": "2026-10-25T22:22:00Z"
+                    }
+                },
+                {
+                    "code": "runners.one_repo",
+                    "params": {
+                        "repo": "graphty-monorepo",
+                        "h": 6
+                    }
+                }
+            ],
+            "groups": [
+                {
+                    "head": {
+                        "code": "runners.running_now",
+                        "params": {
+                            "jobs": 57
+                        }
+                    },
+                    "items": [
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "CI, pull_request"
+                            },
+                            "detail": {
+                                "t": "name",
+                                "v": "test shards"
+                            },
+                            "n": 47,
+                            "unit": "jobs"
+                        },
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "CodeQL"
+                            },
+                            "n": 4,
+                            "unit": "jobs"
+                        },
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "Hosts, pull_request"
+                            },
+                            "detail": {
+                                "t": "fact",
+                                "fact": {
+                                    "code": "runners.macos",
+                                    "params": {
+                                        "jobs": 1
+                                    }
+                                }
+                            },
+                            "n": 3,
+                            "unit": "jobs"
+                        },
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "PR Integrity, pull_request"
+                            },
+                            "n": 2,
+                            "unit": "jobs"
+                        },
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "CI, push to master"
+                            },
+                            "n": 1,
+                            "unit": "jobs"
+                        }
+                    ]
+                },
+                {
+                    "head": {
+                        "code": "runners.queued_now",
+                        "params": {
+                            "jobs": 235
+                        }
+                    },
+                    "items": [
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "CI, pull_request"
+                            },
+                            "n": 214,
+                            "unit": "jobs"
+                        },
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "PR Integrity"
+                            },
+                            "n": 9,
+                            "unit": "jobs"
+                        },
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "CodeQL"
+                            },
+                            "n": 6,
+                            "unit": "jobs"
+                        },
+                        {
+                            "label": {
+                                "t": "name",
+                                "v": "PR Title, PR Issue Link"
+                            },
+                            "n": 6,
+                            "unit": "jobs"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "kind": "table",
+            "id": "superseded",
+            "rows": [
+                {
+                    "cells": {
+                        "run": {
+                            "t": "name",
+                            "v": "PR Integrity"
+                        },
+                        "pr": {
+                            "t": "pr",
+                            "n": 3498
+                        },
+                        "newer": {
+                            "t": "ago",
+                            "at": "2026-10-25T22:49:00Z"
+                        }
+                    }
+                },
+                {
+                    "cells": {
+                        "run": {
+                            "t": "name",
+                            "v": "CodeQL"
+                        },
+                        "pr": {
+                            "t": "pr",
+                            "n": 3571
+                        },
+                        "newer": {
+                            "t": "ago",
+                            "at": "2026-10-25T23:18:00Z"
+                        }
+                    }
+                }
+            ]
+        }
+    ]
+}

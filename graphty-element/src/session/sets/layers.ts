@@ -135,10 +135,13 @@ class Entry implements LiveScope {
      * An entry that watches nothing until a pass reads it.
      * @param scope - The scope, already checked.
      * @param sources - The session.
+     * @param revive - Takes a stopped entry that is read again back into the live set; false once
+     *     the session is torn down, when it only answers the read.
      */
     constructor(
-        private readonly scope: Scope,
+        readonly scope: Scope,
         private readonly sources: LayerScopeSources,
+        private readonly revive: (entry: Entry) => boolean,
     ) {}
 
     bits(target: SelectorTarget): U32 | null {
@@ -159,13 +162,20 @@ class Entry implements LiveScope {
         return this.#ensure().problem;
     }
 
-    /** Stop watching and release the pin. What it holds still answers a late read. */
+    /**
+     * Stop watching, release the pin and forget the holding. A layer compiled over this entry can
+     * come back without being compiled again -- an undo that took it away is redone -- so a later
+     * read starts watching again and resolves the scope as it stands then, never what it held when
+     * it stopped (the run it reads may have been away and back meanwhile).
+     */
     dispose(): void {
         this.#disposed = true;
         this.#stop?.();
         this.#stop = null;
         this.#unpin?.();
         this.#unpin = null;
+        this.#held = null;
+        this.#carried = null;
     }
 
     /**
@@ -175,6 +185,10 @@ class Entry implements LiveScope {
      */
     #ensure(): Held {
         if (this.#held === null) {
+            if (this.#disposed) {
+                this.#disposed = !this.revive(this);
+            }
+
             if (!this.#disposed) {
                 this.#stop = this.sources.subscribe({
                     signature: () => this.sources.signature(this.scope),
@@ -269,34 +283,8 @@ class Entry implements LiveScope {
         if (this.#carried?.graph !== graph) {
             const from = held.graph;
             const resolution = held.resolution as Resolution;
-            const node = makeMask(graph.nodeCount);
-            for (const index of maskToIndices(resolution.nodes, from.nodeCount)) {
-                const row = graph.ids.indexOf(from.ids.idOf(index));
-                if (row !== INVALID_INDEX) {
-                    maskSet(node, row, true);
-                }
-            }
-
-            // Edges by their counters: one pass over each edge-id column, never graph-format's
-            // EdgeIdIndex (design 6.3), which would hold a map entry per edge of the graph.
-            const edge = makeMask(graph.edgeCount);
-            const before = from.edges.typed(EDGE_ID_COLUMN, "u32");
-            const after = graph.edges.typed(EDGE_ID_COLUMN, "u32");
-            if (before !== null && after !== null) {
-                const counters = new Set<number>();
-                for (const index of maskToIndices(resolution.edges, from.edgeCount)) {
-                    if (before.isSet(index)) {
-                        counters.add(before.data[index]);
-                    }
-                }
-
-                for (let row = 0; counters.size > 0 && row < graph.edgeCount; row++) {
-                    if (after.isSet(row) && counters.has(after.data[row])) {
-                        maskSet(edge, row, true);
-                    }
-                }
-            }
-
+            const node = carryNodes(resolution.nodes, from, graph);
+            const edge = carryEdges(resolution.edges, from, graph);
             this.#carried = { graph, node, edge };
         }
 
@@ -304,9 +292,66 @@ class Entry implements LiveScope {
     }
 }
 
+/**
+ * Carry a node bitmap by id from one snapshot's rows to another's.
+ * @param nodes - The bitmap over `from`'s node rows.
+ * @param from - The snapshot the bitmap indexes.
+ * @param graph - The snapshot to carry it to.
+ * @returns The bitmap over `graph`'s node rows.
+ */
+function carryNodes(nodes: U32, from: GraphSnapshot, graph: GraphSnapshot): U32 {
+    const node = makeMask(graph.nodeCount);
+    for (const index of maskToIndices(nodes, from.nodeCount)) {
+        const row = graph.ids.indexOf(from.ids.idOf(index));
+        if (row !== INVALID_INDEX) {
+            maskSet(node, row, true);
+        }
+    }
+
+    return node;
+}
+
+/**
+ * Carry an edge bitmap from one snapshot's rows to another's by the edges' counters: one pass
+ * over each edge-id column, never graph-format's EdgeIdIndex (design 6.3), which would hold a map
+ * entry per edge of the graph.
+ * @param edges - The bitmap over `from`'s edge rows.
+ * @param from - The snapshot the bitmap indexes.
+ * @param graph - The snapshot to carry it to.
+ * @returns The bitmap over `graph`'s edge rows; empty when either snapshot has no edge-id column.
+ */
+function carryEdges(edges: U32, from: GraphSnapshot, graph: GraphSnapshot): U32 {
+    const edge = makeMask(graph.edgeCount);
+    const before = from.edges.typed(EDGE_ID_COLUMN, "u32");
+    const after = graph.edges.typed(EDGE_ID_COLUMN, "u32");
+    if (before === null || after === null) {
+        return edge;
+    }
+
+    const counters = new Set<number>();
+    for (const index of maskToIndices(edges, from.edgeCount)) {
+        if (before.isSet(index)) {
+            counters.add(before.data[index]);
+        }
+    }
+
+    for (let row = 0; counters.size > 0 && row < graph.edgeCount; row++) {
+        if (after.isSet(row) && counters.has(after.data[row])) {
+            maskSet(edge, row, true);
+        }
+    }
+
+    return edge;
+}
+
 /** The live scopes of one session's style layers. */
 export class LayerScopes {
+    /** The entry `live()` hands out per canonical scope. */
     readonly #entries = new Map<string, Entry>();
+    /** Every watching entry, with its key: those `live()` handed out and those read back after stopping. */
+    readonly #watching = new Map<Entry, string>();
+    /** Set once the session is torn down: a stopped entry read after that never watches again. */
+    #closed = false;
     readonly #inner: LayerScopeSources;
     readonly #sources: LayerScopeSources;
     /** Whether a whole-graph repaint is running, and whether another was asked for meanwhile. */
@@ -368,11 +413,31 @@ export class LayerScopes {
         const key = canonicalize(scope);
         let entry = this.#entries.get(key);
         if (entry === undefined) {
-            entry = new Entry(scope, this.#sources);
+            entry = new Entry(scope, this.#sources, (revived) => this.#revive(revived));
             this.#entries.set(key, entry);
+            this.#watching.set(entry, key);
         }
 
         return entry;
+    }
+
+    /**
+     * Take back a stopped entry a layer read again, so the next `keep()` can stop it once more.
+     * @param entry - The entry.
+     * @returns Whether it may watch: not once the session is torn down.
+     */
+    #revive(entry: Entry): boolean {
+        if (this.#closed) {
+            return false;
+        }
+
+        const key = canonicalize(entry.scope);
+        this.#watching.set(entry, key);
+        if (!this.#entries.has(key)) {
+            this.#entries.set(key, entry);
+        }
+
+        return true;
     }
 
     /**
@@ -385,16 +450,20 @@ export class LayerScopes {
             named.add(canonicalize(scope));
         }
 
-        for (const [key, entry] of this.#entries) {
+        for (const [entry, key] of this.#watching) {
             if (!named.has(key)) {
                 entry.dispose();
-                this.#entries.delete(key);
+                this.#watching.delete(entry);
+                if (this.#entries.get(key) === entry) {
+                    this.#entries.delete(key);
+                }
             }
         }
     }
 
-    /** Stop every entry. */
+    /** Stop every entry, for good. */
     dispose(): void {
+        this.#closed = true;
         this.keep([]);
     }
 }

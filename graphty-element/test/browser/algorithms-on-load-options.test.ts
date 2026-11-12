@@ -51,15 +51,12 @@ async function mountWith(configure: (element: Graphty) => void): Promise<Graphty
     element.nodeData = NODES;
     element.edgeData = EDGES;
 
-    await vi.waitFor(
-        () => {
-            assert.isTrue(
-                element.session.runs.list().some((run) => run.algorithm === "pagerank" && run.status === "succeeded"),
-                "the PageRank run named in the load-time list succeeded",
-            );
-        },
-        { timeout: 10_000 },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(
+            element.session.runs.list().some((run) => run.algorithm === "pagerank" && run.status === "succeeded"),
+            "the PageRank run named in the load-time list succeeded",
+        );
+    });
 
     await operationQueueOf(element.graph).waitForCompletion();
     await element.session.styles.settled();
@@ -152,23 +149,30 @@ describe("run options in the load-time algorithm list", () => {
     });
 
     it("refuses a malformed entry with E_BAD_COMMAND naming it, and keeps the list it had", () => {
+        // Never attached, so nothing disconnects it and its graph is disposed here.
         const element = new Graphty();
-        element.algorithmsOnLoad = ["graphty:degree"];
-
-        assert.throws(() => {
-            element.algorithmsOnLoad = [{ algorithm: "graphty:pagerank", style: { size: "big" } } as unknown as string];
-        }, /graphty:pagerank/);
-
-        let code: unknown;
-
         try {
-            element.algorithmsOnLoad = [{ algorithm: "" }];
-        } catch (error) {
-            ({ code } = error as { code?: unknown });
+            element.algorithmsOnLoad = ["graphty:degree"];
+
+            assert.throws(() => {
+                element.algorithmsOnLoad = [
+                    { algorithm: "graphty:pagerank", style: { size: "big" } } as unknown as string,
+                ];
+            }, /graphty:pagerank/);
+
+            let code: unknown;
+
+            try {
+                element.algorithmsOnLoad = [{ algorithm: "" }];
+            } catch (error) {
+                ({ code } = error as { code?: unknown });
+            }
+
+            assert.strictEqual(code, "E_BAD_COMMAND");
+
+            assert.deepStrictEqual(element.algorithmsOnLoad, ["graphty:degree"]);
+        } finally {
+            element.graph.dispose();
         }
-
-        assert.strictEqual(code, "E_BAD_COMMAND");
-
-        assert.deepStrictEqual(element.algorithmsOnLoad, ["graphty:degree"]);
     });
 });

@@ -49,11 +49,11 @@ function lane(graph: Graph): Record<string, string> {
 /**
  * A graph holding `n1 -> n2 -> n3` laid out by one engine and at rest, with its history cleared,
  * so the start of the history holds where every node settled; then n2 and n3 removed and n2
- * brought back, unplaced, by an edge.
+ * brought back by an edge, unplaced under spring and placed somewhere new under ngraph and d3.
  * @param engine - The engine.
- * @returns The graph.
+ * @returns The graph, and n2's coordinates as the edge brought it back.
  */
-async function begin(engine: string): Promise<Graph> {
+async function begin(engine: string): Promise<{ graph: Graph; back: string }> {
     const container = document.createElement("div");
     container.style.width = "400px";
     container.style.height = "300px";
@@ -79,10 +79,18 @@ async function begin(engine: string): Promise<Graph> {
     graph.getLayoutManager().running = false;
     session.history.clear();
 
+    const earlier = lane(graph).n2;
     await session.data.removeNodes(["n2", "n3"]);
     await session.data.addEdges([{ src: "n2", dst: "n1" }]);
-    assert.strictEqual(lane(graph).n2, "NaN,NaN,NaN", "the edge brought n2 back unplaced");
-    return graph;
+    // The edge draws n2 (#3192): ngraph and d3 place it as it is drawn, somewhere new; the spring
+    // simulation leaves it unplaced until its next step.
+    const back = lane(graph).n2;
+    assert.notStrictEqual(back, earlier, "the edge did not bring n2 back where its earlier self was");
+    if (engine === "spring") {
+        assert.strictEqual(back, "NaN,NaN,NaN", "the edge brought n2 back unplaced");
+    }
+
+    return { graph, back };
 }
 
 /** What an import loads. */
@@ -90,7 +98,7 @@ const DATASET = JSON.stringify({ nodes: [{ id: "n1" }, { id: "n6" }], edges: [{ 
 
 describe.each(["ngraph", "d3", "spring"])("a node removed and brought back unplaced, under %s", (engine) => {
     it("stays unplaced when undoing a step that moved nothing follows undoing an import", async () => {
-        const graph = await begin(engine);
+        const { graph } = await begin(engine);
         const session = graph.getSession();
         session.scope.save("Hubs", "graph");
         const before = lane(graph);
@@ -103,7 +111,7 @@ describe.each(["ngraph", "d3", "spring"])("a node removed and brought back unpla
     });
 
     it("stays unplaced when undoing a removal restores an arrangement from before it came back", async () => {
-        const graph = await begin(engine);
+        const { graph } = await begin(engine);
         const session = graph.getSession();
         await session.data.removeNodes(["n1", "n2"]);
 
@@ -115,7 +123,7 @@ describe.each(["ngraph", "d3", "spring"])("a node removed and brought back unpla
     });
 
     it("stays unplaced at the start of a history whose step limit folded the steps that removed and brought it back", async () => {
-        const graph = await begin(engine);
+        const { graph } = await begin(engine);
         const session = graph.getSession();
         session.history.limitSteps = 2;
 
@@ -127,7 +135,7 @@ describe.each(["ngraph", "d3", "spring"])("a node removed and brought back unpla
     });
 
     it("stays unplaced at the start of a history whose step limit folded the steps below an undone import", async () => {
-        const graph = await begin(engine);
+        const { graph } = await begin(engine);
         const session = graph.getSession();
         session.scope.save("Hubs", "graph");
         const before = lane(graph);
@@ -140,7 +148,7 @@ describe.each(["ngraph", "d3", "spring"])("a node removed and brought back unpla
     });
 
     it("comes back where its earlier self was when undoing everything goes back past its removal", async () => {
-        const graph = await begin(engine);
+        const { graph } = await begin(engine);
         const session = graph.getSession();
         await session.history.restoreTo(null);
         const start = lane(graph);

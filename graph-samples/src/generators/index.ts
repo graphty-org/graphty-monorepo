@@ -78,6 +78,7 @@ export {
     layeredFlowNetwork,
     type LayeredFlowOptions,
 } from "./flow.js";
+export { generateGraph, type GeneratorParams } from "./generate.js";
 export {
     knnGraph,
     type KnnOptions,

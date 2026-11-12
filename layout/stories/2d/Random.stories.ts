@@ -140,12 +140,9 @@ export const Random: Story = {
         await userEvent.click(resetButton);
 
         // Wait for status to update
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("Reset");
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("Reset");
+        });
     },
 };

@@ -1,6 +1,5 @@
 import { Box, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, waitFor } from "@storybook/test";
 
 import { ScrollArea } from "../../../src";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
@@ -86,13 +85,31 @@ export const States: Story = {
         </Box>
     ),
     play: async ({ canvasElement }) => {
-        // Mantine measures the scroller with a ResizeObserver and draws the thumb on the animation
-        // frame after that, so the story is not finished until the held-visible thumb is there.
+        // Mantine measures each scroller with a ResizeObserver and draws its thumb on a later
+        // animation frame, so the story is not finished until every held-visible thumb is there.
         // Without this wait a screenshot showed the left scroller with or without its thumb.
-        await waitFor(async () => {
-            const thumb = canvasElement.querySelector<HTMLElement>(".mantine-ScrollArea-thumb");
-            await expect(thumb).not.toBeNull();
-            await expect(thumb?.getBoundingClientRect().height).toBeGreaterThan(0);
+        // The wait is on the DOM change itself, not on waitFor's 1000 ms deadline: after a stalled
+        // main thread the overdue deadline ran before the frames the measurement needs, and the
+        // check failed with the thumbs 50 ms away (#2705).
+        await new Promise<void>((resolve) => {
+            // The held-visible scrollbars: a hover one carries data-state and is hidden until hovered.
+            const settle = (): void => {
+                const bars = [
+                    ...canvasElement.querySelectorAll(
+                        '.mantine-ScrollArea-scrollbar[data-orientation="vertical"]:not([data-state])',
+                    ),
+                ];
+                const measured = bars.every(
+                    (bar) => (bar.querySelector(".mantine-ScrollArea-thumb")?.getBoundingClientRect().height ?? 0) > 0,
+                );
+                if (bars.length > 0 && measured) {
+                    observer.disconnect();
+                    resolve();
+                }
+            };
+            const observer = new MutationObserver(settle);
+            observer.observe(canvasElement, { subtree: true, childList: true, attributes: true });
+            settle();
         });
     },
 };

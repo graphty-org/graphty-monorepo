@@ -1,18 +1,47 @@
 import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
-import type { ImportReport } from "@graphty/graphty-element/session";
+import type { LoadedSource } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { attributeRows, columnOf, count, fillOf, sourceRows } from "../words";
+import {
+    attributeRows,
+    columnOf,
+    count,
+    countWords,
+    fillOf,
+    joinMatch,
+    joinWords,
+    leftOutRow,
+    leftOutSentence,
+    namesOnce,
+    noNodeRow,
+    sourceFacts,
+    sourcesWords,
+    typeOf,
+} from "../words";
 
 /**
- * An import report with these counts; the rest of the report is not read.
- * @param counts - the counts.
- * @returns the report.
+ * One load as `data.sources()` lists it.
+ * @param name - the source's name.
+ * @param tables - the tables it read.
+ * @param added - the nodes and edges it added.
+ * @param url - the address it was read from; null for a file.
+ * @returns the entry.
  */
-function report(counts: Partial<ImportReport["counts"]>): ImportReport {
+function loaded(
+    name: string | undefined,
+    tables: readonly string[],
+    added: LoadedSource["added"],
+    url: string | null = null,
+): LoadedSource {
     return {
-        counts: { nodes: 0, edges: 0, nodeRecords: 0, edgeRecords: 0, rejected: 0, ...counts },
-    } as ImportReport;
+        key: "s1",
+        kind: url === null ? "file" : "server",
+        counts: added,
+        ...(name === undefined ? {} : { name }),
+        ...(url === null ? {} : { config: { url } }),
+        tables,
+        added,
+    };
 }
 
 /**
@@ -38,41 +67,55 @@ describe("the Data place's words", () => {
         assert.equal(count(1234, "edge"), "1,234 edges");
     });
 
-    it("lists nothing before an import", () => {
-        assert.deepEqual(sourceRows(null, null), []);
-        assert.deepEqual(sourceRows({ name: "a.gml" }, null), []);
+    it("says how many rows a load left out, and why, in the reader's words", () => {
+        assert.equal(
+            leftOutSentence({ rows: 1, values: 1 }),
+            "1 edge row was left out: it names a node missing from the node rows.",
+        );
+        assert.equal(
+            leftOutSentence({ rows: 3, values: 2 }),
+            "3 edge rows were left out: they name 2 nodes missing from the node rows.",
+        );
+        assert.equal(
+            leftOutRow(
+                { source: "p11", target: "p13", line: 24, values: { emails: 6 } },
+                { source: "from", target: "to" },
+            ),
+            "Line 24: from p11, to p13, emails 6",
+        );
+        assert.equal(
+            leftOutRow({ source: "p11", target: "p13", values: { emails: 6 } }),
+            "p11, p13, emails 6",
+            "a project saved before lines and end columns were kept",
+        );
+        assert.equal(
+            leftOutRow(
+                { source: "s04", target: "s11", line: 17, values: { passes: 3 }, missingEnds: ["target"] },
+                { source: "from", target: "to" },
+            ),
+            "Line 17: s11 has no node row; from s04, to s11, passes 3",
+            "the end that names no node is marked",
+        );
+        assert.equal(
+            leftOutRow({ source: "x", target: "y", values: {}, missingEnds: ["source", "target"] }),
+            "x and y have no node rows; x, y",
+        );
+        assert.equal(noNodeRow(["s11"]), "s11 has no node row");
+        assert.equal(noNodeRow(["s11", "p13", "s11"]), "s11 and p13 have no node rows");
+        assert.equal(noNodeRow(["a", "b", "c", "d"]), "a, b and 2 more have no node rows");
     });
 
-    it("draws a graph file as one row that expands to its node table and edge table", () => {
-        const [file] = sourceRows(
-            { type: "gml", name: "karate.gml" },
-            report({ nodes: 34, edges: 78, nodeRecords: 34, edgeRecords: 78 }),
+    it("names the one file the graph came from, or counts them", () => {
+        assert.equal(
+            sourcesWords([loaded("friends.csv", ["friends.csv"], { nodes: 20, edges: 41 })]),
+            "From friends.csv",
         );
-        assert.equal(file.kind, "file");
-        assert.equal(file.name, "karate.gml");
-        assert.equal(file.quiet, "34 nodes, 78 edges");
-        assert.deepEqual(
-            file.children?.map((t) => [t.kind, t.name, t.quiet]),
-            [
-                ["nodes", "Node table", "34 rows, 34 nodes"],
-                ["edges", "Edge table", "78 rows, 78 edges"],
-            ],
-        );
-    });
-
-    it("draws an edge list as one edge table", () => {
-        const rows = sourceRows({ name: "edges.csv" }, report({ nodes: 30, edges: 254, edgeRecords: 254 }));
-        assert.deepEqual(
-            rows.map((r) => [r.kind, r.name, r.quiet, r.children]),
-            [["edges", "edges.csv", "254 rows, 254 edges", undefined]],
-        );
-    });
-
-    it("draws a lone node table with its node count only", () => {
-        const rows = sourceRows({ name: "les miserables" }, report({ nodes: 77, nodeRecords: 77 }));
-        assert.deepEqual(
-            rows.map((r) => [r.kind, r.name, r.quiet]),
-            [["nodes", "les miserables", "77 nodes"]],
+        const two = loaded(undefined, ["people.csv", "messages.csv"], { nodes: 12, edges: 30 });
+        assert.equal(sourcesWords([two]), "From 2 files");
+        assert.equal(sourcesWords([two, loaded("more.csv", ["more.csv"], { nodes: 1, edges: 2 })]), "From 3 files");
+        assert.equal(
+            sourcesWords([two, loaded("g.json", [], { nodes: 1, edges: 2 }, "https://a.org/g.json")]),
+            "From 3 sources",
         );
     });
 
@@ -143,5 +186,111 @@ describe("the Data place's words", () => {
         assert.deepEqual(columnOf("edge:shared chapters"), { kind: "edge", name: "shared chapters" });
         assert.isNull(columnOf("nodes"));
         assert.isNull(columnOf("source:nodes"));
+    });
+});
+
+describe("a column's kind", () => {
+    it("reads a column of free text as text, never as a category", () => {
+        assert.equal(typeOf("categorical", "string", "text").typeWord, "Text");
+        assert.equal(typeOf("categorical", "category", "category").typeWord, "Category");
+        assert.equal(typeOf("categorical", "string").typeWord, "Category", "with no readable kind, what it measures");
+        assert.equal(typeOf("time", "string", "text").typeWord, "Text", "the Time role leaves text columns text");
+        assert.equal(typeOf("time", "integer", "number").glyph, "number", "and number columns numbers");
+        assert.equal(typeOf("time", "time", "text").glyph, "time", "a column typed date is a time");
+    });
+
+    it("reads an attribute row's kind from the readable kind it is given", () => {
+        const name = {
+            path: "data.name",
+            name: "name",
+            kind: "node",
+            type: "string",
+            measurement: "categorical",
+            origin: "imported",
+            completeness: 0.7,
+        } as unknown as AttributeDescriptor;
+        const [row] = attributeRows(
+            [name],
+            "node",
+            "",
+            () => undefined,
+            () => "text",
+        );
+        assert.equal(row.description, "Text, 70% have a value");
+    });
+});
+
+describe("a Sources row's count and join words", () => {
+    const load = (counts: { nodes: number; edges: number }, extra: Partial<LoadedSource> = {}): LoadedSource =>
+        ({ counts, ...extra }) as LoadedSource;
+
+    it("names the counts with their units, leaving out a count of 0", () => {
+        assert.equal(countWords(load({ nodes: 13, edges: 18 })), "13 nodes, 18 edges");
+        assert.equal(countWords(load({ nodes: 1, edges: 0 })), "1 node");
+        assert.equal(countWords(load({ nodes: 4, edges: 0 }, { total: 12 })), "4 of 12 nodes");
+    });
+
+    it("says how many rows joined only when some did not", () => {
+        assert.equal(
+            joinWords(
+                load({ nodes: 0, edges: 0 }, {
+                    join: { matched: 17, rows: 19, shape: "edges" },
+                } as Partial<LoadedSource>),
+            ),
+            "17 of 19 rows joined",
+        );
+        assert.equal(
+            joinWords(
+                load({ nodes: 0, edges: 0 }, {
+                    join: { matched: 17, rows: 19, shape: "node-values" },
+                } as Partial<LoadedSource>),
+            ),
+            "17 nodes matched, 19 table rows",
+        );
+        assert.isNull(
+            joinWords(load({ nodes: 0, edges: 0 }, { join: { matched: 19, rows: 19 } } as Partial<LoadedSource>)),
+        );
+        assert.isNull(joinWords(load({ nodes: 0, edges: 0 })));
+        assert.isNull(
+            joinMatch(load({ nodes: 0, edges: 0 }, { join: { matched: 19, rows: 19 } } as Partial<LoadedSource>)),
+        );
+    });
+});
+
+describe("what uses a result", () => {
+    it("names each user once, a repeat counted", () => {
+        assert.strictEqual(
+            namesOnce(["Shortest route", "Shortest route", "Connections"]),
+            "Shortest route x2, Connections",
+        );
+        assert.strictEqual(namesOnce(["Filter"]), "Filter");
+    });
+});
+
+describe("a source's details", () => {
+    const facts = (source: LoadedSource): Record<string, string | number> => {
+        const { source: about, statistics } = sourceFacts(source, [source], { issues: 0, waiting: false });
+        return Object.fromEntries([...about, ...statistics].map(({ name, value }) => [name, value]));
+    };
+
+    it("draws no row for a fact a load does not have, such as an older project's time", () => {
+        const older = facts(loaded("people.csv", ["people.csv"], { nodes: 3, edges: 0 }));
+        assert.deepEqual(Object.keys(older), ["Type", "Nodes", "Edges"]);
+        assert.strictEqual(older.Nodes, 3);
+    });
+
+    it("says when a load was retrieved, and its size in words", () => {
+        const newer = facts({
+            ...loaded("people.csv", ["people.csv"], { nodes: 3, edges: 0 }),
+            kind: "file",
+            size: 2400,
+            fileName: "people.csv",
+            type: "csv",
+            loadedAt: "2024-06-03T08:00:00.000Z",
+        });
+        assert.strictEqual(newer.File, "people.csv");
+        assert.strictEqual(newer.Format, "CSV");
+        assert.strictEqual(newer.Size, "3 KB");
+        assert.isString(newer.Retrieved);
     });
 });

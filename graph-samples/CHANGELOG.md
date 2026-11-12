@@ -1,3 +1,134 @@
+## 0.1.46 (2026-11-10)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.5.1
+
+## 0.1.45 (2026-11-09)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.5.0
+
+## 0.1.44 (2026-11-02)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.12
+
+## 0.1.43 (2026-11-01)
+
+### 🩹 Fixes
+
+- **graph-samples:** keep each dataset source copy in an immutable release of its own ([#3362](https://github.com/graphty-org/graphty-monorepo/issues/3362))
+- **graph-samples:** rebuild a changed hosted dataset when the sources release lacks its source ([#3362](https://github.com/graphty-org/graphty-monorepo/issues/3362))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.11
+
+## 0.1.42 (2026-10-31)
+
+### 🩹 Fixes
+
+- **graph-samples:** let Rolldown drop the dataset metadata a page never reads ([91b6abf8c3](https://github.com/graphty-org/graphty-monorepo/commit/91b6abf8c3))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.10
+
+## 0.1.41 (2026-10-29)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.9
+
+## 0.1.40 (2026-10-28)
+
+### 🚀 Features
+
+- **graphty-element:** read place names as node locations through a hosted gazetteer ([#3299](https://github.com/graphty-org/graphty-monorepo/issues/3299))
+- **graph-samples:** rebuild hosted datasets from a sources release, refreshed by hand ([#3302](https://github.com/graphty-org/graphty-monorepo/issues/3302))
+- **graph-samples:** add venice-transit, a city-scale network with stop coordinates ([b6fba7ab50](https://github.com/graphty-org/graphty-monorepo/commit/b6fba7ab50))
+
+### 🩹 Fixes
+
+- **ci:** preset FC_FONTATIONS for every Chromium launch; one shared vitest base ([#3787](https://github.com/graphty-org/graphty-monorepo/issues/3787))
+- **graph-samples:** clear the SonarQube findings of the hosted sources scripts ([#3302](https://github.com/graphty-org/graphty-monorepo/issues/3302))
+- **graph-samples:** deploy reuses the published hosted datasets instead of third-party hosts ([#3302](https://github.com/graphty-org/graphty-monorepo/issues/3302))
+- **graph-samples:** draw the Venice sample card with darker edges and outlined nodes ([fae8b93659](https://github.com/graphty-org/graphty-monorepo/commit/fae8b93659))
+- **graph-samples:** read a dataset the server already unzipped ([5433eda0dc](https://github.com/graphty-org/graphty-monorepo/commit/5433eda0dc))
+- **graph-samples:** read a dataset the server already unzipped ([701b618a87](https://github.com/graphty-org/graphty-monorepo/commit/701b618a87))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+- graphty-agent @graphty-agent
+
+## 0.1.39 (2026-10-21)
+
+### 🚀 Features
+
+- **graph-samples:** publish a picture of every large dataset and every generator ([a895fb9b3](https://github.com/graphty-org/graphty-monorepo/commit/a895fb9b3))
+- **graph-samples:** a catalogue of every generator, and generateGraph to run one by name ([b51fa5053](https://github.com/graphty-org/graphty-monorepo/commit/b51fa5053))
+- **graph-samples:** a picture of each small dataset, published beside its file ([cd843173e](https://github.com/graphty-org/graphty-monorepo/commit/cd843173e))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.7
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.38 (2026-10-20)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.6
+
+## 0.1.37 (2026-10-18)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.5
+
+## 0.1.36 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.4
+
+## 0.1.35 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.3
+
+## 0.1.34 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.2
+
+## 0.1.33 (2026-10-15)
+
+### 🚀 Features
+
+- **graph-samples:** load every dataset from graphty.app instead of bundling it ([11d72b864](https://github.com/graphty-org/graphty-monorepo/commit/11d72b864))
+
+### 🩹 Fixes
+
+- **graph-samples:** pack hosted datasets without a commit stamp ([#2709](https://github.com/graphty-org/graphty-monorepo/issues/2709))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.32 (2026-10-14)
 
 ### 🧱 Updated Dependencies

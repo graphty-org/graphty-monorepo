@@ -8,13 +8,16 @@ import {
     accumulateMerged,
     backfillRefs,
     commitRefs,
+    droppableMergedIssues,
     explicitRefs,
     landStacked,
     MERGED_QUERY,
     parseMerged,
     REFS_QUERY,
+    restoreMergedIssues,
     searchMerged,
 } from "../lib/merged.mjs";
+import { masterRefs } from "../lib/queue.mjs";
 
 const SEARCH = JSON.parse(
     readFileSync(join(dirname(fileURLToPath(import.meta.url)), "fixtures", "merged-search.json"), "utf8"),
@@ -235,5 +238,55 @@ describe("references on master", () => {
             [REFS_QUERY, { q: "repo:o/r is:pr is:merged merged:>=2026-01-01T00:00:00Z", after: null }],
             [REFS_QUERY, { q: "repo:o/r is:pr is:merged merged:>=2026-01-01T00:00:00Z", after: "c1" }],
         ]);
+    });
+});
+
+describe("dropping and restoring an issue's merge record (issue #2661)", () => {
+    /**
+     * Drops what `droppableMergedIssues` names the way the daemon does: the record to the ledger
+     * first, then out of the state.
+     * @param {any} state the state
+     * @param {any[]} ledger the ledger, appended to
+     */
+    const drop = (state, ledger) => {
+        const m = state.merged;
+        for (const n of droppableMergedIssues(state)) {
+            const record = { refs: m.refs[n] ?? [], closed: m.closed.includes(Number(n)) };
+            ledger.push({ kind: "merged-issue-dropped", issue: Number(n), record });
+            delete m.refs[n];
+            m.closed = m.closed.filter((c) => c !== Number(n));
+        }
+    };
+
+    it("drops only issues not in the state, and a reopened one is answered as before", () => {
+        const state = /** @type {any} */ ({
+            issues: { byNumber: { 5: { state: "open" } } },
+            merged: { refs: { 5: ["#50"], 7: ["#70", "#71"], 8: ["#80"] }, closed: [7, 9] },
+        });
+        const before = { 5: masterRefs(state, 5), 7: masterRefs(state, 7), closed: [...state.merged.closed] };
+        expect(droppableMergedIssues(state).sort()).toEqual(["7", "8", "9"]);
+        const ledger = [];
+        drop(state, ledger);
+        expect(state.merged).toEqual({ refs: { 5: ["#50"] }, closed: [] });
+        expect(ledger.map((e) => e.issue)).toEqual([7, 8, 9]);
+        // A merge names #7 again while it is out of the state, and it is dropped a second time.
+        state.merged.refs[7] = ["#72"];
+        drop(state, ledger);
+        // #7 reopens: its whole record comes back from both lines.
+        state.issues.byNumber[7] = { state: "open" };
+        expect(restoreMergedIssues(state.merged, ledger, ["7"])).toEqual(["7"]);
+        expect(masterRefs(state, 7)).toEqual([...before[7], "#72"]);
+        expect(state.merged.closed).toEqual([7]);
+        expect(masterRefs(state, 5)).toEqual(before[5]);
+        expect(droppableMergedIssues(state).sort()).toEqual([]);
+        expect(before.closed).toEqual([7, 9]);
+    });
+
+    it("restores nothing for an issue it never dropped", () => {
+        const merged = { refs: {}, closed: [] };
+        expect(restoreMergedIssues(merged, [{ kind: "merged-issue-dropped", issue: 3, record: {} }], ["4"])).toEqual(
+            [],
+        );
+        expect(merged).toEqual({ refs: {}, closed: [] });
     });
 });

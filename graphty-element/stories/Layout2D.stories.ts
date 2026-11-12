@@ -5,6 +5,7 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { Graphty } from "../src/graphty-element";
 import {
+    assertCommunitiesLumped,
     assertDistinctPicture,
     assertGraphLoaded,
     assertHeavyEdgesShorter,
@@ -68,6 +69,11 @@ const meta: Meta = {
             control: { type: "number" },
             table: { category: "Spring Layout" },
             name: "layoutConfig.seed",
+        },
+        springNodeGap: {
+            control: { type: "number" },
+            table: { category: "Spring Layout" },
+            name: "layoutConfig.nodeGap",
         },
 
         // Circular layout controls
@@ -371,6 +377,64 @@ export const Spring: Story = {
     },
 };
 
+/**
+ * ForceAtlas2 pulling Louvain's communities into lumps with `clusterBy`: the layout names the run's field before the run
+ * exists, and moves when it lands.
+ */
+export const ClusterBy: Story = {
+    args: {
+        setup: storySetup({ viewMode: "2d", algorithms: ["graphty:louvain"], preSteps: 100, stepMultiplier: 20 }),
+        runAlgorithmsOnLoad: true,
+        layout: "forceatlas2",
+        layoutConfig: { dim: 2, seed: 12, clusterBy: "results.louvain.group", clusterStrength: 4 },
+    },
+    parameters: {
+        controls: {
+            include: ["layoutConfig.clusterStrength"],
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await placed(canvasElement, "ClusterBy");
+
+        await assertCommunitiesLumped(scene, "louvain", 0.3);
+        await assertDistinctPicture(scene, "Layout/2D");
+    },
+};
+
+/**
+ * Spring with `nodeGap`: nodes drawn large, kept apart by their drawn size, so none covers another. Beside the Spring
+ * story, whose nodes stay points to the layout. `preSteps` matches Spring's, for the same reason.
+ */
+export const NodeGap: Story = {
+    args: {
+        setup: storySetup({ viewMode: "2d", preSteps: 50, node: { "node.size": 12 } }),
+        layout: "spring",
+        layoutConfig: { dim: 2 },
+        springK: null,
+        springIterations: 50,
+        springScale: 1,
+        springSeed: 12,
+        springNodeGap: 2,
+    },
+    parameters: {
+        controls: {
+            // A control left out here does not reach the layout, so `layoutConfig.seed` has to stay.
+            include: [
+                "layoutConfig.k",
+                "layoutConfig.iterations",
+                "layoutConfig.scale",
+                "layoutConfig.seed",
+                "layoutConfig.nodeGap",
+            ],
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await placed(canvasElement, "NodeGap");
+
+        await assertDistinctPicture(scene, "Layout/2D");
+    },
+};
+
 /** The planar story's graph: a seeded random Apollonian network, a planar triangulation other layouts tangle. */
 const apollonian = randomApollonianGraph({ n: 20, seed: 42 });
 
@@ -433,11 +497,16 @@ export const ForceAtlas2: Story = {
     args: {
         /*
          * `preSteps` MATCHES `fa2MaxIter` BELOW, so under capture the 100 iterations run before
-         * the first frame is drawn, off the frame clock. Everywhere else the layout animates, one
-         * iteration per rendered frame. The picture is the same either way, because ForceAtlas2 is
-         * deterministic under `seed` and stops at `maxIter` whichever clock ran it.
+         * the first frame is drawn, off the frame clock. Everywhere else the layout animates,
+         * `stepMultiplier` iterations per rendered frame. One a frame was 100 frames, and the
+         * Storybook test browser's software renderer draws this scene at 50 to 250 ms a frame
+         * (most of it the edges' ray tests against the node meshes, issue #412), so both
+         * ForceAtlas2 stories here were sometimes still moving when the 15 second wait for a
+         * final frame gave up. Twenty a frame is 5 frames, as in LayoutGpu's ForceAtlas2Fake. The
+         * picture is the same either way, because ForceAtlas2 is deterministic under `seed` and
+         * stops at `maxIter` whichever clock ran it.
          */
-        setup: storySetup({ viewMode: "2d", preSteps: 100 }),
+        setup: storySetup({ viewMode: "2d", preSteps: 100, stepMultiplier: 20 }),
         layout: "forceatlas2",
         // Named outright, the way Circular, Random, Spring and Kamada-Kawai name it. The element
         // does derive a layout's dimensionality from `viewMode` -- `LayoutManager.setLayout`

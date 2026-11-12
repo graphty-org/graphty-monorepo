@@ -135,6 +135,52 @@ export function startsLikeZip(bytes: Uint8Array): boolean {
 }
 
 /**
+ * Read the end of central directory record, following the zip64 locator when there is one.
+ * @param view - the whole archive
+ * @param eocd - the offset of the end record
+ * @returns the disk numbers, the entry count and where the central directory is; ZipError
+ * "corrupt" when the end record needs a zip64 record the archive does not have
+ */
+function readEndRecord(
+    view: DataView,
+    eocd: number,
+): {
+    disk: number;
+    directoryDisk: number;
+    count: number;
+    directorySize: number;
+    directoryOffset: number;
+    directoryEnd: number;
+} {
+    const locator = eocd - ZIP64_LOCATOR_SIZE;
+    if (locator >= 0 && view.getUint32(locator, true) === ZIP64_LOCATOR_SIGNATURE) {
+        const record = zip64EndRecord(view, locator);
+        return {
+            disk: view.getUint32(record + 16, true),
+            directoryDisk: view.getUint32(record + 20, true),
+            count: readU64(view, record + 32),
+            directorySize: readU64(view, record + 40),
+            directoryOffset: readU64(view, record + 48),
+            directoryEnd: record,
+        };
+    }
+    const count = view.getUint16(eocd + 10, true);
+    const directorySize = view.getUint32(eocd + 12, true);
+    const directoryOffset = view.getUint32(eocd + 16, true);
+    if (count === U16_MAX || directorySize === U32_MAX || directoryOffset === U32_MAX) {
+        throw new ZipError("corrupt", "the end record needs a zip64 record the archive does not have");
+    }
+    return {
+        disk: view.getUint16(eocd + 4, true),
+        directoryDisk: view.getUint16(eocd + 6, true),
+        count,
+        directorySize,
+        directoryOffset,
+        directoryEnd: eocd,
+    };
+}
+
+/**
  * Read the central directory.
  * @param bytes - the whole archive
  * @returns the entries in directory order; ZipError "not-zip" when there is no end record and the
@@ -150,24 +196,7 @@ export function readZipDirectory(bytes: Uint8Array): ZipEntry[] {
             ? new ZipError("corrupt", "the archive has no end of central directory record (truncated?)")
             : new ZipError("not-zip", "the input is not a zip archive");
     }
-    let disk = view.getUint16(eocd + 4, true);
-    let directoryDisk = view.getUint16(eocd + 6, true);
-    let count = view.getUint16(eocd + 10, true);
-    let directorySize = view.getUint32(eocd + 12, true);
-    let directoryOffset = view.getUint32(eocd + 16, true);
-    let directoryEnd = eocd;
-    const locator = eocd - ZIP64_LOCATOR_SIZE;
-    if (locator >= 0 && view.getUint32(locator, true) === ZIP64_LOCATOR_SIGNATURE) {
-        const record = zip64EndRecord(view, locator);
-        disk = view.getUint32(record + 16, true);
-        directoryDisk = view.getUint32(record + 20, true);
-        count = readU64(view, record + 32);
-        directorySize = readU64(view, record + 40);
-        directoryOffset = readU64(view, record + 48);
-        directoryEnd = record;
-    } else if (count === U16_MAX || directorySize === U32_MAX || directoryOffset === U32_MAX) {
-        throw new ZipError("corrupt", "the end record needs a zip64 record the archive does not have");
-    }
+    const { disk, directoryDisk, count, directorySize, directoryOffset, directoryEnd } = readEndRecord(view, eocd);
     if (disk !== 0 || directoryDisk !== 0) {
         throw new ZipError("unsupported", "a split (multi-disk) archive cannot be read");
     }

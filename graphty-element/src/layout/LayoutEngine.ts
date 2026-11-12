@@ -1,6 +1,7 @@
 import {
     type DerivedGraph,
     detHypot,
+    type EdgeMask,
     type F32,
     GraphBuilder,
     type GraphSnapshot,
@@ -11,7 +12,7 @@ import {
     type NodeMask,
 } from "@graphty/graph-format";
 import { fromPositionColumn, type LayoutResult, toPositionColumn } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { publishLayoutDescriptor } from "../catalog/layoutRegistry";
 import { type RegisterOptions, SharedImplementationMap } from "../catalog/pluginRegistry";
@@ -19,11 +20,23 @@ import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { OptionsSchema } from "../config";
 import { readonlyPositions, writableLane } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
-import { ElementPositions, isStorableCoordinate } from "../data/positions";
+import { ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "../data/positions";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
+import type { GraphContext } from "../managers/GraphContext";
 import type { Node, NodeIdType } from "../Node";
 import type { ReadonlyElementPositions } from "../session/types";
+import type { ClusterColumn } from "./clusterForce";
+
+/**
+ * An edge stored with no `Edge`, under renderPath "batched": its id and its two nodes' ids. A
+ * freeze renumbers rows, the ids stay.
+ */
+export interface EdgeRow {
+    readonly key: string;
+    readonly source: NodeIdType;
+    readonly target: NodeIdType;
+}
 
 export interface Position {
     x: number;
@@ -48,6 +61,50 @@ interface Coords {
 export interface EdgePosition {
     src: Position;
     dst: Position;
+    /**
+     * The route the layout laid the edge along, when it laid one (Graphviz's splines): `along, across`
+     * pairs, flat, as `line.bends` holds them. A route the edge's style stores wins over it.
+     */
+    bends?: readonly number[];
+    /**
+     * Where the layout put the edge's label, when it placed one (Graphviz's `lp`, or `xlp` for an external label): `along` of the way from the source
+     * to the target and `across` that length to the left of the line, as one pair of `bends` is given. Absent, the
+     * label goes at the middle of the edge's line.
+     */
+    labelAt?: readonly [along: number, across: number];
+    /**
+     * Where the layout put the caption at the edge's target end, when it placed one (Graphviz's `head_lp`), given as
+     * {@link EdgePosition.labelAt} is. Absent, or when the caption's style places it itself, it hangs beside the end.
+     */
+    headLabelAt?: readonly [along: number, across: number];
+    /** Where the layout put the caption at the edge's source end (Graphviz's `tail_lp`), as {@link EdgePosition.headLabelAt}. */
+    tailLabelAt?: readonly [along: number, across: number];
+    /**
+     * Where the layout put the edge's external label, drawn beside its label, when it placed one (Graphviz's `xlp`),
+     * given as {@link EdgePosition.labelAt} is. Absent, or when the external label's style places it itself, it sits
+     * up and left of the line's middle.
+     */
+    xlabelAt?: readonly [along: number, across: number];
+    /**
+     * The edge's labels the layout left out, which are not drawn: a Graphviz layout of a graph with
+     * `forcelabels=false` leaves out an external label, an end label or (in every engine but dot) a label that would
+     * cover a node or another label. Absent when none is left out.
+     * @since 3.35.0
+     */
+    leftOut?: readonly ("label" | "xlabel" | "headLabel" | "tailLabel")[];
+    /**
+     * Where the layout starts and ends the edge's line, when it ends it itself, each given as
+     * {@link EdgePosition.labelAt} is: `target` is where an arrowhead's tip goes. The line is drawn to these ends instead
+     * of being cut at its nodes' outlines. A Graphviz layout with `nodeSize: "label"`, whose nodes Graphviz shapes as
+     * the element draws them, gives them: Graphviz's spline ends, on the outer ring of a node of several peripheries, at
+     * a record's field port, or on the border of the cluster an `lhead` or `ltail` names. Absent, the line is cut at
+     * the outlines.
+     * @since 3.36.0
+     */
+    lineEnds?: {
+        readonly source: readonly [along: number, across: number];
+        readonly target: readonly [along: number, across: number];
+    };
 }
 
 /**
@@ -101,8 +158,17 @@ const BUILT_IN_LAYOUT_ENGINES: readonly string[] = Object.freeze([
     "d3",
     "fixed",
     "forceatlas2",
+    "graphviz-circo",
+    "graphviz-dot",
+    "graphviz-fdp",
+    "graphviz-neato",
+    "graphviz-osage",
+    "graphviz-patchwork",
+    "graphviz-sfdp",
+    "graphviz-twopi",
     "grid",
     "kamada-kawai",
+    "location-map",
     "multipartite",
     "ngraph",
     "planar",
@@ -174,6 +240,25 @@ export interface LayoutEngineStatics {
 }
 
 /**
+ * Whether a column entry can be published at all: a real row number and three storable coordinates.
+ * @param row - the entry's row
+ * @param x - scene-unit x
+ * @param y - scene-unit y
+ * @param z - scene-unit z
+ * @returns true when nothing about the entry itself refuses it
+ */
+function isPublishable(row: number, x: number, y: number, z: number): boolean {
+    return (
+        row !== INVALID_INDEX &&
+        Number.isInteger(row) &&
+        row >= 0 &&
+        isStorableCoordinate(x) &&
+        isStorableCoordinate(y) &&
+        isStorableCoordinate(z)
+    );
+}
+
+/**
  * The refusal for a registration that would take one of the element's own engine names.
  *
  * Replacing a built-in changes what an already-saved document means: a graph arranged with
@@ -222,6 +307,14 @@ export const layoutEngineInternals = {} as {
     attachPositions(engine: LayoutEngine, positions: ElementPositions): void;
     /** See `LayoutEngine.edgeProblems`. */
     edgeProblems(engine: LayoutEngine, drawn: ReadonlyMap<string, Edge>): string[];
+    /** See `LayoutEngine.setFollowers`. */
+    setFollowers(
+        engine: LayoutEngine,
+        rows: ReadonlySet<number> | null,
+        members?: ReadonlyMap<number, readonly number[]>,
+    ): void;
+    /** See `LayoutEngine.setLeftOut`. */
+    setLeftOut(engine: LayoutEngine, mask: NodeMask | null, rows: number, edges?: ReadonlySet<Edge> | null): void;
 };
 
 /**
@@ -310,6 +403,12 @@ export abstract class LayoutEngine {
         layoutEngineInternals.attachPositions = (engine, positions) => {
             engine.attachPositions(positions);
         };
+        layoutEngineInternals.setFollowers = (engine, rows, members) => {
+            engine.setFollowers(rows, members);
+        };
+        layoutEngineInternals.setLeftOut = (engine, mask, rows, edges) => {
+            engine.setLeftOut(mask, rows, edges ?? null);
+        };
     }
 
     static type: string;
@@ -376,11 +475,37 @@ export abstract class LayoutEngine {
      */
     private positionArrayAttached = false;
 
+    private scratchRows = new Float64Array(0);
+    private scratchCoords = new Float64Array(0);
+
+    /**
+     * The box the last {@link LayoutEngine.publishColumn} left the rows it was handed in: min x, y, z
+     * then max x, y, z, in scene units. A row it kept (pinned or held) counts where it is kept.
+     */
+    private readonly publishedBox = new Float64Array(6);
+    /** Whether {@link LayoutEngine.publishedBox} holds a row. */
+    private publishedBoxHolds = false;
+
     /** The rows the element is holding still, or null when nothing is held. See {@link setHoldMask}. */
     private hold: NodeMask | null = null;
 
     /** How many rows {@link hold} covers; a row at or past it is newer than the hold, so held. */
     private holdRows = 0;
+
+    /** The rows the element places itself (group nodes following their members), or null. */
+    private followers: ReadonlySet<number> | null = null;
+
+    /** The rows the layout leaves out (hidden by the filter under `layout.visibleOnly`), or null. */
+    private leftOut: NodeMask | null = null;
+
+    /** How many rows {@link leftOut} covers; a row past it is not left out. */
+    private leftOutRows = 0;
+
+    /** The edges the layout leaves out although both their ends take part (an edge filter), or null. */
+    private leftOutEdges: ReadonlySet<Edge> | null = null;
+
+    /** Each follower row's member rows. See {@link LayoutEngine.followerGroups}. */
+    private followerMembers: ReadonlyMap<number, readonly number[]> = new Map();
 
     // basic functionality
     abstract init(): Promise<void>;
@@ -397,6 +522,26 @@ export abstract class LayoutEngine {
      */
     protected abstract setNodePosition(n: Node, p: Position): void;
     abstract getEdgePosition(e: Edge): EdgePosition;
+    /**
+     * Where the layout put a node's external label (`xlabel`), when it places one (Graphviz's `xlp`): the label's
+     * center, right and down of the node's center, in scene units. Undefined by default: the label then sits against
+     * the node's top left corner.
+     * @param _n - The node.
+     * @returns The offset, or undefined when the layout places no external label.
+     */
+    getNodeXlabelOffset(_n: Node): readonly [right: number, down: number] | undefined {
+        return undefined;
+    }
+    /**
+     * Whether the layout left a node's external label (`xlabel`) out, so it is not drawn: a Graphviz layout of a graph
+     * with `forcelabels=false` leaves out one that would cover another node. False by default.
+     * @param _n - The node.
+     * @returns True when the label is left out.
+     * @since 3.34.0
+     */
+    isNodeXlabelLeftOut(_n: Node): boolean {
+        return false;
+    }
     // for animated layouts
     abstract step(): void;
     /** Hold a node where it is; protected for the reason {@link LayoutEngine.setNodePosition} is. */
@@ -405,8 +550,32 @@ export abstract class LayoutEngine {
     protected abstract unpin(n: Node): void;
     // properties
     abstract get nodes(): Iterable<Node>;
+    /**
+     * Every edge the engine holds. An engine that takes an edge up later than it is told must
+     * return an array: the frame loop notices that edge by the array's length.
+     */
     abstract get edges(): Iterable<Edge>;
     abstract get isSettled(): boolean;
+
+    /**
+     * Start the layout again because a node's drawn size changed, when it keeps nodes apart by that size (`nodeGap`):
+     * a node that grew after the layout came to rest may now cover another.
+     * @returns True when the frame loop has to start stepping this layout again.
+     * @internal
+     */
+    wakeForResize(): boolean {
+        return false;
+    }
+
+    /**
+     * Whether this engine keeps nodes apart by their drawn size (`nodeGap`), so it must not step while a size is still
+     * to come: see `UpdateManager.updateLayout`.
+     * @returns True when the engine reads node sizes.
+     * @internal
+     */
+    get spacesBySize(): boolean {
+        return false;
+    }
 
     /**
      * Add multiple nodes to the layout engine
@@ -607,12 +776,179 @@ export abstract class LayoutEngine {
      * @returns True while a hold is set and the row is held or newer than the hold.
      */
     protected isHeld(index: number): boolean {
+        if (this.isFollower(index)) {
+            return true;
+        }
+
         const { hold } = this;
         if (hold === null) {
             return false;
         }
 
         return index >= this.holdRows || !Number.isInteger(index) || index < 0 || maskTest(hold, index);
+    }
+
+    /**
+     * Hand the engine the rows the element places itself: group nodes with no stored position,
+     * which follow their members' box. Each is held like a scoped layout's held row -- never
+     * integrated, never written by a layout step -- and an engine with forces of its own makes
+     * it exert none (see {@link LayoutEngine.isFollower}). Re-applies the hold through
+     * {@link LayoutEngine.setHoldMask}, so an engine that fixes held nodes in its own state picks
+     * the followers up too.
+     * @param rows - The follower rows, or null for none.
+     * @param members - Each follower row's member rows, the nodes it holds directly.
+     */
+    protected setFollowers(
+        rows: ReadonlySet<number> | null,
+        members: ReadonlyMap<number, readonly number[]> = new Map(),
+    ): void {
+        this.followers = rows === null || rows.size === 0 ? null : rows;
+        this.followerMembers = members;
+        this.setHoldMask(this.hold, this.holdRows);
+    }
+
+    /**
+     * Hand the engine the rows it leaves out: nodes the visibility filter hides while
+     * `behavior.layout.visibleOnly` is on. A left-out row takes no part, as a follower takes none
+     * (see {@link LayoutEngine.isFollower}): held where it is, it exerts no force, its edges pull
+     * nothing, and a one-pass layout gives it no slot. Re-applies the hold through
+     * {@link LayoutEngine.setHoldMask}, so an engine that fixes held nodes in its own state picks
+     * these rows up too.
+     * @param mask - One bit per row to leave out, or null for none.
+     * @param rows - How many rows the mask covers.
+     * @param edges - The edges the filter hides between two nodes it shows, which pull nothing
+     *     either; null or absent for none.
+     */
+    protected setLeftOut(mask: NodeMask | null, rows: number, edges: ReadonlySet<Edge> | null = null): void {
+        this.leftOut = mask;
+        this.leftOutRows = mask === null ? 0 : rows;
+        this.leftOutEdges = edges === null || edges.size === 0 ? null : edges;
+        this.setHoldMask(this.hold, this.holdRows);
+    }
+
+    /**
+     * Whether the layout leaves this edge out: one of its ends is left out, or the filter hides
+     * the edge itself. See {@link LayoutEngine.setLeftOut}.
+     * @param edge - The edge.
+     * @returns True for a left-out edge.
+     */
+    protected isEdgeLeftOut(edge: Edge): boolean {
+        if (this.leftOutEdges?.has(edge) === true) {
+            return true;
+        }
+
+        // With no row left out, an end is never read: a row drawn with no `Node` must not be asked for one.
+        return (
+            this.leftOut !== null && (this.isLeftOut(edge.endRow("source")) || this.isLeftOut(edge.endRow("target")))
+        );
+    }
+
+    /**
+     * The edges of a graph over the element's rows that the layout keeps, when the filter hides
+     * some edge between two nodes it shows. An edge whose end is left out is not cleared here:
+     * {@link LayoutEngine.keptRows} drops it with its end.
+     * @param graph - A graph over the element's node rows (the stored graph or its undirected copy).
+     * @returns A mask of the edges kept, or null when the layout leaves no edge of its own out.
+     */
+    protected keptEdges(graph: GraphSnapshot): EdgeMask | null {
+        const hidden = this.leftOutEdges;
+        if (hidden === null) {
+            return null;
+        }
+
+        // ponytail: by end pair, so a hidden edge also drops a shown parallel of it; a layout
+        // draws a pair of nodes once, so only the pull of that one pair is lost.
+        const pairs = new Set<string>();
+        for (const edge of hidden) {
+            const a = edge.endRow("source");
+            const b = edge.endRow("target");
+            pairs.add(a < b ? `${String(a)}:${String(b)}` : `${String(b)}:${String(a)}`);
+        }
+
+        const { src, dst } = graph.edgeList();
+        const kept = makeMask(src.length, true);
+        for (let row = 0; row < src.length; row++) {
+            const a = src[row];
+            const b = dst[row];
+            if (pairs.has(a < b ? `${String(a)}:${String(b)}` : `${String(b)}:${String(a)}`)) {
+                maskSet(kept, row, false);
+            }
+        }
+
+        return kept;
+    }
+
+    /**
+     * Whether the layout leaves this row out: see {@link LayoutEngine.setLeftOut}.
+     * @param index - The node's row.
+     * @returns True for a left-out row.
+     */
+    protected isLeftOut(index: number): boolean {
+        const mask = this.leftOut;
+        return (
+            mask !== null && Number.isInteger(index) && index >= 0 && index < this.leftOutRows && maskTest(mask, index)
+        );
+    }
+
+    /**
+     * The rows the layout lays out, when it leaves any out: see {@link LayoutEngine.setLeftOut}.
+     * @param rows - How many rows the graph has.
+     * @returns A mask of the rows kept, or null when none is left out.
+     */
+    protected keptRows(rows: number): NodeMask | null {
+        if (this.leftOut === null) {
+            return null;
+        }
+
+        const kept = makeMask(rows);
+        for (let row = 0; row < rows; row++) {
+            maskSet(kept, row, !this.isLeftOut(row));
+        }
+
+        return kept;
+    }
+
+    /**
+     * Reads a `clusterBy` path through the session; set by `LayoutManager` before `init()`.
+     * @internal
+     */
+    clusterColumn: ClusterColumn | null = null;
+
+    /**
+     * Read `clusterBy` again because a run's results changed, and start the layout again when the communities did.
+     * @returns True when the frame loop has to start stepping this layout again.
+     * @internal
+     */
+    wakeForClusters(): boolean {
+        return false;
+    }
+
+    /**
+     * Whether the element places this row itself, as a group following its members: an engine
+     * with forces of its own gives it none, so it neither repels nor attracts another node.
+     * @param index - The node's row.
+     * @returns True for a follower row.
+     */
+    protected isFollower(index: number): boolean {
+        return this.followers?.has(index) === true || this.isLeftOut(index);
+    }
+
+    /**
+     * The groups the element places round their members (see {@link LayoutEngine.isFollower}),
+     * each with the rows of the members it holds directly: for an engine that keeps a group's
+     * members together itself, as Graphviz does with a cluster.
+     * @returns The groups by row; empty for none.
+     */
+    protected get followerGroups(): ReadonlyMap<number, readonly number[]> {
+        return new Map([...(this.followers ?? [])].map((row) => [row, this.followerMembers.get(row) ?? []]));
+    }
+
+    /**
+     * Whether any row is held, by a scope or as a follower.
+     * @returns True when {@link LayoutEngine.isHeld} can answer true.
+     */
+    protected get holdsAny(): boolean {
+        return this.hold !== null || this.followers !== null || this.leftOut !== null;
     }
 
     /**
@@ -664,12 +1000,27 @@ export abstract class LayoutEngine {
      * @returns true when the node has a placed row
      */
     readNodePosition(n: Node, out: { x: number; y: number; z: number }): boolean {
-        const positions = this.positionsFor(n);
-        if (!positions.isPlaced(n.index)) {
+        this.positionsFor(n);
+        return this.readRowPosition(n.index, out);
+    }
+
+    /**
+     * Read one row's published coordinates, as {@link LayoutEngine.readNodePosition} reads a node's,
+     * for a row drawn with no `Node`.
+     * @param row - The row.
+     * @param out - The object to fill.
+     * @param out.x - receives the scene-unit x
+     * @param out.y - receives the scene-unit y
+     * @param out.z - receives the scene-unit z
+     * @returns true when the row is placed
+     */
+    protected readRowPosition(row: number, out: { x: number; y: number; z: number }): boolean {
+        const positions = this.writablePositions;
+        if (!positions.isPlaced(row)) {
             return false;
         }
 
-        positions.read(n.index, out);
+        positions.read(row, out);
         return true;
     }
 
@@ -771,20 +1122,163 @@ export abstract class LayoutEngine {
     }
 
     /**
+     * The reusable column an engine fills for {@link LayoutEngine.publishColumn}.
+     * @param count - how many rows it will fill
+     * @returns each entry's row, and three coordinates per entry. The rows are doubles, not u32s,
+     *     so that an index that is no row number reaches the guard as it is instead of wrapping
+     * @internal
+     */
+    protected publishScratch(count: number): { rows: Float64Array; coords: Float64Array } {
+        if (this.scratchRows.length < count) {
+            this.scratchRows = new Float64Array(count);
+            this.scratchCoords = new Float64Array(3 * count);
+        }
+
+        return { rows: this.scratchRows, coords: this.scratchCoords };
+    }
+
+    /**
+     * Publish a whole column: {@link LayoutEngine.writeNodePosition}'s guards in one loop over typed
+     * arrays, with the array resolved once instead of per node.
+     * @param n - any node of the column, or the element's array itself, which resolves the array;
+     *     nothing is published without one
+     * @param rows - each entry's row
+     * @param coords - each entry's scene-unit x, y, z
+     * @param count - how many entries to publish
+     * @param firstPlacement - true when a row with no coordinate takes this one as a placement,
+     *     whatever pin or hold it carries
+     * @internal
+     */
+    protected publishColumn(
+        n: Node | ElementPositions | undefined,
+        rows: Float64Array,
+        coords: Float64Array,
+        count: number,
+        firstPlacement = false,
+    ): void {
+        if (n === undefined) {
+            return;
+        }
+
+        const positions = this.positionsFor(n);
+        const holds = this.holdsAny;
+        let live = positions.count;
+        let array = positions.view(live);
+        let pins = positions.pinnedView(live);
+        let written = 0;
+        let changed = 0;
+        const box = this.publishedBox;
+        box.fill(Infinity, 0, 3);
+        box.fill(-Infinity, 3, 6);
+        for (let i = 0; i < count; i++) {
+            const row = rows[i];
+            const x = coords[3 * i];
+            const y = coords[3 * i + 1];
+            const z = coords[3 * i + 2];
+            if (!isPublishable(row, x, y, z)) {
+                continue;
+            }
+
+            const base = POSITION_COMPONENTS * row;
+            const placed = row < live && isStorableCoordinate(array[base]);
+            const guarded = placed || !firstPlacement;
+            if (guarded && (pins[row] === 1 || (holds && placed && this.isHeld(row)))) {
+                // A kept row is still drawn, where it was kept; an unplaced one is not drawn.
+                grow(box, array[base], array[base + 1], array[base + 2], placed);
+                continue;
+            }
+
+            grow(box, x, y, z);
+
+            if (row >= live) {
+                positions.grow(row + 1);
+                live = positions.count;
+                array = positions.view(live);
+                pins = positions.pinnedView(live);
+            }
+
+            if (
+                array[base] !== Math.fround(x) ||
+                array[base + 1] !== Math.fround(y) ||
+                array[base + 2] !== Math.fround(z)
+            ) {
+                changed++;
+            }
+
+            array[base] = x;
+            array[base + 1] = y;
+            array[base + 2] = z;
+            written++;
+        }
+
+        positions.moved(written, changed);
+        this.publishedBoxHolds = box[0] <= box[3];
+    }
+
+    /**
+     * The box, in scene units, the rows of the last publish were left in, measured in the publish's
+     * own loop so that reading it walks no row. Null before a publish that placed a row, and from an
+     * engine that holds rows outside its publish (a scope or followers), whose box it is not.
+     * Only engines whose one publish is one {@link LayoutEngine.publishColumn} answer it.
+     * @returns Min x, y, z then max x, y, z, live until the next publish; or null.
+     * @internal
+     */
+    publishedBounds(): Readonly<Float64Array> | null {
+        return null;
+    }
+
+    /**
+     * Take rows an engine left out of its last {@link LayoutEngine.publishColumn} (rows it keeps
+     * itself, such as pinned or dragged ones) into {@link LayoutEngine.publishedBounds}, where they
+     * are drawn now. An unplaced row is not drawn and does not count.
+     * @param n - The element's array, or a node of its graph; undefined when nothing was published.
+     * @param rows - The kept rows.
+     * @internal
+     */
+    protected keepInPublishedBox(n: Node | ElementPositions | undefined, rows: ReadonlySet<number>): void {
+        if (n === undefined || rows.size === 0) {
+            return;
+        }
+
+        const positions = this.positionsFor(n);
+        const live = positions.count;
+        const array = positions.view(live);
+        const box = this.publishedBox;
+        for (const row of rows) {
+            const base = POSITION_COMPONENTS * row;
+            if (row < live && isStorableCoordinate(array[base])) {
+                grow(box, array[base], array[base + 1], array[base + 2]);
+            }
+        }
+
+        this.publishedBoxHolds = box[0] <= box[3];
+    }
+
+    /**
+     * {@link LayoutEngine.publishedBounds} for an engine that publishes in one
+     * {@link LayoutEngine.publishColumn}.
+     * @returns The box, or null.
+     * @internal
+     */
+    protected lastPublishedBox(): Readonly<Float64Array> | null {
+        return this.publishedBoxHolds && !this.holdsAny ? this.publishedBox : null;
+    }
+
+    /**
      * The array to use for this node: the one its own graph owns, unless a host attached one.
      *
      * Resolved on every call rather than cached, because the element REPLACES its array when a
      * dataset is discarded -- the store and everything keyed into it is thrown away and rebuilt --
      * and an engine outlives that. A cached reference would keep publishing into the array of a
      * graph that no longer exists, which is invisible: every write succeeds and nothing draws.
-     * @param n - the node being published or read
+     * @param n - the node being published or read, or the element's array itself
      * @returns the array to write to and read from
      */
-    private positionsFor(n: Node): ElementPositions {
+    private positionsFor(n: Node | ElementPositions): ElementPositions {
         if (!this.positionArrayAttached) {
             // A node built by hand for a unit test, or one belonging to a host that keeps no
             // position array, answers nothing here and the engine keeps its own.
-            const owned = writableLane(n.parentGraph?.getDataManager?.());
+            const owned = n instanceof ElementPositions ? n : writableLane(n.parentGraph?.getDataManager?.());
             if (owned !== undefined) {
                 this.positionArray = owned;
             }
@@ -1038,6 +1532,17 @@ function compact<T>(list: T[], gone: Set<T>): T[] {
 }
 
 /**
+ * Sweep a list once half of it is marked removed. See {@link StaticLayoutEngine.removeNode}.
+ * @param list - the list
+ * @param gone - what is marked removed from it
+ */
+function sweepAtHalf<T>(list: T[], gone: Set<T>): void {
+    if (2 * gone.size >= list.length) {
+        compact(list, gone);
+    }
+}
+
+/**
  * Whether two lists hold the same items in the same order.
  * @param a - one list
  * @param b - the other
@@ -1065,6 +1570,30 @@ function carryRows(rows: NodeMask, change: SnapshotReplacement): NodeMask {
     }
 
     return out;
+}
+
+/**
+ * How many edges of a graph join each pair of nodes, with its ends renumbered into the next freeze.
+ * @param graph - the graph before the freeze
+ * @param remap - its node rows to the next freeze's, or null when they kept their rows
+ * @param pair - the key of a pair of renumbered ends
+ * @returns the edge count per pair key
+ */
+function pairCounts(
+    graph: GraphSnapshot,
+    remap: SnapshotReplacement["report"]["nodeRemap"],
+    pair: (a: number, b: number) => number,
+): Map<number, number> {
+    const counts = new Map<number, number>();
+    const had = graph.edgeList();
+    for (let e = 0; e < graph.edgeCount; e++) {
+        const a = remap === null ? had.src[e] : remap[had.src[e]];
+        const b = remap === null ? had.dst[e] : remap[had.dst[e]];
+        const key = pair(a, b);
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+
+    return counts;
 }
 
 /**
@@ -1103,14 +1632,7 @@ function existingRows(change: SnapshotReplacement): NodeMask | null {
     // edge identity.
     const n = next.nodeCount;
     const pair = (a: number, b: number): number => Math.min(a, b) * n + Math.max(a, b);
-    const before = new Map<number, number>();
-    const had = previous.edgeList();
-    for (let e = 0; e < previous.edgeCount; e++) {
-        const a = remap === null ? had.src[e] : remap[had.src[e]];
-        const b = remap === null ? had.dst[e] : remap[had.dst[e]];
-        const key = pair(a, b);
-        before.set(key, (before.get(key) ?? 0) + 1);
-    }
+    const before = pairCounts(previous, remap, pair);
 
     const { src, dst } = next.edgeList();
     let between = 0;
@@ -1242,6 +1764,26 @@ export const simpleLayoutInternals = {
     kept(engine: StaticLayoutEngine): NodeMask | null;
     /** The element's array for the run in progress, or null for an engine driven without one. */
     positions(engine: StaticLayoutEngine): ElementPositions | null;
+    /** How many nodes and edges the engine's lists hold, removed ones not yet swept included, without sweeping them. */
+    held(engine: StaticLayoutEngine): { readonly nodes: number; readonly edges: number };
+    /**
+     * Hand the engine the element's graph, so that while `byRow` answers true it lays out and
+     * publishes every row of the element's snapshot, a row it was handed no `Node` for included.
+     */
+    attachRows(
+        engine: StaticLayoutEngine,
+        source: GraphSource,
+        byRow: () => boolean,
+        graph?: () => GraphContext | null,
+    ): void;
+    /** The element's graph: a built `Node`'s, else, while it lays out by row, the one attached with the rows. */
+    hostGraph(engine: StaticLayoutEngine): GraphContext | undefined;
+    /** Whether the engine has nothing to arrange: no node handed to it, and no row it lays out by row. */
+    empty(engine: StaticLayoutEngine): boolean;
+    /** Whether the engine lays out by row (renderPath "batched", a row stored), so a freeze, not a `Node` or `Edge` handed to it, says the graph changed. */
+    byRow(engine: StaticLayoutEngine): boolean;
+    /** Hold an `Edge` built late for an edge the engine already laid out by row, without marking the layout stale. */
+    adoptEdge(engine: StaticLayoutEngine, e: Edge): void;
 };
 
 /**
@@ -1268,6 +1810,24 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     static {
         simpleLayoutInternals.kept = (engine) => engine.#keep;
         simpleLayoutInternals.positions = (engine) => (engine.#loaded ?? engine.#load()).positions;
+        simpleLayoutInternals.held = (engine) => ({ nodes: engine.#nodes.length, edges: engine.#edges.length });
+        simpleLayoutInternals.attachRows = (engine, source, byRow, graph) => {
+            engine.#rows = { source, byRow, graph };
+        };
+        // Only while laying out by row (renderPath "batched", a row stored): an empty graph, or any
+        // graph on renderPath "objects", answers as on master, so place() is skipped as before.
+        simpleLayoutInternals.hostGraph = (engine) =>
+            engine._nodes[0]?.parentGraph ??
+            (engine.#rowSource() === null ? undefined : (engine.#rows?.graph?.() ?? undefined));
+        simpleLayoutInternals.empty = (engine) => engine._nodes.length === 0 && engine.#rowSource() === null;
+        simpleLayoutInternals.byRow = (engine) => engine.#rowSource() !== null;
+        simpleLayoutInternals.adoptEdge = (engine, e) => {
+            if (engine.#goneEdges.has(e)) {
+                compact(engine.#edges, engine.#goneEdges);
+            }
+
+            engine.#edges.push(e);
+        };
     }
 
     static type: string;
@@ -1294,8 +1854,23 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     #keep: NodeMask | null = null;
     /** The element snapshot a run still waiting for its answer arranges; `#keep` is in its rows. */
     #waitingFor: GraphSnapshot | null = null;
+    /**
+     * The element's graph, attached by the element: under renderPath "batched" (`byRow`) the
+     * engine arranges and publishes every row of it, so a row drawn with no `Node` is laid out too.
+     */
+    #rows: {
+        readonly source: GraphSource;
+        readonly byRow: () => boolean;
+        readonly graph?: () => GraphContext | null;
+    } | null = null;
     /** For an engine driven without an element: the graph last built, and from what. */
     #built: { readonly nodes: Node[]; readonly edges: Edge[]; readonly loaded: LoadedGraph } | null = null;
+    /**
+     * While `doLayout` runs and the layout leaves some of the graph out (see
+     * `LayoutEngine.setLeftOut`): the nodes and edges it lays out, which `_nodes` and `_edges`
+     * answer then, so an engine that reads them arranges only what takes part. Null otherwise.
+     */
+    #taking: { readonly nodes: Node[]; readonly edges: Edge[] } | null = null;
 
     /**
      * Create a simple layout engine
@@ -1344,7 +1919,12 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         }
 
         this.#nodes.push(n);
-        this.stale = true;
+        // Laying out by row (renderPath "batched"), the row arrived with its freeze, which already
+        // marked the layout stale; a `Node` built for it later is no change to the graph, and a
+        // re-run would move every row it already placed.
+        if (this.#rowSource() === null) {
+            this.stale = true;
+        }
     }
 
     /**
@@ -1541,9 +2121,27 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         // Through the same rows the endpoints themselves render at, so an edge cannot be drawn to
         // where a node used to be by reading a second copy of the layout.
         return {
-            src: this.publishedOr(e.srcNode),
-            dst: this.publishedOr(e.dstNode),
+            src: this.endPublished(e, "source"),
+            dst: this.endPublished(e, "target"),
         };
+    }
+
+    /**
+     * One end of an edge as {@link LayoutEngine.publishedOr} reads it, but by its row for an end drawn
+     * with no `Node` (`Edge.columnEnd`), whose row the element's array holds.
+     * @param e - The edge.
+     * @param end - Which end.
+     * @returns The coordinates; the origin for a row nothing has placed.
+     */
+    private endPublished(e: Edge, end: "source" | "target"): Coords {
+        const out = { x: 0, y: 0, z: 0 };
+        const row = e.columnEnd(end);
+        if (row === undefined) {
+            return this.publishedOr(end === "source" ? e.srcNode : e.dstNode);
+        }
+
+        this.readRowPosition(row.index, out);
+        return out;
     }
 
     /**
@@ -1580,12 +2178,19 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * layout is marked stale, so the next read recomputes it without the node.
      *
      * The node is only marked here, and the list is swept once, in order, at the next read of
-     * `_nodes`. Finding and splicing it out at once cost the length of the list per removal, so
-     * tearing down a graph of n nodes one node at a time cost n^2/2 moves: 8.6 s at 100,000 nodes.
+     * `_nodes` or once half of it is marked, whichever comes first. Finding and splicing it out at
+     * once cost the length of the list per removal, so tearing down a graph of n nodes one node at a
+     * time cost n^2/2 moves: 8.6 s at 100,000 nodes. Waiting only for a read held every removed
+     * node for as long as nothing read the list -- and the element's own engines read the graph
+     * snapshot, not the list -- so each replacing import left the whole graph it replaced behind,
+     * about 900 MB at 100,000 nodes (issue #6006). Sweeping at half costs each removal amortized
+     * constant time, empties the list when the whole graph goes, and holds no more removed nodes
+     * than live ones.
      * @param n - the node leaving the graph
      */
     override removeNode(n: Node): void {
         this.#goneNodes.add(n);
+        sweepAtHalf(this.#nodes, this.#goneNodes);
         this.stale = true;
     }
 
@@ -1595,24 +2200,27 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      */
     override removeEdge(e: Edge): void {
         this.#goneEdges.add(e);
+        sweepAtHalf(this.#edges, this.#goneEdges);
         this.stale = true;
     }
 
     /**
      * The nodes this layout holds, in the order they were added, without any removed since the
-     * last read.
+     * last read. While `doLayout` runs, only the nodes it lays out: a node the layout leaves out
+     * (see `LayoutEngine.setLeftOut`) is not in the list then, so it takes no slot.
      * @returns the live list
      */
     protected get _nodes(): Node[] {
-        return compact(this.#nodes, this.#goneNodes);
+        return this.#taking?.nodes ?? compact(this.#nodes, this.#goneNodes);
     }
 
     /**
-     * The edges this layout holds, in the order they were added. See {@link StaticLayoutEngine._nodes}.
+     * The edges this layout holds, in the order they were added. See {@link StaticLayoutEngine._nodes}:
+     * while `doLayout` runs, an edge the layout leaves out is not in the list.
      * @returns the live list
      */
     protected get _edges(): Edge[] {
-        return compact(this.#edges, this.#goneEdges);
+        return this.#taking?.edges ?? compact(this.#edges, this.#goneEdges);
     }
 
     /**
@@ -1675,6 +2283,20 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     abstract doLayout(): void;
 
     /**
+     * Place the rows an add brought, in the add's own pass. Under renderPath "batched" a stored
+     * row has no `Node` whose frame update would read it, so the stale layout is run here; on the
+     * object path nothing changes.
+     * @param nodes - The nodes the add built.
+     */
+    override updatePositions(nodes: readonly Node[]): void {
+        if (this.#rowSource() !== null) {
+            this.refresh();
+        }
+
+        super.updatePositions(nodes);
+    }
+
+    /**
      * Recompute the layout when it is stale, and publish what it produced.
      *
      * A simple layout is computed once and then held, so this is the ONE place the shared array is
@@ -1690,8 +2312,9 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         this.result = null;
         // An empty graph has nothing to arrange, and an option that names a node -- a bfs start, a
         // radial root -- could only fail on it: a layout chosen before the data arrives waits for it.
-        if (this._nodes.length > 0) {
+        if (this._nodes.length > 0 || this.#rowSource() !== null) {
             try {
+                this.#taking = this.#takingPart();
                 this.doLayout();
             } catch (error) {
                 // A layout that refuses the graph (planar's E_NOT_PLANAR) places nothing: every node
@@ -1702,6 +2325,8 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
                 this.#keep = null;
                 this.#laidOut = null;
                 throw error;
+            } finally {
+                this.#taking = null;
             }
         }
 
@@ -1747,13 +2372,29 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     }
 
     /**
+     * The nodes and edges the run about to start lays out, when the layout leaves any out.
+     * @returns them, or null when it takes every one
+     */
+    #takingPart(): { readonly nodes: Node[]; readonly edges: Edge[] } | null {
+        const nodes = this._nodes;
+        const edges = this._edges;
+        const keptNodes = nodes.filter((n) => !this.isLeftOut(n.index));
+        const keptEdges = edges.filter((e) => !this.isEdgeLeftOut(e));
+        return keptNodes.length === nodes.length && keptEdges.length === edges.length
+            ? null
+            : { nodes: keptNodes, edges: keptEdges };
+    }
+
+    /**
      * Read the graph this run arranges. See the protected `graph`.
      * @returns the loaded graph
      */
     #load(): LoadedGraph {
         // Reached the way `positionsFor` reaches the coordinate array: an engine driven directly,
         // by a test or by a host that keeps no graph, has nodes whose parent answers none of this.
-        const manager = this._nodes[0]?.parentGraph?.getDataManager?.();
+        // Every node, not only those the run takes: a run that takes none still reads the element's graph.
+        const manager =
+            compact(this.#nodes, this.#goneNodes)[0]?.parentGraph?.getDataManager?.() ?? this.#rowSource() ?? undefined;
         const source = manager as Partial<GraphSource> | undefined;
         if (typeof source?.getSnapshot === "function" && typeof source.undirected === "function") {
             const store = source.getSnapshot();
@@ -1801,30 +2442,131 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * origin is a place a reader would draw at.
      */
     private publishComputed(): void {
+        if (this.#publishRows()) {
+            return;
+        }
+
+        const nodes = this._nodes;
+        const { rows, coords } = this.publishScratch(nodes.length);
+        let count = 0;
+        for (const n of nodes) {
+            if (this.computedCoords(n, coords, 3 * count)) {
+                rows[count] = n.index;
+                count++;
+            }
+        }
+
+        this.publishColumn(nodes[0], rows, coords, count);
+    }
+
+    /**
+     * The element's graph while the engine lays out by row: attached, under renderPath "batched",
+     * and holding at least one row.
+     * @returns the source, or null
+     */
+    #rowSource(): GraphSource | null {
+        const rows = this.#rows;
+        if (rows === null || !rows.byRow() || rows.source.getSnapshot().nodeCount === 0) {
+            return null;
+        }
+
+        return rows.source;
+    }
+
+    /**
+     * Publish the computed column row by row, every row of the element's snapshot, when the engine
+     * lays out by row and computed an index-based answer for the element's graph.
+     * @returns false when it does not, and the answer is published node by node
+     */
+    #publishRows(): boolean {
+        if (this.#rowSource() === null) {
+            return false;
+        }
+
+        // An id-keyed engine never reads `graph`, so nothing has loaded it yet. Loading reads the
+        // element's snapshot, so it waits until there is an id-keyed answer to publish.
+        const idKeyed = this.result === null && Object.keys(this.positions).length > 0;
+        const loaded = this.#loaded ?? (idKeyed ? this.#load() : null);
+        const column = this.#column;
+        if (!loaded?.source || loaded.positions === null) {
+            return false;
+        }
+
+        if (column.length === 0) {
+            return idKeyed && this.#publishIdKeyedRows(loaded);
+        }
+
+        const count = Math.min(column.length / 3, loaded.snapshot.nodeCount);
+        const { rows, coords } = this.publishScratch(count);
+        for (let row = 0; row < count; row++) {
+            rows[row] = row;
+        }
+
+        coords.set(column.subarray(0, 3 * count));
+        this.publishColumn(loaded.positions, rows, coords, count);
+        return true;
+    }
+
+    /**
+     * Publish an id-keyed answer ({@link StaticLayoutEngine.positions}) row by row, so a row drawn with no `Node`
+     * is placed too. A row the answer leaves out stays unplaced.
+     * @param loaded - The element's graph being arranged.
+     * @returns false when the answer is empty, and nothing is published by row
+     */
+    #publishIdKeyedRows(loaded: LoadedGraph): boolean {
+        const { ids, nodeCount: count } = loaded.source ?? loaded.snapshot;
+        if (count === 0 || loaded.positions === null) {
+            return false;
+        }
+
+        const { rows, coords } = this.publishScratch(count);
+        let placed = 0;
+        for (let row = 0; row < count; row++) {
+            const pos = this.positions[ids.idOf(row)] as number[] | undefined;
+            if (pos && pos.length > 0) {
+                rows[placed] = row;
+                coords[3 * placed] = pos[0] * this.scalingFactor;
+                coords[3 * placed + 1] = pos[1] * this.scalingFactor;
+                coords[3 * placed + 2] = (pos[2] ?? 0) * this.scalingFactor;
+                placed++;
+            }
+        }
+
+        this.publishColumn(loaded.positions, rows, coords, placed);
+        return true;
+    }
+
+    /**
+     * Put what the layout computed for one node, in scene units, into the column.
+     * @param n - the node
+     * @param coords - the column
+     * @param at - where its x goes
+     * @returns false when the layout has no answer for the node
+     */
+    private computedCoords(n: Node, coords: Float64Array, at: number): boolean {
         const loaded = this.#loaded;
         const column = this.#column;
-        for (const n of this._nodes) {
-            if (loaded !== null && column.length > 0) {
-                const row = loaded.rowOf(n);
-                if (row !== INVALID_INDEX && 3 * row + 2 < column.length) {
-                    this.writeNodePosition(n, column[3 * row], column[3 * row + 1], column[3 * row + 2]);
-                }
-
-                continue;
+        if (loaded !== null && column.length > 0) {
+            const row = loaded.rowOf(n);
+            if (row === INVALID_INDEX || 3 * row + 2 >= column.length) {
+                return false;
             }
 
-            const pos = this.positions[n.id] as number[] | undefined;
-            if (!pos || pos.length === 0) {
-                continue;
-            }
-
-            this.writeNodePosition(
-                n,
-                pos[0] * this.scalingFactor,
-                pos[1] * this.scalingFactor,
-                (pos[2] ?? 0) * this.scalingFactor,
-            );
+            coords[at] = column[3 * row];
+            coords[at + 1] = column[3 * row + 1];
+            coords[at + 2] = column[3 * row + 2];
+            return true;
         }
+
+        const pos = this.positions[n.id] as number[] | undefined;
+        if (!pos || pos.length === 0) {
+            return false;
+        }
+
+        coords[at] = pos[0] * this.scalingFactor;
+        coords[at + 1] = pos[1] * this.scalingFactor;
+        coords[at + 2] = (pos[2] ?? 0) * this.scalingFactor;
+        return true;
     }
 
     /**
@@ -1879,4 +2621,25 @@ export abstract class SimpleLayoutEngine extends StaticLayoutEngine {}
  */
 export function layoutDim(dim: number): 2 | 3 {
     return dim === 3 ? 3 : 2;
+}
+
+/**
+ * Grow a min x, y, z / max x, y, z box to take in a point.
+ * @param box - The box.
+ * @param x - X.
+ * @param y - Y.
+ * @param z - Z.
+ * @param counts - False to leave the box as it is.
+ */
+function grow(box: Float64Array, x: number, y: number, z: number, counts = true): void {
+    if (!counts) {
+        return;
+    }
+
+    box[0] = Math.min(box[0], x);
+    box[1] = Math.min(box[1], y);
+    box[2] = Math.min(box[2], z);
+    box[3] = Math.max(box[3], x);
+    box[4] = Math.max(box[4], y);
+    box[5] = Math.max(box[5], z);
 }

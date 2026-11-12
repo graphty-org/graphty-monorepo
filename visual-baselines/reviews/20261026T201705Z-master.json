@@ -1,0 +1,132 @@
+{
+  "version": 2,
+  "pr": null,
+  "subject": {
+    "builtMerge": "95c5930c67beb96798bc404486f14c6493962847",
+    "head": null,
+    "runId": 40277363108,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 9V45 96-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "95c5930c67beb96798bc404486f14c6493962847"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--columns.dark.png",
+      "from": "1f0cacf87c9b2d06bb3809080b0e16092454711b65f5507170d13d8634b9f399",
+      "to": "60959815771542df47da7ae8ac86818e318a528c704b1101880c91f8adc5bc25",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 3567,
+        "commit": "e58281dce7f6049370a8def3965063ec56c6e84f",
+        "record": "visual-baselines/reviews/20261026T012548Z-pr3567.json",
+        "reviewedAt": "2026-10-26T01:25:48.093Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--columns.light.png",
+      "from": "7e99bc3c3b4a4b85c49741258f03f724762e1e8b7173b1ad2e03cdfff679fd5d",
+      "to": "2bf0aa63f2e9be1abe52214ed9f0cc4e08dede30f91e7a58801961b397b9f022",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 3567,
+        "commit": "e58281dce7f6049370a8def3965063ec56c6e84f",
+        "record": "visual-baselines/reviews/20261026T012548Z-pr3567.json",
+        "reviewedAt": "2026-10-26T01:25:48.093Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--members-of-row.dark.png",
+      "from": "24ef16be7ab0856696af4738b66bac8b83a8c2da2b261a235c8adaa833f90e84",
+      "to": "14a6aafce6a00c18c17fc788ed1198a48467b5b3a1952a414c3fdb1078fd6c6a",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 3567,
+        "commit": "e58281dce7f6049370a8def3965063ec56c6e84f",
+        "record": "visual-baselines/reviews/20261026T012548Z-pr3567.json",
+        "reviewedAt": "2026-10-26T01:25:48.093Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--members-of-row.light.png",
+      "from": "25fffa425baa3daf813b24d1a15613cc9165848b4c4267e45b148388b0aa8af2",
+      "to": "ecd93147496a9a55823b06bab21248061e640051f165cb43ccca6928df2add52",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 3567,
+        "commit": "e58281dce7f6049370a8def3965063ec56c6e84f",
+        "record": "visual-baselines/reviews/20261026T012548Z-pr3567.json",
+        "reviewedAt": "2026-10-26T01:25:48.093Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--nodes.dark.png",
+      "from": "032c991bf57bc4009d9928ddd9a2fa329c709c1105ca7f1436c8d2a4aeaf1bf6",
+      "to": "802a355348f464df22f10555190bdf8520d71a7c5a953a9e77d3104f05cc6f56",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 3567,
+        "commit": "e58281dce7f6049370a8def3965063ec56c6e84f",
+        "record": "visual-baselines/reviews/20261026T012548Z-pr3567.json",
+        "reviewedAt": "2026-10-26T01:25:48.093Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--nodes.light.png",
+      "from": "e7af92e06d968075009a416bca6df9fe1c4ee12ee7148ec0b99d3b25391865eb",
+      "to": "b0dbe12e07c7bb5709ddb6f75bb81e1e2cffed7bc5fe0de89dc663086b56fd8d",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 3567,
+        "commit": "e58281dce7f6049370a8def3965063ec56c6e84f",
+        "record": "visual-baselines/reviews/20261026T012548Z-pr3567.json",
+        "reviewedAt": "2026-10-26T01:25:48.093Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--sorted-by-result.dark.png",
+      "from": "7a728c30ba8262b27ef0ffbae0753e9e8a5e3e21c431cfaff451f2b2222e9cdf",
+      "to": "4fa25235583f2cc8d5559dff3e464e0c3ed5a9b419ad54d028d9d0a977b97f9f",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 3567,
+        "commit": "e58281dce7f6049370a8def3965063ec56c6e84f",
+        "record": "visual-baselines/reviews/20261026T012548Z-pr3567.json",
+        "reviewedAt": "2026-10-26T01:25:48.093Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--sorted-by-result.light.png",
+      "from": "c35da8d7d23b0275e77b269fa2f01790a7bc64b36c9f9ecf7eb261e383ca8ae2",
+      "to": "90b3acb54ca21667ecbe404aa82de3a9a55ec25762a772038328bcaac1b604ce",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 3567,
+        "commit": "e58281dce7f6049370a8def3965063ec56c6e84f",
+        "record": "visual-baselines/reviews/20261026T012548Z-pr3567.json",
+        "reviewedAt": "2026-10-26T01:25:48.093Z"
+      }
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--table-options.dark.png",
+      "from": "2abdb3ec56aebde5a6e73e84281210c2fa951515bbe6491b99142eb7a6e1afc4",
+      "to": "59cbb7998165bbb37753786252b76bff980c0ff802906004dde032a42f22c4a6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-table-dock--table-options.light.png",
+      "from": "15d4f40e0c6c915f1bf4a4bdb7d0f49c713ca539ce67768ff252588282e0856b",
+      "to": "de6b9dc9634226e84951334e3473b996fcdafa305bf25957a403435fa5f54348",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-26T20:17:05.833Z"
+}

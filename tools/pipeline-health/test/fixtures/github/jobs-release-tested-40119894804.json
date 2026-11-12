@@ -1,0 +1,2604 @@
+{
+    "total_count": 59,
+    "jobs": [
+        {
+            "id": 120948948146,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Pick the release candidate",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T18:15:50Z",
+            "started_at": "2026-10-24T18:15:52Z",
+            "completed_at": "2026-10-24T18:45:34Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-24T18:15:53Z",
+                    "completed_at": "2026-10-24T18:15:54Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-24T18:15:54Z",
+                    "completed_at": "2026-10-24T18:16:11Z"
+                },
+                {
+                    "name": "Skip while the previous release is pending",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-24T18:16:11Z",
+                    "completed_at": "2026-10-24T18:16:13Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-24T18:16:13Z",
+                    "completed_at": "2026-10-24T18:16:15Z"
+                },
+                {
+                    "name": "Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-24T18:16:15Z",
+                    "completed_at": "2026-10-24T18:16:22Z"
+                },
+                {
+                    "name": "Install dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-24T18:16:22Z",
+                    "completed_at": "2026-10-24T18:16:29Z"
+                },
+                {
+                    "name": "Skip when nothing releasable changed",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-24T18:16:29Z",
+                    "completed_at": "2026-10-24T18:45:31Z"
+                },
+                {
+                    "name": "Announce the train attempt",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-24T18:45:31Z",
+                    "completed_at": "2026-10-24T18:45:32Z"
+                },
+                {
+                    "name": "Post Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 14,
+                    "started_at": "2026-10-24T18:45:32Z",
+                    "completed_at": "2026-10-24T18:45:32Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 15,
+                    "started_at": "2026-10-24T18:45:32Z",
+                    "completed_at": "2026-10-24T18:45:33Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 16,
+                    "started_at": "2026-10-24T18:45:33Z",
+                    "completed_at": "2026-10-24T18:45:33Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 17,
+                    "started_at": "2026-10-24T18:45:33Z",
+                    "completed_at": "2026-10-24T18:45:33Z"
+                }
+            ]
+        },
+        {
+            "id": 120955912201,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Security audit",
+            "status": "completed",
+            "conclusion": "failure",
+            "created_at": "2026-10-24T18:45:34Z",
+            "started_at": "2026-10-24T18:45:37Z",
+            "completed_at": "2026-10-24T18:45:57Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-24T18:45:38Z",
+                    "completed_at": "2026-10-24T18:45:39Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-24T18:45:39Z",
+                    "completed_at": "2026-10-24T18:45:51Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-24T18:45:51Z",
+                    "completed_at": "2026-10-24T18:45:52Z"
+                },
+                {
+                    "name": "Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-24T18:45:52Z",
+                    "completed_at": "2026-10-24T18:45:53Z"
+                },
+                {
+                    "name": "Security audit",
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "number": 5,
+                    "started_at": "2026-10-24T18:45:53Z",
+                    "completed_at": "2026-10-24T18:45:54Z"
+                },
+                {
+                    "name": "Post Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 8,
+                    "started_at": "2026-10-24T18:45:54Z",
+                    "completed_at": "2026-10-24T18:45:54Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-24T18:45:54Z",
+                    "completed_at": "2026-10-24T18:45:54Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-24T18:45:54Z",
+                    "completed_at": "2026-10-24T18:45:55Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 11,
+                    "started_at": "2026-10-24T18:45:55Z",
+                    "completed_at": "2026-10-24T18:45:55Z"
+                }
+            ]
+        },
+        {
+            "id": 120955912271,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "LLM regression",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T18:45:34Z",
+            "started_at": "2026-10-24T18:45:37Z",
+            "completed_at": "2026-10-24T18:55:34Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-24T18:45:38Z",
+                    "completed_at": "2026-10-24T18:45:39Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-24T18:45:39Z",
+                    "completed_at": "2026-10-24T18:45:52Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-24T18:45:52Z",
+                    "completed_at": "2026-10-24T18:45:53Z"
+                },
+                {
+                    "name": "Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-24T18:45:53Z",
+                    "completed_at": "2026-10-24T18:46:00Z"
+                },
+                {
+                    "name": "Install dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-24T18:46:00Z",
+                    "completed_at": "2026-10-24T18:46:10Z"
+                },
+                {
+                    "name": "Build graphty-element and its dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-24T18:46:10Z",
+                    "completed_at": "2026-10-24T18:47:37Z"
+                },
+                {
+                    "name": "LLM regression tests",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-24T18:47:37Z",
+                    "completed_at": "2026-10-24T18:55:31Z"
+                },
+                {
+                    "name": "Post Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-24T18:55:31Z",
+                    "completed_at": "2026-10-24T18:55:31Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 13,
+                    "started_at": "2026-10-24T18:55:31Z",
+                    "completed_at": "2026-10-24T18:55:31Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 14,
+                    "started_at": "2026-10-24T18:55:31Z",
+                    "completed_at": "2026-10-24T18:55:32Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 15,
+                    "started_at": "2026-10-24T18:55:32Z",
+                    "completed_at": "2026-10-24T18:55:32Z"
+                }
+            ]
+        },
+        {
+            "id": 120955912745,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Hosts / Test (metal on macos-26)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T18:45:35Z",
+            "started_at": "2026-10-24T18:45:38Z",
+            "completed_at": "2026-10-24T19:15:59Z",
+            "labels": ["macos-26"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-24T18:45:39Z",
+                    "completed_at": "2026-10-24T18:45:41Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-24T18:45:41Z",
+                    "completed_at": "2026-10-24T18:46:05Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-24T18:46:05Z",
+                    "completed_at": "2026-10-24T18:46:08Z"
+                },
+                {
+                    "name": "Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-24T18:46:08Z",
+                    "completed_at": "2026-10-24T18:46:09Z"
+                },
+                {
+                    "name": "Run pnpm install --frozen-lockfile",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-24T18:46:09Z",
+                    "completed_at": "2026-10-24T18:47:04Z"
+                },
+                {
+                    "name": "Run pnpm exec nx run-many -t build --projects=graph-format,webgpu-graph-algorithms",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-24T18:47:04Z",
+                    "completed_at": "2026-10-24T18:47:51Z"
+                },
+                {
+                    "name": "Microsoft's redistributable renderer (the one in the box computes wrong answers)",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 7,
+                    "started_at": "2026-10-24T18:47:51Z",
+                    "completed_at": "2026-10-24T18:47:51Z"
+                },
+                {
+                    "name": "Adapter report (informational on this lane; the JSON is uploaded)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-24T18:47:51Z",
+                    "completed_at": "2026-10-24T18:47:52Z"
+                },
+                {
+                    "name": "Scan questions (a): the adapter, before anything is changed",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 9,
+                    "started_at": "2026-10-24T18:47:52Z",
+                    "completed_at": "2026-10-24T18:47:52Z"
+                },
+                {
+                    "name": "Scan questions (b): the baseline, no toggles",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 10,
+                    "started_at": "2026-10-24T18:47:52Z",
+                    "completed_at": "2026-10-24T18:47:52Z"
+                },
+                {
+                    "name": "Scan questions (c): ask for the newer shader compiler (use_dxc)",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 11,
+                    "started_at": "2026-10-24T18:47:52Z",
+                    "completed_at": "2026-10-24T18:47:52Z"
+                },
+                {
+                    "name": "Scan questions (d): the generated code for the failing kernel",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 12,
+                    "started_at": "2026-10-24T18:47:52Z",
+                    "completed_at": "2026-10-24T18:47:52Z"
+                },
+                {
+                    "name": "Scan questions (e1): skip shader optimisation (emit_hlsl_debug_symbols)",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 13,
+                    "started_at": "2026-10-24T18:47:52Z",
+                    "completed_at": "2026-10-24T18:47:52Z"
+                },
+                {
+                    "name": "Scan questions (e2): the other half -- turn the FXC optimiser on (fxc_optimizations)",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 14,
+                    "started_at": "2026-10-24T18:47:52Z",
+                    "completed_at": "2026-10-24T18:47:52Z"
+                },
+                {
+                    "name": "Scan questions (e3): drop the injected zero-initialisation of workgroup memory",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 15,
+                    "started_at": "2026-10-24T18:47:52Z",
+                    "completed_at": "2026-10-24T18:47:52Z"
+                },
+                {
+                    "name": "Scan questions (f): the same four files again, on Microsoft's redistributable renderer",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 16,
+                    "started_at": "2026-10-24T18:47:52Z",
+                    "completed_at": "2026-10-24T18:47:52Z"
+                },
+                {
+                    "name": "Scan questions (g): is the device self-check proven -- does the guard fire on the broken renderer and stay silent on the fixed one",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 17,
+                    "started_at": "2026-10-24T18:47:52Z",
+                    "completed_at": "2026-10-24T18:47:52Z"
+                },
+                {
+                    "name": "The two Windows-only failures: the spring-electrical settle and the device-loss lifecycle",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 18,
+                    "started_at": "2026-10-24T18:47:52Z",
+                    "completed_at": "2026-10-24T18:47:52Z"
+                },
+                {
+                    "name": "Node suite (Dawn on metal)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 19,
+                    "started_at": "2026-10-24T18:47:52Z",
+                    "completed_at": "2026-10-24T19:02:34Z"
+                },
+                {
+                    "name": "Node suite, the device-error files (one file at a time)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 20,
+                    "started_at": "2026-10-24T19:02:34Z",
+                    "completed_at": "2026-10-24T19:02:46Z"
+                },
+                {
+                    "name": "Node suite, no-subgroups twins",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 21,
+                    "started_at": "2026-10-24T19:02:46Z",
+                    "completed_at": "2026-10-24T19:12:21Z"
+                },
+                {
+                    "name": "Node suite, no-subgroups twins (the device-error layout files)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 22,
+                    "started_at": "2026-10-24T19:12:21Z",
+                    "completed_at": "2026-10-24T19:12:33Z"
+                },
+                {
+                    "name": "Crash reports (macOS -- a vitest worker that vanished with \"Channel closed\" left its native stack here)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 23,
+                    "started_at": "2026-10-24T19:12:33Z",
+                    "completed_at": "2026-10-24T19:12:33Z"
+                },
+                {
+                    "name": "Crash reports (Windows -- the Application log's faulting module and exception code of a vanished worker)",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 24,
+                    "started_at": "2026-10-24T19:12:33Z",
+                    "completed_at": "2026-10-24T19:12:33Z"
+                },
+                {
+                    "name": "Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 25,
+                    "started_at": "2026-10-24T19:12:33Z",
+                    "completed_at": "2026-10-24T19:12:34Z"
+                },
+                {
+                    "name": "Run pnpm exec playwright install chromium",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 26,
+                    "started_at": "2026-10-24T19:12:34Z",
+                    "completed_at": "2026-10-24T19:12:46Z"
+                },
+                {
+                    "name": "Probe Chromium flag sets (informational -- which flags grant which adapter on this host)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 27,
+                    "started_at": "2026-10-24T19:12:46Z",
+                    "completed_at": "2026-10-24T19:13:08Z"
+                },
+                {
+                    "name": "Browser smoke (Chromium on metal)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 28,
+                    "started_at": "2026-10-24T19:13:08Z",
+                    "completed_at": "2026-10-24T19:14:37Z"
+                },
+                {
+                    "name": "Probe WebKit for WebGPU",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 29,
+                    "started_at": "2026-10-24T19:14:37Z",
+                    "completed_at": "2026-10-24T19:14:48Z"
+                },
+                {
+                    "name": "Browser smoke (WebKit, the Safari proxy)",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 30,
+                    "started_at": "2026-10-24T19:14:48Z",
+                    "completed_at": "2026-10-24T19:14:48Z"
+                },
+                {
+                    "name": "Run actions/upload-artifact@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 31,
+                    "started_at": "2026-10-24T19:14:48Z",
+                    "completed_at": "2026-10-24T19:14:50Z"
+                },
+                {
+                    "name": "Post Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 59,
+                    "started_at": "2026-10-24T19:14:50Z",
+                    "completed_at": "2026-10-24T19:14:50Z"
+                },
+                {
+                    "name": "Post Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 60,
+                    "started_at": "2026-10-24T19:14:50Z",
+                    "completed_at": "2026-10-24T19:15:51Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 61,
+                    "started_at": "2026-10-24T19:15:51Z",
+                    "completed_at": "2026-10-24T19:15:52Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 62,
+                    "started_at": "2026-10-24T19:15:52Z",
+                    "completed_at": "2026-10-24T19:15:53Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 63,
+                    "started_at": "2026-10-24T19:15:53Z",
+                    "completed_at": "2026-10-24T19:15:56Z"
+                }
+            ]
+        },
+        {
+            "id": 120955912750,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Hosts / Test (d3d12 on windows-2025)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T18:45:35Z",
+            "started_at": "2026-10-24T18:45:38Z",
+            "completed_at": "2026-10-24T19:28:12Z",
+            "labels": ["windows-2025"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-24T18:45:39Z",
+                    "completed_at": "2026-10-24T18:45:41Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-24T18:45:41Z",
+                    "completed_at": "2026-10-24T18:46:12Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-24T18:46:12Z",
+                    "completed_at": "2026-10-24T18:46:16Z"
+                },
+                {
+                    "name": "Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-24T18:46:16Z",
+                    "completed_at": "2026-10-24T18:46:51Z"
+                },
+                {
+                    "name": "Run pnpm install --frozen-lockfile",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-24T18:46:51Z",
+                    "completed_at": "2026-10-24T18:47:24Z"
+                },
+                {
+                    "name": "Run pnpm exec nx run-many -t build --projects=graph-format,webgpu-graph-algorithms",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-24T18:47:24Z",
+                    "completed_at": "2026-10-24T18:48:15Z"
+                },
+                {
+                    "name": "Microsoft's redistributable renderer (the one in the box computes wrong answers)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-24T18:48:15Z",
+                    "completed_at": "2026-10-24T18:48:20Z"
+                },
+                {
+                    "name": "Adapter report (informational on this lane; the JSON is uploaded)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-24T18:48:21Z",
+                    "completed_at": "2026-10-24T18:48:21Z"
+                },
+                {
+                    "name": "Scan questions (a): the adapter, before anything is changed",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 9,
+                    "started_at": "2026-10-24T18:48:21Z",
+                    "completed_at": "2026-10-24T18:48:21Z"
+                },
+                {
+                    "name": "Scan questions (b): the baseline, no toggles",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 10,
+                    "started_at": "2026-10-24T18:48:21Z",
+                    "completed_at": "2026-10-24T18:48:21Z"
+                },
+                {
+                    "name": "Scan questions (c): ask for the newer shader compiler (use_dxc)",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 11,
+                    "started_at": "2026-10-24T18:48:21Z",
+                    "completed_at": "2026-10-24T18:48:21Z"
+                },
+                {
+                    "name": "Scan questions (d): the generated code for the failing kernel",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 12,
+                    "started_at": "2026-10-24T18:48:21Z",
+                    "completed_at": "2026-10-24T18:48:21Z"
+                },
+                {
+                    "name": "Scan questions (e1): skip shader optimisation (emit_hlsl_debug_symbols)",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 13,
+                    "started_at": "2026-10-24T18:48:21Z",
+                    "completed_at": "2026-10-24T18:48:21Z"
+                },
+                {
+                    "name": "Scan questions (e2): the other half -- turn the FXC optimiser on (fxc_optimizations)",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 14,
+                    "started_at": "2026-10-24T18:48:21Z",
+                    "completed_at": "2026-10-24T18:48:21Z"
+                },
+                {
+                    "name": "Scan questions (e3): drop the injected zero-initialisation of workgroup memory",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 15,
+                    "started_at": "2026-10-24T18:48:21Z",
+                    "completed_at": "2026-10-24T18:48:21Z"
+                },
+                {
+                    "name": "Scan questions (f): the same four files again, on Microsoft's redistributable renderer",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 16,
+                    "started_at": "2026-10-24T18:48:21Z",
+                    "completed_at": "2026-10-24T18:48:21Z"
+                },
+                {
+                    "name": "Scan questions (g): is the device self-check proven -- does the guard fire on the broken renderer and stay silent on the fixed one",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 17,
+                    "started_at": "2026-10-24T18:48:21Z",
+                    "completed_at": "2026-10-24T18:48:21Z"
+                },
+                {
+                    "name": "The two Windows-only failures: the spring-electrical settle and the device-loss lifecycle",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 18,
+                    "started_at": "2026-10-24T18:48:21Z",
+                    "completed_at": "2026-10-24T18:48:21Z"
+                },
+                {
+                    "name": "Node suite (Dawn on d3d12)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 19,
+                    "started_at": "2026-10-24T18:48:21Z",
+                    "completed_at": "2026-10-24T19:13:06Z"
+                },
+                {
+                    "name": "Node suite, the device-error files (one file at a time)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 20,
+                    "started_at": "2026-10-24T19:13:06Z",
+                    "completed_at": "2026-10-24T19:13:54Z"
+                },
+                {
+                    "name": "Node suite, no-subgroups twins",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 21,
+                    "started_at": "2026-10-24T19:13:54Z",
+                    "completed_at": "2026-10-24T19:25:42Z"
+                },
+                {
+                    "name": "Node suite, no-subgroups twins (the device-error layout files)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 22,
+                    "started_at": "2026-10-24T19:25:42Z",
+                    "completed_at": "2026-10-24T19:26:25Z"
+                },
+                {
+                    "name": "Crash reports (macOS -- a vitest worker that vanished with \"Channel closed\" left its native stack here)",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 23,
+                    "started_at": "2026-10-24T19:26:25Z",
+                    "completed_at": "2026-10-24T19:26:25Z"
+                },
+                {
+                    "name": "Crash reports (Windows -- the Application log's faulting module and exception code of a vanished worker)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 24,
+                    "started_at": "2026-10-24T19:26:25Z",
+                    "completed_at": "2026-10-24T19:26:26Z"
+                },
+                {
+                    "name": "Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 25,
+                    "started_at": "2026-10-24T19:26:26Z",
+                    "completed_at": "2026-10-24T19:26:26Z"
+                },
+                {
+                    "name": "Run pnpm exec playwright install chromium",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 26,
+                    "started_at": "2026-10-24T19:26:26Z",
+                    "completed_at": "2026-10-24T19:26:41Z"
+                },
+                {
+                    "name": "Probe Chromium flag sets (informational -- which flags grant which adapter on this host)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 27,
+                    "started_at": "2026-10-24T19:26:41Z",
+                    "completed_at": "2026-10-24T19:27:10Z"
+                },
+                {
+                    "name": "Browser smoke (Chromium on d3d12)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 28,
+                    "started_at": "2026-10-24T19:27:10Z",
+                    "completed_at": "2026-10-24T19:27:57Z"
+                },
+                {
+                    "name": "Probe WebKit for WebGPU",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 29,
+                    "started_at": "2026-10-24T19:27:57Z",
+                    "completed_at": "2026-10-24T19:27:57Z"
+                },
+                {
+                    "name": "Browser smoke (WebKit, the Safari proxy)",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 30,
+                    "started_at": "2026-10-24T19:27:57Z",
+                    "completed_at": "2026-10-24T19:27:57Z"
+                },
+                {
+                    "name": "Run actions/upload-artifact@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 31,
+                    "started_at": "2026-10-24T19:27:57Z",
+                    "completed_at": "2026-10-24T19:27:58Z"
+                },
+                {
+                    "name": "Post Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 59,
+                    "started_at": "2026-10-24T19:27:58Z",
+                    "completed_at": "2026-10-24T19:28:07Z"
+                },
+                {
+                    "name": "Post Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 60,
+                    "started_at": "2026-10-24T19:28:07Z",
+                    "completed_at": "2026-10-24T19:28:07Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 61,
+                    "started_at": "2026-10-24T19:28:07Z",
+                    "completed_at": "2026-10-24T19:28:07Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 62,
+                    "started_at": "2026-10-24T19:28:07Z",
+                    "completed_at": "2026-10-24T19:28:10Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 63,
+                    "started_at": "2026-10-24T19:28:10Z",
+                    "completed_at": "2026-10-24T19:28:10Z"
+                }
+            ]
+        },
+        {
+            "id": 120955912781,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "T4 GPU / Test (NVIDIA T4)",
+            "status": "completed",
+            "conclusion": "failure",
+            "created_at": "2026-10-24T18:45:35Z",
+            "started_at": "2026-10-24T18:46:10Z",
+            "completed_at": "2026-10-24T19:24:57Z",
+            "labels": ["machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-24T18:46:11Z",
+                    "completed_at": "2026-10-24T18:46:15Z"
+                },
+                {
+                    "name": "Initialize containers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-24T18:46:15Z",
+                    "completed_at": "2026-10-24T18:46:41Z"
+                },
+                {
+                    "name": "Bootstrap the container (git for checkout, the Vulkan loader and libEGL for Dawn)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-24T18:46:41Z",
+                    "completed_at": "2026-10-24T18:46:57Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-24T18:46:57Z",
+                    "completed_at": "2026-10-24T18:47:09Z"
+                },
+                {
+                    "name": "Let git use the checkout inside the container",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-24T18:47:09Z",
+                    "completed_at": "2026-10-24T18:47:09Z"
+                },
+                {
+                    "name": "Container floor and driver passthrough (the image facts of G0 rows F1-F3, F5, F6, F7, F9)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-24T18:47:09Z",
+                    "completed_at": "2026-10-24T18:47:11Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-24T18:47:11Z",
+                    "completed_at": "2026-10-24T18:47:13Z"
+                },
+                {
+                    "name": "Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-24T18:47:13Z",
+                    "completed_at": "2026-10-24T18:47:18Z"
+                },
+                {
+                    "name": "Run pnpm install --frozen-lockfile",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-24T18:47:18Z",
+                    "completed_at": "2026-10-24T18:47:33Z"
+                },
+                {
+                    "name": "Build the package and what it depends on (nx follows ^build, so layout builds through its real edge; the negated implicit dependency keeps algorithms out)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-24T18:47:33Z",
+                    "completed_at": "2026-10-24T18:48:12Z"
+                },
+                {
+                    "name": "Adapter report (fails loudly on a software adapter; samples GPU utilisation for 10 s)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 11,
+                    "started_at": "2026-10-24T18:48:12Z",
+                    "completed_at": "2026-10-24T18:48:26Z"
+                },
+                {
+                    "name": "graph-format GPU audit on NVIDIA (canary)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-24T18:48:26Z",
+                    "completed_at": "2026-10-24T18:48:31Z"
+                },
+                {
+                    "name": "Write core dumps to a file so the shard's ulimit -c 0 holds",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 13,
+                    "started_at": "2026-10-24T18:48:31Z",
+                    "completed_at": "2026-10-24T18:48:31Z"
+                },
+                {
+                    "name": "Run node scripts/run-node-shard.js --project=node --project=node-gpu-alone",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 14,
+                    "started_at": "2026-10-24T18:48:31Z",
+                    "completed_at": "2026-10-24T19:01:32Z"
+                },
+                {
+                    "name": "Run node scripts/run-node-shard.js --project=node-device-errors",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 15,
+                    "started_at": "2026-10-24T19:01:32Z",
+                    "completed_at": "2026-10-24T19:01:59Z"
+                },
+                {
+                    "name": "Run node scripts/run-node-shard.js --project=node-limits",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 16,
+                    "started_at": "2026-10-24T19:01:59Z",
+                    "completed_at": "2026-10-24T19:11:52Z"
+                },
+                {
+                    "name": "Run GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node --project=node-gpu-alone",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 17,
+                    "started_at": "2026-10-24T19:11:52Z",
+                    "completed_at": "2026-10-24T19:23:08Z"
+                },
+                {
+                    "name": "Run GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node-device-errors",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 18,
+                    "started_at": "2026-10-24T19:23:08Z",
+                    "completed_at": "2026-10-24T19:23:35Z"
+                },
+                {
+                    "name": "Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 19,
+                    "started_at": "2026-10-24T19:23:35Z",
+                    "completed_at": "2026-10-24T19:23:35Z"
+                },
+                {
+                    "name": "Run pnpm exec playwright install chromium --with-deps",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 20,
+                    "started_at": "2026-10-24T19:23:35Z",
+                    "completed_at": "2026-10-24T19:23:56Z"
+                },
+                {
+                    "name": "Run pnpm exec playwright install-deps chromium",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 21,
+                    "started_at": "2026-10-24T19:23:56Z",
+                    "completed_at": "2026-10-24T19:23:56Z"
+                },
+                {
+                    "name": "Browser smoke on NVIDIA",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 22,
+                    "started_at": "2026-10-24T19:23:56Z",
+                    "completed_at": "2026-10-24T19:24:49Z"
+                },
+                {
+                    "name": "graphty-element's accelerated layout on NVIDIA (the element is the only consumer that drives the layout kernels end to end)",
+                    "status": "completed",
+                    "conclusion": "failure",
+                    "number": 23,
+                    "started_at": "2026-10-24T19:24:49Z",
+                    "completed_at": "2026-10-24T19:24:54Z"
+                },
+                {
+                    "name": "Lock the SM clock at the card's maximum and start the clock log",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 24,
+                    "started_at": "2026-10-24T19:24:54Z",
+                    "completed_at": "2026-10-24T19:24:54Z"
+                },
+                {
+                    "name": "Benchmarks (tsx benchmarks/run.ts -> benchmarks/out/gpu-linux-t4.json; every line stamped with the local time nvidia-smi's log carries)",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 25,
+                    "started_at": "2026-10-24T19:24:54Z",
+                    "completed_at": "2026-10-24T19:24:54Z"
+                },
+                {
+                    "name": "Stop the clock log and summarize the SM clock of every benchmark group",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 26,
+                    "started_at": "2026-10-24T19:24:54Z",
+                    "completed_at": "2026-10-24T19:24:54Z"
+                },
+                {
+                    "name": "Run node scripts/bench-compare.js",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 27,
+                    "started_at": "2026-10-24T19:24:54Z",
+                    "completed_at": "2026-10-24T19:24:54Z"
+                },
+                {
+                    "name": "Release the SM clock lock",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 28,
+                    "started_at": "2026-10-24T19:24:54Z",
+                    "completed_at": "2026-10-24T19:24:54Z"
+                },
+                {
+                    "name": "Run actions/upload-artifact@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 29,
+                    "started_at": "2026-10-24T19:24:54Z",
+                    "completed_at": "2026-10-24T19:24:55Z"
+                },
+                {
+                    "name": "Post Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 54,
+                    "started_at": "2026-10-24T19:24:55Z",
+                    "completed_at": "2026-10-24T19:24:55Z"
+                },
+                {
+                    "name": "Post Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 55,
+                    "started_at": "2026-10-24T19:24:55Z",
+                    "completed_at": "2026-10-24T19:24:55Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 56,
+                    "started_at": "2026-10-24T19:24:55Z",
+                    "completed_at": "2026-10-24T19:24:55Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 57,
+                    "started_at": "2026-10-24T19:24:55Z",
+                    "completed_at": "2026-10-24T19:24:55Z"
+                },
+                {
+                    "name": "Stop containers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 58,
+                    "started_at": "2026-10-24T19:24:55Z",
+                    "completed_at": "2026-10-24T19:24:56Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 59,
+                    "started_at": "2026-10-24T19:24:56Z",
+                    "completed_at": "2026-10-24T19:24:56Z"
+                }
+            ]
+        },
+        {
+            "id": 120955912794,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Draft state",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T18:45:35Z",
+            "started_at": "2026-10-24T18:45:37Z",
+            "completed_at": "2026-10-24T18:45:40Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120955912840,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Work protection (macOS) / Build the bundle",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T18:45:35Z",
+            "started_at": "2026-10-24T18:45:37Z",
+            "completed_at": "2026-10-24T18:47:48Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-24T18:45:38Z",
+                    "completed_at": "2026-10-24T18:45:39Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-24T18:45:39Z",
+                    "completed_at": "2026-10-24T18:45:50Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-24T18:45:50Z",
+                    "completed_at": "2026-10-24T18:45:52Z"
+                },
+                {
+                    "name": "Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-24T18:45:52Z",
+                    "completed_at": "2026-10-24T18:45:52Z"
+                },
+                {
+                    "name": "Run pnpm install --frozen-lockfile",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-24T18:45:52Z",
+                    "completed_at": "2026-10-24T18:46:08Z"
+                },
+                {
+                    "name": "Run pnpm exec nx run graphty-element:build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-24T18:46:08Z",
+                    "completed_at": "2026-10-24T18:47:44Z"
+                },
+                {
+                    "name": "Run actions/upload-artifact@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-24T18:47:44Z",
+                    "completed_at": "2026-10-24T18:47:45Z"
+                },
+                {
+                    "name": "Post Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-24T18:47:45Z",
+                    "completed_at": "2026-10-24T18:47:45Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 13,
+                    "started_at": "2026-10-24T18:47:45Z",
+                    "completed_at": "2026-10-24T18:47:46Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 14,
+                    "started_at": "2026-10-24T18:47:46Z",
+                    "completed_at": "2026-10-24T18:47:46Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 15,
+                    "started_at": "2026-10-24T18:47:46Z",
+                    "completed_at": "2026-10-24T18:47:46Z"
+                }
+            ]
+        },
+        {
+            "id": 120955938268,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Build",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T18:45:41Z",
+            "started_at": "2026-10-24T18:45:43Z",
+            "completed_at": "2026-10-24T19:09:46Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120956420266,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Work protection (macOS) / Safari on iOS (Simulator)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T18:47:48Z",
+            "started_at": "2026-10-24T18:47:50Z",
+            "completed_at": "2026-10-24T18:52:19Z",
+            "labels": ["macos-26"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-24T18:47:50Z",
+                    "completed_at": "2026-10-24T18:47:52Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-24T18:47:52Z",
+                    "completed_at": "2026-10-24T18:48:04Z"
+                },
+                {
+                    "name": "Xcode 26",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-24T18:48:04Z",
+                    "completed_at": "2026-10-24T18:48:09Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-24T18:48:09Z",
+                    "completed_at": "2026-10-24T18:48:11Z"
+                },
+                {
+                    "name": "Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-24T18:48:11Z",
+                    "completed_at": "2026-10-24T18:48:11Z"
+                },
+                {
+                    "name": "Run pnpm install --frozen-lockfile",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-24T18:48:11Z",
+                    "completed_at": "2026-10-24T18:48:47Z"
+                },
+                {
+                    "name": "Run actions/download-artifact@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-24T18:48:47Z",
+                    "completed_at": "2026-10-24T18:48:49Z"
+                },
+                {
+                    "name": "App switch, memory warning, Safari or its web content process killed",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-24T18:48:49Z",
+                    "completed_at": "2026-10-24T18:52:15Z"
+                },
+                {
+                    "name": "Keep the Simulator's screen and Safari's log of a failed scenario",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 9,
+                    "started_at": "2026-10-24T18:52:15Z",
+                    "completed_at": "2026-10-24T18:52:15Z"
+                },
+                {
+                    "name": "Post Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 16,
+                    "started_at": "2026-10-24T18:52:15Z",
+                    "completed_at": "2026-10-24T18:52:15Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 17,
+                    "started_at": "2026-10-24T18:52:15Z",
+                    "completed_at": "2026-10-24T18:52:16Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 18,
+                    "started_at": "2026-10-24T18:52:16Z",
+                    "completed_at": "2026-10-24T18:52:16Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 19,
+                    "started_at": "2026-10-24T18:52:16Z",
+                    "completed_at": "2026-10-24T18:52:17Z"
+                }
+            ]
+        },
+        {
+            "id": 120956420275,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Work protection (macOS) / Safari (macOS)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T18:47:48Z",
+            "started_at": "2026-10-24T18:47:51Z",
+            "completed_at": "2026-10-24T18:50:29Z",
+            "labels": ["macos-26"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-24T18:47:51Z",
+                    "completed_at": "2026-10-24T18:47:53Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-24T18:47:53Z",
+                    "completed_at": "2026-10-24T18:48:17Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-24T18:48:17Z",
+                    "completed_at": "2026-10-24T18:48:20Z"
+                },
+                {
+                    "name": "Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-24T18:48:20Z",
+                    "completed_at": "2026-10-24T18:48:21Z"
+                },
+                {
+                    "name": "Run pnpm install --frozen-lockfile",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-24T18:48:21Z",
+                    "completed_at": "2026-10-24T18:49:17Z"
+                },
+                {
+                    "name": "Run actions/download-artifact@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-24T18:49:17Z",
+                    "completed_at": "2026-10-24T18:49:18Z"
+                },
+                {
+                    "name": "Allow Safari to be automated",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-24T18:49:18Z",
+                    "completed_at": "2026-10-24T18:49:19Z"
+                },
+                {
+                    "name": "Probe: does IndexedDB survive from one safaridriver session to the next?",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-24T18:49:19Z",
+                    "completed_at": "2026-10-24T18:49:34Z"
+                },
+                {
+                    "name": "The hide transition, stall detection and persist()",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-24T18:49:34Z",
+                    "completed_at": "2026-10-24T18:50:19Z"
+                },
+                {
+                    "name": "Post Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 16,
+                    "started_at": "2026-10-24T18:50:19Z",
+                    "completed_at": "2026-10-24T18:50:21Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 17,
+                    "started_at": "2026-10-24T18:50:21Z",
+                    "completed_at": "2026-10-24T18:50:21Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 18,
+                    "started_at": "2026-10-24T18:50:21Z",
+                    "completed_at": "2026-10-24T18:50:23Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 19,
+                    "started_at": "2026-10-24T18:50:23Z",
+                    "completed_at": "2026-10-24T18:50:28Z"
+                }
+            ]
+        },
+        {
+            "id": 120956420324,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Work protection (macOS) / WebKit kill and relaunch (macOS)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T18:47:48Z",
+            "started_at": "2026-10-24T18:47:51Z",
+            "completed_at": "2026-10-24T18:52:47Z",
+            "labels": ["macos-26"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-24T18:47:52Z",
+                    "completed_at": "2026-10-24T18:47:54Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-24T18:47:54Z",
+                    "completed_at": "2026-10-24T18:48:11Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-24T18:48:11Z",
+                    "completed_at": "2026-10-24T18:48:13Z"
+                },
+                {
+                    "name": "Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-24T18:48:13Z",
+                    "completed_at": "2026-10-24T18:48:13Z"
+                },
+                {
+                    "name": "Run pnpm install --frozen-lockfile",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-24T18:48:13Z",
+                    "completed_at": "2026-10-24T18:48:53Z"
+                },
+                {
+                    "name": "Run actions/download-artifact@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-24T18:48:53Z",
+                    "completed_at": "2026-10-24T18:48:55Z"
+                },
+                {
+                    "name": "Run pnpm exec playwright install webkit",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-24T18:48:55Z",
+                    "completed_at": "2026-10-24T18:49:05Z"
+                },
+                {
+                    "name": "Kill and relaunch (Playwright WebKit)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-24T18:49:05Z",
+                    "completed_at": "2026-10-24T18:49:53Z"
+                },
+                {
+                    "name": "Benchmark (WebKit, recorded)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-24T18:49:53Z",
+                    "completed_at": "2026-10-24T18:52:42Z"
+                },
+                {
+                    "name": "Post Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 16,
+                    "started_at": "2026-10-24T18:52:42Z",
+                    "completed_at": "2026-10-24T18:52:42Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 17,
+                    "started_at": "2026-10-24T18:52:42Z",
+                    "completed_at": "2026-10-24T18:52:43Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 18,
+                    "started_at": "2026-10-24T18:52:43Z",
+                    "completed_at": "2026-10-24T18:52:43Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 19,
+                    "started_at": "2026-10-24T18:52:43Z",
+                    "completed_at": "2026-10-24T18:52:44Z"
+                }
+            ]
+        },
+        {
+            "id": 120961476399,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Lint",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:16:31Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476401,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Storybooks",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:13:47Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476406,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Cost Estimate Accuracy",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:11:36Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476424,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Checks",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:18:49Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476437,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Docs",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:50Z",
+            "completed_at": "2026-10-24T19:15:53Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476661,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (webgpu-graph-algorithms-node-no-subgroups-device-errors)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:50Z",
+            "completed_at": "2026-10-24T19:11:08Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476665,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (webgpu-graph-algorithms-node-no-subgroups)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:18:40Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476680,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graph-io)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:19:37Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476691,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-4)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:20:55Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476697,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (webgpu-graph-algorithms-node)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:22:39Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476706,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-storybook)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:15:24Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476707,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-element-default)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:20:50Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476709,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-3)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:20:19Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476718,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-2)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:18:21Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476719,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-element-browser-4)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:21:59Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476724,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (webgpu-graph-algorithms-node-device-errors)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:50Z",
+            "completed_at": "2026-10-24T19:11:18Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476771,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-1)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:17:24Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476773,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-element-browser-1)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:19:44Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476777,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (small-node)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:15:27Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476787,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-5)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:19:49Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476798,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-element-browser-5)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:23:27Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476812,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-element-storybook-4)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:12:12Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476819,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-element-browser-3)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:19:12Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476834,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-element-storybook-5)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:13:14Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476842,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-element-lifecycle)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:50Z",
+            "completed_at": "2026-10-24T19:18:02Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476853,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-element-storybook-1)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:50Z",
+            "completed_at": "2026-10-24T19:14:32Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476858,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (small-browser)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:50Z",
+            "completed_at": "2026-10-24T19:21:10Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476894,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-element-storybook-2)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:49Z",
+            "completed_at": "2026-10-24T19:13:22Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476934,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-element-storybook-3)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:50Z",
+            "completed_at": "2026-10-24T19:14:39Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120961476948,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Test (graphty-element-browser-2)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:09:46Z",
+            "started_at": "2026-10-24T19:09:50Z",
+            "completed_at": "2026-10-24T19:22:22Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120962407764,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / visual (graphty)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:13:47Z",
+            "started_at": "2026-10-24T19:13:50Z",
+            "completed_at": "2026-10-24T19:28:11Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120962407777,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / visual (graph-io-fidelity)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:13:47Z",
+            "started_at": "2026-10-24T19:13:50Z",
+            "completed_at": "2026-10-24T19:34:29Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120962407778,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / visual (cytoscape-extensions)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:13:47Z",
+            "started_at": "2026-10-24T19:13:50Z",
+            "completed_at": "2026-10-24T19:18:20Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120962407782,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / visual (compact-mantine)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:13:47Z",
+            "started_at": "2026-10-24T19:13:51Z",
+            "completed_at": "2026-10-24T19:26:51Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120962407788,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / visual (graphty-element)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:13:47Z",
+            "started_at": "2026-10-24T19:13:50Z",
+            "completed_at": "2026-10-24T19:20:55Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120962407816,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / visual (layout)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:13:47Z",
+            "started_at": "2026-10-24T19:13:50Z",
+            "completed_at": "2026-10-24T19:15:02Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120962407831,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / visual (algorithms)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:13:47Z",
+            "started_at": "2026-10-24T19:13:50Z",
+            "completed_at": "2026-10-24T19:15:17Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120962899282,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Links",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:15:54Z",
+            "started_at": "2026-10-24T19:15:57Z",
+            "completed_at": "2026-10-24T19:18:51Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120964637931,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Performance Benchmarks",
+            "status": "completed",
+            "conclusion": "failure",
+            "created_at": "2026-10-24T19:23:27Z",
+            "started_at": "2026-10-24T19:23:30Z",
+            "completed_at": "2026-10-24T19:47:08Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120967144343,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / All Checks Pass",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:34:29Z",
+            "started_at": "2026-10-24T19:34:32Z",
+            "completed_at": "2026-10-24T19:34:37Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120967174772,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI / Queue Checks Pass",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:34:37Z",
+            "started_at": "2026-10-24T19:34:39Z",
+            "completed_at": "2026-10-24T19:34:42Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120970058880,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Coverage / Merge Test Reports",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:47:08Z",
+            "started_at": "2026-10-24T19:47:10Z",
+            "completed_at": "2026-10-24T19:47:46Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-24T19:47:11Z",
+                    "completed_at": "2026-10-24T19:47:13Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-24T19:47:13Z",
+                    "completed_at": "2026-10-24T19:47:23Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-24T19:47:23Z",
+                    "completed_at": "2026-10-24T19:47:24Z"
+                },
+                {
+                    "name": "Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-24T19:47:24Z",
+                    "completed_at": "2026-10-24T19:47:31Z"
+                },
+                {
+                    "name": "Install dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-24T19:47:31Z",
+                    "completed_at": "2026-10-24T19:47:39Z"
+                },
+                {
+                    "name": "Download all blob reports",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-24T19:47:39Z",
+                    "completed_at": "2026-10-24T19:47:41Z"
+                },
+                {
+                    "name": "Merge test reports",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-24T19:47:41Z",
+                    "completed_at": "2026-10-24T19:47:44Z"
+                },
+                {
+                    "name": "Post Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-24T19:47:44Z",
+                    "completed_at": "2026-10-24T19:47:44Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 13,
+                    "started_at": "2026-10-24T19:47:44Z",
+                    "completed_at": "2026-10-24T19:47:44Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 14,
+                    "started_at": "2026-10-24T19:47:44Z",
+                    "completed_at": "2026-10-24T19:47:45Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 15,
+                    "started_at": "2026-10-24T19:47:45Z",
+                    "completed_at": "2026-10-24T19:47:45Z"
+                }
+            ]
+        },
+        {
+            "id": 120970059399,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Hold the release",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:47:08Z",
+            "started_at": "2026-10-24T19:47:11Z",
+            "completed_at": "2026-10-24T19:47:26Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-24T19:47:12Z",
+                    "completed_at": "2026-10-24T19:47:12Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-24T19:47:12Z",
+                    "completed_at": "2026-10-24T19:47:14Z"
+                },
+                {
+                    "name": "Open or update the held-release issue",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-24T19:47:14Z",
+                    "completed_at": "2026-10-24T19:47:23Z"
+                },
+                {
+                    "name": "Announce the held release",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-24T19:47:23Z",
+                    "completed_at": "2026-10-24T19:47:24Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-24T19:47:24Z",
+                    "completed_at": "2026-10-24T19:47:25Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-24T19:47:25Z",
+                    "completed_at": "2026-10-24T19:47:25Z"
+                }
+            ]
+        },
+        {
+            "id": 120970060311,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Version the release",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-24T19:47:08Z",
+            "started_at": "2026-10-24T19:47:08Z",
+            "completed_at": "2026-10-24T19:47:08Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120970060429,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Publish the release",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-24T19:47:08Z",
+            "started_at": "2026-10-24T19:47:08Z",
+            "completed_at": "2026-10-24T19:47:08Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120970060439,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Land the release on master",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-24T19:47:08Z",
+            "started_at": "2026-10-24T19:47:08Z",
+            "completed_at": "2026-10-24T19:47:08Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 120970199836,
+            "run_id": 40119894804,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Coverage / Publish Coverage",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-24T19:47:47Z",
+            "started_at": "2026-10-24T19:47:49Z",
+            "completed_at": "2026-10-24T19:48:34Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-24T19:47:50Z",
+                    "completed_at": "2026-10-24T19:47:51Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-24T19:47:51Z",
+                    "completed_at": "2026-10-24T19:48:03Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-24T19:48:03Z",
+                    "completed_at": "2026-10-24T19:48:04Z"
+                },
+                {
+                    "name": "Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-24T19:48:04Z",
+                    "completed_at": "2026-10-24T19:48:12Z"
+                },
+                {
+                    "name": "Install dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-24T19:48:12Z",
+                    "completed_at": "2026-10-24T19:48:18Z"
+                },
+                {
+                    "name": "Download all coverage reports",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-24T19:48:18Z",
+                    "completed_at": "2026-10-24T19:48:19Z"
+                },
+                {
+                    "name": "Lift the shard groups' coverage out of their artifacts",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-24T19:48:19Z",
+                    "completed_at": "2026-10-24T19:48:19Z"
+                },
+                {
+                    "name": "List downloaded artifacts",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-24T19:48:19Z",
+                    "completed_at": "2026-10-24T19:48:19Z"
+                },
+                {
+                    "name": "Merge coverage reports",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-24T19:48:19Z",
+                    "completed_at": "2026-10-24T19:48:25Z"
+                },
+                {
+                    "name": "Publish to Coveralls",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-24T19:48:25Z",
+                    "completed_at": "2026-10-24T19:48:31Z"
+                },
+                {
+                    "name": "Post Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 18,
+                    "started_at": "2026-10-24T19:48:31Z",
+                    "completed_at": "2026-10-24T19:48:31Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 19,
+                    "started_at": "2026-10-24T19:48:31Z",
+                    "completed_at": "2026-10-24T19:48:31Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 20,
+                    "started_at": "2026-10-24T19:48:31Z",
+                    "completed_at": "2026-10-24T19:48:32Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 21,
+                    "started_at": "2026-10-24T19:48:32Z",
+                    "completed_at": "2026-10-24T19:48:32Z"
+                }
+            ]
+        }
+    ]
+}

@@ -100,6 +100,14 @@ Cite:     OpenFlights.org, Airport, airline and route databases (routes as of Ju
 License:  Open Database License (ODbL) 1.0, contents under the Database Contents License 1.0. This converted database is a derived database and is itself available under the ODbL 1.0.
 
 ----------------------------------------------------------------------------------------------------
+Venice public transport (datasets/venice-transit)
+
+Source:   https://zenodo.org/records/1186215
+Also:     https://zenodo.org/api/records/1186215/files/venice.zip/content (venice/network_nodes.csv, venice/network_combined.csv)
+Cite:     R. Kujala, C. Weckstrom, R. K. Darst, M. N. Mladenovic and J. Saramaki, A collection of public transport network data sets for 25 cities, Scientific Data 5, 180089 (2018). doi:10.1038/sdata.2018.89; data set v1.2, doi:10.5281/zenodo.1186215
+License:  Creative Commons Attribution 3.0 Italy (CC BY 3.0 IT): timetable data by ACTV SpA, adapted by R. Kujala, C. Weckstrom and R. Darst. This converted network is a changed version and is available under the same license.
+
+----------------------------------------------------------------------------------------------------
 Yeast galactose perturbation network (galFiltered) (datasets/yeast-perturbation)
 
 Source:   https://raw.githubusercontent.com/cytoscape/cytoscape-tutorials/8d1f66e4cd12446f4a928ab72e3cf2660cd6c74a/protocols/data/galFiltered.cys
@@ -178,3 +186,30 @@ Source:   https://www.ndexbio.org/v3/networks/e96d063d-237a-11ea-bb65-0ac135e8ba
 Also:     https://www.ndexbio.org/viewer/networks/e96d063d-237a-11ea-bb65-0ac135e8bacf; https://bioplex.hms.harvard.edu/
 Cite:     E. L. Huttlin et al., Dual proteome-scale networks reveal cell-specific remodeling of the human interactome, Cell 184(11), 3022-3040 (2021). doi:10.1016/j.cell.2021.04.011; NDEx network e96d063d-237a-11ea-bb65-0ac135e8bacf
 License:  CC0 1.0 (the network's rights: Waiver-No rights reserved (CC0), holder Harvard Medical School).
+
+----------------------------------------------------------------------------------------------------
+The gazetteer (hosted at https://graphty.app/data/gazetteer/v1/, not a dataset)
+
+graphty-element's location map layout looks up place names (countries, regions, cities) in three
+files built by graphty-element/scripts/build-gazetteer.mjs and published beside the datasets.
+None of them is in this package or in graphty-element; the layout fetches them on first use.
+
+countries.json.gz
+Source:   https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/ne_10m_admin_0_countries.geojson
+Also:     https://www.naturalearthdata.com/
+License:  Public domain (Natural Earth, https://www.naturalearthdata.com/about/terms-of-use/). Trimmed to
+          names, ISO codes, label points and population estimates.
+
+regions.json.gz
+Source:   https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/ne_10m_admin_1_states_provinces.geojson
+Also:     https://www.naturalearthdata.com/
+License:  Public domain (Natural Earth, https://www.naturalearthdata.com/about/terms-of-use/). Trimmed to
+          names, codes and label points.
+
+cities.json.gz
+Source:   https://download.geonames.org/export/dump/cities15000.zip and
+          https://download.geonames.org/export/dump/admin1CodesASCII.txt
+Also:     https://www.geonames.org/
+License:  CC BY 4.0 (GeoNames, https://creativecommons.org/licenses/by/4.0/). Changed: trimmed to each
+          city's name, Latin-script other names, country, first-level region, point and population,
+          with the names of those regions. The map credits "GeoNames" while city names are placed.

@@ -33,6 +33,7 @@ const VALUE_EXPORTS = [
     "gatherArray",
     "gatherColumn",
     "gpuEligibility",
+    "inferTextDtype",
     "isGraphSnapshot",
     "makeMask",
     "maskAnd",

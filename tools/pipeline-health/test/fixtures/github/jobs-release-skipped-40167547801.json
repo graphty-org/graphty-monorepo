@@ -1,0 +1,254 @@
+{
+    "total_count": 12,
+    "jobs": [
+        {
+            "id": 121091582606,
+            "run_id": 40167547801,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Pick the release candidate",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T06:00:26Z",
+            "started_at": "2026-10-25T06:00:28Z",
+            "completed_at": "2026-10-25T06:00:51Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T06:00:29Z",
+                    "completed_at": "2026-10-25T06:00:30Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-25T06:00:30Z",
+                    "completed_at": "2026-10-25T06:00:48Z"
+                },
+                {
+                    "name": "Skip while the previous release is pending",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T06:00:48Z",
+                    "completed_at": "2026-10-25T06:00:49Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 4,
+                    "started_at": "2026-10-25T06:00:49Z",
+                    "completed_at": "2026-10-25T06:00:49Z"
+                },
+                {
+                    "name": "Run actions/setup-node@v4",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 5,
+                    "started_at": "2026-10-25T06:00:49Z",
+                    "completed_at": "2026-10-25T06:00:49Z"
+                },
+                {
+                    "name": "Install dependencies",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 6,
+                    "started_at": "2026-10-25T06:00:49Z",
+                    "completed_at": "2026-10-25T06:00:49Z"
+                },
+                {
+                    "name": "Skip when nothing releasable changed",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 7,
+                    "started_at": "2026-10-25T06:00:49Z",
+                    "completed_at": "2026-10-25T06:00:49Z"
+                },
+                {
+                    "name": "Announce the train attempt",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 8,
+                    "started_at": "2026-10-25T06:00:49Z",
+                    "completed_at": "2026-10-25T06:00:49Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 16,
+                    "started_at": "2026-10-25T06:00:49Z",
+                    "completed_at": "2026-10-25T06:00:49Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 17,
+                    "started_at": "2026-10-25T06:00:49Z",
+                    "completed_at": "2026-10-25T06:00:49Z"
+                }
+            ]
+        },
+        {
+            "id": 121091667057,
+            "run_id": 40167547801,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "T4 GPU",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-25T06:00:52Z",
+            "started_at": "2026-10-25T06:00:52Z",
+            "completed_at": "2026-10-25T06:00:51Z",
+            "labels": [],
+            "steps": []
+        },
+        {
+            "id": 121091667063,
+            "run_id": 40167547801,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Work protection (macOS)",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-25T06:00:52Z",
+            "started_at": "2026-10-25T06:00:52Z",
+            "completed_at": "2026-10-25T06:00:51Z",
+            "labels": [],
+            "steps": []
+        },
+        {
+            "id": 121091667070,
+            "run_id": 40167547801,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "CI",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-25T06:00:52Z",
+            "started_at": "2026-10-25T06:00:52Z",
+            "completed_at": "2026-10-25T06:00:51Z",
+            "labels": [],
+            "steps": []
+        },
+        {
+            "id": 121091667239,
+            "run_id": 40167547801,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Security audit",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-25T06:00:52Z",
+            "started_at": "2026-10-25T06:00:52Z",
+            "completed_at": "2026-10-25T06:00:51Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 121091667530,
+            "run_id": 40167547801,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Coverage",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-25T06:00:52Z",
+            "started_at": "2026-10-25T06:00:52Z",
+            "completed_at": "2026-10-25T06:00:51Z",
+            "labels": [],
+            "steps": []
+        },
+        {
+            "id": 121091667605,
+            "run_id": 40167547801,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Version the release",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-25T06:00:52Z",
+            "started_at": "2026-10-25T06:00:52Z",
+            "completed_at": "2026-10-25T06:00:51Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 121091667609,
+            "run_id": 40167547801,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Hosts",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-25T06:00:52Z",
+            "started_at": "2026-10-25T06:00:52Z",
+            "completed_at": "2026-10-25T06:00:51Z",
+            "labels": [],
+            "steps": []
+        },
+        {
+            "id": 121091667803,
+            "run_id": 40167547801,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Hold the release",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-25T06:00:52Z",
+            "started_at": "2026-10-25T06:00:52Z",
+            "completed_at": "2026-10-25T06:00:52Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 121091667907,
+            "run_id": 40167547801,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Land the release on master",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-25T06:00:52Z",
+            "started_at": "2026-10-25T06:00:52Z",
+            "completed_at": "2026-10-25T06:00:51Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 121091667959,
+            "run_id": 40167547801,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "LLM regression",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-25T06:00:52Z",
+            "started_at": "2026-10-25T06:00:52Z",
+            "completed_at": "2026-10-25T06:00:51Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 121091667969,
+            "run_id": 40167547801,
+            "run_attempt": 1,
+            "workflow_name": "Release",
+            "name": "Publish the release",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-25T06:00:52Z",
+            "started_at": "2026-10-25T06:00:52Z",
+            "completed_at": "2026-10-25T06:00:52Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        }
+    ]
+}

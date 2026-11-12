@@ -454,7 +454,7 @@ export const BellmanFord: Story = {
         // that are too long for one capture (15s render + 15s interaction)
         chromatic: { disableSnapshot: true },
     },
-    play: async ({ canvasElement, args }) => {
+    play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
         // Click play button to start animation
@@ -462,12 +462,9 @@ export const BellmanFord: Story = {
         await userEvent.click(playButton);
 
         // Wait for animation to complete
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("complete");
-            },
-            { timeout: (args.nodeCount * args.nodeCount * 4 + 20) * args.animationSpeed },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("complete");
+        });
     },
 };

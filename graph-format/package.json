@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graph-format",
-    "version": "1.4.1",
+    "version": "1.5.1",
     "description": "Frozen CSR graph data format over typed arrays, shared by CPU and WebGPU graph algorithms",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
@@ -37,7 +37,7 @@
         "lint": "eslint && tsc --noEmit -p tsconfig.json",
         "lint:fix": "eslint --fix",
         "typecheck": "tsc --noEmit -p tsconfig.json",
-        "typecheck:strict-consumer": "tsc -p tsconfig.strict-consumer.json",
+        "typecheck:strict-consumer": "node ../tools/require-built.mjs tsconfig.strict-consumer.json && tsc -p tsconfig.strict-consumer.json",
         "test": "vitest",
         "test:ui": "vitest --ui",
         "test:run": "vitest run",
@@ -72,7 +72,7 @@
         "fast-check": "^4.2.0",
         "tsx": "^4.20.3",
         "typescript": "^5.9.3",
-        "vite": "^7.0.5",
+        "vite": "^8.1.6",
         "vitest": "catalog:",
         "webgpu": "^0.6.1"
     }

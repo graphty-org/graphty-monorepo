@@ -1,6 +1,6 @@
 import type { F32 } from "@graphty/graph-format";
 import { circular } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
@@ -18,6 +18,7 @@ const circularLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     scale: {
@@ -52,13 +53,13 @@ type CircularLayoutOpts = Partial<CircularLayoutConfigType>;
  * Circular layout engine that arranges nodes in a circle
  */
 export class CircularLayout extends SnapshotLayoutEngine {
-    static type = "circular";
-    static maxDimensions = 3;
+    static readonly type: string = "circular";
+    static readonly maxDimensions: number = 3;
 
     /**
      * NEW: Zod-based options schema for unified validation and UI metadata
      */
-    static zodOptionsSchema: OptionsSchema = circularLayoutOptionsSchema;
+    static readonly zodOptionsSchema: OptionsSchema = circularLayoutOptionsSchema;
 
     protected readonly dimensions: 2 | 3;
     config: CircularLayoutConfigType;

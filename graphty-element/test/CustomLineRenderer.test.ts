@@ -201,7 +201,7 @@ describe("CustomLineRenderer Mesh Creation", () => {
         // Check custom attributes exist
         const direction = mesh.getVerticesData("direction");
         const side = mesh.getVerticesData("side");
-        const distance = mesh.getVerticesData("distance");
+        const distance = mesh.getVerticesData("lineDistance");
         const segmentStart = mesh.getVerticesData("segmentStart");
         const segmentEnd = mesh.getVerticesData("segmentEnd");
 

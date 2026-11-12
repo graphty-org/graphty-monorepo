@@ -139,9 +139,14 @@ const css = `
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    /* Content-sized, as Figma's floating bar is: a column flex parent would stretch it. */
-    width: max-content;
-    height: 48px;
+    /* Content-sized, as Figma's floating bar is: a column flex parent would stretch it. Narrower
+       than its tools (a zoomed page, a narrow canvas), it wraps onto more rows rather than cut
+       tools off (WCAG 1.4.10); fit-content, not max-content, so a container sized to its content
+       can still be narrower than one row of tools. */
+    flex-wrap: wrap;
+    width: fit-content;
+    max-width: 100%;
+    min-height: 48px;
     padding: 8px;
     background-color: var(--cm-bg);
     color: var(--cm-text);
@@ -159,7 +164,8 @@ const css = `
     flex: none;
     align-self: stretch;
     width: 1px;
-    margin-block: -8px;
+    margin: -8px 0;
+    border: 0;
     background-color: var(--cm-border);
 }
 
@@ -224,7 +230,8 @@ const css = `
 }
 /* The tooltip's shortcut, 12px after the label (spec 8.3). */
 .cm-tip-shortcut {
-    margin-inline-start: 12px;
+    /* 8px after the space before it: about 12px from the name. */
+    margin-inline-start: 8px;
     color: var(--cm-text-menu-secondary);
 }
 
@@ -268,7 +275,8 @@ const css = `
     flex: none;
     align-self: stretch;
     width: 1px;
-    margin-block: -8px;
+    margin: -8px 0;
+    border: 0;
     background-color: var(--cm-border);
 }
 .cm-secondary-toolbar[data-flush] .cm-secondary-divider { margin-block: 0; }
@@ -298,7 +306,7 @@ const css = `
 }
 .cm-secondary-item[aria-expanded="true"] {
     background-color: var(--cm-bg-selected);
-    color: var(--cm-text-brand);
+    color: var(--cm-text-onselected);
 }
 .cm-secondary-item:focus-visible,
 .cm-secondary-item[data-state="focus"] { outline: 1px solid var(--cm-border-selected); outline-offset: -1px; }
@@ -320,7 +328,7 @@ const css = `
     box-sizing: border-box;
     padding: 0 12px;
     background-color: var(--cm-bg-info);
-    color: var(--cm-text-brand);
+    color: var(--cm-text-onselected);
     border-radius: 13px 13px 0 0;
     ${cmFont("headingSmall")}
     font-weight: 500;
@@ -333,7 +341,9 @@ const css = `
     flex-direction: column;
     align-items: center;
     width: 56px;
-    height: 100%;
+    /* Content-box keeps the 56 wide plus the 1px border; the height takes the 8 + 16 padding
+       back out, so the rail fills its container exactly and its footer is not pushed 24px below. */
+    height: calc(100% - 24px);
     padding: 8px 0 16px;
     background-color: var(--cm-bg);
     border-inline-end: 1px solid var(--cm-border);
@@ -352,6 +362,7 @@ const css = `
     width: 16px;
     height: 1px;
     margin: 8px 0 7px;
+    border: 0;
     background-color: var(--cm-border);
 }
 .cm-rail-button {
@@ -513,7 +524,8 @@ const css = `
     display: flex;
     flex: 1;
     min-height: 0;
-    justify-content: center;
+    /* safe: a tab wider than the body starts at its left edge, so all of it can be scrolled to */
+    justify-content: safe center;
     padding: 8px 0 0;
     overflow: auto;
 }
@@ -723,6 +735,8 @@ const css = `
     white-space: nowrap;
     text-overflow: ellipsis;
 }
+/* tone="component": the name in the component purple, as VariablePill's and the tree's. */
+.cm-qa-row-label[data-tone="component"] { color: var(--cm-text-component); font-weight: 600; }
 /* A middle cut: the head gives way to an ellipsis, the tail always shows. */
 .cm-qa-row-label[data-truncate="middle"] { display: flex; text-overflow: clip; }
 .cm-qa-row-head { min-width: 0; overflow: hidden; white-space: pre; text-overflow: ellipsis; }
@@ -739,6 +753,13 @@ const css = `
     color: var(--cm-text-secondary);
 }
 .cm-qa-row[aria-disabled="true"] .cm-qa-row-description { color: var(--cm-text-disabled); }
+/* Why a row cannot run is read whole: it wraps, and the row grows to hold it. */
+.cm-qa-row[aria-disabled="true"][data-two-line] { height: auto; min-height: 44px; }
+.cm-qa-row[aria-disabled="true"] .cm-qa-row-description { white-space: normal; overflow: visible; }
+/* A description at the end of the name's line: the row stays one line, the name gives way first. */
+.cm-qa-row-text[data-descriptions="end"] { flex-direction: row; align-items: baseline; gap: 8px; }
+.cm-qa-row-text[data-descriptions="end"] .cm-qa-row-label { flex: 1; }
+.cm-qa-row-text[data-descriptions="end"] .cm-qa-row-description { flex: 0 1 auto; max-width: 60%; }
 .cm-qa-row-shortcut {
     flex: none;
     padding-inline-end: 4px;
@@ -752,6 +773,33 @@ const css = `
     padding: 12px 24px 0;
     ${cmFont("body")}
     color: var(--cm-text-secondary);
+}
+.cm-qa-empty:empty {
+    padding: 0;
+}
+
+/* ---- StatusBar: the 24px row along the window's bottom ---- */
+.cm-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: 24px;
+    padding: 0 8px;
+    border-top: 1px solid var(--cm-border);
+    background-color: var(--cm-bg);
+    color: var(--cm-text-secondary);
+    font-size: 11px;
+    line-height: 16px;
+    flex: none;
+    box-sizing: border-box;
+}
+.cm-status-bar-start,
+.cm-status-bar-end {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
 }
 `;
 

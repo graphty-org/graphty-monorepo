@@ -7,11 +7,9 @@
 import "../../src/graphty-element";
 
 import { afterEach, assert, describe, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
-
-/** How long a poll below may wait for the element to finish a save or an open: the test's budget. */
-const POLL_BUDGET_MS = 10_000;
 
 const cleanups: (() => void)[] = [];
 
@@ -133,35 +131,50 @@ describe("the project file on a renderer", () => {
         await element.session.project.rename("Pioneers");
         assert.strictEqual(document.title, "* Pioneers");
 
-        save.click();
-        await vi.waitFor(
-            () => {
-                assert.strictEqual(downloads.length, 1);
-                assert.strictEqual(document.title, "Pioneers", "the save cleared the unsaved mark");
-            },
-            { timeout: POLL_BUDGET_MS },
-        );
+        await userEvent.click(save);
+        await vi.waitFor(() => {
+            assert.strictEqual(downloads.length, 1);
+            assert.strictEqual(document.title, "Pioneers", "the save cleared the unsaved mark");
+        });
         assert.strictEqual(downloads[0].download, "Pioneers.graphty.json");
         const { text } = await element.session.project.save();
 
         await element.session.data.addNodes([{ id: "linus" }]);
         assert.strictEqual(document.title, "* Pioneers");
-        const transfer = new DataTransfer();
-        transfer.items.add(new File([text], "Pioneers.graphty.json"));
-        open.files = transfer.files;
-        open.dispatchEvent(new Event("change"));
-        await vi.waitFor(
-            () => {
-                assert.deepStrictEqual(
-                    element.session.data.nodes().map((node) => node.id),
-                    ["ada", "grace"],
-                );
-                assert.strictEqual(document.title, "Pioneers");
-            },
-            { timeout: POLL_BUDGET_MS },
-        );
+        await userEvent.upload(open, new File([text], "Pioneers.graphty.json"));
+        await vi.waitFor(() => {
+            assert.deepStrictEqual(
+                element.session.data.nodes().map((node) => node.id),
+                ["ada", "grace"],
+            );
+            assert.strictEqual(document.title, "Pioneers");
+        });
 
         assert.deepStrictEqual(confirmed, ["Discard unsaved changes?"]);
         assert.isFalse(element.session.project.dirty);
+    });
+
+    it("downloads a copy that leaves the project unsaved with markSaved: false", async () => {
+        const element = document.createElement("graphty-element");
+        document.body.append(element);
+        const downloads: HTMLAnchorElement[] = [];
+        const realClick = HTMLAnchorElement.prototype.click;
+        HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
+            downloads.push(this);
+        };
+        cleanups.push(() => {
+            HTMLAnchorElement.prototype.click = realClick;
+            element.remove();
+        });
+
+        await element.session.data.addNodes([{ id: "ada" }]);
+        assert.isTrue(element.session.project.dirty);
+        await element.downloadProject({ fileName: "copy.graphty.json", markSaved: false });
+        assert.lengthOf(downloads, 1);
+        assert.strictEqual(downloads[0].download, "copy.graphty.json");
+        assert.isTrue(element.session.project.dirty, "a copy is not a save");
+
+        await element.downloadProject();
+        assert.isFalse(element.session.project.dirty, "the default download still saves");
     });
 });

@@ -2,6 +2,7 @@ import {
     Autocomplete,
     Combobox,
     FileInput,
+    InputBase,
     InputClearButton,
     InputWrapper,
     JsonInput,
@@ -20,6 +21,7 @@ import { createElement } from "react";
 
 import {
     belowComboboxProps,
+    consumeListEscape,
     ensureFocusModality,
     ensureListboxKeyboard,
     FieldCaret,
@@ -48,7 +50,7 @@ import { PasswordToggleIcon } from "./PasswordToggleIcon";
  *
  * The look is the stylesheet (../css/inputs.css.ts and the foundation's `cm-field`), reached
  * through `classNames`; `vars` carries only the per-size metrics (../styles/inputs.ts). Every
- * dropdown is the dark listbox (`cm-menu-surface`): over the trigger for Select, below the
+ * dropdown is the listbox (`cm-menu-surface`): over the trigger for Select, below the
  * field for Autocomplete, MultiSelect and TagsInput. No overlay animates.
  *
  * `props?.size` is read with optional chaining: the theme suites call `extension.vars!()` with
@@ -113,10 +115,11 @@ function fieldClassNames(fallback: "filled" | "outlined", extra = "") {
 }
 
 /**
- * The dark listbox's classNames (spec 6.5). The dropdown is also a `cm-menu`: it scrolls itself
- * (no ScrollArea) and takes the menus' 24px scroll chevron rows (overlayBehavior.ts).
+ * The listbox's classNames (spec 6.5). The dropdown is also a `cm-menu`: it scrolls itself
+ * (no ScrollArea) and takes the menus' 24px scroll chevron rows (overlayBehavior.ts). Exported for
+ * a list built on Mantine's `Combobox` directly, so it draws as every Select's does.
  */
-const LISTBOX_CLASS_NAMES = {
+export const LISTBOX_CLASS_NAMES = {
     dropdown: "cm-menu-surface cm-menu cm-listbox",
     options: "cm-listbox-options",
     option: "cm-menu-row cm-listbox-option",
@@ -163,6 +166,7 @@ const SINGLE_LIST_DEFAULTS = {
     comboboxProps: overTriggerComboboxProps(),
     withScrollArea: false,
     renderOption: renderListboxOption,
+    onKeyDown: consumeListEscape,
 };
 
 /** A list that opens below its field. */
@@ -170,6 +174,7 @@ const BELOW_LIST_DEFAULTS = {
     comboboxProps: belowComboboxProps(),
     withScrollArea: false,
     renderOption: renderListboxOption,
+    onKeyDown: consumeListEscape,
 };
 
 /**
@@ -185,6 +190,16 @@ function listVars(
 ): { root: Record<string, never>; wrapper: CompactVars } {
     installOverlayBehavior();
     return { root: {}, wrapper: compactVarsForSize(scale, size) };
+}
+
+/**
+ * Whether an InputBase is drawn as a button (a trigger that opens a picker): its polymorphic
+ * `component`, which InputBase's props type does not name.
+ * @param props - the field's props
+ * @returns true for a button
+ */
+function isButtonTrigger(props: unknown): boolean {
+    return (props as { component?: unknown } | undefined)?.component === "button";
 }
 
 export const inputComponentExtensions = {
@@ -226,6 +241,21 @@ export const inputComponentExtensions = {
             return listVars(compactInputScale, props?.size);
         },
         classNames: listFieldClassNames("outlined", "cm-select"),
+    }),
+
+    // A trigger built on InputBase as a button (a value or reference field that opens a picker):
+    // the Select's field and size, so it reads as the select it acts as. Only a button: TextInput
+    // and NumberInput render InputBase too, and keep their own look. The caller draws FieldCaret.
+    InputBase: InputBase.extend({
+        vars: (_theme, props) => {
+            if (!isButtonTrigger(props)) {
+                return { root: {}, wrapper: {} };
+            }
+            ensureFocusModality();
+            return listVars(compactInputScale, props.size);
+        },
+        classNames: (theme, props) =>
+            isButtonTrigger(props) ? listFieldClassNames("outlined", "cm-select")(theme, props) : {},
     }),
 
     NativeSelect: NativeSelect.extend({
@@ -280,7 +310,10 @@ export const inputComponentExtensions = {
 
     Autocomplete: Autocomplete.extend({
         defaultProps: { size: "sm", variant: "filled", role: "combobox", ...BELOW_LIST_DEFAULTS },
-        vars: (_theme, props) => listVars(compactInputScale, props?.size),
+        vars: (_theme, props) => {
+            ensureListboxKeyboard();
+            return listVars(compactInputScale, props?.size);
+        },
         classNames: listFieldClassNames("filled"),
     }),
 

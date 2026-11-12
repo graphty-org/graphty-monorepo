@@ -90,7 +90,7 @@ function findElement(node: Document | Element, tagName: string): Element | null 
     if (defaultTreeAdapter.isElementNode(node) && node.tagName === tagName) {
         return node;
     }
-    const children = node.childNodes ?? [];
+    const children = node.childNodes;
     for (const child of children) {
         if (defaultTreeAdapter.isElementNode(child)) {
             const found = findElement(child, tagName);
@@ -112,7 +112,7 @@ function stripIntegrityAttributes(node: Document | Element): void {
             node.attrs = node.attrs.filter((a) => a.name !== "integrity");
         }
     }
-    const children = node.childNodes ?? [];
+    const children = node.childNodes;
     for (const child of children) {
         if (defaultTreeAdapter.isElementNode(child)) {
             stripIntegrityAttributes(child);
@@ -156,6 +156,38 @@ export function injectScript(html: string, scriptUrl: string, baseHref: string):
     stripIntegrityAttributes(doc);
 
     return serialize(doc);
+}
+
+/**
+ * Copy an upstream response's headers for the proxied response: drop the ones the
+ * proxy must not pass on, and rewrite redirects and cookies to stay on the proxy.
+ * @param upstream - The upstream response's headers
+ * @param proxyBasePath - The proxy's base path
+ * @returns The headers to send
+ */
+function proxiedHeaders(upstream: http.IncomingHttpHeaders, proxyBasePath: string): Record<string, string | string[]> {
+    const headers: Record<string, string | string[]> = {};
+    for (const [key, value] of Object.entries(upstream)) {
+        if (value === undefined) {
+            continue;
+        }
+        if (HEADERS_TO_REMOVE.has(key.toLowerCase())) {
+            continue;
+        }
+
+        if (key.toLowerCase() === "location" && typeof value === "string") {
+            headers[key] = rewriteLocationHeader(value, proxyBasePath);
+            continue;
+        }
+
+        if (key.toLowerCase() === "set-cookie" && Array.isArray(value)) {
+            headers[key] = value.map(rewriteSetCookie);
+            continue;
+        }
+
+        headers[key] = value;
+    }
+    return headers;
 }
 
 /**
@@ -232,28 +264,7 @@ export function createProxy(proxyBasePath: string, quiet: boolean): ProxyInstanc
         proxyRes.on("end", () => {
             const body = Buffer.concat(chunks);
 
-            // Copy headers with modifications
-            const headers: Record<string, string | string[]> = {};
-            for (const [key, value] of Object.entries(proxyRes.headers)) {
-                if (value === undefined) {
-                    continue;
-                }
-                if (HEADERS_TO_REMOVE.has(key.toLowerCase())) {
-                    continue;
-                }
-
-                if (key.toLowerCase() === "location" && typeof value === "string") {
-                    headers[key] = rewriteLocationHeader(value, proxyBasePath);
-                    continue;
-                }
-
-                if (key.toLowerCase() === "set-cookie" && Array.isArray(value)) {
-                    headers[key] = value.map(rewriteSetCookie);
-                    continue;
-                }
-
-                headers[key] = value;
-            }
+            const headers = proxiedHeaders(proxyRes.headers, proxyBasePath);
 
             const contentType = proxyRes.headers["content-type"];
             const statusCode = proxyRes.statusCode ?? 200;

@@ -1,0 +1,1078 @@
+import { MantineProvider, Modal, Select } from "@mantine/core";
+import { render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
+import { beforeAll, describe, expect, it } from "vitest";
+import { page, userEvent } from "vitest/browser";
+
+import { Popout, PopoutManager, usePopout, usePopoutManager } from "../../src/components/popout";
+import { compactTheme } from "../../src/theme";
+
+/**
+ * Helper to render Popout components with required providers
+ */
+function renderPopout(ui: React.ReactElement) {
+    return render(
+        <MantineProvider theme={compactTheme}>
+            {/* Room on the left: a panel opens to the left of its trigger, and with none it is kept
+                on screen over the triggers, where a real click cannot reach them. */}
+            <div style={{ marginLeft: 600 }}>
+                <PopoutManager>{ui}</PopoutManager>
+            </div>
+        </MantineProvider>,
+    );
+}
+
+beforeAll(async () => {
+    await page.viewport(1280, 720);
+});
+
+describe("PopoutManager z-index", () => {
+    it("assigns incrementing z-index to nested popouts", async () => {
+        const user = userEvent.setup();
+
+        // Use nested popouts since root-level siblings are exclusive
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open Parent</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Parent" }}>
+                    <Popout.Content>
+                        <span data-testid="parent-content">Parent Content</span>
+                        <Popout>
+                            <Popout.Trigger>
+                                <button>Open Child</button>
+                            </Popout.Trigger>
+                            <Popout.Panel width={180} header={{ variant: "title", title: "Child" }}>
+                                <Popout.Content>
+                                    <span data-testid="child-content">Child Content</span>
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        // Open Parent first
+        await user.click(screen.getByRole("button", { name: "Open Parent" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("parent-content")).toBeInTheDocument();
+        });
+
+        // Open Child second
+        await user.click(screen.getByRole("button", { name: "Open Child" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("child-content")).toBeInTheDocument();
+        });
+
+        // Child should have higher z-index than Parent
+        const panels = screen.getAllByRole("dialog");
+        const parentPanel = panels.find((p) => p.querySelector('[data-testid="parent-content"]'));
+        const childPanel = panels.find((p) => p.querySelector('[data-testid="child-content"]'));
+
+        expect(parentPanel).toBeDefined();
+        expect(childPanel).toBeDefined();
+
+        const zIndexParent = parseInt(parentPanel!.style.zIndex, 10);
+        const zIndexChild = parseInt(childPanel!.style.zIndex, 10);
+
+        expect(zIndexChild).toBeGreaterThan(zIndexParent);
+    });
+
+    it("closes sibling popouts when opening a new one (exclusive siblings)", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <>
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open Panel A</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={200} header={{ variant: "title", title: "Panel A" }}>
+                        <Popout.Content>
+                            <span data-testid="content-a">Content A</span>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open Panel B</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={200} header={{ variant: "title", title: "Panel B" }}>
+                        <Popout.Content>
+                            <span data-testid="content-b">Content B</span>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+            </>,
+        );
+
+        // Open Panel A first
+        await user.click(screen.getByRole("button", { name: "Open Panel A" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("content-a")).toBeInTheDocument();
+        });
+
+        // Open Panel B - should close Panel A (exclusive siblings behavior)
+        await user.click(screen.getByRole("button", { name: "Open Panel B" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("content-b")).toBeInTheDocument();
+        });
+
+        // Only Panel B should be open
+        expect(screen.getAllByRole("dialog")).toHaveLength(1);
+        expect(screen.queryByTestId("content-a")).not.toBeInTheDocument();
+    });
+
+    it("brings clicked popout to front (nested popouts)", async () => {
+        const user = userEvent.setup();
+
+        // Use nested popouts since root-level siblings are exclusive
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open Parent</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Parent" }}>
+                    <Popout.Content>
+                        <span data-testid="parent-content">Parent Content</span>
+                        <Popout>
+                            <Popout.Trigger>
+                                <button>Open Child</button>
+                            </Popout.Trigger>
+                            <Popout.Panel width={180} header={{ variant: "title", title: "Child" }}>
+                                <Popout.Content>
+                                    <span data-testid="child-content">Child Content</span>
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        // Open both panels
+        await user.click(screen.getByRole("button", { name: "Open Parent" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("parent-content")).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole("button", { name: "Open Child" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("child-content")).toBeInTheDocument();
+        });
+
+        // Get initial z-indexes
+        let panels = screen.getAllByRole("dialog");
+        let parentPanel = panels.find((p) => p.querySelector('[data-testid="parent-content"]'));
+        const childPanel = panels.find((p) => p.querySelector('[data-testid="child-content"]'));
+
+        const initialZIndexParent = parseInt(parentPanel!.style.zIndex, 10);
+        const initialZIndexChild = parseInt(childPanel!.style.zIndex, 10);
+
+        // Child should be on top (opened last)
+        expect(initialZIndexChild).toBeGreaterThan(initialZIndexParent);
+
+        // Click on Parent to bring it to front
+        await user.click(parentPanel!);
+
+        // Re-query panels after click
+        panels = screen.getAllByRole("dialog");
+        parentPanel = panels.find((p) => p.querySelector('[data-testid="parent-content"]'));
+        // Note: clicking parent closes descendants, so child should be closed
+        // This is expected behavior - clicking on parent closes children
+        expect(screen.getAllByRole("dialog")).toHaveLength(1);
+        expect(screen.queryByTestId("child-content")).not.toBeInTheDocument();
+    });
+
+    it("newly opened popouts get highest z-index", async () => {
+        const user = userEvent.setup();
+
+        // Use nested popouts with grandparent-parent-child to test z-index assignment
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open Grandparent</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Grandparent" }}>
+                    <Popout.Content>
+                        <span data-testid="grandparent-content">Grandparent Content</span>
+                        <Popout>
+                            <Popout.Trigger>
+                                <button>Open Parent</button>
+                            </Popout.Trigger>
+                            <Popout.Panel width={180} header={{ variant: "title", title: "Parent" }}>
+                                <Popout.Content>
+                                    <span data-testid="parent-content">Parent Content</span>
+                                    <Popout>
+                                        <Popout.Trigger>
+                                            <button>Open Child</button>
+                                        </Popout.Trigger>
+                                        <Popout.Panel width={160} header={{ variant: "title", title: "Child" }}>
+                                            <Popout.Content>
+                                                <span data-testid="child-content">Child Content</span>
+                                            </Popout.Content>
+                                        </Popout.Panel>
+                                    </Popout>
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        // Open all three levels
+        await user.click(screen.getByRole("button", { name: "Open Grandparent" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("grandparent-content")).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole("button", { name: "Open Parent" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("parent-content")).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole("button", { name: "Open Child" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("child-content")).toBeInTheDocument();
+        });
+
+        // All three panels should be open
+        const panels = screen.getAllByRole("dialog");
+        expect(panels).toHaveLength(3);
+
+        const grandparentPanel = panels.find((p) => p.querySelector('[data-testid="grandparent-content"]'));
+        const parentPanel = panels.find((p) => p.querySelector('[data-testid="parent-content"]'));
+        const childPanel = panels.find((p) => p.querySelector('[data-testid="child-content"]'));
+
+        const zIndexGrandparent = parseInt(grandparentPanel!.style.zIndex, 10);
+        const zIndexParent = parseInt(parentPanel!.style.zIndex, 10);
+        const zIndexChild = parseInt(childPanel!.style.zIndex, 10);
+
+        // Each nested level should have higher z-index
+        expect(zIndexParent).toBeGreaterThan(zIndexGrandparent);
+        expect(zIndexChild).toBeGreaterThan(zIndexParent);
+    });
+
+    it("maintains z-index after closing and reopening a panel", async () => {
+        const user = userEvent.setup();
+
+        // Use nested popouts since root-level siblings are exclusive
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open Parent</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Parent" }}>
+                    <Popout.Content>
+                        <span data-testid="parent-content">Parent Content</span>
+                        <Popout>
+                            <Popout.Trigger>
+                                <button>Open Child</button>
+                            </Popout.Trigger>
+                            <Popout.Panel width={180} header={{ variant: "title", title: "Child" }}>
+                                <Popout.Content>
+                                    <span data-testid="child-content">Child Content</span>
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        // Open both panels
+        await user.click(screen.getByRole("button", { name: "Open Parent" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("parent-content")).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole("button", { name: "Open Child" }));
+        await waitFor(() => {
+            expect(screen.getAllByRole("dialog")).toHaveLength(2);
+        });
+
+        // Close Child panel
+        const childPanel = screen.getAllByRole("dialog").find((p) => p.querySelector('[data-testid="child-content"]'));
+        const closeButton = childPanel?.querySelector('[aria-label="Close panel"]') as HTMLElement;
+        await user.click(closeButton);
+
+        await waitFor(() => {
+            expect(screen.getAllByRole("dialog")).toHaveLength(1);
+        });
+
+        // Reopen Child
+        await user.click(screen.getByRole("button", { name: "Open Child" }));
+
+        await waitFor(() => {
+            expect(screen.getAllByRole("dialog")).toHaveLength(2);
+        });
+
+        // Child should have the highest z-index (most recently opened)
+        const panels = screen.getAllByRole("dialog");
+        const parentPanel = panels.find((p) => p.querySelector('[data-testid="parent-content"]'));
+        const reopenedChild = panels.find((p) => p.querySelector('[data-testid="child-content"]'));
+
+        expect(parseInt(reopenedChild!.style.zIndex, 10)).toBeGreaterThan(parseInt(parentPanel!.style.zIndex, 10));
+    });
+});
+
+describe("PopoutManager close behavior", () => {
+    it("closes popout on Escape key", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open Panel</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Test Panel" }}>
+                    <Popout.Content>Panel Content</Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        // Open the panel
+        await user.click(screen.getByRole("button", { name: "Open Panel" }));
+        await waitFor(() => {
+            expect(screen.getByRole("dialog")).toBeInTheDocument();
+        });
+
+        // Press Escape key
+        await user.keyboard("{Escape}");
+
+        // Panel should be closed
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        });
+    });
+
+    it("leaves an Escape something inside already used up, such as a menu closing itself", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open Panel</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Test Panel" }}>
+                    <Popout.Content>
+                        <button
+                            onKeyDown={(event) => {
+                                if (event.key === "Escape") {
+                                    event.preventDefault();
+                                }
+                            }}
+                        >
+                            Inner
+                        </button>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        await user.click(screen.getByRole("button", { name: "Open Panel" }));
+        await waitFor(() => {
+            expect(screen.getByRole("dialog")).toBeInTheDocument();
+        });
+        screen.getByRole("button", { name: "Inner" }).focus();
+        await user.keyboard("{Escape}");
+        expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    it("closes popout when clicking outside", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <>
+                <div data-testid="outside-area">Outside area</div>
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open Panel</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={200} header={{ variant: "title", title: "Test Panel" }}>
+                        <Popout.Content>Panel Content</Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+            </>,
+        );
+
+        // Open the panel
+        await user.click(screen.getByRole("button", { name: "Open Panel" }));
+        await waitFor(() => {
+            expect(screen.getByRole("dialog")).toBeInTheDocument();
+        });
+
+        // Click outside the panel (on the container)
+        await user.click(screen.getByTestId("outside-area"));
+
+        // Panel should be closed
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        });
+    });
+
+    it("does not close when clicking inside popout", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open Panel</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Test Panel" }}>
+                    <Popout.Content>
+                        <button data-testid="inside-button">Inside Button</button>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        // Open the panel
+        await user.click(screen.getByRole("button", { name: "Open Panel" }));
+        await waitFor(() => {
+            expect(screen.getByRole("dialog")).toBeInTheDocument();
+        });
+
+        // Click inside the panel (on the inside button)
+        await user.click(screen.getByTestId("inside-button"));
+
+        // Panel should still be open
+        expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    it("closes only the focused popout on Escape when multiple are open (nested)", async () => {
+        const user = userEvent.setup();
+
+        // Use nested popouts since root-level siblings are exclusive
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open Parent</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Parent" }}>
+                    <Popout.Content>
+                        <span data-testid="parent-content">Parent Content</span>
+                        <Popout>
+                            <Popout.Trigger>
+                                <button>Open Child</button>
+                            </Popout.Trigger>
+                            <Popout.Panel width={180} header={{ variant: "title", title: "Child" }}>
+                                <Popout.Content>
+                                    <span data-testid="child-content">Child Content</span>
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        // Open both panels
+        await user.click(screen.getByRole("button", { name: "Open Parent" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("parent-content")).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole("button", { name: "Open Child" }));
+        await waitFor(() => {
+            expect(screen.getAllByRole("dialog")).toHaveLength(2);
+        });
+
+        // Child is the focused one (most recently opened/on top)
+        // Press Escape - should close Child (the focused one)
+        await user.keyboard("{Escape}");
+
+        await waitFor(() => {
+            expect(screen.getAllByRole("dialog")).toHaveLength(1);
+        });
+
+        // Parent should still be open
+        expect(screen.getByTestId("parent-content")).toBeInTheDocument();
+        expect(screen.queryByTestId("child-content")).not.toBeInTheDocument();
+    });
+
+    it("does not close panel when clicking on trigger", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open Panel</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Test Panel" }}>
+                    <Popout.Content>Panel Content</Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        // Open the panel
+        await user.click(screen.getByRole("button", { name: "Open Panel" }));
+        await waitFor(() => {
+            expect(screen.getByRole("dialog")).toBeInTheDocument();
+        });
+
+        // Click the trigger again - should toggle (close) the panel, not cause double-close
+        await user.click(screen.getByRole("button", { name: "Open Panel" }));
+
+        // Panel should be closed (toggled)
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        });
+    });
+});
+
+describe("PopoutManager hierarchy", () => {
+    it("tracks parent-child relationships", async () => {
+        const user = userEvent.setup();
+
+        // Render a nested popout structure
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open Parent</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Parent Panel" }}>
+                    <Popout.Content>
+                        <Popout>
+                            <Popout.Trigger>
+                                <button>Open Child</button>
+                            </Popout.Trigger>
+                            <Popout.Panel width={180} header={{ variant: "title", title: "Child Panel" }}>
+                                <Popout.Content>
+                                    <span data-testid="child-content">Child Content</span>
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        // Open the parent panel
+        await user.click(screen.getByRole("button", { name: "Open Parent" }));
+        await waitFor(() => {
+            expect(screen.getByText("Parent Panel")).toBeInTheDocument();
+        });
+
+        // Open the child panel
+        await user.click(screen.getByRole("button", { name: "Open Child" }));
+        await waitFor(() => {
+            expect(screen.getByText("Child Panel")).toBeInTheDocument();
+        });
+
+        // Both panels should be open
+        expect(screen.getAllByRole("dialog")).toHaveLength(2);
+
+        // Child panel should have a data-parent-id attribute linking to parent
+        const childPanel = screen.getAllByRole("dialog").find((p) => p.querySelector('[data-testid="child-content"]'));
+        expect(childPanel).toBeDefined();
+        expect(childPanel).toHaveAttribute("data-parent-id");
+    });
+
+    it("closes descendants when parent closes", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open Parent</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Parent Panel" }}>
+                    <Popout.Content>
+                        <span data-testid="parent-content">Parent Content</span>
+                        <Popout>
+                            <Popout.Trigger>
+                                <button>Open Child</button>
+                            </Popout.Trigger>
+                            <Popout.Panel width={180} header={{ variant: "title", title: "Child Panel" }}>
+                                <Popout.Content>
+                                    <span data-testid="child-content">Child Content</span>
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        // Open parent and child
+        await user.click(screen.getByRole("button", { name: "Open Parent" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("parent-content")).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole("button", { name: "Open Child" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("child-content")).toBeInTheDocument();
+        });
+
+        // Both panels should be open
+        expect(screen.getAllByRole("dialog")).toHaveLength(2);
+
+        // Close the parent panel using the close button
+        const parentPanel = screen
+            .getAllByRole("dialog")
+            .find((p) => p.querySelector('[data-testid="parent-content"]'));
+        const closeButton = parentPanel?.querySelector('[aria-label="Close panel"]') as HTMLElement;
+        await user.click(closeButton);
+
+        // Both panels should be closed
+        await waitFor(() => {
+            expect(screen.queryAllByRole("dialog")).toHaveLength(0);
+        });
+    });
+
+    it("click in child does not close parent", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <>
+                <div data-testid="outside-area">Outside area</div>
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open Parent</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={200} header={{ variant: "title", title: "Parent Panel" }}>
+                        <Popout.Content>
+                            <span data-testid="parent-content">Parent Content</span>
+                            <Popout>
+                                <Popout.Trigger>
+                                    <button>Open Child</button>
+                                </Popout.Trigger>
+                                <Popout.Panel width={180} header={{ variant: "title", title: "Child Panel" }}>
+                                    <Popout.Content>
+                                        <button data-testid="child-button">Child Button</button>
+                                    </Popout.Content>
+                                </Popout.Panel>
+                            </Popout>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+            </>,
+        );
+
+        // Open parent and child
+        await user.click(screen.getByRole("button", { name: "Open Parent" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("parent-content")).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole("button", { name: "Open Child" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("child-button")).toBeInTheDocument();
+        });
+
+        // Both panels should be open
+        expect(screen.getAllByRole("dialog")).toHaveLength(2);
+
+        // Click inside the child panel
+        await user.click(screen.getByTestId("child-button"));
+
+        // Both panels should still be open
+        expect(screen.getAllByRole("dialog")).toHaveLength(2);
+        expect(screen.getByTestId("parent-content")).toBeInTheDocument();
+        expect(screen.getByTestId("child-button")).toBeInTheDocument();
+    });
+
+    it("Escape in child only closes child", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open Parent</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Parent Panel" }}>
+                    <Popout.Content>
+                        <span data-testid="parent-content">Parent Content</span>
+                        <Popout>
+                            <Popout.Trigger>
+                                <button>Open Child</button>
+                            </Popout.Trigger>
+                            <Popout.Panel width={180} header={{ variant: "title", title: "Child Panel" }}>
+                                <Popout.Content>
+                                    <span data-testid="child-content">Child Content</span>
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        // Open parent and child
+        await user.click(screen.getByRole("button", { name: "Open Parent" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("parent-content")).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole("button", { name: "Open Child" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("child-content")).toBeInTheDocument();
+        });
+
+        // Both panels should be open
+        expect(screen.getAllByRole("dialog")).toHaveLength(2);
+
+        // Press Escape - should only close the child (topmost/focused)
+        await user.keyboard("{Escape}");
+
+        // Only parent should remain
+        await waitFor(() => {
+            expect(screen.getAllByRole("dialog")).toHaveLength(1);
+        });
+        expect(screen.getByTestId("parent-content")).toBeInTheDocument();
+        expect(screen.queryByTestId("child-content")).not.toBeInTheDocument();
+
+        // Press Escape again - should close parent
+        await user.keyboard("{Escape}");
+
+        await waitFor(() => {
+            expect(screen.queryAllByRole("dialog")).toHaveLength(0);
+        });
+    });
+
+    it("closing grandchild does not close parent or grandparent", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open Grandparent</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Grandparent" }}>
+                    <Popout.Content>
+                        <span data-testid="grandparent-content">Grandparent</span>
+                        <Popout>
+                            <Popout.Trigger>
+                                <button>Open Parent</button>
+                            </Popout.Trigger>
+                            <Popout.Panel width={180} header={{ variant: "title", title: "Parent" }}>
+                                <Popout.Content>
+                                    <span data-testid="parent-content">Parent</span>
+                                    <Popout>
+                                        <Popout.Trigger>
+                                            <button>Open Child</button>
+                                        </Popout.Trigger>
+                                        <Popout.Panel width={160} header={{ variant: "title", title: "Child" }}>
+                                            <Popout.Content>
+                                                <span data-testid="child-content">Child</span>
+                                            </Popout.Content>
+                                        </Popout.Panel>
+                                    </Popout>
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        // Open all three levels
+        await user.click(screen.getByRole("button", { name: "Open Grandparent" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("grandparent-content")).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole("button", { name: "Open Parent" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("parent-content")).toBeInTheDocument();
+        });
+
+        await user.click(screen.getByRole("button", { name: "Open Child" }));
+        await waitFor(() => {
+            expect(screen.getByTestId("child-content")).toBeInTheDocument();
+        });
+
+        // All three panels should be open
+        expect(screen.getAllByRole("dialog")).toHaveLength(3);
+
+        // Press Escape - should only close the child (topmost)
+        await user.keyboard("{Escape}");
+
+        // Grandparent and parent should remain
+        await waitFor(() => {
+            expect(screen.getAllByRole("dialog")).toHaveLength(2);
+        });
+        expect(screen.getByTestId("grandparent-content")).toBeInTheDocument();
+        expect(screen.getByTestId("parent-content")).toBeInTheDocument();
+        expect(screen.queryByTestId("child-content")).not.toBeInTheDocument();
+    });
+});
+
+describe("usePopoutManager", () => {
+    /**
+     * Closes every pop-out from a control that is not a mouse click outside them, which is the
+     * route the hook exists for: a click outside already closes them all on its own.
+     * @returns the control.
+     */
+    function CloseAllButton() {
+        const { closeAll, hasOpenPopouts } = usePopoutManager();
+
+        return (
+            <button
+                onClick={() => {
+                    if (hasOpenPopouts()) {
+                        closeAll();
+                    }
+                }}
+            >
+                Close all
+            </button>
+        );
+    }
+
+    it("closes every open pop-out for a route that is not a click outside", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <>
+                <CloseAllButton />
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={200} header={{ variant: "title", title: "Panel" }}>
+                        <Popout.Content>
+                            <span data-testid="panel-content">Content</span>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+            </>,
+        );
+
+        await user.click(screen.getByRole("button", { name: "Open" }));
+        expect(await screen.findByTestId("panel-content")).toBeInTheDocument();
+
+        // Enter on the button: the browser's own click, with no pointerdown before it.
+        screen.getByRole("button", { name: "Close all" }).focus();
+        await user.keyboard("{Enter}");
+
+        await waitFor(() => {
+            expect(screen.queryByTestId("panel-content")).toBeNull();
+        });
+    });
+});
+
+describe("usePopout", () => {
+    /**
+     * Closes the pop-out it sits in, the way an "Apply" button does.
+     * @returns the control.
+     */
+    function ApplyButton() {
+        const { close } = usePopout();
+        return <button onClick={() => close()}>Apply</button>;
+    }
+
+    it("closes the pop-out from a button inside it and returns focus to the trigger", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open</button>
+                </Popout.Trigger>
+                <Popout.Panel width={200} header={{ variant: "title", title: "Panel" }}>
+                    <Popout.Content>
+                        <ApplyButton />
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>,
+        );
+
+        await user.click(screen.getByRole("button", { name: "Open" }));
+        await user.click(await screen.findByRole("button", { name: "Apply" }));
+
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).toBeNull();
+        });
+        expect(screen.getByRole("button", { name: "Open" })).toHaveFocus();
+    });
+
+    it("throws outside a Popout", () => {
+        function Outside() {
+            usePopout();
+            return null;
+        }
+        const originalError = console.error;
+        console.error = () => undefined;
+        try {
+            expect(() => renderPopout(<Outside />)).toThrow("usePopoutContext must be used within a Popout component");
+        } finally {
+            console.error = originalError;
+        }
+    });
+});
+
+describe("PopoutManager outside clicks inside a hosting dialog", () => {
+    /**
+     * A pop-out with one row button, for the hosting-dialog tests.
+     * @param props - children rendered inside the panel content
+     * @param props.children - the panel's content
+     * @returns the pop-out.
+     */
+    function SettingsPopout({ children }: { children?: React.ReactNode }) {
+        return (
+            <Popout>
+                <Popout.Trigger>
+                    <button>Open Settings</button>
+                </Popout.Trigger>
+                <Popout.Panel width={220} header={{ variant: "title", title: "Settings" }}>
+                    <Popout.Content>
+                        <span data-testid="settings-content">Settings content</span>
+                        {children}
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>
+        );
+    }
+
+    async function openSettings(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+        await user.click(screen.getByRole("button", { name: "Open Settings" }));
+        expect(await screen.findByTestId("settings-content")).toBeInTheDocument();
+    }
+
+    it("closes a pop-out that lives inside a modal dialog when the reader clicks the dialog's empty space", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <section role="dialog" aria-modal="true" aria-label="Workspace">
+                <div data-testid="workspace-blank" style={{ height: 120 }}>
+                    Blank area
+                </div>
+                <SettingsPopout />
+            </section>,
+        );
+
+        await openSettings(user);
+        await user.click(screen.getByTestId("workspace-blank"));
+
+        await waitFor(() => {
+            expect(screen.queryByTestId("settings-content")).toBeNull();
+        });
+        expect(screen.getByRole("dialog", { name: "Workspace" })).toBeInTheDocument();
+    });
+
+    it("closes a pop-out inside a Mantine Modal when the reader clicks the modal body", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <Modal opened onClose={() => undefined} title="Host modal">
+                <p data-testid="modal-body">Modal body text</p>
+                <SettingsPopout />
+            </Modal>,
+        );
+
+        await openSettings(user);
+        await user.click(screen.getByTestId("modal-body"));
+
+        await waitFor(() => {
+            expect(screen.queryByTestId("settings-content")).toBeNull();
+        });
+        expect(screen.getByTestId("modal-body")).toBeInTheDocument();
+    });
+
+    it("stays open when the reader picks an option from a portalled Select inside the panel", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <section role="dialog" aria-modal="true" aria-label="Workspace">
+                <SettingsPopout>
+                    <Select aria-label="Match" data={["any", "all"]} />
+                </SettingsPopout>
+            </section>,
+        );
+
+        await openSettings(user);
+        await user.click(screen.getByRole("combobox", { name: "Match" }));
+        await user.click(await screen.findByRole("option", { name: "all" }));
+
+        expect(screen.getByRole("combobox", { name: "Match" })).toHaveValue("all");
+        expect(screen.getByTestId("settings-content")).toBeInTheDocument();
+    });
+
+    it("stays open when the reader picks a Select option in a pop-out hosted by a Mantine Modal", async () => {
+        const user = userEvent.setup();
+
+        // Mantine portals the Modal and the Select's dropdown into one shared portal node.
+        renderPopout(
+            <Modal opened onClose={() => undefined} title="Host modal">
+                <SettingsPopout>
+                    <Select aria-label="Match" data={["any", "all"]} />
+                </SettingsPopout>
+            </Modal>,
+        );
+
+        await openSettings(user);
+        await user.click(screen.getByRole("combobox", { name: "Match" }));
+        await user.click(await screen.findByRole("option", { name: "all" }));
+
+        expect(screen.getByRole("combobox", { name: "Match" })).toHaveValue("all");
+        expect(screen.getByTestId("settings-content")).toBeInTheDocument();
+    });
+
+    it("stays open while the reader clicks inside a Modal opened from a panel row", async () => {
+        const user = userEvent.setup();
+
+        /**
+         * A panel row that opens a confirm Modal over the pop-out.
+         * @returns the row.
+         */
+        function ConfirmRow() {
+            const [opened, setOpened] = useState(false);
+            return (
+                <>
+                    <button onClick={() => setOpened(true)}>Delete</button>
+                    <Modal opened={opened} onClose={() => setOpened(false)} title="Confirm">
+                        <p data-testid="confirm-body">Really delete?</p>
+                    </Modal>
+                </>
+            );
+        }
+
+        renderPopout(
+            <SettingsPopout>
+                <ConfirmRow />
+            </SettingsPopout>,
+        );
+
+        await openSettings(user);
+        await user.click(screen.getByRole("button", { name: "Delete" }));
+        await user.click(await screen.findByTestId("confirm-body"));
+
+        expect(screen.getByTestId("settings-content")).toBeInTheDocument();
+    });
+
+    it("keeps the outer pop-out open on a press inside a nested manager's pop-out", async () => {
+        const user = userEvent.setup();
+
+        renderPopout(
+            <section role="dialog" aria-modal="true" aria-label="Workspace">
+                <SettingsPopout>
+                    <PopoutManager>
+                        <Popout>
+                            <Popout.Trigger>
+                                <button>Open Color</button>
+                            </Popout.Trigger>
+                            <Popout.Panel width={180} header={{ variant: "title", title: "Color" }}>
+                                <Popout.Content>
+                                    <span data-testid="color-content">Color content</span>
+                                </Popout.Content>
+                            </Popout.Panel>
+                        </Popout>
+                    </PopoutManager>
+                </SettingsPopout>
+            </section>,
+        );
+
+        await openSettings(user);
+        await user.click(screen.getByRole("button", { name: "Open Color" }));
+        await user.click(await screen.findByTestId("color-content"));
+
+        expect(screen.getByTestId("color-content")).toBeInTheDocument();
+        expect(screen.getByTestId("settings-content")).toBeInTheDocument();
+    });
+});

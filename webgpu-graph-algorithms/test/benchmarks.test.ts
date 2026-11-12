@@ -436,7 +436,9 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
         expect(over.status).toBe(1);
 
         // A baseline written before minMs existed: the median alone decides, as it did before this rule.
-        const legacy = JSON.stringify([session([result("a", 10)])], (k, v) => (k === "minMs" ? undefined : v));
+        const legacy = JSON.stringify([session([result("a", 10)])], (k: string, v: unknown) =>
+            k === "minMs" ? undefined : v,
+        );
         const fallback = run({
             "gpu-report.json": quiet,
             [`benchmarks/results/${CLASS}.json`]: legacy,
@@ -1356,6 +1358,35 @@ describe("scripts/gpu-report.js --clocks: the SM clock of every benchmark group 
             ]);
         } finally {
             rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("benchmarks/run.ts: the command line", () => {
+    /**
+     * Runs benchmarks/run.ts with arguments that fail before any GPU context is created.
+     * @param args - the command line
+     * @returns the exit status and stderr
+     */
+    function runBench(args: readonly string[]): { status: number | null; stderr: string } {
+        const proc = spawnSync(process.execPath, ["--import", "tsx", resolve("benchmarks/run.ts"), ...args], {
+            encoding: "utf8",
+        });
+        return { status: proc.status, stderr: proc.stderr };
+    }
+
+    it("refuses a --runs value that is not a positive integer, and a --samples-out without a file", () => {
+        for (const [args, message] of [
+            [["--runs", "0"], "--runs expects a positive integer, got 0"],
+            [["--runs", "1.5"], "--runs expects a positive integer, got 1.5"],
+            [["--runs"], "--runs expects a positive integer, got undefined"],
+            [["--samples-out"], "--samples-out expects a file path"],
+            [["--samples-out", "--no-save"], "--samples-out expects a file path"],
+            [["--bogus"], "unknown option --bogus; known: --no-save --allow-software --runs N --samples-out FILE"],
+        ] as const) {
+            const r = runBench(args);
+            expect(r.status, args.join(" ")).toBe(1);
+            expect(r.stderr.trim(), args.join(" ")).toBe(message);
         }
     });
 });

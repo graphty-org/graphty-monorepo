@@ -9,15 +9,19 @@
  */
 
 import type { SimulationType } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import { clusterByOption, clusterStrengthOption } from "./clusterForce";
+import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
 import { SimulationLayoutEngine } from "./SimulationLayoutEngine";
 
 /**
  * Zod-based options schema for ForceAtlas2 Layout
  */
 const forceAtlas2LayoutOptionsSchema = defineOptions({
+    clusterBy: clusterByOption,
+    clusterStrength: clusterStrengthOption,
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(100),
         meta: {
@@ -92,6 +96,8 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
             advanced: true,
         },
     },
+    nodeGap: nodeGapOption,
+    nodeGapFront: nodeGapFrontOption,
     seed: {
         schema: z.number().nullable().default(null),
         meta: {
@@ -136,18 +142,20 @@ const forceAtlas2LayoutOptionsSchema = defineOptions({
  * under `force`.
  */
 export class ForceAtlas2Layout extends SimulationLayoutEngine {
-    static type = "forceatlas2";
-    static simulationType: SimulationType = "forceatlas2";
-    static maxDimensions = 3;
+    static readonly type: string = "forceatlas2";
+    static readonly simulationType: SimulationType = "forceatlas2";
+    static readonly maxDimensions: number = 3;
 
     /**
-     * A WEIGHT IS AN ATTRACTION STRENGTH HERE, and is passed through as it is stored: a heavier
-     * edge pulls its two nodes closer, which is what a weight means everywhere else in the
-     * element. Kamada-Kawai reads the very same number as a distance and therefore inverts it; the
+     * A WEIGHT IS AN ATTRACTION STRENGTH HERE. A strength (or a weight whose meaning nobody
+     * stated) is passed through as it is stored, so a heavier edge pulls its two nodes closer; a
+     * distance (`data.knownFields.edgeWeightMeaning: "distance"`) is inverted first, so a longer
+     * distance pulls weaker; any other meaning is left unread. The simulation bridge does this on
+     * the CPU and the accelerator alike. Kamada-Kawai reads a distance and inverts a strength; the
      * two engines disagree about the arithmetic so that they agree about the meaning.
      */
-    static override honoursWeights = true;
-    static zodOptionsSchema: OptionsSchema = forceAtlas2LayoutOptionsSchema;
+    static override readonly honoursWeights: boolean = true;
+    static readonly zodOptionsSchema: OptionsSchema = forceAtlas2LayoutOptionsSchema;
 
     /**
      * Get dimension-specific options for ForceAtlas2 layout.

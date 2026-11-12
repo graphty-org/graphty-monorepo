@@ -362,7 +362,7 @@ describe("arf", () => {
     // the expected rows are NetworkX's arf_layout iteration run in NumPy from the same start
     it("gives the positions NetworkX's arf_layout gives from the same start", () => {
         const s = grid(4, 3);
-        const pos = Float32Array.from({ length: 24 }, (_, i) => ((i * 37) % 11) / 11);
+        const pos = Float32Array.from({ length: 24 }, (_, i) => ((i * 37) % 13) / 13); // no two rows equal
         const r = layout.arf(s, { pos, a: 1.5, maxIter: 300 });
         matchesGolden(r, golden("arf from a start"), 1e-5);
     });

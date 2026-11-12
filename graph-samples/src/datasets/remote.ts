@@ -37,6 +37,20 @@ export async function fetchDataset(name: string, options: FetchDatasetOptions = 
     if (!response.ok || response.body === null) {
         throw new Error(`fetching ${url.href} failed: HTTP ${response.status}`);
     }
-    const unzipped = response.body.pipeThrough(new DecompressionStream("gzip"));
-    return fromBytes(new Uint8Array(await new Response(unzipped).arrayBuffer()));
+    return fromBytes(await gunzipIfZipped(new Uint8Array(await response.arrayBuffer())));
+}
+
+/**
+ * The file's bytes unzipped. A server or CDN that sends the file with `Content-Encoding: gzip`
+ * makes the browser unzip it already, so bytes that do not start with the gzip magic (1f 8b) are
+ * used as they are.
+ * @param bytes - the bytes as fetched
+ * @returns the graph-format wire bytes
+ */
+async function gunzipIfZipped(bytes: Uint8Array<ArrayBuffer>): Promise<Uint8Array> {
+    if (bytes[0] !== 0x1f || bytes[1] !== 0x8b) {
+        return bytes;
+    }
+    const unzipped = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+    return new Uint8Array(await new Response(unzipped).arrayBuffer());
 }

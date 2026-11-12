@@ -1,6 +1,6 @@
 import type { F32 } from "@graphty/graph-format";
 import { arf } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { SimpleLayoutConfig } from "./LayoutEngine";
@@ -15,6 +15,7 @@ const arfLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     scaling: {
@@ -76,9 +77,9 @@ type ArfLayoutOpts = Partial<ArfLayoutConfigType>;
  * ARF (Attractive-Repulsive Force) layout engine for 2D graph visualization
  */
 export class ArfLayout extends SnapshotLayoutEngine {
-    static type = "arf";
-    static maxDimensions = 2;
-    static zodOptionsSchema: OptionsSchema = arfLayoutOptionsSchema;
+    static readonly type: string = "arf";
+    static readonly maxDimensions: number = 2;
+    static readonly zodOptionsSchema: OptionsSchema = arfLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: ArfLayoutConfigType;
 

@@ -1,6 +1,6 @@
 import type { F32 } from "@graphty/graph-format";
 import { spiral } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
@@ -15,6 +15,7 @@ const spiralLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     scale: {
@@ -67,9 +68,9 @@ type SpiralLayoutOpts = Partial<SpiralLayoutConfigType>;
  * Spiral layout engine that arranges nodes along a spiral path
  */
 export class SpiralLayout extends SnapshotLayoutEngine {
-    static type = "spiral";
-    static maxDimensions = 2;
-    static zodOptionsSchema: OptionsSchema = spiralLayoutOptionsSchema;
+    static readonly type: string = "spiral";
+    static readonly maxDimensions: number = 2;
+    static readonly zodOptionsSchema: OptionsSchema = spiralLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: SpiralLayoutConfigType;
 

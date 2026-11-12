@@ -1,0 +1,356 @@
+{
+    "about": "Which program draws each GML sheet's oracle (written by graph-io/test/fidelity/generators/specimens/gml.py): cytoscape-gml (Cytoscape desktop's GML reader), gml2gv (gml2gv | neato -n2), ogdf (OGDF's own GraphIO::drawSVG of its own GraphIO::writeGML of the sheet), ogdf-draw (OGDF's GraphIO::readGML and GraphIO::drawSVG of the sheet as written), gephi (Gephi's own Preview) or graphviz (Graphviz's own drawing of the DOT file its gv2gml converted to the sheet). standIns: the programs that also draw the sheet into oracles/stand-ins/, for the settings its oracle does not draw (judges.json).",
+    "sheets": {
+        "specimen-node-shapes": {
+            "route": "ogdf-draw",
+            "flavor": "graphlet",
+            "directed": false,
+            "specimens": 9,
+            "about": "every graphics type of the GML draft",
+            "standIns": ["cytoscape-gml", "gml2gv"]
+        },
+        "specimen-node-shapes-p2": {
+            "route": "cytoscape-gml",
+            "flavor": "yed",
+            "directed": false,
+            "specimens": 21,
+            "about": "every yEd shape type"
+        },
+        "specimen-node-shapes-p3": {
+            "route": "cytoscape-gml",
+            "flavor": "yed",
+            "directed": false,
+            "specimens": 29,
+            "about": "every yEd flowchart configuration (customconfiguration)"
+        },
+        "specimen-node-fills-borders": {
+            "route": "ogdf-draw",
+            "flavor": "graphlet",
+            "directed": false,
+            "specimens": 24,
+            "about": "fill color syntaxes, outline colors, outline widths, stipples (Tk)",
+            "standIns": ["cytoscape-gml", "gml2gv"]
+        },
+        "specimen-node-fills-borders-p2": {
+            "route": "cytoscape-gml",
+            "flavor": "yed",
+            "directed": false,
+            "specimens": 23,
+            "about": "yEd fills, gradients, outlines and outline styles"
+        },
+        "specimen-node-sizes-opacity": {
+            "route": "ogdf-draw",
+            "flavor": "graphlet",
+            "directed": false,
+            "specimens": 12,
+            "about": "w and h of the GML draft",
+            "standIns": ["cytoscape-gml", "gml2gv"]
+        },
+        "specimen-node-sizes-opacity-p2": {
+            "route": "cytoscape-gml",
+            "flavor": "yed",
+            "directed": false,
+            "specimens": 14,
+            "about": "yEd sizes and the alpha of yEd's #RRGGBBAA colors"
+        },
+        "specimen-labels": {
+            "route": "ogdf-draw",
+            "flavor": "graphlet",
+            "directed": false,
+            "specimens": 6,
+            "about": "the node label key of the GML draft",
+            "standIns": ["cytoscape-gml", "gml2gv"]
+        },
+        "specimen-labels-p2": {
+            "route": "gml2gv",
+            "flavor": "yed",
+            "directed": false,
+            "specimens": 40,
+            "about": "yEd LabelGraphics: fonts, sizes, styles, colors, boxes, alignment"
+        },
+        "specimen-labels-p3": {
+            "route": "gml2gv",
+            "flavor": "yed",
+            "directed": false,
+            "specimens": 33,
+            "about": "yEd node label models and positions (model, anchor) and free offsets"
+        },
+        "specimen-edges-lines": {
+            "route": "ogdf-draw",
+            "flavor": "graphlet",
+            "directed": false,
+            "specimens": 17,
+            "about": "edge fill, width, Line bends, loops, parallels, smooth, stipple (GML draft and Tk)",
+            "standIns": ["cytoscape-gml", "gml2gv"]
+        },
+        "specimen-edges-lines-p2": {
+            "route": "gml2gv",
+            "flavor": "yed",
+            "directed": false,
+            "specimens": 19,
+            "about": "yEd edge styles, widths, colors, bends, smoothed bends, arcs, loops"
+        },
+        "specimen-arrows": {
+            "route": "ogdf-draw",
+            "flavor": "graphlet",
+            "directed": true,
+            "specimens": 5,
+            "about": "the arrow key (Tk): which ends have an arrow",
+            "standIns": ["cytoscape-gml", "gml2gv"]
+        },
+        "specimen-arrows-p2": {
+            "route": "cytoscape-gml",
+            "flavor": "yed",
+            "directed": true,
+            "specimens": 27,
+            "about": "every yEd arrow at the target end"
+        },
+        "specimen-arrows-p3": {
+            "route": "cytoscape-gml",
+            "flavor": "yed",
+            "directed": true,
+            "specimens": 27,
+            "about": "every yEd arrow at the source end, and arrow colors"
+        },
+        "specimen-arrows-p4": {
+            "route": "cytoscape-gml",
+            "flavor": "cytoscape",
+            "directed": true,
+            "specimens": 37,
+            "about": "Cytoscape 2.x's numbered arrows (source_arrow, target_arrow)"
+        },
+        "specimen-edge-labels": {
+            "route": "ogdf-draw",
+            "flavor": "graphlet",
+            "directed": false,
+            "specimens": 3,
+            "about": "the edge label key of the GML draft",
+            "standIns": ["cytoscape-gml", "gml2gv"]
+        },
+        "specimen-edge-labels-p2": {
+            "route": "gml2gv",
+            "flavor": "yed",
+            "directed": false,
+            "specimens": 31,
+            "about": "yEd edge LabelGraphics: fonts, colors, boxes, models and positions"
+        },
+        "specimen-groups": {
+            "route": "cytoscape-gml",
+            "flavor": "yed",
+            "directed": false,
+            "specimens": 10,
+            "about": "yEd groups (isGroup, gid): boxes, labels, nesting"
+        },
+        "specimen-images-charts": {
+            "route": "ogdf-draw",
+            "flavor": "graphlet",
+            "directed": false,
+            "specimens": 6,
+            "about": "image and bitmap files (the GML draft)",
+            "standIns": ["cytoscape-gml", "gml2gv"]
+        },
+        "specimen-node-shapes-p4": {
+            "route": "cytoscape-gml",
+            "flavor": "cytoscape",
+            "directed": false,
+            "specimens": 24,
+            "about": "Cytoscape's node shape names, as Cytoscape 3 names them and in the lower case Cytoscape 2.x wrote, and Cytoscape 2.x's own names"
+        },
+        "specimen-node-fills-borders-p3": {
+            "route": "cytoscape-gml",
+            "flavor": "cytoscape",
+            "directed": false,
+            "specimens": 9,
+            "about": "Cytoscape 2.x's fill, outline and outline_width"
+        },
+        "specimen-node-sizes-opacity-p3": {
+            "route": "cytoscape-gml",
+            "flavor": "cytoscape",
+            "directed": false,
+            "specimens": 6,
+            "about": "Cytoscape 2.x's w and h"
+        },
+        "specimen-labels-p4": {
+            "route": "cytoscape-gml",
+            "flavor": "cytoscape",
+            "directed": false,
+            "specimens": 3,
+            "about": "the label key under Creator Cytoscape (the node's name and drawn label)"
+        },
+        "specimen-edges-lines-p3": {
+            "route": "cytoscape-gml",
+            "flavor": "cytoscape",
+            "directed": false,
+            "specimens": 8,
+            "about": "Cytoscape 2.x's edge fill, width and type"
+        },
+        "specimen-node-shapes-p5": {
+            "route": "ogdf",
+            "flavor": "ogdf",
+            "directed": false,
+            "specimens": 15,
+            "about": "every OGDF Shape"
+        },
+        "specimen-node-fills-borders-p4": {
+            "route": "ogdf",
+            "flavor": "ogdf",
+            "directed": false,
+            "specimens": 29,
+            "about": "OGDF fill, fillbg and pattern, outline, stipple and lineWidth"
+        },
+        "specimen-node-sizes-opacity-p4": {
+            "route": "ogdf",
+            "flavor": "ogdf",
+            "directed": false,
+            "specimens": 7,
+            "about": "OGDF w and h"
+        },
+        "specimen-labels-p5": {
+            "route": "ogdf",
+            "flavor": "ogdf",
+            "directed": false,
+            "specimens": 7,
+            "about": "OGDF node labels and their offsets (graphics label x, y)"
+        },
+        "specimen-edges-lines-p4": {
+            "route": "ogdf",
+            "flavor": "ogdf",
+            "directed": false,
+            "specimens": 17,
+            "about": "OGDF edge fill, lineWidth, stipple and bends"
+        },
+        "specimen-arrows-p5": {
+            "route": "ogdf",
+            "flavor": "ogdf",
+            "directed": true,
+            "specimens": 7,
+            "about": "OGDF's arrow key, and an arrow's color and width"
+        },
+        "specimen-edge-labels-p3": {
+            "route": "ogdf",
+            "flavor": "ogdf",
+            "directed": false,
+            "specimens": 3,
+            "about": "OGDF edge labels"
+        },
+        "specimen-groups-p2": {
+            "route": "ogdf",
+            "flavor": "ogdf",
+            "directed": false,
+            "specimens": 10,
+            "about": "OGDF clusters (rootcluster): boxes, labels, nesting"
+        },
+        "specimen-node-fills-borders-p5": {
+            "route": "gephi",
+            "flavor": "gephi",
+            "directed": false,
+            "specimens": 6,
+            "about": "Gephi's fill"
+        },
+        "specimen-node-sizes-opacity-p5": {
+            "route": "gephi",
+            "flavor": "gephi",
+            "directed": false,
+            "specimens": 8,
+            "about": "Gephi's w, h and d (its size)"
+        },
+        "specimen-labels-p6": {
+            "route": "gephi",
+            "flavor": "gephi",
+            "directed": false,
+            "specimens": 4,
+            "about": "Gephi's node label (drawn at a size proportional to its node's)"
+        },
+        "specimen-edges-lines-p5": {
+            "route": "gephi",
+            "flavor": "gephi",
+            "directed": false,
+            "specimens": 8,
+            "about": "Gephi's edge value (its weight, drawn as the line's width) and its color mixed from its end nodes'"
+        },
+        "specimen-edge-labels-p4": {
+            "route": "gephi",
+            "flavor": "gephi",
+            "directed": false,
+            "specimens": 2,
+            "about": "Gephi's edge label (its Preview's default draws no edge label)"
+        },
+        "specimen-arrows-p6": {
+            "route": "gephi",
+            "flavor": "gephi",
+            "directed": true,
+            "specimens": 5,
+            "about": "a directed Gephi graph: an arrow on every edge"
+        },
+        "specimen-node-shapes-p6": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": false,
+            "specimens": 32,
+            "about": "Graphviz shapes, as gv2gml writes them in type"
+        },
+        "specimen-node-shapes-p7": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": false,
+            "specimens": 31,
+            "about": "Graphviz shapes, as gv2gml writes them in type"
+        },
+        "specimen-node-fills-borders-p6": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": false,
+            "specimens": 17,
+            "about": "fill (filled or not), outline, width and outlineStyle"
+        },
+        "specimen-node-sizes-opacity-p6": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": false,
+            "specimens": 9,
+            "about": "w and H (gv2gml's height key), visible and alpha"
+        },
+        "specimen-labels-p7": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": false,
+            "specimens": 14,
+            "about": "node label text and LabelGraphics"
+        },
+        "specimen-labels-p8": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": false,
+            "specimens": 14,
+            "about": "node label text and LabelGraphics (gv2gml -y)"
+        },
+        "specimen-edges-lines-p6": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": false,
+            "specimens": 13,
+            "about": "edge fill, width and style"
+        },
+        "specimen-arrows-p7": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": true,
+            "specimens": 48,
+            "about": "targetArrow (arrowhead) with arrow first (dir=forward)"
+        },
+        "specimen-arrows-p8": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": true,
+            "specimens": 52,
+            "about": "sourceArrow (arrowtail) with arrow last (dir=back), and arrow"
+        },
+        "specimen-edge-labels-p5": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": false,
+            "specimens": 7,
+            "about": "edge label text and LabelGraphics"
+        }
+    }
+}

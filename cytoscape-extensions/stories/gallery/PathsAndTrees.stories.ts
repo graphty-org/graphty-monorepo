@@ -2,9 +2,14 @@
 // `npx vitest run test/demo-catalog.test.ts -u` (the test writes this file from the catalog).
 import type { Meta, StoryObj } from "@storybook/html-vite";
 
-import { overview, tile } from "../gallery-stories.js";
+import { galleryParameters, overview, tile } from "../gallery-stories.js";
 
-const meta: Meta = { title: "Gallery/Paths And Trees" };
+// autodocs: a Docs page with the page's description and each story's under it
+const meta: Meta = {
+    title: "Gallery/Paths And Trees",
+    tags: ["autodocs"],
+    parameters: galleryParameters("PathsAndTrees"),
+};
 export default meta;
 
 type Story = StoryObj;
@@ -34,21 +39,6 @@ export const AStar: Story = {
 export const AllPairsShortestPath: Story = {
     ...tile("PathsAndTrees", "allPairsShortestPath"),
     name: "AllPairsShortestPath",
-};
-
-export const BreadthFirstSearch: Story = {
-    ...tile("PathsAndTrees", "breadthFirstSearch"),
-    name: "BreadthFirstSearch",
-};
-
-export const DirectionOptimizedBfs: Story = {
-    ...tile("PathsAndTrees", "directionOptimizedBfs"),
-    name: "DirectionOptimizedBfs",
-};
-
-export const DepthFirstSearch: Story = {
-    ...tile("PathsAndTrees", "depthFirstSearch"),
-    name: "DepthFirstSearch",
 };
 
 export const KruskalMST: Story = {

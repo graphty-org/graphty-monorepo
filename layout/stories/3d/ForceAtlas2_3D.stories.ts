@@ -198,12 +198,9 @@ export const ForceAtlas2_3D: Story = {
         await userEvent.click(applyButton);
 
         // Wait for animation and status update
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("applied");
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("applied");
+        });
     },
 };

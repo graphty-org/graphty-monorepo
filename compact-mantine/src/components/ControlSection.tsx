@@ -11,6 +11,7 @@ import { useDevWarning } from "../utils/dev-warning";
 import { isRtl, useDirection } from "../utils/rtl";
 import { Caret } from "./chrome/Caret";
 import { InfoCircle } from "./InfoCircle";
+import { EllipsizedName } from "./rows/EllipsizedName";
 import { TrailingSlot } from "./rows/TrailingSlot";
 
 // Figma's properties-panel section (design/figma-spec.md 9.2): a 40px header padded 0 8 0 16,
@@ -108,6 +109,179 @@ export interface ControlSectionProps extends DisclosureProps {
      * @default true
      */
     collapsible?: boolean;
+    /**
+     * Whether a label too long for one line wraps onto more lines instead of being cut with an
+     * ellipsis. For a label that is a sentence the reader must read whole, such as a count:
+     * `"Medici and 11 connections within 2 hops"`. The header grows to hold it.
+     * @default false
+     */
+    wrapLabel?: boolean;
+    /**
+     * Makes the section's name a heading of this level, so a screen reader can move from
+     * section to section by heading ("Nodes", "Edges"). Pick the level that follows the
+     * headings around the panel. Without it the section is a named group and no heading.
+     */
+    headingLevel?: 1 | 2 | 3 | 4 | 5 | 6;
+}
+
+/**
+ * The heading around a section's lead, when the section asks for one: the APG accordion's
+ * heading-around-the-button, named by the section's name rather than by the expand button's
+ * "Collapse ..." name. `display: contents` leaves the header's layout as it is.
+ * @param props - the heading level, the name's id and the lead
+ * @param props.level - the heading level, or undefined for no heading
+ * @param props.nameId - the id of the section's name
+ * @param props.children - the lead
+ * @returns the lead, inside a heading when a level is given
+ */
+function SectionHeading({
+    level,
+    nameId,
+    children,
+}: Readonly<{
+    level: number | undefined;
+    nameId: string;
+    children: React.ReactNode;
+}>): React.JSX.Element {
+    if (level === undefined) {
+        return <>{children}</>;
+    }
+    return (
+        <Box role="heading" aria-level={level} aria-labelledby={nameId} style={{ display: "contents" }}>
+            {children}
+        </Box>
+    );
+}
+
+/**
+ * The section's name: the plain-then-technical pair, as one label, in the group's accessible
+ * name. While the header cuts it short, the shared tooltip shows it whole, as a cut tree row's
+ * name does.
+ * @param id - The id the group's aria-labelledby points at
+ * @param label - The plain name
+ * @param technicalName - The technical name drawn after it, if any
+ * @returns The name element
+ */
+function sectionName(id: string, label: string, technicalName: string | undefined): React.JSX.Element {
+    return (
+        <EllipsizedName
+            id={id}
+            testId="control-section-name"
+            className="cm-section-title"
+            name={
+                <>
+                    {label}
+                    {technicalName === undefined ? null : (
+                        <Box
+                            component="span"
+                            data-testid="control-section-technical-name"
+                            className="cm-section-technical"
+                        >
+                            {` (${technicalName})`}
+                        </Box>
+                    )}
+                </>
+            }
+        />
+    );
+}
+
+/** Props for SectionLead. */
+interface SectionLeadProps {
+    /** Whether the lead is the expand button (the section holds rows and folds away). */
+    toggles: boolean;
+    /** Whether the section is expanded. */
+    isOpen: boolean;
+    /** Whether the text runs right to left. */
+    rtl: boolean;
+    /** The section's name element. */
+    name: React.ReactNode;
+    /** The expand button's name. */
+    toggleName: string;
+    /** The id of the section's content. */
+    contentId: string;
+    /** The one-line summary, drawn while it is shown. */
+    summary: React.ReactNode;
+    /** Whether the summary is shown. */
+    summaryShown: boolean;
+    /** The id of the summary. */
+    summaryId: string;
+    /** Expands or collapses the section. */
+    onToggle: (event: React.MouseEvent<HTMLButtonElement>) => void;
+    /** Sets an empty section up from its title, or undefined when the title does nothing. */
+    onTitleAdd: ActivationHandler | undefined;
+}
+
+/**
+ * The section header's lead: the expand button when the section folds away, else the title.
+ * @param props - Component props
+ * @param props.toggles - whether the lead is the expand button
+ * @param props.isOpen - whether the section is expanded
+ * @param props.rtl - whether the text runs right to left
+ * @param props.name - the section's name element
+ * @param props.toggleName - the expand button's name
+ * @param props.contentId - the id of the section's content
+ * @param props.summary - the one-line summary
+ * @param props.summaryShown - whether the summary is shown
+ * @param props.summaryId - the id of the summary
+ * @param props.onToggle - expands or collapses the section
+ * @param props.onTitleAdd - sets an empty section up from its title
+ * @returns the lead
+ */
+function SectionLead({
+    toggles,
+    isOpen,
+    rtl,
+    name,
+    toggleName,
+    contentId,
+    summary,
+    summaryShown,
+    summaryId,
+    onToggle,
+    onTitleAdd,
+}: Readonly<SectionLeadProps>): React.JSX.Element {
+    if (!toggles) {
+        // An empty section's title adds, as Figma's does. The
+        // pointer route only: the "+" is the keyboard route and
+        // the named control, so the title stays out of the tab
+        // order rather than being a second button with one name.
+        return (
+            <Box className="cm-section-lead" data-testid="control-section-lead" onClick={onTitleAdd}>
+                {name}
+            </Box>
+        );
+    }
+    return (
+        <UnstyledButton
+            type="button"
+            data-testid="control-section-toggle"
+            data-collapsible="true"
+            className="cm-section-lead cm-focus-inside"
+            aria-label={toggleName}
+            aria-expanded={isOpen}
+            aria-controls={contentId}
+            aria-describedby={summaryShown ? summaryId : undefined}
+            onClick={onToggle}
+        >
+            {/* The 16px slot in the gutter at x 0..16. A closed
+            section's caret points the way text runs. */}
+            <Box data-testid="control-section-chevron-slot" className="cm-section-chevron">
+                <Caret open={isOpen} rtl={rtl} />
+            </Box>
+            {name}
+            {summaryShown && (
+                <Box
+                    component="span"
+                    id={summaryId}
+                    data-testid="control-section-summary"
+                    className="cm-section-summary"
+                >
+                    {summary}
+                </Box>
+            )}
+        </UnstyledButton>
+    );
 }
 
 /**
@@ -158,6 +332,7 @@ export interface ControlSectionProps extends DisclosureProps {
  * @param props.summary - One line saying what the section holds, shown after the name while it is collapsed
  * @param props.children - The rows the section holds
  * @param props.collapsible - Whether the section folds away behind a chevron, defaulting to true
+ * @param props.wrapLabel - Whether a long label wraps onto more lines instead of being cut, defaulting to false
  * @returns The section, its header and its rows
  * @example
  * ```tsx
@@ -202,6 +377,8 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
         summary,
         children,
         collapsible = true,
+        wrapLabel = false,
+        headingLevel,
     } = props;
 
     const labels = useLabels();
@@ -251,25 +428,7 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
     const toggleName = isOpen ? labels.collapseSection(label) : labels.expandSection(label);
     const addName = labels.addToSection(label);
 
-    // The plain-then-technical pair, as one label. `fullName` is what a pointer
-    // and a screen reader get; the drawn halves differ only in weight and ink.
-    const fullName = technicalName === undefined ? label : `${label} (${technicalName})`;
-    const name = (
-        <Box
-            component="span"
-            id={nameId}
-            title={fullName}
-            data-testid="control-section-name"
-            className="cm-section-title"
-        >
-            {label}
-            {technicalName === undefined ? null : (
-                <Box component="span" data-testid="control-section-technical-name" className="cm-section-technical">
-                    {` (${technicalName})`}
-                </Box>
-            )}
-        </Box>
-    );
+    const name = sectionName(nameId, label, technicalName);
 
     // Accessibility: the APG "Disclosure (Show/Hide)" pattern. The header is a
     // button carrying aria-expanded and aria-controls, and the section around
@@ -289,6 +448,7 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
             aria-describedby={hasInfo ? infoId : undefined}
             data-testid="control-section"
             data-empty={empty ? "true" : undefined}
+            data-wrap-label={wrapLabel ? "true" : undefined}
             className="cm-section"
         >
             {/* 16 | title | info | flex | actions ending at x 232. The padding
@@ -297,53 +457,28 @@ export function ControlSection(props: ControlSectionProps): React.JSX.Element {
                 data-testid="control-section-header"
                 className="cm-section-header"
                 style={{
-                    height: PANEL_GRID.SECTION_HEADER,
+                    // A wrapped label grows the header past its one-line height.
+                    height: wrapLabel ? undefined : PANEL_GRID.SECTION_HEADER,
+                    minHeight: wrapLabel ? PANEL_GRID.SECTION_HEADER : undefined,
                     paddingInlineStart: PANEL_GRID.PAD_LEFT,
                     paddingInlineEnd: PANEL_GRID.PAD_RIGHT,
                 }}
             >
-                {toggles ? (
-                    <UnstyledButton
-                        type="button"
-                        data-testid="control-section-toggle"
-                        data-collapsible="true"
-                        className="cm-section-lead cm-focus-inside"
-                        aria-label={toggleName}
-                        aria-expanded={isOpen}
-                        aria-controls={contentId}
-                        aria-describedby={summaryShown ? summaryId : undefined}
-                        onClick={handleToggle}
-                    >
-                        {/* The 16px slot in the gutter at x 0..16. A closed
-                            section's caret points the way text runs. */}
-                        <Box data-testid="control-section-chevron-slot" className="cm-section-chevron">
-                            <Caret open={isOpen} rtl={isRtl(direction)} />
-                        </Box>
-                        {name}
-                        {summaryShown && (
-                            <Box
-                                component="span"
-                                id={summaryId}
-                                data-testid="control-section-summary"
-                                className="cm-section-summary"
-                            >
-                                {summary}
-                            </Box>
-                        )}
-                    </UnstyledButton>
-                ) : (
-                    // An empty section's title adds, as Figma's does. The
-                    // pointer route only: the "+" is the keyboard route and
-                    // the named control, so the title stays out of the tab
-                    // order rather than being a second button with one name.
-                    <Box
-                        className="cm-section-lead"
-                        data-testid="control-section-lead"
-                        onClick={empty && onAdd !== undefined ? onAdd : undefined}
-                    >
-                        {name}
-                    </Box>
-                )}
+                <SectionHeading level={headingLevel} nameId={nameId}>
+                    <SectionLead
+                        toggles={toggles}
+                        isOpen={isOpen}
+                        rtl={isRtl(direction)}
+                        name={name}
+                        toggleName={toggleName}
+                        contentId={contentId}
+                        summary={summary}
+                        summaryShown={summaryShown}
+                        summaryId={summaryId}
+                        onToggle={handleToggle}
+                        onTitleAdd={empty ? onAdd : undefined}
+                    />
+                </SectionHeading>
 
                 {hasConfiguredValues && (
                     <Box

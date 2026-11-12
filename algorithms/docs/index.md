@@ -1,8 +1,8 @@
 ---
+title: algorithms
 layout: home
 
 hero:
-    name: algorithms
     text: Graph Algorithms
     tagline: 60+ algorithms over compact graph snapshots, for TypeScript and browser visualization
     actions:

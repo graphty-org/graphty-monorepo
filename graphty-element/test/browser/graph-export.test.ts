@@ -25,6 +25,9 @@ import pajek from "../../../graph-io/test/corpus/pajek/karate.net?raw";
 import { type GraphtyError, isGraphtyError, type LossNote } from "../../extend";
 import type { ExportResult } from "../../index.js";
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** One corpus file per graph-io format, and how the element reads it and writes it. */
 const CORPUS: readonly {
@@ -212,6 +215,26 @@ describe("what an export carries", () => {
         assert.isTrue(isGraphtyError(error));
         assert.strictEqual((error as GraphtyError).code, "E_UNKNOWN_FORMAT");
         assert.include((error as GraphtyError).details.available as string[], "graphml");
+    });
+
+    it("writes only the scope and the columns asked for, styles included", async () => {
+        const graph = await loaded("graphml", graphml);
+        const session = graph.getSession();
+        await session.selection.apply({ nodes: ["n0", "n1", "n4"] });
+        await session.styles.add({
+            name: "Red",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+
+        const result = await graph.exportGraph("graphml", { scope: "selection", styles: true, columns: [] });
+        const text = await result.text();
+
+        assert.strictEqual(text.match(/<node /g)?.length, 3, "the three selected nodes");
+        assert.strictEqual(text.match(/<edge /g)?.length, 1, "only n0-n1 has both ends selected");
+        assert.notInclude(text, '"n2"');
+        assert.include(text.toLowerCase(), "ff0000", "the style still reaches the nodes written");
     });
 
     it("turns a writer's refusal into E_UNSUPPORTED, with graph-io's own code beside it", async () => {

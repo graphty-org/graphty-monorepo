@@ -248,9 +248,11 @@ describe("zoom-to-fit framing", () => {
             await build(NODES);
         });
 
-        it("is the nodes out to their size when nothing is labelled", async () => {
+        it("is the nodes out to the size they are drawn when nothing is labelled", async () => {
             const box = await frame();
-            const half = (graph.getNode("a")?.size ?? 0) / 2;
+            // a node's drawn box, not its style size: a default sphere of size 1 is drawn 1.5 across (#3087)
+            const half = graph.getNode("a")?.drawnHalfExtents.x ?? 0;
+            assert.isAbove(half, 0);
 
             assert.closeTo(box.min.x, -4 - half, 1e-4);
             assert.closeTo(box.max.x, 4 + half, 1e-4);

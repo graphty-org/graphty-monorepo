@@ -7,7 +7,18 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { issueBody, junitFailures, LABELS, MARKER, MAX_FILED, packageOf, plan } from "./restricted-cpu-stress.mjs";
+import {
+    issueBody,
+    junitFailures,
+    junitTests,
+    LABELS,
+    MARKER,
+    MAX_FILED,
+    packageOf,
+    plan,
+    RACE_LABELS,
+    tally,
+} from "./restricted-cpu-stress.mjs";
 
 // The shape vitest 3.2's junit reporter writes: attributes escaped, one testcase per test, the suite
 // chain joined with " > ", a failure child for a failed test.
@@ -39,6 +50,20 @@ describe("reading the junit report", () => {
         assert.equal(packageOf("junit-graphty-element-77.xml"), "graphty-element");
     });
 
+    it("gives a run-specific report and its .retry twin one key (issue #5640)", () => {
+        const run = "junit-graph-io-storybook-r1/junit-graph-io-1793531502638-55006-graph-io-storybook-4242.xml";
+        const retry =
+            "junit-graph-io-storybook-r2/junit-graph-io-1793531554302-55263-graph-io-storybook.retry-4243.xml";
+        const xml = XML.replace('name="test/a.test.ts"', 'name="fidelity-stories/stories/Matched.stories.ts"');
+        const [a] = junitFailures(xml, packageOf(run), "graph-io-storybook");
+        const [b] = junitFailures(xml, packageOf(retry), "graph-io-storybook");
+        assert.equal(a.id, 'graph-io/fidelity-stories/stories/Matched.stories.ts > reader > parses "x"');
+        assert.equal(b.id, a.id);
+        const [made] = plan([a], [], CTX);
+        assert.equal(made.create.title, 'Load-sensitive test: reader > parses "x" (graph-io)');
+        assert.deepEqual(plan([b], [{ number: 5443, state: "open", body: made.create.body }], CTX)[0].issue, 5443);
+    });
+
     it("returns each failing test with the tracker's id: package, file and suite chain", () => {
         const got = junitFailures(XML, "graph-io", "small-node");
         assert.deepEqual(
@@ -53,6 +78,65 @@ describe("reading the junit report", () => {
 
     it("returns nothing for a report with no failure", () => {
         assert.deepEqual(junitFailures(XML.replaceAll(/<failure[\s\S]*?<\/failure>/g, ""), "x", "s"), []);
+    });
+});
+
+describe("repeats on the same commit", () => {
+    const passing = XML.replaceAll(/<failure[\s\S]*?<\/failure>/g, "");
+
+    it("reads passed tests too, a self-closing testcase among them, and leaves skipped ones out", () => {
+        const xml = passing.replace(
+            "</testsuite>",
+            '<testcase classname="c" name="short" time="0"/><testcase classname="c" name="skip" time="0"><skipped/></testcase></testsuite>',
+        );
+        const got = junitTests(xml, "graph-io", "s");
+        assert.deepEqual(
+            got.map((t) => [t.name, t.failed]),
+            [
+                ['reader > parses "x"', false],
+                ["reader > passes", false],
+                ["short", false],
+                ["b", false],
+            ],
+        );
+        assert.deepEqual(
+            junitTests(XML, "graph-io", "s").map((t) => t.failed),
+            [true, false, true],
+        );
+    });
+
+    it("counts how often each failing test ran and failed across the repeats", () => {
+        const runs = [
+            ...junitTests(XML, "graph-io", "small-browser-r1"),
+            ...junitTests(passing, "graph-io", "small-browser-r2"),
+            ...junitTests(XML.replace(/<failure[\s\S]*?<\/failure>/, ""), "graph-io", "small-browser-r3"),
+        ];
+        const got = tally(runs);
+        assert.deepEqual(
+            got.map((t) => [t.name, t.shard, t.fails, t.runs]),
+            [
+                ['reader > parses "x"', "small-browser-r1", 1, 3],
+                ["b", "small-browser-r1", 2, 3],
+                ["b", "small-browser-r3", 2, 3],
+            ],
+        );
+    });
+
+    it("says a test whose outcomes differed is a race, and one that always failed failed every run", () => {
+        const [raced, , always] = tally([
+            ...junitTests(XML, "graph-io", "r1"),
+            ...junitTests(passing, "graph-io", "r2"),
+        ]).concat(tally(junitTests(XML, "graph-io", "r1")));
+        assert.match(issueBody(raced, CTX), /Outcomes differed on the same commit: failed 1 of 2 runs .*a race/);
+        assert.match(issueBody(always, CTX), /Failed all 1 of its runs on this commit\./);
+        const [a] = plan([raced], [{ number: 9, state: "open", body: `${MARKER}${raced.id}` }], CTX);
+        assert.match(a.comment, /Outcomes differed on the same commit/);
+        assert.deepEqual(plan([raced], [], CTX)[0].create.labels, RACE_LABELS);
+        assert.ok(RACE_LABELS.includes("priority:critical"));
+        assert.deepEqual(plan([always], [], CTX)[0].create.labels, LABELS);
+        // a test without a tally (no repeats read) says neither
+        const [plain] = junitFailures(XML, "graph-io", "s");
+        assert.doesNotMatch(issueBody(plain, CTX), /Outcomes differed|Failed all/);
     });
 });
 
@@ -92,10 +176,19 @@ describe("the issues", () => {
         assert.equal(body.match(/```/g).length, 2);
     });
 
-    it("files nothing when more tests fail than a load-sensitive test explains", () => {
-        const many = Array.from({ length: MAX_FILED + 1 }, (_, i) => ({ ...t, id: `x > ${i}` }));
-        assert.throws(() => plan(many, [], CTX), /nothing filed/);
-        assert.equal(plan(many.slice(1), [], CTX).length, MAX_FILED);
+    it("reports a file with more failing tests than a load-sensitive test explains as suite broken", () => {
+        const many = Array.from({ length: MAX_FILED + 2 }, (_, i) => ({
+            ...t,
+            file: "test/b.test.ts",
+            id: `x > ${i}`,
+        }));
+        const actions = plan([...many, t], [], CTX);
+        assert.deepEqual(actions[0], {
+            suiteBroken: { package: "graph-io", file: "test/b.test.ts", count: MAX_FILED + 2 },
+        });
+        assert.equal(actions.length, 2);
+        assert.equal(actions[1].create.title, 'Load-sensitive test: reader > parses "x" (graph-io)');
+        assert.equal(plan(many.slice(2), [], CTX).length, MAX_FILED);
     });
 });
 
@@ -110,15 +203,13 @@ describe("the workflow", () => {
         assert.doesNotMatch(on, /pull_request|push:|merge_group|workflow_call|workflow_run/);
     });
 
-    it("is awaited by nothing: no other workflow and no Mergify rule names it", () => {
+    it("is awaited by nothing: no other workflow names it", () => {
         const name = /^name: (.+)$/m.exec(text)[1];
         const dir = new URL("../.github/workflows/", import.meta.url);
         for (const f of readdirSync(dir).filter((x) => x.endsWith(".yml") && x !== "restricted-cpu-stress.yml")) {
             const other = readFileSync(new URL(f, dir), "utf8");
             assert.ok(!other.includes("restricted-cpu-stress") && !other.includes(name), f);
         }
-        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        assert.ok(!mergify.includes(name) && !mergify.includes("Restricted CPU"));
         // githerd's flaky-test tracker reads "Test (...)" jobs as occurrences; these are not
         assert.doesNotMatch(code, /name: Test \(/);
     });
@@ -127,6 +218,23 @@ describe("the workflow", () => {
         assert.match(code, /node tools\/ci-test-matrix\.mjs "\$all" "\$all"/);
         assert.match(code, /continue-on-error: true\n\s+run: \|/);
         assert.match(code, /cpu\.max/);
+    });
+
+    it("repeats every browser and story shard in its own job, and keeps each repeat's artifact and record apart", () => {
+        assert.match(code, /REPEATS: "3"/);
+        assert.match(
+            code,
+            /range\(1; \(if \$s\["needs-browser"\] then \$n else 1 end\) \+ 1\) \| \$s \+ \{repeat: \.\}/,
+        );
+        assert.match(code, /name: Restricted CPU \(\$\{\{ matrix\.shard \}\}, repeat \$\{\{ matrix\.repeat \}\}\)/);
+        assert.match(code, /name: junit-\$\{\{ matrix\.shard \}\}-r\$\{\{ matrix\.repeat \}\}/);
+        assert.match(code, /RESULTS_REPEAT: \$\{\{ matrix\.repeat \}\}/);
+        // the screenshot capture is never repeated here
+        assert.doesNotMatch(code, /visual-review|capture/);
+    });
+
+    it("pulls the Git LFS files each shard reads, as ci.yml's test job does (#5443)", () => {
+        assert.match(code, /if: matrix\.lfs\n\s+run: git lfs pull --include "\$\{\{ matrix\.lfs \}\}"/);
     });
 
     it("files nothing from a dispatch on a branch", () => {

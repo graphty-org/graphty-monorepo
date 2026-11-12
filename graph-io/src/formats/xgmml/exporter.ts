@@ -8,10 +8,12 @@
  * and nested atts, containment as each group node's nested graph of `xlink:href` member
  * references (every node is declared at the top level, so the node order survives), and newline
  * and tab as character references unless `cytoscapeEscapes` asks for Cytoscape's two-character
- * form. It writes the graph's structure and columns, never styles.
+ * form. It writes the graph's structure and columns; given styles (`exportGraph(..., { styles })`), every element's
+ * `<graphics>` holds what graphty draws as Cytoscape visual properties, and the `graphty.styles` block and the
+ * style values its rules read go into graph and element `<att>`s.
  */
 
-import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
+import { type Column, GraphFormatError, type GraphSnapshot, type ListColumn } from "@graphty/graph-format";
 
 import { type ChildrenCsr, childrenCsr } from "../../children.js";
 import { DictHeuristic } from "../../common/attributes.js";
@@ -21,9 +23,11 @@ import { capabilities, checkCapabilities, LOSS } from "../../common/export.js";
 import { formatF32, formatF64, idText } from "../../common/format.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
+import { itemAt, jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { xmlIllegalTextNotes } from "../../common/xml.js";
+import type { ExporterStyleInput, ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
     CY_NAMESPACE,
@@ -48,6 +52,10 @@ import {
     Z_COLUMN,
 } from "./constants.js";
 import { aliasesOf } from "./emit.js";
+import { styledGraphGraphics, styledGraphics, styledGraphicsNotes, XGMML_STYLE_CAPABILITIES } from "./styles.js";
+
+/** What the writer takes: the format's options, the common ones and the styles. */
+type XgmmlWriteOptions = XgmmlExportOptions & CommonExportOptions & ExporterStyleOptions;
 
 /** The two escapes Cytoscape reads back as a newline and a tab, as a message writes them. */
 const LITERAL_ESCAPES = String.raw`\n or \t`;
@@ -311,44 +319,15 @@ function planTable(
     note: NoteFn,
 ): ColumnWrite[] {
     const writes: ColumnWrite[] = [];
-    const reserved = RESERVED_NAMES[domain];
     const hasLabelRole =
         domain !== "graph" && (domain === "node" ? snapshot.nodes : snapshot.edges).byRole("label") !== null;
     for (const column of table) {
         const { meta } = column;
-        if (
-            meta.role !== null &&
-            (STRUCTURAL_ROLES.has(meta.role) ||
-                DROPPED_ROLES.has(meta.role) ||
-                meta.role === "id" ||
-                meta.role === "timeText")
-        ) {
+        if (skippedRole(meta.role)) {
             continue;
         }
         const kind = slotOf(column, domain, hasLabelRole);
-        const set = column.length - column.nullCount;
-        if (kind === "att" && reserved.has(meta.name)) {
-            note(
-                LOSS.COLUMN_NAME_CHANGED,
-                `${domain} column "${meta.name}" is named like a column the XGMML importer owns and reads back renamed`,
-                meta.name,
-                set,
-            );
-        } else if (kind === "label" && meta.dtype !== "string" && meta.dtype !== "dict") {
-            note(
-                LOSS.DTYPE,
-                `${domain} label column "${meta.name}" (${meta.dtype}) is written as text and reads back as string`,
-                meta.name,
-                set,
-            );
-        } else if (kind === "label" && meta.role === null) {
-            note(
-                LOSS.ROLE_ASSUMED,
-                `${domain} column "${meta.name}" is written as the label and reads back with the label role`,
-                meta.name,
-                set,
-            );
-        }
+        slotNotes(column, domain, kind, note);
         if (kind === "att") {
             attNotes(column, domain, note);
         }
@@ -364,6 +343,52 @@ function planTable(
         });
     }
     return writes;
+}
+
+/**
+ * Whether a column's role keeps it out of the atts: written structurally, dropped, or the id.
+ * @param role - the column's role
+ * @returns true to skip the column
+ */
+function skippedRole(role: Column["meta"]["role"]): boolean {
+    return (
+        role !== null && (STRUCTURAL_ROLES.has(role) || DROPPED_ROLES.has(role) || role === "id" || role === "timeText")
+    );
+}
+
+/**
+ * The note of a column whose slot changes how it reads back: a renamed att, a label written as text,
+ * a label that gains the label role.
+ * @param column - the column
+ * @param domain - the table
+ * @param kind - its slot
+ * @param note - the recorder
+ */
+function slotNotes(column: Column, domain: Domain, kind: ColumnWrite["kind"], note: NoteFn): void {
+    const { meta } = column;
+    const set = column.length - column.nullCount;
+    if (kind === "att" && RESERVED_NAMES[domain].has(meta.name)) {
+        note(
+            LOSS.COLUMN_NAME_CHANGED,
+            `${domain} column "${meta.name}" is named like a column the XGMML importer owns and reads back renamed`,
+            meta.name,
+            set,
+        );
+    } else if (kind === "label" && meta.dtype !== "string" && meta.dtype !== "dict") {
+        note(
+            LOSS.DTYPE,
+            `${domain} label column "${meta.name}" (${meta.dtype}) is written as text and reads back as string`,
+            meta.name,
+            set,
+        );
+    } else if (kind === "label" && meta.role === null) {
+        note(
+            LOSS.ROLE_ASSUMED,
+            `${domain} column "${meta.name}" is written as the label and reads back with the label role`,
+            meta.name,
+            set,
+        );
+    }
 }
 
 /**
@@ -394,6 +419,17 @@ function slotOf(column: Column, domain: "graph" | "node" | "edge", hasLabelRole:
     if (domain !== "node") {
         return "att";
     }
+    return nodeSlotOf(column);
+}
+
+/**
+ * Where a node column goes when it is no XML attribute, label or graphics: one of the node-only
+ * slots, else a typed att.
+ * @param column - the column
+ * @returns the slot
+ */
+function nodeSlotOf(column: Column): ColumnWrite["kind"] {
+    const { meta } = column;
     if (meta.name === Z_COLUMN && meta.dtype === "f64" && meta.role === null) {
         return "z";
     }
@@ -480,40 +516,60 @@ function attNotes(column: Column, domain: string, note: NoteFn): void {
         );
     }
     if (item === "string" || item === "dict") {
-        let escapes = 0;
-        for (let r = 0; r < column.length; r++) {
-            if (column.isSet(r)) {
-                const values = column.dtype === "list" ? [...column.sliceOf(r)] : [column.value(r)];
-                if (values.some((v) => typeof v === "string" && /\\[nt]/.test(v))) {
-                    escapes++;
-                }
-            }
-        }
-        if (escapes > 0) {
-            note(
-                XGMML_LOSS.BACKSLASH_ESCAPE,
-                `${label}: ${escapes} value${plural(escapes)} ${agree(escapes, "holds", "hold")} a literal ${LITERAL_ESCAPES}, which Cytoscape's escape convention reads back as a newline or tab`,
-                meta.name,
-                escapes,
-            );
-        }
+        escapeNotes(column, label, note);
     }
     if (meta.dtype === "string" || meta.dtype === "dict") {
-        const heuristic = new DictHeuristic();
-        for (let r = 0; r < column.length && !heuristic.decided; r++) {
-            if (column.isSet(r)) {
-                heuristic.observe(column.value(r) as string);
+        storageNotes(column, label, note);
+    }
+}
+
+/**
+ * The note of a text column whose values hold a literal backslash escape.
+ * @param column - the column
+ * @param label - the column as notes name it
+ * @param note - the recorder
+ */
+function escapeNotes(column: Column, label: string, note: NoteFn): void {
+    let escapes = 0;
+    for (let r = 0; r < column.length; r++) {
+        if (column.isSet(r)) {
+            const values = column.dtype === "list" ? [...column.sliceOf(r)] : [column.value(r)];
+            if (values.some((v) => typeof v === "string" && /\\[nt]/.test(v))) {
+                escapes++;
             }
         }
-        const readsAs = heuristic.decide();
-        if (readsAs !== meta.dtype) {
-            note(
-                XGMML_LOSS.STORAGE_CLASS_CHANGED,
-                `${label} reads back as ${readsAs}: the importer stores text with few distinct values as dict and other text as string; the values are the same`,
-                meta.name,
-                null,
-            );
+    }
+    if (escapes > 0) {
+        note(
+            XGMML_LOSS.BACKSLASH_ESCAPE,
+            `${label}: ${escapes} value${plural(escapes)} ${agree(escapes, "holds", "hold")} a literal ${LITERAL_ESCAPES}, which Cytoscape's escape convention reads back as a newline or tab`,
+            column.meta.name,
+            escapes,
+        );
+    }
+}
+
+/**
+ * The note of a string or dict column the importer's heuristic reads back as the other.
+ * @param column - the column
+ * @param label - the column as notes name it
+ * @param note - the recorder
+ */
+function storageNotes(column: Column, label: string, note: NoteFn): void {
+    const heuristic = new DictHeuristic();
+    for (let r = 0; r < column.length && !heuristic.decided; r++) {
+        if (column.isSet(r)) {
+            heuristic.observe(column.value(r) as string);
         }
+    }
+    const readsAs = heuristic.decide();
+    if (readsAs !== column.meta.dtype) {
+        note(
+            XGMML_LOSS.STORAGE_CLASS_CHANGED,
+            `${label} reads back as ${readsAs}: the importer stores text with few distinct values as dict and other text as string; the values are the same`,
+            column.meta.name,
+            null,
+        );
     }
 }
 
@@ -798,7 +854,7 @@ function valueText(value: unknown, dtype: string | null, escapes: boolean): stri
     } else if (ArrayBuffer.isView(value)) {
         text = JSON.stringify(Array.from(value as unknown as ArrayLike<number>));
     } else {
-        text = JSON.stringify(value) ?? "";
+        text = jsonText(value) ?? "";
     }
     return escapeXmlAttribute(text);
 }
@@ -819,7 +875,7 @@ function scalarText(value: unknown): string {
     if (typeof value === "boolean") {
         return value ? "true" : "false";
     }
-    return JSON.stringify(value) ?? "";
+    return jsonText(value) ?? "";
 }
 
 /**
@@ -856,35 +912,96 @@ function* attsOf(
     indent: string,
 ): Generator<string, void, undefined> {
     for (const w of writes) {
-        if (w.kind !== "att") {
-            continue;
+        if (w.kind === "att") {
+            yield* attOf(w, row, first, plan, indent);
         }
-        const { column } = w;
-        const isSet = column.isSet(row);
-        if (!isSet && !(first && column.nullCount === column.length)) {
-            continue;
-        }
-        const name = `${indent}<att name="${escapeXmlAttribute(w.name)}"`;
-        const types = optionalAttribute("type", w.type) + optionalAttribute("cy:type", w.cyType);
-        const extra = `${column.meta.extra.hidden === true ? ' cy:hidden="1"' : ""}${column.meta.extra.equation === true ? ' cy:equation="1"' : ""}`;
-        if (!isSet) {
-            yield `${name}${types}${optionalAttribute("cy:elementType", w.elementType)}${extra}/>\n`;
-            continue;
-        }
-        if (column.dtype === "list") {
-            const items = [...column.sliceOf(row)];
-            const [itemType, itemCy] = typesOf(column, column.meta.itemDtype);
-            yield `${name}${types} cy:elementType="${w.elementType ?? "String"}"${extra}${items.length === 0 ? "/>" : ">"}\n`;
-            if (items.length > 0) {
-                for (const item of items) {
-                    yield `${indent}    <att name="${escapeXmlAttribute(w.name)}" value="${valueText(item, column.meta.itemDtype, plan.escapes)}" type="${itemType}" cy:type="${itemCy}"/>\n`;
-                }
-                yield `${indent}</att>\n`;
-            }
-            continue;
-        }
-        yield `${name} value="${valueText(column.value(row), column.dtype, plan.escapes)}"${types}${extra}/>\n`;
     }
+}
+
+/**
+ * The att of one att column in one row: nothing for an unset value, except an all-unset column's
+ * declaration in the table's first row.
+ * @param w - the column write
+ * @param row - the row
+ * @param first - whether this is the table's first row
+ * @param plan - the plan
+ * @param indent - the indentation
+ * @yields the att element
+ * @returns nothing
+ */
+function* attOf(
+    w: ColumnWrite,
+    row: number,
+    first: boolean,
+    plan: Plan,
+    indent: string,
+): Generator<string, void, undefined> {
+    const { column } = w;
+    const isSet = column.isSet(row);
+    if (!isSet && !(first && column.nullCount === column.length)) {
+        return;
+    }
+    const name = `${indent}<att name="${escapeXmlAttribute(w.name)}"`;
+    const types = optionalAttribute("type", w.type) + optionalAttribute("cy:type", w.cyType);
+    const extra = attFlags(column);
+    if (!isSet) {
+        yield `${name}${types}${optionalAttribute("cy:elementType", w.elementType)}${extra}/>\n`;
+        return;
+    }
+    if (column.dtype === "list") {
+        yield* listAttOf(
+            w,
+            column,
+            row,
+            plan,
+            indent,
+            `${name}${types} cy:elementType="${w.elementType ?? "String"}"${extra}`,
+        );
+        return;
+    }
+    yield `${name} value="${valueText(column.value(row), column.dtype, plan.escapes)}"${types}${extra}/>\n`;
+}
+
+/**
+ * The cy:hidden and cy:equation flags of an att column.
+ * @param column - the column
+ * @returns the XML attributes, or empty
+ */
+function attFlags(column: Column): string {
+    const hidden = column.meta.extra.hidden === true ? ' cy:hidden="1"' : "";
+    const equation = column.meta.extra.equation === true ? ' cy:equation="1"' : "";
+    return `${hidden}${equation}`;
+}
+
+/**
+ * A set list att with one child att per item.
+ * @param w - the column write
+ * @param column - its column
+ * @param row - the row
+ * @param plan - the plan
+ * @param indent - the indentation
+ * @param open - the opening tag up to its end
+ * @yields the att element
+ * @returns nothing
+ */
+function* listAttOf(
+    w: ColumnWrite,
+    column: ListColumn,
+    row: number,
+    plan: Plan,
+    indent: string,
+    open: string,
+): Generator<string, void, undefined> {
+    const items = [...column.sliceOf(row)];
+    const [itemType, itemCy] = typesOf(column, column.meta.itemDtype);
+    yield `${open}${items.length === 0 ? "/>" : ">"}\n`;
+    if (items.length === 0) {
+        return;
+    }
+    for (const item of items) {
+        yield `${indent}    <att name="${escapeXmlAttribute(w.name)}" value="${valueText(item, column.meta.itemDtype, plan.escapes)}" type="${itemType}" cy:type="${itemCy}"/>\n`;
+    }
+    yield `${indent}</att>\n`;
 }
 
 /**
@@ -903,9 +1020,7 @@ function* graphicsOf(
     const attrs: [string, string][] = [...coords];
     const nested: [string, unknown][] = [];
     for (const [key, value] of Object.entries(record ?? {})) {
-        if (key === "Line") {
-            nested.push([key, value]);
-        } else if (typeof value === "string" && (GRAPHICS_ATTRIBUTES.has(key) || key.startsWith("cy:"))) {
+        if (key !== "Line" && typeof value === "string" && (GRAPHICS_ATTRIBUTES.has(key) || key.startsWith("cy:"))) {
             attrs.push([key, value]);
         } else {
             nested.push([key, value]);
@@ -922,18 +1037,29 @@ function* graphicsOf(
     yield `${head}>\n`;
     for (const [key, value] of nested) {
         if (key === "Line" && Array.isArray(value)) {
-            yield `${indent}    <Line>\n`;
-            for (const point of value) {
-                const entries =
-                    typeof point === "object" && point !== null ? Object.entries(point as Record<string, unknown>) : [];
-                yield `${indent}        <point${attributeList(entries)}/>\n`;
-            }
-            yield `${indent}    </Line>\n`;
+            yield* lineOf(value, indent);
         } else {
             yield* jsonAtt(key, value, `${indent}    `);
         }
     }
     yield `${indent}</graphics>\n`;
+}
+
+/**
+ * A graphics `Line` value as a `<Line>` of `<point>` elements.
+ * @param points - the points
+ * @param indent - the indentation of the enclosing graphics
+ * @yields the Line element
+ * @returns nothing
+ */
+function* lineOf(points: readonly unknown[], indent: string): Generator<string, void, undefined> {
+    yield `${indent}    <Line>\n`;
+    for (const point of points) {
+        const entries =
+            typeof point === "object" && point !== null ? Object.entries(point as Record<string, unknown>) : [];
+        yield `${indent}        <point${attributeList(entries)}/>\n`;
+    }
+    yield `${indent}    </Line>\n`;
 }
 
 /**
@@ -1004,21 +1130,40 @@ function cellOf(column: Column | null, row: number): unknown {
  * @returns the coordinates as XML attributes
  */
 function coordsOf(plan: Plan, zColumn: Column | null, node: number): [string, string][] {
-    const out: [string, string][] = [];
-    const xyz = cellOf(plan.position, node);
-    if (xyz !== null) {
-        const [x, y, z] = Array.from(xyz as ArrayLike<number>);
-        const fmt = plan.position?.dtype === "f32" ? formatF32 : formatF64;
-        if (Number.isFinite(x) && Number.isFinite(y)) {
-            out.push(["x", fmt(x)], ["y", fmt(y === 0 ? 0 : -y)]);
-            if (zColumn === null && z !== undefined && z !== 0 && Number.isFinite(z)) {
-                out.push(["z", fmt(z)]);
-            }
-        }
-    }
+    const out = positionCoordsOf(plan, zColumn, node);
     const z = cellOf(zColumn, node);
     if (typeof z === "number") {
         out.push(["z", formatF64(z)]);
+    }
+    return out;
+}
+
+/**
+ * The graphics coordinates a node's position gives: x, y negated back to screen coordinates, and
+ * z when no z column carries it.
+ * @param plan - the plan
+ * @param zColumn - the z column, or null
+ * @param node - the node
+ * @returns the coordinates as XML attributes (none for an unset or non-finite position)
+ */
+function positionCoordsOf(plan: Plan, zColumn: Column | null, node: number): [string, string][] {
+    const xyz = cellOf(plan.position, node);
+    if (xyz === null) {
+        return [];
+    }
+    const coords = Array.from(xyz as ArrayLike<number>);
+    const [x, y] = coords;
+    const z = itemAt(coords, 2);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return [];
+    }
+    const fmt = plan.position?.dtype === "f32" ? formatF32 : formatF64;
+    const out: [string, string][] = [
+        ["x", fmt(x)],
+        ["y", fmt(y === 0 ? 0 : -y)],
+    ];
+    if (zColumn === null && z !== undefined && z !== 0 && Number.isFinite(z)) {
+        out.push(["z", fmt(z)]);
     }
     return out;
 }
@@ -1061,6 +1206,7 @@ function* groupAttOf(
  * @param plan - the plan
  * @param node - the node
  * @param indent - the indentation
+ * @param styles - the styles being written, or undefined
  * @yields the node element
  * @returns nothing
  */
@@ -1069,6 +1215,7 @@ function* nodeOf(
     plan: Plan,
     node: number,
     indent: string,
+    styles: ExporterStyleInput | undefined,
 ): Generator<string, void, undefined> {
     const labelCol = slot(plan.nodes, "label");
     const label = cellOf(labelCol, node);
@@ -1087,7 +1234,8 @@ function* nodeOf(
     } else if (typeof pointer === "string") {
         yield `${inner}<att>\n${inner}    <graph xlink:href="${escapeXmlAttribute(pointer)}"/>\n${inner}</att>\n`;
     }
-    const graphics = cellOf(slot(plan.nodes, "graphics"), node) as Record<string, unknown> | null;
+    const kept = cellOf(slot(plan.nodes, "graphics"), node) as Record<string, unknown> | null;
+    const graphics = styles === undefined ? kept : styledGraphics("node", styles, node, kept);
     yield* graphicsOf(graphics, coordsOf(plan, slot(plan.nodes, "z"), node), inner);
     yield `${indent}</node>\n`;
 }
@@ -1100,11 +1248,9 @@ function* nodeOf(
  * @yields the XML text
  * @returns nothing
  */
-function* write(
-    snapshot: GraphSnapshot,
-    options: (XgmmlExportOptions & CommonExportOptions) | undefined,
-): Generator<string, void, undefined> {
+function* write(snapshot: GraphSnapshot, options: XgmmlWriteOptions | undefined): Generator<string, void, undefined> {
     const plan = planFor(snapshot, options);
+    const styles = options?.styles;
     const meta = snapshot.meta.extra[META_KEY] as { graphId?: unknown; directed?: unknown } | undefined;
     const graphId = typeof meta?.graphId === "string" ? ` id="${escapeXmlAttribute(meta.graphId)}"` : "";
     // Every edge carries cy:directed, so when they all agree the root attribute does not decide
@@ -1115,19 +1261,20 @@ function* write(
         snapshot.edges.byRole("directed") === null;
     let directed = snapshot.directed ? "1" : "0";
     if (keep) {
-        directed = meta?.directed as string;
+        directed = meta.directed as string;
     }
     const name = snapshot.meta.name === null ? "" : ` label="${escapeXmlAttribute(snapshot.meta.name)}"`;
     yield '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
     yield `<graph${graphId}${name} directed="${directed}" cy:documentVersion="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="${XLINK_NAMESPACE}" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="${CY_NAMESPACE}" xmlns="${XGMML_NAMESPACE}">\n`;
     yield* metadataOf(snapshot);
     yield* attsOf(plan.graph, 0, true, plan, "    ");
-    yield* graphicsOf(cellOf(slot(plan.graph, "graphics"), 0) as Record<string, unknown> | null, [], "    ");
+    const graphGraphics = cellOf(slot(plan.graph, "graphics"), 0) as Record<string, unknown> | null;
+    yield* graphicsOf(styles === undefined ? graphGraphics : styledGraphGraphics(styles, graphGraphics), [], "    ");
     for (let u = 0; u < snapshot.nodeCount; u++) {
-        yield* nodeOf(snapshot, plan, u, "    ");
+        yield* nodeOf(snapshot, plan, u, "    ", styles);
     }
     yield* networksOf(snapshot, plan);
-    yield* edgesOf(snapshot, plan);
+    yield* edgesOf(snapshot, plan, styles);
     yield "</graph>\n";
 }
 
@@ -1188,10 +1335,15 @@ function* networksOf(snapshot: GraphSnapshot, plan: Plan): Generator<string, voi
  * The edges: one per logical edge, expanded pairs folded.
  * @param snapshot - the snapshot
  * @param plan - the plan
+ * @param styles - the styles being written, or undefined
  * @yields the edge elements
  * @returns nothing
  */
-function* edgesOf(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, undefined> {
+function* edgesOf(
+    snapshot: GraphSnapshot,
+    plan: Plan,
+    styles: ExporterStyleInput | undefined,
+): Generator<string, void, undefined> {
     const { folding, weights } = plan;
     const labelCol = slot(plan.edges, "label");
     const graphicsCol = slot(plan.edges, "graphics");
@@ -1213,7 +1365,8 @@ function* edgesOf(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, 
         const target = escapeXmlAttribute(idText(snapshot.ids.idOf(v)));
         yield `    <edge${idAttr}${labelAttr} source="${source}" target="${target}" cy:directed="${directed ? "1" : "0"}"${optionalAttribute("weight", weight)}${xmlAttributesOf(plan.edges, e)}>\n`;
         yield* attsOf(plan.edges, e, first, plan, "        ");
-        yield* graphicsOf(cellOf(graphicsCol, e) as Record<string, unknown> | null, [], "        ");
+        const kept = cellOf(graphicsCol, e) as Record<string, unknown> | null;
+        yield* graphicsOf(styles === undefined ? kept : styledGraphics("edge", styles, e, kept), [], "        ");
         yield "    </edge>\n";
         first = false;
     }
@@ -1258,8 +1411,12 @@ export const xgmmlExporter: GraphExporter<XgmmlExportOptions> = Object.freeze({
     format: FORMAT,
     options: Object.freeze(["cytoscapeEscapes"]),
     capabilities: CAPABILITIES,
-    check: (snapshot: GraphSnapshot, options?: XgmmlExportOptions & CommonExportOptions): readonly LossNote[] =>
-        Object.freeze(planExport(snapshot, resolveExportOptions(options), resolveEscapes(options)).notes),
+    styles: Object.freeze({ capabilities: XGMML_STYLE_CAPABILITIES }),
+    check: (snapshot: GraphSnapshot, options?: XgmmlWriteOptions): readonly LossNote[] =>
+        Object.freeze([
+            ...planExport(snapshot, resolveExportOptions(options), resolveEscapes(options)).notes,
+            ...(options?.styles === undefined ? [] : styledGraphicsNotes(options.styles, snapshot)),
+        ]),
     export: (snapshot: GraphSnapshot, options?: XgmmlExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> =>
         encodeChunks(write(snapshot, options)),
     exportToString: (snapshot: GraphSnapshot, options?: XgmmlExportOptions & CommonExportOptions): Promise<string> =>

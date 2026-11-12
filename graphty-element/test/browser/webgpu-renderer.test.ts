@@ -15,13 +15,21 @@
 
 import "../../src/graphty-element";
 
-import { EngineStore, Mesh, Tools, WebGPUEngine } from "@babylonjs/core";
+import { type Effect, EngineStore, Mesh, Tools, Vector3, WebGPUEngine } from "@babylonjs/core";
 import { afterEach, assert, describe, it, vi } from "vitest";
-import { commands } from "vitest/browser";
+import { commands, userEvent } from "vitest/browser";
 
+import annotationSessionUrl from "../../../graph-io/test/corpus/styles/cys/cytoscape-tutorials-AnnotationExample.cys?url";
+import { GraphtyError } from "../../src/errors";
 import { Graph, operationQueueOf } from "../../src/Graph";
-import { forgetShaderCompilers } from "../../src/managers/RenderManager";
+import { forgetShaderCompilers, type RenderManager } from "../../src/managers/RenderManager";
+import { shadersControllerOf } from "../../src/session/shaders";
+import { VULKAN_GLSL_NAMES } from "../../src/shaders/runtime/wrap";
+import { defineShader } from "../../src/simple/defineShader";
 import { drawnFrames } from "../helpers/drawn-frames";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** Which Chromium flag set the run asked for; empty when it asked for none. */
 const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_BROWSER_GPU ?? "";
@@ -211,7 +219,7 @@ function shaderFailures(graph: Graph): string[] {
 describe("the renderer a graph is drawn with", () => {
     it("is WebGL unless something else is asked for", async () => {
         const graph = await open();
-        assert.deepEqual(graph.rendererStatus, { requested: "webgl", active: "webgl", reason: null });
+        assert.deepInclude(graph.rendererStatus, { requested: "webgl", active: "webgl", reason: null, drawing: true });
         assert.notInstanceOf(graph.engine, WebGPUEngine);
     });
 
@@ -325,6 +333,23 @@ describe("the renderer a graph is drawn with", () => {
         }
     });
 
+    it("still takes GLSL's built-ins on WebGL where only a constant expression will do", async () => {
+        // A helper in their place would be refused here: a constant expression cannot call a function.
+        const graph = await open("webgl");
+        const added = await graph.getSession().shaders.add(`/* graphty-shader 1
+{ "id": "user/webgl-constants", "name": "Constants", "place": "paint" }
+*/
+const float K = acosh(1.5) + asinh(1.0) + atanh(0.5);
+const bool B = isnan(K) || isinf(K);
+vec4 shade(NodeInput n) {
+    float sizes[int(acosh(4.0))];
+    sizes[0] = fillAA(n.uv.x) + acosh(n.color.r + 1.5);
+    return vec4(n.color.rgb, B ? 0.0 : K + sizes[0]);
+}
+`);
+        assert.deepEqual(added.ok ? [] : added.problems, []);
+    });
+
     it.skipIf(GPU_LANE)("draws with WebGL and says why when WebGPU is asked for and absent", async () => {
         const graph = await open("webgpu");
         const status = graph.rendererStatus;
@@ -379,11 +404,274 @@ describe("the element's renderer attribute", () => {
     });
 });
 
+/** A shader that compiles on either renderer. */
+const TINT = `/* graphty-shader 1
+{ "id": "user/swap-tint", "name": "Tint", "place": "paint" }
+*/
+vec4 shade(NodeInput n) {
+    return n.color;
+}
+`;
+
+/** Where the fixed camera of the swap tests stands and looks. */
+const PLACED = { position: { x: 30, y: 20, z: -40 }, target: { x: 1, y: 2, z: 3 } };
+
+/**
+ * Asserts two points are the same to within rounding.
+ * @param actual - The point found.
+ * @param expected - The point wanted.
+ * @param what - What it is, for the message.
+ */
+function assertSamePoint(
+    actual: { x: number; y: number; z?: number } | undefined,
+    expected: { x: number; y: number; z?: number },
+    what: string,
+): void {
+    assert.isDefined(actual, what);
+    const off = Math.hypot(
+        (actual?.x ?? 0) - expected.x,
+        (actual?.y ?? 0) - expected.y,
+        (actual?.z ?? 0) - (expected.z ?? 0),
+    );
+    assert.isBelow(off, 1e-3, `${what} is ${String(off)} units from where it was set`);
+}
+
+/**
+ * Starts a graph opening WebGPU and holds it there: the adapter is not asked for until the test
+ * lets it, so everything the test does first happens on the scene the swap will throw away.
+ * @param before - Done before `init`, the way a page sets things on an element not yet attached.
+ * @returns The graph, and a call that lets WebGPU open and waits for the graph to be up on it.
+ */
+async function holdWebGPUOpening(
+    before?: (graph: Graph) => void,
+): Promise<{ graph: Graph; finish: () => Promise<void> }> {
+    const { gpu } = navigator;
+    let release: () => void = () => undefined;
+    const released = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    let ask: () => void = () => undefined;
+    const asked = new Promise<void>((resolve) => {
+        ask = resolve;
+    });
+    Object.defineProperty(navigator, "gpu", {
+        configurable: true,
+        value: {
+            requestAdapter: async (options?: GPURequestAdapterOptions): Promise<unknown> => {
+                ask();
+                await released;
+                // The engine asks for its own adapter next, and that one is not held.
+                Reflect.deleteProperty(navigator, "gpu");
+                return (await gpu?.requestAdapter(options)) ?? null;
+            },
+        },
+    });
+
+    const container = document.createElement("div");
+    container.style.width = `${String(WIDTH)}px`;
+    container.style.height = `${String(HEIGHT)}px`;
+    document.body.appendChild(container);
+    const graph = new Graph(container);
+    mounted.push({ graph, container });
+    graph.setRenderer("webgpu");
+    before?.(graph);
+    const init = graph.init();
+    await asked;
+    return {
+        graph,
+        finish: async () => {
+            release();
+            await init;
+            assert.equal(graph.rendererStatus?.active, "webgpu", graph.rendererStatus?.reason ?? "");
+        },
+    };
+}
+
+/**
+ * The graph's render manager, for what only it can say.
+ * @param graph - The graph.
+ * @returns Its render manager.
+ */
+function renderManagerOf(graph: Graph): RenderManager {
+    return (graph as unknown as { renderManager: RenderManager }).renderManager;
+}
+
+describe.skipIf(!GPU_LANE)(`work started before WebGPU opens (${ADAPTER})`, () => {
+    it("keeps a camera set while WebGPU opens, through the load after it", async () => {
+        const { graph, finish } = await holdWebGPUOpening((early) => {
+            early.setAutoFrame(false);
+        });
+        await graph.setCameraState(PLACED);
+        await finish();
+
+        assertSamePoint(graph.getCameraState().position, PLACED.position, "the camera");
+        assertSamePoint(graph.getCameraState().target, PLACED.target, "the camera's target");
+
+        await graph.addNodes(NODES);
+        await graph.waitForStableFrame();
+        assertSamePoint(graph.getCameraState().position, PLACED.position, "the camera after a load");
+    });
+
+    it("keeps a camera set before the graph is even asked to draw", async () => {
+        const { graph, finish } = await holdWebGPUOpening((early) => {
+            void early.setCameraState(PLACED);
+        });
+        await finish();
+
+        assertSamePoint(graph.getCameraState().position, PLACED.position, "the camera");
+    });
+
+    it("finishes a camera move animated before the graph is asked to draw, where it was sent", async () => {
+        let moved: Promise<void> = Promise.resolve();
+        const { graph, finish } = await holdWebGPUOpening((early) => {
+            moved = early.setCameraState(PLACED, { animate: true, duration: 50 });
+        });
+        await finish();
+        await moved;
+
+        assertSamePoint(graph.getCameraState().position, PLACED.position, "the camera");
+    });
+
+    it("keeps a 2D camera set while WebGPU opens", async () => {
+        const { graph, finish } = await holdWebGPUOpening((early) => {
+            void early.setViewMode("2d");
+        });
+        await graph.setCameraState({ zoom: 2, pan: { x: 3, y: 4 } });
+        await finish();
+
+        const state = graph.getCameraState();
+        assert.closeTo(state.zoom ?? 0, 2, 1e-6);
+        assertSamePoint(state.pan, { x: 3, y: 4 }, "the pan");
+    });
+
+    it("keeps the camera transition set while WebGPU opens", async () => {
+        const { graph, finish } = await holdWebGPUOpening();
+        graph.setCameraTransitionDuration(0);
+        await finish();
+
+        const target = new Vector3(5, 0, 0);
+        graph.camera.followPoint(target);
+        assertSamePoint(graph.getCameraState().target, target, "a point followed with no glide");
+    });
+
+    it("draws a background shader asked for while WebGPU opens", async () => {
+        const { graph, finish } = await holdWebGPUOpening();
+        // Nebula is heavy, and the frame guard rightly turns a heavy shader off after one long frame,
+        // which a software GPU on a loaded machine draws. This is about the swap, not the guard.
+        const shaders = shadersControllerOf(graph.getSession());
+        shaders?.configure({ ...shaders.settings, guard: false });
+        graph.setBackground({ backgroundType: "color", color: "#000000", shader: { id: "nebula" } });
+        await finish();
+        await graph.waitForStableFrame();
+
+        assert.isTrue(renderManagerOf(graph).shaderPasses().background?.shown, "the background shader is not drawn");
+    });
+
+    it("draws group outlines asked for while WebGPU opens", async () => {
+        const { graph, finish } = await holdWebGPUOpening();
+        const styled = graph.getSession().styles.add({
+            name: "outlined",
+            target: "node",
+            selector: { match: "has", path: "data.community" },
+            set: { "node.shaders": [{ shader: "metaball-hull", groupBy: "data.community" }] },
+        });
+        await finish();
+        await styled;
+        await graph.addNodes(NODES.map((node, i) => ({ ...node, community: i % 2 })));
+        await graph.waitForStableFrame();
+
+        assert.isNotNull(renderManagerOf(graph).shaderPasses().outline, "the group outlines are not drawn");
+    });
+
+    it("keeps the hold on frames that wait for a style", async () => {
+        const { graph, finish } = await holdWebGPUOpening();
+        await finish();
+
+        assert.isNotNull(renderManagerOf(graph).drawHeld, "the new render manager does not ask the graph");
+    });
+
+    it("keeps a node outline width set while WebGPU opens", async () => {
+        const { graph, finish } = await holdWebGPUOpening();
+        graph.setLayoutBehavior({ node: { outlineWidth: 3 } });
+        await finish();
+
+        assert.equal((graph.scene.metadata as { outlineWidth?: number }).outlineWidth, 3);
+    });
+
+    it("keeps what a page set on the input while WebGPU opens", async () => {
+        const { graph, finish } = await holdWebGPUOpening();
+        const heard: string[] = [];
+        graph.input.onPointerDown.add(() => heard.push("down"));
+        const up = new Promise<void>((resolve) => {
+            graph.input.onPointerUp.add(() => {
+                resolve();
+            });
+        });
+        graph.on("input:pointer-down", () => heard.push("bridged"));
+        graph.setInputEnabled(false);
+        await finish();
+
+        await userEvent.click(graph.canvas);
+        await up;
+
+        assert.deepEqual(heard, ["down"], "a subscriber hears the pointer, and disabled input stays disabled");
+    });
+
+    it("keeps a recording of the input started while WebGPU opens", async () => {
+        const { graph, finish } = await holdWebGPUOpening();
+        const up = new Promise<void>((resolve) => {
+            graph.input.onPointerUp.add(() => {
+                resolve();
+            });
+        });
+        graph.startInputRecording();
+        await finish();
+
+        await userEvent.click(graph.canvas);
+        await up;
+
+        assert.include(
+            graph.stopInputRecording().map(({ type }) => type),
+            "input:pointer-down",
+        );
+    });
+
+    it("answers a shader check whose compile the swap cut off, on the new renderer", async () => {
+        const { graph, finish } = await holdWebGPUOpening();
+        const compiling = new Promise<void>((started) => {
+            vi.spyOn(graph.engine, "createEffect").mockImplementation(() => {
+                started();
+                return undefined as unknown as Effect;
+            });
+        });
+        const check = graph.getSession().shaders.check(TINT);
+        await compiling;
+        await finish();
+
+        const result = await check;
+        assert.isTrue(result.ok, JSON.stringify(result));
+    });
+
+    it("settles a wait for the picture asked for while WebGPU opens", async () => {
+        const { graph, finish } = await holdWebGPUOpening();
+        const settled = graph.waitForStableFrame();
+        await finish();
+        await settled;
+
+        assert.isTrue(graph.initialized);
+    });
+});
+
 describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`, () => {
     it("opens a WebGPU engine when asked, and under auto", async () => {
         for (const renderer of ["webgpu", "auto"] as const) {
             const graph = await open(renderer);
-            assert.deepEqual(graph.rendererStatus, { requested: renderer, active: "webgpu", reason: null });
+            assert.deepInclude(graph.rendererStatus, {
+                requested: renderer,
+                active: "webgpu",
+                reason: null,
+                drawing: true,
+            });
             assert.instanceOf(graph.engine, WebGPUEngine);
             assert.strictEqual(graph.canvas.isConnected, true, "the WebGPU canvas is the one in the page");
         }
@@ -414,6 +702,24 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         assert.deepEqual(shaderFailures(webgpu), []);
     });
 
+    it("draws a Cytoscape session with labels too small for one texture pixel", async () => {
+        const element = document.createElement("graphty-element");
+        element.style.cssText = `display:block;width:${String(WIDTH)}px;height:${String(HEIGHT)}px`;
+        element.setAttribute("renderer", "webgpu");
+        element.layout = "circular";
+        element.dataSource = "cys";
+        element.dataSourceConfig = { url: new URL(annotationSessionUrl, location.href).href, styles: "file" };
+        document.body.appendChild(element);
+        try {
+            await element.updateComplete;
+            await element.graph.waitForStableFrame();
+            assert.equal(element.graph.rendererStatus?.active, "webgpu");
+            assert.equal(element.graph.getDataManager().nodes.size, 330);
+        } finally {
+            element.remove();
+        }
+    });
+
     it("paints the same picture as WebGL in the 2D view", async () => {
         const webgl = await open("webgl");
         const webgpu = await open("webgpu");
@@ -427,6 +733,300 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
         assert.isBelow(differ, ink / 10, "the WebGPU frame is not the WebGL frame");
         assert.deepEqual(sceneObjects(webgpu), sceneObjects(webgl));
         assert.deepEqual(shaderFailures(webgpu), []);
+    });
+
+    it("holds the drawn graph in the frame a resize is painted in, and keeps drawing after it", async () => {
+        const graph = await open("webgpu");
+        await drawStyledRing(graph);
+        await graph.waitForStableFrame();
+        const { engine } = graph;
+        assert.instanceOf(engine, WebGPUEngine);
+        const errors: string[] = [];
+        engine._device.addEventListener("uncapturederror", (event) => {
+            errors.push(event.error.message);
+        });
+
+        const { container } = mounted[mounted.length - 1];
+        const height = HEIGHT + 100;
+        // The element's own ResizeObserver calls graph.resize(); this one stands in for it and
+        // reads the canvas in the same rendering step, before it is painted.
+        const opaque = new Promise<number>((resolve) => {
+            const observer = new ResizeObserver(([entry]) => {
+                if (entry.contentRect.height !== height) {
+                    return;
+                }
+
+                observer.disconnect();
+                graph.resize();
+                const copy = document.createElement("canvas");
+                copy.width = graph.canvas.width;
+                copy.height = graph.canvas.height;
+                const context = copy.getContext("2d");
+                assert.isNotNull(context);
+                context.drawImage(graph.canvas, 0, 0);
+                const pixels = context.getImageData(0, 0, copy.width, copy.height).data;
+                let count = 0;
+                for (let at = 3; at < pixels.length; at += 4) {
+                    count += pixels[at] === 255 ? 1 : 0;
+                }
+
+                resolve(count / (pixels.length / 4));
+            });
+            observer.observe(container);
+        });
+        container.style.height = `${String(height)}px`;
+
+        assert.isAbove(await opaque, 0.99, "the canvas holds a frame, not the texture the resize cleared");
+        // The frame drawn for the resize ended inside its own frame, so the loop's next frames
+        // reach the canvas too: no command buffer refers to a texture already presented.
+        await drawnFrames(graph.scene, 2);
+        assert.deepEqual(errors, []);
+        const resized = await screenshot(graph, "webgpu-resized");
+        const { ink } = compare(resized, resized);
+        assert.isAbove(ink, 0.01, "the picture after the resize has almost nothing on it");
+    });
+
+    /**
+     * Draws the nodes with a shader body and holds its compiled program to the device's verdict.
+     * The frame the style lands in can finish on the default material alone, so this waits for the
+     * body's own module rather than for a frame: a refused name is otherwise never seen.
+     * @param id - The shader's id.
+     * @param glsl - The body.
+     * @returns The canvas's pixels.
+     */
+    async function assertDraws(id: string, glsl: string): Promise<Uint8ClampedArray> {
+        defineShader({ id, glsl });
+        const graph = await open("webgpu");
+        assert.instanceOf(graph.engine, WebGPUEngine);
+        const device = graph.engine._device;
+        const own: Promise<GPUCompilationInfo>[] = [];
+        const create = device.createShaderModule.bind(device);
+        device.createShaderModule = (descriptor) => {
+            const module = create(descriptor);
+            if (descriptor.code.includes("graphty_u_shade")) {
+                own.push(module.getCompilationInfo());
+            }
+
+            return module;
+        };
+        const errors: unknown[] = [];
+        // A refused shader stops the frames this would wait for, so the refusal ends the wait too.
+        const refusal = new Promise<void>((resolve) => {
+            graph.on("error", (event) => {
+                errors.push(event.error);
+                resolve();
+            });
+        });
+        await graph.addNodes(NODES);
+        await graph.getSession().styles.add({
+            name: "shader under test",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shaders": [{ shader: id }] },
+        });
+        const drawn = async (): Promise<void> => {
+            await operationQueueOf(graph).waitForCompletion();
+            await graph.scene.whenReadyAsync();
+            while (own.length === 0) {
+                await drawnFrames(graph.scene, 1);
+            }
+            await drawnFrames(graph.scene, 1);
+        };
+        await Promise.race([drawn(), refusal]);
+
+        const refused = (await Promise.all(own)).flatMap(({ messages }) =>
+            messages.filter(({ type }) => type === "error").map(({ message }) => message),
+        );
+        assert.deepEqual(refused, []);
+        assert.deepEqual(errors, []);
+        assert.equal(graph.rendererStatus?.drawing, true);
+        const pixels = await screenshot(graph, id.replace("/", "-"));
+        const { ink } = compare(pixels, pixels);
+        assert.isAbove(ink, 0.001, "the nodes drawn with the shader are not on the canvas");
+        return pixels;
+    }
+
+    it("draws a shader whose names WGSL reserves, local, parameter, field and built-in alike", async () => {
+        // Legal GLSL that WGSL would refuse with the names kept: `pass`, `target` and `fn` are
+        // reserved, a local `select` hides the built-in the translated program calls (#5852), and
+        // `sampler` is a keyword of the compiler that reads GLSL for WebGPU.
+        await assertDraws(
+            "webgpu-renderer/reserved-words",
+            "struct S { float fn; }; float lift(float target) { return target; } " +
+                "vec4 shade(NodeInput n) { S s; s.fn = 1.0; float pass = lift(s.fn); float sampler = 1.0; " +
+                "float select = n.color.r > 0.5 ? 1.0 : 0.9; return vec4(n.color.rgb, pass * select * sampler); }",
+        );
+    });
+
+    it("draws a local named after a built-in both languages have, beside calls to the built-in", async () => {
+        // WGSL's `mod` is reserved, and a `var abs` in the translated function is "not a call
+        // target" for the `abs` call beside it (#5872).
+        await assertDraws(
+            "webgpu-renderer/shared-built-ins",
+            "vec4 shade(NodeInput n) { float v = abs(n.color.r - 0.5); float mod = mod(v, 0.5); " +
+                "{ float abs = 1.0; v *= abs; } return vec4(n.color.rgb, v + mod + 0.5); }",
+        );
+    });
+
+    it("draws a shader that calls modf", async () => {
+        await assertDraws(
+            "webgpu-renderer/modf",
+            "vec4 shade(NodeInput n) { vec2 whole; vec2 part = modf(n.uv * 3.5, whole); float w; " +
+                "float f = modf(n.color.r * 3.5, w); return vec4(n.color.rgb, part.x + whole.x + f + w + 0.5); }",
+        );
+    });
+
+    it("answers isnan, isinf and the inverse hyperbolics as GLSL does, for every overload", async () => {
+        // Green only if every answer is right, on values computed at run time so nothing folds them.
+        const pixels = await assertDraws(
+            "webgpu-renderer/built-in-helpers",
+            `vec4 shade(NodeInput n) {
+                float zero = n.color.r - n.color.r; float nan = zero / zero; float inf = 1.0 / zero;
+                bool right = isnan(nan) && !isnan(inf) && !isnan(1.0 + zero) && isinf(inf) && isinf(-inf) && !isinf(nan);
+                right = right && all(isnan(vec2(nan))) && !any(isnan(vec3(zero))) && all(isinf(vec4(inf))) && !any(isinf(vec2(zero)));
+                right = right && abs(acosh(cosh(1.0 + zero)) - 1.0) < 0.001 && abs(asinh(sinh(zero - 1.0)) + 1.0) < 0.001;
+                right = right && abs(atanh(tanh(0.5 + zero)) - 0.5) < 0.001 && all(lessThan(abs(acosh(vec2(1.0 + zero))), vec2(0.001)));
+                right = right && abs(asinh(vec3(zero - 1.0)).z + 0.8813736) < 0.001 && abs(atanh(vec4(zero + 0.5)).w - 0.5493061) < 0.001;
+                return right ? vec4(0.0, 1.0, 0.0, 1.0) : vec4(1.0, 0.0, 0.0, 1.0);
+            }`,
+        );
+        let green = 0;
+        let red = 0;
+        for (let i = 0; i < pixels.length; i += 4) {
+            green += pixels[i + 1] > pixels[i] + 60 ? 1 : 0;
+            red += pixels[i] > pixels[i + 1] + 60 ? 1 : 0;
+        }
+
+        assert.isAbove(green, 0);
+        assert.equal(red, 0);
+    });
+
+    it("draws a constant isnan or isinf, which only the built-in can be", async () => {
+        await assertDraws(
+            "webgpu-renderer/constant-built-ins",
+            "const float Z = 0.0; const bool K = isnan(Z / Z); const int N = isinf(1.5) ? 2 : 3; " +
+                "vec4 shade(NodeInput n) { float s[N]; s[0] = K ? 0.5 : 1.0; s[1] = isnan(1.0) ? 0.0 : 0.5; " +
+                "return vec4(n.color.rgb, s[0] + s[1]); }",
+        );
+    });
+
+    it("draws an isnan of a struct constant in a global const, where only a constant expression will do", async () => {
+        await assertDraws(
+            "webgpu-renderer/constant-struct",
+            "struct S { float a; }; const S s = S(1.0); const bool b = isnan(s.a) || isinf(S(1.0).a); " +
+                "vec4 shade(NodeInput n) { const bool c = isinf(s.a); float t[isnan(s.a) ? 2 : 3]; t[0] = 0.5; " +
+                "return vec4(n.color.rgb, b || c ? 0.0 : t[0] + 0.5); }",
+        );
+    });
+
+    it("draws derivatives in a branch, in the library's fillAA and strokeAA too", async () => {
+        // Every body runs behind a branch of the wrapper's, so even the plain `fillAA` call needs this.
+        await assertDraws(
+            "webgpu-renderer/derivatives",
+            "vec4 shade(NodeInput n) { float a = fillAA(length(n.uv) - 0.9); if (n.uv.x > 0.0) { " +
+                "a += dFdx(n.uv.x) + dFdy(n.uv.y) + fwidth(n.uv.x) + strokeAA(n.uv.y, 0.1); } " +
+                "return vec4(n.color.rgb, a + 0.5); }",
+        );
+    });
+
+    it("draws locals and fields named after the keywords of Vulkan GLSL", async () => {
+        // `texture2D`, `texture3D` and `textureCube` never get here: the shader check refuses them.
+        const names = [...VULKAN_GLSL_NAMES].filter((name) => !/^texture(?:2D|3D|Cube)$/.test(name));
+        await assertDraws(
+            "webgpu-renderer/vulkan-keywords",
+            "struct S { float image2D; float sample; }; " +
+                `vec4 shade(NodeInput n) { S s; s.image2D = 1.0; s.sample = 0.0; float a = s.image2D + s.sample; ` +
+                `${names.map((name) => `float ${name} = 0.0; a += ${name};`).join(" ")} ` +
+                "return vec4(n.color.rgb, a); }",
+        );
+    });
+
+    it("stops claiming to draw and reports it when the device refuses a shader", async () => {
+        const graph = await open("webgpu");
+        assert.instanceOf(graph.engine, WebGPUEngine);
+        const refused = new Promise<Error>((resolve) => {
+            graph.on("error", (event) => {
+                resolve(event.error);
+            });
+        });
+        // Every GLSL body the element accepts now translates, so the device is handed WGSL it
+        // refuses directly, through the same device the graph's shaders are compiled on.
+        graph.engine._device.createShaderModule({ code: "fn refused( {" });
+
+        const error = await refused;
+        assert.instanceOf(error, GraphtyError);
+        assert.equal(error.code, "E_SHADER_REFUSED");
+        assert.match(String(error.details.messages), /expected/);
+        assert.equal(graph.rendererStatus?.drawing, false);
+    });
+
+    /**
+     * Paints the nodes with a shader body and waits for the graph to report it.
+     * @param id - The shader's id.
+     * @param glsl - The body.
+     * @returns The graph and the error it reported.
+     */
+    async function refusedShader(id: string, glsl: string): Promise<{ graph: Graph; error: Error }> {
+        defineShader({ id, glsl });
+        const graph = await open("webgpu");
+        const refused = new Promise<Error>((resolve) => {
+            graph.on("error", (event) => {
+                resolve(event.error);
+            });
+        });
+        await graph.addNodes(NODES);
+        await graph.getSession().styles.add({
+            name: "refused",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shaders": [{ shader: id }] },
+        });
+        return { graph, error: await refused };
+    }
+
+    it("reports a shader the GLSL compiler stops on", async () => {
+        // A global `const` may call a built-in under WebGL only: the compiler WebGPU uses cannot fold it.
+        const { graph, error } = await refusedShader(
+            "webgpu-renderer/compiler-stops",
+            "const float K = acosh(1.5); vec4 shade(NodeInput n) { return vec4(n.color.rgb, K); }",
+        );
+        assert.instanceOf(error, GraphtyError);
+        assert.equal(error.code, "E_SHADER_REFUSED");
+        assert.equal(error.details.stage, "compiler");
+        assert.match(String(error.details.messages), /GLSL compilation failed/);
+        assert.equal(graph.rendererStatus?.drawing, false);
+    });
+
+    it("reports a shader the translator loses", async () => {
+        // The translator has no `uaddCarry`: it stops there and hands back WGSL with no entry point.
+        // GLSL ES 3.00 has no such call, so no body that draws on WebGL is lost this way any more.
+        const { graph, error } = await refusedShader(
+            "webgpu-renderer/translator-stops",
+            "vec4 shade(NodeInput n) { uint carry; uint sum = uaddCarry(1u, uint(n.color.r), carry); " +
+                "return vec4(n.color.rgb, float(sum + carry)); }",
+        );
+        assert.instanceOf(error, GraphtyError);
+        assert.equal(error.code, "E_SHADER_REFUSED");
+        assert.equal(error.details.stage, "translator");
+        assert.equal(graph.rendererStatus?.drawing, false);
+    });
+
+    it("answers a pasted shader the GLSL compiler stops on, with the picture left as it was", async () => {
+        const graph = await open("webgpu");
+        const errors: unknown[] = [];
+        graph.on("error", (event) => {
+            errors.push(event.error);
+        });
+        const added = await graph.getSession().shaders.add(`/* graphty-shader 1
+{ "id": "user/compiler-stops", "name": "Stops", "place": "paint" }
+*/
+const float K = acosh(1.5);
+vec4 shade(NodeInput n) { return vec4(n.color.rgb, K); }
+`);
+        assert.isFalse(added.ok);
+        assert.equal(added.ok ? "" : added.problems[0].code, "shader.compile");
+        assert.deepEqual(errors, []);
+        assert.equal(graph.rendererStatus?.drawing, true);
     });
 
     it("draws with WebGL and says why when the GLSL compiler cannot be fetched", async () => {

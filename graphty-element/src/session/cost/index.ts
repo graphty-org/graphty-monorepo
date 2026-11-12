@@ -22,17 +22,22 @@ export {
     resetCalibration,
 } from "./calibrate";
 export type {
+    CostBasis,
     CostConfidence,
     CostEstimate,
     CostGateDecision,
     CostGateLimits,
     CostInput,
     CostMeasurement,
+    CostProvenanceCode,
+    EstimateRefusal,
+    EstimateRefusalCode,
     MachineCalibration,
     ScopeCandidate,
 } from "./estimate";
 export {
     ASSUMED_ITERATION_BOUND,
+    bareBasis,
     DEFAULT_COST_GATE_LIMITS,
     DEFAULT_COST_RATES,
     DEFAULT_EXACT_COMPUTATION_CAP_SECONDS,
@@ -41,5 +46,6 @@ export {
     ITERATION_OPTION_NAME,
     MAX_COLUMN_LENGTH,
     MEASUREMENT_EXTRAPOLATION_LIMIT,
+    refused,
     resultBytes,
 } from "./estimate";

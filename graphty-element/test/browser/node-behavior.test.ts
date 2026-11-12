@@ -212,10 +212,12 @@ describe("Node Behavior Tests", () => {
         // Trigger the double-click action
         // ExecuteCodeAction stores the function in the execute property
         if ("execute" in doubleClickAction) {
-            (doubleClickAction as { execute?: () => void }).execute?.();
+            (doubleClickAction as { execute?: (event: unknown) => void }).execute?.({ source: node.mesh });
         } else {
             // Try accessing the function property directly
-            (doubleClickAction as { _executionCallback?: () => void })._executionCallback?.();
+            (doubleClickAction as { _executionCallback?: (event: unknown) => void })._executionCallback?.({
+                source: node.mesh,
+            });
         }
 
         // Verify fetch functions were called
@@ -269,11 +271,13 @@ describe("Node Behavior Tests", () => {
 
         assert.isDefined(doubleClickAction);
         if ("execute" in doubleClickAction) {
-            // IAction.execute is declared with a required ActionEvent parameter, but the registered
-            // double-click action ignores it, so the call is made through its callable shape.
-            (doubleClickAction as unknown as { execute?: () => void }).execute?.();
+            // The action is the scene's, shared by every node, and reads which node was
+            // double-clicked from the event's source mesh, as Babylon passes it.
+            (doubleClickAction as unknown as { execute?: (event: unknown) => void }).execute?.({ source: node.mesh });
         } else {
-            (doubleClickAction as unknown as { _executionCallback?: () => void })._executionCallback?.();
+            (doubleClickAction as unknown as { _executionCallback?: (event: unknown) => void })._executionCallback?.({
+                source: node.mesh,
+            });
         }
 
         const nodeIds = fetchNodes.mock.calls[0][0];
@@ -310,7 +314,7 @@ describe("Node Behavior Tests", () => {
 
         assert.isDefined(doubleClickAction);
         assert.doesNotThrow(() => {
-            (doubleClickAction as unknown as { execute?: () => void }).execute?.();
+            (doubleClickAction as unknown as { execute?: (event: unknown) => void }).execute?.({ source: node.mesh });
         });
 
         assert.equal(addNodesSpy.mock.calls.length, 0);

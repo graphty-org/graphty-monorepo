@@ -1,0 +1,2 @@
+{"kind":"test-slot-held","start":"2026-10-29T16:05:38.542Z","end":"2026-10-29T16:06:41.120Z","ms":62578,"waiter":"graphty-element: vitest run --project=default zz-scale-probe.test.ts","pid":1233520,"heldBy":[],"what":"graphty-element","exit":1}
+{"kind":"test-slot-held","start":"2026-10-29T16:07:00.000Z","end":"2026-10-29T16:07:01.000Z","ms":1000,"waiter":"x","pid":2,"heldBy":[],"what":"layout","exit":null}

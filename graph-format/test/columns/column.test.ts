@@ -875,6 +875,17 @@ describe("inference from JS arrays without a dtype", () => {
         expectError(() => values("x", [1n]), "E_COLUMN_TYPE");
     });
 
+    it("infers a list's item dtype over the items of the set rows, json when there are none", () => {
+        const sparse = values("x", [[1.5], null, undefined, [2]]);
+        expect(sparse.dtype).toBe("list");
+        expect(sparse.meta.itemDtype).toBe("f64");
+        expect(sparse.isSet(1)).toBe(false);
+        expect(sparse.value(3)).toEqual([2]);
+        const empty = values("x", [[], null]);
+        expect(empty.dtype).toBe("list");
+        expect(empty.meta.itemDtype).toBe("json");
+    });
+
     it("checks the value count", () => {
         expect(
             expectError(() => columnFromValues("node", 3, "x", [1, 2], {}), "E_COLUMN_LENGTH").details,

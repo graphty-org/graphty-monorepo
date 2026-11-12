@@ -10,23 +10,40 @@ Layout algorithms determine how nodes are positioned in the visualization. Choos
 
 `setLayout` takes either an engine name from the table below or a layout id from
 `catalog.layouts()`. An id runs that layout's default engine, so `setLayout("force")` runs
-`ngraph`, `"force-2d"` runs `arf`, `"hierarchical"` runs `bfs` and `"layers"` runs `multipartite`.
+`ngraph`, `"hierarchical"` runs `bfs` and `"layers"` runs `multipartite`.
 
-| Layout              | Type           | Best For                                  | Dimensions |
-| ------------------- | -------------- | ----------------------------------------- | ---------- |
-| `ngraph`            | Force-directed | General graphs                            | 2D/3D      |
-| `d3-force`          | Force-directed | Web-standard                              | 2D         |
-| `circular`          | Geometric      | Cycles, small graphs                      | 2D/3D      |
-| `grid`              | Geometric      | Regular structures                        | 2D         |
-| `radial`            | Geometric      | Distance from one node                    | 2D         |
-| `hierarchical`      | Layered        | Trees, DAGs                               | 2D/3D      |
-| `random`            | Random         | Testing, initial state                    | 2D/3D      |
-| `fixed`             | Manual         | Pre-computed positions                    | 2D/3D      |
-| `forceatlas2`       | Force-directed | Clusters and communities                  | 2D/3D      |
-| `spring`            | Force-directed | General graphs                            | 2D/3D      |
-| `spring-electrical` | Force-directed | Large graphs, with a hardware accelerator | 2D/3D      |
+`"force-2d"` is deprecated and is removed at the next major release. It still works, as the
+`force` layout drawn by its flat `arf` engine: `setLayout("force-2d")` is
+`element.session.layout.set("force", { engine: "arf" })`. For a flat force layout use
+`{ dim: 2 }` instead, or the 2D view.
 
-The last three are live simulations: they keep stepping until the arrangement comes to rest
+| Layout               | Type                      | Best For                                  | Dimensions |
+| -------------------- | ------------------------- | ----------------------------------------- | ---------- |
+| `ngraph`             | Force-directed            | General graphs                            | 2D/3D      |
+| `d3`                 | Force-directed            | Web-standard                              | 2D/3D      |
+| `arf`                | Force-directed            | Even spread over a flat disc              | 2D         |
+| `circular`           | Geometric                 | Cycles, small graphs                      | 2D/3D      |
+| `grid`               | Geometric                 | Regular structures                        | 2D         |
+| `radial`             | Geometric                 | Distance from one node                    | 2D         |
+| `hierarchical`       | Layered                   | Trees, DAGs                               | 2D         |
+| `random`             | Random                    | Testing, initial state                    | 2D/3D      |
+| `fixed`              | Manual                    | Pre-computed positions                    | 2D/3D      |
+| `forceatlas2`        | Force-directed            | Clusters and communities                  | 2D/3D      |
+| `spring`             | Force-directed            | General graphs                            | 2D/3D      |
+| `spring-electrical`  | Force-directed            | Large graphs, with a hardware accelerator | 2D/3D      |
+| `graphviz-dot`       | Layered (Graphviz)        | Directed graphs, flow charts              | 2D         |
+| `graphviz-neato`     | Stress (Graphviz)         | Distances that match graph distances      | 2D         |
+| `graphviz-fdp`       | Force-directed (Graphviz) | Undirected graphs                         | 2D         |
+| `graphviz-sfdp`      | Force-directed (Graphviz) | Large undirected graphs                   | 2D         |
+| `graphviz-circo`     | Circular (Graphviz)       | Rings of tightly connected parts          | 2D         |
+| `graphviz-twopi`     | Radial (Graphviz)         | Rings around a root                       | 2D         |
+| `graphviz-osage`     | Packed array (Graphviz)   | Many small parts                          | 2D         |
+| `graphviz-patchwork` | Treemap (Graphviz)        | Tiling every node into one rectangle      | 2D         |
+
+The eight `graphviz-*` layouts are Graphviz itself, compiled to WebAssembly, and need the optional
+package `@hpcc-js/wasm-graphviz`. See [Graphviz layouts](./graphviz-layouts).
+
+`forceatlas2`, `spring` and `spring-electrical` are live simulations: they keep stepping until the arrangement comes to rest
 rather than computing one arrangement and stopping, so `element.setRunning(false)` pauses one and
 `element.setRunning(true)` sets it going again. The pause holds until you resume it: loading more
 nodes, setting another layout, an accelerator attaching or dragging a node places and moves nodes
@@ -66,7 +83,7 @@ graph.setLayout("ngraph", {
     springLength: 100,
     springCoefficient: 0.0008,
     gravity: -1.2,
-    dimensions: 3,
+    dim: 3,
 });
 ```
 
@@ -87,7 +104,7 @@ graph.setLayout("ngraph", {
     springLength: 100, // Ideal edge length
     springCoefficient: 0.0008, // Spring stiffness
     gravity: -1.2, // Global attraction/repulsion
-    dimensions: 3, // 2 or 3
+    dim: 3, // 2 or 3
     dragCoefficient: 0.02, // Damping
     theta: 0.8, // Barnes-Hut approximation
     seed: 7, // Starting positions; unset, they differ on every load
@@ -98,12 +115,13 @@ graph.setLayout("ngraph", {
 
 ### Keeping nodes from being drawn inside each other
 
-The force layout treats every node as a point, so two nodes drawn large -- a size bound to a
+A force layout treats every node as a point, so two nodes drawn large -- a size bound to a
 ranking, say -- can land inside each other. Set `nodeGap` and the layout keeps every two nodes at
-least their drawn radii plus `nodeGap` apart, in the same units as `springLength`. It reads each
-node's size as it is drawn, so a style that makes nodes larger after the layout came to rest starts
-the layout again until no two of them overlap. `0` lets nodes touch; unset (`null`, the default)
-keeps the layout as it always was.
+least their drawn radii plus `nodeGap` apart, in scene units. It reads each node's size as it is
+drawn, so a style that makes nodes larger after the layout came to rest starts the layout again
+until no two of them overlap. `0` lets nodes touch; unset (`null`, the default) keeps the layout as
+it always was. A shape that is not round is kept apart by a circle around its corners, except under
+`ngraph`, which compares bounding boxes.
 
 ```typescript
 element.layoutConfig = { nodeGap: 2 };
@@ -117,8 +135,33 @@ the graph from the front, so no node is drawn over another until the camera is t
 element.layoutConfig = { nodeGap: 2, nodeGapFront: true };
 ```
 
-`nodeGap` is honored by the `ngraph` engine; from two thousand nodes, with a hardware accelerator
-attached, the element draws the default arrangement with `spring-electrical`, which does not read it.
+`nodeGap` works on `ngraph`, `d3`, `forceatlas2`, `spring` and `spring-electrical`, on the processor
+and on a hardware accelerator alike; `nodeGapFront` on all of them but `d3`. `forceatlas2` and `spring`
+fit a graph to `scalingFactor`, so a graph whose nodes do not fit in that radius is published wider
+rather than left overlapping. In a very crowded graph a run may end with a few pairs still overlapping
+by a small share of their size.
+
+### Pulling communities together
+
+Community detection only colors the nodes of a community; they stay where the forces put them. Set
+`clusterBy` and each community is also pulled toward its own centroid, so it reads as a lump. Name
+a node attribute, or a run's field the way a style layer does. Every force layout takes it (`ngraph`,
+`d3`, `forceatlas2`, `spring` and `spring-electrical`), and with a hardware accelerator attached the
+centroids are computed on the device.
+
+```typescript
+element.layoutConfig = { clusterBy: "results.louvain.group" };
+await element.session.runs.start("louvain", {}, { as: "louvain" });
+```
+
+The run does not have to exist yet: until it finishes the layout runs as it would without
+`clusterBy`, and when the results land, change or are removed the layout starts again from where it
+stands. A node with no value, such as one a run left out, is in no community and only feels the
+other forces. `clusterBy: "data.department"` does the same for an attribute of your own.
+
+`clusterStrength` says how hard the pull is: `1`, the default, is about one more edge tying each
+node to the centroid, and larger values make tighter lumps. Unset (`null`, the default), `clusterBy`
+leaves the layout as it always was.
 
 ### The same drawing every time
 
@@ -139,15 +182,18 @@ element.edgeData = edges;
 await element.setLayout("force", { seed: 7 });
 ```
 
-### d3-force (Force-Directed)
+### d3 (Force-Directed)
 
-D3's force simulation. Industry-standard for web visualizations:
+D3's force simulation (`d3-force-3d`). Industry-standard for web visualizations. It runs until its
+"alpha" cools from 1 down to `alphaMin`:
 
 ```typescript
-graph.setLayout("d3-force", {
-    strength: -30, // Node repulsion
-    distance: 50, // Link distance
-    iterations: 300, // Simulation steps
+graph.setLayout("d3", {
+    alphaMin: 0.1, // Stop once alpha cools below this
+    alphaTarget: 0, // The alpha the simulation cools towards
+    alphaDecay: 0.0228, // How fast alpha cools each tick
+    velocityDecay: 0.4, // Friction: how much speed each node loses each tick
+    dim: 3, // 2 or 3
 });
 ```
 
@@ -161,9 +207,9 @@ Arranges nodes in a circle. Good for:
 
 ```typescript
 graph.setLayout("circular", {
-    radius: 100, // Circle radius
-    startAngle: 0, // Starting angle (radians)
-    endAngle: Math.PI * 2, // Ending angle
+    scale: 1, // Radius of the circle, before scalingFactor
+    scalingFactor: 80, // Multiplies every position; the drawn radius is scale * scalingFactor
+    dim: 2, // 2 or 3
 });
 ```
 
@@ -192,13 +238,16 @@ graph.setLayout("radial", {
 
 ### hierarchical
 
-Tree-like layout for directed graphs:
+Puts nodes in rows by how many steps they are from a starting node, so the graph reads as a tree
+growing away from it. It runs the `bfs` engine, and `start` is required: without it the layout is
+refused with `E_OPTION_RANGE`.
 
 ```typescript
 graph.setLayout("hierarchical", {
-    direction: "TB", // TB, BT, LR, RL
-    levelSeparation: 100, // Vertical spacing
-    nodeSeparation: 50, // Horizontal spacing
+    start: "root", // The node the tree grows from (required)
+    align: "vertical", // "vertical" or "horizontal"
+    scale: 1, // Size of the layout, before scalingFactor
+    scalingFactor: 20, // Multiplies every position
 });
 ```
 
@@ -213,25 +262,152 @@ Random positions. Useful for:
 ```typescript
 graph.setLayout("random", {
     seed: 42, // For reproducible layouts
-    dimensions: 3,
+    dim: 3,
 });
 ```
 
 ### fixed
 
-Use pre-computed positions from node data:
+Use pre-computed positions from node data. Each node carries its center in a `position` field,
+either `{ x, y, z }` or `[x, y, z]` (`z` may be left out and is then 0), with y growing upward.
+Top-level `x`, `y` and `z` fields are ordinary attributes, not a position:
 
 ```typescript
-// Node data includes positions
 const nodes = [
-    { id: "a", x: 0, y: 0, z: 0 },
-    { id: "b", x: 100, y: 0, z: 0 },
-    { id: "c", x: 50, y: 100, z: 0 },
+    { id: "a", position: { x: 0, y: 0, z: 0 } },
+    { id: "b", position: { x: 100, y: 0, z: 0 } },
+    { id: "c", position: { x: 50, y: 100, z: 0 } },
 ];
 
 await graph.addNodes(nodes);
-graph.setLayout("fixed");
+await graph.setLayout("fixed");
 ```
+
+The coordinates are multiplied by the element's `positionScale` (default 1). A node with no usable
+`position` is put at the origin (or stays where an earlier layout put it), and the element emits a
+`layout-warning` event with code `W_NO_POSITION` and `params: { missing, total }`, the number of
+nodes without one and the number placed:
+
+```typescript
+graph.addListener("layout-warning", (event) => {
+    if (event.code === "W_NO_POSITION") {
+        console.warn(`${event.params.missing} of ${event.params.total} nodes have no position`);
+    }
+});
+```
+
+To draw a file (GEXF, yEd GraphML, GML, Pajek, DOT, a Cytoscape session) where it was saved,
+load it with `layout: "recommended"`: see
+[Drawing a file where it was saved](./data-sources.md#drawing-a-file-where-it-was-saved).
+
+### location-map
+
+Puts every node at the place its data names, on a map drawn under the graph. With no options it
+finds `latitude` and `longitude` attributes (also `lat`, `lon`, `lng`, `long`) by name, or one
+attribute whose values are locations:
+
+```html
+<graphty-element id="g"></graphty-element>
+<script type="module">
+    import "@graphty/graphty-element";
+
+    const g = document.getElementById("g");
+    g.nodeData = [
+        { id: "SFO", where: "37.619, -122.375" },
+        { id: "JFK", where: "40 38 23 N, 73 46 44 W" },
+        { id: "LHR", where: "POINT(-0.45 51.47)" },
+    ];
+    g.edgeData = [
+        { source: "SFO", target: "JFK" },
+        { source: "JFK", target: "LHR" },
+    ];
+    g.layout = "location-map";
+    g.layoutConfig = { location: "where" };
+</script>
+```
+
+A location is one attribute (`location`) or two (`latitude` and `longitude`). One attribute can be
+a decimal pair (latitude first, or longitude first when only that fits), GeoJSON, WKT, ISO 6709,
+degrees-minutes-seconds, a geohash, a plus code, MGRS or UTM; `format` names one when `auto`
+should not decide.
+
+To name the location once for the whole project instead of in the layout's options, designate it
+in the data settings; the layout reads it whenever its own `location`, `latitude` and `longitude`
+are unset, and `session.layout.locationColumns()` says which columns it will read:
+
+```ts
+await session.data.setRole({ kind: "node", name: "town" }, "city");
+await session.data.setRole({ kind: "node", name: "nation" }, "country");
+const { kinds, using, unused } = session.layout.locationColumns();
+// kinds: { city: "town", country: "nation" }, using: "city", unused: []
+```
+
+Each kind of location is a role of its own, one column each: `latitude`, `longitude`,
+`coordinates` (one column of whole locations), `country`, `region` and `city`. The layout reads a
+full latitude and longitude pair first, else the coordinates, else the finest place kind given,
+narrowed by the next coarser one (a city by its region, else its country). A kind given but not
+read is listed in `unused` as `{ code: "location.unused", params: { kind, using } }`. Taking the
+last kind away (`setRole(column, null)`) turns the search off. Before any kind is given,
+`kinds` lists what the layout found by itself. The single `nodeLocationPath` form below still works.
+
+- **Place names.** A column of country, region or city names works too. A `city` column (or `town`)
+  with a `country` column (or `iso2`, `iso3`, `state`, `province`, `region`) beside it is found and
+  placed with no settings; a column of names under any other heading is found by its values. The
+  names are looked up in a gazetteer (Natural Earth countries and regions, GeoNames cities of 15,000
+  people or more) fetched from graphty.app on first use, with accents and case ignored; when several
+  places share a name, the narrowing column decides, then the most populous wins. "Lyon, FR" in one
+  column is split at its last comma. `nodeLocationRole` (`auto`, `coords`, `country`, `region`,
+  `city`, `none`) says how the designated column is read, `nodeLocationWithinPath` names the narrowing
+  column and `nodeLocationWithin` a fixed country code; `none` turns the search off. The layout's
+  `gazetteer` option is the address the files are fetched from, or `false` to read no place names.
+  Names nothing matches are listed by `session.data.issues()` as `location-unmatched`, and names
+  several places match as `location-ambiguous`. The map credits GeoNames while city names are placed.
+
+    ```ts
+    await session.config.set({
+        data: { knownFields: { nodeLocationPath: "city", nodeLocationRole: "city", nodeLocationWithin: "US" } },
+    });
+    ```
+
+- **Map dimension.** The 2D view always draws a 2D (flat) map with straight edges. In the 3D view,
+  `mapDimension: "3d"` (the default) draws a 3D map, a globe, with great-circle arcs above it, and
+  `mapDimension: "2d"` draws the 2D map with each edge raised as an arc over it. A 3D map asked
+  for in the 2D view is kept and drawn again when the view goes back to 3D. The edge style `line.route` (`straight`, `arc`, `great-circle`) and
+  `line.arcHeight` override the arcs per edge.
+- **Extent.** `extent: "data"` (the default) fits the map to the located nodes; `"world"` shows
+  the whole world. `size` is the map's width in scene units; a globe's radius is `size`, or more
+  when the data spans a small part of it, so it is drawn `size` across. The camera opens framed on
+  the whole globe, which fills the view.
+- **Map scale.** `mapScale` (default 1) draws the map, flat or globe, that many times larger
+  than `size` makes it while nodes and edges keep their size in scene units, so a dense region (an airline network over the United States or
+  Europe) draws its nodes further apart instead of as one grey patch: `{ mapScale: 3 }` gives
+  three times the room between neighbors. The camera still opens framed on the whole map. With
+  `nodeScale: "screen"`, a flat map's nodes are drawn `mapScale` times smaller on screen, which
+  gives the same room; a globe's keep their size on screen.
+- **Node size.** `nodeScale: "scene"` (the default) draws a node of size 1 one scene unit wide,
+  so it grows as the camera zooms in; `"screen"` keeps it at `1 / size` of the view's height
+  (`flatNodeScale / (size * mapScale)` on a flat map, where `flatNodeScale` defaults to 1) whatever
+  the zoom, measured at the map's surface, with its arrowheads in proportion.
+- **The globe's look.** `element.globeLook = { atmosphere: true, background: "#05070d", sun: { lat, lon } }`
+  draws a glow of air around the globe's rim, clears the canvas to a colour while the globe is drawn,
+  and lights one side from where the sun is overhead. Each part is off unless set; a view
+  setting, not saved with the project.
+- **No location.** A node with no usable location goes to a row below the map (`unplaced: "tray"`)
+  or stays where it was (`"leave"`), never to latitude 0, longitude 0, and the element emits a
+  `layout-warning` with code `W_LOCATION_UNPARSED` and `params: { missing, unparsed, total, samples }`.
+- **The map.** The layout's `map` option picks the picture, on the 2D map and wrapped onto the
+  globe alike: unset (`null`), the bundled Natural Earth world image (no network);
+  `{ source: "openstreetmap" }` or another named keyless source (`BASEMAP_SOURCE_DESCRIPTORS` in
+  `@graphty/graphty-element/catalog` lists them); `{ tiles, attribution }` for any XYZ tile service;
+  `{ image, bounds }` for one picture; `{ source: "none" }` for none. Zooming in loads finer tiles.
+  Setting a new `map` on the applied layout swaps the picture without moving a node:
+
+    ```javascript
+    g.layoutConfig = { location: "where", mapDimension: "3d", map: { source: "nasa-gibs-blue-marble" } };
+    ```
+
+    The map's credits are drawn in the canvas's corner and are on `element.basemapStatus.attribution`.
+    The map is saved with the layout in the project.
 
 ### forceatlas2 (Force-Directed, live)
 
@@ -284,24 +460,15 @@ graph.setLayout("spring-electrical", {
 
 See the [acceleration guide](./acceleration) for how to attach one.
 
-## Layout Transitions
+## Switching Layouts
 
-Animate between layouts for smooth visual transitions:
+Set another layout at any time; the new one starts from where the nodes are:
 
 ```typescript
-// Current layout
 graph.setLayout("random");
 await graph.waitForSettled();
 
-// Transition to new layout
-graph.setLayout(
-    "circular",
-    {},
-    {
-        animate: true,
-        duration: 1000,
-    },
-);
+graph.setLayout("circular");
 ```
 
 ## Waiting for Settled
@@ -347,7 +514,19 @@ in `details.option`:
 | `E_ATTRIBUTE_TYPE`    | an option names a node attribute whose values the layout cannot read                   |
 | `E_BAD_WEIGHT`        | an edge weight the layout cannot use, such as a negative `kamada-kawai` distance       |
 
-What to do about it is the application's choice, such as picking another layout:
+`ngraph`, `forceatlas2`, `spring` and `spring-electrical` do not refuse an option they do not take:
+they run without it and emit a `layout-warning` event with code `W_UNKNOWN_OPTION`, whose
+`params.options` lists the names they ignored and `params.available` the names they take:
+
+```typescript
+graph.addListener("layout-warning", (event) => {
+    if (event.code === "W_UNKNOWN_OPTION") {
+        console.warn(`${event.layoutType} ignored ${String(event.params.options)}`);
+    }
+});
+```
+
+What to do about a refusal is the application's choice, such as picking another layout:
 
 ```typescript
 element.addEventListener("error", (event) => {
@@ -360,27 +539,45 @@ element.addEventListener("error", (event) => {
 
 ## 2D vs 3D
 
-Most layouts support both dimensions:
+Switching the view between 2D and 3D runs the layout again for that view. In the 2D view every
+layout is drawn flat, whatever `dim` it was given. In the 3D view a layout with a `dim` option can
+still be drawn flat:
 
 ```typescript
-// 3D layout (default)
-graph.setLayout("ngraph", { dimensions: 3 });
+// 3D (the default in the 3D view)
+graph.setLayout("ngraph", { dim: 3 });
 
-// 2D layout
-graph.setLayout("ngraph", { dimensions: 2 });
+// Flat, in the 3D view
+graph.setLayout("ngraph", { dim: 2 });
 ```
-
-For 2D layouts, also set the view mode:
 
 ```html
-<graphty-element layout="d3-force" view-mode="2d"></graphty-element>
+<graphty-element layout="d3" view-mode="2d"></graphty-element>
 ```
+
+The layout follows the view mode when `dim` is not set. In 3D mode a `dim: 2` is kept, so a 3D
+view can show a flat layout. In 2D mode the layout is always computed in 2D: a `dim: 3` is
+replaced by `dim: 2`, and a `layout-warning` event with code `W_DIMENSION_OVERRIDDEN` reports it,
+with the options as given in `params.requested` and the values used in `params.used`. Switching
+back to 3D builds the layout with the `dim` it was given again.
+
+`element.session.layout.arrangedDimension` says how many dimensions the current layout places
+nodes in -- `"2d"` or `"3d"` -- which `session.layout.dimension`, the view's dimension, cannot.
 
 ## Edge weights
 
 Two layouts read edge weights: `kamada-kawai` and `forceatlas2`. Both are on by default on a graph
-whose edges carry weights, and both read the number the same way: **a larger weight means a
-stronger connection**, drawn shorter.
+whose edges carry weights, and both read the number by what it means, as
+`data.knownFields.edgeWeightMeaning` says (the meaning chosen when the data was loaded):
+
+| Meaning             | How the layouts read it                                                                      |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| `"strength"`        | a larger weight is a stronger connection, drawn shorter                                      |
+| `"distance"`        | a larger weight is a longer edge (Kamada-Kawai's ideal length; a weaker pull in ForceAtlas2) |
+| not stated (`null`) | read as a strength, with a `layout-warning` `W_WEIGHT_MEANING_ASSUMED`                       |
+| `"capacity"`        | left unread, every edge the same, with a `layout-warning` `W_WEIGHT_MEANING_MISMATCH`        |
+
+Both warnings carry `params: { attribute, meaning }`. Algorithm runs read a weight by the same rule.
 
 ```typescript
 // Weights are read by default. This says so explicitly.
@@ -455,6 +652,27 @@ The same scope is the `layoutScope` property and the `layout-scope` attribute (J
 - **Removing the set releases the hold**: the layout runs over the whole graph, and nothing throws.
 - Held nodes still push and pull on the members, so a scoped layout costs the same per step as a
   whole-graph one, and a small scope is spread over the whole layout's extent.
+
+## Laying out only what the filter shows
+
+By default a layout runs over the whole graph, nodes the [visibility filter](./filter-conditions)
+hides included, so the shown nodes keep the places the whole graph gave them. Set
+`layout.visibleOnly` in the layout behaviour to lay out only what the filter shows:
+
+```typescript
+element.layoutBehavior = { layout: { visibleOnly: true } };
+
+// Show two communities: the layout runs again over just their nodes
+await element.session.visibility.set({ kind: "member", of: { nodes: ["a", "b", "c", "d"] } });
+```
+
+- **A hidden node takes no part.** It pushes and pulls nothing, its edges pull nothing, and a
+  circle, a grid or any other layout gives it no slot. Every layout honours it, your own included.
+- **The layout runs again when the filter changes**, and when `visibleOnly` is switched on or off.
+- **A hidden node stays where it was**, so taking the filter away shows it where it last was
+  drawn; the layout then runs again over everything shown.
+- **It combines with a scope.** A scoped layout still holds the nodes outside its scope, and
+  those still push and pull on its members unless the filter hides them.
 
 ## Performance Tips
 

@@ -1,0 +1,1772 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Join button menu</title>
+        <style>
+            body {
+                margin: 0;
+                background: #111111;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    "Segoe UI",
+                    sans-serif;
+            }
+            a {
+                color: #7cc4f8;
+            }
+            a:hover {
+                color: #80caff;
+            }
+        </style>
+    </head>
+    <body>
+        <div
+            style="
+                position: relative;
+                width: 1440px;
+                height: 900px;
+                display: flex;
+                flex-direction: column;
+                background: #2c2c2c;
+                color: #ffffff;
+                overflow: hidden;
+                font-size: 12px;
+                line-height: 16px;
+            "
+        >
+            <div
+                style="
+                    height: 40px;
+                    flex: none;
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
+                    padding: 0 16px;
+                    background: #2c2c2c;
+                    border-bottom: 1px solid #3e3e3e;
+                    font-size: 12px;
+                "
+            >
+                <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="flex: none; display: block"
+                >
+                    <path d="M3 4h10M3 8h10M3 12h10" /></svg
+                ><span style="font-weight: 600; font-size: 13px">ovarian_de_string</span
+                ><svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="#a3a3a3"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="flex: none; display: block"
+                >
+                    <path d="M5 3L2 6l3 3" />
+                    <path d="M2 6h7a4 4 0 010 8H6" /></svg
+                ><svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="#a3a3a3"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="flex: none; display: block"
+                >
+                    <path d="M11 3l3 3-3 3" />
+                    <path d="M14 6H7a4 4 0 000 8h3" /></svg
+                ><span
+                    style="
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 4px;
+                        background: #3b3b3b;
+                        color: #ffffff;
+                        border: none;
+                        border-radius: 10px;
+                        padding: 1px 7px;
+                        font-size: 11px;
+                        line-height: 16px;
+                        white-space: nowrap;
+                        flex: none;
+                    "
+                    >318 nodes</span
+                ><span
+                    style="
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 4px;
+                        background: #3b3b3b;
+                        color: #ffffff;
+                        border: none;
+                        border-radius: 10px;
+                        padding: 1px 7px;
+                        font-size: 11px;
+                        line-height: 16px;
+                        white-space: nowrap;
+                        flex: none;
+                    "
+                    >1,104 edges</span
+                ><span style="display: flex; gap: 6px; align-items: center; color: #ffffff"
+                    ><svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="#a3a3a3"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none; display: block"
+                    >
+                        <rect x="3.5" y="7" width="9" height="7" rx="1.5" />
+                        <path d="M5.5 7V5a2.5 2.5 0 015 0v2" /></svg
+                    >Local only</span
+                >
+            </div>
+            <div style="display: flex; flex: 1; min-height: 0">
+                <div
+                    style="
+                        width: 56px;
+                        flex: none;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 14px 0;
+                        box-sizing: border-box;
+                        background: #2c2c2c;
+                        border-right: 1px solid #3e3e3e;
+                    "
+                >
+                    <div style="display: flex; flex-direction: column; gap: 14px">
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 3px">
+                            <div
+                                style="
+                                    width: 32px;
+                                    height: 28px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    border-radius: 6px;
+                                    background: transparent;
+                                "
+                            >
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#a3a3a3"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <circle cx="4" cy="4" r="2" />
+                                    <circle cx="12" cy="6" r="2" />
+                                    <circle cx="6" cy="12" r="2" />
+                                    <path d="M5.7 4.6l4.4 1M5.2 10.3l-.6-4.3M10.6 7.4l-3.3 3.3" />
+                                </svg>
+                            </div>
+                            <span style="font-size: 10px; color: #a3a3a3">Graph</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 3px">
+                            <div
+                                style="
+                                    width: 32px;
+                                    height: 28px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    border-radius: 6px;
+                                    background: #37466a;
+                                "
+                            >
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#fff"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <ellipse cx="8" cy="4" rx="5" ry="2" />
+                                    <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" />
+                                </svg>
+                            </div>
+                            <span style="font-size: 10px; color: #ffffff">Data</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 3px">
+                            <div
+                                style="
+                                    width: 32px;
+                                    height: 28px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    border-radius: 6px;
+                                    background: transparent;
+                                "
+                            >
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#a3a3a3"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <rect x="3" y="2.5" width="10" height="11" rx="1.5" />
+                                    <path d="M5.5 6h5M5.5 9h5" />
+                                </svg>
+                            </div>
+                            <span style="font-size: 10px; color: #a3a3a3">Notes</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 3px">
+                        <div
+                            style="
+                                width: 32px;
+                                height: 28px;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                border-radius: 6px;
+                                background: transparent;
+                            "
+                        >
+                            <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="#a3a3a3"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none; display: block"
+                            >
+                                <circle cx="8" cy="8" r="2.2" />
+                                <path
+                                    d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"
+                                />
+                            </svg>
+                        </div>
+                        <span style="font-size: 10px; color: #a3a3a3">Settings</span>
+                    </div>
+                </div>
+                <div
+                    style="
+                        width: 240px;
+                        flex: none;
+                        background: #2b2b2b;
+                        border-right: 1px solid #3e3e3e;
+                        overflow: hidden;
+                    "
+                >
+                    <div style="display: flex; align-items: center; height: 40px; padding: 0 16px">
+                        <span style="font-weight: 600; font-size: 13px; flex: 1">ovarian_de_string</span
+                        ><svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="#a3a3a3"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none; display: block"
+                        >
+                            <circle cx="3.5" cy="8" r=".8" />
+                            <circle cx="8" cy="8" r=".8" />
+                            <circle cx="12.5" cy="8" r=".8" />
+                        </svg>
+                    </div>
+                    <div style="border-bottom: 1px solid #3e3e3e">
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 6px;
+                                height: 32px;
+                                padding: 0 12px;
+                                font-size: 12px;
+                            "
+                        >
+                            <svg
+                                width="10"
+                                height="10"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="#a3a3a3"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none; display: block"
+                            >
+                                <path d="M4 6l4 4 4-4" /></svg
+                            ><span style="font-weight: 600; flex: 1">Sources</span
+                            ><svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="#a3a3a3"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none; display: block"
+                            >
+                                <path d="M8 3v10M3 8h10" />
+                            </svg>
+                        </div>
+                        <div style="padding: 4px 12px 10px; display: flex; flex-direction: column; gap: 2px">
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                    height: 26px;
+                                    padding: 0 8px 0 8px;
+                                    border-radius: 4px;
+                                    background: transparent;
+                                    font-size: 12px;
+                                "
+                            >
+                                <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#a3a3a3"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <path d="M4 1.5h5l3.5 3.5v9.5h-8.5z" />
+                                    <path d="M9 1.5V5h3.5" /></svg
+                                ><span
+                                    style="
+                                        flex: 1;
+                                        min-width: 0;
+                                        overflow: hidden;
+                                        white-space: nowrap;
+                                        text-overflow: ellipsis;
+                                        color: #ffffff;
+                                    "
+                                    >ovarian_de_string.tsv</span
+                                ><span
+                                    style="
+                                        display: inline-flex;
+                                        align-items: center;
+                                        gap: 4px;
+                                        background: #3b3b3b;
+                                        color: #a3a3a3;
+                                        border: none;
+                                        border-radius: 10px;
+                                        padding: 1px 7px;
+                                        font-size: 11px;
+                                        line-height: 16px;
+                                        white-space: nowrap;
+                                        flex: none;
+                                    "
+                                    >318 / 1,104</span
+                                >
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                    height: 26px;
+                                    padding: 0 8px 0 8px;
+                                    border-radius: 4px;
+                                    background: #37466a;
+                                    font-size: 12px;
+                                "
+                            >
+                                <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#74c0fc"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <circle cx="6" cy="8" r="4" />
+                                    <circle cx="10" cy="8" r="4" /></svg
+                                ><span
+                                    style="
+                                        flex: 1;
+                                        min-width: 0;
+                                        overflow: hidden;
+                                        white-space: nowrap;
+                                        text-overflow: ellipsis;
+                                        color: #ffffff;
+                                    "
+                                    >expression.tsv</span
+                                ><span
+                                    style="
+                                        display: inline-flex;
+                                        align-items: center;
+                                        gap: 4px;
+                                        background: #3b3b3b;
+                                        color: #a3a3a3;
+                                        border: none;
+                                        border-radius: 10px;
+                                        padding: 1px 7px;
+                                        font-size: 11px;
+                                        line-height: 16px;
+                                        white-space: nowrap;
+                                        flex: none;
+                                    "
+                                    >Joining</span
+                                >
+                            </div>
+                        </div>
+                    </div>
+                    <div style="border-bottom: 1px solid #3e3e3e">
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 6px;
+                                height: 32px;
+                                padding: 0 12px;
+                                font-size: 12px;
+                            "
+                        >
+                            <svg
+                                width="10"
+                                height="10"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="#a3a3a3"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none; display: block"
+                            >
+                                <path d="M4 6l4 4 4-4" /></svg
+                            ><span style="font-weight: 600; flex: 1">Attributes</span
+                            ><svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="#a3a3a3"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none; display: block"
+                            >
+                                <circle cx="7" cy="7" r="4.5" />
+                                <path d="M10.5 10.5L14 14" />
+                            </svg>
+                        </div>
+                        <div style="padding: 4px 12px 10px; display: flex; flex-direction: column; gap: 2px">
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                    height: 26px;
+                                    padding: 0 8px 0 8px;
+                                    border-radius: 4px;
+                                    background: transparent;
+                                    font-size: 12px;
+                                "
+                            >
+                                <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#a3a3a3"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <path d="M4 6l4 4 4-4" /></svg
+                                ><span
+                                    style="
+                                        flex: 1;
+                                        min-width: 0;
+                                        overflow: hidden;
+                                        white-space: nowrap;
+                                        text-overflow: ellipsis;
+                                        color: #ffffff;
+                                    "
+                                    >Nodes</span
+                                ><span
+                                    style="
+                                        display: inline-flex;
+                                        align-items: center;
+                                        gap: 4px;
+                                        background: #3b3b3b;
+                                        color: #a3a3a3;
+                                        border: none;
+                                        border-radius: 10px;
+                                        padding: 1px 7px;
+                                        font-size: 11px;
+                                        line-height: 16px;
+                                        white-space: nowrap;
+                                        flex: none;
+                                    "
+                                    >318</span
+                                >
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                    height: 26px;
+                                    padding: 0 8px 0 24px;
+                                    border-radius: 4px;
+                                    background: transparent;
+                                    font-size: 12px;
+                                "
+                            >
+                                <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#a3a3a3"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <path d="M2 13l3-9 3 9M3 10h4" />
+                                    <path d="M10 8.5a2 2 0 114 0V13M14 10.5c-1.5-.5-4-.2-4 1.2 0 1.6 3 1.6 4 0" /></svg
+                                ><span
+                                    style="
+                                        flex: 1;
+                                        min-width: 0;
+                                        overflow: hidden;
+                                        white-space: nowrap;
+                                        text-overflow: ellipsis;
+                                        color: #ffffff;
+                                    "
+                                    >preferredName</span
+                                >
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                    height: 26px;
+                                    padding: 0 8px 0 24px;
+                                    border-radius: 4px;
+                                    background: transparent;
+                                    font-size: 12px;
+                                "
+                            >
+                                <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#a3a3a3"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <circle cx="5" cy="8" r="3" />
+                                    <path d="M8 8h6M12 8v2.5" /></svg
+                                ><span
+                                    style="
+                                        flex: 1;
+                                        min-width: 0;
+                                        overflow: hidden;
+                                        white-space: nowrap;
+                                        text-overflow: ellipsis;
+                                        color: #ffffff;
+                                    "
+                                    >stringId</span
+                                >
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 8px;
+                                    height: 26px;
+                                    padding: 0 8px 0 8px;
+                                    border-radius: 4px;
+                                    background: transparent;
+                                    font-size: 12px;
+                                "
+                            >
+                                <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#a3a3a3"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <path d="M4 6l4 4 4-4" /></svg
+                                ><span
+                                    style="
+                                        flex: 1;
+                                        min-width: 0;
+                                        overflow: hidden;
+                                        white-space: nowrap;
+                                        text-overflow: ellipsis;
+                                        color: #ffffff;
+                                    "
+                                    >Edges</span
+                                ><span
+                                    style="
+                                        display: inline-flex;
+                                        align-items: center;
+                                        gap: 4px;
+                                        background: #3b3b3b;
+                                        color: #a3a3a3;
+                                        border: none;
+                                        border-radius: 10px;
+                                        padding: 1px 7px;
+                                        font-size: 11px;
+                                        line-height: 16px;
+                                        white-space: nowrap;
+                                        flex: none;
+                                    "
+                                    >1,104</span
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+                    <div
+                        style="
+                            position: relative;
+                            width: 904px;
+                            height: 860px;
+                            background: #f4f4f5;
+                            overflow: hidden;
+                            flex: none;
+                        "
+                    >
+                        <svg width="904" height="860" viewBox="0 0 904 860" style="display: block">
+                            <line x1="435" y1="377" x2="428" y2="435" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="468" y1="258" x2="560" y2="126" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="406" y1="410" x2="280" y2="454" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="255" y1="363" x2="387" y2="369" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="460" y1="334" x2="483" y2="86" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="433" y1="199" x2="494" y2="258" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="412" y1="427" x2="306" y2="405" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="406" y1="410" x2="319" y2="521" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="297" y1="458" x2="270" y2="519" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="240" y1="453" x2="284" y2="418" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="211" y1="213" x2="358" y2="364" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="353" y1="526" x2="428" y2="435" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="143" y1="654" x2="294" y2="453" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="307" y1="394" x2="387" y2="369" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="504" y1="232" x2="560" y2="126" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="439" y1="350" x2="315" y2="209" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="606" y1="168" x2="564" y2="254" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="492" y1="160" x2="504" y2="232" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="304" y1="150" x2="211" y2="213" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="425" y1="331" x2="322" y2="413" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="516" y1="493" x2="413" y2="385" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="143" y1="654" x2="232" y2="572" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="438" y1="366" x2="353" y2="526" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="531" y1="187" x2="657" y2="207" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="476" y1="344" x2="276" y2="406" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="336" y1="354" x2="564" y2="254" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="406" y1="410" x2="306" y2="373" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="358" y1="364" x2="272" y2="379" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="234" y1="307" x2="336" y2="354" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="304" y1="150" x2="336" y2="354" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="285" y1="536" x2="284" y2="418" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="358" y1="364" x2="224" y2="504" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="304" y1="150" x2="232" y2="572" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="531" y1="187" x2="314" y2="582" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="282" y1="399" x2="253" y2="345" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="297" y1="458" x2="191" y2="557" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="439" y1="350" x2="312" y2="263" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="425" y1="331" x2="244" y2="471" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="412" y1="427" x2="280" y2="454" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="336" y1="407" x2="438" y2="366" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="369" y1="327" x2="211" y2="213" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="364" y1="365" x2="272" y2="379" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="285" y1="536" x2="276" y2="406" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="304" y1="150" x2="369" y2="327" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="232" y1="543" x2="297" y2="458" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="253" y1="345" x2="255" y2="363" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="314" y1="582" x2="226" y2="510" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="240" y1="453" x2="325" y2="417" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="352" y1="578" x2="272" y2="379" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="438" y1="366" x2="516" y2="493" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="531" y1="187" x2="483" y2="86" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="359" y1="325" x2="244" y2="471" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="209" y1="265" x2="439" y2="350" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="306" y1="373" x2="307" y2="394" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="336" y1="407" x2="393" y2="498" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="413" y1="385" x2="428" y2="435" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="358" y1="364" x2="200" y2="340" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="392" y1="351" x2="428" y2="435" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="304" y1="150" x2="305" y2="360" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="425" y1="257" x2="468" y2="258" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="319" y1="521" x2="387" y2="369" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="336" y1="407" x2="377" y2="455" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="267" y1="498" x2="232" y2="543" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="255" y1="363" x2="319" y2="521" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="261" y1="302" x2="319" y2="521" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="117" y1="467" x2="314" y2="582" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="285" y1="536" x2="240" y2="453" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="485" y1="167" x2="460" y2="334" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="377" y1="455" x2="353" y2="387" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="494" y1="258" x2="224" y2="504" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="325" y1="417" x2="393" y2="498" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="209" y1="265" x2="311" y2="469" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="306" y1="373" x2="322" y2="413" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="433" y1="199" x2="510" y2="230" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="412" y1="427" x2="387" y2="369" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="510" y1="230" x2="504" y2="232" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="143" y1="654" x2="226" y2="510" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="267" y1="498" x2="188" y2="553" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="358" y1="345" x2="281" y2="354" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="284" y1="418" x2="413" y2="385" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="492" y1="160" x2="462" y2="193" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="306" y1="405" x2="307" y2="394" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="425" y1="331" x2="417" y2="416" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="416" y1="224" x2="266" y2="155" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="492" y1="160" x2="425" y2="257" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="240" y1="453" x2="377" y2="455" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="306" y1="373" x2="244" y2="471" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="117" y1="467" x2="97" y2="618" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="304" y1="150" x2="200" y2="340" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="133" y1="647" x2="251" y2="445" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="191" y1="557" x2="311" y2="469" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="384" y1="251" x2="657" y2="207" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="433" y1="199" x2="462" y2="193" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="143" y1="654" x2="133" y2="647" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="267" y1="498" x2="294" y2="453" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="476" y1="344" x2="353" y2="387" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="510" y1="220" x2="606" y2="168" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="435" y1="377" x2="392" y2="351" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="433" y1="199" x2="311" y2="469" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="294" y1="453" x2="188" y2="553" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="492" y1="160" x2="606" y2="168" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="224" y1="504" x2="311" y2="469" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="226" y1="510" x2="251" y2="445" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="133" y1="647" x2="237" y2="528" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="282" y1="399" x2="359" y2="325" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="531" y1="187" x2="460" y2="334" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="510" y1="220" x2="492" y2="160" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="297" y1="458" x2="237" y2="528" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="560" y1="126" x2="657" y2="207" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="209" y1="265" x2="369" y2="327" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="384" y1="251" x2="564" y2="254" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="494" y1="258" x2="564" y2="254" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="460" y1="334" x2="468" y2="258" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="211" y1="213" x2="364" y2="365" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="510" y1="230" x2="564" y2="254" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="412" y1="427" x2="288" y2="294" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="288" y1="294" x2="387" y2="369" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="369" y1="327" x2="312" y2="263" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="270" y1="519" x2="314" y2="582" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="336" y1="407" x2="240" y2="453" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="143" y1="654" x2="188" y2="553" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="416" y1="224" x2="336" y2="354" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="438" y1="366" x2="284" y2="418" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="288" y1="294" x2="417" y2="416" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="267" y1="498" x2="314" y2="582" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="435" y1="377" x2="353" y2="387" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="266" y1="155" x2="200" y2="340" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="606" y1="168" x2="657" y2="207" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="280" y1="454" x2="359" y2="325" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="492" y1="160" x2="460" y2="334" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="304" y1="150" x2="416" y2="224" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="272" y1="379" x2="200" y2="340" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="412" y1="427" x2="244" y2="471" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="336" y1="354" x2="364" y2="365" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="282" y1="399" x2="276" y2="406" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="483" y1="86" x2="564" y2="254" stroke="#b9b9c4" stroke-width="1" />
+                            <line x1="416" y1="224" x2="358" y2="345" stroke="#b9b9c4" stroke-width="1" />
+                            <circle cx="412" cy="427" r="8" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <text x="423" y="431" font-size="10" fill="#333" font-family="system-ui, sans-serif">
+                                TP53
+                            </text>
+                            <circle cx="435" cy="377" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <text x="443" y="381" font-size="10" fill="#333" font-family="system-ui, sans-serif">
+                                BRCA1
+                            </text>
+                            <circle cx="485" cy="167" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <text x="493" y="171" font-size="10" fill="#333" font-family="system-ui, sans-serif">
+                                BRCA2
+                            </text>
+                            <circle cx="117" cy="467" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <text x="125" y="471" font-size="10" fill="#333" font-family="system-ui, sans-serif">
+                                PAX8
+                            </text>
+                            <circle cx="209" cy="265" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <text x="217" y="269" font-size="10" fill="#333" font-family="system-ui, sans-serif">
+                                WT1
+                            </text>
+                            <circle cx="306" cy="405" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <text x="314" y="409" font-size="10" fill="#333" font-family="system-ui, sans-serif">
+                                MUC16
+                            </text>
+                            <circle cx="392" cy="351" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <text x="400" y="355" font-size="10" fill="#333" font-family="system-ui, sans-serif">
+                                CCNE1
+                            </text>
+                            <circle cx="510" cy="220" r="8" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <text x="521" y="224" font-size="10" fill="#333" font-family="system-ui, sans-serif">
+                                MYC
+                            </text>
+                            <circle cx="267" cy="498" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <text x="275" y="502" font-size="10" fill="#333" font-family="system-ui, sans-serif">
+                                KRAS
+                            </text>
+                            <circle cx="304" cy="150" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <text x="312" y="154" font-size="10" fill="#333" font-family="system-ui, sans-serif">
+                                PIK3CA
+                            </text>
+                            <circle cx="288" cy="294" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <text x="296" y="298" font-size="10" fill="#333" font-family="system-ui, sans-serif">
+                                PTEN
+                            </text>
+                            <circle cx="285" cy="536" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <text x="293" y="540" font-size="10" fill="#333" font-family="system-ui, sans-serif">
+                                ARID1A
+                            </text>
+                            <circle cx="384" cy="251" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="232" cy="543" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="369" cy="327" r="8" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="406" cy="410" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="336" cy="407" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="433" cy="199" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="143" cy="654" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="211" cy="213" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="261" cy="302" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="476" cy="344" r="8" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="492" cy="160" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="297" cy="458" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="416" cy="224" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="306" cy="373" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="438" cy="366" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="510" cy="230" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="294" cy="453" r="8" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="439" cy="350" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="280" cy="454" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="352" cy="578" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="531" cy="187" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="188" cy="553" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="315" cy="209" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="425" cy="331" r="8" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="240" cy="453" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="504" cy="232" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="191" cy="557" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="358" cy="364" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="282" cy="399" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="516" cy="493" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="460" cy="334" r="8" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="270" cy="519" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="234" cy="307" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="253" cy="345" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="284" cy="418" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="606" cy="168" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="97" cy="618" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="336" cy="354" r="8" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="417" cy="416" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="377" cy="455" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="425" cy="257" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="314" cy="582" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="312" cy="263" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="255" cy="363" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="353" cy="387" r="8" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="483" cy="86" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="232" cy="572" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="266" cy="155" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="319" cy="521" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="325" cy="417" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="468" cy="258" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="133" cy="647" r="8" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="305" cy="360" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="322" cy="413" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="276" cy="406" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="494" cy="258" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="226" cy="510" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="364" cy="365" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="307" cy="394" r="8" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="353" cy="526" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="560" cy="126" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="237" cy="528" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="272" cy="379" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="387" cy="369" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="393" cy="498" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="462" cy="193" r="8" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="251" cy="445" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="358" cy="345" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="359" cy="325" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="413" cy="385" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="564" cy="254" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="224" cy="504" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="281" cy="354" r="8" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="244" cy="471" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="428" cy="435" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="657" cy="207" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="311" cy="469" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                            <circle cx="200" cy="340" r="5" fill="#4a4ade" stroke="#2d2db0" stroke-width="1" />
+                        </svg>
+                        <div
+                            style="
+                                position: absolute;
+                                left: 0;
+                                right: 0;
+                                bottom: 12px;
+                                display: flex;
+                                justify-content: center;
+                            "
+                        >
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 2px;
+                                    padding: 6px 8px;
+                                    background: #262626;
+                                    border-radius: 10px;
+                                    box-shadow: 0 4px 14px #0004;
+                                "
+                            >
+                                <div
+                                    style="
+                                        position: relative;
+                                        width: 38px;
+                                        height: 34px;
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        gap: 2px;
+                                        border-radius: 6px;
+                                        background: transparent;
+                                        color: #fff;
+                                    "
+                                >
+                                    <svg
+                                        width="17"
+                                        height="17"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none; display: block"
+                                    >
+                                        <path d="M6 2h4M6.5 2v4L3 13a1 1 0 001 1.5h8A1 1 0 0013 13L9.5 6V2" />
+                                        <path d="M4.5 10h7" />
+                                    </svg>
+                                </div>
+                                <div style="width: 1px; height: 34px; background: #444"></div>
+                                <div
+                                    style="
+                                        position: relative;
+                                        width: 38px;
+                                        height: 34px;
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        gap: 2px;
+                                        border-radius: 6px;
+                                        background: transparent;
+                                        color: #fff;
+                                    "
+                                >
+                                    <svg
+                                        width="17"
+                                        height="17"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none; display: block"
+                                    >
+                                        <path d="M2 14V2M2 14h12" />
+                                        <circle cx="6" cy="9" r="1.3" />
+                                        <circle cx="10" cy="5" r="1.3" />
+                                        <circle cx="11" cy="11" r="1.3" />
+                                        <path d="M7 8l2-2M7.2 9.6l2.6 1" />
+                                    </svg>
+                                </div>
+                                <div
+                                    style="
+                                        position: relative;
+                                        width: 38px;
+                                        height: 34px;
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        gap: 2px;
+                                        border-radius: 6px;
+                                        background: transparent;
+                                        color: #fff;
+                                    "
+                                >
+                                    <span style="font-size: 11px; font-weight: 600">3D</span
+                                    ><svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none; display: block"
+                                    >
+                                        <path d="M4 6l4 4 4-4" />
+                                    </svg>
+                                </div>
+                                <div style="width: 1px; height: 34px; background: #444"></div>
+                                <div
+                                    style="
+                                        position: relative;
+                                        width: 38px;
+                                        height: 34px;
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        gap: 2px;
+                                        border-radius: 6px;
+                                        background: transparent;
+                                        color: #fff;
+                                    "
+                                >
+                                    <svg
+                                        width="17"
+                                        height="17"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none; display: block"
+                                    >
+                                        <path d="M6 4h8M6 8h8M6 12h8" />
+                                        <circle cx="3" cy="4" r=".6" />
+                                        <circle cx="3" cy="8" r=".6" />
+                                        <circle cx="3" cy="12" r=".6" />
+                                    </svg>
+                                </div>
+                                <div style="width: 1px; height: 34px; background: #444"></div>
+                                <div
+                                    style="
+                                        position: relative;
+                                        width: 38px;
+                                        height: 34px;
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        gap: 2px;
+                                        border-radius: 6px;
+                                        background: transparent;
+                                        color: #fff;
+                                    "
+                                >
+                                    <svg
+                                        width="17"
+                                        height="17"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none; display: block"
+                                    >
+                                        <rect x="2" y="2.5" width="12" height="11" rx="1" />
+                                        <path d="M2 6h12M2 9.5h12M6 2.5v11M10 2.5v11" />
+                                    </svg>
+                                </div>
+                                <div
+                                    style="
+                                        position: relative;
+                                        width: 38px;
+                                        height: 34px;
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        gap: 2px;
+                                        border-radius: 6px;
+                                        background: transparent;
+                                        color: #fff;
+                                    "
+                                >
+                                    <svg
+                                        width="17"
+                                        height="17"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none; display: block"
+                                    >
+                                        <path d="M2 4h12M4.5 8h7M7 12h2" />
+                                    </svg>
+                                </div>
+                                <div style="width: 1px; height: 34px; background: #444"></div>
+                                <div
+                                    style="
+                                        position: relative;
+                                        width: 38px;
+                                        height: 34px;
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: center;
+                                        gap: 2px;
+                                        border-radius: 6px;
+                                        background: transparent;
+                                        color: #fff;
+                                    "
+                                >
+                                    <svg
+                                        width="17"
+                                        height="17"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none; display: block"
+                                    >
+                                        <circle cx="7" cy="7" r="4.5" />
+                                        <path d="M10.5 10.5L14 14" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div
+                    style="
+                        width: 240px;
+                        flex: none;
+                        background: #2b2b2b;
+                        border-left: 1px solid #3e3e3e;
+                        overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+                    "
+                >
+                    <div
+                        style="
+                            padding: 10px 12px;
+                            border-bottom: 1px solid #3e3e3e;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 2px;
+                        "
+                    >
+                        <div style="display: flex; align-items: center; gap: 8px">
+                            <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none; display: block"
+                            >
+                                <circle cx="6" cy="8" r="4" />
+                                <circle cx="10" cy="8" r="4" /></svg
+                            ><span
+                                style="
+                                    font-weight: 600;
+                                    font-size: 13px;
+                                    flex: 1;
+                                    overflow: hidden;
+                                    white-space: nowrap;
+                                    text-overflow: ellipsis;
+                                "
+                                >expression.tsv</span
+                            ><svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="#a3a3a3"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none; display: block"
+                            >
+                                <path d="M4 4l8 8M12 4l-8 8" />
+                            </svg>
+                        </div>
+                        <span style="color: #a3a3a3; font-size: 11px; padding-left: 22px"
+                            >Join onto nodes, 340 rows</span
+                        >
+                    </div>
+                    <div
+                        style="
+                            padding: 4px 12px 10px;
+                            border-bottom: 1px solid #3e3e3e;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 2px;
+                        "
+                    >
+                        <div style="display: flex; align-items: center; gap: 6px; height: 30px">
+                            <span style="font-weight: 600; flex: 1">Match</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px; min-height: 28px">
+                            <span
+                                style="
+                                    width: 64px;
+                                    flex: none;
+                                    color: #a3a3a3;
+                                    font-size: 11px;
+                                    white-space: nowrap;
+                                    overflow: hidden;
+                                    text-overflow: ellipsis;
+                                "
+                                >File</span
+                            ><span
+                                style="
+                                    flex: 1;
+                                    min-width: 0;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 6px 0 8px;
+                                    box-sizing: border-box;
+                                    background: #383838;
+                                    border: 1px solid #4a4a4a;
+                                    border-radius: 4px;
+                                    color: #fff;
+                                    font-size: 12px;
+                                "
+                                ><svg
+                                    width="13"
+                                    height="13"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#a3a3a3"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <path d="M2 13l3-9 3 9M3 10h4" />
+                                    <path d="M10 8.5a2 2 0 114 0V13M14 10.5c-1.5-.5-4-.2-4 1.2 0 1.6 3 1.6 4 0" /></svg
+                                ><span style="flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis"
+                                    >gene_symbol</span
+                                ><svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#a3a3a3"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <path d="M4 6l4 4 4-4" /></svg
+                            ></span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px; min-height: 28px">
+                            <span
+                                style="
+                                    width: 64px;
+                                    flex: none;
+                                    color: #a3a3a3;
+                                    font-size: 11px;
+                                    white-space: nowrap;
+                                    overflow: hidden;
+                                    text-overflow: ellipsis;
+                                "
+                                >Graph</span
+                            ><span
+                                style="
+                                    flex: 1;
+                                    min-width: 0;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 6px 0 8px;
+                                    box-sizing: border-box;
+                                    background: #383838;
+                                    border: 1px solid #4a4a4a;
+                                    border-radius: 4px;
+                                    color: #fff;
+                                    font-size: 12px;
+                                "
+                                ><svg
+                                    width="13"
+                                    height="13"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#a3a3a3"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <path d="M2 13l3-9 3 9M3 10h4" />
+                                    <path d="M10 8.5a2 2 0 114 0V13M14 10.5c-1.5-.5-4-.2-4 1.2 0 1.6 3 1.6 4 0" /></svg
+                                ><span style="flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis"
+                                    >preferredName</span
+                                ><svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#a3a3a3"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <path d="M4 6l4 4 4-4" /></svg
+                            ></span>
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 0">
+                            <span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 4px;
+                                    background: #1f3d2a;
+                                    color: #d3f9d8;
+                                    border: none;
+                                    border-radius: 10px;
+                                    padding: 1px 7px;
+                                    font-size: 11px;
+                                    line-height: 16px;
+                                    white-space: nowrap;
+                                    flex: none;
+                                "
+                                >312 matched</span
+                            ><span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 4px;
+                                    background: #3b3b3b;
+                                    color: #a3a3a3;
+                                    border: none;
+                                    border-radius: 10px;
+                                    padding: 1px 7px;
+                                    font-size: 11px;
+                                    line-height: 16px;
+                                    white-space: nowrap;
+                                    flex: none;
+                                "
+                                >28 unmatched</span
+                            ><span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 4px;
+                                    background: #3b3b3b;
+                                    color: #a3a3a3;
+                                    border: none;
+                                    border-radius: 10px;
+                                    padding: 1px 7px;
+                                    font-size: 11px;
+                                    line-height: 16px;
+                                    white-space: nowrap;
+                                    flex: none;
+                                "
+                                >6 nodes without a value</span
+                            >
+                        </div>
+                        <div style="display: flex; align-items: center; height: 28px">
+                            <span style="color: #74c0fc; flex: 1">+4 ignoring case</span
+                            ><span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 22px;
+                                    padding: 0 10px;
+                                    border-radius: 5px;
+                                    background: #3a3a3a;
+                                    color: #fff;
+                                    font-size: 12px;
+                                    white-space: nowrap;
+                                    flex: none;
+                                "
+                                >Use</span
+                            >
+                        </div>
+                    </div>
+                    <div
+                        style="
+                            padding: 4px 12px 10px;
+                            border-bottom: 1px solid #3e3e3e;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 2px;
+                        "
+                    >
+                        <div style="display: flex; align-items: center; gap: 6px; height: 30px">
+                            <span style="font-weight: 600; flex: 1">Adds</span
+                            ><span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 4px;
+                                    background: #3b3b3b;
+                                    color: #a3a3a3;
+                                    border: none;
+                                    border-radius: 10px;
+                                    padding: 1px 7px;
+                                    font-size: 11px;
+                                    line-height: 16px;
+                                    white-space: nowrap;
+                                    flex: none;
+                                "
+                                >4</span
+                            >
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 0">
+                            <span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 4px;
+                                    background: #3b3b3b;
+                                    color: #ffffff;
+                                    border: none;
+                                    border-radius: 10px;
+                                    padding: 1px 7px;
+                                    font-size: 11px;
+                                    line-height: 16px;
+                                    white-space: nowrap;
+                                    flex: none;
+                                "
+                                ><svg
+                                    width="11"
+                                    height="11"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <path d="M5.5 2.5l-1 11M11.5 2.5l-1 11M2.5 6h11M2 10.5h11" />
+                                </svg>
+                                log2FC</span
+                            ><span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 4px;
+                                    background: #3b3b3b;
+                                    color: #ffffff;
+                                    border: none;
+                                    border-radius: 10px;
+                                    padding: 1px 7px;
+                                    font-size: 11px;
+                                    line-height: 16px;
+                                    white-space: nowrap;
+                                    flex: none;
+                                "
+                                >padj</span
+                            ><span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 4px;
+                                    background: #3b3b3b;
+                                    color: #ffffff;
+                                    border: none;
+                                    border-radius: 10px;
+                                    padding: 1px 7px;
+                                    font-size: 11px;
+                                    line-height: 16px;
+                                    white-space: nowrap;
+                                    flex: none;
+                                "
+                                >baseMean</span
+                            ><span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 4px;
+                                    background: #3b3b3b;
+                                    color: #ffffff;
+                                    border: none;
+                                    border-radius: 10px;
+                                    padding: 1px 7px;
+                                    font-size: 11px;
+                                    line-height: 16px;
+                                    white-space: nowrap;
+                                    flex: none;
+                                "
+                                >stat</span
+                            >
+                        </div>
+                    </div>
+                    <div
+                        style="
+                            padding: 4px 12px 10px;
+                            border-bottom: 1px solid #3e3e3e;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 2px;
+                        "
+                    >
+                        <div style="display: flex; align-items: center; gap: 6px; height: 30px">
+                            <span style="font-weight: 600; flex: 1">Rows</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px; min-height: 28px">
+                            <span
+                                style="
+                                    width: 64px;
+                                    flex: none;
+                                    color: #a3a3a3;
+                                    font-size: 11px;
+                                    white-space: nowrap;
+                                    overflow: hidden;
+                                    text-overflow: ellipsis;
+                                "
+                                >In file</span
+                            ><span style="">340</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px; min-height: 28px">
+                            <span
+                                style="
+                                    width: 64px;
+                                    flex: none;
+                                    color: #a3a3a3;
+                                    font-size: 11px;
+                                    white-space: nowrap;
+                                    overflow: hidden;
+                                    text-overflow: ellipsis;
+                                "
+                                >Repeats</span
+                            ><span
+                                style="
+                                    flex: 1;
+                                    min-width: 0;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 6px 0 8px;
+                                    box-sizing: border-box;
+                                    background: #383838;
+                                    border: 1px solid #4a4a4a;
+                                    border-radius: 4px;
+                                    color: #fff;
+                                    font-size: 12px;
+                                "
+                                ><span style="flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis"
+                                    >First</span
+                                ><svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#a3a3a3"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <path d="M4 6l4 4 4-4" /></svg
+                            ></span>
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: flex-end; gap: 8px; padding: 10px 12px">
+                        <span
+                            style="
+                                display: inline-flex;
+                                align-items: center;
+                                gap: 6px;
+                                height: 26px;
+                                padding: 0 10px;
+                                border-radius: 5px;
+                                background: #3a3a3a;
+                                color: #fff;
+                                font-size: 12px;
+                                white-space: nowrap;
+                                flex: none;
+                            "
+                            >Cancel</span
+                        ><span style="display: flex; flex: none"
+                            ><span
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    height: 26px;
+                                    padding: 0 12px;
+                                    background: #228be6;
+                                    border-radius: 5px 0 0 5px;
+                                    font-size: 12px;
+                                    box-shadow:
+                                        0 0 0 2px #2b2b2b,
+                                        0 0 0 4px #74c0fc;
+                                "
+                                >Join</span
+                            ><span
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    height: 26px;
+                                    padding: 0 6px;
+                                    background: #1864ab;
+                                    border-left: 1px solid #1864ab;
+                                    border-radius: 0 5px 5px 0;
+                                "
+                                ><svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#fff"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <path d="M4 6l4 4 4-4" /></svg></span
+                        ></span>
+                    </div>
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    left: 1196px;
+                    top: 560px;
+                    width: 232px;
+                    background: #1f1f1f;
+                    border: 1px solid #444;
+                    border-radius: 6px;
+                    padding: 4px;
+                    box-shadow: 0 8px 24px #0008;
+                    z-index: 40;
+                "
+            >
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        height: 26px;
+                        padding: 0 10px;
+                        border-radius: 4px;
+                        background: transparent;
+                        color: #fff;
+                        font-size: 12px;
+                    "
+                >
+                    <svg
+                        width="13"
+                        height="13"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="#fff"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none; display: block"
+                    >
+                        <path d="M3 8.5l3 3 7-7" /></svg
+                    ><span style="flex: 1">Join</span
+                    ><span style="color: #a3a3a3; font-size: 11px">adds 4 attributes</span>
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        height: 26px;
+                        padding: 0 10px;
+                        border-radius: 4px;
+                        background: transparent;
+                        color: #fff;
+                        font-size: 12px;
+                    "
+                >
+                    <span style="width: 14px; flex: none"></span><span style="flex: 1">Add as new nodes and edges</span>
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        height: 26px;
+                        padding: 0 10px;
+                        border-radius: 4px;
+                        background: transparent;
+                        color: #fff;
+                        font-size: 12px;
+                    "
+                >
+                    <span style="width: 14px; flex: none"></span><span style="flex: 1">Open as a separate graph</span>
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        height: 26px;
+                        padding: 0 10px;
+                        border-radius: 4px;
+                        background: transparent;
+                        color: #fff;
+                        font-size: 12px;
+                    "
+                >
+                    <span style="width: 14px; flex: none"></span><span style="flex: 1">Replace data</span>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>

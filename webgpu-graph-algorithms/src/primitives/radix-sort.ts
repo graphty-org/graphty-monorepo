@@ -132,7 +132,7 @@ function checkRecordArguments(
     keys: Binding,
     vals: Binding,
     count: number,
-    bits: RadixBits,
+    bits: number,
     scratch: RadixSortScratch,
     wg: number,
 ): void {

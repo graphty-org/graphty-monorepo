@@ -1,0 +1,47 @@
+name: Dependabot auto-merge
+
+# Arms auto-merge on Dependabot's pull requests, which are security updates only (.github/dependabot.yml;
+# routine refreshes come from promote.yml after each production promotion) (design/ci/channels-pipeline/merging.md). Dependabot cannot
+# arm it itself, and a merge armed with GITHUB_TOKEN would start no master build, so it is armed as
+# graphty-agent with AGENT_AUTOMERGE_TOKEN (fine-grained, this repository only, Contents and Pull requests
+# write) from the master-only environment `dependabot-automerge`. pull_request_target runs master's copy of
+# this file; it never checks out the pull request's code. GitHub Actions updates change .github/workflows/
+# and are left for the owner to review and merge.
+on:
+    pull_request_target:
+        types: [opened, reopened, synchronize]
+
+permissions:
+    contents: read
+    pull-requests: read
+
+jobs:
+    automerge:
+        name: Arm auto-merge
+        # github.actor: only Dependabot's own push arms it, never a commit someone else pushed to its branch
+        if: github.event.pull_request.user.login == 'dependabot[bot]' && github.actor == 'dependabot[bot]'
+        runs-on: ubuntu-24.04
+        timeout-minutes: 5
+        environment: dependabot-automerge
+        steps:
+            - name: Read the update
+              id: meta
+              uses: dependabot/fetch-metadata@v3
+              with:
+                  github-token: ${{ github.token }}
+
+            - name: Arm auto-merge (merge commit)
+              if: steps.meta.outputs.package-ecosystem != 'github_actions'
+              env:
+                  GH_TOKEN: ${{ secrets.AGENT_AUTOMERGE_TOKEN }}
+                  PR_URL: ${{ github.event.pull_request.html_url }}
+              run: |
+                  if [ -z "$GH_TOKEN" ]; then
+                    echo "::error title=Dependabot auto-merge::AGENT_AUTOMERGE_TOKEN is not set in environment dependabot-automerge"
+                    exit 1
+                  fi
+                  gh pr merge --auto --merge "$PR_URL"
+
+            - name: Leave Actions updates to the owner
+              if: steps.meta.outputs.package-ecosystem == 'github_actions'
+              run: echo "A GitHub Actions update changes .github/workflows/; the owner reviews and merges it."

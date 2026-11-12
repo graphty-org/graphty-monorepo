@@ -111,8 +111,8 @@ const UI_GLYPH_MEANINGS: Record<UiGlyphName, string> = {
     refresh: "Run it again.",
     copy: "Copy to the clipboard.",
     pin: "Keep this on screen.",
-    info: "An explanation, revealed on hover, on focus or on tap.",
-    reset: "Return this value to its default. The same drawing as close: the two differ by their accessible name, not by their shape.",
+    info: "An explanation, revealed on hover, on Enter or Space, or on tap.",
+    reset: "Return this value to its default. The same drawing as minus: the two differ by their accessible name, not by their shape.",
     keepOpen: "Keep this panel open while working elsewhere.",
     caretDown: "Opens a list or a menu below.",
     caretRight: "Opens a submenu, or a collapsed tree row.",
@@ -142,6 +142,7 @@ const UI_GLYPH_MEANINGS: Record<UiGlyphName, string> = {
     text: "Text.",
     component: "A component.",
     group: "A group.",
+    upload: "Bring in a file: open the file picker or take a drop.",
 };
 
 /** The narrowest one entry in the gallery grid is allowed to be. */

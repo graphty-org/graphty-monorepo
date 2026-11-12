@@ -1,29 +1,61 @@
-import type React from "react";
+import { type KeyboardEvent, useState } from "react";
+import { flushSync } from "react-dom";
+
+import { useLabels } from "../../i18n";
 
 /**
- * Escape in a text field: redraw the value and leave the field without committing what was
- * typed (flows.md 6). `blur()` fires the blur handler synchronously, while its closure still
- * holds the typed draft, so the field is marked for the length of the blur and the blur handler
- * skips its commit when `isLeavingWithoutCommit` says so. The keypress stops here, so a popout
- * around the field stays open until a second Escape (flows.md 2: Escape closes the top-most
- * thing only).
+ * Escape in a text field takes back what was typed and keeps focus in the field, so the reader
+ * can type again at once; focus never falls to the page. Inside a pop-out with nothing typed, the
+ * key is left alone and reaches the pop-out, which closes and gives focus back to what opened it
+ * (Escape closes the innermost layer).
  * @param event - the Escape keydown
  * @param revert - redraws the committed value
+ * @param dirty - whether the field holds something typed that differs from its value
  */
-export function leaveWithoutCommit(event: React.KeyboardEvent<HTMLInputElement>, revert: () => void): void {
+export function revertOnEscape(event: KeyboardEvent<HTMLInputElement>, revert: () => void, dirty = true): void {
     const input = event.currentTarget;
+    if (!dirty && input.closest("[data-popout-id]") !== null) {
+        return;
+    }
     event.stopPropagation();
-    revert();
-    input.dataset.cmReverting = "true";
-    input.blur();
-    delete input.dataset.cmReverting;
+    // Redrawn before the select, so the whole value is selected and the next key replaces it.
+    flushSync(revert);
+    input.select();
+}
+
+/** What Escape last took back in a box, for its DiscardNote, and the Escape that says so. */
+interface DiscardedEdit {
+    /** "Edit discarded; this stays 40.", or "" when there is nothing to say. */
+    readonly text: string;
+    /** Empties the note: the reader typed or left the box. */
+    readonly clear: () => void;
+    /**
+     * {@link revertOnEscape}, and, when it took typing back, the note naming what the box keeps.
+     * @param event - the Escape keydown
+     * @param revert - redraws the committed value
+     * @param dirty - whether the field holds something typed that differs from its value
+     * @param kept - the value the box goes back to, as the box shows it
+     */
+    readonly revert: (event: KeyboardEvent<HTMLInputElement>, revert: () => void, dirty: boolean, kept: string) => void;
 }
 
 /**
- * Whether this blur is the one `leaveWithoutCommit` caused.
- * @param event - the blur
- * @returns true when the blur must not commit
+ * Escape that says what it discarded, the same way in every box (a pop-out's included): render
+ * `<DiscardNote text={discarded.text} />` beside the box, so its live region is on the page before
+ * the words are written.
+ * @returns the note's words and the Escape handler
  */
-export function isLeavingWithoutCommit(event: React.FocusEvent<HTMLInputElement>): boolean {
-    return event.currentTarget.dataset.cmReverting === "true";
+export function useDiscardedEdit(): DiscardedEdit {
+    const labels = useLabels();
+    const [text, setText] = useState("");
+    return {
+        text,
+        clear: () => {
+            setText("");
+        },
+        revert: (event, revert, dirty, kept) => {
+            setText(dirty ? labels.colorEditDiscarded(kept) : "");
+            revertOnEscape(event, revert, dirty);
+        },
+    };
 }

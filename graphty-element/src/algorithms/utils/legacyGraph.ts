@@ -114,6 +114,25 @@ export class Graph {
             return false;
         }
 
+        this.removeIncidentEdges(id);
+
+        // Remove the node itself
+        this.nodeMap.delete(id);
+        this.adjacencyList.delete(id);
+
+        if (this.config.directed) {
+            this.incomingEdges.delete(id);
+        }
+
+        this.mutations++;
+        return true;
+    }
+
+    /**
+     * Remove every edge that touches a node, outgoing first, then incoming.
+     * @param id - The node whose edges are removed
+     */
+    private removeIncidentEdges(id: NodeId): void {
         // Remove all edges connected to this node
         const outgoingEdges = this.adjacencyList.get(id);
         if (outgoingEdges) {
@@ -137,17 +156,6 @@ export class Graph {
                 }
             }
         }
-
-        // Remove the node itself
-        this.nodeMap.delete(id);
-        this.adjacencyList.delete(id);
-
-        if (this.config.directed) {
-            this.incomingEdges.delete(id);
-        }
-
-        this.mutations++;
-        return true;
     }
 
     /**

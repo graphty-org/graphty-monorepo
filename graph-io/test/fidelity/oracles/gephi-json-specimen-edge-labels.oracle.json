@@ -1,0 +1,578 @@
+{
+    "sample": "gephi-json-specimen-edge-labels",
+    "program": "sigma.js",
+    "version": "sigma 4.0.1, graphology 0.26.0, @sigma/export-image 4.0.0",
+    "command": "graph.import(file moved into graphology's { key, attributes } shape); new Sigma(graph, <div 1200x900>) with sigma's default settings; toBlob(sigma, { format: \"png\" })",
+    "how": "sigma 4 draws nodes, edges and labels with WebGL2 and offers no vector export. @sigma/export-image's toBlob renders the instance to PNG (its own export, 1200 x 900, transparent background); the SVG wraps those bytes unmodified in one <image> element.",
+    "svgKind": "raster",
+    "canvas": {
+        "width": 1200,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "background": "none (the page behind it is white)"
+    },
+    "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
+    "file": "test/fidelity/specimens/gephi-json/specimen-edge-labels.json",
+    "fileSha256": "d55c384ca1441ac85fa149afb20a11efd03190c48a047604a4f063b5971754e3",
+    "svgSha256": "84b6ec265db388edd78d690eda352c6e2c39c48ff164c6158b15efe902a60285",
+    "date": "2026-10-19",
+    "standIn": false,
+    "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
+    "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
+    "observed": {
+        "nodes": 43,
+        "edges": 13,
+        "labelsShown": 13
+    },
+    "drawn": {
+        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); each edge it drew, with its display color and size, its width in the PNG's pixels (max(sigma.scaleSize(size), minEdgeThickness) * sigma.correctionRatio * the pixels one framed graph unit spans, as sigma's edge shader draws it) its display type, and its label when renderEdgeLabels is on; each node's and edge's fill and alpha as sigma's own parseColor reads the display color (sigma blends with that alpha)",
+        "nodes": [
+            {
+                "id": "cap-default",
+                "x": 167.44827402049097,
+                "y": 211.1953936568622,
+                "r": 6.758620826334783,
+                "label": "default=nothing set",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-edge-label-plain",
+                "x": 383.7241370102455,
+                "y": 211.1953936568622,
+                "r": 6.758620826334783,
+                "label": "label=Label",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-edge-label-one-char",
+                "x": 600,
+                "y": 211.1953936568622,
+                "r": 6.758620826334783,
+                "label": "label=A",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-edge-label-long",
+                "x": 816.2758629897545,
+                "y": 211.1953936568622,
+                "r": 6.758620826334783,
+                "label": "label=A much longer label",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-edge-label-digits",
+                "x": 1032.551725979509,
+                "y": 211.1953936568622,
+                "r": 6.758620826334783,
+                "label": "label=12345",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-edge-label-unicode",
+                "x": 167.44827402049097,
+                "y": 475.103449184319,
+                "r": 6.758620826334783,
+                "label": "label=Zürich",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-edge-label-html-chars",
+                "x": 383.7241370102455,
+                "y": 475.103449184319,
+                "r": 6.758620826334783,
+                "label": "label=a<b & c>d",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-edge-label-empty",
+                "x": 600,
+                "y": 475.103449184319,
+                "r": 6.758620826334783,
+                "label": "label=\"\"",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-edge-label-spaces",
+                "x": 816.2758629897545,
+                "y": 475.103449184319,
+                "r": 6.758620826334783,
+                "label": "label=two  words",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-edge-label-newline",
+                "x": 1032.551725979509,
+                "y": 475.103449184319,
+                "r": 6.758620826334783,
+                "label": "label=two\\nlines",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-edge-label-quotes",
+                "x": 167.44827402049097,
+                "y": 739.0115047117758,
+                "r": 6.758620826334783,
+                "label": "label=say \"hi\"",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-edge-label-apostrophe",
+                "x": 383.7241370102455,
+                "y": 739.0115047117758,
+                "r": 6.758620826334783,
+                "label": "label=it's",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-edge-attr-label",
+                "x": 600,
+                "y": 739.0115047117758,
+                "r": 6.758620826334783,
+                "label": "attributes.label=Column",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-nw",
+                "x": 39.99999761581421,
+                "y": 34.827571182415305,
+                "r": 2.896551782714907,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-ne",
+                "x": 1160.0000023841858,
+                "y": 34.827571182415305,
+                "r": 2.896551782714907,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-sw",
+                "x": 39.99999761581421,
+                "y": 865.1724288175845,
+                "r": 2.896551782714907,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-se",
+                "x": 1160.0000023841858,
+                "y": 865.1724288175845,
+                "r": 2.896551782714907,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "default-s",
+                "x": 130.7586186918719,
+                "y": 172.5747026040635,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "default-t",
+                "x": 204.1379293491101,
+                "y": 172.5747026040635,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-plain-s",
+                "x": 347.0344816816264,
+                "y": 172.5747026040635,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-plain-t",
+                "x": 420.4137923388646,
+                "y": 172.5747026040635,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-one-char-s",
+                "x": 563.3103446713809,
+                "y": 172.5747026040635,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-one-char-t",
+                "x": 636.689655328619,
+                "y": 172.5747026040635,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-long-s",
+                "x": 779.5862076611355,
+                "y": 172.5747026040635,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-long-t",
+                "x": 852.9655183183737,
+                "y": 172.5747026040635,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-digits-s",
+                "x": 995.8620706508899,
+                "y": 172.5747026040635,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-digits-t",
+                "x": 1069.2413813081282,
+                "y": 172.5747026040635,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-unicode-s",
+                "x": 130.7586186918719,
+                "y": 436.48275813152054,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-unicode-t",
+                "x": 204.1379293491101,
+                "y": 436.48275813152054,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-html-chars-s",
+                "x": 347.0344816816264,
+                "y": 436.48275813152054,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-html-chars-t",
+                "x": 420.4137923388646,
+                "y": 436.48275813152054,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-empty-s",
+                "x": 563.3103446713809,
+                "y": 436.48275813152054,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-empty-t",
+                "x": 636.689655328619,
+                "y": 436.48275813152054,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-spaces-s",
+                "x": 779.5862076611355,
+                "y": 436.48275813152054,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-spaces-t",
+                "x": 852.9655183183737,
+                "y": 436.48275813152054,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-newline-s",
+                "x": 995.8620706508899,
+                "y": 436.48275813152054,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-newline-t",
+                "x": 1069.2413813081282,
+                "y": 436.48275813152054,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-quotes-s",
+                "x": 130.7586186918719,
+                "y": 700.3908136589772,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-quotes-t",
+                "x": 204.1379293491101,
+                "y": 700.3908136589772,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-apostrophe-s",
+                "x": 347.0344816816264,
+                "y": 700.3908136589772,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-label-apostrophe-t",
+                "x": 420.4137923388646,
+                "y": 700.3908136589772,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-attr-label-s",
+                "x": 563.3103446713809,
+                "y": 700.3908136589772,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-attr-label-t",
+                "x": 636.689655328619,
+                "y": 700.3908136589772,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            }
+        ],
+        "edges": [
+            {
+                "id": "default",
+                "source": "default-s",
+                "target": "default-t",
+                "color": "#ccc",
+                "fill": "#cccccc",
+                "alpha": 1,
+                "type": null,
+                "size": 1,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-label-plain",
+                "source": "edge-label-plain-s",
+                "target": "edge-label-plain-t",
+                "color": "rgb(80,80,80)",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-label-one-char",
+                "source": "edge-label-one-char-s",
+                "target": "edge-label-one-char-t",
+                "color": "rgb(80,80,80)",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-label-long",
+                "source": "edge-label-long-s",
+                "target": "edge-label-long-t",
+                "color": "rgb(80,80,80)",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-label-digits",
+                "source": "edge-label-digits-s",
+                "target": "edge-label-digits-t",
+                "color": "rgb(80,80,80)",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-label-unicode",
+                "source": "edge-label-unicode-s",
+                "target": "edge-label-unicode-t",
+                "color": "rgb(80,80,80)",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-label-html-chars",
+                "source": "edge-label-html-chars-s",
+                "target": "edge-label-html-chars-t",
+                "color": "rgb(80,80,80)",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-label-empty",
+                "source": "edge-label-empty-s",
+                "target": "edge-label-empty-t",
+                "color": "rgb(80,80,80)",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-label-spaces",
+                "source": "edge-label-spaces-s",
+                "target": "edge-label-spaces-t",
+                "color": "rgb(80,80,80)",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-label-newline",
+                "source": "edge-label-newline-s",
+                "target": "edge-label-newline-t",
+                "color": "rgb(80,80,80)",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-label-quotes",
+                "source": "edge-label-quotes-s",
+                "target": "edge-label-quotes-t",
+                "color": "rgb(80,80,80)",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-label-apostrophe",
+                "source": "edge-label-apostrophe-s",
+                "target": "edge-label-apostrophe-t",
+                "color": "rgb(80,80,80)",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-attr-label",
+                "source": "edge-attr-label-s",
+                "target": "edge-attr-label-t",
+                "color": "rgb(80,80,80)",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            }
+        ]
+    },
+    "pageErrors": []
+}

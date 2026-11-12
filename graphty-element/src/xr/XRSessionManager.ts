@@ -1,6 +1,7 @@
 import type { Camera, Scene, WebXRDefaultExperience, WebXRDefaultExperienceOptions } from "@babylonjs/core";
 
 import { GraphtyLogger, type Logger } from "../logging";
+import { laserOnRows } from "./laserOnRows";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "xr", "session"]);
 
@@ -58,6 +59,9 @@ interface XRSessionConfig {
  *   the one WebXRNearInteraction loads by default, saved as JSON.
  */
 const OFFLINE_XR_OPTIONS = {
+    // The element draws its own XR controls (opt-in, `xr.ui.enabled`); Babylon's enter/exit
+    // button would otherwise stay on the canvas after the first session request.
+    disableDefaultUI: true,
     inputOptions: { disableOnlineControllerRepository: true, doNotLoadControllerMeshes: true },
     handSupportOptions: {
         jointMeshes: { enablePhysics: false },
@@ -319,8 +323,10 @@ export class XRSessionManager {
         const optionalFeatures = candidates.slice(1).filter((type) => type !== "local");
         await baseExperience.enterXRAsync(mode, requested, undefined, { optionalFeatures });
         logger.debug("Reference space", { requested, granted: this.referenceSpaceType });
+        const stopLaserOnRows = laserOnRows(this.scene, helper);
 
         sessionManager.onXRSessionEnded.addOnce(() => {
+            stopLaserOnRows();
             const cause: XRSessionEndCause = this.exiting ? "exit" : "device";
             this.activeMode = null;
             this.referenceSpaceType = null;
@@ -342,13 +348,18 @@ export class XRSessionManager {
      * @returns Promise that resolves when session is exited
      */
     public async exitXR(): Promise<void> {
-        if (!this.activeMode || !this.xrHelper) {
+        if (!this.xrHelper) {
             return; // No active session to exit
         }
 
         this.exiting = true;
         try {
-            await this.xrHelper.baseExperience.exitXRAsync();
+            // A session the headset already ended has nothing left to exit, only to release.
+            if (this.activeMode !== null) {
+                this.activeMode = null;
+                await this.xrHelper.baseExperience.exitXRAsync();
+            }
+
             this.xrHelper.dispose();
             this.xrHelper = null;
             this.activeMode = null;

@@ -1,6 +1,6 @@
 import { Menu, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 
 import { SecondaryToolbar, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";

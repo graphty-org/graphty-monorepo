@@ -134,6 +134,9 @@ test("camera animation can be interrupted", async () => {
 
 test("an interrupted animation stops moving the camera", async () => {
     graph = await createTestGraph();
+    // Drawn every frame, not on demand: the test watches frames past the end of both animations,
+    // when a graph drawing on demand would rightly stop drawing.
+    await graph.setRenderSettings({ onDemand: false }, { skipQueue: true });
 
     // On the scene's animation clock, so frame counts stand for animation milliseconds.
     await animationFramesOf(graph, async () => {

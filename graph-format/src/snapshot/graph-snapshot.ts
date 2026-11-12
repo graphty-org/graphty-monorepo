@@ -297,6 +297,37 @@ function recordColumns(records: ChecksumRecords, table: AttributeTable): void {
 // ============================================================ the class
 
 /**
+ * The E_INVALID_SNAPSHOT error for an array modified after freeze.
+ * @param what - what was modified, for the message
+ * @param details - the error details besides the reason
+ * @returns the error
+ */
+function checksumMismatch(what: string, details: Readonly<Record<string, unknown>>): GraphFormatError {
+    return new GraphFormatError("E_INVALID_SNAPSHOT", `checksum mismatch: ${what} was modified after freeze`, {
+        reason: "checksum",
+        ...details,
+    });
+}
+
+/**
+ * Throw E_INVALID_SNAPSHOT when a column of a table no longer matches its recorded digest.
+ * @param records - the recorded digests
+ * @param tableName - the table's name, for the error
+ * @param table - the table
+ */
+function verifyTableChecksums(records: ChecksumRecords, tableName: string, table: AttributeTable): void {
+    for (const column of table) {
+        const recorded = records.columns.get(column);
+        if (recorded !== undefined && hashColumn(column) !== recorded) {
+            throw checksumMismatch(`column "${column.meta.name}" of ${tableName}`, {
+                table: tableName,
+                column: column.meta.name,
+            });
+        }
+    }
+}
+
+/**
  * The frozen graph (design section 3): a CSR core over 4-byte typed arrays, the id map, the
  * attribute tables, the flags and a per-instance view cache. Topology, counts, flags, id map and
  * immutable columns never change after construction (invariant I17); the column SET of `nodes` /
@@ -976,20 +1007,10 @@ export class GraphSnapshot implements GraphSnapshotContract {
             bytes += this.arcToEdge.byteLength + this.edgeToArc.byteLength;
         }
         if (options.views === true) {
-            const { views } = this.state;
-            for (const name of VIEW_NAMES) {
-                const value = views[name];
-                if (value !== null && !(name === "reverseDegreeOrder" && value === views.degreeOrder)) {
-                    bytes += viewByteLength(this, name, value);
-                }
-            }
+            bytes += cachedViewsByteLength(this, this.state.views);
         }
         if (options.columns === true) {
-            for (const table of [this.nodes, this.edges, this.graph, ...this.extensions.values()]) {
-                for (const column of table) {
-                    bytes += column.byteLength;
-                }
-            }
+            bytes += columnsByteLength(this);
         }
         if (options.ids === true) {
             bytes += this.ids.byteLength();
@@ -1064,10 +1085,12 @@ export class GraphSnapshot implements GraphSnapshotContract {
     validate(options: ValidateOptions = {}): void {
         this.assertAttached();
         const level = assertOneOf("level", options.level, ["structure", "full"] as const) ?? "full";
-        if (typeof options.checksum !== "boolean" && options.checksum !== undefined) {
+        // unknown, not the option type: a JavaScript caller may pass any value
+        const checksumOption: unknown = options.checksum;
+        if (typeof checksumOption !== "boolean" && checksumOption !== undefined) {
             throw new GraphFormatError("E_UNSUPPORTED", "validate option checksum must be a boolean", {
                 field: "checksum",
-                found: options.checksum,
+                found: checksumOption,
                 reason: "unsupported option",
             });
         }
@@ -1167,11 +1190,6 @@ export class GraphSnapshot implements GraphSnapshotContract {
                 reason: "no-checksum",
             });
         }
-        const mismatch = (what: string, details: Readonly<Record<string, unknown>>): GraphFormatError =>
-            new GraphFormatError("E_INVALID_SNAPSHOT", `checksum mismatch: ${what} was modified after freeze`, {
-                reason: "checksum",
-                ...details,
-            });
         const { state } = this;
         const core: readonly [CoreArrayName, ArrayBufferView | null][] = [
             ["rowPtr", this.rowPtr],
@@ -1183,7 +1201,7 @@ export class GraphSnapshot implements GraphSnapshotContract {
         for (const [name, array] of core) {
             const recorded = records.core.get(name);
             if (recorded !== undefined && array !== null && hashTypedArray(array) !== recorded) {
-                throw mismatch(`core array ${name}`, { array: name });
+                throw checksumMismatch(`core array ${name}`, { array: name });
             }
         }
         const tables: readonly [string, AttributeTable][] = [
@@ -1193,25 +1211,25 @@ export class GraphSnapshot implements GraphSnapshotContract {
             ...[...this.extensions].map(([name, table]): [string, AttributeTable] => [`extensions[${name}]`, table]),
         ];
         for (const [tableName, table] of tables) {
-            for (const column of table) {
-                const recorded = records.columns.get(column);
-                if (recorded !== undefined && hashColumn(column) !== recorded) {
-                    throw mismatch(`column "${column.meta.name}" of ${tableName}`, {
-                        table: tableName,
-                        column: column.meta.name,
-                    });
-                }
-            }
+            verifyTableChecksums(records, tableName, table);
         }
+        this.verifyViewChecksums(records);
+    }
+
+    /**
+     * Throw E_INVALID_SNAPSHOT when a materialised view no longer matches its recorded digest.
+     * @param records - the recorded digests
+     */
+    private verifyViewChecksums(records: ChecksumRecords): void {
         for (const name of VIEW_NAMES) {
-            const value = state.views[name];
+            const value = this.state.views[name];
             if (value === null) {
                 continue;
             }
             for (const [member, array] of Object.entries(viewArrays(this, name, value))) {
                 const recorded = records.views.get(`${name}.${member}`);
                 if (recorded !== undefined && hashTypedArray(array) !== recorded) {
-                    throw mismatch(`view ${name}.${member}`, { view: name, member });
+                    throw checksumMismatch(`view ${name}.${member}`, { view: name, member });
                 }
             }
         }
@@ -1439,6 +1457,39 @@ export function equalsTopology(a: GraphSnapshot, b: GraphSnapshot): boolean {
         }
     }
     return true;
+}
+
+/**
+ * Resident bytes of the materialised views (reverseDegreeOrder counts zero when it shares
+ * degreeOrder's array).
+ * @param snapshot - the snapshot
+ * @param views - its view cache
+ * @returns the byte count
+ */
+function cachedViewsByteLength(snapshot: GraphSnapshot, views: ViewCache): number {
+    let bytes = 0;
+    for (const name of VIEW_NAMES) {
+        const value = views[name];
+        if (value !== null && !(name === "reverseDegreeOrder" && value === views.degreeOrder)) {
+            bytes += viewByteLength(snapshot, name, value);
+        }
+    }
+    return bytes;
+}
+
+/**
+ * Resident bytes of every attribute column: node, edge, graph and extension tables.
+ * @param snapshot - the snapshot
+ * @returns the byte count
+ */
+function columnsByteLength(snapshot: GraphSnapshot): number {
+    let bytes = 0;
+    for (const table of [snapshot.nodes, snapshot.edges, snapshot.graph, ...snapshot.extensions.values()]) {
+        for (const column of table) {
+            bytes += column.byteLength;
+        }
+    }
+    return bytes;
 }
 
 /**

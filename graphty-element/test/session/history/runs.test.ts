@@ -11,6 +11,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { isGraphtyError } from "../../../src/errors";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import type { RunChange } from "../../../src/session/runs";
 import type { GraphSession } from "../../../src/session/types";
@@ -120,6 +121,26 @@ describe("a run is one step", () => {
         session.dispose();
     });
 
+    it("says which run start() would hand back without computing, through an undo and a redo", async () => {
+        const { session, calls } = await gated();
+
+        assert.isUndefined(session.runs.answered("degree", {}, { as: "deg" }), "nothing answers it yet");
+        const run = session.runs.start("degree", {}, { as: "deg" });
+        assert.isUndefined(session.runs.answered("degree", {}, { as: "deg" }), "not while it computes");
+        await run;
+        assert.strictEqual(session.runs.answered("degree", {}, { as: "deg" }), run);
+
+        await session.undo();
+        assert.isUndefined(session.runs.answered("degree", {}, { as: "deg" }), "an undone run answers nothing");
+
+        await session.redo();
+        const computed = calls();
+        assert.strictEqual(session.runs.answered("degree", {}, { as: "deg" }), run, "a redone one answers again");
+        assert.strictEqual(session.runs.start("degree", {}, { as: "deg" }), run);
+        assert.strictEqual(calls(), computed, "and start() hands it back without computing");
+        session.dispose();
+    });
+
     it("restores the previous result when a re-run is undone, without computing", async () => {
         const { session, calls } = await gated();
         const run = session.runs.start("degree", {}, { as: "deg" });
@@ -137,6 +158,29 @@ describe("a run is one step", () => {
         assert.strictEqual(run.status, "succeeded");
         assert.strictEqual(calls(), computed);
         assert.lengthOf(layersOf(session, "deg"), 1, "the re-run painted nothing new, so one layer stays");
+        session.dispose();
+    });
+
+    it("reports the restored execution's parameters when a re-run with other parameters is undone", async () => {
+        const { session, calls } = await gated();
+        const run = session.runs.start("shortest-path", { source: "n1", target: "n2" }, { as: "route" });
+        await run;
+        await session.runs.start("shortest-path", { source: "n2", target: "n3" }, { as: "route" });
+        assert.strictEqual(run.params.source, "n2");
+
+        await session.undo();
+
+        assert.strictEqual(run.params.source, "n1", "the parameters of the result on screen");
+        assert.strictEqual(run.params.target, "n2");
+
+        // A re-run of the restored run computes with what it reports, not with the undone parameters.
+        const computed = calls();
+        run.rerun();
+        await run;
+        assert.strictEqual(calls(), computed + 1);
+        assert.strictEqual(run.params.source, "n1");
+        const entry = entryOf(session, "route") as { command: { params?: Record<string, unknown> } };
+        assert.strictEqual(entry.command.params?.source, "n1", "the re-run records the command it ran");
         session.dispose();
     });
 
@@ -206,6 +250,84 @@ describe("a run is one step", () => {
         await session.undo();
         assert.isDefined(session.runs.get("deg"));
         assert.lengthOf(layersOf(session, "deg"), 1);
+        session.dispose();
+    });
+});
+
+describe("moving a run's layers", () => {
+    /**
+     * Run A with two layers, then run B, whose layer sits on top.
+     * @returns The session and the stack, bottom first.
+     */
+    async function twoRuns(): Promise<{ session: GraphSession; before: string[] }> {
+        const { session } = await gated();
+        await session.runs.start("degree", {}, { as: "a" });
+        await session.styles.encode({ run: "a", field: "value", channel: "node.size" });
+        await session.runs.start("pagerank", {}, { as: "b" });
+        await session.styles.settled();
+
+        return { session, before: session.styles.list().map((layer) => layer.id) };
+    }
+
+    it("moves the block to the top in its own order, as one step, and one undo puts it back", async () => {
+        const { session, before } = await twoRuns();
+        const a = layersOf(session, "a");
+        const b = layersOf(session, "b");
+        assert.lengthOf(a, 2);
+        assert.isAbove(before.indexOf(b[0] ?? ""), before.indexOf(a[1] ?? ""), "B starts above A");
+        const steps = session.history.steps.length;
+
+        await session.runs.move("a", null);
+
+        const after = session.styles.list().map((layer) => layer.id);
+        assert.deepEqual(after.slice(-2), a, "both A layers on top, in their order");
+        assert.isBelow(after.indexOf(b[0] ?? ""), after.indexOf(a[0] ?? ""));
+        assert.lengthOf(session.history.steps, steps + 1);
+
+        await session.undo();
+        assert.deepEqual(
+            session.styles.list().map((layer) => layer.id),
+            before,
+        );
+        session.dispose();
+    });
+
+    it("moves the block to sit immediately below another layer", async () => {
+        const { session } = await twoRuns();
+        const b = layersOf(session, "b");
+        await session.runs.move("b", layersOf(session, "a")[0] ?? "");
+
+        const after = session.styles.list().map((layer) => layer.id);
+        assert.strictEqual(after.indexOf(b[0] ?? "") + 1, after.indexOf(layersOf(session, "a")[0] ?? ""));
+        session.dispose();
+    });
+
+    it("refuses an unknown run, an unknown layer and an element-owned layer, recording nothing", async () => {
+        const { session, before } = await twoRuns();
+        const steps = session.history.steps.length;
+        const locked = session.styles.list().find((layer) => layer.locked);
+        assert.isDefined(locked, "the stack has an element-owned layer");
+
+        const codes = await Promise.all(
+            [
+                session.runs.move("no-such-run", null),
+                session.runs.move("a", "no-such-layer"),
+                session.runs.move("a", locked?.id ?? ""),
+                session.runs.move("a", layersOf(session, "a")[1] ?? ""),
+            ].map((move) =>
+                move.then(
+                    () => "resolved",
+                    (error: unknown) => (isGraphtyError(error) ? error.code : "other"),
+                ),
+            ),
+        );
+
+        assert.deepEqual(codes, ["E_UNKNOWN_RUN", "E_UNKNOWN_LAYER", "E_PROTECTED", "E_BAD_COMMAND"]);
+        assert.lengthOf(session.history.steps, steps);
+        assert.deepEqual(
+            session.styles.list().map((layer) => layer.id),
+            before,
+        );
         session.dispose();
     });
 });
@@ -316,6 +438,92 @@ describe("undo while a run is still going", () => {
         assert.deepEqual(layersOf(session, "bet"), [], "no layer");
         assert.lengthOf(session.history.steps, 0);
         assert.isFalse(session.canUndo, "and nothing left pending");
+        session.dispose();
+    });
+});
+
+describe("history.clear while a run is pending", () => {
+    it('keeps the run with { pending: "keep" }: it resolves with its result and records one step', async () => {
+        const { session, open, calls } = await gated();
+        await session.styles.add({
+            name: "Before",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.size": 2 },
+        });
+        assert.lengthOf(session.history.steps, 1);
+        const run = session.runs.start("betweenness", {}, { as: "bet" });
+        await idle(session);
+        assert.strictEqual(calls(), 1, "the run's work has started");
+        assert.lengthOf(session.history.pending, 1);
+
+        session.history.clear({ pending: "keep" });
+        assert.lengthOf(session.history.steps, 0, "the steps are gone");
+        assert.lengthOf(session.history.pending, 1, "the run is still pending");
+
+        open();
+        const result = await run;
+        assert.isDefined(result);
+        assert.strictEqual(session.runs.get("bet")?.status, "succeeded");
+        assert.lengthOf(session.history.steps, 1, "the run records its step over the new baseline");
+        assert.isDefined(entryOf(session, "bet"));
+        session.dispose();
+    });
+
+    it('aborts, even with { pending: "keep" }, a transaction that already changed something', async () => {
+        const { session } = await gated();
+        let opened: () => void = () => undefined;
+        const gate = new Promise<void>((resolve) => {
+            opened = resolve;
+        });
+        let wrote: () => void = () => undefined;
+        const written = new Promise<void>((resolve) => {
+            wrote = resolve;
+        });
+        const tx = session.transaction("Half done", async (t) => {
+            await t.styles.add({
+                name: "Mid",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.size": 3 },
+            });
+            wrote();
+            await gate;
+        });
+        const outcome = tx.then(
+            () => "recorded",
+            () => "aborted",
+        );
+        await written;
+        assert.lengthOf(session.history.pending, 1);
+
+        // Its step would hold the style written before the baseline: undoing it would take the
+        // reader to a state older than the baseline, so it is aborted, as without "keep".
+        session.history.clear({ pending: "keep" });
+        opened();
+        assert.strictEqual(await outcome, "aborted");
+        assert.isFalse(
+            session.styles.list().some((layer) => layer.name === "Mid"),
+            "the transaction's write is rolled back",
+        );
+        assert.lengthOf(session.history.steps, 0, "nothing records a step");
+        session.dispose();
+    });
+
+    it("cancels the run by default", async () => {
+        const { session, open } = await gated();
+        const run = session.runs.start("betweenness", {}, { as: "bet" });
+        await idle(session);
+
+        session.history.clear();
+        open();
+        const error = await run.then(
+            () => undefined,
+            (reason: unknown) => reason,
+        );
+        assert.isDefined(error, "the run was cancelled");
+        assert.lengthOf(session.history.steps, 0);
+        assert.isUndefined(entryOf(session, "bet"));
         session.dispose();
     });
 });

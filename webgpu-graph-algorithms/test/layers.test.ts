@@ -158,7 +158,7 @@ function layerOf(file: string): Layer {
     if (path === "index.ts") {
         return "barrel";
     }
-    const dirs: Readonly<Record<string, Layer>> = {
+    const dirs: Readonly<Partial<Record<string, Layer>>> = {
         types: "types",
         device: "device",
         memory: "memory",
@@ -225,7 +225,7 @@ function factsOf(file: string): FileFacts {
             }
             record(node.moduleSpecifier.text, typeOnly, false);
         } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-            const [argument] = node.arguments;
+            const argument = node.arguments.length > 0 ? node.arguments[0] : undefined;
             if (argument !== undefined && ts.isStringLiteral(argument)) {
                 record(argument.text, false, true);
             }
@@ -427,7 +427,7 @@ describe("eslint zones (contract 2.4: flat config replaces rule options, so both
             expect(p.allowTypeImports, p.name).not.toBe(true);
         }
         expect(options.patterns?.length).toBe(1);
-        const [pattern] = options.patterns ?? [];
+        const pattern = options.patterns?.[0];
         expect(pattern?.allowTypeImports).toBe(true);
         expect(pattern?.group).toContain("../context.js");
         expect(pattern?.group).toContain("../device/*");

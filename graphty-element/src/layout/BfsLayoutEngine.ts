@@ -1,6 +1,6 @@
 import type { F32 } from "@graphty/graph-format";
 import { bfs } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { SimpleLayoutConfig } from "./LayoutEngine";
@@ -15,6 +15,7 @@ const bfsLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     start: {
@@ -56,9 +57,9 @@ type BfsLayoutOpts = Partial<BfsLayoutConfigType>;
  * BFS (Breadth-First Search) layout engine for tree-like graph visualization
  */
 export class BfsLayout extends SnapshotLayoutEngine {
-    static type = "bfs";
-    static maxDimensions = 2;
-    static zodOptionsSchema: OptionsSchema = bfsLayoutOptionsSchema;
+    static readonly type: string = "bfs";
+    static readonly maxDimensions: number = 2;
+    static readonly zodOptionsSchema: OptionsSchema = bfsLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: BfsLayoutConfigType;
 

@@ -64,7 +64,8 @@ export interface RegisterOptions {
  * party registers through the six functions in `./extend` and never builds a registry.
  * @internal
  */
-export type PluginKind = "algorithm" | "camera" | "format" | "layout" | "palette" | "sink" | "writer";
+export type PluginKind =
+    "algorithm" | "camera" | "format" | "layout" | "palette" | "shader" | "sink" | "transition" | "writer";
 
 /**
  * A set of registered extensions of one kind.

@@ -331,12 +331,9 @@ export const MinCut: Story = {
         const findButton = canvas.getByRole("button", { name: /find min cut/i });
         await userEvent.click(findButton);
 
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("Minimum cut found");
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("Minimum cut found");
+        });
     },
 };

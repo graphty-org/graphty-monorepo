@@ -28,7 +28,7 @@ import type { LayerSpec } from "../../src/catalog/types";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { Node } from "../../src/Node";
 import { assertPlaced } from "../helpers/placed-position";
-import { nextFrame } from "../helpers/real-input";
+import { hover, nextFrame } from "../helpers/real-input";
 
 /** Two nodes far enough apart that a pointer over one is nowhere near the other. */
 const NODES = [{ id: "alpha" }, { id: "omega" }];
@@ -36,11 +36,11 @@ const NODES = [{ id: "alpha" }, { id: "omega" }];
 /** The one edge between them. */
 const EDGES = [{ src: "alpha", dst: "omega" }];
 
-/** How wide the canvas the graph is drawn on is. */
-const WIDTH = 640;
+/** How wide the canvas the graph is drawn on is: inside the test frame's 414-pixel-wide viewport, where the real pointer reaches. */
+const WIDTH = 400;
 
 /** How tall it is. */
-const HEIGHT = 480;
+const HEIGHT = 300;
 
 /** How many frames to render before reading anything back. */
 const FRAMES = 20;
@@ -113,24 +113,7 @@ describe("a tooltip a layer asks for", () => {
      * @param at - where to move it, in canvas pixels
      */
     async function pointerTo(at: { x: number; y: number }): Promise<void> {
-        const { canvas } = graph;
-        const box = canvas.getBoundingClientRect();
-
-        canvas.dispatchEvent(
-            new PointerEvent("pointermove", {
-                clientX: box.left + at.x,
-                clientY: box.top + at.y,
-                bubbles: true,
-                pointerId: 1,
-                pointerType: "mouse",
-                // A real pointermove carries no button. A PointerEvent built by hand defaults to
-                // 0, which is the LEFT button, and Babylon's input manager reads that as a press
-                // -- so a hand-built move starts a drag, and a node that is being dragged stops
-                // reporting hover. Without this the second move in a test never reaches the
-                // hover handler at all.
-                button: -1,
-            }),
-        );
+        await hover(graph.canvas, at);
 
         await settle();
     }
@@ -175,6 +158,49 @@ describe("a tooltip a layer asks for", () => {
 
         assert.isNotNull(tooltipMesh(node), "hovering the node drew its tooltip");
         assert.isFalse(node.tooltip?.labelMesh?.isDisposed(), "and the mesh is live");
+    });
+
+    it("stays drawn when a hover layer restyles the node under the pointer", async () => {
+        await graph.getSession().styles.add(TOOLTIP_LAYER);
+        // Pointing at the node changes its look, which builds the node a new mesh: the tooltip,
+        // parented to the old one, must move to the new one rather than go with it.
+        await graph.getSession().styles.add({
+            name: "draw the pointed-at node as a box",
+            target: "node",
+            selector: { match: "hover" },
+            set: { "node.shape": "box" },
+        });
+        await settle();
+
+        const node = alpha();
+        await pointerTo(screenPosition(node));
+
+        assert.isNotNull(tooltipMesh(node), "hovering the node drew its tooltip");
+        assert.isFalse(node.tooltip?.labelMesh?.isDisposed(), "and the mesh is live after the restyle");
+        assert.strictEqual(node.tooltip?.labelMesh?.parent, node.mesh, "on the node's current mesh");
+    });
+
+    it("goes away, and the hover ends, when the pointer moves off a node a hover layer restyled", async () => {
+        await graph.getSession().styles.add(TOOLTIP_LAYER);
+        // The restyle rebuilds the node's mesh, and its pointer handler with it, while the pointer
+        // is over the node: the new handler has to know the node is hovered, or moving off it
+        // onto empty canvas ends nothing and the hover look stays on.
+        await graph.getSession().styles.add({
+            name: "draw the pointed-at node as a box",
+            target: "node",
+            selector: { match: "hover" },
+            set: { "node.shape": "box" },
+        });
+        await settle();
+
+        const node = alpha();
+        await pointerTo(screenPosition(node));
+        assert.strictEqual(graph.getSession().selection.hovered, "alpha", "the node is hovered");
+
+        await pointerTo({ x: 2, y: 2 });
+
+        assert.isNull(graph.getSession().selection.hovered ?? null, "the hover ended on empty canvas");
+        assert.isNull(tooltipMesh(alpha()), "and the tooltip went with it");
     });
 
     it("says what the layer wrote", async () => {

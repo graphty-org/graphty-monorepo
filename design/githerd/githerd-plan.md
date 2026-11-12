@@ -1,5 +1,8 @@
 # githerd implementation plan
 
+> SUPERSEDED 2026-10-18 by design/ci/golden-local.md. Kept for history; do not follow it.
+> githerd is retired: its daemon is not run and its MCP tools are gone, so none of this describes live behavior.
+
 This plan builds `githerd-design.md` (section numbers below refer to it). It has two parts:
 
 1. **Spikes**: every platform or GitHub behavior the design leans on that has not been verified on

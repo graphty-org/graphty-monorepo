@@ -69,6 +69,38 @@ function namedMembers(definition: PathDefinition): {
 }
 
 /**
+ * The steps that name no edge and whose two ends the graph holds, grouped by their end pair.
+ * @param definition - A canonical path definition.
+ * @param index - Each walk node's index in the snapshot, or `INVALID_INDEX`.
+ * @param pairKey - The key of an end pair.
+ * @returns Each pair's steps, in step order.
+ */
+function openStepsByPair(
+    definition: PathDefinition,
+    index: readonly number[],
+    pairKey: (s: number, t: number) => number,
+): Map<number, number[]> {
+    const steps = Math.max(0, definition.nodes.length - 1);
+    const open = new Map<number, number[]>();
+    for (let step = 0; step < steps; step++) {
+        const named = definition.edges?.[step] ?? null;
+        if (named !== null || index[step] === INVALID_INDEX || index[step + 1] === INVALID_INDEX) {
+            continue;
+        }
+
+        const key = pairKey(index[step], index[step + 1]);
+        const list = open.get(key);
+        if (list === undefined) {
+            open.set(key, [step]);
+        } else {
+            list.push(step);
+        }
+    }
+
+    return open;
+}
+
+/**
  * What a path covers in the context snapshot.
  * @param definition - A canonical path definition.
  * @param context - What the resolution reads.
@@ -116,21 +148,7 @@ export function resolvePath(definition: PathDefinition, context: ResolveContext,
     // Null steps (and every step of a path that names no edges): every edge between the pair,
     // found in one edge pass keyed by the pair.
     const pairKey = (s: number, t: number): number => (directed || s <= t ? s * n + t : t * n + s);
-    const open = new Map<number, number[]>();
-    for (let step = 0; step < steps; step++) {
-        const named = definition.edges?.[step] ?? null;
-        if (named !== null || index[step] === INVALID_INDEX || index[step + 1] === INVALID_INDEX) {
-            continue;
-        }
-
-        const key = pairKey(index[step], index[step + 1]);
-        const list = open.get(key);
-        if (list === undefined) {
-            open.set(key, [step]);
-        } else {
-            list.push(step);
-        }
-    }
+    const open = openStepsByPair(definition, index, pairKey);
 
     if (open.size > 0) {
         const { src, dst } = snapshot.edgeList();
@@ -171,6 +189,29 @@ function nodeKey(id: NodeId): string {
 }
 
 /**
+ * One step's logical edge as a key: the group of edges it names, or its end pair for a `null`
+ * step (unordered unless `directed`).
+ * @param definition - A canonical path definition.
+ * @param nodes - The walk's node keys.
+ * @param step - The step.
+ * @param directed - Whether the path is directed.
+ * @returns The key.
+ */
+function logicalStepKey(definition: PathDefinition, nodes: readonly string[], step: number, directed: boolean): string {
+    const named = definition.edges?.[step] ?? null;
+    if (named === null) {
+        const [a, b] =
+            directed || nodes[step] <= nodes[step + 1]
+                ? [nodes[step], nodes[step + 1]]
+                : [nodes[step + 1], nodes[step]];
+        return `p${JSON.stringify([a, b])}`;
+    }
+
+    const members = Array.isArray(named) ? (named as readonly EdgeMember[]) : [named as EdgeMember];
+    return `e${JSON.stringify(members.map(edgeMemberKey).sort((a, b) => (a < b ? -1 : Number(a > b))))}`;
+}
+
+/**
  * What kind of walk a path is (design 4.4). Each step is one logical edge, keyed on the group of
  * edges it names, or on its end pair for a `null` step (unordered unless `directed`). `trail`: no
  * logical edge repeats; `simple`: no node repeats; `cycle`: a closed trail of at least one step
@@ -186,19 +227,7 @@ export function pathKind(definition: PathDefinition): PathKind {
     const logical = new Set<string>();
     let trail = true;
     for (let step = 0; step < steps; step++) {
-        const named = definition.edges?.[step] ?? null;
-        let key: string;
-        if (named === null) {
-            const [a, b] =
-                directed || nodes[step] <= nodes[step + 1]
-                    ? [nodes[step], nodes[step + 1]]
-                    : [nodes[step + 1], nodes[step]];
-            key = `p${JSON.stringify([a, b])}`;
-        } else {
-            const members = Array.isArray(named) ? (named as readonly EdgeMember[]) : [named as EdgeMember];
-            key = `e${JSON.stringify(members.map(edgeMemberKey).sort())}`;
-        }
-
+        const key = logicalStepKey(definition, nodes, step, directed);
         if (logical.has(key)) {
             trail = false;
         }

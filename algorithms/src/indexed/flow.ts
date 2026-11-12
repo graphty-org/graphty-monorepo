@@ -174,6 +174,40 @@ interface Residual {
 }
 
 /**
+ * Group the arcs of row `u` of the doubled graph by neighbour (a run of arcs to the same node is
+ * one group, keyed by its first arc), and add each real arc's capacity to its group.
+ * @param r - The doubled graph: the edges, then the same edges reversed
+ * @param u - The row
+ * @param directed - Whether the original snapshot is directed (a reverse arc is then not real)
+ * @param capacity - Per-edge capacities
+ * @param groupOf - Receives the group of every arc of the row
+ * @param real - Receives 1 for a group with a real arc
+ * @param residual - Receives each group's capacity
+ */
+function groupRow(
+    r: GraphSnapshot,
+    u: number,
+    directed: boolean,
+    capacity: Float64Array,
+    groupOf: U32,
+    real: Uint8Array,
+    residual: Float64Array,
+): void {
+    const { rowPtr, colIdx, arcToEdge } = r;
+    // r holds each original edge twice: edge e as e, its reverse as e + E.
+    const E = r.edgeCount / 2;
+    for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
+        const g = a > rowPtr[u] && colIdx[a] === colIdx[a - 1] ? groupOf[a - 1] : a;
+        groupOf[a] = g;
+        const re = arcToEdge[a];
+        if (re < E || !directed) {
+            real[g] = 1;
+            residual[g] += Math.max(capacity[re < E ? re : re - E], 0);
+        }
+    }
+}
+
+/**
  * Build the pair-keyed residual graph of `s`. The visiting order starts as the legacy
  * `graphToMap` row order -- each neighbour at the first edge that joins it -- and a group with no
  * real arc is appended to its row when flow first reaches it, where the legacy residual Map
@@ -199,15 +233,7 @@ function buildResidual(s: GraphSnapshot, capacity: Float64Array): Residual {
     const groupOf = new Uint32Array(A);
     const real = new Uint8Array(A);
     for (let u = 0; u < n; u++) {
-        for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
-            const g = a > rowPtr[u] && colIdx[a] === colIdx[a - 1] ? groupOf[a - 1] : a;
-            groupOf[a] = g;
-            const re = arcToEdge[a];
-            if (re < E || !s.directed) {
-                real[g] = 1;
-                residual[g] += Math.max(capacity[re < E ? re : re - E], 0);
-            }
-        }
+        groupRow(r, u, s.directed, capacity, groupOf, real, residual);
     }
     const twin = new Uint32Array(A);
     for (let a = 0; a < A; a++) {
@@ -271,36 +297,15 @@ export function maxFlow(
     }
     const capacity = edgeCapacities(s, options.weights);
     const r = buildResidual(s, capacity);
-    const { colIdx, twin } = r;
     // Flow pushed per real group, accumulated as the legacy flow Map accumulates it: a push along
     // a pair with a real arc adds to that pair, a push along a reverse-only pair subtracts from
     // the opposite one.
-    const pushed = new Float64Array(colIdx.length);
+    const pushed = new Float64Array(r.colIdx.length);
     const predGroup = new Uint32Array(n);
     const findPath = options.algorithm === "ford-fulkerson" ? depthFirstPath : breadthFirstPath;
     let total = 0;
     while (findPath(r, source, sink, predGroup)) {
-        let bottleneck = Infinity;
-        for (let v = sink; v !== source; v = colIdx[twin[predGroup[v]]]) {
-            bottleneck = Math.min(bottleneck, r.capacity[predGroup[v]]);
-        }
-        for (let v = sink; v !== source;) {
-            const g = predGroup[v];
-            const t = twin[g];
-            r.capacity[g] -= bottleneck;
-            r.capacity[t] += bottleneck;
-            if (r.inOrder[t] === 0) {
-                r.inOrder[t] = 1;
-                r.order[r.rowPtr[v] + r.placed[v]++] = t;
-            }
-            if (r.real[g] === 1) {
-                pushed[g] += bottleneck;
-            } else {
-                pushed[t] -= bottleneck;
-            }
-            v = colIdx[t];
-        }
-        total += bottleneck;
+        total += augmentPath(r, source, sink, predGroup, pushed);
     }
     const sourceSide = reachable(r, source);
     return {
@@ -310,6 +315,42 @@ export function maxFlow(
         sourceSide,
         cutEdges: crossingEdges(s, sourceSide, s.directed, capacity, true),
     };
+}
+
+/**
+ * Push the bottleneck of the path `findPath` left in `predGroup` along it: lower each arc's
+ * residual capacity, raise its twin's (placing the twin in its row's search order the first time
+ * it gains capacity), and add the push to the real group of each pair.
+ * @param r - The residual graph
+ * @param source - The source node
+ * @param sink - The sink node
+ * @param predGroup - The path, as the group each node was reached through
+ * @param pushed - Flow pushed per real group, updated in place
+ * @returns The bottleneck pushed
+ */
+function augmentPath(r: Residual, source: number, sink: number, predGroup: Uint32Array, pushed: Float64Array): number {
+    const { colIdx, twin } = r;
+    let bottleneck = Infinity;
+    for (let v = sink; v !== source; v = colIdx[twin[predGroup[v]]]) {
+        bottleneck = Math.min(bottleneck, r.capacity[predGroup[v]]);
+    }
+    for (let v = sink; v !== source;) {
+        const g = predGroup[v];
+        const t = twin[g];
+        r.capacity[g] -= bottleneck;
+        r.capacity[t] += bottleneck;
+        if (r.inOrder[t] === 0) {
+            r.inOrder[t] = 1;
+            r.order[r.rowPtr[v] + r.placed[v]++] = t;
+        }
+        if (r.real[g] === 1) {
+            pushed[g] += bottleneck;
+        } else {
+            pushed[t] -= bottleneck;
+        }
+        v = colIdx[t];
+    }
+    return bottleneck;
 }
 
 /**
@@ -325,7 +366,7 @@ export function maxFlow(
 function edgeFlows(s: GraphSnapshot, r: Residual, capacity: Float64Array, pushed: Float64Array): Float64Array {
     const E = s.edgeCount;
     const flow = new Float64Array(E);
-    const { rowPtr, colIdx, arcToEdge, groupOf } = r;
+    const { rowPtr, colIdx, groupOf } = r;
     for (let u = 0; u < s.nodeCount; u++) {
         for (let g = rowPtr[u]; g < rowPtr[u + 1]; g++) {
             const v = colIdx[g];
@@ -336,31 +377,52 @@ function edgeFlows(s: GraphSnapshot, r: Residual, capacity: Float64Array, pushed
             if (net === 0) {
                 continue;
             }
-            // Walk the arcs of the group the flow runs along: u to v, or v to u.
-            const along = net > 0 ? g : r.twin[g];
-            const end = rowPtr[colIdx[r.twin[along]] + 1];
-            let remaining = Math.abs(net);
-            let lastEdge = -1;
-            let lastSign = 1;
-            for (let a = along; a < end && groupOf[a] === along; a++) {
-                const re = arcToEdge[a];
-                if (re >= E && s.directed) {
-                    continue; // a reverse arc carries no edge
-                }
-                if (lastEdge >= 0) {
-                    const x = Math.min(remaining, Math.max(capacity[lastEdge], 0));
-                    flow[lastEdge] += lastSign * x;
-                    remaining -= x;
-                }
-                lastEdge = re < E ? re : re - E;
-                lastSign = re < E ? 1 : -1;
-            }
-            if (lastEdge >= 0) {
-                flow[lastEdge] += lastSign * remaining;
-            }
+            spreadGroupFlow(s, r, capacity, net > 0 ? g : r.twin[g], Math.abs(net), flow);
         }
     }
     return flow;
+}
+
+/**
+ * Walk the arcs of the group the flow runs along (u to v, or v to u) and fill its edges in arc
+ * order up to capacity, the last one taking the remainder.
+ * @param s - The snapshot
+ * @param r - The residual graph
+ * @param capacity - Per-edge capacities
+ * @param along - The group the flow runs along
+ * @param amount - The net flow of the pair
+ * @param flow - Net flow per logical edge, updated in place
+ */
+function spreadGroupFlow(
+    s: GraphSnapshot,
+    r: Residual,
+    capacity: Float64Array,
+    along: number,
+    amount: number,
+    flow: Float64Array,
+): void {
+    const E = s.edgeCount;
+    const { rowPtr, colIdx, arcToEdge, groupOf } = r;
+    const end = rowPtr[colIdx[r.twin[along]] + 1];
+    let remaining = amount;
+    let lastEdge = -1;
+    let lastSign = 1;
+    for (let a = along; a < end && groupOf[a] === along; a++) {
+        const re = arcToEdge[a];
+        if (re >= E && s.directed) {
+            continue; // a reverse arc carries no edge
+        }
+        if (lastEdge >= 0) {
+            const x = Math.min(remaining, Math.max(capacity[lastEdge], 0));
+            flow[lastEdge] += lastSign * x;
+            remaining -= x;
+        }
+        lastEdge = re < E ? re : re - E;
+        lastSign = re < E ? 1 : -1;
+    }
+    if (lastEdge >= 0) {
+        flow[lastEdge] += lastSign * remaining;
+    }
 }
 
 /**

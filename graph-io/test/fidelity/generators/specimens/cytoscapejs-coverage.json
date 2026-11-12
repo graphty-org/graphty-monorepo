@@ -1,0 +1,2235 @@
+{
+    "program": "Cytoscape.js 3.34.3",
+    "about": "Which specimen draws each property and enumerated value of cytoscapejs-vocabulary.json (at most a few named each), or why none can; written by cytoscapejs.mjs.",
+    "sheets": [
+        {
+            "id": "specimen-node-shapes",
+            "specimens": 42
+        },
+        {
+            "id": "specimen-node-fills-borders",
+            "specimens": 58
+        },
+        {
+            "id": "specimen-node-sizes-opacity",
+            "specimens": 41
+        },
+        {
+            "id": "specimen-labels",
+            "specimens": 47
+        },
+        {
+            "id": "specimen-labels-p2",
+            "specimens": 47
+        },
+        {
+            "id": "specimen-edges-lines",
+            "specimens": 44
+        },
+        {
+            "id": "specimen-edges-lines-p2",
+            "specimens": 43
+        },
+        {
+            "id": "specimen-arrows",
+            "specimens": 39
+        },
+        {
+            "id": "specimen-arrows-p2",
+            "specimens": 39
+        },
+        {
+            "id": "specimen-edge-labels",
+            "specimens": 47
+        },
+        {
+            "id": "specimen-groups",
+            "specimens": 42
+        },
+        {
+            "id": "specimen-images-charts",
+            "specimens": 51
+        },
+        {
+            "id": "specimen-mappings-bypass",
+            "specimens": 60
+        },
+        {
+            "id": "specimen-mappings-bypass-p2",
+            "specimens": 37
+        }
+    ],
+    "propertiesCovered": 262,
+    "propertiesNotDrawn": 18,
+    "valuesCovered": 271,
+    "uncovered": [],
+    "properties": {
+        "events": {
+            "notDrawn": "interaction only: whether the element answers mouse and touch events; draws nothing"
+        },
+        "text-events": {
+            "notDrawn": "interaction only: whether a label answers events; draws nothing"
+        },
+        "box-selection": {
+            "notDrawn": "interaction only: how a box selection picks elements; draws nothing"
+        },
+        "transition-property": {
+            "notDrawn": "animation only: which properties animate when a style changes; a still drawing has none"
+        },
+        "transition-duration": {
+            "notDrawn": "animation only"
+        },
+        "transition-delay": {
+            "notDrawn": "animation only"
+        },
+        "transition-timing-function": {
+            "notDrawn": "animation only: the easing of a style transition"
+        },
+        "display": {
+            "specimens": [
+                "specimen-node-sizes-opacity#display-element",
+                "specimen-node-sizes-opacity#display-none",
+                "specimen-edges-lines-p2#edge-display-none",
+                "specimen-edges-lines-p2#target-display-none"
+            ],
+            "values": {
+                "element": ["specimen-node-sizes-opacity#display-element"],
+                "none": [
+                    "specimen-node-sizes-opacity#display-none",
+                    "specimen-edges-lines-p2#edge-display-none",
+                    "specimen-edges-lines-p2#target-display-none"
+                ]
+            }
+        },
+        "visibility": {
+            "specimens": [
+                "specimen-node-sizes-opacity#visibility-hidden",
+                "specimen-node-sizes-opacity#visibility-visible",
+                "specimen-edges-lines-p2#edge-visibility-hidden",
+                "specimen-edges-lines-p2#target-visibility-hidden"
+            ],
+            "values": {
+                "hidden": [
+                    "specimen-node-sizes-opacity#visibility-hidden",
+                    "specimen-edges-lines-p2#edge-visibility-hidden",
+                    "specimen-edges-lines-p2#target-visibility-hidden"
+                ],
+                "visible": ["specimen-node-sizes-opacity#visibility-visible"]
+            }
+        },
+        "opacity": {
+            "specimens": [
+                "specimen-node-sizes-opacity#opacity-0-5",
+                "specimen-node-sizes-opacity#opacity-0-15",
+                "specimen-edges-lines#opacity-0-3",
+                "specimen-mappings-bypass#opacity-by-mapdata"
+            ]
+        },
+        "text-opacity": {
+            "specimens": ["specimen-labels-p2#text-opacity-0-4", "specimen-edge-labels#text-opacity-0-4"]
+        },
+        "min-zoomed-font-size": {
+            "specimens": ["specimen-labels-p2#min-zoomed-font-size-12"]
+        },
+        "z-compound-depth": {
+            "specimens": [
+                "specimen-groups#z-compound-depth-bottom",
+                "specimen-groups#z-compound-depth-orphan",
+                "specimen-groups#z-compound-depth-auto",
+                "specimen-groups#z-compound-depth-top"
+            ],
+            "values": {
+                "bottom": ["specimen-groups#z-compound-depth-bottom"],
+                "orphan": ["specimen-groups#z-compound-depth-orphan"],
+                "auto": ["specimen-groups#z-compound-depth-auto"],
+                "top": ["specimen-groups#z-compound-depth-top"]
+            }
+        },
+        "z-index-compare": {
+            "specimens": [
+                "specimen-node-sizes-opacity#z-index-compare-auto",
+                "specimen-node-sizes-opacity#z-index-compare-manual"
+            ],
+            "values": {
+                "auto": ["specimen-node-sizes-opacity#z-index-compare-auto"],
+                "manual": ["specimen-node-sizes-opacity#z-index-compare-manual"]
+            }
+        },
+        "z-index": {
+            "specimens": [
+                "specimen-node-sizes-opacity#z-index-10",
+                "specimen-node-sizes-opacity#z-index-compare-manual"
+            ]
+        },
+        "overlay-padding": {
+            "specimens": [
+                "specimen-node-sizes-opacity#overlay-opacity-0-5",
+                "specimen-node-sizes-opacity#overlay-color-red",
+                "specimen-node-sizes-opacity#overlay-padding-14",
+                "specimen-node-sizes-opacity#overlay-shape-roundrectangle",
+                "specimen-node-sizes-opacity#overlay-shape-round-rectangle",
+                "specimen-node-sizes-opacity#overlay-shape-ellipse"
+            ]
+        },
+        "overlay-color": {
+            "specimens": [
+                "specimen-node-sizes-opacity#overlay-opacity-0-5",
+                "specimen-node-sizes-opacity#overlay-color-red",
+                "specimen-node-sizes-opacity#overlay-padding-14",
+                "specimen-node-sizes-opacity#overlay-shape-roundrectangle",
+                "specimen-node-sizes-opacity#overlay-shape-round-rectangle",
+                "specimen-node-sizes-opacity#overlay-shape-ellipse"
+            ]
+        },
+        "overlay-opacity": {
+            "specimens": [
+                "specimen-node-sizes-opacity#overlay-opacity-0-5",
+                "specimen-node-sizes-opacity#overlay-color-red",
+                "specimen-node-sizes-opacity#overlay-padding-14",
+                "specimen-node-sizes-opacity#overlay-shape-roundrectangle",
+                "specimen-node-sizes-opacity#overlay-shape-round-rectangle",
+                "specimen-node-sizes-opacity#overlay-shape-ellipse"
+            ]
+        },
+        "overlay-shape": {
+            "specimens": [
+                "specimen-node-sizes-opacity#overlay-shape-roundrectangle",
+                "specimen-node-sizes-opacity#overlay-shape-round-rectangle",
+                "specimen-node-sizes-opacity#overlay-shape-ellipse",
+                "specimen-node-sizes-opacity#overlay-corner-radius-auto",
+                "specimen-node-sizes-opacity#overlay-corner-radius-2"
+            ],
+            "values": {
+                "roundrectangle": ["specimen-node-sizes-opacity#overlay-shape-roundrectangle"],
+                "round-rectangle": [
+                    "specimen-node-sizes-opacity#overlay-shape-round-rectangle",
+                    "specimen-node-sizes-opacity#overlay-corner-radius-auto",
+                    "specimen-node-sizes-opacity#overlay-corner-radius-2"
+                ],
+                "ellipse": ["specimen-node-sizes-opacity#overlay-shape-ellipse"]
+            }
+        },
+        "overlay-corner-radius": {
+            "specimens": [
+                "specimen-node-sizes-opacity#overlay-corner-radius-auto",
+                "specimen-node-sizes-opacity#overlay-corner-radius-2"
+            ],
+            "values": {
+                "auto": ["specimen-node-sizes-opacity#overlay-corner-radius-auto"]
+            }
+        },
+        "underlay-padding": {
+            "specimens": [
+                "specimen-node-sizes-opacity#underlay-opacity-0-5",
+                "specimen-node-sizes-opacity#underlay-color-red",
+                "specimen-node-sizes-opacity#underlay-padding-14",
+                "specimen-node-sizes-opacity#underlay-shape-roundrectangle",
+                "specimen-node-sizes-opacity#underlay-shape-round-rectangle",
+                "specimen-node-sizes-opacity#underlay-shape-ellipse"
+            ]
+        },
+        "underlay-color": {
+            "specimens": [
+                "specimen-node-sizes-opacity#underlay-opacity-0-5",
+                "specimen-node-sizes-opacity#underlay-color-red",
+                "specimen-node-sizes-opacity#underlay-padding-14",
+                "specimen-node-sizes-opacity#underlay-shape-roundrectangle",
+                "specimen-node-sizes-opacity#underlay-shape-round-rectangle",
+                "specimen-node-sizes-opacity#underlay-shape-ellipse"
+            ]
+        },
+        "underlay-opacity": {
+            "specimens": [
+                "specimen-node-sizes-opacity#underlay-opacity-0-5",
+                "specimen-node-sizes-opacity#underlay-color-red",
+                "specimen-node-sizes-opacity#underlay-padding-14",
+                "specimen-node-sizes-opacity#underlay-shape-roundrectangle",
+                "specimen-node-sizes-opacity#underlay-shape-round-rectangle",
+                "specimen-node-sizes-opacity#underlay-shape-ellipse"
+            ]
+        },
+        "underlay-shape": {
+            "specimens": [
+                "specimen-node-sizes-opacity#underlay-shape-roundrectangle",
+                "specimen-node-sizes-opacity#underlay-shape-round-rectangle",
+                "specimen-node-sizes-opacity#underlay-shape-ellipse",
+                "specimen-node-sizes-opacity#underlay-corner-radius-auto",
+                "specimen-node-sizes-opacity#underlay-corner-radius-2"
+            ],
+            "values": {
+                "roundrectangle": ["specimen-node-sizes-opacity#underlay-shape-roundrectangle"],
+                "round-rectangle": [
+                    "specimen-node-sizes-opacity#underlay-shape-round-rectangle",
+                    "specimen-node-sizes-opacity#underlay-corner-radius-auto",
+                    "specimen-node-sizes-opacity#underlay-corner-radius-2"
+                ],
+                "ellipse": ["specimen-node-sizes-opacity#underlay-shape-ellipse"]
+            }
+        },
+        "underlay-corner-radius": {
+            "specimens": [
+                "specimen-node-sizes-opacity#underlay-corner-radius-auto",
+                "specimen-node-sizes-opacity#underlay-corner-radius-2"
+            ],
+            "values": {
+                "auto": ["specimen-node-sizes-opacity#underlay-corner-radius-auto"]
+            }
+        },
+        "ghost": {
+            "specimens": [
+                "specimen-node-sizes-opacity#ghost-yes",
+                "specimen-node-sizes-opacity#ghost-no",
+                "specimen-node-sizes-opacity#ghost-offset-x-12",
+                "specimen-node-sizes-opacity#ghost-offset-y-12",
+                "specimen-node-sizes-opacity#ghost-opacity-0-9"
+            ],
+            "values": {
+                "yes": [
+                    "specimen-node-sizes-opacity#ghost-yes",
+                    "specimen-node-sizes-opacity#ghost-offset-x-12",
+                    "specimen-node-sizes-opacity#ghost-offset-y-12"
+                ],
+                "no": ["specimen-node-sizes-opacity#ghost-no"]
+            }
+        },
+        "ghost-offset-x": {
+            "specimens": [
+                "specimen-node-sizes-opacity#ghost-yes",
+                "specimen-node-sizes-opacity#ghost-no",
+                "specimen-node-sizes-opacity#ghost-offset-x-12",
+                "specimen-node-sizes-opacity#ghost-offset-y-12",
+                "specimen-node-sizes-opacity#ghost-opacity-0-9"
+            ]
+        },
+        "ghost-offset-y": {
+            "specimens": [
+                "specimen-node-sizes-opacity#ghost-yes",
+                "specimen-node-sizes-opacity#ghost-no",
+                "specimen-node-sizes-opacity#ghost-offset-x-12",
+                "specimen-node-sizes-opacity#ghost-offset-y-12",
+                "specimen-node-sizes-opacity#ghost-opacity-0-9"
+            ]
+        },
+        "ghost-opacity": {
+            "specimens": [
+                "specimen-node-sizes-opacity#ghost-yes",
+                "specimen-node-sizes-opacity#ghost-no",
+                "specimen-node-sizes-opacity#ghost-offset-x-12",
+                "specimen-node-sizes-opacity#ghost-offset-y-12",
+                "specimen-node-sizes-opacity#ghost-opacity-0-9"
+            ]
+        },
+        "text-valign": {
+            "specimens": [
+                "specimen-labels#text-align-top-left",
+                "specimen-labels#text-align-top-left-inside",
+                "specimen-labels#text-align-top-center",
+                "specimen-labels#text-align-top-right",
+                "specimen-labels#text-align-top-right-inside",
+                "specimen-labels#text-align-top-inside-left"
+            ],
+            "values": {
+                "top": [
+                    "specimen-labels#text-align-top-left",
+                    "specimen-labels#text-align-top-left-inside",
+                    "specimen-labels#text-align-top-center"
+                ],
+                "top-inside": [
+                    "specimen-labels#text-align-top-inside-left",
+                    "specimen-labels#text-align-top-inside-left-inside",
+                    "specimen-labels#text-align-top-inside-center"
+                ],
+                "center": [
+                    "specimen-labels#text-align-center-left",
+                    "specimen-labels#text-align-center-left-inside",
+                    "specimen-labels#text-align-center-center"
+                ],
+                "bottom": [
+                    "specimen-labels#text-align-bottom-left",
+                    "specimen-labels#text-align-bottom-left-inside",
+                    "specimen-labels#text-align-bottom-center"
+                ],
+                "bottom-inside": [
+                    "specimen-labels#text-align-bottom-inside-left",
+                    "specimen-labels#text-align-bottom-inside-left-inside",
+                    "specimen-labels#text-align-bottom-inside-center"
+                ]
+            }
+        },
+        "text-halign": {
+            "specimens": [
+                "specimen-labels#text-align-top-left",
+                "specimen-labels#text-align-top-left-inside",
+                "specimen-labels#text-align-top-center",
+                "specimen-labels#text-align-top-right",
+                "specimen-labels#text-align-top-right-inside",
+                "specimen-labels#text-align-top-inside-left"
+            ],
+            "values": {
+                "left": [
+                    "specimen-labels#text-align-top-left",
+                    "specimen-labels#text-align-top-inside-left",
+                    "specimen-labels#text-align-center-left"
+                ],
+                "left-inside": [
+                    "specimen-labels#text-align-top-left-inside",
+                    "specimen-labels#text-align-top-inside-left-inside",
+                    "specimen-labels#text-align-center-left-inside"
+                ],
+                "center": [
+                    "specimen-labels#text-align-top-center",
+                    "specimen-labels#text-align-top-inside-center",
+                    "specimen-labels#text-align-center-center"
+                ],
+                "right": [
+                    "specimen-labels#text-align-top-right",
+                    "specimen-labels#text-align-top-inside-right",
+                    "specimen-labels#text-align-center-right"
+                ],
+                "right-inside": [
+                    "specimen-labels#text-align-top-right-inside",
+                    "specimen-labels#text-align-top-inside-right-inside",
+                    "specimen-labels#text-align-center-right-inside"
+                ]
+            }
+        },
+        "color": {
+            "specimens": [
+                "specimen-labels-p2#color-red",
+                "specimen-labels-p2#text-outline-width-2",
+                "specimen-edge-labels#color-red",
+                "specimen-mappings-bypass-p2#color-named"
+            ]
+        },
+        "text-outline-color": {
+            "specimens": [
+                "specimen-labels-p2#text-outline-width-2",
+                "specimen-labels-p2#text-outline-color-red",
+                "specimen-labels-p2#text-outline-opacity-0-3",
+                "specimen-edge-labels#text-outline-width-2",
+                "specimen-edge-labels#text-outline-color-red"
+            ]
+        },
+        "text-outline-opacity": {
+            "specimens": ["specimen-labels-p2#text-outline-opacity-0-3"]
+        },
+        "text-background-color": {
+            "specimens": [
+                "specimen-labels-p2#text-metrics-font",
+                "specimen-labels-p2#text-metrics-glyph",
+                "specimen-labels-p2#text-background-color-yellow",
+                "specimen-labels-p2#text-background-opacity-0-4",
+                "specimen-labels-p2#text-background-padding-4",
+                "specimen-labels-p2#text-background-shape-rectangle"
+            ]
+        },
+        "text-background-opacity": {
+            "specimens": [
+                "specimen-labels-p2#text-metrics-font",
+                "specimen-labels-p2#text-metrics-glyph",
+                "specimen-labels-p2#text-background-color-yellow",
+                "specimen-labels-p2#text-background-opacity-0-4",
+                "specimen-labels-p2#text-background-padding-4",
+                "specimen-labels-p2#text-background-shape-rectangle"
+            ]
+        },
+        "text-background-padding": {
+            "specimens": [
+                "specimen-labels-p2#text-background-padding-4",
+                "specimen-labels-p2#text-background-shape-rectangle",
+                "specimen-labels-p2#text-background-shape-roundrectangle",
+                "specimen-labels-p2#text-background-shape-round-rectangle",
+                "specimen-labels-p2#text-background-shape-circle",
+                "specimen-edge-labels#text-background-padding-3"
+            ]
+        },
+        "text-border-opacity": {
+            "specimens": [
+                "specimen-labels-p2#text-border-width-1",
+                "specimen-labels-p2#text-border-color-red",
+                "specimen-labels-p2#text-border-opacity-0-3",
+                "specimen-labels-p2#text-border-style-solid",
+                "specimen-labels-p2#text-border-style-dotted",
+                "specimen-labels-p2#text-border-style-dashed"
+            ]
+        },
+        "text-border-color": {
+            "specimens": ["specimen-labels-p2#text-border-color-red"]
+        },
+        "text-border-width": {
+            "specimens": [
+                "specimen-labels-p2#text-border-width-1",
+                "specimen-labels-p2#text-border-color-red",
+                "specimen-labels-p2#text-border-opacity-0-3",
+                "specimen-labels-p2#text-border-style-solid",
+                "specimen-labels-p2#text-border-style-dotted",
+                "specimen-labels-p2#text-border-style-dashed"
+            ]
+        },
+        "text-border-style": {
+            "specimens": [
+                "specimen-labels-p2#text-border-style-solid",
+                "specimen-labels-p2#text-border-style-dotted",
+                "specimen-labels-p2#text-border-style-dashed",
+                "specimen-labels-p2#text-border-style-double",
+                "specimen-edge-labels#text-border-style-dashed"
+            ],
+            "values": {
+                "solid": ["specimen-labels-p2#text-border-style-solid"],
+                "dotted": ["specimen-labels-p2#text-border-style-dotted"],
+                "dashed": [
+                    "specimen-labels-p2#text-border-style-dashed",
+                    "specimen-edge-labels#text-border-style-dashed"
+                ],
+                "double": ["specimen-labels-p2#text-border-style-double"]
+            }
+        },
+        "text-background-shape": {
+            "specimens": [
+                "specimen-labels-p2#text-background-shape-rectangle",
+                "specimen-labels-p2#text-background-shape-roundrectangle",
+                "specimen-labels-p2#text-background-shape-round-rectangle",
+                "specimen-labels-p2#text-background-shape-circle",
+                "specimen-edge-labels#text-background-shape-round-rectangle",
+                "specimen-edge-labels#text-background-shape-circle"
+            ],
+            "values": {
+                "rectangle": ["specimen-labels-p2#text-background-shape-rectangle"],
+                "roundrectangle": ["specimen-labels-p2#text-background-shape-roundrectangle"],
+                "round-rectangle": [
+                    "specimen-labels-p2#text-background-shape-round-rectangle",
+                    "specimen-edge-labels#text-background-shape-round-rectangle"
+                ],
+                "circle": [
+                    "specimen-labels-p2#text-background-shape-circle",
+                    "specimen-edge-labels#text-background-shape-circle"
+                ]
+            }
+        },
+        "text-justification": {
+            "specimens": [
+                "specimen-labels-p2#text-justification-left",
+                "specimen-labels-p2#text-justification-center",
+                "specimen-labels-p2#text-justification-right",
+                "specimen-labels-p2#text-justification-auto",
+                "specimen-edge-labels#text-justification-left"
+            ],
+            "values": {
+                "left": ["specimen-labels-p2#text-justification-left", "specimen-edge-labels#text-justification-left"],
+                "center": ["specimen-labels-p2#text-justification-center"],
+                "right": ["specimen-labels-p2#text-justification-right"],
+                "auto": ["specimen-labels-p2#text-justification-auto"]
+            }
+        },
+        "text-metrics": {
+            "specimens": ["specimen-labels-p2#text-metrics-font", "specimen-labels-p2#text-metrics-glyph"],
+            "values": {
+                "font": ["specimen-labels-p2#text-metrics-font"],
+                "glyph": ["specimen-labels-p2#text-metrics-glyph"]
+            }
+        },
+        "box-select-labels": {
+            "notDrawn": "interaction only: whether a box selection counts labels; draws nothing"
+        },
+        "font-family": {
+            "specimens": [
+                "specimen-labels#font-family-dejavu-serif",
+                "specimen-labels#font-family-dejavu-sans-mono",
+                "specimen-labels#font-family-serif",
+                "specimen-labels#font-family-sans-serif",
+                "specimen-labels#font-family-monospace",
+                "specimen-labels#font-family-lato"
+            ]
+        },
+        "font-style": {
+            "specimens": [
+                "specimen-labels#font-style-italic",
+                "specimen-labels#font-style-normal",
+                "specimen-labels#font-style-oblique",
+                "specimen-edge-labels#font-style-italic"
+            ],
+            "values": {
+                "italic": ["specimen-labels#font-style-italic", "specimen-edge-labels#font-style-italic"],
+                "normal": ["specimen-labels#font-style-normal"],
+                "oblique": ["specimen-labels#font-style-oblique"]
+            }
+        },
+        "font-weight": {
+            "specimens": [
+                "specimen-labels#font-weight-normal",
+                "specimen-labels#font-weight-bold",
+                "specimen-labels#font-weight-bolder",
+                "specimen-labels#font-weight-lighter",
+                "specimen-labels#font-weight-100",
+                "specimen-labels#font-weight-200"
+            ],
+            "values": {
+                "100": ["specimen-labels#font-weight-100"],
+                "200": ["specimen-labels#font-weight-200"],
+                "300": ["specimen-labels#font-weight-300"],
+                "400": ["specimen-labels#font-weight-400"],
+                "500": ["specimen-labels#font-weight-500"],
+                "600": ["specimen-labels#font-weight-600"],
+                "700": ["specimen-labels-p2#font-weight-700"],
+                "800": ["specimen-labels#font-weight-800"],
+                "900": ["specimen-labels-p2#font-weight-900"],
+                "normal": ["specimen-labels#font-weight-normal"],
+                "bold": ["specimen-labels#font-weight-bold", "specimen-edge-labels#font-weight-bold"],
+                "bolder": ["specimen-labels#font-weight-bolder"],
+                "lighter": ["specimen-labels#font-weight-lighter"]
+            }
+        },
+        "font-size": {
+            "specimens": [
+                "specimen-labels-p2#font-size-6",
+                "specimen-labels-p2#font-size-16",
+                "specimen-edge-labels#font-size-14",
+                "specimen-groups#group-font-size-14"
+            ]
+        },
+        "text-transform": {
+            "specimens": [
+                "specimen-labels-p2#text-transform-none",
+                "specimen-labels-p2#text-transform-uppercase",
+                "specimen-labels-p2#text-transform-lowercase",
+                "specimen-edge-labels#text-transform-uppercase"
+            ],
+            "values": {
+                "none": ["specimen-labels-p2#text-transform-none"],
+                "uppercase": [
+                    "specimen-labels-p2#text-transform-uppercase",
+                    "specimen-edge-labels#text-transform-uppercase"
+                ],
+                "lowercase": ["specimen-labels-p2#text-transform-lowercase"]
+            }
+        },
+        "text-wrap": {
+            "specimens": [
+                "specimen-labels-p2#text-wrap-none",
+                "specimen-labels-p2#text-wrap-wrap",
+                "specimen-labels-p2#text-wrap-ellipsis",
+                "specimen-labels-p2#text-max-width-30",
+                "specimen-labels-p2#text-overflow-wrap-whitespace",
+                "specimen-labels-p2#text-overflow-wrap-anywhere"
+            ],
+            "values": {
+                "none": ["specimen-labels-p2#text-wrap-none"],
+                "wrap": [
+                    "specimen-labels-p2#text-wrap-wrap",
+                    "specimen-labels-p2#text-max-width-30",
+                    "specimen-labels-p2#text-overflow-wrap-whitespace"
+                ],
+                "ellipsis": ["specimen-labels-p2#text-wrap-ellipsis", "specimen-edge-labels#text-wrap-ellipsis"]
+            }
+        },
+        "text-overflow-wrap": {
+            "specimens": [
+                "specimen-labels-p2#text-overflow-wrap-whitespace",
+                "specimen-labels-p2#text-overflow-wrap-anywhere"
+            ],
+            "values": {
+                "whitespace": ["specimen-labels-p2#text-overflow-wrap-whitespace"],
+                "anywhere": ["specimen-labels-p2#text-overflow-wrap-anywhere"]
+            }
+        },
+        "text-max-width": {
+            "specimens": [
+                "specimen-labels-p2#text-wrap-none",
+                "specimen-labels-p2#text-wrap-wrap",
+                "specimen-labels-p2#text-wrap-ellipsis",
+                "specimen-labels-p2#text-max-width-30",
+                "specimen-labels-p2#text-overflow-wrap-whitespace",
+                "specimen-labels-p2#text-overflow-wrap-anywhere"
+            ]
+        },
+        "text-outline-width": {
+            "specimens": [
+                "specimen-labels-p2#text-outline-width-2",
+                "specimen-labels-p2#text-outline-color-red",
+                "specimen-labels-p2#text-outline-opacity-0-3",
+                "specimen-edge-labels#text-outline-width-2",
+                "specimen-edge-labels#text-outline-color-red"
+            ]
+        },
+        "line-height": {
+            "specimens": ["specimen-labels-p2#line-height-2", "specimen-edge-labels#line-height-2"]
+        },
+        "label": {
+            "specimens": [
+                "specimen-node-sizes-opacity#width-label",
+                "specimen-node-sizes-opacity#height-label",
+                "specimen-labels#default",
+                "specimen-labels#text-align-top-left",
+                "specimen-labels#text-align-top-left-inside",
+                "specimen-labels#text-align-top-center"
+            ]
+        },
+        "text-rotation": {
+            "specimens": [
+                "specimen-labels-p2#text-rotation-30deg",
+                "specimen-labels-p2#text-rotation-none",
+                "specimen-labels-p2#text-rotation-autorotate",
+                "specimen-edge-labels#text-rotation-autorotate",
+                "specimen-edge-labels#text-rotation-none",
+                "specimen-edge-labels#text-rotation-30deg"
+            ],
+            "values": {
+                "none": ["specimen-labels-p2#text-rotation-none", "specimen-edge-labels#text-rotation-none"],
+                "autorotate": [
+                    "specimen-labels-p2#text-rotation-autorotate",
+                    "specimen-edge-labels#text-rotation-autorotate",
+                    "specimen-edge-labels#label-autorotate-on-bezier"
+                ]
+            }
+        },
+        "text-margin-x": {
+            "specimens": ["specimen-labels-p2#text-margin-x-12", "specimen-edge-labels#text-margin-x-20"]
+        },
+        "text-margin-y": {
+            "specimens": ["specimen-labels-p2#text-margin-y-neg-12", "specimen-edge-labels#text-margin-y-neg-10"]
+        },
+        "source-label": {
+            "specimens": [
+                "specimen-edge-labels#source-label",
+                "specimen-edge-labels#source-text-offset-30",
+                "specimen-edge-labels#source-text-margin-x-10",
+                "specimen-edge-labels#source-text-margin-y-neg-10",
+                "specimen-edge-labels#source-text-rotation-none",
+                "specimen-edge-labels#source-text-rotation-autorotate"
+            ]
+        },
+        "source-text-rotation": {
+            "specimens": [
+                "specimen-edge-labels#source-text-rotation-none",
+                "specimen-edge-labels#source-text-rotation-autorotate",
+                "specimen-edge-labels#source-text-rotation-45deg"
+            ],
+            "values": {
+                "none": ["specimen-edge-labels#source-text-rotation-none"],
+                "autorotate": ["specimen-edge-labels#source-text-rotation-autorotate"]
+            }
+        },
+        "source-text-margin-x": {
+            "specimens": ["specimen-edge-labels#source-text-margin-x-10"]
+        },
+        "source-text-margin-y": {
+            "specimens": ["specimen-edge-labels#source-text-margin-y-neg-10"]
+        },
+        "source-text-offset": {
+            "specimens": ["specimen-edge-labels#source-text-offset-30"]
+        },
+        "target-label": {
+            "specimens": [
+                "specimen-edge-labels#target-label",
+                "specimen-edge-labels#target-text-offset-30",
+                "specimen-edge-labels#target-text-margin-x-neg-10",
+                "specimen-edge-labels#target-text-margin-y-neg-10",
+                "specimen-edge-labels#target-text-rotation-none",
+                "specimen-edge-labels#target-text-rotation-autorotate"
+            ]
+        },
+        "target-text-rotation": {
+            "specimens": [
+                "specimen-edge-labels#target-text-rotation-none",
+                "specimen-edge-labels#target-text-rotation-autorotate",
+                "specimen-edge-labels#target-text-rotation-45deg"
+            ],
+            "values": {
+                "none": ["specimen-edge-labels#target-text-rotation-none"],
+                "autorotate": ["specimen-edge-labels#target-text-rotation-autorotate"]
+            }
+        },
+        "target-text-margin-x": {
+            "specimens": ["specimen-edge-labels#target-text-margin-x-neg-10"]
+        },
+        "target-text-margin-y": {
+            "specimens": ["specimen-edge-labels#target-text-margin-y-neg-10"]
+        },
+        "target-text-offset": {
+            "specimens": ["specimen-edge-labels#target-text-offset-30"]
+        },
+        "height": {
+            "specimens": [
+                "specimen-node-shapes#shape-ellipse-wide",
+                "specimen-node-shapes#shape-star-wide",
+                "specimen-node-shapes#shape-round-rectangle-tall",
+                "specimen-node-sizes-opacity#height-20",
+                "specimen-node-sizes-opacity#height-60",
+                "specimen-node-sizes-opacity#height-label"
+            ],
+            "values": {
+                "label": ["specimen-node-sizes-opacity#height-label"]
+            }
+        },
+        "width": {
+            "specimens": [
+                "specimen-node-shapes#shape-ellipse-wide",
+                "specimen-node-shapes#shape-star-wide",
+                "specimen-node-shapes#shape-round-rectangle-tall",
+                "specimen-node-sizes-opacity#width-20",
+                "specimen-node-sizes-opacity#width-70",
+                "specimen-node-sizes-opacity#width-2em"
+            ],
+            "values": {
+                "label": ["specimen-node-sizes-opacity#width-label"]
+            }
+        },
+        "shape": {
+            "specimens": [
+                "specimen-node-shapes#shape-rectangle",
+                "specimen-node-shapes#shape-roundrectangle",
+                "specimen-node-shapes#shape-round-rectangle",
+                "specimen-node-shapes#shape-cutrectangle",
+                "specimen-node-shapes#shape-cut-rectangle",
+                "specimen-node-shapes#shape-bottomroundrectangle"
+            ],
+            "values": {
+                "rectangle": [
+                    "specimen-node-shapes#shape-rectangle",
+                    "specimen-node-fills-borders#border-join-round",
+                    "specimen-node-fills-borders#border-join-bevel"
+                ],
+                "roundrectangle": ["specimen-node-shapes#shape-roundrectangle"],
+                "round-rectangle": [
+                    "specimen-node-shapes#shape-round-rectangle",
+                    "specimen-node-shapes#corner-radius-auto",
+                    "specimen-node-shapes#corner-radius-4"
+                ],
+                "cutrectangle": ["specimen-node-shapes#shape-cutrectangle"],
+                "cut-rectangle": [
+                    "specimen-node-shapes#shape-cut-rectangle",
+                    "specimen-node-shapes#corner-radius-10-cut-rectangle",
+                    "specimen-groups#group-shape-cut-rectangle"
+                ],
+                "bottomroundrectangle": ["specimen-node-shapes#shape-bottomroundrectangle"],
+                "bottom-round-rectangle": [
+                    "specimen-node-shapes#shape-bottom-round-rectangle",
+                    "specimen-groups#group-shape-bottom-round-rectangle"
+                ],
+                "barrel": ["specimen-node-shapes#shape-barrel", "specimen-groups#group-shape-barrel"],
+                "ellipse": [
+                    "specimen-node-shapes#shape-ellipse",
+                    "specimen-node-shapes#shape-ellipse-wide",
+                    "specimen-groups#group-shape-ellipse"
+                ],
+                "triangle": ["specimen-node-shapes#shape-triangle"],
+                "round-triangle": [
+                    "specimen-node-shapes#shape-round-triangle",
+                    "specimen-node-shapes#corner-radius-8-round-triangle"
+                ],
+                "square": ["specimen-node-shapes#shape-square"],
+                "pentagon": ["specimen-node-shapes#shape-pentagon"],
+                "round-pentagon": ["specimen-node-shapes#shape-round-pentagon"],
+                "hexagon": ["specimen-node-shapes#shape-hexagon"],
+                "round-hexagon": ["specimen-node-shapes#shape-round-hexagon"],
+                "concavehexagon": ["specimen-node-shapes#shape-concavehexagon"],
+                "concave-hexagon": ["specimen-node-shapes#shape-concave-hexagon"],
+                "heptagon": ["specimen-node-shapes#shape-heptagon"],
+                "round-heptagon": ["specimen-node-shapes#shape-round-heptagon"],
+                "octagon": ["specimen-node-shapes#shape-octagon"],
+                "round-octagon": ["specimen-node-shapes#shape-round-octagon"],
+                "tag": ["specimen-node-shapes#shape-tag"],
+                "round-tag": ["specimen-node-shapes#shape-round-tag"],
+                "star": ["specimen-node-shapes#shape-star", "specimen-node-shapes#shape-star-wide"],
+                "diamond": [
+                    "specimen-node-shapes#shape-diamond",
+                    "specimen-groups#group-shape-diamond",
+                    "specimen-mappings-bypass#shape-by-attribute"
+                ],
+                "round-diamond": ["specimen-node-shapes#shape-round-diamond"],
+                "vee": ["specimen-node-shapes#shape-vee"],
+                "rhomboid": ["specimen-node-shapes#shape-rhomboid"],
+                "right-rhomboid": ["specimen-node-shapes#shape-right-rhomboid"],
+                "polygon": [
+                    "specimen-node-shapes#shape-polygon",
+                    "specimen-node-shapes#shape-polygon-points-arrow",
+                    "specimen-node-shapes#shape-polygon-points-triangle"
+                ]
+            }
+        },
+        "shape-polygon-points": {
+            "specimens": [
+                "specimen-node-shapes#shape-polygon-points-arrow",
+                "specimen-node-shapes#shape-polygon-points-triangle"
+            ]
+        },
+        "corner-radius": {
+            "specimens": [
+                "specimen-node-shapes#corner-radius-auto",
+                "specimen-node-shapes#corner-radius-4",
+                "specimen-node-shapes#corner-radius-14",
+                "specimen-node-shapes#corner-radius-8-round-triangle",
+                "specimen-node-shapes#corner-radius-10-cut-rectangle"
+            ],
+            "values": {
+                "auto": ["specimen-node-shapes#corner-radius-auto"]
+            }
+        },
+        "background-color": {
+            "specimens": [
+                "specimen-node-fills-borders#background-color-red",
+                "specimen-node-fills-borders#background-color-0a0",
+                "specimen-node-fills-borders#background-color-1f77b4",
+                "specimen-node-fills-borders#background-color-rgb-255-127-14",
+                "specimen-node-fills-borders#background-color-rgba-148-103-189-0-5",
+                "specimen-node-fills-borders#background-color-hsl-120-60pct-40pct"
+            ]
+        },
+        "background-fill": {
+            "specimens": [
+                "specimen-node-fills-borders#background-fill-solid",
+                "specimen-node-fills-borders#background-fill-linear-gradient",
+                "specimen-node-fills-borders#background-fill-radial-gradient",
+                "specimen-node-fills-borders#background-gradient-stop-colors",
+                "specimen-node-fills-borders#background-gradient-stop-positions",
+                "specimen-node-fills-borders#background-gradient-direction-to-bottom"
+            ],
+            "values": {
+                "solid": ["specimen-node-fills-borders#background-fill-solid"],
+                "linear-gradient": [
+                    "specimen-node-fills-borders#background-fill-linear-gradient",
+                    "specimen-node-fills-borders#background-gradient-stop-colors",
+                    "specimen-node-fills-borders#background-gradient-stop-positions"
+                ],
+                "radial-gradient": ["specimen-node-fills-borders#background-fill-radial-gradient"]
+            }
+        },
+        "background-opacity": {
+            "specimens": [
+                "specimen-node-fills-borders#background-opacity-0-5",
+                "specimen-node-fills-borders#background-opacity-0",
+                "specimen-groups#group-background-opacity-0"
+            ]
+        },
+        "background-blacken": {
+            "specimens": [
+                "specimen-node-fills-borders#background-blacken-0-5",
+                "specimen-node-fills-borders#background-blacken-neg-0-5"
+            ]
+        },
+        "background-gradient-stop-colors": {
+            "specimens": [
+                "specimen-node-fills-borders#background-fill-solid",
+                "specimen-node-fills-borders#background-fill-linear-gradient",
+                "specimen-node-fills-borders#background-fill-radial-gradient",
+                "specimen-node-fills-borders#background-gradient-stop-colors",
+                "specimen-node-fills-borders#background-gradient-stop-positions",
+                "specimen-node-fills-borders#background-gradient-direction-to-bottom"
+            ]
+        },
+        "background-gradient-stop-positions": {
+            "specimens": ["specimen-node-fills-borders#background-gradient-stop-positions"]
+        },
+        "background-gradient-direction": {
+            "specimens": [
+                "specimen-node-fills-borders#background-gradient-direction-to-bottom",
+                "specimen-node-fills-borders#background-gradient-direction-to-top",
+                "specimen-node-fills-borders#background-gradient-direction-to-left",
+                "specimen-node-fills-borders#background-gradient-direction-to-right",
+                "specimen-node-fills-borders#background-gradient-direction-to-bottom-right",
+                "specimen-node-fills-borders#background-gradient-direction-to-bottom-left"
+            ],
+            "values": {
+                "to-bottom": ["specimen-node-fills-borders#background-gradient-direction-to-bottom"],
+                "to-top": ["specimen-node-fills-borders#background-gradient-direction-to-top"],
+                "to-left": ["specimen-node-fills-borders#background-gradient-direction-to-left"],
+                "to-right": ["specimen-node-fills-borders#background-gradient-direction-to-right"],
+                "to-bottom-right": ["specimen-node-fills-borders#background-gradient-direction-to-bottom-right"],
+                "to-bottom-left": ["specimen-node-fills-borders#background-gradient-direction-to-bottom-left"],
+                "to-top-right": ["specimen-node-fills-borders#background-gradient-direction-to-top-right"],
+                "to-top-left": ["specimen-node-fills-borders#background-gradient-direction-to-top-left"],
+                "to-right-bottom": ["specimen-node-fills-borders#background-gradient-direction-to-right-bottom"],
+                "to-left-bottom": ["specimen-node-fills-borders#background-gradient-direction-to-left-bottom"],
+                "to-right-top": ["specimen-node-fills-borders#background-gradient-direction-to-right-top"],
+                "to-left-top": ["specimen-node-fills-borders#background-gradient-direction-to-left-top"]
+            }
+        },
+        "padding": {
+            "specimens": [
+                "specimen-node-sizes-opacity#padding-6",
+                "specimen-node-sizes-opacity#padding-relative-pct",
+                "specimen-groups#padding-0",
+                "specimen-groups#padding-20",
+                "specimen-groups#padding-relative-to-width",
+                "specimen-groups#padding-relative-to-height"
+            ]
+        },
+        "padding-relative-to": {
+            "specimens": [
+                "specimen-groups#padding-relative-to-width",
+                "specimen-groups#padding-relative-to-height",
+                "specimen-groups#padding-relative-to-average",
+                "specimen-groups#padding-relative-to-min",
+                "specimen-groups#padding-relative-to-max"
+            ],
+            "values": {
+                "width": ["specimen-groups#padding-relative-to-width"],
+                "height": ["specimen-groups#padding-relative-to-height"],
+                "average": ["specimen-groups#padding-relative-to-average"],
+                "min": ["specimen-groups#padding-relative-to-min"],
+                "max": ["specimen-groups#padding-relative-to-max"]
+            }
+        },
+        "bounds-expansion": {
+            "specimens": ["specimen-node-sizes-opacity#bounds-expansion-20"]
+        },
+        "border-color": {
+            "specimens": [
+                "specimen-node-fills-borders#border-color-red",
+                "specimen-node-fills-borders#border-position-center",
+                "specimen-node-fills-borders#border-position-inside",
+                "specimen-node-fills-borders#border-position-outside",
+                "specimen-groups#group-border-color-red",
+                "specimen-mappings-bypass-p2#border-color-hex"
+            ]
+        },
+        "border-opacity": {
+            "specimens": ["specimen-node-fills-borders#border-opacity-0-3"]
+        },
+        "border-width": {
+            "specimens": [
+                "specimen-node-fills-borders#border-color-red",
+                "specimen-node-fills-borders#border-width-0",
+                "specimen-node-fills-borders#border-width-3",
+                "specimen-node-fills-borders#border-width-6",
+                "specimen-node-fills-borders#border-opacity-0-3",
+                "specimen-node-fills-borders#border-style-solid"
+            ]
+        },
+        "border-style": {
+            "specimens": [
+                "specimen-node-fills-borders#border-style-solid",
+                "specimen-node-fills-borders#border-style-dotted",
+                "specimen-node-fills-borders#border-style-dashed",
+                "specimen-node-fills-borders#border-style-double",
+                "specimen-node-fills-borders#border-cap-butt",
+                "specimen-node-fills-borders#border-cap-round"
+            ],
+            "values": {
+                "solid": ["specimen-node-fills-borders#border-style-solid"],
+                "dotted": ["specimen-node-fills-borders#border-style-dotted"],
+                "dashed": [
+                    "specimen-node-fills-borders#border-style-dashed",
+                    "specimen-node-fills-borders#border-cap-butt",
+                    "specimen-node-fills-borders#border-cap-round"
+                ],
+                "double": ["specimen-node-fills-borders#border-style-double"]
+            }
+        },
+        "border-cap": {
+            "specimens": [
+                "specimen-node-fills-borders#border-cap-butt",
+                "specimen-node-fills-borders#border-cap-round",
+                "specimen-node-fills-borders#border-cap-square"
+            ],
+            "values": {
+                "butt": ["specimen-node-fills-borders#border-cap-butt"],
+                "round": ["specimen-node-fills-borders#border-cap-round"],
+                "square": ["specimen-node-fills-borders#border-cap-square"]
+            }
+        },
+        "border-join": {
+            "specimens": [
+                "specimen-node-fills-borders#border-join-round",
+                "specimen-node-fills-borders#border-join-bevel",
+                "specimen-node-fills-borders#border-join-miter"
+            ],
+            "values": {
+                "round": ["specimen-node-fills-borders#border-join-round"],
+                "bevel": ["specimen-node-fills-borders#border-join-bevel"],
+                "miter": ["specimen-node-fills-borders#border-join-miter"]
+            }
+        },
+        "border-dash-pattern": {
+            "specimens": ["specimen-node-fills-borders#border-dash-pattern"]
+        },
+        "border-dash-offset": {
+            "specimens": ["specimen-node-fills-borders#border-dash-offset"]
+        },
+        "border-position": {
+            "specimens": [
+                "specimen-node-fills-borders#border-position-center",
+                "specimen-node-fills-borders#border-position-inside",
+                "specimen-node-fills-borders#border-position-outside"
+            ],
+            "values": {
+                "center": ["specimen-node-fills-borders#border-position-center"],
+                "inside": ["specimen-node-fills-borders#border-position-inside"],
+                "outside": ["specimen-node-fills-borders#border-position-outside"]
+            }
+        },
+        "outline-color": {
+            "specimens": ["specimen-node-fills-borders#outline-color-red"]
+        },
+        "outline-opacity": {
+            "specimens": ["specimen-node-fills-borders#outline-opacity-0-3"]
+        },
+        "outline-width": {
+            "specimens": [
+                "specimen-node-fills-borders#outline-width-3",
+                "specimen-node-fills-borders#outline-color-red",
+                "specimen-node-fills-borders#outline-opacity-0-3",
+                "specimen-node-fills-borders#outline-offset-4",
+                "specimen-node-fills-borders#outline-style-solid",
+                "specimen-node-fills-borders#outline-style-dotted"
+            ]
+        },
+        "outline-style": {
+            "specimens": [
+                "specimen-node-fills-borders#outline-style-solid",
+                "specimen-node-fills-borders#outline-style-dotted",
+                "specimen-node-fills-borders#outline-style-dashed",
+                "specimen-node-fills-borders#outline-style-double"
+            ],
+            "values": {
+                "solid": ["specimen-node-fills-borders#outline-style-solid"],
+                "dotted": ["specimen-node-fills-borders#outline-style-dotted"],
+                "dashed": ["specimen-node-fills-borders#outline-style-dashed"],
+                "double": ["specimen-node-fills-borders#outline-style-double"]
+            }
+        },
+        "outline-offset": {
+            "specimens": ["specimen-node-fills-borders#outline-offset-4"]
+        },
+        "background-image": {
+            "specimens": [
+                "specimen-images-charts#background-image",
+                "specimen-images-charts#background-image-png",
+                "specimen-images-charts#background-fit-none",
+                "specimen-images-charts#background-fit-contain",
+                "specimen-images-charts#background-fit-cover",
+                "specimen-images-charts#background-repeat-repeat"
+            ]
+        },
+        "background-image-crossorigin": {
+            "specimens": [
+                "specimen-images-charts#background-image-crossorigin-anonymous",
+                "specimen-images-charts#background-image-crossorigin-use-credentials",
+                "specimen-images-charts#background-image-crossorigin-null"
+            ],
+            "values": {
+                "anonymous": ["specimen-images-charts#background-image-crossorigin-anonymous"],
+                "use-credentials": ["specimen-images-charts#background-image-crossorigin-use-credentials"],
+                "null": ["specimen-images-charts#background-image-crossorigin-null"]
+            }
+        },
+        "background-image-opacity": {
+            "specimens": ["specimen-images-charts#background-image-opacity-0-4"]
+        },
+        "background-image-containment": {
+            "specimens": [
+                "specimen-images-charts#background-image-containment-inside",
+                "specimen-images-charts#background-image-containment-over"
+            ],
+            "values": {
+                "inside": ["specimen-images-charts#background-image-containment-inside"],
+                "over": ["specimen-images-charts#background-image-containment-over"]
+            }
+        },
+        "background-image-smoothing": {
+            "specimens": [
+                "specimen-images-charts#background-image-smoothing-yes",
+                "specimen-images-charts#background-image-smoothing-no"
+            ],
+            "values": {
+                "yes": ["specimen-images-charts#background-image-smoothing-yes"],
+                "no": ["specimen-images-charts#background-image-smoothing-no"]
+            }
+        },
+        "background-position-x": {
+            "specimens": [
+                "specimen-images-charts#background-position-x-0pct",
+                "specimen-images-charts#background-position-x-100pct"
+            ]
+        },
+        "background-position-y": {
+            "specimens": [
+                "specimen-images-charts#background-position-y-0pct",
+                "specimen-images-charts#background-position-y-100pct"
+            ]
+        },
+        "background-width-relative-to": {
+            "specimens": [
+                "specimen-images-charts#background-width-relative-to-inner",
+                "specimen-images-charts#background-width-relative-to-include-padding"
+            ],
+            "values": {
+                "inner": ["specimen-images-charts#background-width-relative-to-inner"],
+                "include-padding": ["specimen-images-charts#background-width-relative-to-include-padding"]
+            }
+        },
+        "background-height-relative-to": {
+            "specimens": [
+                "specimen-images-charts#background-height-relative-to-inner",
+                "specimen-images-charts#background-height-relative-to-include-padding"
+            ],
+            "values": {
+                "inner": ["specimen-images-charts#background-height-relative-to-inner"],
+                "include-padding": ["specimen-images-charts#background-height-relative-to-include-padding"]
+            }
+        },
+        "background-repeat": {
+            "specimens": [
+                "specimen-images-charts#background-repeat-repeat",
+                "specimen-images-charts#background-repeat-repeat-x",
+                "specimen-images-charts#background-repeat-repeat-y",
+                "specimen-images-charts#background-repeat-no-repeat"
+            ],
+            "values": {
+                "repeat": ["specimen-images-charts#background-repeat-repeat"],
+                "repeat-x": ["specimen-images-charts#background-repeat-repeat-x"],
+                "repeat-y": ["specimen-images-charts#background-repeat-repeat-y"],
+                "no-repeat": ["specimen-images-charts#background-repeat-no-repeat"]
+            }
+        },
+        "background-fit": {
+            "specimens": [
+                "specimen-images-charts#background-image-png",
+                "specimen-images-charts#background-fit-none",
+                "specimen-images-charts#background-fit-contain",
+                "specimen-images-charts#background-fit-cover",
+                "specimen-images-charts#background-image-containment-inside",
+                "specimen-images-charts#background-image-containment-over"
+            ],
+            "values": {
+                "none": [
+                    "specimen-images-charts#background-fit-none",
+                    "specimen-images-charts#background-image-two-layers"
+                ],
+                "contain": [
+                    "specimen-images-charts#background-fit-contain",
+                    "specimen-images-charts#background-image-containment-inside",
+                    "specimen-images-charts#background-image-containment-over"
+                ],
+                "cover": [
+                    "specimen-images-charts#background-image-png",
+                    "specimen-images-charts#background-fit-cover",
+                    "specimen-images-charts#background-image-smoothing-yes"
+                ]
+            }
+        },
+        "background-clip": {
+            "specimens": ["specimen-images-charts#background-clip-none", "specimen-images-charts#background-clip-node"],
+            "values": {
+                "none": ["specimen-images-charts#background-clip-none"],
+                "node": ["specimen-images-charts#background-clip-node"]
+            }
+        },
+        "background-width": {
+            "specimens": [
+                "specimen-images-charts#background-repeat-repeat",
+                "specimen-images-charts#background-repeat-repeat-x",
+                "specimen-images-charts#background-repeat-repeat-y",
+                "specimen-images-charts#background-repeat-no-repeat",
+                "specimen-images-charts#background-clip-none",
+                "specimen-images-charts#background-clip-node"
+            ],
+            "values": {
+                "auto": ["specimen-images-charts#background-width-auto"]
+            }
+        },
+        "background-height": {
+            "specimens": [
+                "specimen-images-charts#background-repeat-repeat",
+                "specimen-images-charts#background-repeat-repeat-x",
+                "specimen-images-charts#background-repeat-repeat-y",
+                "specimen-images-charts#background-repeat-no-repeat",
+                "specimen-images-charts#background-clip-none",
+                "specimen-images-charts#background-clip-node"
+            ],
+            "values": {
+                "auto": ["specimen-images-charts#background-height-auto"]
+            }
+        },
+        "background-offset-x": {
+            "specimens": ["specimen-images-charts#background-offset-x-8"]
+        },
+        "background-offset-y": {
+            "specimens": ["specimen-images-charts#background-offset-y-8"]
+        },
+        "pie-size": {
+            "specimens": ["specimen-images-charts#pie-size-60pct"]
+        },
+        "pie-hole": {
+            "specimens": ["specimen-images-charts#pie-hole-50pct"]
+        },
+        "pie-start-angle": {
+            "specimens": ["specimen-images-charts#pie-start-angle-90deg"]
+        },
+        "pie-1-background-color": {
+            "specimens": [
+                "specimen-images-charts#pie-16-slices",
+                "specimen-images-charts#pie-three-slices",
+                "specimen-images-charts#pie-partial",
+                "specimen-images-charts#pie-size-60pct",
+                "specimen-images-charts#pie-hole-50pct",
+                "specimen-images-charts#pie-start-angle-90deg"
+            ]
+        },
+        "pie-1-background-size": {
+            "specimens": [
+                "specimen-images-charts#pie-16-slices",
+                "specimen-images-charts#pie-three-slices",
+                "specimen-images-charts#pie-partial",
+                "specimen-images-charts#pie-size-60pct",
+                "specimen-images-charts#pie-hole-50pct",
+                "specimen-images-charts#pie-start-angle-90deg"
+            ]
+        },
+        "pie-1-background-opacity": {
+            "specimens": ["specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-2-background-color": {
+            "specimens": [
+                "specimen-images-charts#pie-16-slices",
+                "specimen-images-charts#pie-three-slices",
+                "specimen-images-charts#pie-size-60pct",
+                "specimen-images-charts#pie-hole-50pct",
+                "specimen-images-charts#pie-start-angle-90deg",
+                "specimen-images-charts#pie-background-opacity-0-4"
+            ]
+        },
+        "pie-2-background-size": {
+            "specimens": [
+                "specimen-images-charts#pie-16-slices",
+                "specimen-images-charts#pie-three-slices",
+                "specimen-images-charts#pie-size-60pct",
+                "specimen-images-charts#pie-hole-50pct",
+                "specimen-images-charts#pie-start-angle-90deg",
+                "specimen-images-charts#pie-background-opacity-0-4"
+            ]
+        },
+        "pie-2-background-opacity": {
+            "specimens": ["specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-3-background-color": {
+            "specimens": [
+                "specimen-images-charts#pie-16-slices",
+                "specimen-images-charts#pie-three-slices",
+                "specimen-images-charts#pie-size-60pct",
+                "specimen-images-charts#pie-hole-50pct",
+                "specimen-images-charts#pie-start-angle-90deg",
+                "specimen-images-charts#pie-background-opacity-0-4"
+            ]
+        },
+        "pie-3-background-size": {
+            "specimens": [
+                "specimen-images-charts#pie-16-slices",
+                "specimen-images-charts#pie-three-slices",
+                "specimen-images-charts#pie-size-60pct",
+                "specimen-images-charts#pie-hole-50pct",
+                "specimen-images-charts#pie-start-angle-90deg",
+                "specimen-images-charts#pie-background-opacity-0-4"
+            ]
+        },
+        "pie-3-background-opacity": {
+            "specimens": ["specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-4-background-color": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-4-background-size": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-4-background-opacity": {
+            "specimens": ["specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-5-background-color": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-5-background-size": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-5-background-opacity": {
+            "specimens": ["specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-6-background-color": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-6-background-size": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-6-background-opacity": {
+            "specimens": ["specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-7-background-color": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-7-background-size": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-7-background-opacity": {
+            "specimens": ["specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-8-background-color": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-8-background-size": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-8-background-opacity": {
+            "specimens": ["specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-9-background-color": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-9-background-size": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-9-background-opacity": {
+            "specimens": ["specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-10-background-color": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-10-background-size": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-10-background-opacity": {
+            "specimens": ["specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-11-background-color": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-11-background-size": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-11-background-opacity": {
+            "specimens": ["specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-12-background-color": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-12-background-size": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-12-background-opacity": {
+            "specimens": ["specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-13-background-color": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-13-background-size": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-13-background-opacity": {
+            "specimens": ["specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-14-background-color": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-14-background-size": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-14-background-opacity": {
+            "specimens": ["specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-15-background-color": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-15-background-size": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-15-background-opacity": {
+            "specimens": ["specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-16-background-color": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-16-background-size": {
+            "specimens": ["specimen-images-charts#pie-16-slices", "specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "pie-16-background-opacity": {
+            "specimens": ["specimen-images-charts#pie-background-opacity-0-4"]
+        },
+        "stripe-size": {
+            "specimens": ["specimen-images-charts#stripe-size-60pct"]
+        },
+        "stripe-direction": {
+            "specimens": [
+                "specimen-images-charts#stripe-direction-horizontal",
+                "specimen-images-charts#stripe-direction-vertical"
+            ],
+            "values": {
+                "horizontal": ["specimen-images-charts#stripe-direction-horizontal"],
+                "vertical": ["specimen-images-charts#stripe-direction-vertical"]
+            }
+        },
+        "stripe-1-background-color": {
+            "specimens": [
+                "specimen-images-charts#stripe-16",
+                "specimen-images-charts#stripe-three",
+                "specimen-images-charts#stripe-direction-horizontal",
+                "specimen-images-charts#stripe-direction-vertical",
+                "specimen-images-charts#stripe-size-60pct",
+                "specimen-images-charts#stripe-background-opacity-0-4"
+            ]
+        },
+        "stripe-1-background-size": {
+            "specimens": [
+                "specimen-images-charts#stripe-16",
+                "specimen-images-charts#stripe-three",
+                "specimen-images-charts#stripe-direction-horizontal",
+                "specimen-images-charts#stripe-direction-vertical",
+                "specimen-images-charts#stripe-size-60pct",
+                "specimen-images-charts#stripe-background-opacity-0-4"
+            ]
+        },
+        "stripe-1-background-opacity": {
+            "specimens": ["specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-2-background-color": {
+            "specimens": [
+                "specimen-images-charts#stripe-16",
+                "specimen-images-charts#stripe-three",
+                "specimen-images-charts#stripe-direction-horizontal",
+                "specimen-images-charts#stripe-direction-vertical",
+                "specimen-images-charts#stripe-size-60pct",
+                "specimen-images-charts#stripe-background-opacity-0-4"
+            ]
+        },
+        "stripe-2-background-size": {
+            "specimens": [
+                "specimen-images-charts#stripe-16",
+                "specimen-images-charts#stripe-three",
+                "specimen-images-charts#stripe-direction-horizontal",
+                "specimen-images-charts#stripe-direction-vertical",
+                "specimen-images-charts#stripe-size-60pct",
+                "specimen-images-charts#stripe-background-opacity-0-4"
+            ]
+        },
+        "stripe-2-background-opacity": {
+            "specimens": ["specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-3-background-color": {
+            "specimens": [
+                "specimen-images-charts#stripe-16",
+                "specimen-images-charts#stripe-three",
+                "specimen-images-charts#stripe-direction-horizontal",
+                "specimen-images-charts#stripe-direction-vertical",
+                "specimen-images-charts#stripe-size-60pct",
+                "specimen-images-charts#stripe-background-opacity-0-4"
+            ]
+        },
+        "stripe-3-background-size": {
+            "specimens": [
+                "specimen-images-charts#stripe-16",
+                "specimen-images-charts#stripe-three",
+                "specimen-images-charts#stripe-direction-horizontal",
+                "specimen-images-charts#stripe-direction-vertical",
+                "specimen-images-charts#stripe-size-60pct",
+                "specimen-images-charts#stripe-background-opacity-0-4"
+            ]
+        },
+        "stripe-3-background-opacity": {
+            "specimens": ["specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-4-background-color": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-4-background-size": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-4-background-opacity": {
+            "specimens": ["specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-5-background-color": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-5-background-size": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-5-background-opacity": {
+            "specimens": ["specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-6-background-color": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-6-background-size": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-6-background-opacity": {
+            "specimens": ["specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-7-background-color": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-7-background-size": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-7-background-opacity": {
+            "specimens": ["specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-8-background-color": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-8-background-size": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-8-background-opacity": {
+            "specimens": ["specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-9-background-color": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-9-background-size": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-9-background-opacity": {
+            "specimens": ["specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-10-background-color": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-10-background-size": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-10-background-opacity": {
+            "specimens": ["specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-11-background-color": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-11-background-size": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-11-background-opacity": {
+            "specimens": ["specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-12-background-color": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-12-background-size": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-12-background-opacity": {
+            "specimens": ["specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-13-background-color": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-13-background-size": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-13-background-opacity": {
+            "specimens": ["specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-14-background-color": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-14-background-size": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-14-background-opacity": {
+            "specimens": ["specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-15-background-color": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-15-background-size": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-15-background-opacity": {
+            "specimens": ["specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-16-background-color": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-16-background-size": {
+            "specimens": ["specimen-images-charts#stripe-16", "specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "stripe-16-background-opacity": {
+            "specimens": ["specimen-images-charts#stripe-background-opacity-0-4"]
+        },
+        "position": {
+            "notDrawn": "parsed and never read: Cytoscape.js 3.34.3's renderer and bounds code never look the property up (no pstyle('position') call); it draws nothing"
+        },
+        "compound-sizing-wrt-labels": {
+            "specimens": [
+                "specimen-groups#compound-sizing-wrt-labels-include",
+                "specimen-groups#compound-sizing-wrt-labels-exclude"
+            ],
+            "values": {
+                "include": ["specimen-groups#compound-sizing-wrt-labels-include"],
+                "exclude": ["specimen-groups#compound-sizing-wrt-labels-exclude"]
+            }
+        },
+        "min-width": {
+            "specimens": [
+                "specimen-groups#min-width-80",
+                "specimen-groups#min-width-bias-left",
+                "specimen-groups#min-width-bias-right"
+            ]
+        },
+        "min-width-bias-left": {
+            "specimens": ["specimen-groups#min-width-bias-left"]
+        },
+        "min-width-bias-right": {
+            "specimens": ["specimen-groups#min-width-bias-right"]
+        },
+        "min-height": {
+            "specimens": [
+                "specimen-groups#min-height-64",
+                "specimen-groups#min-height-bias-top",
+                "specimen-groups#min-height-bias-bottom"
+            ]
+        },
+        "min-height-bias-top": {
+            "specimens": ["specimen-groups#min-height-bias-top"]
+        },
+        "min-height-bias-bottom": {
+            "specimens": ["specimen-groups#min-height-bias-bottom"]
+        },
+        "line-style": {
+            "specimens": [
+                "specimen-edges-lines#line-style-solid",
+                "specimen-edges-lines#line-style-dotted",
+                "specimen-edges-lines#line-style-dashed",
+                "specimen-edges-lines#line-dash-pattern",
+                "specimen-edges-lines#line-dash-offset"
+            ],
+            "values": {
+                "solid": ["specimen-edges-lines#line-style-solid"],
+                "dotted": ["specimen-edges-lines#line-style-dotted"],
+                "dashed": [
+                    "specimen-edges-lines#line-style-dashed",
+                    "specimen-edges-lines#line-dash-pattern",
+                    "specimen-edges-lines#line-dash-offset"
+                ]
+            }
+        },
+        "line-color": {
+            "specimens": [
+                "specimen-edges-lines#line-color-red",
+                "specimen-mappings-bypass#edge-color-by-data",
+                "specimen-mappings-bypass#edge-color-by-mapdata",
+                "specimen-mappings-bypass#edge-by-bypass",
+                "specimen-mappings-bypass#edge-state-selected",
+                "specimen-mappings-bypass#selector-loop"
+            ]
+        },
+        "line-fill": {
+            "specimens": [
+                "specimen-edges-lines#line-fill-solid",
+                "specimen-edges-lines#line-fill-linear-gradient",
+                "specimen-edges-lines#line-fill-radial-gradient",
+                "specimen-edges-lines#line-gradient-stop-colors",
+                "specimen-edges-lines#line-gradient-stop-positions"
+            ],
+            "values": {
+                "solid": ["specimen-edges-lines#line-fill-solid"],
+                "linear-gradient": [
+                    "specimen-edges-lines#line-fill-linear-gradient",
+                    "specimen-edges-lines#line-gradient-stop-colors",
+                    "specimen-edges-lines#line-gradient-stop-positions"
+                ],
+                "radial-gradient": ["specimen-edges-lines#line-fill-radial-gradient"]
+            }
+        },
+        "line-cap": {
+            "specimens": [
+                "specimen-edges-lines#line-cap-butt",
+                "specimen-edges-lines#line-cap-round",
+                "specimen-edges-lines#line-cap-square"
+            ],
+            "values": {
+                "butt": ["specimen-edges-lines#line-cap-butt"],
+                "round": ["specimen-edges-lines#line-cap-round"],
+                "square": ["specimen-edges-lines#line-cap-square"]
+            }
+        },
+        "line-opacity": {
+            "specimens": ["specimen-edges-lines#line-opacity-0-3"]
+        },
+        "line-dash-pattern": {
+            "specimens": ["specimen-edges-lines#line-dash-pattern"]
+        },
+        "line-dash-offset": {
+            "specimens": ["specimen-edges-lines#line-dash-offset"]
+        },
+        "line-outline-width": {
+            "specimens": ["specimen-edges-lines#line-outline-width-2", "specimen-edges-lines#line-outline-color-red"]
+        },
+        "line-outline-color": {
+            "specimens": ["specimen-edges-lines#line-outline-color-red"]
+        },
+        "line-gradient-stop-colors": {
+            "specimens": [
+                "specimen-edges-lines#line-fill-solid",
+                "specimen-edges-lines#line-fill-linear-gradient",
+                "specimen-edges-lines#line-fill-radial-gradient",
+                "specimen-edges-lines#line-gradient-stop-colors",
+                "specimen-edges-lines#line-gradient-stop-positions"
+            ]
+        },
+        "line-gradient-stop-positions": {
+            "specimens": ["specimen-edges-lines#line-gradient-stop-positions"]
+        },
+        "curve-style": {
+            "specimens": [
+                "specimen-edges-lines#curve-style-straight",
+                "specimen-edges-lines#curve-style-straight-triangle",
+                "specimen-edges-lines#curve-style-haystack",
+                "specimen-edges-lines#curve-style-bezier",
+                "specimen-edges-lines#curve-style-unbundled-bezier",
+                "specimen-edges-lines#curve-style-segments"
+            ],
+            "values": {
+                "bezier": [
+                    "specimen-edges-lines#curve-style-bezier",
+                    "specimen-edges-lines#bezier-parallel-3",
+                    "specimen-edges-lines#control-point-step-size-12"
+                ],
+                "unbundled-bezier": [
+                    "specimen-edges-lines#curve-style-unbundled-bezier",
+                    "specimen-edges-lines#control-point-distances",
+                    "specimen-edges-lines#control-point-weights"
+                ],
+                "haystack": [
+                    "specimen-edges-lines#curve-style-haystack",
+                    "specimen-edges-lines#haystack-radius-0-8",
+                    "specimen-edges-lines#haystack-parallel-2"
+                ],
+                "segments": [
+                    "specimen-edges-lines#curve-style-segments",
+                    "specimen-edges-lines#segment-distances",
+                    "specimen-edges-lines#segment-weights"
+                ],
+                "straight": ["specimen-edges-lines#curve-style-straight", "specimen-edges-lines#straight-parallel-2"],
+                "straight-triangle": [
+                    "specimen-edges-lines#curve-style-straight-triangle",
+                    "specimen-edges-lines#width-6-straight-triangle"
+                ],
+                "taxi": [
+                    "specimen-edges-lines#curve-style-taxi",
+                    "specimen-edges-lines#taxi-direction-horizontal",
+                    "specimen-edges-lines-p2#taxi-direction-leftward"
+                ],
+                "round-segments": [
+                    "specimen-edges-lines#curve-style-round-segments",
+                    "specimen-edges-lines#segment-radii-12",
+                    "specimen-edges-lines#radius-type-arc-radius"
+                ],
+                "round-taxi": ["specimen-edges-lines#curve-style-round-taxi", "specimen-edges-lines-p2#taxi-radius-4"]
+            }
+        },
+        "haystack-radius": {
+            "specimens": ["specimen-edges-lines#haystack-radius-0-8"]
+        },
+        "source-endpoint": {
+            "specimens": [
+                "specimen-edges-lines-p2#source-endpoint-inside-to-node",
+                "specimen-edges-lines-p2#source-endpoint-outside-to-node",
+                "specimen-edges-lines-p2#source-endpoint-outside-to-node-or-label",
+                "specimen-edges-lines-p2#source-endpoint-outside-to-line",
+                "specimen-edges-lines-p2#source-endpoint-outside-to-line-or-label",
+                "specimen-edges-lines-p2#source-endpoint-90deg"
+            ],
+            "values": {
+                "inside-to-node": ["specimen-edges-lines-p2#source-endpoint-inside-to-node"],
+                "outside-to-node": ["specimen-edges-lines-p2#source-endpoint-outside-to-node"],
+                "outside-to-node-or-label": ["specimen-edges-lines-p2#source-endpoint-outside-to-node-or-label"],
+                "outside-to-line": ["specimen-edges-lines-p2#source-endpoint-outside-to-line"],
+                "outside-to-line-or-label": ["specimen-edges-lines-p2#source-endpoint-outside-to-line-or-label"]
+            }
+        },
+        "target-endpoint": {
+            "specimens": [
+                "specimen-edges-lines-p2#target-endpoint-inside-to-node",
+                "specimen-edges-lines-p2#target-endpoint-outside-to-node",
+                "specimen-edges-lines-p2#target-endpoint-outside-to-node-or-label",
+                "specimen-edges-lines-p2#target-endpoint-outside-to-line",
+                "specimen-edges-lines-p2#target-endpoint-outside-to-line-or-label",
+                "specimen-edges-lines-p2#target-endpoint-270deg"
+            ],
+            "values": {
+                "inside-to-node": ["specimen-edges-lines-p2#target-endpoint-inside-to-node"],
+                "outside-to-node": ["specimen-edges-lines-p2#target-endpoint-outside-to-node"],
+                "outside-to-node-or-label": ["specimen-edges-lines-p2#target-endpoint-outside-to-node-or-label"],
+                "outside-to-line": ["specimen-edges-lines-p2#target-endpoint-outside-to-line"],
+                "outside-to-line-or-label": ["specimen-edges-lines-p2#target-endpoint-outside-to-line-or-label"]
+            }
+        },
+        "control-point-step-size": {
+            "specimens": [
+                "specimen-edges-lines#control-point-step-size-12",
+                "specimen-edges-lines-p2#loop-control-point-step-size-60"
+            ]
+        },
+        "control-point-distances": {
+            "specimens": [
+                "specimen-edges-lines#control-point-distances",
+                "specimen-edges-lines#control-point-weights",
+                "specimen-arrows-p2#arrow-on-unbundled-bezier",
+                "specimen-edge-labels#label-on-unbundled-bezier",
+                "specimen-mappings-bypass-p2#control-point-distance",
+                "specimen-mappings-bypass-p2#control-point-weight"
+            ]
+        },
+        "control-point-weights": {
+            "specimens": [
+                "specimen-edges-lines#control-point-distances",
+                "specimen-edges-lines#control-point-weights",
+                "specimen-arrows-p2#arrow-on-unbundled-bezier",
+                "specimen-mappings-bypass-p2#control-point-distance",
+                "specimen-mappings-bypass-p2#control-point-weight"
+            ]
+        },
+        "segment-distances": {
+            "specimens": [
+                "specimen-edges-lines#segment-distances",
+                "specimen-edges-lines#segment-weights",
+                "specimen-edges-lines#segment-radii-12",
+                "specimen-edges-lines#radius-type-arc-radius",
+                "specimen-edges-lines#radius-type-influence-radius",
+                "specimen-arrows-p2#arrow-on-segments"
+            ]
+        },
+        "segment-weights": {
+            "specimens": [
+                "specimen-edges-lines#segment-distances",
+                "specimen-edges-lines#segment-weights",
+                "specimen-edges-lines#segment-radii-12",
+                "specimen-edges-lines#radius-type-arc-radius",
+                "specimen-edges-lines#radius-type-influence-radius",
+                "specimen-mappings-bypass-p2#segment-distance"
+            ]
+        },
+        "segment-radii": {
+            "specimens": [
+                "specimen-edges-lines#segment-radii-12",
+                "specimen-edges-lines#radius-type-arc-radius",
+                "specimen-edges-lines#radius-type-influence-radius",
+                "specimen-mappings-bypass-p2#segment-radius"
+            ]
+        },
+        "radius-type": {
+            "specimens": [
+                "specimen-edges-lines#radius-type-arc-radius",
+                "specimen-edges-lines#radius-type-influence-radius"
+            ],
+            "values": {
+                "arc-radius": ["specimen-edges-lines#radius-type-arc-radius"],
+                "influence-radius": ["specimen-edges-lines#radius-type-influence-radius"]
+            }
+        },
+        "taxi-turn": {
+            "specimens": ["specimen-edges-lines-p2#taxi-turn-20pct", "specimen-edges-lines-p2#taxi-turn-10"]
+        },
+        "taxi-turn-min-distance": {
+            "specimens": ["specimen-edges-lines-p2#taxi-turn-min-distance-60"]
+        },
+        "taxi-direction": {
+            "specimens": [
+                "specimen-edges-lines#taxi-direction-horizontal",
+                "specimen-edges-lines-p2#taxi-direction-leftward",
+                "specimen-edges-lines-p2#taxi-direction-rightward",
+                "specimen-edges-lines-p2#taxi-direction-vertical",
+                "specimen-edges-lines-p2#taxi-direction-upward",
+                "specimen-edges-lines-p2#taxi-direction-downward"
+            ],
+            "values": {
+                "horizontal": [
+                    "specimen-edges-lines#taxi-direction-horizontal",
+                    "specimen-edges-lines-p2#taxi-turn-20pct",
+                    "specimen-edges-lines-p2#taxi-turn-10"
+                ],
+                "leftward": [
+                    "specimen-edges-lines-p2#taxi-direction-leftward",
+                    "specimen-edges-lines-p2#taxi-direction-leftward-target-left"
+                ],
+                "rightward": [
+                    "specimen-edges-lines-p2#taxi-direction-rightward",
+                    "specimen-edges-lines-p2#taxi-direction-rightward-target-left"
+                ],
+                "vertical": [
+                    "specimen-edges-lines-p2#taxi-direction-vertical",
+                    "specimen-edges-lines-p2#taxi-turn-min-distance-60"
+                ],
+                "upward": [
+                    "specimen-edges-lines-p2#taxi-direction-upward",
+                    "specimen-edges-lines-p2#taxi-direction-upward-target-above"
+                ],
+                "downward": [
+                    "specimen-edges-lines-p2#taxi-direction-downward",
+                    "specimen-edges-lines-p2#taxi-direction-downward-target-above"
+                ],
+                "auto": ["specimen-edges-lines-p2#taxi-direction-auto"]
+            }
+        },
+        "taxi-radius": {
+            "specimens": ["specimen-edges-lines-p2#taxi-radius-4"]
+        },
+        "edge-distances": {
+            "specimens": [
+                "specimen-edges-lines-p2#edge-distances-intersection",
+                "specimen-edges-lines-p2#edge-distances-node-position",
+                "specimen-edges-lines-p2#edge-distances-endpoints"
+            ],
+            "values": {
+                "intersection": ["specimen-edges-lines-p2#edge-distances-intersection"],
+                "node-position": ["specimen-edges-lines-p2#edge-distances-node-position"],
+                "endpoints": ["specimen-edges-lines-p2#edge-distances-endpoints"]
+            }
+        },
+        "arrow-scale": {
+            "specimens": ["specimen-arrows-p2#arrow-scale-2", "specimen-arrows-p2#arrow-scale-0-5"]
+        },
+        "loop-direction": {
+            "specimens": ["specimen-edges-lines-p2#loop-direction-90deg"]
+        },
+        "loop-sweep": {
+            "specimens": ["specimen-edges-lines-p2#loop-sweep-30deg"]
+        },
+        "source-distance-from-node": {
+            "specimens": ["specimen-edges-lines-p2#source-distance-from-node-8"]
+        },
+        "target-distance-from-node": {
+            "specimens": ["specimen-edges-lines-p2#target-distance-from-node-8"]
+        },
+        "source-arrow-shape": {
+            "specimens": [
+                "specimen-arrows#source-arrow-shape-tee",
+                "specimen-arrows#source-arrow-shape-triangle",
+                "specimen-arrows#source-arrow-shape-triangle-tee",
+                "specimen-arrows#source-arrow-shape-circle-triangle",
+                "specimen-arrows#source-arrow-shape-triangle-cross",
+                "specimen-arrows#source-arrow-shape-triangle-backcurve"
+            ],
+            "values": {
+                "tee": ["specimen-arrows#source-arrow-shape-tee"],
+                "triangle": [
+                    "specimen-arrows#source-arrow-shape-triangle",
+                    "specimen-arrows-p2#source-arrow-fill-filled",
+                    "specimen-arrows-p2#source-arrow-fill-hollow"
+                ],
+                "triangle-tee": ["specimen-arrows#source-arrow-shape-triangle-tee"],
+                "circle-triangle": ["specimen-arrows#source-arrow-shape-circle-triangle"],
+                "triangle-cross": ["specimen-arrows#source-arrow-shape-triangle-cross"],
+                "triangle-backcurve": ["specimen-arrows#source-arrow-shape-triangle-backcurve"],
+                "vee": ["specimen-arrows#source-arrow-shape-vee"],
+                "square": [
+                    "specimen-arrows#source-arrow-shape-square",
+                    "specimen-arrows-p2#source-arrow-width-match-line"
+                ],
+                "circle": ["specimen-arrows#source-arrow-shape-circle"],
+                "diamond": ["specimen-arrows#source-arrow-shape-diamond"],
+                "chevron": ["specimen-arrows#source-arrow-shape-chevron"],
+                "none": ["specimen-arrows#source-arrow-shape-none"]
+            }
+        },
+        "mid-source-arrow-shape": {
+            "specimens": [
+                "specimen-arrows#mid-source-arrow-shape-tee",
+                "specimen-arrows#mid-source-arrow-shape-triangle",
+                "specimen-arrows-p2#mid-source-arrow-shape-triangle-tee",
+                "specimen-arrows-p2#mid-source-arrow-shape-circle-triangle",
+                "specimen-arrows-p2#mid-source-arrow-shape-triangle-cross",
+                "specimen-arrows-p2#mid-source-arrow-shape-triangle-backcurve"
+            ],
+            "values": {
+                "tee": ["specimen-arrows#mid-source-arrow-shape-tee"],
+                "triangle": [
+                    "specimen-arrows#mid-source-arrow-shape-triangle",
+                    "specimen-arrows-p2#mid-source-arrow-fill-filled",
+                    "specimen-arrows-p2#mid-source-arrow-fill-hollow"
+                ],
+                "triangle-tee": ["specimen-arrows-p2#mid-source-arrow-shape-triangle-tee"],
+                "circle-triangle": ["specimen-arrows-p2#mid-source-arrow-shape-circle-triangle"],
+                "triangle-cross": ["specimen-arrows-p2#mid-source-arrow-shape-triangle-cross"],
+                "triangle-backcurve": ["specimen-arrows-p2#mid-source-arrow-shape-triangle-backcurve"],
+                "vee": ["specimen-arrows-p2#mid-source-arrow-shape-vee"],
+                "square": [
+                    "specimen-arrows-p2#mid-source-arrow-shape-square",
+                    "specimen-arrows-p2#mid-source-arrow-width-match-line"
+                ],
+                "circle": ["specimen-arrows-p2#mid-source-arrow-shape-circle"],
+                "diamond": ["specimen-arrows-p2#mid-source-arrow-shape-diamond"],
+                "chevron": ["specimen-arrows-p2#mid-source-arrow-shape-chevron"],
+                "none": ["specimen-arrows-p2#mid-source-arrow-shape-none"]
+            }
+        },
+        "target-arrow-shape": {
+            "specimens": [
+                "specimen-arrows#target-arrow-shape-tee",
+                "specimen-arrows#target-arrow-shape-triangle",
+                "specimen-arrows#target-arrow-shape-triangle-tee",
+                "specimen-arrows#target-arrow-shape-circle-triangle",
+                "specimen-arrows#target-arrow-shape-triangle-cross",
+                "specimen-arrows#target-arrow-shape-triangle-backcurve"
+            ],
+            "values": {
+                "tee": ["specimen-arrows#target-arrow-shape-tee"],
+                "triangle": [
+                    "specimen-arrows#target-arrow-shape-triangle",
+                    "specimen-arrows-p2#target-arrow-fill-filled",
+                    "specimen-arrows-p2#target-arrow-fill-hollow"
+                ],
+                "triangle-tee": ["specimen-arrows#target-arrow-shape-triangle-tee"],
+                "circle-triangle": ["specimen-arrows#target-arrow-shape-circle-triangle"],
+                "triangle-cross": ["specimen-arrows#target-arrow-shape-triangle-cross"],
+                "triangle-backcurve": ["specimen-arrows#target-arrow-shape-triangle-backcurve"],
+                "vee": ["specimen-arrows#target-arrow-shape-vee"],
+                "square": [
+                    "specimen-arrows#target-arrow-shape-square",
+                    "specimen-arrows-p2#target-arrow-fill-hollow-square",
+                    "specimen-arrows-p2#target-arrow-width-match-line"
+                ],
+                "circle": [
+                    "specimen-arrows#target-arrow-shape-circle",
+                    "specimen-arrows-p2#target-arrow-fill-hollow-circle"
+                ],
+                "diamond": [
+                    "specimen-arrows#target-arrow-shape-diamond",
+                    "specimen-arrows-p2#target-arrow-fill-hollow-diamond"
+                ],
+                "chevron": ["specimen-arrows#target-arrow-shape-chevron"],
+                "none": ["specimen-arrows#target-arrow-shape-none"]
+            }
+        },
+        "mid-target-arrow-shape": {
+            "specimens": [
+                "specimen-arrows#mid-target-arrow-shape-tee",
+                "specimen-arrows#mid-target-arrow-shape-triangle",
+                "specimen-arrows#mid-target-arrow-shape-triangle-tee",
+                "specimen-arrows#mid-target-arrow-shape-circle-triangle",
+                "specimen-arrows#mid-target-arrow-shape-triangle-cross",
+                "specimen-arrows#mid-target-arrow-shape-triangle-backcurve"
+            ],
+            "values": {
+                "tee": ["specimen-arrows#mid-target-arrow-shape-tee"],
+                "triangle": [
+                    "specimen-arrows#mid-target-arrow-shape-triangle",
+                    "specimen-arrows-p2#mid-target-arrow-fill-filled",
+                    "specimen-arrows-p2#mid-target-arrow-fill-hollow"
+                ],
+                "triangle-tee": ["specimen-arrows#mid-target-arrow-shape-triangle-tee"],
+                "circle-triangle": ["specimen-arrows#mid-target-arrow-shape-circle-triangle"],
+                "triangle-cross": ["specimen-arrows#mid-target-arrow-shape-triangle-cross"],
+                "triangle-backcurve": ["specimen-arrows#mid-target-arrow-shape-triangle-backcurve"],
+                "vee": ["specimen-arrows#mid-target-arrow-shape-vee"],
+                "square": [
+                    "specimen-arrows#mid-target-arrow-shape-square",
+                    "specimen-arrows-p2#mid-target-arrow-width-match-line"
+                ],
+                "circle": ["specimen-arrows#mid-target-arrow-shape-circle"],
+                "diamond": ["specimen-arrows#mid-target-arrow-shape-diamond"],
+                "chevron": ["specimen-arrows#mid-target-arrow-shape-chevron"],
+                "none": ["specimen-arrows#mid-target-arrow-shape-none"]
+            }
+        },
+        "source-arrow-color": {
+            "specimens": ["specimen-arrows-p2#source-arrow-color-red"]
+        },
+        "mid-source-arrow-color": {
+            "specimens": ["specimen-arrows-p2#mid-source-arrow-color-red"]
+        },
+        "target-arrow-color": {
+            "specimens": [
+                "specimen-arrows-p2#target-arrow-color-red",
+                "specimen-mappings-bypass-p2#target-arrow-color-named"
+            ]
+        },
+        "mid-target-arrow-color": {
+            "specimens": ["specimen-arrows-p2#mid-target-arrow-color-red"]
+        },
+        "source-arrow-fill": {
+            "specimens": ["specimen-arrows-p2#source-arrow-fill-filled", "specimen-arrows-p2#source-arrow-fill-hollow"],
+            "values": {
+                "filled": ["specimen-arrows-p2#source-arrow-fill-filled"],
+                "hollow": ["specimen-arrows-p2#source-arrow-fill-hollow"]
+            }
+        },
+        "mid-source-arrow-fill": {
+            "specimens": [
+                "specimen-arrows-p2#mid-source-arrow-fill-filled",
+                "specimen-arrows-p2#mid-source-arrow-fill-hollow"
+            ],
+            "values": {
+                "filled": ["specimen-arrows-p2#mid-source-arrow-fill-filled"],
+                "hollow": ["specimen-arrows-p2#mid-source-arrow-fill-hollow"]
+            }
+        },
+        "target-arrow-fill": {
+            "specimens": [
+                "specimen-arrows-p2#target-arrow-fill-filled",
+                "specimen-arrows-p2#target-arrow-fill-hollow",
+                "specimen-arrows-p2#target-arrow-fill-hollow-circle",
+                "specimen-arrows-p2#target-arrow-fill-hollow-square",
+                "specimen-arrows-p2#target-arrow-fill-hollow-diamond"
+            ],
+            "values": {
+                "filled": ["specimen-arrows-p2#target-arrow-fill-filled"],
+                "hollow": [
+                    "specimen-arrows-p2#target-arrow-fill-hollow",
+                    "specimen-arrows-p2#target-arrow-fill-hollow-circle",
+                    "specimen-arrows-p2#target-arrow-fill-hollow-square"
+                ]
+            }
+        },
+        "mid-target-arrow-fill": {
+            "specimens": [
+                "specimen-arrows-p2#mid-target-arrow-fill-filled",
+                "specimen-arrows-p2#mid-target-arrow-fill-hollow"
+            ],
+            "values": {
+                "filled": ["specimen-arrows-p2#mid-target-arrow-fill-filled"],
+                "hollow": ["specimen-arrows-p2#mid-target-arrow-fill-hollow"]
+            }
+        },
+        "source-arrow-width": {
+            "specimens": ["specimen-arrows-p2#source-arrow-width-match-line"],
+            "values": {
+                "match-line": ["specimen-arrows-p2#source-arrow-width-match-line"]
+            }
+        },
+        "mid-source-arrow-width": {
+            "specimens": ["specimen-arrows-p2#mid-source-arrow-width-match-line"],
+            "values": {
+                "match-line": ["specimen-arrows-p2#mid-source-arrow-width-match-line"]
+            }
+        },
+        "target-arrow-width": {
+            "specimens": [
+                "specimen-arrows-p2#target-arrow-width-match-line",
+                "specimen-arrows-p2#target-arrow-width-10"
+            ],
+            "values": {
+                "match-line": ["specimen-arrows-p2#target-arrow-width-match-line"]
+            }
+        },
+        "mid-target-arrow-width": {
+            "specimens": ["specimen-arrows-p2#mid-target-arrow-width-match-line"],
+            "values": {
+                "match-line": ["specimen-arrows-p2#mid-target-arrow-width-match-line"]
+            }
+        },
+        "selection-box-color": {
+            "notDrawn": "core, interaction only: the drag box of a box selection, drawn only while dragging"
+        },
+        "selection-box-opacity": {
+            "notDrawn": "core, interaction only (box selection drag box)"
+        },
+        "selection-box-border-color": {
+            "notDrawn": "core, interaction only (box selection drag box)"
+        },
+        "selection-box-border-width": {
+            "notDrawn": "core, interaction only (box selection drag box)"
+        },
+        "active-bg-color": {
+            "notDrawn": "core, interaction only: the touch circle drawn while a tap is held on the background"
+        },
+        "active-bg-opacity": {
+            "notDrawn": "core, interaction only (touch circle)"
+        },
+        "active-bg-size": {
+            "notDrawn": "core, interaction only (touch circle)"
+        },
+        "outside-texture-bg-color": {
+            "notDrawn": "core, interaction only: the background drawn while a textured viewport pans"
+        },
+        "outside-texture-bg-opacity": {
+            "notDrawn": "core, interaction only (textured viewport)"
+        }
+    }
+}

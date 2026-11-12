@@ -11,19 +11,21 @@
  */
 
 import "../../src/graphty-element";
-// Loaded up front: `loadFromFile` imports it dynamically before it dispatches, and on a cold
-// dev server serving that import can outlast the harness's settle bound, so the door would be
-// read as dispatching nothing.
-import "../../src/data/format-detection";
 
-import { afterEach, assert, describe, expectTypeOf, it, vi } from "vitest";
+import { afterEach, assert, beforeAll, describe, expectTypeOf, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { type Door, DOOR_ROOTS } from "../../src/session/commands/doors";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
 import { callOf, checkDispatches, dispatchesOf } from "../session/history/door-harness";
+
+// The timeline's attributes are doors too, and they answer only with their experiment on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 /** A small graph every door can find its way around. */
 const NODES = [{ id: "n1" }, { id: "n2" }, { id: "n3" }];

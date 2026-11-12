@@ -85,6 +85,39 @@ export const CARBON_COLORS = [
 ] as const;
 
 /**
+ * Kelly's colors of maximum contrast: twenty colors for as many groups, for a partition larger
+ * than any other categorical palette here can name.
+ * Research: Kelly (1965) "Twenty-two colors of maximum contrast", Color Engineering 3(6)
+ *
+ * The published sequence without its first two, white and black, and without medium gray
+ * (#848482), which an "other" group's gray would be mistaken for: nineteen colors. Kelly ordered
+ * them so that the first n are as far apart as any n can be, so a binding that uses only the
+ * first ten still gets ten that read as different. Not safe for color blindness past the first
+ * few; the palettes of eight and nine are, which is why they are preferred while they fit.
+ */
+export const KELLY_COLORS = [
+    "#F3C300", // Vivid yellow
+    "#875692", // Strong purple
+    "#F38400", // Vivid orange
+    "#A1CAF1", // Very light blue
+    "#BE0032", // Vivid red
+    "#C2B280", // Grayish yellow
+    "#008856", // Vivid green
+    "#E68FAC", // Strong purplish pink
+    "#0067A5", // Strong blue
+    "#F99379", // Strong yellowish pink
+    "#604E97", // Strong violet
+    "#F6A600", // Vivid orange yellow
+    "#B3446C", // Strong purplish red
+    "#DCD300", // Vivid greenish yellow
+    "#882D17", // Strong reddish brown
+    "#8DB600", // Vivid yellowish green
+    "#654522", // Deep yellowish brown
+    "#E25822", // Reddish orange
+    "#2B3D26", // Dark olive green
+] as const;
+
+/**
  * Pastel variant - softer version of Okabe-Ito
  * ✅ Colorblind-safe (derived from Okabe-Ito)
  * ⚠️ Lower contrast

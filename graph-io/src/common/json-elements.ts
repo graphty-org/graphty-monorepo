@@ -36,7 +36,7 @@ import {
 } from "./codes.js";
 import { agree, plural } from "./plural.js";
 import { type ImportReportBuilder } from "./report.js";
-import { trimTrailingZeros } from "./text.js";
+import { itemAt, jsonText, trimTrailingZeros } from "./text.js";
 
 // ============================================================ exact integers
 
@@ -107,6 +107,28 @@ interface RewrittenNumbers {
 }
 
 /**
+ * Every JSON string literal of a text, quotes included, in one left-to-right pass (a regex over
+ * untrusted text would scan again from every quote of an unterminated string). An unterminated
+ * literal at the end is left out.
+ * @param text - the document text
+ * @yields each literal
+ */
+function* stringLiterals(text: string): Generator<string> {
+    let i = text.indexOf('"');
+    while (i >= 0) {
+        let j = i + 1;
+        while (j < text.length && text[j] !== '"') {
+            j += text[j] === "\\" ? 2 : 1;
+        }
+        if (j >= text.length) {
+            return;
+        }
+        yield text.slice(i, j + 1);
+        i = text.indexOf('"', j + 1);
+    }
+}
+
+/**
  * The sentinel prefix of one rewrite: SENTINEL with a colon, or a numbered variant when the document
  * already holds that one. A string can only decode to a NUL by escaping it (`\u0000`), so when the
  * text holds that escape the escaped strings are decoded and searched too: any other escape in them
@@ -118,7 +140,7 @@ function sentinelFor(text: string): string {
     let haystack = text;
     if (/\\u0000/i.test(text)) {
         const decoded: string[] = [];
-        for (const [literal] of text.matchAll(/"(?:[^"\\]|\\.)*"/g)) {
+        for (const literal of stringLiterals(text)) {
             if (literal.includes("\\")) {
                 decoded.push(decodeString(literal));
             }
@@ -169,8 +191,9 @@ function isInexactLiteral(literal: string): boolean {
     if (m === null) {
         return false;
     }
-    const digits = trimTrailingZeros(m[2] + (m[3] ?? ""));
-    const exponent = Number(m[4] ?? "0") - (m[3] ?? "").length + ((m[2] + (m[3] ?? "")).length - digits.length);
+    const fraction = itemAt(m, 3) ?? "";
+    const digits = trimTrailingZeros(m[2] + fraction);
+    const exponent = Number(itemAt(m, 4) ?? "0") - fraction.length + ((m[2] + fraction).length - digits.length);
     if (digits.replace(/^0+/, "").length <= 15 || exponent < 0) {
         // up to 15 significant digits the nearest double reads back as the same text (1e39 is the
         // float it says); a fraction that rounds to an integer is ordinary floating-point rounding
@@ -203,9 +226,17 @@ export function rewriteNumbers(
     const sentinel = sentinelFor(text);
     const exactPrefix = `${sentinel}exact:`;
     const parts: string[] = [];
-    const tokens = new Set<string>();
-    const bigIntegers: string[] = [];
-    const inexact: string[] = [];
+    const scan: NumberScan = {
+        text,
+        nonstandard,
+        exactSentinel,
+        sentinel,
+        exactPrefix,
+        tokens: new Set<string>(),
+        bigIntegers: [],
+        inexact: [],
+        end: 0,
+    };
     const arrays: boolean[] = [];
     let expectValue = true;
     let copied = 0;
@@ -214,11 +245,7 @@ export function rewriteNumbers(
     while (i < n) {
         const ch = text[i];
         if (ch === '"') {
-            i++;
-            while (i < n && text[i] !== '"') {
-                i += text[i] === "\\" ? 2 : 1;
-            }
-            i++;
+            i = skipJsonString(text, i);
             expectValue = false;
             continue;
         }
@@ -232,40 +259,20 @@ export function rewriteNumbers(
             expectValue = true;
         } else if (ch === ",") {
             expectValue = arrays.at(-1) ?? false;
-        } else if (expectValue && ch !== " " && ch !== "\t" && ch !== "\n" && ch !== "\r") {
+        } else if (expectValue && !isJsonWhitespace(ch)) {
             expectValue = false;
-            const token = nonstandard ? NONSTANDARD_TOKENS.find(([word]) => text.startsWith(word, i)) : undefined;
-            let end = i;
-            let replacement: string | null = null;
-            if (token !== undefined) {
-                end = i + token[0].length;
-                tokens.add(token[0]);
-                replacement = JSON.stringify(`${sentinel}${token[0]}`);
-            } else if (ch === "-" || (ch >= "0" && ch <= "9")) {
-                end = i + 1;
-                while (end < n && "0123456789+-.eE".includes(text[end])) {
-                    end++;
-                }
-                const literal = text.slice(i, end);
-                if (INTEGER_LITERAL.test(literal)) {
-                    if (!Number.isSafeInteger(Number(literal))) {
-                        bigIntegers.push(literal);
-                        replacement = exactSentinel ? JSON.stringify(`${exactPrefix}${literal}`) : `"${literal}"`;
-                    }
-                } else if (isInexactLiteral(literal)) {
-                    inexact.push(literal);
-                }
-            }
+            const replacement = rewriteValueAt(scan, i);
             if (replacement !== null) {
                 parts.push(text.slice(copied, i), replacement);
-                copied = end;
+                copied = scan.end;
             }
-            i = Math.max(end, i + 1);
+            i = Math.max(scan.end, i + 1);
             continue;
         }
         i++;
     }
     parts.push(text.slice(copied));
+    const { tokens, bigIntegers, inexact } = scan;
     const revive = (_key: string, value: unknown): unknown => {
         if (typeof value === "string" && value.startsWith(sentinel)) {
             const found = NONSTANDARD_TOKENS.find(([word]) => word === value.slice(sentinel.length));
@@ -278,6 +285,96 @@ export function rewriteNumbers(
             ? new ExactInteger(value.slice(exactPrefix.length))
             : value;
     return { text: parts.join(""), tokens, bigIntegers, inexact, revive, reviveExact };
+}
+
+/** The state of one rewriteNumbers() pass that its value rewrite reads and records into. */
+interface NumberScan {
+    readonly text: string;
+    readonly nonstandard: boolean;
+    readonly exactSentinel: boolean;
+    readonly sentinel: string;
+    readonly exactPrefix: string;
+    readonly tokens: Set<string>;
+    readonly bigIntegers: string[];
+    readonly inexact: string[];
+    /** Where the value last read by rewriteValueAt() ends. */
+    end: number;
+}
+
+/**
+ * The index just past the string literal that starts at a quote (past the end of the text when it is not closed).
+ * @param text - the document text
+ * @param at - the index of the opening quote
+ * @returns the index after the closing quote
+ */
+function skipJsonString(text: string, at: number): number {
+    const n = text.length;
+    let i = at + 1;
+    while (i < n && text[i] !== '"') {
+        i += text[i] === "\\" ? 2 : 1;
+    }
+    return i + 1;
+}
+
+/**
+ * Whether a character is JSON insignificant whitespace.
+ * @param ch - the character
+ * @returns true for space, tab, line feed and carriage return
+ */
+function isJsonWhitespace(ch: string): boolean {
+    return ch === " " || ch === "\t" || ch === "\n" || ch === "\r";
+}
+
+/**
+ * Read the value that starts at an index in a value position for rewriteNumbers(): record a nonstandard token, a big
+ * integer or an inexact literal, and set `scan.end` to where the value read ends.
+ * @param scan - the pass's state
+ * @param i - the index of the value's first character
+ * @returns the replacement text, or null to keep the value as written
+ */
+function rewriteValueAt(scan: NumberScan, i: number): string | null {
+    const { text } = scan;
+    const ch = text[i];
+    const token = scan.nonstandard ? NONSTANDARD_TOKENS.find(([word]) => text.startsWith(word, i)) : undefined;
+    scan.end = i;
+    if (token !== undefined) {
+        scan.end = i + token[0].length;
+        scan.tokens.add(token[0]);
+        return JSON.stringify(`${scan.sentinel}${token[0]}`);
+    }
+    if (ch === "-" || (ch >= "0" && ch <= "9")) {
+        return rewriteNumberAt(scan, i);
+    }
+    return null;
+}
+
+/**
+ * Read the number literal that starts at an index for rewriteValueAt(): a big integer becomes its replacement, an
+ * inexact literal is listed.
+ * @param scan - the pass's state
+ * @param i - the index of the literal's first character
+ * @returns the replacement text, or null to keep the literal as written
+ */
+function rewriteNumberAt(scan: NumberScan, i: number): string | null {
+    const { text } = scan;
+    const n = text.length;
+    let end = i + 1;
+    while (end < n && "0123456789+-.eE".includes(text[end])) {
+        end++;
+    }
+    scan.end = end;
+    const literal = text.slice(i, end);
+    if (INTEGER_LITERAL.test(literal)) {
+        if (Number.isSafeInteger(Number(literal))) {
+            return null;
+        }
+        scan.bigIntegers.push(literal);
+        return scan.exactSentinel ? JSON.stringify(`${scan.exactPrefix}${literal}`) : `"${literal}"`;
+    }
+    if (isInexactLiteral(literal)) {
+        scan.inexact.push(literal);
+    }
+    return null;
 }
 
 /** One key repeated in a JSON object. */
@@ -425,6 +522,126 @@ function closingQuote(text: string, from: number): number {
         }
     }
     return text.length;
+}
+
+/**
+ * The keys of one object of a valid JSON text in the order the text writes them (a repeated key at its first place),
+ * found by a path of keys and array indices from the root. `JSON.parse` gives an object's integer-like keys first, in
+ * numeric order, whatever order the text has; this gives the text's.
+ * @param text - a text JSON.parse accepted (non-standard number tokens included)
+ * @param path - the keys and array indices leading to the object (a repeated key leads to its last value, as
+ *     JSON.parse reads it)
+ * @returns the keys, or null when the path does not lead to an object
+ * @category Plugin helpers
+ */
+export function keysInTextOrder(text: string, path: readonly (string | number)[]): string[] | null {
+    let at = skipJsonSpace(text, 0);
+    for (const step of path) {
+        let next = -1;
+        if (typeof step === "number" && text.codePointAt(at) === 91) {
+            let index = 0;
+            forEachJsonEntry(text, at, false, (_key, value) => {
+                if (index++ === step) {
+                    next = value;
+                }
+            });
+        } else if (typeof step === "string" && text.codePointAt(at) === 123) {
+            forEachJsonEntry(text, at, true, (key, value) => {
+                if (key === step) {
+                    next = value;
+                }
+            });
+        }
+        if (next < 0) {
+            return null;
+        }
+        at = next;
+    }
+    if (text.codePointAt(at) !== 123) {
+        return null;
+    }
+    const keys = new Set<string>();
+    forEachJsonEntry(text, at, true, (key) => keys.add(key as string));
+    return [...keys];
+}
+
+/**
+ * Call back with each member of an object (its key and the offset of its value) or each element of an array.
+ * @param text - the text
+ * @param open - the offset of the opening brace or bracket
+ * @param object - whether it is an object
+ * @param visit - called per member or element
+ */
+function forEachJsonEntry(
+    text: string,
+    open: number,
+    object: boolean,
+    visit: (key: string | null, value: number) => void,
+): void {
+    let i = skipJsonSpace(text, open + 1);
+    const close = object ? 125 : 93;
+    while (i < text.length && text.codePointAt(i) !== close) {
+        let key: string | null = null;
+        if (object) {
+            const end = closingQuote(text, i + 1);
+            key = JSON.parse(text.slice(i, end + 1)) as string;
+            // past the colon
+            i = skipJsonSpace(text, skipJsonSpace(text, end + 1) + 1);
+        }
+        visit(key, i);
+        i = skipJsonSpace(text, skipJsonValue(text, i));
+        if (text.codePointAt(i) === 44) {
+            i = skipJsonSpace(text, i + 1);
+        }
+    }
+}
+
+/**
+ * The offset after the JSON value that starts at an offset.
+ * @param text - the text
+ * @param at - the value's first character
+ * @returns the offset after it
+ */
+function skipJsonValue(text: string, at: number): number {
+    const c = text.codePointAt(at);
+    if (c === 34) {
+        return closingQuote(text, at + 1) + 1;
+    }
+    if (c !== 123 && c !== 91) {
+        let i = at;
+        while (i < text.length && !endsScalar(text.codePointAt(i) ?? 32)) {
+            i++;
+        }
+        return i;
+    }
+    let depth = 0;
+    let i = at;
+    while (i < text.length) {
+        const d = text.codePointAt(i);
+        if (d === 34) {
+            i = closingQuote(text, i + 1);
+        } else if (d === 123 || d === 91) {
+            depth++;
+        } else if ((d === 125 || d === 93) && --depth === 0) {
+            return i + 1;
+        }
+        i++;
+    }
+    return text.length;
+}
+
+/**
+ * The offset of the first character at or after an offset that is not JSON whitespace.
+ * @param text - the text
+ * @param from - the offset
+ * @returns the offset
+ */
+function skipJsonSpace(text: string, from: number): number {
+    let i = from;
+    while (i < text.length && isSpace(text.codePointAt(i))) {
+        i++;
+    }
+    return i;
 }
 
 /**
@@ -634,7 +851,7 @@ function duplicateKey(text: string): string | null {
             const start = i;
             i = stringEnd(text, i + 1);
             const keys = stack.at(-1) ?? null;
-            if (keys !== null && text[skipSpace(text, i + 1)] === ":") {
+            if (keys !== null && text[skipJsonSpace(text, i + 1)] === ":") {
                 const key = JSON.parse(text.slice(start, i + 1)) as string;
                 if (keys.has(key)) {
                     return key;
@@ -657,20 +874,6 @@ function stringEnd(text: string, from: number): number {
     let i = from;
     while (i < text.length && text[i] !== '"') {
         i += text[i] === "\\" ? 2 : 1;
-    }
-    return i;
-}
-
-/**
- * The index of the first character at or after `from` that is not JSON whitespace.
- * @param text - the text
- * @param from - the first index
- * @returns the index (text.length at the end)
- */
-function skipSpace(text: string, from: number): number {
-    let i = from;
-    while (i < text.length && isSpace(text.codePointAt(i))) {
-        i++;
     }
     return i;
 }
@@ -857,6 +1060,11 @@ class ChunkCursor {
     /** The line number of buf's first character. */
     private linesBefore = 1;
 
+    /** The last position line() counted to in buf, and the line breaks before it: line() counts on from there. */
+    private countedTo = 0;
+
+    private countedLines = 0;
+
     private parts: string[] | null = null;
 
     private captureStart = 0;
@@ -882,6 +1090,8 @@ class ChunkCursor {
             this.captureStart = 0;
         }
         this.linesBefore += countNewlines(this.buf, 0, this.buf.length);
+        this.countedTo = 0;
+        this.countedLines = 0;
         const endsWithCr = this.buf.endsWith("\r");
         for (;;) {
             const next = await this.iterator.next();
@@ -907,7 +1117,15 @@ class ChunkCursor {
      * @returns the line
      */
     line(): number {
-        return this.linesBefore + countNewlines(this.buf, 0, Math.min(this.pos, this.buf.length));
+        // counted on from the last call, so reading every element of a one-chunk document stays linear
+        const to = Math.min(this.pos, this.buf.length);
+        if (to < this.countedTo) {
+            this.countedTo = 0;
+            this.countedLines = 0;
+        }
+        this.countedLines += countNewlines(this.buf, this.countedTo, to);
+        this.countedTo = to;
+        return this.linesBefore + this.countedLines;
     }
 
     /**
@@ -967,17 +1185,8 @@ class ChunkCursor {
     async skipValue(startDepth = 0): Promise<void> {
         let depth = startDepth;
         this.deepest = depth;
-        if (depth === 0) {
-            const c = this.buf.charCodeAt(this.pos);
-            if (c === 34) {
-                this.pos++;
-                await this.skipString();
-                return;
-            }
-            if (c !== 123 && c !== 91) {
-                await this.skipScalar();
-                return;
-            }
+        if (depth === 0 && (await this.skipLeaf())) {
+            return;
         }
         for (;;) {
             if (this.pos >= this.buf.length && !(await this.fill())) {
@@ -989,9 +1198,7 @@ class ChunkCursor {
                 await this.skipString();
             } else if (c === 123 || c === 91) {
                 depth++;
-                if (depth > this.deepest) {
-                    this.deepest = depth;
-                }
+                this.deepest = Math.max(this.deepest, depth);
             } else if (c === 125 || c === 93) {
                 depth--;
                 if (depth === 0) {
@@ -999,6 +1206,24 @@ class ChunkCursor {
                 }
             }
         }
+    }
+
+    /**
+     * Skip the value at the read position when it is a string or a bare scalar.
+     * @returns true when the value was skipped; false when it is an object or an array
+     */
+    private async skipLeaf(): Promise<boolean> {
+        const c = this.buf.charCodeAt(this.pos);
+        if (c === 34) {
+            this.pos++;
+            await this.skipString();
+            return true;
+        }
+        if (c !== 123 && c !== 91) {
+            await this.skipScalar();
+            return true;
+        }
+        return false;
     }
 
     /** Advance past the rest of a string whose opening quote was consumed. */
@@ -1062,18 +1287,13 @@ class ChunkCursor {
  * @returns the count
  */
 function countNewlines(text: string, from: number, to: number): number {
+    // one pass over the slice only: an indexOf() past `to` made each call cost the whole rest of the text
     let count = 0;
-    let i = text.indexOf("\n", from);
-    while (i >= 0 && i < to) {
-        count++;
-        i = text.indexOf("\n", i + 1);
-    }
-    i = text.indexOf("\r", from);
-    while (i >= 0 && i < to) {
-        if (text[i + 1] !== "\n") {
+    for (let i = from; i < to; i++) {
+        const c = text.codePointAt(i);
+        if (c === 10 || (c === 13 && text.codePointAt(i + 1) !== 10)) {
             count++;
         }
-        i = text.indexOf("\r", i + 1);
     }
     return count;
 }
@@ -1569,16 +1789,26 @@ export function cxId(raw: unknown, inexactLiteral = false): CxId {
         return { id: raw.digits, note: "precision" };
     }
     if (typeof raw === "number") {
-        if (Number.isSafeInteger(raw)) {
-            return { id: raw === 0 ? 0 : raw, note: inexactLiteral ? "text" : null };
-        }
-        throw invalidCxId(raw, Number.isInteger(raw) ? "an integer beyond 2^53 written inexactly" : "not an integer");
+        return numberCxId(raw, inexactLiteral);
     }
     if (typeof raw === "string" && raw !== "-0" && DECIMAL_INTEGER_TEXT.test(raw)) {
         const n = Number(raw);
         return Number.isSafeInteger(n) ? { id: n, note: "text" } : { id: raw, note: "precision" };
     }
     throw invalidCxId(raw, "a CX id is an integer");
+}
+
+/**
+ * The CX id of a parsed number: a safe integer is the id (-0 read as 0); anything else is E_INVALID_ID.
+ * @param raw - the parsed number
+ * @param inexactLiteral - whether the number was written as a non-integer literal
+ * @returns the id and how it was spelled
+ */
+function numberCxId(raw: number, inexactLiteral: boolean): CxId {
+    if (Number.isSafeInteger(raw)) {
+        return { id: raw === 0 ? 0 : raw, note: inexactLiteral ? "text" : null };
+    }
+    throw invalidCxId(raw, Number.isInteger(raw) ? "an integer beyond 2^53 written inexactly" : "not an integer");
 }
 
 /**
@@ -1622,9 +1852,9 @@ export function inexactLiteral(text: string, key: string, keyDepth = 1): boolean
             const start = i;
             i = stringEnd(text, i + 1);
             // the key itself (a string at depth 1 followed by a colon), not a value spelled like it
-            const colon = skipSpace(text, i + 1);
+            const colon = skipJsonSpace(text, i + 1);
             if (depth === keyDepth && text.startsWith(quoted, start) && text[colon] === ":") {
-                return inexactNumberAt(text, skipSpace(text, colon + 1));
+                return inexactNumberAt(text, skipJsonSpace(text, colon + 1));
             }
         }
         i++;
@@ -1708,16 +1938,9 @@ export function headText(head: Uint8Array): string {
     return new TextDecoder(encoding).decode(head).replace(/^\uFEFF/, "");
 }
 
-/**
- * Cytoscape's screen y (growing downward) as graph-io's y (growing upward), and back: a negation
- * that never yields -0.
- * @param y - the coordinate
- * @returns the flipped coordinate
- * @category Plugin helpers
- */
-export function flipY(y: number): number {
-    return y === 0 ? 0 : -y;
-}
+// Cytoscape's screen y (growing downward) as graph-io's y (growing upward), and back: the one
+// shared flip lives with the other position conversions.
+export { flipY } from "../positions/convert.js";
 
 // ============================================================ stream structure shared by CX1 and CX2
 
@@ -1865,7 +2088,7 @@ export class CxStructure {
             this.report.warning(
                 "validation-error",
                 COUNT_MISMATCH_CODE,
-                `a metaData element declares the elementCount ${shownCount} for the name ${JSON.stringify(value.name) ?? "undefined"}; not a count of a named aspect, not checked`,
+                `a metaData element declares the elementCount ${shownCount} for the name ${jsonText(value.name) ?? "undefined"}; not a count of a named aspect, not checked`,
                 { line, element: "metaData" },
             );
             return;

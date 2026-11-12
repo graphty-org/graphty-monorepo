@@ -274,7 +274,7 @@ describe("duplicate policies over undirected groups (design section 6.5)", () =>
         expect(() => loops.freeze({ duplicateEdges: "error" })).toThrow(
             expect.objectContaining({
                 code: "E_DUPLICATE_EDGE",
-                details: expect.objectContaining({ source: 0, target: 0 }),
+                details: expect.objectContaining({ source: 0, target: 0 }) as unknown,
             }),
         );
     });

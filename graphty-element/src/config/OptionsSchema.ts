@@ -12,7 +12,7 @@
  * - Consistent discovery APIs
  */
 
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * UI metadata for an option (not validation - that's Zod's job)
@@ -28,6 +28,12 @@ interface OptionMeta {
     group?: string;
     /** Suggested step increment for numeric sliders */
     step?: number;
+    /**
+     * The name of each choice of an enumerated option, by value, where the value made readable
+     * would be wrong ("bellman-ford" reads "Bellman Ford"; its name is "Bellman-Ford"). A value
+     * left out keeps the readable form of its value.
+     */
+    choiceLabels?: Readonly<Record<string, string>>;
 }
 
 /**

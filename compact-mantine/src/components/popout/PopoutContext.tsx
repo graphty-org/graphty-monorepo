@@ -95,6 +95,20 @@ export function usePopoutManager(): Pick<PopoutManagerContextValue, "closeAll" |
 }
 
 /**
+ * The pop-out the calling component sits inside, for content that closes its own panel -- an
+ * "Apply" or "Done" button, a list row that picks a value. Closing this way behaves like any other
+ * close: everything opened from the pop-out closes with it and focus returns to its trigger.
+ *
+ * Call it from inside `Popout.Panel`'s content; outside a `Popout` it throws.
+ * @returns `close`, which closes the pop-out, and `isOpen`. `close` is stable across renders.
+ */
+export function usePopout(): Pick<PopoutContextValue, "close" | "isOpen"> {
+    const { close, isOpen } = usePopoutContext();
+
+    return useMemo(() => ({ close, isOpen }), [close, isOpen]);
+}
+
+/**
  * Props for PopoutProvider.
  */
 interface PopoutProviderProps {
@@ -180,11 +194,19 @@ export function PopoutProvider({
         [setOpenState],
     );
 
+    // Focus goes back to the trigger BEFORE the state changes. A trigger that is shown only while
+    // hovered, focused or open (a field's "vary" button) is hidden by the same render that closes
+    // the panel, and focusing a hidden button after that render does nothing: focus fell to the
+    // page. Only when focus is inside this panel, so a click elsewhere keeps its own focus.
     const close = useCallback(
         (event?: SyntheticEvent) => {
+            const panel = document.getElementById(`popout-panel-${id}`);
+            if (panel?.contains(document.activeElement)) {
+                triggerRef.current?.focus();
+            }
             setOpenState(false, event);
         },
-        [setOpenState],
+        [id, setOpenState],
     );
 
     const toggle = useCallback(

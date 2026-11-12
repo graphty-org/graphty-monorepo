@@ -9,12 +9,19 @@
  * @module test/helpers/mock-graph-context
  */
 
+import { makeMask, maskSet } from "@graphty/graph-format";
+
 import { isCameraViewName } from "../../src/camera/resolve";
-import type { Path } from "../../src/catalog/types";
+import type { Path, RuleTree, Scope } from "../../src/catalog/types";
 import type { Graph } from "../../src/Graph";
 import type { DataManager } from "../../src/managers";
 import { StylePainter } from "../../src/managers/StylePainter";
 import type { GraphSession } from "../../src/session";
+import { SESSION_CATALOG_TABLES } from "../../src/session/catalog";
+import { SHADER_DEFINITIONS } from "../../src/session/commands/shaders";
+import { STYLE_DEFINITIONS } from "../../src/session/commands/style";
+import { Dispatcher } from "../../src/session/project/Dispatcher";
+import { createSessionShaders } from "../../src/session/shaders";
 import { createStylesApi } from "../../src/session/styles";
 import { columnsFor, compileExpressionPredicate, type SelectorSource } from "../../src/session/styles/predicate";
 import { createLayerRepaint } from "../../src/session/styles/repaint";
@@ -234,9 +241,66 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         );
     }
 
+    const edgeList = [...mockEdges.values()];
+
+    /**
+     * The nodes one rule picks, for the rules the AI commands write: an expression over nodes, an
+     * `edges` leaf (which the commands only write inside a rule read `listed`, so it stands for
+     * the matching edges' endpoints), a member of another scope, and `all` of those.
+     * @param tree - The rule.
+     * @returns The node ids.
+     */
+    function nodesOfRule(tree: RuleTree): Set<string> {
+        switch (tree.kind) {
+            case "expression": {
+                const { test } = compileExpressionPredicate(tree.where, columnsFor(selectorSource, "node"));
+                return new Set(nodeRows.flatMap((row, index) => (test(index) ? [String(row["data.id"])] : [])));
+            }
+            case "edges": {
+                const { test } = compileExpressionPredicate(tree.where, columnsFor(selectorSource, "edge"));
+                return new Set(edgeList.flatMap((edge, index) => (test(index) ? [edge.srcId, edge.dstId] : [])));
+            }
+            case "member":
+                return nodesOfScope(tree.of);
+            case "all": {
+                const [first, ...rest] = tree.of.map(nodesOfRule);
+                return new Set([...(first ?? [])].filter((id) => rest.every((nodes) => nodes.has(id))));
+            }
+            default:
+                throw new Error(`the mock graph does not resolve a "${tree.kind}" rule`);
+        }
+    }
+
+    /**
+     * The nodes a `{ where }` scope or an inline rule set picks.
+     * @param scope - The scope.
+     * @returns The node ids.
+     */
+    function nodesOfScope(scope: Scope): Set<string> {
+        if (typeof scope === "object" && "where" in scope) {
+            return nodesOfRule({ kind: "expression", where: scope.where });
+        }
+
+        if (typeof scope === "object" && "define" in scope && scope.define.kind === "rule") {
+            const { where } = scope.define;
+            return nodesOfRule(typeof where === "string" ? { kind: "expression", where } : where);
+        }
+
+        throw new Error(`the mock graph does not resolve the scope ${JSON.stringify(scope)}`);
+    }
+
     const selectorSource: SelectorSource = {
         nodeValue: (index, path) => nodeRows[index]?.[path],
         edgeValue: (index, path) => edgeRows[index]?.[path],
+        // Resolved once, when the layer is added: the mock's data never changes under a layer.
+        scope: (scope) => {
+            const members = nodesOfScope(scope);
+            const bits = makeMask(nodeRows.length);
+            nodeRows.forEach((row, index) => {
+                maskSet(bits, index, members.has(String(row["data.id"])));
+            });
+            return { bits: (target) => (target === "node" ? bits : null), problem: () => undefined };
+        },
     };
 
     const repaintEngine = createLayerRepaint({
@@ -250,7 +314,10 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
     // stack a test reads back holds exactly the layers the commands put in it. The path
     // directory is what lets a layer be told apart from a layer over a column nothing answers,
     // which is the difference between "this will paint" and "this will paint later, or never".
+    // The style ops and the shader op on one dispatcher, so the project's shaders are real too.
+    const dispatcher = new Dispatcher({ definitions: [...STYLE_DEFINITIONS, ...SHADER_DEFINITIONS] });
     const mockSessionStyles = createStylesApi({
+        dispatcher,
         elements: selectorSource,
         base: [],
         repaint: repaintEngine.repaint,
@@ -263,21 +330,40 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
     // session as `tx`, which is what a command is handed as `ctx.tx`.
     const mockSession = {
         styles: mockSessionStyles,
-        // A `{ where }` scope, read by the same expression compiler a style layer uses, so a
-        // command that selects nodes reads the same selector language a layer does.
+        shaders: createSessionShaders({ dispatcher, styles: mockSessionStyles, publish: () => undefined }).api,
+        // A `{ where }` scope or an inline rule set, read by the same expression compiler a style
+        // layer uses, so a command that selects nodes reads the same selector language a layer does.
         scope: {
-            resolve: (spec: { where: string }) =>
-                Promise.resolve().then(() => {
-                    const { test } = compileExpressionPredicate(spec.where, columnsFor(selectorSource, "node"));
-                    return { nodes: new Set(nodeRows.flatMap((row, index) => (test(index) ? [row["data.id"]] : []))) };
-                }),
+            resolve: (spec: Scope) => Promise.resolve().then(() => ({ nodes: nodesOfScope(spec) })),
         },
         layout: {
+            get id() {
+                return currentLayoutType;
+            },
+            get dimension() {
+                return currentTwoD ? "2d" : "3d";
+            },
             set: async (id: string, options?: { engine?: string }) => {
                 await mockGraph.setLayout(options?.engine ?? id);
             },
             setDimension: (dimension: "2d" | "3d") => mockGraph.setViewMode(dimension),
         },
+        // What the assistant's facts about the graph read: counts, attributes, runs, the selection.
+        status: {
+            counts: { nodes: nodeCount, edges: edgeCount, visibleNodes: nodeCount, visibleEdges: edgeCount },
+            directed: false,
+        },
+        // What the facts block reads: the node ids, in order, and how many there are. The history
+        // reads the counts, to tell whether a graph had arrived when it picked a conversation.
+        data: {
+            statistics: () => ({ nodeCount, edgeCount }),
+            attributes: () => [],
+            snapshot: () => ({ nodeCount, ids: { idOf: (index: number) => nodeId(index) } }),
+            fingerprint: () => `mock:${String(nodeCount)}:${String(edgeCount)}`,
+        },
+        runs: { list: () => [] },
+        catalog: SESSION_CATALOG_TABLES,
+        selection: { size: 0, nodes: [], edges: [], origin: null, apply: () => Promise.resolve() },
         transaction: <T>(_label: string, fn: (tx: GraphSession, signal: AbortSignal) => T | Promise<T>) =>
             Promise.resolve().then(() => fn(mockSession, new AbortController().signal)),
         // A history that records nothing, so an assistant message has no step to continue or undo.

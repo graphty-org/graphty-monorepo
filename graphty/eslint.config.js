@@ -13,6 +13,7 @@ import tseslint from "typescript-eslint";
 
 import { MANTINE_REPLACEMENTS } from "../compact-mantine/eslint/mantine-replacements.js";
 import noElementMutation from "./eslint-rules/no-element-mutation.js";
+import noSpecialLayers from "./eslint-rules/no-special-layers.js";
 
 // The graphty app is only HTML around graphty-element (CLAUDE.md, "Architectural Principles"):
 // it reaches graph functionality through graphty-element's published entry points and nothing
@@ -23,6 +24,9 @@ const ELEMENT_EXPORTS = Object.keys(
 )
     .filter((key) => key !== ".")
     .map((key) => key.slice(2).replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`));
+/** The app's own lint rules: one object, because ESLint refuses a plugin name defined twice. */
+const graphtyPlugin = { rules: { "no-element-mutation": noElementMutation, "no-special-layers": noSpecialLayers } };
+
 const RULE = "The graphty app consumes graphty-element and nothing else (CLAUDE.md, Architectural Principles).";
 const RESTRICTED_IMPORT_PATTERNS = [
     {
@@ -45,7 +49,52 @@ const RESTRICTED_IMPORT_PATTERNS = [
         regex: String.raw`^\.{1,2}/(.*/)?graphty-element(/|$)`,
         message: `${RULE} Import @graphty/graphty-element by package name, never by a relative path.`,
     },
+    {
+        regex: "^@testing-library/user-event$",
+        message:
+            "It builds its events in JavaScript. Use userEvent from vitest/browser, which drives the browser's real input (tools/README.md, Testing).",
+    },
 ];
+
+// The app's own bans, beside compact-mantine's list. Not in that shared list, because
+// compact-mantine builds Popout on Mantine's Popover.
+const APP_REPLACEMENTS = [
+    ...MANTINE_REPLACEMENTS,
+    {
+        name: "@graphty/compact-mantine",
+        importNames: ["ColorPickerPanel"],
+        message: "Use CompactColorInput: it carries the paint field and opens the picker in a Popout.",
+    },
+    {
+        name: "@mantine/core",
+        importNames: ["Popover"],
+        message: "Use Popout from @graphty/compact-mantine: a titled pop-out with a close button a finger can reach.",
+    },
+];
+
+// The files that may still use Mantine's Popover, each with its reason.
+const POPOVER_EXCEPTIONS = [
+    // A toolbar dropdown, toggled by its trigger and closed by an outside tap, as Figma's toolbar
+    // menus are; the Layout and Analyze menus open in it.
+    "src/workspace/toolbar/WorkspaceToolbar.tsx",
+];
+const WITHOUT_POPOVER_BAN = APP_REPLACEMENTS.filter((entry) => !entry.importNames.includes("Popover"));
+// vi.mock and vi.doMock, banned in every browser-project file (the block that uses it says why).
+const NO_MODULE_MOCK = {
+    selector: "CallExpression[callee.object.name='vi'][callee.property.name=/^(mock|doMock)$/]",
+    message:
+        "No vi.mock in a browser test: it switches the page's HTTP cache off (#3416). Pass the test double in through a prop, an option or a test-only setter.",
+};
+// An error's `.message` read in the app's own code (#5574): a GraphtyError's message is English for
+// people debugging, may change in any release and ignores the reader's Number format, so a reader
+// sees the app's words from the error's code and details (errorWords in
+// src/workspace/project/words.ts). Tests and stories may read it.
+const NO_ERROR_MESSAGE = {
+    selector: "MemberExpression[object.name=/^(e|err|error|reason|cause)$/][property.name='message']",
+    message:
+        "Never show an error's message to a reader: word it from its code and details with errorWords (src/workspace/project/words.ts).",
+};
+const NO_LUCIDE = { name: "lucide-react", message: "Use GLYPHS from src/workspace/glyphs.ts: one icon per concept." };
 
 export default tseslint.config(
     // Inherit all rules from root config
@@ -56,6 +105,9 @@ export default tseslint.config(
 
     // The rule's test fixtures are code under test, parsed by the test itself.
     { ignores: ["eslint-rules/__tests__/fixtures/**"] },
+
+    // Builds made into a named folder (dist-<name>/) for a preview server: output, not source.
+    { ignores: ["dist-*/**"] },
 
     // The lint rules are Node modules in plain JavaScript, type-checked with checkJs
     // (`tsc -p eslint-rules`), so their JSDoc carries the types.
@@ -72,8 +124,19 @@ export default tseslint.config(
         files: ["src/**/*.ts", "src/**/*.tsx"],
         // Stories are linted without type information (root eslint.config.js), and the rule needs it.
         ignores: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
-        plugins: { graphty: { rules: { "no-element-mutation": noElementMutation } } },
+        plugins: { graphty: graphtyPlugin },
         rules: { "graphty/no-element-mutation": "error" },
+    },
+
+    // ============================================
+    // NO STYLE LAYER IS SPECIAL (issue #5905)
+    // ============================================
+    {
+        files: ["src/**/*.ts", "src/**/*.tsx"],
+        // The same files tools/check-special-layers.mjs judges.
+        ignores: ["**/__tests__/**", "**/__fixtures__/**", "**/*.test.*", "**/*.stories.*", "**/stories/**"],
+        plugins: { graphty: graphtyPlugin },
+        rules: { "graphty/no-special-layers": "error" },
     },
 
     // ============================================
@@ -108,7 +171,35 @@ export default tseslint.config(
             // compact-mantine's replacements for stock Mantine components: see the list's own file.
             "@typescript-eslint/no-restricted-imports": [
                 "error",
-                { patterns: RESTRICTED_IMPORT_PATTERNS, paths: MANTINE_REPLACEMENTS },
+                { patterns: RESTRICTED_IMPORT_PATTERNS, paths: APP_REPLACEMENTS },
+            ],
+        },
+    },
+
+    // The workspace draws every icon from one map, src/workspace/glyphs.ts, so each concept keeps
+    // one icon everywhere it appears. The block repeats the rule's options because a later block
+    // replaces a rule's options rather than adding to them.
+    {
+        files: ["src/workspace/**/*.{ts,tsx}"],
+        ignores: ["src/workspace/glyphs.ts"],
+        rules: {
+            "@typescript-eslint/no-restricted-imports": [
+                "error",
+                {
+                    patterns: RESTRICTED_IMPORT_PATTERNS,
+                    paths: [...APP_REPLACEMENTS, NO_LUCIDE],
+                },
+            ],
+        },
+    },
+
+    // The Popover exceptions above: the same bans without Popover's.
+    {
+        files: POPOVER_EXCEPTIONS,
+        rules: {
+            "@typescript-eslint/no-restricted-imports": [
+                "error",
+                { patterns: RESTRICTED_IMPORT_PATTERNS, paths: [...WITHOUT_POPOVER_BAN, NO_LUCIDE] },
             ],
         },
     },
@@ -120,5 +211,54 @@ export default tseslint.config(
     {
         files: ["eslint-rules/**/*.ts", "scripts/**/*.ts"],
         rules: { "@typescript-eslint/no-restricted-imports": "off" },
+    },
+
+    // The dry run (acceptance/) is a Node script that drives the built app in Playwright: its own code
+    // runs in Node, and the functions it hands to page.evaluate run in the page, so it declares both.
+    // As in visual-review, a JSDoc type is the only type annotation a plain .mjs file has.
+    {
+        files: ["acceptance/**/*.mjs"],
+        languageOptions: { globals: { ...globals.node, ...globals.browser } },
+        settings: { jsdoc: { mode: "typescript" } },
+        rules: { "jsdoc/no-types": "off" },
+    },
+
+    // No module mocks in the app's own code: every test file and story under src/ runs in a browser
+    // project, and there every vi.mock makes Vitest add a Playwright route to the page's context.
+    // While a context has a route, Playwright switches the browser's HTTP cache off and holds every
+    // request until the one Vitest process answers it, so the file fetches its whole module graph
+    // again and slows every page beside it (issues #3350 and #3416). Pass a test double in instead:
+    // a prop, an option, or a test-only setter on the module.
+    {
+        files: ["src/**/*.{ts,tsx}"],
+        rules: { "no-restricted-syntax": ["error", NO_MODULE_MOCK] },
+    },
+    {
+        files: ["src/**/*.{ts,tsx}"],
+        ignores: ["src/**/*.test.{ts,tsx}", "src/**/*.stories.{ts,tsx}", "src/**/__tests__/**", "src/test/**"],
+        rules: { "no-restricted-syntax": ["error", NO_MODULE_MOCK, NO_ERROR_MESSAGE] },
+    },
+
+    // A real-element test waits for an open on the workspace's `opened` (openBy in
+    // src/test/open.tsx), never by polling the node count, which arrives before the rest of an
+    // open (styles, history, focus), so a test that waits on it acts on a half-opened workspace (#3544).
+    // The start page's own graph (`graphty-element[data-start-page]`) is not an open, so a wait
+    // that names it is left alone.
+    {
+        files: ["src/**/*.real-element.test.tsx"],
+        rules: {
+            "no-restricted-syntax": [
+                "error",
+                NO_MODULE_MOCK,
+                {
+                    // waitFor, vi.waitFor and expect.poll; statistics().nodeCount read or destructured inside
+                    // one. A helper that reads it outside the call is not seen.
+                    selector:
+                        ":matches(CallExpression[callee.name='waitFor'], CallExpression[callee.property.name=/^(waitFor|poll)$/]):not(:has(Literal[value='graphty-element[data-start-page]'])) :matches(MemberExpression[property.name='nodeCount'][object.callee.property.name='statistics'], VariableDeclarator[init.callee.property.name='statistics'] > ObjectPattern > Property[key.name='nodeCount'])",
+                    message:
+                        "Do not wait on the node count: await the open (openBy in src/test/open.tsx) or the load's own promise.",
+                },
+            ],
+        },
     },
 );

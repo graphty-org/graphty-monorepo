@@ -69,6 +69,13 @@ export const SYNTAX_CODE = "E_SYNTAX";
 export const XML_SYNTAX_CODE = "E_XML_SYNTAX";
 
 /**
+ * Elements are nested deeper than graph-io reads (`MAX_XML_DEPTH`, 100,000 levels); the message says where. The import
+ * stops.
+ * @category Issue and loss codes
+ */
+export const XML_NESTING_CODE = "E_XML_NESTING";
+
+/**
  * An element the format does not define at that place was skipped.
  * @category Issue and loss codes
  */

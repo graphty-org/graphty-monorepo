@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { degreeCentrality, degrees } from "../../../src/indexed/degree.js";
 import { legacyResult } from "../../helpers/golden.js";
+import type { CentralityResult } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { multigraphFixtures, numericIdsFromZero } from "./multigraph-fixtures.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";

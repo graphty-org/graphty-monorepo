@@ -96,11 +96,13 @@ describe("a session that stops answering githerd", () => {
         expect((await poll(state, at("05:40:00"), "busy")).pages).toHaveLength(1);
     });
 
-    it("does not page when the session called githerd after the question it missed", async () => {
+    it("neither releases nor pages when the session called githerd after the question it missed", async () => {
         const state = held();
         state.sessions[ID].calledAt = at("02:50:00").toISOString();
         const { lines, pages } = await poll(state, at("03:02:05"), "busy");
-        expect(lines.filter((l) => l.kind === "claim-released")).toHaveLength(2);
+        // The call is the session at work, which answers the question (asks.mjs progress).
+        expect(lines.filter((l) => l.kind === "claim-released")).toEqual([]);
+        expect(lines.filter((l) => l.kind === "status-seen")).toHaveLength(2);
         expect(pages).toEqual([]);
     });
 

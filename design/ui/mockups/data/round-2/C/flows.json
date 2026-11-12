@@ -1,0 +1,144 @@
+[
+    {
+        "flow": "open-file",
+        "title": "Open my file, get a right drawing",
+        "screens": [
+            {
+                "file": "open-file-1-clean-file.html",
+                "caption": "A clean graph file opens on the Data page with a view-only preview and four read-as rows on the right, nothing marked, and focus on Load so Enter draws it."
+            },
+            {
+                "file": "open-file-2-unsure-file.html",
+                "caption": "A STRING table where the app is unsure marks only the Name and Weight rows with a status icon, opens the Name dropdown with each candidate's unique count, and folds the other three columns into one row of type icons."
+            },
+            {
+                "file": "open-file-3-drawn.html",
+                "caption": "The graph is drawn with gene names on the nodes, the header shows 318 nodes and 1,104 edges, and the source row selected on the left shows what was loaded and how it was read in the inspector."
+            }
+        ]
+    },
+    {
+        "flow": "see-fix",
+        "title": "See what loaded, fix what is wrong",
+        "screens": [
+            {
+                "file": "see-fix-1-warnings.html",
+                "caption": "A Warnings section with a count chip appears in the Data place only because this file has problems, one row per kind, and selecting it lists each kind in the inspector with its count and its one action."
+            },
+            {
+                "file": "see-fix-2-column-menu.html",
+                "caption": "Right-clicking the opened attribute gives Rename, Change type, Use as and Hide, and hovering Date shows that 194 values convert and 6 will not, with Show, before anything changes."
+            }
+        ]
+    },
+    {
+        "flow": "filter",
+        "title": "Filter: show only what matches",
+        "screens": [
+            {
+                "file": "filter-1-entry.html",
+                "caption": "Right-clicking the padj attribute offers Filter by this attribute at the top, the same item is on a node's and a table cell's menu, and + on the Filters header adds a blank step."
+            },
+            {
+                "file": "filter-2-condition.html",
+                "caption": "The new step opens in the inspector filled in as padj < 0.05, the live chip reads 60 of 318 nodes, and Show only or Highlight decides what the canvas does with the rest."
+            },
+            {
+                "file": "filter-3-filtered.html",
+                "caption": "With the inspector closed the canvas shows only the 60 matching nodes, the toolbar's Filters button carries 1, and the table dock lists the same 60 rows to read and sort only."
+            }
+        ]
+    },
+    {
+        "flow": "join",
+        "title": "Join a second file onto this graph",
+        "screens": [
+            {
+                "file": "join-1-match.html",
+                "caption": "Dropping expression.tsv on the graph adds a Joining source row and opens the join in the inspector: gene_symbol matched to preferredName, 312 matched, 28 unmatched, 6 nodes without a value, +4 more if case is ignored, and the 4 attributes it adds."
+            },
+            {
+                "file": "join-2-button-menu.html",
+                "caption": "The Join button's arrow holds the other things a second file can do: add as new nodes and edges, open as a separate graph, or replace the data."
+            },
+            {
+                "file": "join-3-result.html",
+                "caption": "After the join there are two source rows, the four new attributes carry the join icon, and the join's inspector shows 316 matched with Show on the 2 nodes that got no value."
+            }
+        ]
+    },
+    {
+        "flow": "replace",
+        "title": "Replace with a newer copy, keep my work",
+        "screens": [
+            {
+                "file": "replace-1-source-menu.html",
+                "caption": "The suppliers.csv row's menu offers Replace file... for a file from this computer and Refresh from source, which is live only for a web address or a server."
+            },
+            {
+                "file": "replace-2-replacing.html",
+                "caption": "Choosing the October file puts the source in a replacing state: the inspector shows +12, -3 and 40 changed nodes, the carried read-as rows with tier not found, and Keep styles, filters and analysis already on."
+            },
+            {
+                "file": "replace-3-result.html",
+                "caption": "After Replace the graph has 129 nodes, a one-row Warnings section says the Tier style's column is gone with a Map to dropdown that suggests supplier_tier, and Undo sits above the toolbar."
+            }
+        ]
+    },
+    {
+        "flow": "export",
+        "title": "Export the filtered numbers (common Export)",
+        "screens": [
+            {
+                "file": "export-1-common-dialog.html",
+                "caption": "The main menu's Export... on Data is the one place numbers leave the app, and its new Rows setting exports All 318, the Filtered 60 or the 4 selected nodes."
+            }
+        ]
+    },
+    {
+        "flow": "event-table",
+        "title": "One event table, several kinds of node",
+        "screens": [
+            {
+                "file": "event-table-1-kinds.html",
+                "caption": "One row per event becomes four kinds of node: each entity column gets a kind in the Nodes section with +, the Edges section chains user to host to process to IP, and repeated events combine into a count."
+            },
+            {
+                "file": "event-table-2-drawn.html",
+                "caption": "The drawing colors the four node kinds, and the Data place lists node kinds and edge kinds as rows with counts that each select or filter like any other row."
+            }
+        ]
+    },
+    {
+        "flow": "server",
+        "title": "Query a database, load more, expand a node",
+        "screens": [
+            {
+                "file": "server-1-connect-test.html",
+                "caption": "Neo4j is a list entry beside File on the Data page; its connection is a stack of property rows, and Test returns the real first 20 rows and the 40,000 total before Load."
+            },
+            {
+                "file": "server-2-load-more.html",
+                "caption": "The source row says 5,000 of 40,000 edges, and selecting it puts Load more and Load all with the next batch size in the inspector."
+            },
+            {
+                "file": "server-3-expand.html",
+                "caption": "Right-clicking acct-4471 on the canvas gives Expand from source with Depth 1 and Limit 50; it finds 212 in the database, adds the first 50 marked in green, and offers Next 50 or Undo."
+            }
+        ]
+    },
+    {
+        "flow": "filter-steps",
+        "title": "Filter steps, sets and a time window",
+        "screens": [
+            {
+                "file": "filter-steps-1-steps-sets.html",
+                "caption": "Two ordered steps each have a toggle and their own count, 60 of 318 then 38 of 60, the attribute dropdown starts with graph conditions such as In largest connected part, and Save as set adds to a Sets list."
+            },
+            {
+                "file": "filter-steps-2-time-window.html",
+                "caption": "A date attribute's step is a range over a small histogram with a 30-day width and step arrows; this window keeps 120 of 200 nodes and 340 of 612 edges; each arrow moves it 7 days."
+            }
+        ]
+    }
+]

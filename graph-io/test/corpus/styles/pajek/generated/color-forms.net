@@ -1,0 +1,15 @@
+*Vertices 8
+1 "named" ic CadetBlue bc Black
+2 "cmyk-decimal" ic CMYK(0,0,1,0.0) bc CMYKFF000000
+3 "rgb-decimal" ic RGB(1,0.5,0) bc Gray20
+4 "rgb-hex" ic RGB33CC99 bc White
+5 "gray" ic Gray75 bc RoyalBlue
+6 "unlisted-name" ic LightYellow bc Black
+7 "out-of-range" ic RGB(2,0,0) bc Black
+8 "plain" bc Black
+*Arcs
+1 2 1 c RGB0000FF
+2 3 1 c Mahogany
+3 4 1 c CMYK(0,1,0.8,0)
+4 5 1 c Gray50
+5 6 1

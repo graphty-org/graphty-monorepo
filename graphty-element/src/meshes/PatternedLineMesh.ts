@@ -15,7 +15,7 @@
  * reorganisation. That banner was false and was removed, because it would have stopped the
  * next reader from making exactly the mesh-count repair this file now carries.
  * - Phase 1: Basic infrastructure with discrete patterns
- * - Phase 2: Adaptive mesh density with hysteresis
+ * - Phase 2: Adaptive mesh density (the count is always the one the current length takes)
  * - Phase 3: Alternating patterns (dash-dot) support
  * - Phase 4: Connected patterns (sinewave, zigzag) positioning
  */
@@ -27,8 +27,10 @@ import {
     PATTERN_DEFINITIONS,
     type PatternDefinition,
     PatternedLineRenderer,
+    type PatternShapeType,
     type PatternType,
 } from "./PatternedLineRenderer";
+import { type WaveShape, WHOLE_PERIOD, type ZigzagPiece, zigzagPieceKey } from "./shapeOutlines";
 
 /**
  * Centre-to-centre distance between two consecutive elements of a discrete pattern.
@@ -67,45 +69,68 @@ export function patternElementPeriod(meshWidth: number): number {
 }
 
 /**
+ * The most pieces one patterned line draws (issue #4257). Past it the pieces spread further apart
+ * rather than multiply, so a huge or hostile length (a far-off bend in a file, a node flung away
+ * by the physics) cannot allocate without bound, and the line still reads as its pattern.
+ *
+ * Why 65536: the densest piece a default line draws is a dot of the default width (8, so 0.2 in
+ * world units, one every 0.3), which reaches the cap only on an edge about 19,600 world units long;
+ * a width-1 dotted line reaches it at about 2,450 and a zigzag or sine wave (one piece every 0.75)
+ * at about 49,000. The built-in layouts lay graphs out a few hundred units across at their default
+ * scales, so every realistic edge stays under the cap and draws exactly as before. A line at the cap
+ * shown whole on even an 8K screen puts its pieces under a pixel apart, below what a reader sees.
+ */
+const MAX_PATTERN_PIECES = 65536;
+
+/**
  * Number of meshes a discrete pattern needs to cover a line of the given length.
  *
  * The layout this counts for: the first element's left edge sits exactly on the start of
  * the line, the last element's right edge sits exactly on the end of it, and any interior
- * elements are distributed evenly in between. So the answer is always at least 2.
+ * elements are distributed evenly in between. A line too short to hold two elements with a
+ * gap between them takes one, at its start, as a dash pattern starts on its line: two
+ * elements squeezed onto it would touch or overlap and draw a solid line (`pajek-synth-lines`
+ * arc 2 -> 3, Pajek's 5 px dash on the 6 px of line between the source and the arrowhead).
  *
- * The count is unbounded by design: it follows the spacing rule, so a longer edge gets more
- * elements. A caller that needs a ceiling sets `line.patternCount`, which overrides the rule.
+ * The count follows the spacing rule, so a longer edge gets more elements, up to
+ * {@link MAX_PATTERN_PIECES}; past that the elements spread further apart. A length that is not
+ * finite gets one. A caller that wants fewer sets `line.patternCount`, which overrides the rule.
  * @param lineLength - Length of the line in world units, ALREADY trimmed for the node surface and the arrowhead by Edge.transformArrowCap
  * @param meshWidth - Rendered length of one pattern element along the line, in world units
  * @param patternCount - Explicit element count from `line.patternCount`; omit to follow the spacing rule
- * @returns Mesh count, at least 2
+ * @returns Mesh count, at least 1
  * @public
  */
 export function discreteMeshCount(lineLength: number, meshWidth: number, patternCount?: number): number {
     // An explicit count is the caller's decision and overrides the spacing rule entirely, so the
     // elements are spread evenly over the edge whatever its length or the line's width.
     if (patternCount !== undefined) {
-        return Math.max(2, Math.floor(patternCount));
+        return Math.min(MAX_PATTERN_PIECES, Math.max(2, Math.floor(patternCount)));
+    }
+
+    // no length to spread elements over: one, rather than an unbounded count (issue #4257)
+    if (!Number.isFinite(lineLength)) {
+        return 1;
     }
 
     // Space available between the first element's right edge and the last element's left
     // edge. lineLength is already adjusted for the node surface and the arrow, so nothing
     // is subtracted for those a second time.
     const dynamicLength = lineLength - 2 * meshWidth;
-
-    // Line too short to hold anything between the two boundary elements.
-    if (dynamicLength < 0) {
-        return 2;
-    }
-
     const period = patternElementPeriod(meshWidth);
     const minSpacing = period - meshWidth;
+
+    // Line too short to hold the two boundary elements apart: one element.
+    if (dynamicLength < minSpacing) {
+        return 1;
+    }
 
     // K interior elements open K + 1 gaps, so K * meshWidth + (K + 1) * minSpacing must fit
     // inside dynamicLength. Solving for K gives the line below.
     const numInterior = Math.floor((dynamicLength - minSpacing) / period);
 
-    return 2 + Math.max(0, numInterior);
+    // a zero element width makes the period 0 and the count infinite
+    return Math.min(MAX_PATTERN_PIECES, 2 + Math.max(0, Number.isNaN(numInterior) ? 0 : numInterior));
 }
 
 /**
@@ -127,7 +152,7 @@ export function discreteMeshCount(lineLength: number, meshWidth: number, pattern
  * that keeps the last gap correct when the ceiling bites.
  * @param totalLength - Length of the line in world units, already trimmed for node surface and arrowhead
  * @param meshWidth - Rendered length of one pattern element along the line, in world units
- * @param meshCount - Number of elements to place; values below 2 are treated as 2
+ * @param meshCount - Number of elements to place; values below 2 place one
  * @returns Centre offsets from the line start, in world units, in order, one per element
  * @public
  */
@@ -136,7 +161,12 @@ export function discreteMeshOffsets(totalLength: number, meshWidth: number, mesh
     const firstCentre = meshRadius;
     const lastCentre = totalLength - meshRadius;
 
-    if (meshCount <= 2) {
+    // one element at the line's start, or its middle when the line is shorter than the element
+    if (meshCount < 2) {
+        return [Math.min(firstCentre, totalLength / 2)];
+    }
+
+    if (meshCount === 2) {
         return [firstCentre, lastCentre];
     }
 
@@ -166,6 +196,81 @@ export function discreteMeshOffsets(totalLength: number, meshWidth: number, mesh
 }
 
 /**
+ * How many elements of a pattern whose shapes alternate in length (a dash-dot's dash and dot) a line holds: the
+ * spacing rule of {@link discreteMeshCount}, each element taken at its own length rather than all at the first
+ * shape's. Taken at the dash's, a dash-dot held one element too few and opened gaps three times its own (issue
+ * #5774: Cytoscape's DASH_DOT on cx-syn-mappings edge 426->429 drew a dash and a dot 32 px apart, where Cytoscape
+ * draws them 10 px apart). With one length for every element it is exactly `discreteMeshCount`.
+ * @param lineLength - Length of the line, already trimmed for the node surface and the arrowhead
+ * @param sizes - Each shape's length along the line, in the order the pattern cycles through them
+ * @param gap - The least clear space between two elements
+ * @returns Element count, at least 1
+ */
+export function alternatingMeshCount(lineLength: number, sizes: readonly number[], gap: number): number {
+    if (!Number.isFinite(lineLength) || sizes.length === 0) {
+        return 1;
+    }
+    let count = 0;
+    let used = -gap;
+    while (count < MAX_PATTERN_PIECES) {
+        const next = used + gap + sizes[count % sizes.length];
+        if (Number.isNaN(next) || next > lineLength || next <= used) {
+            break;
+        }
+        used = next;
+        count++;
+    }
+    return Math.max(1, count);
+}
+
+/**
+ * Where the elements of a pattern whose shapes alternate in length sit: the first touching the line's start, the last
+ * its end, and the same clear space between each two, each element taken at its own length. With one length for every
+ * element it is exactly {@link discreteMeshOffsets}.
+ * @param totalLength - Length of the line, already trimmed for the node surface and the arrowhead
+ * @param sizes - Each shape's length along the line, in the order the pattern cycles through them
+ * @param count - Number of elements; below 2 places one
+ * @returns Centre offsets from the line start, in order, one per element
+ */
+export function alternatingMeshOffsets(totalLength: number, sizes: readonly number[], count: number): number[] {
+    const own = (i: number): number => sizes[i % sizes.length];
+    if (count < 2) {
+        return [Math.min(own(0) / 2, totalLength / 2)];
+    }
+    let drawn = 0;
+    for (let i = 0; i < count; i++) {
+        drawn += own(i);
+    }
+    const gap = (totalLength - drawn) / (count - 1);
+    const offsets: number[] = [];
+    let start = 0;
+    for (let i = 0; i < count; i++) {
+        offsets.push(start + own(i) / 2);
+        start += own(i) + gap;
+    }
+    return offsets;
+}
+
+/** How a patterned line looks: everything but its pattern, its endpoints and its scene. */
+export interface PatternedLineOptions {
+    /** Line width. */
+    width: number;
+    /** Line color. */
+    color: string;
+    /** Line opacity (0-1). */
+    opacity: number;
+    /** Whether to use 2D mode rendering; default false. */
+    is2DMode?: boolean | undefined;
+    /** Explicit element count from `line.patternCount`; omit to follow the spacing rule. */
+    patternCount?: number | undefined;
+    /**
+     * A sinewave's or zigzag's own swing and period, in world units (`line.waveAmplitude`,
+     * `line.wavePeriod`); omit to draw the wave within the width.
+     */
+    wave?: WaveShape | undefined;
+}
+
+/**
  * Manages pattern meshes for a single edge line with adaptive mesh density
  */
 export class PatternedLineMesh {
@@ -184,6 +289,15 @@ export class PatternedLineMesh {
     private readonly is2DMode: boolean;
     /** Explicit element count from `line.patternCount`; undefined means follow the spacing rule. */
     private readonly patternCount: number | undefined;
+    /** A wave's own swing and period, for a sinewave or zigzag that has them. */
+    readonly wave: WaveShape | undefined;
+    /** How much of its period each element of a wave with a period of its own draws, in order. */
+    private stretches: ZigzagPiece[] = [];
+    /**
+     * Where the line was last laid: the points of its route in order (two for a straight line; a curve's, a bent
+     * line's or a self-loop's run otherwise) and each point's distance along the route from its start.
+     */
+    private laid: { points: Vector3[]; along: number[] } | null = null;
     private static readonly SEGMENT_LENGTH = 0.75; // Fixed segment length for all edges (for instancing)
 
     // PHASE 5: Edge compatibility properties (mimic AbstractMesh interface)
@@ -206,31 +320,18 @@ export class PatternedLineMesh {
      * @param pattern - The pattern type to render
      * @param start - Starting point of the line
      * @param end - Ending point of the line
-     * @param width - Line width
-     * @param color - Line color
-     * @param opacity - Line opacity (0-1)
      * @param scene - Babylon.js scene
-     * @param is2DMode - Whether to use 2D mode rendering
-     * @param patternCount - Explicit element count from `line.patternCount`; omit to follow the spacing rule
+     * @param options - Width, color, opacity, 2D mode and pattern count
      */
-    constructor(
-        pattern: PatternType,
-        start: Vector3,
-        end: Vector3,
-        width: number,
-        color: string,
-        opacity: number,
-        scene: Scene,
-        is2DMode = false,
-        patternCount?: number,
-    ) {
+    constructor(pattern: PatternType, start: Vector3, end: Vector3, scene: Scene, options: PatternedLineOptions) {
         this.pattern = pattern;
         this.scene = scene;
-        this.width = width;
-        this.color = color;
-        this.opacity = opacity;
-        this.is2DMode = is2DMode;
-        this.patternCount = patternCount;
+        this.width = options.width;
+        this.color = options.color;
+        this.opacity = options.opacity;
+        this.is2DMode = options.is2DMode ?? false;
+        this.patternCount = options.patternCount;
+        this.wave = PATTERN_DEFINITIONS[pattern].connected ? options.wave : undefined;
 
         this.createInitialMeshes(start, end);
     }
@@ -242,21 +343,32 @@ export class PatternedLineMesh {
      * @param end - Ending point of the line
      */
     update(start: Vector3, end: Vector3): void {
+        this.updatePath([start, end]);
+    }
+
+    /**
+     * Lay the line along a route: its elements spread along the route's own length, each pointing along the route
+     * where it sits, so a dashed or dotted line turns the route's corners and follows its curve (issue #3102).
+     * @param route - The route's points, in order from where the line starts to where it ends; at least two.
+     */
+    updatePath(route: readonly Vector3[]): void {
         // A disposed line stays disposed: re-sizing it would take fresh slots for elements nothing
         // will ever give back.
-        if (this.isDisposed) {
+        if (this.isDisposed || route.length < 2) {
             return;
         }
 
-        const newLength = Vector3.Distance(start, end);
-        this.lineDirection = end.subtract(start).normalize();
+        const newLength = this.lay(route);
 
-        // Adaptive density: adjust mesh count if needed
-        if (this.needsMeshCountAdjustment(newLength)) {
+        // Adaptive density: adjust mesh count if needed. A wave with a period of its own has exactly
+        // the periods that fit, as Cytoscape desktop draws it.
+        if (this.wave !== undefined) {
+            this.fitWave(newLength);
+        } else if (this.needsMeshCountAdjustment(newLength)) {
             this.adjustMeshCount(newLength);
         }
 
-        this.placeElements(start, end);
+        this.placeElements();
 
         // For connected patterns, clip last segment to fit exactly
         const patternDef = PATTERN_DEFINITIONS[this.pattern];
@@ -280,6 +392,26 @@ export class PatternedLineMesh {
         }
     }
 
+    /** Stop drawing the line because the visibility mask hid its edge, keeping each element's place. */
+    park(): void {
+        for (const element of this.elements) {
+            element.park();
+        }
+    }
+
+    /**
+     * Draw the line again as it was when it was parked.
+     * @returns True when every element was put back.
+     */
+    unpark(): boolean {
+        let back = true;
+        for (const element of this.elements) {
+            back = element.unpark() && back;
+        }
+
+        return back;
+    }
+
     /**
      * Clip the last segment to fit exactly to line end
      * Uses shader-based clipping instead of mesh scaling (only in 3D mode)
@@ -287,15 +419,16 @@ export class PatternedLineMesh {
      * @param lineLength - Total length of the line
      */
     private clipLastSegment(lineLength: number): void {
-        // Clipping only applies to 3D mode (the clip is the billboard shader's)
-        if (this.is2DMode) {
+        // Clipping only applies to 3D mode (the clip is the billboard shader's). A wave with a period
+        // of its own runs its last period past the line's end, as Cytoscape desktop draws it.
+        if (this.is2DMode || this.wave !== undefined) {
             return;
         }
 
         const lastIndex = this.elements.length - 1;
 
         // Calculate how much of the last segment should be visible
-        const fullSegmentsLength = lastIndex * PatternedLineMesh.SEGMENT_LENGTH;
+        const fullSegmentsLength = lastIndex * this.pieceStep(lineLength);
         const remainingLength = Math.max(0, lineLength - fullSegmentsLength);
 
         // If remainder is nearly full segment (>0.74), don't clip
@@ -321,38 +454,105 @@ export class PatternedLineMesh {
      * @param end - Ending point of the line
      */
     private createInitialMeshes(start: Vector3, end: Vector3): void {
-        const length = Vector3.Distance(start, end);
+        const length = this.lay([start, end]);
         this.lastLength = length;
-        this.lineDirection = end.subtract(start).normalize();
 
         const patternDef = PATTERN_DEFINITIONS[this.pattern];
-        const meshCount = this.calculateOptimalMeshCount(length, patternDef);
+        if (this.wave !== undefined) {
+            this.fitWave(length);
+        } else {
+            const meshCount = this.calculateOptimalMeshCount(length, patternDef);
 
-        // Phase 3: Create elements with alternating shapes for multi-shape patterns
-        for (let i = 0; i < meshCount; i++) {
-            this.elements.push(this.createPatternElement(i));
+            // Phase 3: Create elements with alternating shapes for multi-shape patterns
+            for (let i = 0; i < meshCount; i++) {
+                this.elements.push(this.createPatternElement(i));
+            }
         }
 
-        this.placeElements(start, end);
+        this.placeElements();
     }
 
     /**
-     * Put every element where it goes along the line, pointing along it.
-     * @param start - Starting point of the line
-     * @param end - Ending point of the line
+     * Take a route as the one the line is laid along: its points, without repeats, and their distances along it.
+     * @param route - The route's points, in order; at least two.
+     * @returns The route's length.
      */
-    private placeElements(start: Vector3, end: Vector3): void {
-        const positions = this.calculatePositions(start, end);
+    private lay(route: readonly Vector3[]): number {
+        // A point that is not finite has no place on the line: it is passed over, as a repeat is, so
+        // its length is never infinite and never sizes the pattern (issue #4257).
+        const finite = route.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z));
+        let last = (finite.at(0) ?? Vector3.Zero()).clone();
+        let length = 0;
+        const points = [last];
+        const along = [0];
+        for (const point of finite.slice(1)) {
+            const step = Vector3.Distance(last, point);
+            if (step > 0 && Number.isFinite(length + step)) {
+                last = point.clone();
+                length += step;
+                points.push(last);
+                along.push(length);
+            }
+        }
+
+        // a route of one point is a line of length 0 between its two ends, as a straight line between one point
+        if (points.length === 1) {
+            points.push(last.clone());
+            along.push(0);
+        }
+
+        this.laid = { points, along };
+        this.lineDirection = last.subtract(points[0]).normalize();
+        return length;
+    }
+
+    /**
+     * Where a distance along the route the line was laid on falls, and the route's direction there. A distance before
+     * the start or past the end runs on along the first or last segment.
+     * @param distance - The distance from the route's start.
+     * @param from - The segment to start looking from (1 is the first); a caller placing distances in increasing
+     *     order passes back the `segment` it was given, so the whole run is one sweep along the route.
+     * @returns The point, the unit direction there and the segment it is on.
+     */
+    private onRoute(distance: number, from = 1): { point: Vector3; direction: Vector3; segment: number } {
+        const { points, along } = this.laid ?? { points: [Vector3.Zero(), Vector3.Zero()], along: [0, 0] };
+        let i = Math.max(1, from);
+        while (i < points.length - 1 && along[i] < distance) {
+            i++;
+        }
+
+        const [a, b] = [points[i - 1], points[i]];
+        const direction = b.subtract(a).normalize();
+        return { point: a.add(direction.scale(distance - along[i - 1])), direction, segment: i };
+    }
+
+    /**
+     * Put every element where it goes along the line, pointing along the route where it sits. The offsets run in
+     * increasing order, so one sweep along the route places them all (issue #3094).
+     */
+    private placeElements(): void {
+        const offsets = this.calculateOffsets();
+        let segment = 1;
         for (let i = 0; i < this.elements.length; i++) {
+            // a line shorter than its elements can put a later centre before an earlier one: search from the start
+            const placed = this.onRoute(offsets[i], i > 0 && offsets[i] < offsets[i - 1] ? 1 : segment);
+            ({ segment } = placed);
+            const { point, direction } = placed;
             // In 3D the billboard shader faces the element to the camera about this direction; in
             // 2D its slot turns it along the line (issue #620). Either way, as an arrowhead is.
-            this.elements[i].place(positions[i], this.lineDirection);
+            this.elements[i].place(point, direction);
         }
     }
 
     /**
-     * Check if mesh count needs adjustment based on line length change
-     * Uses hysteresis (±1 mesh) to prevent thrashing
+     * Check if mesh count needs adjustment based on line length change.
+     *
+     * The count is always the one the current length takes. It used to change only when it was
+     * off by more than one (hysteresis), so the same line drawn at the same length came out with
+     * one dash more or less depending on the lengths it passed through on the way -- a dashed
+     * edge whose ends settled in a different order drew a different picture. One too many also has
+     * no room on the line: its elements overlap and draw it solid (`pajek-synth-lines` arc 2 -> 3,
+     * laid out longer and then shortened).
      * @param newLength - New length of the line
      * @returns True if mesh count needs adjustment
      */
@@ -361,7 +561,7 @@ export class PatternedLineMesh {
         const currentCount = this.elements.length;
         const optimalCount = this.calculateOptimalMeshCount(newLength, patternDef);
 
-        return Math.abs(currentCount - optimalCount) > 1; // Hysteresis: ±1 mesh
+        return currentCount !== optimalCount;
     }
 
     /**
@@ -395,89 +595,34 @@ export class PatternedLineMesh {
     }
 
     /**
-     * Calculate mesh positions along the line
-     * Supports both discrete patterns (with spacing) and connected patterns (seamless)
-     * @param start - Starting point of the line
-     * @param end - Ending point of the line
-     * @returns Array of positions for each pattern mesh
+     * Where along the route each element's centre sits, as a distance from the route's start: a discrete pattern's
+     * (dot, star, box, dash, diamond, dash-dot) first and last elements touch the route's two ends and the rest share
+     * the room between them evenly ({@link discreteMeshOffsets}); a connected pattern's (sinewave, zigzag) segments
+     * sit a fixed 0.75 apart (the last clipped, see clipLastSegment), or a wave's own period apart.
+     *
+     * IMPORTANT: the route's ends are ALREADY adjusted by the edge for the node surfaces and the arrowheads; nothing
+     * is subtracted for those here.
+     * @returns One distance per element, in order.
      */
-    private calculatePositions(start: Vector3, end: Vector3): Vector3[] {
-        const patternDef = PATTERN_DEFINITIONS[this.pattern];
-
-        if (patternDef.connected) {
-            return this.calculateConnectedPositions(start, end, patternDef);
+    private calculateOffsets(): number[] {
+        const totalLength = this.laid?.along.at(-1) ?? 0;
+        if (PATTERN_DEFINITIONS[this.pattern].connected) {
+            const step = this.pieceStep(totalLength);
+            return this.elements.map((_unused, i) => i * step);
         }
 
-        return this.calculateDiscretePositions(start, end);
+        const sizes = this.shapeSizes();
+        return sizes.length > 1
+            ? alternatingMeshOffsets(totalLength, sizes, this.elements.length)
+            : discreteMeshOffsets(totalLength, this.getRenderedMeshSize(), this.elements.length);
     }
 
     /**
-     * Calculate positions for discrete patterns (dot, star, box, dash, diamond, dash-dot)
-     *
-     * Algorithm: the first and last elements touch the line's two boundaries and the
-     * interior elements are distributed evenly between them. The scalar layout lives in
-     * {@link discreteMeshOffsets}; this method only maps those offsets onto the line's
-     * direction vector.
-     *
-     * IMPORTANT: start and end are ALREADY adjusted by Edge.transformArrowCap():
-     *  - start = ray intersection with source node surface
-     *  - end = destination surface minus arrow length
-     * DO NOT subtract nodeRadius or arrowLength again!
-     *
-     * DEFECT REPAIRED HERE: this method used to take the pattern definition as
-     * `_patternDef`, an underscore-prefixed parameter marked unused, alongside its own
-     * private copy of the spacing rule (`const minSpacing = meshWidth * 0.5`) whose value
-     * cancelled out of the arithmetic it fed. The dead parameter and the dead arithmetic
-     * together disguised the fact that this layout is a pure function of the mesh COUNT,
-     * which is what let the count grow without bound in
-     * {@link discreteMeshCount} without anyone noticing the positions never objected. The
-     * parameter is gone rather than merely de-underscored, because the honest signature is
-     * the one that says the pattern definition is not consulted: the definition's influence
-     * reaches this layout through `getRenderedMeshSize()` and through the count, and adding
-     * a second, direct path would be the very duplication the repair removes.
-     * @param start - Starting point of the line (already adjusted for node surface)
-     * @param end - Ending point of the line (already adjusted for arrow)
-     * @returns Array of world-space positions, one per pattern mesh, in order
+     * Each of the pattern's shapes' rendered length along the line, in the order it cycles through them.
+     * @returns One length per shape
      */
-    private calculateDiscretePositions(start: Vector3, end: Vector3): Vector3[] {
-        const direction = end.subtract(start).normalize();
-        const totalLength = Vector3.Distance(start, end);
-        const meshWidth = this.getRenderedMeshSize();
-
-        const offsets = discreteMeshOffsets(totalLength, meshWidth, this.elements.length);
-
-        return offsets.map((offset) => start.add(direction.scale(offset)));
-    }
-
-    /**
-     * Calculate positions for connected patterns (sinewave, zigzag)
-     * Phase 4: Seamless connection - meshes positioned at fixed intervals
-     *
-     * All segments use FIXED 0.75 geometry (for instancing).
-     * Last segment is scaled in X-direction to fit exactly (see scaleLastSegment).
-     * @param start - Starting point of the line
-     * @param end - Ending point of the line
-     * @param _patternDef - Pattern definition (unused, reserved for future use)
-     * @returns Array of positions for each pattern mesh
-     */
-    private calculateConnectedPositions(
-        start: Vector3,
-        end: Vector3,
-
-        _patternDef: PatternDefinition,
-    ): Vector3[] {
-        const direction = end.subtract(start).normalize();
-
-        const meshCount = this.elements.length;
-        const positions: Vector3[] = [];
-
-        // Position segments at fixed 0.75 intervals (same geometry for all)
-        for (let i = 0; i < meshCount; i++) {
-            const distance = i * PatternedLineMesh.SEGMENT_LENGTH;
-            positions.push(start.add(direction.scale(distance)));
-        }
-
-        return positions;
+    private shapeSizes(): number[] {
+        return PATTERN_DEFINITIONS[this.pattern].shapes.map((shape) => this.renderedSizeOf(shape));
     }
 
     /**
@@ -502,11 +647,17 @@ export class PatternedLineMesh {
      * @returns The rendered mesh size parallel to the line
      */
     private getRenderedMeshSize(): number {
-        const patternDef = PATTERN_DEFINITIONS[this.pattern];
+        // an alternating pattern is spaced by its first shape (a dash-dot by its dash); each element's own length
+        // places it (`shapeSizes`)
+        return this.renderedSizeOf(PATTERN_DEFINITIONS[this.pattern].shapes[0]);
+    }
 
-        // For alternating patterns, we need to handle both shapes
-        // For now, use the first shape as representative (this is for spacing calculations)
-        const shapeDef = patternDef.shapes[0];
+    /**
+     * One shape's rendered length along the line.
+     * @param shapeDef - The shape
+     * @returns Its length along the line
+     */
+    private renderedSizeOf(shapeDef: PatternDefinition["shapes"][number]): number {
         const aspectRatio = shapeDef.aspectRatio ?? 1;
 
         switch (shapeDef.type) {
@@ -523,7 +674,8 @@ export class PatternedLineMesh {
                 // These have 1:1 aspect ratio: rendered size = width
                 return this.width;
             default:
-                return this.width;
+                // a glyph is spaced by its aspect ratio in widths (an arrow, a chevron, two bars: 2)
+                return this.width * aspectRatio;
         }
     }
 
@@ -535,31 +687,169 @@ export class PatternedLineMesh {
      * @returns Optimal number of meshes for the line
      */
     private calculateOptimalMeshCount(lineLength: number, patternDef: PatternDefinition): number {
+        if (patternDef.connected && this.wave !== undefined) {
+            return this.waveStretches(lineLength).length;
+        }
+
         if (patternDef.connected) {
             // A connected pattern (zigzag, sinewave) tiles seamlessly, so its count follows the
             // fixed segment length; the last segment is clipped to the remainder (clipLastSegment).
             // `line.patternCount` does NOT apply here: segments sit at fixed intervals, so any
             // other count would stop the line short of its end or run it past the node.
-            const segments = Math.ceil(lineLength / PatternedLineMesh.SEGMENT_LENGTH);
-            return Math.max(1, segments);
+            const segments = Math.ceil(lineLength / this.pieceStep(lineLength));
+            return Math.min(MAX_PATTERN_PIECES, Math.max(1, segments));
         }
 
         // lineLength is ALREADY adjusted for node surface and arrow
         // (done by Edge.transformArrowCap()), so nothing is subtracted for those here.
+        const sizes = this.shapeSizes();
+        if (sizes.length > 1 && this.patternCount === undefined) {
+            const meshWidth = this.getRenderedMeshSize();
+            return alternatingMeshCount(lineLength, sizes, patternElementPeriod(meshWidth) - meshWidth);
+        }
         return discreteMeshCount(lineLength, this.getRenderedMeshSize(), this.patternCount);
+    }
+
+    /**
+     * How far apart a connected pattern's pieces sit along a line of a length: a wave's own period, or
+     * the fixed segment length, unless that would take more than {@link MAX_PATTERN_PIECES} pieces;
+     * then the pieces spread out to fit the cap, gaps opening between them, so the pattern still reads.
+     * @param length - The line's length.
+     * @returns The step, in world units.
+     */
+    private pieceStep(length: number): number {
+        if (this.wave !== undefined) {
+            // a wave holds one piece more than its whole periods
+            return Math.max(this.wave.period, length / (MAX_PATTERN_PIECES - 1));
+        }
+
+        return Math.max(PatternedLineMesh.SEGMENT_LENGTH, length / MAX_PATTERN_PIECES);
+    }
+
+    /**
+     * The pieces of a wave with a period of its own over a line's length, as Cytoscape desktop draws
+     * it: a sine wave's whole periods centered a period apart from the start while one still starts on
+     * the line; a zigzag's turns a half period apart from a quarter period on while they fit, two to a
+     * period, its last piece stopping at its last turn and the line capped square at both ends.
+     * @param length - The line's length.
+     * @returns How much of its period each piece draws, and its caps.
+     */
+    private waveStretches(length: number): ZigzagPiece[] {
+        const period = this.pieceStep(length);
+        if (this.pattern === "sinewave") {
+            return Array.from({ length: Math.floor(length / period) + 1 }, () => ({ stretch: "period" }));
+        }
+
+        const turns = length >= period / 4 ? Math.floor((length - period / 4) / (period / 2)) + 1 : 1;
+        const count = Math.ceil(turns / 2);
+        const end: ZigzagPiece["stretch"] = turns % 2 === 1 ? "first-turn" : "second-turn";
+        return Array.from({ length: count }, (_unused, i) => ({
+            stretch: i < count - 1 ? "period" : end,
+            startCap: i === 0,
+            endCap: i === count - 1,
+        }));
+    }
+
+    /**
+     * Make this wave's elements the pieces its length holds, replacing any drawn as another piece.
+     * @param length - The line's length.
+     */
+    private fitWave(length: number): void {
+        const wanted = this.waveStretches(length);
+        while (this.elements.length > wanted.length) {
+            this.elements.pop()?.dispose();
+        }
+        wanted.forEach((piece, i) => {
+            const held = this.stretches.at(i);
+            if (i < this.elements.length && held !== undefined && zigzagPieceKey(held) === zigzagPieceKey(piece)) {
+                return;
+            }
+            const element = this.createPatternElement(i, piece);
+            if (i < this.elements.length) {
+                this.elements[i].dispose();
+                this.elements[i] = element;
+            } else {
+                this.elements.push(element);
+            }
+        });
+        this.stretches = wanted;
+    }
+
+    /**
+     * Where a wave with a period of its own runs, end to end along its line as it was last laid: from
+     * the near end of its first piece to the far end of its last, as drawn (a sine wave's first period
+     * is centered on the line's start; a zigzag's last piece stops at its last turn, capped).
+     * @returns The two ends, or null for any other line.
+     */
+    drawnEnds(): [Vector3, Vector3] | null {
+        const span = this.waveSpan();
+        return span === null ? null : [this.onRoute(span[0]).point, this.onRoute(span[1]).point];
+    }
+
+    /**
+     * The route this line is drawn along, as it was last laid: the route's points from end to end, or for a wave
+     * with a period of its own from where its first piece starts to where its last ends ({@link drawnEnds}).
+     * @returns The points, in order, as fresh vectors; null before the line was laid.
+     */
+    drawnRoute(): Vector3[] | null {
+        if (this.laid === null) {
+            return null;
+        }
+
+        const { points, along } = this.laid;
+        const span = this.waveSpan();
+        if (span === null) {
+            return points.map((p) => p.clone());
+        }
+
+        // the route's corners the wave runs through; its two ends are the wave's own
+        const [from, to] = span;
+        const inside = points.slice(1, -1).filter((_p, i) => along[i + 1] > from && along[i + 1] < to);
+        return [this.onRoute(from).point, ...inside.map((p) => p.clone()), this.onRoute(to).point];
+    }
+
+    /**
+     * The middle of the route this line was last laid along, halfway along its length.
+     * @returns The point.
+     */
+    routeMiddle(): Vector3 {
+        return this.onRoute((this.laid?.along.at(-1) ?? 0) / 2).point;
+    }
+
+    /**
+     * How far along its route a wave with a period of its own starts and ends, as drawn.
+     * @returns The two distances from the route's start, or null for any other line.
+     */
+    private waveSpan(): [number, number] | null {
+        const first = this.stretches.at(0);
+        const last = this.stretches.at(-1);
+        if (this.wave === undefined || this.laid === null || first === undefined || last === undefined) {
+            return null;
+        }
+
+        const { wave } = this;
+        const along = (piece: ZigzagPiece): number[] => {
+            const { inner, outer } = PatternedLineRenderer.wavePiece(this.pattern, this.width, wave, piece);
+            return [...inner, ...outer].map(([x]) => x);
+        };
+        return [
+            Math.min(...along(first)),
+            (this.stretches.length - 1) * this.pieceStep(this.laid.along.at(-1) ?? 0) + Math.max(...along(last)),
+        ];
     }
 
     /**
      * Create a single pattern element
      * Phase 3: Updated to handle alternating patterns via element index
      * @param meshIndex - Index of the element in the sequence (for alternating patterns)
+     * @param piece - How much of its period a wave's element draws, and its caps
      * @returns The element: a slot in its shape's batch
      */
-    private createPatternElement(meshIndex: number): ArrowCap {
+    private createPatternElement(meshIndex: number, piece: ZigzagPiece = WHOLE_PERIOD): ArrowCap {
         const patternDef = PATTERN_DEFINITIONS[this.pattern];
 
         // Phase 3: For multi-shape patterns, determine which shape to use based on index
-        let shapeType: "circle" | "star" | "box" | "diamond" | "sinewave-segment" | "zigzag-segment" | undefined;
+        let shapeType: PatternShapeType | undefined;
 
         if (patternDef.shapes.length > 1) {
             // Alternating pattern: use modulo to cycle through shapes
@@ -574,8 +864,7 @@ export class PatternedLineMesh {
             this.color,
             this.opacity,
             this.scene,
-            shapeType,
-            this.is2DMode,
+            { shapeType, is2DMode: this.is2DMode, wave: this.wave, piece },
         );
     }
 }

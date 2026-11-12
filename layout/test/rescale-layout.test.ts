@@ -1,7 +1,7 @@
 import { fromEdgeArrays } from "@graphty/graph-format";
 import { assert, describe, it } from "vitest";
 
-import { circular, random, rescaleLayout, rescaleLayoutDict, toPositionMap } from "../src";
+import { circular, type PositionMap, random, rescaleLayout, rescaleLayoutDict, toPositionMap } from "../src";
 
 /** An edgeless snapshot of `n` nodes. */
 const nodes = (n: number) =>
@@ -35,7 +35,7 @@ describe("Rescale Layout", () => {
             };
 
             const center = [10, 5];
-            const rescaled = rescaleLayout(positions, 1, center);
+            const rescaled = rescaleLayout(positions, 1, center) as PositionMap;
 
             // The max distance is sqrt(2), scale is 1/sqrt(2)
             const scale = 1 / Math.sqrt(2);
@@ -52,7 +52,7 @@ describe("Rescale Layout", () => {
 
         it("should handle single node", () => {
             const positions = { node1: [3, 4] };
-            const rescaled = rescaleLayout(positions, 2, [0, 0]);
+            const rescaled = rescaleLayout(positions, 2, [0, 0]) as PositionMap;
 
             // Single node should be placed at center
             assert.deepEqual(rescaled.node1, [0, 0]);
@@ -172,7 +172,7 @@ describe("Rescale Layout", () => {
                 D: [0, -1],
             };
 
-            const rescaled = rescaleLayout(positions, 2.5, [10, 10]);
+            const rescaled = rescaleLayout(positions, 2.5, [10, 10]) as PositionMap;
 
             // Check that relative positions are maintained
             // A-C should still be horizontal, B-D vertical
@@ -192,7 +192,7 @@ describe("Rescale Layout", () => {
                 node2: [-1, -1],
             };
 
-            const result1 = rescaleLayout(positions, 2);
+            const result1 = rescaleLayout(positions, 2) as PositionMap;
             const result2 = rescaleLayoutDict(positions, 2);
 
             // Compare values with tolerance for floating point
@@ -209,7 +209,7 @@ describe("Rescale Layout", () => {
                 "item:1": [1, 2],
             };
 
-            const rescaled = rescaleLayoutDict(positions, 0.5, [0, 0]);
+            const rescaled = rescaleLayoutDict(positions, 0.5);
 
             assert.isDefined(rescaled["user:1"]);
             assert.isDefined(rescaled["user:2"]);
@@ -225,7 +225,7 @@ describe("Rescale Layout", () => {
                 C: [-5, -5],
             };
 
-            const rescaled = rescaleLayout(positions, 0, [7, 7]);
+            const rescaled = rescaleLayout(positions, 0, [7, 7]) as PositionMap;
 
             // All nodes should collapse to center
             assert.deepEqual(rescaled.A, [7, 7]);
@@ -258,8 +258,8 @@ describe("Rescale Layout", () => {
                 B: [3, 4],
             };
 
-            const original = JSON.parse(JSON.stringify(positions));
-            const rescaled = rescaleLayout(positions, 2);
+            const original: unknown = JSON.parse(JSON.stringify(positions));
+            const rescaled = rescaleLayout(positions, 2) as PositionMap;
 
             // Original should be unchanged
             assert.deepEqual(positions, original);
@@ -275,7 +275,7 @@ describe("Rescale Layout", () => {
                 C: [6], // 1D
             };
 
-            const rescaled = rescaleLayout(positions, 2, [0, 0, 0]);
+            const rescaled = rescaleLayout(positions, 2, [0, 0, 0]) as PositionMap;
 
             // rescaleLayout uses dimension of first position (A has 2D)
             // But when center has more dimensions, the result extends to match center
@@ -311,7 +311,7 @@ describe("Rescale Layout", () => {
                 C: [0, 1],
             };
 
-            const rescaled = rescaleLayout(positions, 3, [10, 10]);
+            const rescaled = rescaleLayout(positions, 3, [10, 10]) as PositionMap;
 
             // Center is at (1/3, 1/3)
             // After centering: A=[-1/3,-1/3], B=[2/3,-1/3], C=[-1/3,2/3]

@@ -174,28 +174,52 @@ function ranked(sources: number[], targets: number[], scores: number[], end: num
     };
 }
 
+/**
+ * Append the pair (u, v) with its score, and its reverse with the same score when `mirror` is set.
+ * @param sources - Pair sources
+ * @param targets - Pair targets
+ * @param scores - Pair scores
+ * @param u - The pair's source
+ * @param v - The pair's target
+ * @param x - The pair's score
+ * @param mirror - Whether to list the reverse pair too
+ */
+function addPair(
+    sources: number[],
+    targets: number[],
+    scores: number[],
+    u: number,
+    v: number,
+    x: number,
+    mirror: boolean,
+): void {
+    sources.push(u);
+    targets.push(v);
+    scores.push(x);
+    if (mirror) {
+        sources.push(v);
+        targets.push(u);
+        scores.push(x);
+    }
+}
+
 function predict(s: GraphSnapshot, o: LinkPredictionOptions, score: PairScore): LinkPredictionResult {
     const sources: number[] = [];
     const targets: number[] = [];
     const scores: number[] = [];
-    // Each unordered pair is scored once as (u, v), u < v; without `directed` or `uniquePairs` the
-    // reverse pair is listed too with the same score. Existence is tested on the arc u -> v only.
-    const mirror = o.directed !== true && o.uniquePairs !== true;
+    // With `directed` every ordered pair (u, v), u != v, is scored: its score is not symmetric. Otherwise
+    // each unordered pair is scored once as (u, v), u < v, and without `uniquePairs` the reverse pair
+    // is listed too with the same score. Existence is tested on the arc u -> v only.
+    const directed = o.directed === true;
+    const mirror = !directed && o.uniquePairs !== true;
     for (let u = 0; u < s.nodeCount; u++) {
-        for (let v = u + 1; v < s.nodeCount; v++) {
-            if (o.includeExisting !== true && s.hasArc(u, v)) {
+        for (let v = directed ? 0 : u + 1; v < s.nodeCount; v++) {
+            if (v === u || (o.includeExisting !== true && s.hasArc(u, v))) {
                 continue;
             }
             const x = score(u, v);
             if (x > 0) {
-                sources.push(u);
-                targets.push(v);
-                scores.push(x);
-                if (mirror) {
-                    sources.push(v);
-                    targets.push(u);
-                    scores.push(x);
-                }
+                addPair(sources, targets, scores, u, v, x, mirror);
             }
         }
     }

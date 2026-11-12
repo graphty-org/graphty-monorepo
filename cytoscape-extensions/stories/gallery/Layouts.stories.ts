@@ -2,9 +2,14 @@
 // `npx vitest run test/demo-catalog.test.ts -u` (the test writes this file from the catalog).
 import type { Meta, StoryObj } from "@storybook/html-vite";
 
-import { overview, tile } from "../gallery-stories.js";
+import { galleryParameters, overview, tile } from "../gallery-stories.js";
 
-const meta: Meta = { title: "Gallery/Layouts" };
+// autodocs: a Docs page with the page's description and each story's under it
+const meta: Meta = {
+    title: "Gallery/Layouts",
+    tags: ["autodocs"],
+    parameters: galleryParameters("Layouts"),
+};
 export default meta;
 
 type Story = StoryObj;

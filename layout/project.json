@@ -47,8 +47,7 @@
                 "command": "npm run build-storybook",
                 "cwd": "layout"
             },
-            "dependsOn": ["build"],
-            "inputs": ["default", "^production", "{workspaceRoot}/algorithms/stories/utils/graph-generators.ts"]
+            "dependsOn": ["build"]
         },
         "lint": {
             "executor": "nx:run-commands",

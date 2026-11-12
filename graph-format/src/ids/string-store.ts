@@ -112,17 +112,14 @@ export function encodeUtf8Into(s: string, out: Uint8Array, position: number): nu
             continue;
         }
         if (c >= 0xd800 && c <= 0xdfff) {
-            if (c <= 0xdbff && i + 1 < n) {
-                const d = s.charCodeAt(i + 1);
-                if (d >= 0xdc00 && d <= 0xdfff) {
-                    c = 0x10000 + ((c - 0xd800) << 10) + (d - 0xdc00);
-                    i++;
-                    out[p++] = 0xf0 | (c >> 18);
-                    out[p++] = 0x80 | ((c >> 12) & 0x3f);
-                    out[p++] = 0x80 | ((c >> 6) & 0x3f);
-                    out[p++] = 0x80 | (c & 0x3f);
-                    continue;
-                }
+            const pair = surrogatePairAt(s, i, c);
+            if (pair >= 0) {
+                i++;
+                out[p++] = 0xf0 | (pair >> 18);
+                out[p++] = 0x80 | ((pair >> 12) & 0x3f);
+                out[p++] = 0x80 | ((pair >> 6) & 0x3f);
+                out[p++] = 0x80 | (pair & 0x3f);
+                continue;
             }
             c = 0xfffd;
         }
@@ -131,6 +128,25 @@ export function encodeUtf8Into(s: string, out: Uint8Array, position: number): nu
         out[p++] = 0x80 | (c & 0x3f);
     }
     return p;
+}
+
+/**
+ * The code point of the surrogate pair starting at `i`, when the surrogate there is a high one
+ * followed by a low one.
+ * @param s - the string
+ * @param i - the index of a surrogate
+ * @param c - the surrogate, `s.charCodeAt(i)`
+ * @returns the code point, or -1 for a lone surrogate
+ */
+function surrogatePairAt(s: string, i: number, c: number): number {
+    if (c > 0xdbff || i + 1 >= s.length) {
+        return -1;
+    }
+    const d = s.charCodeAt(i + 1);
+    if (d < 0xdc00 || d > 0xdfff) {
+        return -1;
+    }
+    return 0x10000 + ((c - 0xd800) << 10) + (d - 0xdc00);
 }
 
 /**

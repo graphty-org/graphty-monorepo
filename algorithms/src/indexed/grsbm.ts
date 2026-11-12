@@ -87,6 +87,191 @@ interface MutableCluster {
     split: GrsbmSplit | null;
 }
 
+/** What scoring a partition's modularity reads, plus the `side` scratch it writes. */
+interface Scorer {
+    readonly degree: ArrayLike<number>;
+    readonly m: number;
+    readonly loopFactor: number;
+    readonly halveInternal: boolean;
+    readonly rowPtr: U32;
+    readonly colIdx: U32;
+    readonly arcWeights: Float32Array | null;
+    /** The community of every node in the split being scored, -1 outside the cluster. */
+    readonly side: Int32Array;
+}
+
+/**
+ * Throw unless every arc weight is finite and non-negative.
+ * @param arcWeights - The arc weights, or null
+ */
+function checkWeights(arcWeights: Float32Array | null): void {
+    if (arcWeights === null) {
+        return;
+    }
+    for (let a = 0; a < arcWeights.length; a++) {
+        const w = arcWeights[a];
+        if (!(w >= 0) || w === Infinity) {
+            throw withCode(
+                new RangeError(`arc ${String(a)} has weight ${String(w)}; grsbm needs finite, non-negative weights`),
+                "E_BAD_WEIGHT",
+            );
+        }
+    }
+}
+
+/**
+ * One community's modularity term, with `side` marking the communities.
+ * @param sc - The scorer
+ * @param group - The community's members
+ * @returns The term
+ */
+function communityTerm(sc: Scorer, group: ArrayLike<number>): number {
+    const { degree, rowPtr, colIdx, arcWeights, side, loopFactor, m } = sc;
+    let internal = 0;
+    let total = 0;
+    for (let p = 0; p < group.length; p++) {
+        const u = group[p];
+        total += degree[u];
+        for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
+            const v = colIdx[a];
+            if (side[v] === side[u]) {
+                const w = arcWeights === null ? 1 : arcWeights[a];
+                internal += v === u ? loopFactor * w : w;
+            }
+        }
+    }
+    if (sc.halveInternal) {
+        internal /= 2;
+    }
+    return (internal - (total * total) / (4 * m)) / m;
+}
+
+/**
+ * Mark (or with -1, unmark) every member of every group in `side`.
+ * @param side - The scratch
+ * @param groups - The communities
+ * @param clear - Write -1 instead of the group index
+ */
+function markSides(side: Int32Array, groups: readonly ArrayLike<number>[], clear: boolean): void {
+    groups.forEach((group, c) => {
+        for (let p = 0; p < group.length; p++) {
+            side[group[p]] = clear ? -1 : c;
+        }
+    });
+}
+
+/**
+ * The summed modularity terms of some communities; 0 on a graph with no weight.
+ * @param sc - The scorer
+ * @param groups - The communities
+ * @returns The modularity
+ */
+function modularity(sc: Scorer, groups: readonly ArrayLike<number>[]): number {
+    if (sc.m === 0) {
+        return 0;
+    }
+    let q = 0;
+    markSides(sc.side, groups, false);
+    for (const group of groups) {
+        if (group.length > 0) {
+            q += communityTerm(sc, group);
+        }
+    }
+    markSides(sc.side, groups, true);
+    return q;
+}
+
+/**
+ * The cut point between 20% and 80% of the sorted members that maximises modularity.
+ * @param sc - The scorer
+ * @param sorted - The members sorted by Fiedler value
+ * @returns The cut and its modularity
+ */
+function bestCut(sc: Scorer, sorted: U32): { cut: number; best: number } {
+    const size = sorted.length;
+    let bestSplit = Math.floor(size / 2);
+    let best = -Infinity;
+    for (let cut = Math.floor(size * 0.2); cut <= Math.floor(size * 0.8); cut++) {
+        const q = modularity(sc, [sorted.subarray(0, cut), sorted.subarray(cut)]);
+        if (q > best) {
+            best = q;
+            bestSplit = cut;
+        }
+    }
+    return { cut: bestSplit, best };
+}
+
+/**
+ * The key nodes and spread of a Fiedler vector.
+ * @param fiedler - One value per member
+ * @param members - The members
+ * @returns Up to five members of largest magnitude in member order, and the spread
+ */
+function spectralSummary(fiedler: F64, members: U32): { keyNodes: U32; spectralScore: number } {
+    const size = members.length;
+    const byMagnitude = Array.from(fiedler).sort((a, b) => Math.abs(b) - Math.abs(a));
+    const threshold = Math.abs(byMagnitude[Math.floor(size * 0.1)]);
+    const keyNodes: number[] = [];
+    for (let p = 0; p < size && keyNodes.length < 5; p++) {
+        if (Math.abs(fiedler[p]) >= threshold) {
+            keyNodes.push(members[p]);
+        }
+    }
+    return { keyNodes: Uint32Array.from(keyNodes), spectralScore: Math.abs(byMagnitude[0] - byMagnitude[size - 1]) };
+}
+
+/**
+ * A fresh leaf cluster.
+ * @param serial - Its serial
+ * @param members - Its members
+ * @param depth - Its depth
+ * @param partitionModularity - The whole partition's modularity once it was made
+ * @param spectralScore - The spread of the split that made it
+ * @returns The cluster
+ */
+function leafCluster(
+    serial: number,
+    members: U32,
+    depth: number,
+    partitionModularity: number,
+    spectralScore: number,
+): MutableCluster {
+    return {
+        serial,
+        members,
+        depth,
+        modularity: partitionModularity,
+        spectralScore,
+        left: INVALID_INDEX,
+        right: INVALID_INDEX,
+        split: null,
+    };
+}
+
+/**
+ * One label per leaf, in depth-first left-to-right order.
+ * @param clusters - The hierarchy, root first
+ * @param n - Node count
+ * @returns The leaf index of every node
+ */
+function leafLabels(clusters: readonly MutableCluster[], n: number): U32 {
+    const leafOf = new Uint32Array(n);
+    let leaves = 0;
+    const stack = [0];
+    while (stack.length > 0) {
+        const c = clusters[stack.pop() ?? 0];
+        if (c.left === INVALID_INDEX) {
+            for (const u of c.members) {
+                leafOf[u] = leaves;
+            }
+            leaves++;
+        } else {
+            stack.push(c.right, c.left);
+        }
+    }
+    return leafOf;
+}
+
 /**
  * GRSBM over a snapshot: recursive spectral bisection. Each cluster's Laplacian (over the arcs
  * between its members, self-loops left out) gives an approximate Fiedler vector; members are sorted
@@ -125,89 +310,27 @@ export function grsbm(s: GraphSnapshot, options: GrsbmOptions = {}): GrsbmResult
     }
     const random = mulberry32(seed);
     const arcWeights = weighted ? s.weights : null;
-    if (arcWeights !== null) {
-        for (let a = 0; a < arcWeights.length; a++) {
-            const w = arcWeights[a];
-            if (!(w >= 0) || w === Infinity) {
-                throw withCode(
-                    new RangeError(
-                        `arc ${String(a)} has weight ${String(w)}; grsbm needs finite, non-negative weights`,
-                    ),
-                    "E_BAD_WEIGHT",
-                );
-            }
-        }
-    }
-    const degree = weighted ? s.weightedDegree() : s.degree();
-    const m = weighted ? s.totalWeight() : s.edgeCount;
-    const loopFactor = s.directed ? 1 : 2;
-    // An undirected edge is stored as two arcs, so the internal sum counts it twice. A directed arc is
-    // stored once; legacy halves it anyway (the whole graph as one community scores -0.5), and the
-    // unweighted path keeps that for parity.
-    const halveInternal = !s.directed || !weighted;
-    const { rowPtr, colIdx } = s;
-
-    // side[u]: the community of u in the split being scored, -1 outside the cluster.
-    const side = new Int32Array(n).fill(-1);
-    const communityTerm = (group: ArrayLike<number>): number => {
-        let internal = 0;
-        let total = 0;
-        for (let p = 0; p < group.length; p++) {
-            const u = group[p];
-            total += degree[u];
-            for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
-                const v = colIdx[a];
-                if (side[v] === side[u]) {
-                    const w = arcWeights === null ? 1 : arcWeights[a];
-                    internal += v === u ? loopFactor * w : w;
-                }
-            }
-        }
-        if (halveInternal) {
-            internal /= 2;
-        }
-        return (internal - (total * total) / (4 * m)) / m;
-    };
-    const modularity = (groups: readonly ArrayLike<number>[]): number => {
-        if (m === 0) {
-            return 0;
-        }
-        let q = 0;
-        groups.forEach((group, c) => {
-            for (let p = 0; p < group.length; p++) {
-                side[group[p]] = c;
-            }
-        });
-        for (const group of groups) {
-            if (group.length > 0) {
-                q += communityTerm(group);
-            }
-        }
-        for (const group of groups) {
-            for (let p = 0; p < group.length; p++) {
-                side[group[p]] = -1;
-            }
-        }
-        return q;
+    checkWeights(arcWeights);
+    const sc: Scorer = {
+        degree: weighted ? s.weightedDegree() : s.degree(),
+        m: weighted ? s.totalWeight() : s.edgeCount,
+        loopFactor: s.directed ? 1 : 2,
+        // An undirected edge is stored as two arcs, so the internal sum counts it twice. A directed arc
+        // is stored once; legacy halves it anyway (the whole graph as one community scores -0.5), and
+        // the unweighted path keeps that for parity.
+        halveInternal: !s.directed || !weighted,
+        rowPtr: s.rowPtr,
+        colIdx: s.colIdx,
+        arcWeights,
+        side: new Int32Array(n).fill(-1),
     };
 
     const everyone = new Uint32Array(n);
     for (let i = 0; i < n; i++) {
         everyone[i] = i;
     }
-    const initial = modularity([everyone]);
-    const clusters: MutableCluster[] = [
-        {
-            serial: 0,
-            members: everyone,
-            depth: 0,
-            modularity: initial,
-            spectralScore: 0,
-            left: INVALID_INDEX,
-            right: INVALID_INDEX,
-            split: null,
-        },
-    ];
+    const initial = modularity(sc, [everyone]);
+    const clusters: MutableCluster[] = [leafCluster(0, everyone, 0, initial, 0)];
     const scores = [initial];
     // Modularity of the current leaf partition.
     let partition = initial;
@@ -225,77 +348,161 @@ export function grsbm(s: GraphSnapshot, options: GrsbmOptions = {}): GrsbmResult
         const fiedler = fiedlerVector(members, position, s, arcWeights, random, tolerance, maxIterations);
         const order = Array.from({ length: size }, (_, p) => p).sort((a, b) => fiedler[a] - fiedler[b]);
         const sorted = Uint32Array.from(order, (p) => members[p]);
-
-        let bestSplit = Math.floor(size / 2);
-        let best = -Infinity;
-        for (let cut = Math.floor(size * 0.2); cut <= Math.floor(size * 0.8); cut++) {
-            const q = modularity([sorted.subarray(0, cut), sorted.subarray(cut)]);
-            if (q > best) {
-                best = q;
-                bestSplit = cut;
-            }
-        }
-        const leftMembers = sorted.slice(0, bestSplit);
-        const rightMembers = sorted.slice(bestSplit);
-
-        const byMagnitude = Array.from(fiedler).sort((a, b) => Math.abs(b) - Math.abs(a));
-        const threshold = Math.abs(byMagnitude[Math.floor(size * 0.1)]);
-        const keyNodes: number[] = [];
-        for (let p = 0; p < size && keyNodes.length < 5; p++) {
-            if (Math.abs(fiedler[p]) >= threshold) {
-                keyNodes.push(members[p]);
-            }
-        }
-        const spectralScore = Math.abs(byMagnitude[0] - byMagnitude[size - 1]);
+        const { cut, best } = bestCut(sc, sorted);
+        const { keyNodes, spectralScore } = spectralSummary(fiedler, members);
 
         const leftSerial = nextSerial++;
         const rightSerial = nextSerial++;
         // Every other cluster's term is unchanged, so the whole partition moves by the two halves'
         // terms minus the cluster's own.
-        const improvement = best - modularity([members]);
+        const improvement = best - modularity(sc, [members]);
         if (improvement <= 0) {
             continue;
         }
         partition += improvement;
-        const child = (serial: number, childMembers: U32): MutableCluster => ({
-            serial,
-            members: childMembers,
-            depth: cluster.depth + 1,
-            modularity: partition,
-            spectralScore,
-            left: INVALID_INDEX,
-            right: INVALID_INDEX,
-            split: null,
-        });
         cluster.left = clusters.length;
         cluster.right = clusters.length + 1;
-        cluster.split = {
-            improvement,
-            bisectionModularity: partition,
-            keyNodes: Uint32Array.from(keyNodes),
-            spectralValues: fiedler,
-        };
-        clusters.push(child(leftSerial, leftMembers), child(rightSerial, rightMembers));
+        cluster.split = { improvement, bisectionModularity: partition, keyNodes, spectralValues: fiedler };
+        const depth = cluster.depth + 1;
+        clusters.push(
+            leafCluster(leftSerial, sorted.slice(0, cut), depth, partition, spectralScore),
+            leafCluster(rightSerial, sorted.slice(cut), depth, partition, spectralScore),
+        );
         scores.push(partition);
     }
 
     // One label per leaf, renumbered by each leaf's lowest node index.
-    const leafOf = new Uint32Array(n);
-    let leaves = 0;
-    const stack = [0];
-    while (stack.length > 0) {
-        const c = clusters[stack.pop() ?? 0];
-        if (c.left === INVALID_INDEX) {
-            for (const u of c.members) {
-                leafOf[u] = leaves;
-            }
-            leaves++;
-        } else {
-            stack.push(c.right, c.left);
+    const { labels, count } = renumberPartition(leafLabels(clusters, n));
+    return { ...withGroups(labels, count), clusters, modularityScores: Float64Array.from(scores) };
+}
+
+/**
+ * Mark each member's position in `position`, or clear it back to -1.
+ * @param members - The cluster's node indices
+ * @param position - The scratch
+ * @param clear - Write -1 instead of the position
+ */
+function markPositions(members: U32, position: Int32Array, clear: boolean): void {
+    for (let p = 0; p < members.length; p++) {
+        position[members[p]] = clear ? -1 : p;
+    }
+}
+
+/** A cluster's Laplacian as sorted sparse rows, and its largest weighted degree. */
+interface Laplacian {
+    readonly rowStart: Uint32Array;
+    readonly cols: number[];
+    readonly vals: number[];
+    maxDegree: number;
+}
+
+/**
+ * Append member p's Laplacian row: off-diagonal -w per member neighbour, diagonal their sum.
+ * @param lap - The Laplacian being built
+ * @param p - The member's position
+ * @param u - The member's node index
+ * @param ctx - The snapshot, its arc weights, the positions and a scratch map
+ * @param ctx.s - The snapshot
+ * @param ctx.arcWeights - Arc weights, or null to count arcs
+ * @param ctx.position - Each member's position, -1 for a non-member
+ * @param ctx.row - Scratch map from position to entry
+ */
+function appendLaplacianRow(
+    lap: Laplacian,
+    p: number,
+    u: number,
+    ctx: {
+        s: GraphSnapshot;
+        arcWeights: F64 | Float32Array | null;
+        position: Int32Array;
+        row: Map<number, number>;
+    },
+): void {
+    const { s, arcWeights, position, row } = ctx;
+    row.clear();
+    let diagonal = 0;
+    for (let a = s.rowPtr[u]; a < s.rowPtr[u + 1]; a++) {
+        const q = position[s.colIdx[a]];
+        if (q >= 0 && q !== p) {
+            const w = arcWeights === null ? 1 : arcWeights[a];
+            row.set(q, (row.get(q) ?? 0) - w);
+            diagonal += w;
         }
     }
-    const { labels, count } = renumberPartition(leafOf);
-    return { ...withGroups(labels, count), clusters, modularityScores: Float64Array.from(scores) };
+    row.set(p, diagonal);
+    lap.maxDegree = Math.max(lap.maxDegree, diagonal);
+    for (const q of [...row.keys()].sort((x, y) => x - y)) {
+        lap.cols.push(q);
+        lap.vals.push(row.get(q) ?? 0);
+    }
+    lap.rowStart[p + 1] = lap.cols.length;
+}
+
+/**
+ * Subtract the mean from every entry, in place.
+ * @param v - The vector
+ */
+function recentre(v: F64): void {
+    let sum = 0;
+    for (const x of v) {
+        sum += x;
+    }
+    const mean = sum / v.length;
+    for (let p = 0; p < v.length; p++) {
+        v[p] -= mean;
+    }
+}
+
+/**
+ * The L2 norm of a vector.
+ * @param v - The vector
+ * @returns Its length
+ */
+function norm(v: F64): number {
+    let sum = 0;
+    for (const x of v) {
+        sum += x * x;
+    }
+    return Math.sqrt(sum);
+}
+
+/**
+ * Write `(shift I - L) vector` into `next`.
+ * @param lap - The Laplacian
+ * @param shift - The shift c
+ * @param vector - The current vector
+ * @param next - Receives the product
+ */
+function shiftedProduct(lap: Laplacian, shift: number, vector: F64, next: F64): void {
+    const { rowStart, cols, vals } = lap;
+    for (let p = 0; p < next.length; p++) {
+        let sum = 0;
+        for (let k = rowStart[p]; k < rowStart[p + 1]; k++) {
+            sum += vals[k] * vector[cols[k]];
+        }
+        next[p] = shift * vector[p] - sum;
+    }
+}
+
+/**
+ * A seeded random start vector, re-centred and normalised.
+ * @param size - Its length
+ * @param random - The generator
+ * @returns The vector
+ */
+function randomStart(size: number, random: () => number): F64 {
+    const vector: F64 = new Float64Array(size);
+    for (let p = 0; p < size; p++) {
+        vector[p] = random() - 0.5;
+    }
+    recentre(vector);
+    const start = norm(vector);
+    if (start > 0) {
+        for (let p = 0; p < size; p++) {
+            vector[p] /= start;
+        }
+    }
+    return vector;
 }
 
 /**
@@ -324,77 +531,19 @@ function fiedlerVector(
     maxIterations: number,
 ): F64 {
     const size = members.length;
+    markPositions(members, position, false);
+    const lap: Laplacian = { rowStart: new Uint32Array(size + 1), cols: [], vals: [], maxDegree: 0 };
+    const ctx = { s, arcWeights, position, row: new Map<number, number>() };
     for (let p = 0; p < size; p++) {
-        position[members[p]] = p;
+        appendLaplacianRow(lap, p, members[p], ctx);
     }
-    // The Laplacian as sorted sparse rows: off-diagonal -w per member neighbour, diagonal their sum.
-    const rowStart = new Uint32Array(size + 1);
-    const cols: number[] = [];
-    const vals: number[] = [];
-    const row = new Map<number, number>();
-    let maxDegree = 0;
-    for (let p = 0; p < size; p++) {
-        const u = members[p];
-        row.clear();
-        let diagonal = 0;
-        for (let a = s.rowPtr[u]; a < s.rowPtr[u + 1]; a++) {
-            const q = position[s.colIdx[a]];
-            if (q >= 0 && q !== p) {
-                const w = arcWeights === null ? 1 : arcWeights[a];
-                row.set(q, (row.get(q) ?? 0) - w);
-                diagonal += w;
-            }
-        }
-        row.set(p, diagonal);
-        maxDegree = Math.max(maxDegree, diagonal);
-        for (const q of [...row.keys()].sort((a, b) => a - b)) {
-            cols.push(q);
-            vals.push(row.get(q) ?? 0);
-        }
-        rowStart[p + 1] = cols.length;
-    }
-    for (let p = 0; p < size; p++) {
-        position[members[p]] = -1;
-    }
+    markPositions(members, position, true);
 
-    let vector: F64 = new Float64Array(size);
-    for (let p = 0; p < size; p++) {
-        vector[p] = random() - 0.5;
-    }
-    const recentre = (v: F64): void => {
-        let sum = 0;
-        for (const x of v) {
-            sum += x;
-        }
-        const mean = sum / size;
-        for (let p = 0; p < size; p++) {
-            v[p] -= mean;
-        }
-    };
-    const norm = (v: F64): number => {
-        let sum = 0;
-        for (const x of v) {
-            sum += x * x;
-        }
-        return Math.sqrt(sum);
-    };
-    recentre(vector);
-    const start = norm(vector);
-    if (start > 0) {
-        for (let p = 0; p < size; p++) {
-            vector[p] /= start;
-        }
-    }
-    const shift = 2 * maxDegree;
+    let vector = randomStart(size, random);
+    const shift = 2 * lap.maxDegree;
     for (let iteration = 0; iteration < maxIterations; iteration++) {
         const next = new Float64Array(size);
-        for (let p = 0; p < size; p++) {
-            let sum = 0;
-            for (let k = rowStart[p]; k < rowStart[p + 1]; k++) {
-                sum += vals[k] * vector[cols[k]];
-            }
-            next[p] = shift * vector[p] - sum;
-        }
+        shiftedProduct(lap, shift, vector, next);
         recentre(next);
         const length = norm(next);
         if (length < tolerance) {

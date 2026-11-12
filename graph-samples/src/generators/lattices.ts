@@ -58,20 +58,34 @@ function forwardOffsets(diagonals: boolean): number[][] {
         [0, 1, 0],
         [0, 0, 1],
     ];
-    if (diagonals) {
-        for (let dl = 0; dl <= 1; dl++) {
-            for (let dr = -1; dr <= 1; dr++) {
-                for (let dc = -1; dc <= 1; dc++) {
-                    const positive = dl > 0 || (dl === 0 && (dr > 0 || (dr === 0 && dc > 0)));
-                    const axis = Math.abs(dc) + Math.abs(dr) + Math.abs(dl) === 1;
-                    if (positive && !axis) {
-                        offsets.push([dc, dr, dl]);
-                    }
+    if (!diagonals) {
+        return offsets;
+    }
+    for (let dl = 0; dl <= 1; dl++) {
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                const axis = Math.abs(dc) + Math.abs(dr) + Math.abs(dl) === 1;
+                if (lexPositive(dl, dr, dc) && !axis) {
+                    offsets.push([dc, dr, dl]);
                 }
             }
         }
     }
     return offsets;
+}
+
+/**
+ * Whether the offset (dl, dr, dc) is lexicographically positive.
+ * @param dl - the layer offset
+ * @param dr - the row offset
+ * @param dc - the column offset
+ * @returns true when the first nonzero of dl, dr, dc is positive
+ */
+function lexPositive(dl: number, dr: number, dc: number): boolean {
+    if (dl !== 0) {
+        return dl > 0;
+    }
+    return dr === 0 ? dc > 0 : dr > 0;
 }
 
 /** The shape of a grid that the edge walk needs. */
@@ -278,6 +292,41 @@ function planarSize(options: PlanarLatticeOptions): number {
 }
 
 /**
+ * The triangular lattice's positions: x = c + r / 2, y = r sqrt(3) / 2.
+ * @param n - the node count
+ * @param cols - the number of columns
+ * @returns the columns x and y
+ */
+function triangularPositions(n: number, cols: number): Record<string, Float64Array<ArrayBuffer>> {
+    const x = new Float64Array(n);
+    const y = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+        const r = Math.floor(i / cols);
+        x[i] = (i % cols) + r / 2;
+        y[i] = r * HALF_SQRT3;
+    }
+    return { x, y };
+}
+
+/**
+ * The hexagonal lattice's positions: x = c sqrt(3) / 2, y = 1.5 r + (r + c even ? 0.5 : 0).
+ * @param n - the node count
+ * @param cols - the number of columns
+ * @returns the columns x and y
+ */
+function hexagonalPositions(n: number, cols: number): Record<string, Float64Array<ArrayBuffer>> {
+    const x = new Float64Array(n);
+    const y = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+        const r = Math.floor(i / cols);
+        const c = i % cols;
+        x[i] = c * HALF_SQRT3;
+        y[i] = 1.5 * r + ((r + c) % 2 === 0 ? 0.5 : 0);
+    }
+    return { x, y };
+}
+
+/**
  * The triangular lattice as a triangulated rows x cols grid: node (r, c) is index r * cols + c and
  * links to (r, c + 1), (r + 1, c) and (r + 1, c - 1), in that order, for each node in index order.
  * Interior nodes have degree 6. Positions shear the grid into a parallelogram of equilateral
@@ -303,17 +352,7 @@ export function triangularLatticeGraph(options: PlanarLatticeOptions): SampleGra
             }
         }
     }
-    let columns: SampleGraph["nodeColumns"];
-    if (options.positions === true) {
-        const x = new Float64Array(n);
-        const y = new Float64Array(n);
-        for (let i = 0; i < n; i++) {
-            const r = Math.floor(i / cols);
-            x[i] = (i % cols) + r / 2;
-            y[i] = r * HALF_SQRT3;
-        }
-        columns = { x, y };
-    }
+    const columns = options.positions === true ? triangularPositions(n, cols) : undefined;
     return applyWeights(toGraph(n, out, false, columns), options);
 }
 
@@ -340,17 +379,6 @@ export function hexagonalLatticeGraph(options: PlanarLatticeOptions): SampleGrap
             }
         }
     }
-    let columns: SampleGraph["nodeColumns"];
-    if (options.positions === true) {
-        const x = new Float64Array(n);
-        const y = new Float64Array(n);
-        for (let i = 0; i < n; i++) {
-            const r = Math.floor(i / cols);
-            const c = i % cols;
-            x[i] = c * HALF_SQRT3;
-            y[i] = 1.5 * r + ((r + c) % 2 === 0 ? 0.5 : 0);
-        }
-        columns = { x, y };
-    }
+    const columns = options.positions === true ? hexagonalPositions(n, cols) : undefined;
     return applyWeights(toGraph(n, out, false, columns), options);
 }

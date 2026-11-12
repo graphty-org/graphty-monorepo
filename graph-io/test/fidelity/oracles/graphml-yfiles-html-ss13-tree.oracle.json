@@ -1,0 +1,18 @@
+{
+    "sample": "graphml-yfiles-html-ss13-tree",
+    "file": "graph-io/test/corpus/styles/graphml/yfiles-html-large/spacestation13__SS13-Codebases__tree.graphml.gz",
+    "sha256": "579dd2842f889fc1a21fdd88241918e953bb8dd6b1d5aad917a391ff82a904ee",
+    "program": "yEd Live",
+    "version": "8.5.16, updated 11/2/2026 (as yEd Live's About panel shows), run in headless Chromium",
+    "command": "An AI agent operated yEd Live's user interface at the owner's direction on 2026-11-04. No layout was run, so the file's stored coordinates are drawn. Main menu > Open > From Local File, welcome dialog closed with Skip, then main menu > Export > Export, saved from the browser download with no edits. One Export setting changed from its default: format PNG -> SVG. Left at defaults: Scale 1, Export only selected area off, Transparent background off, Export for dark theme off, Sketchy, hand-drawn style off. Headless Chromium, viewport 1400 x 1000. The file was saved under the dark theme: yEd Live's load-time dialog 'Graph created with different theme' has no default and was answered 'Switch current theme'. The committed file is gzipped; the program was given its decompressed bytes.",
+    "standIn": false,
+    "canvas": {
+        "requested": "none: yEd Live's Export panel has no width or height field, so the SVG has the size of the file's stored layout plus its margins",
+        "widthPx": 2312,
+        "heightPx": 2154
+    },
+    "fonts": "Chromium with FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "svgPostprocessing": "none: the SVG is yEd Live's output byte for byte",
+    "date": "2026-11-04",
+    "regenerate": "no command: an AI agent operates yEd Live's user interface as in `command`, then node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/graphml-yfiles-html-ss13-tree.svg"
+}

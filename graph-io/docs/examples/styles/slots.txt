@@ -1,0 +1,5 @@
+node a #ff0000
+node b #008000
+edge a b
+
+[ 'W_COLUMN_DROPPED', 'W_STYLE_RULES_NOT_KEPT' ]

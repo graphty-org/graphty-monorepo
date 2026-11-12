@@ -127,6 +127,7 @@ export class ConsoleCaptureUI {
                 justify-content: center;
                 transition: all 0.2s;
                 opacity: 0.6;
+                will-change: opacity;
             ">📋</button>
             <div id="console-capture-menu" style="
                 position: fixed;
@@ -551,9 +552,12 @@ export class ConsoleCaptureUI {
         const text = this.getLogs();
 
         try {
-            // Try modern clipboard API first
-            if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-                await navigator.clipboard.writeText(text);
+            // Try modern clipboard API first. Outside a secure context navigator.clipboard is
+            // undefined, whatever the DOM types say.
+            const clipboard: Partial<Clipboard> | undefined =
+                typeof navigator === "undefined" ? undefined : navigator.clipboard;
+            if (clipboard?.writeText) {
+                await clipboard.writeText(text);
                 this.showCopySuccess();
             } else {
                 // Fallback method using textarea

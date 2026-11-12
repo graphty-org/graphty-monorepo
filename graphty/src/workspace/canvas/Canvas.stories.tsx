@@ -4,6 +4,7 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { within } from "storybook/test";
 
+import { runName } from "../runWords";
 import { Workspace } from "../Workspace";
 import { LoadingCard } from "./CanvasOverlays";
 import KARATE from "./fixtures/karate.json";
@@ -38,7 +39,21 @@ async function loadKarate(canvasElement: HTMLElement): Promise<GraphtyElement> {
     await element.session.layout.set("fixed");
     await element.session.data.addNodes(KARATE.nodes);
     await element.session.data.addEdges(KARATE.edges);
+    // New data frames the camera on later frames: wait for the framing to land.
+    await element.waitForStableFrame();
     return element;
+}
+
+/**
+ * A run's name as the key titles its section: the catalog's plain name, as the style tree names
+ * the run's row ("Influence", "Shortest route").
+ * @param element - the element.
+ * @param id - the run's id.
+ * @returns the name.
+ */
+function nameOf(element: GraphtyElement, id: string): string {
+    const listed = element.session.runs.list().find((each) => each.id === id);
+    return listed === undefined ? id : runName(element.session, listed);
 }
 
 /**
@@ -50,7 +65,7 @@ async function loadKarate(canvasElement: HTMLElement): Promise<GraphtyElement> {
 async function settle(canvasElement: HTMLElement, element: GraphtyElement, section: string): Promise<void> {
     await element.session.styles.settled();
     await element.waitForStableFrame();
-    await within(canvasElement).findByRole("group", { name: section }, { timeout: 30_000 });
+    await within(canvasElement).findByRole("group", { name: section });
 }
 
 const meta: Meta<typeof Workspace> = {
@@ -67,7 +82,7 @@ export const Empty: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await elementOf(canvasElement);
-        await within(canvasElement).findByRole("region", { name: "No nodes to draw" }, { timeout: 30_000 });
+        await within(canvasElement).findByRole("region", { name: "No nodes to draw" });
     },
 };
 
@@ -107,7 +122,7 @@ export const Finished: Story = {
         const element = await loadKarate(canvasElement);
         const run = element.session.runs.start("pagerank");
         await run;
-        await settle(canvasElement, element, `Color: ${run.label}`);
+        await settle(canvasElement, element, `Color: ${nameOf(element, run.id)}`);
     },
 };
 
@@ -118,7 +133,7 @@ export const PaintedSize: Story = {
         const element = await loadKarate(canvasElement);
         const run = element.session.runs.start("pagerank", {}, { style: { size: true } });
         await run;
-        await settle(canvasElement, element, `Size: ${run.label}`);
+        await settle(canvasElement, element, `Size: ${nameOf(element, run.id)}`);
     },
 };
 
@@ -129,7 +144,26 @@ export const LouvainOpen: Story = {
         const element = await loadKarate(canvasElement);
         const run = element.session.runs.start("louvain");
         await run;
-        await settle(canvasElement, element, `Color: ${run.label}`);
+        await settle(canvasElement, element, `Color: ${nameOf(element, run.id)}`);
+    },
+};
+
+/**
+ * A shortest path over PageRank: the path's node and edge highlight share one key section, one
+ * row named by the run ("Shortest path"), above "Color: PageRank".
+ */
+export const PathOverRanking: Story = {
+    args: { initialState: OPEN },
+    play: async ({ canvasElement }) => {
+        const element = await loadKarate(canvasElement);
+        const rank = element.session.runs.start("pagerank");
+        await rank;
+        const route = element.session.runs.start("shortest-path", { source: "17", target: "26" });
+        await route;
+        // The run's merged section is one row, not a named group: the row says the run's name.
+        await settle(canvasElement, element, `Color: ${nameOf(element, rank.id)}`);
+        const legend = within(canvasElement).getByRole("region", { name: "Legend" });
+        await within(legend).findByText(nameOf(element, route.id), {});
     },
 };
 
@@ -160,6 +194,6 @@ export const HiddenByYourLayer: Story = {
         });
         await element.session.runs.start("louvain");
         await element.waitForStableFrame();
-        await within(canvasElement).findByText("Hidden by your layer My gray", {}, { timeout: 30_000 });
+        await within(canvasElement).findByText("Hidden by your layer My gray", {});
     },
 };

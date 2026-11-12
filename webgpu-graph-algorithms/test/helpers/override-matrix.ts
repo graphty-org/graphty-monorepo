@@ -79,7 +79,7 @@ const U32_OVERRIDE_VALUES: Readonly<Record<string, readonly number[] | undefined
  * 3 TIER)
  * + pr-scale 6 + pr-finalize 6 (defaults + 5 NORM_MODE values each) + wcc-link-sample 5 + wcc-link-edges 1 +
  * wcc-compress 1 + wcc-sample 1; P4 = indirect-finalize 1 + scan-block 1 + scan-add 1 + histogram 1 + counting-scatter 1 +
- * radix-hist 1 + radix-scatter 1 + grid-cell-key 1 + grid-centroid 1 + grid-centroid-hub 1 + grid-downsample 1 +
+ * radix-hist 1 + radix-scatter 1 + cluster-centroid 1 + cluster-pull 4 (1 + 3 LAW) + collide-cell-key 1 + collide-gather 1 + collide-apply 1 + to-drawn 1 + grid-cell-key 1 + grid-centroid 1 + grid-centroid-hub 1 + grid-downsample 1 +
  * grid-far-field 4 (1 + 3 LAW) + grid-near-field 25 (1 + 2 SWING_MODE x 2 STRONG_GRAVITY x 2 GRAVITY_CENTER x 3
  * LAW; P4-T13); P8 = compact-scatter 1 + dedupe-claim 1 + dedupe-filter 1 (P8-T3) + frontier-finalize 1 (P8-T4) +
  * advance-expand 5 (P8-T5: the graph pair, no declared override) + bfs-contract 1 + sssp-pred 9 (P8-T6: the graph
@@ -101,7 +101,7 @@ export const EXPECTED_CASES_BY_PHASE: Readonly<Record<"P1" | "P2" | "P3" | "P4" 
         P1: 53,
         P2: 148,
         P3: 157,
-        P4: 40,
+        P4: 49,
         P7: 69,
         P8: 41,
         P9: 29,
@@ -118,7 +118,7 @@ const DEVICE_DERIVED: ReadonlySet<string> = new Set(["WG", "SUBGROUP_MIN", "SUBG
  * @returns the entry
  */
 export function entryOf(id: KernelId): KernelEntry {
-    const entry: KernelEntry | undefined = KERNELS[id];
+    const entry = id in KERNELS ? KERNELS[id] : undefined;
     if (entry === undefined) {
         throw new Error(`override-matrix: no KERNELS entry for ${id}`);
     }

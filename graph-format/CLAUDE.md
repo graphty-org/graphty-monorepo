@@ -187,6 +187,10 @@ npm run ready:commit
   a deliberate layout change regenerates it with `tmp/make-golden.ts`.
 - `test/build-output.test.ts` checks the package.json shape and, when `dist/` exists, the build output.
 
+### Test projects
+
+- Single test project (Node.js); `test/types/*.test-d.ts` are compile-only (`npm run typecheck:strict-consumer` after a build)
+
 ## Adding a View
 
 1. Add the name to `ViewName` in `src/types/snapshot.ts` and a slot to `ViewValues` in

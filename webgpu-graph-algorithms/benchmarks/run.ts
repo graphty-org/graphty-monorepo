@@ -97,6 +97,31 @@ interface Args {
 }
 
 /**
+ * The value of `--runs`.
+ * @param raw - the argument after the flag
+ * @returns the run count; throws unless it is a positive integer
+ */
+function runsValue(raw: string | undefined): number {
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value < 1) {
+        throw new Error(`--runs expects a positive integer, got ${String(raw)}`);
+    }
+    return value;
+}
+
+/**
+ * The value of `--samples-out`.
+ * @param raw - the argument after the flag
+ * @returns the file path; throws when it is missing or is another flag
+ */
+function samplesOutValue(raw: string | undefined): string {
+    if (raw === undefined || raw.startsWith("--")) {
+        throw new Error("--samples-out expects a file path");
+    }
+    return raw;
+}
+
+/**
  * Parses `[group ...] [--no-save] [--allow-software] [--runs N] [--samples-out FILE]`.
  * @param argv - process.argv.slice(2)
  * @returns the arguments; unknown flags are errors
@@ -117,18 +142,10 @@ function parseArgs(argv: readonly string[]): Args {
         } else if (a === "--allow-software") {
             allowSoftware = true;
         } else if (a === "--runs") {
-            const value = Number(argv[i + 1]);
-            if (!Number.isInteger(value) || value < 1) {
-                throw new Error(`--runs expects a positive integer, got ${String(argv[i + 1])}`);
-            }
-            runs = value;
+            runs = runsValue(argv[i + 1]);
             i += 1;
         } else if (a === "--samples-out") {
-            const value = argv[i + 1];
-            if (value === undefined || value.startsWith("--")) {
-                throw new Error("--samples-out expects a file path");
-            }
-            samplesOut = value;
+            samplesOut = samplesOutValue(argv[i + 1]);
             i += 1;
         } else if (a.startsWith("--")) {
             throw new Error(`unknown option ${a}; known: --no-save --allow-software --runs N --samples-out FILE`);

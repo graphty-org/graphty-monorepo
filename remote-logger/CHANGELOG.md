@@ -1,3 +1,64 @@
+## 2.0.30 (2026-11-10)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.29 (2026-11-09)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.28 (2026-11-02)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.27 (2026-11-01)
+
+### 🩹 Fixes
+
+- **remote-logger:** report a startup error with top-level await ([#3226](https://github.com/graphty-org/graphty-monorepo/issues/3226))
+- **remote-logger:** bind the port it is given, with no cap at 9099 ([#3226](https://github.com/graphty-org/graphty-monorepo/issues/3226))
+- **release:** fail the publish when a package's exports are not in its pack ([#3275](https://github.com/graphty-org/graphty-monorepo/issues/3275))
+
+## 2.0.26 (2026-10-31)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.25 (2026-10-29)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.24 (2026-10-28)
+
+### 🩹 Fixes
+
+- **ci:** preset FC_FONTATIONS for every Chromium launch; one shared vitest base ([#3787](https://github.com/graphty-org/graphty-monorepo/issues/3787))
+- **remote-logger:** put the console capture button on its own compositing layer ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **deps:** take zod 4.6.7 and body-parser 2.4.0 so the release audit passes ([#3393](https://github.com/graphty-org/graphty-monorepo/issues/3393), [#3318](https://github.com/graphty-org/graphty-monorepo/issues/3318))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+- graphty-agent @graphty-agent
+
+## 2.0.23 (2026-10-21)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.22 (2026-10-20)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.21 (2026-10-18)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.20 (2026-10-17)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.19 (2026-10-15)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
 ## 2.0.18 (2026-10-14)
 
 This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.

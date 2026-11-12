@@ -144,21 +144,9 @@ function splitBracketed(text: string): string[] {
         }
         let item = "";
         if (i < n && (inner[i] === '"' || inner[i] === "'")) {
-            const quote = inner[i];
-            i++;
-            while (i < n) {
-                if (inner[i] === quote) {
-                    if (inner[i + 1] === quote) {
-                        item += quote;
-                        i += 2;
-                        continue;
-                    }
-                    i++;
-                    break;
-                }
-                item += inner[i];
-                i++;
-            }
+            const quoted = readQuoted(inner, i);
+            item = quoted.text;
+            i = quoted.end;
         }
         // unquoted text, or text after a closing quote that is not a separator, runs to the next comma
         let end = inner.indexOf(",", i);
@@ -177,6 +165,32 @@ function splitBracketed(text: string): string[] {
             return items;
         }
     }
+}
+
+/**
+ * Read a quoted item of a bracketed list: a doubled quote inside it is one quote, and a missing
+ * closing quote ends it at the end of the text.
+ * @param inner - the inside of the brackets
+ * @param open - the index of the opening quote
+ * @returns the unquoted text and the index just past the closing quote
+ */
+function readQuoted(inner: string, open: number): { text: string; end: number } {
+    const quote = inner[open];
+    const n = inner.length;
+    let text = "";
+    let i = open + 1;
+    while (i < n) {
+        if (inner[i] !== quote) {
+            text += inner[i];
+            i++;
+        } else if (inner[i + 1] === quote) {
+            text += quote;
+            i += 2;
+        } else {
+            return { text, end: i + 1 };
+        }
+    }
+    return { text, end: i };
 }
 
 /**

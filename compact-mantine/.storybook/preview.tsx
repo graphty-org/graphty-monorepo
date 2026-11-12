@@ -3,14 +3,35 @@ import "@mantine/core/styles.css";
 import { DirectionProvider, type MantineThemeOverride, MantineProvider } from "@mantine/core";
 import type { Preview, StoryContext } from "@storybook/react";
 import { type ReactNode, useRef } from "react";
+import { configure } from "storybook/test";
 
+import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 import { createCompactTheme } from "../src/theme";
 
-// One theme per contrast mode, built once: MantineProvider re-resolves when the object changes.
+// A play function's waitFor and findBy* (storybook/test's own copy of Testing Library) wait until
+// the monorepo's one hang guard, not Testing Library's 1000 ms: a deadline on a wait fails a story
+// whenever the machine is busy (tools/test-wait-guard.mjs). Set here, not in a test setup file,
+// because the stories' copy is not the one tests/setup.browser.ts configures.
+configure({ asyncUtilTimeout: WAIT_GUARD_MS });
+
+// One theme per contrast mode and accent, built once: MantineProvider re-resolves when the object
+// changes.
 const THEMES = {
     figma: createCompactTheme(),
     high: createCompactTheme({ highContrast: true }),
+    "figma-graphty": createCompactTheme({ accent: "graphty" }),
+    "high-graphty": createCompactTheme({ highContrast: true, accent: "graphty" }),
 };
+
+/**
+ * The theme for the contrast and accent toolbars.
+ * @param globals - the story's globals
+ * @returns the theme
+ */
+function getTheme(globals: Record<string, unknown>): MantineThemeOverride {
+    const contrast = getContrast(globals);
+    return globals.accent === "graphty" ? THEMES[`${contrast}-graphty`] : THEMES[contrast];
+}
 
 function getColorScheme(globals: Record<string, unknown>): "light" | "dark" {
     if (globals.theme === "light") {
@@ -146,6 +167,18 @@ const preview: Preview = {
                 dynamicTitle: true,
             },
         },
+        accent: {
+            description: 'Figma\'s blue, or the graphty brand lime (createCompactTheme({ accent: "graphty" }))',
+            toolbar: {
+                title: "Accent",
+                icon: "paintbrush",
+                items: [
+                    { value: "figma", title: "Figma blue" },
+                    { value: "graphty", title: "graphty lime" },
+                ],
+                dynamicTitle: true,
+            },
+        },
         // No toolbar: set by the capture modes below (and by a `globals=schemes:single` URL),
         // so a BOTH_SCHEMES story is captured as one real, un-nested render per mode.
         schemes: {
@@ -169,13 +202,14 @@ const preview: Preview = {
         schemes: "auto",
         theme: "light",
         contrast: "figma",
+        accent: "figma",
         direction: "ltr",
     },
     decorators: [
         (Story, context: StoryContext) => {
             const colorScheme = getColorScheme(context.globals);
             const direction = getDirection(context.globals);
-            const theme = THEMES[getContrast(context.globals)];
+            const theme = getTheme(context.globals);
 
             // A States story with `parameters: BOTH_SCHEMES` renders twice, light
             // and dark side by side, and ignores the toolbar's theme; contrast

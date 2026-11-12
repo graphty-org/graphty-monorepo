@@ -490,6 +490,18 @@ describe("syncJobs: pull requests", () => {
         expect(state.jobs["pr-4"].state).toBe("working");
         expect(state.jobs["pr-5"].state).toBe("verifying");
     });
+
+    it("keeps a held pr job while its holder reworks the pull request as a draft (issue 2727)", () => {
+        const state = base();
+        failingPr(state, 4);
+        sync(state);
+        const holder = { session: "s1", window: null, startedBy: "owner" };
+        move(state.jobs["pr-4"], "starting", NOW, { holder });
+        move(state.jobs["pr-4"], "working", NOW);
+        state.prs[4].draft = true;
+        expect(sync(state).cancelled).toEqual([]);
+        expect(state.jobs["pr-4"].state).toBe("working");
+    });
 });
 
 describe("syncJobs: titles and the local gate", () => {
@@ -760,6 +772,23 @@ describe("syncJobs: issues", () => {
         expect(run()).toEqual([]);
         state.capacity.b.n = 3;
         expect(run()).toHaveLength(2);
+    });
+
+    it("makes the job for an issue the owner ordered even when the queue has no room", () => {
+        const config = normalizeConfig({
+            repo: "o/r",
+            lanes: { ci: { workflow: "ci.yml", gating: "required" } },
+            labels: CONFIG.labels,
+            workers: { slots: 0, sessions: ["a"], maxActive: 2 },
+        });
+        const state = base();
+        for (const n of [11, 12, 13]) issue(state, n, LABELED);
+        const run = () => syncJobs(state, { config, now: NOW }).created;
+        expect(run()).toEqual(["issue-11"]);
+        expect(run()).toEqual([]);
+        state.orders = [{ id: "order-1", issues: [13] }];
+        expect(run()).toEqual(["issue-13"]);
+        expect(run()).toEqual([]);
     });
 
     it("offers bugs, then infrastructure, each by priority and effort, and never an enhancement", () => {
@@ -1092,6 +1121,9 @@ describe("syncJobs: pull requests in use (owner decision 2026-10-04)", () => {
         move(job, "waiting", NOW, { waitingFor: { checks: "abc" } });
         const ended = new Set();
         const gone = (/** @type {string} */ s) => ended.has(s);
+        // Its last activity, which spares a live session the status question, does not keep a gone one's claim.
+        state.sessions = { o1: { calledAt: NOW.toISOString() } };
+        state.transcripts = { o1: { files: {}, pushes: {}, grewAt: NOW.toISOString() } };
         expect(syncJobs(state, { config: CONFIG, now: NOW, sessionGone: gone }).lapsed).toEqual([]);
         expect(job.state).toBe("waiting");
         ended.add("o1");

@@ -1,0 +1,394 @@
+{
+    "sample": "gephi-json-specimen-node-sizes-opacity",
+    "program": "sigma.js",
+    "version": "sigma 4.0.1, graphology 0.26.0, @sigma/export-image 4.0.0",
+    "command": "graph.import(file moved into graphology's { key, attributes } shape); new Sigma(graph, <div 1200x900>) with sigma's default settings; toBlob(sigma, { format: \"png\" })",
+    "how": "sigma 4 draws nodes, edges and labels with WebGL2 and offers no vector export. @sigma/export-image's toBlob renders the instance to PNG (its own export, 1200 x 900, transparent background); the SVG wraps those bytes unmodified in one <image> element.",
+    "svgKind": "raster",
+    "canvas": {
+        "width": 1200,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "background": "none (the page behind it is white)"
+    },
+    "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
+    "file": "test/fidelity/specimens/gephi-json/specimen-node-sizes-opacity.json",
+    "fileSha256": "a136dd45749969aadda193eda7b83a1533487423c0e69a651730cd17b3a30262",
+    "svgSha256": "9ffdaea2950acee9c660444cee469e9c85b00b78b52b730dccf41aaad824c58c",
+    "date": "2026-10-19",
+    "standIn": false,
+    "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
+    "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
+    "observed": {
+        "nodes": 40,
+        "edges": 0,
+        "labelsShown": 18
+    },
+    "drawn": {
+        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); each edge it drew, with its display color and size, its width in the PNG's pixels (max(sigma.scaleSize(size), minEdgeThickness), as sigma's edge shader draws it) its display type, and its label when renderEdgeLabels is on; each node's and edge's fill and alpha as sigma's own parseColor reads the display color (sigma blends with that alpha)",
+        "nodes": [
+            {
+                "id": "cap-default",
+                "x": 167.44827402049097,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "default=nothing set",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-size-0",
+                "x": 383.7241370102455,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "size=0",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-size-0-5",
+                "x": 600,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "size=0.5",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-size-1",
+                "x": 816.2758629897545,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "size=1",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-size-2",
+                "x": 1032.551725979509,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "size=2",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-size-4",
+                "x": 167.44827402049097,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "size=4",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-size-6",
+                "x": 383.7241370102455,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "size=6",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-size-8",
+                "x": 600,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "size=8",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-size-10",
+                "x": 816.2758629897545,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "size=10",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-size-14",
+                "x": 1032.551725979509,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "size=14",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-size-18",
+                "x": 167.44827402049097,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "size=18",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-size-24",
+                "x": 383.7241370102455,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "size=24",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-size-30",
+                "x": 600,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "size=30",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-attr-size",
+                "x": 816.2758629897545,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "attributes.size=30",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-attr-visibility",
+                "x": 1032.551725979509,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "attributes.visibility=hidden",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-attr-x",
+                "x": 167.44827402049097,
+                "y": 722.5172512413099,
+                "r": 6.758620826334783,
+                "label": "attributes.x=0",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-attr-hidden",
+                "x": 383.7241370102455,
+                "y": 722.5172512413099,
+                "r": 6.758620826334783,
+                "label": "attributes.hidden=true",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-attr-zindex",
+                "x": 600,
+                "y": 722.5172512413099,
+                "r": 6.758620826334783,
+                "label": "attributes.zIndex=-1",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-nw",
+                "x": 39.99999761581421,
+                "y": 34.827571182415305,
+                "r": 2.896551782714907,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-ne",
+                "x": 1160.0000023841858,
+                "y": 34.827571182415305,
+                "r": 2.896551782714907,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-sw",
+                "x": 39.99999761581421,
+                "y": 865.1724288175845,
+                "r": 2.896551782714907,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-se",
+                "x": 1160.0000023841858,
+                "y": 865.1724288175845,
+                "r": 2.896551782714907,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "default",
+                "x": 167.44827402049097,
+                "y": 90.10343525173342,
+                "r": 9.655172609049691,
+                "label": null,
+                "fill": "#666666",
+                "alpha": 1
+            },
+            {
+                "id": "size-0",
+                "x": 383.7241370102455,
+                "y": 90.10343525173342,
+                "r": 0,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "size-0-5",
+                "x": 600,
+                "y": 90.10343525173342,
+                "r": 0.4827586304524845,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "size-1",
+                "x": 816.2758629897545,
+                "y": 90.10343525173342,
+                "r": 0.965517260904969,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "size-2",
+                "x": 1032.551725979509,
+                "y": 90.10343525173342,
+                "r": 1.931034521809938,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "size-4",
+                "x": 167.44827402049097,
+                "y": 288.034476897326,
+                "r": 3.862069043619876,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "size-6",
+                "x": 383.7241370102455,
+                "y": 288.034476897326,
+                "r": 5.793103565429814,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "size-8",
+                "x": 600,
+                "y": 288.034476897326,
+                "r": 7.724138087239752,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "size-10",
+                "x": 816.2758629897545,
+                "y": 288.034476897326,
+                "r": 9.655172609049691,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "size-14",
+                "x": 1032.551725979509,
+                "y": 288.034476897326,
+                "r": 13.517241652669567,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "size-18",
+                "x": 167.44827402049097,
+                "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "size-24",
+                "x": 383.7241370102455,
+                "y": 485.96551854291863,
+                "r": 23.172414261719258,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "size-30",
+                "x": 600,
+                "y": 485.96551854291863,
+                "r": 28.96551782714907,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "attr-size",
+                "x": 816.2758629897545,
+                "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "attr-visibility",
+                "x": 1032.551725979509,
+                "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "attr-x",
+                "x": 167.44827402049097,
+                "y": 683.8965601885113,
+                "r": 17.379310696289444,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "attr-hidden",
+                "x": 383.7241370102455,
+                "y": 683.8965601885113,
+                "r": 17.379310696289444,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "attr-zindex",
+                "x": 600,
+                "y": 683.8965601885113,
+                "r": 17.379310696289444,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            }
+        ],
+        "edges": []
+    },
+    "pageErrors": []
+}

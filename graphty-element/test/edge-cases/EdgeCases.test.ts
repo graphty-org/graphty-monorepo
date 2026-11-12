@@ -12,7 +12,7 @@
  */
 
 import { AbstractMesh, type Mesh, NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import type { EdgeStyleConfig } from "../../src/config";
 import { EdgeMesh } from "../../src/meshes/EdgeMesh";
@@ -27,6 +27,10 @@ describe("Edge Case Handling", () => {
         const engine = new NullEngine();
         scene = new Scene(engine);
         meshCache = new MeshCache();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     /**

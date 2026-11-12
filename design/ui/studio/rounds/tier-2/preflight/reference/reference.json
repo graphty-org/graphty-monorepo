@@ -1,0 +1,371 @@
+{
+    "friends": {
+        "stats": {
+            "nodes": 20,
+            "edges": 41
+        },
+        "loadedWeight": {
+            "attribute": "weight",
+            "meaning": null
+        },
+        "filter4": {
+            "attribute": "data.weight",
+            "summary": {
+                "totalEdges": 41,
+                "totalNodes": 20,
+                "visibleEdges": 12,
+                "visibleNodes": 19
+            },
+            "plan": {
+                "ok": true,
+                "cost": {
+                    "seconds": null,
+                    "confidence": "unknown",
+                    "costClass": "unbounded",
+                    "blocksFrame": false,
+                    "cancellable": false,
+                    "available": false,
+                    "reason": "\"visibility.steps\" is not costed: only an algorithm run and a layout choice have an estimate.",
+                    "refusal": {
+                        "code": "estimate.not-costed",
+                        "params": {
+                            "op": "visibility.steps"
+                        }
+                    },
+                    "basis": "\"visibility.steps\" is not costed: only an algorithm run and a layout choice have an estimate."
+                },
+                "effect": {
+                    "kind": "steps",
+                    "start": {
+                        "nodes": 20,
+                        "edges": 41
+                    },
+                    "steps": [
+                        {
+                            "id": "step-1",
+                            "nodes": 19,
+                            "edges": 12
+                        }
+                    ]
+                },
+                "caveats": {
+                    "exact": true,
+                    "seed": null,
+                    "direction": "as-loaded",
+                    "weight": null,
+                    "precision": "f64",
+                    "method": "exact",
+                    "notes": []
+                }
+            }
+        },
+        "pathChloeMilo": {
+            "order": ["Chloe", "Ava", "Ivan", "Kofi", "Milo"],
+            "graph": {
+                "length": 5,
+                "cost": 4,
+                "hops": 4
+            },
+            "weight": null
+        },
+        "pagerank": {
+            "top": [
+                ["Farah", 0.0639],
+                ["Hana", 0.0594],
+                ["Milo", 0.0565],
+                ["Chloe", 0.0555]
+            ],
+            "weight": {
+                "attribute": "weight",
+                "meaning": "strength"
+            }
+        }
+    },
+    "friendsV2": {
+        "stats": {
+            "nodes": 20,
+            "edges": 41
+        },
+        "pagerank": {
+            "top": [
+                ["Ava", 0.0801],
+                ["Farah", 0.0656],
+                ["Hana", 0.0643],
+                ["Ivan", 0.0614]
+            ],
+            "weight": {
+                "attribute": "weight",
+                "meaning": "strength"
+            }
+        }
+    },
+    "lesmis": {
+        "stats": {
+            "nodes": 77,
+            "edges": 254
+        },
+        "attributes": ["data.id", "data.name", "data.shared_chapters"],
+        "filter5": {
+            "attribute": "data.shared_chapters",
+            "summary": {
+                "totalEdges": 254,
+                "totalNodes": 77,
+                "visibleEdges": 51,
+                "visibleNodes": 26
+            },
+            "plan": {
+                "ok": true,
+                "cost": {
+                    "seconds": null,
+                    "confidence": "unknown",
+                    "costClass": "unbounded",
+                    "blocksFrame": false,
+                    "cancellable": false,
+                    "available": false,
+                    "reason": "\"visibility.steps\" is not costed: only an algorithm run and a layout choice have an estimate.",
+                    "refusal": {
+                        "code": "estimate.not-costed",
+                        "params": {
+                            "op": "visibility.steps"
+                        }
+                    },
+                    "basis": "\"visibility.steps\" is not costed: only an algorithm run and a layout choice have an estimate."
+                },
+                "effect": {
+                    "kind": "steps",
+                    "start": {
+                        "nodes": 77,
+                        "edges": 254
+                    },
+                    "steps": [
+                        {
+                            "id": "step-1",
+                            "nodes": 26,
+                            "edges": 51
+                        }
+                    ]
+                },
+                "caveats": {
+                    "exact": true,
+                    "seed": null,
+                    "direction": "as-loaded",
+                    "weight": null,
+                    "precision": "f64",
+                    "method": "exact",
+                    "notes": []
+                }
+            }
+        }
+    },
+    "florentine": {
+        "stats": {
+            "nodes": 15,
+            "edges": 20
+        },
+        "sampleIds": [],
+        "pathStrozziPazzi": {
+            "order": ["Strozzi", "Ridolfi", "Medici", "Salviati", "Pazzi"],
+            "graph": {
+                "length": 5,
+                "cost": 4,
+                "hops": 4
+            },
+            "weight": null
+        }
+    },
+    "bus": {
+        "unset": {
+            "stats": {
+                "nodes": 10,
+                "edges": 17
+            },
+            "loadedWeight": null,
+            "path": {
+                "order": ["Depot", "Station", "Harbor"],
+                "graph": {
+                    "length": 3,
+                    "cost": 2,
+                    "hops": 2
+                },
+                "weight": null
+            }
+        },
+        "farther": {
+            "stats": {
+                "nodes": 10,
+                "edges": 17
+            },
+            "loadedWeight": {
+                "attribute": "minutes",
+                "meaning": "distance"
+            },
+            "path": {
+                "order": ["Depot", "Market", "Park", "Clinic", "Harbor"],
+                "graph": {
+                    "length": 5,
+                    "cost": 14,
+                    "hops": 4
+                },
+                "weight": {
+                    "attribute": "minutes",
+                    "meaning": "distance"
+                }
+            }
+        }
+    },
+    "trails": {
+        "unset": {
+            "stats": {
+                "nodes": 9,
+                "edges": 13
+            },
+            "loadedWeight": null,
+            "path": {
+                "order": ["Trailhead", "Pine Fork", "Summit"],
+                "graph": {
+                    "length": 3,
+                    "cost": 2,
+                    "hops": 2
+                },
+                "weight": null
+            }
+        },
+        "farther": {
+            "stats": {
+                "nodes": 9,
+                "edges": 13
+            },
+            "loadedWeight": {
+                "attribute": "km",
+                "meaning": "distance"
+            },
+            "path": {
+                "order": ["Trailhead", "Creek", "Meadow", "Ridge", "Summit"],
+                "graph": {
+                    "length": 5,
+                    "cost": 7.5,
+                    "hops": 4
+                },
+                "weight": {
+                    "attribute": "km",
+                    "meaning": "distance"
+                }
+            }
+        }
+    },
+    "office": {
+        "stats": {
+            "nodes": 13,
+            "edges": 23
+        },
+        "sources": [
+            {
+                "type": "csv",
+                "config": {
+                    "nodeFile": {},
+                    "edgeFile": {}
+                },
+                "tables": [],
+                "added": {
+                    "nodes": 13,
+                    "edges": 23
+                }
+            }
+        ],
+        "loadedWeight": null,
+        "pagerank": {
+            "top": [
+                ["p12", 0.1852],
+                ["p01", 0.1171],
+                ["p08", 0.1057],
+                ["p03", 0.0861]
+            ],
+            "weight": null
+        }
+    },
+    "team5": {
+        "stats": {
+            "nodes": 11,
+            "edges": 18
+        },
+        "sources": [
+            {
+                "type": "csv",
+                "config": {
+                    "nodeFile": {},
+                    "edgeFile": {}
+                },
+                "tables": [],
+                "added": {
+                    "nodes": 11,
+                    "edges": 18
+                }
+            }
+        ]
+    },
+    "team": {
+        "stats": {
+            "nodes": 11,
+            "edges": 18,
+            "loadedWeight": null
+        },
+        "pagerank": {
+            "top": [
+                ["s10", 0.251],
+                ["s09", 0.1448],
+                ["s07", 0.1051],
+                ["s06", 0.0804]
+            ],
+            "weight": null
+        }
+    },
+    "teamV2": {
+        "stats": {
+            "nodes": 11,
+            "edges": 18,
+            "loadedWeight": null
+        },
+        "pagerank": {
+            "top": [
+                ["s10", 0.251],
+                ["s09", 0.1448],
+                ["s07", 0.1051],
+                ["s06", 0.0804]
+            ],
+            "weight": null
+        }
+    },
+    "friendsOpen": {
+        "stats": {
+            "nodes": 11,
+            "edges": 18,
+            "loadedWeight": null
+        },
+        "pagerank": {
+            "top": [
+                ["s10", 0.251],
+                ["s09", 0.1448],
+                ["s07", 0.1051],
+                ["s06", 0.0804]
+            ],
+            "weight": null
+        }
+    },
+    "friendsV2Open": {
+        "stats": {
+            "nodes": 11,
+            "edges": 18,
+            "loadedWeight": null
+        },
+        "pagerank": {
+            "top": [
+                ["s10", 0.251],
+                ["s09", 0.1448],
+                ["s07", 0.1051],
+                ["s06", 0.0804]
+            ],
+            "weight": null
+        }
+    },
+    "build": "ca8b3b916c22 graphty@0.8.55"
+}

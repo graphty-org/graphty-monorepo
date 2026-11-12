@@ -75,7 +75,7 @@ describe("a label's panel is sized from the font's own metrics", () => {
     });
 
     afterEach(() => {
-        scene.dispose();
+        scene.getEngine().dispose();
     });
 
     for (const font of FONTS) {

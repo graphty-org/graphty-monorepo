@@ -148,6 +148,75 @@ function arcWeights(s: GraphSnapshot, w: NumericVector | undefined): NumericVect
     return w;
 }
 
+/**
+ * Add `scale * (weight / ow)` to `out` at each out-neighbour of `u`, in logical edge order.
+ * @param s - The snapshot
+ * @param order - Its arcs in logical edge order
+ * @param weights - Per-arc weights, or null for 1 each
+ * @param u - The node whose row to spread
+ * @param ow - The divisor of each arc's weight
+ * @param scale - The factor of each arc's share
+ * @param out - The vector to add to
+ */
+function spreadRow(
+    s: GraphSnapshot,
+    order: U32,
+    weights: NumericVector | null,
+    u: number,
+    ow: number,
+    scale: number,
+    out: F64,
+): void {
+    for (let k = s.rowPtr[u]; k < s.rowPtr[u + 1]; k++) {
+        const a = order[k];
+        out[s.colIdx[a]] += scale * ((weights === null ? 1 : weights[a]) / ow);
+    }
+}
+
+/**
+ * Sum of `mass` over the nodes with no out-arcs, in index order.
+ * @param s - The snapshot
+ * @param mass - The per-node mass
+ * @returns The dangling mass
+ */
+function danglingMass(s: GraphSnapshot, mass: F64): number {
+    let dangling = 0;
+    for (let u = 0; u < s.nodeCount; u++) {
+        if (s.rowPtr[u] === s.rowPtr[u + 1]) {
+            dangling += mass[u];
+        }
+    }
+    return dangling;
+}
+
+/**
+ * The largest absolute value of `a - b` (or of `a` when `b` is null), 0 when every one is 0.
+ * @param a - The first vector
+ * @param b - The vector to subtract, or null
+ * @returns The L-infinity norm of the difference
+ */
+function maxAbsDiff(a: F64, b: F64 | null): number {
+    let max = 0;
+    for (let v = 0; v < a.length; v++) {
+        max = Math.max(max, Math.abs(b === null ? a[v] : a[v] - b[v]));
+    }
+    return max;
+}
+
+/**
+ * Set each entry of `next` to its teleport share plus its share of the dangling spread.
+ * @param next - The vector to set
+ * @param d - The damping factor
+ * @param spread - The dangling spread per node (before the personalization)
+ * @param personal - The normalised personalization, or null for uniform
+ */
+function fillTeleport(next: F64, d: number, spread: number, personal: F64 | null): void {
+    const n = next.length;
+    for (let v = 0; v < n; v++) {
+        next[v] = personal === null ? (1 - d) / n + spread : (1 - d) * personal[v] + spread * personal[v];
+    }
+}
+
 function checkDamping(d: number): void {
     if (d < 0 || d > 1) {
         throw withCode(new Error("Damping factor must be between 0 and 1"), "E_BAD_OPTION");
@@ -191,29 +260,14 @@ export function deltaPageRank(s: GraphSnapshot, o: DeltaPageRankOptions = {}): P
     let converged = false;
     while (iterations < maxIter && !converged) {
         iterations++;
-        let dangling = 0;
+        const dangling = danglingMass(s, rank);
+        fillTeleport(next, d, dangling > 0 ? (d * dangling) / n : 0, personal);
         for (let u = 0; u < n; u++) {
-            if (s.rowPtr[u] === s.rowPtr[u + 1]) {
-                dangling += rank[u];
+            if (outW[u] > 0) {
+                spreadRow(s, order, weights, u, outW[u], d * rank[u], next);
             }
         }
-        const spread = dangling > 0 ? (d * dangling) / n : 0;
-        for (let v = 0; v < n; v++) {
-            next[v] = personal === null ? (1 - d) / n + spread : (1 - d) * personal[v] + spread * personal[v];
-        }
-        for (let u = 0; u < n; u++) {
-            const ow = outW[u];
-            if (ow > 0) {
-                for (let k = s.rowPtr[u]; k < s.rowPtr[u + 1]; k++) {
-                    const a = order[k];
-                    next[s.colIdx[a]] += d * rank[u] * ((weights === null ? 1 : weights[a]) / ow);
-                }
-            }
-        }
-        let maxDiff = 0;
-        for (let v = 0; v < n; v++) {
-            maxDiff = Math.max(maxDiff, Math.abs(next[v] - rank[v]));
-        }
+        const maxDiff = maxAbsDiff(next, rank);
         [rank, next] = [next, rank];
         converged = maxDiff < tol;
     }
@@ -308,7 +362,7 @@ export class DeltaPageRank {
         const maxIter = o.maxIterations ?? 100;
         const threshold = o.deltaThreshold ?? tol / 10;
         checkDamping(d);
-        const { s, order, scores } = this;
+        const { s, scores } = this;
         const n = s.nodeCount;
         if (n === 0) {
             return new Float64Array(0);
@@ -319,48 +373,80 @@ export class DeltaPageRank {
         let activeCount = this.active.reduce((sum, x) => sum + x, 0);
         for (let it = 0; (activeCount > 0 || (it === 0 && startRound)) && it < maxIter; it++) {
             const next = new Float64Array(n);
-            let dangling = 0;
-            for (let u = 0; u < n; u++) {
-                if (s.rowPtr[u] === s.rowPtr[u + 1]) {
-                    dangling += scores[u] + this.deltas[u];
-                }
-            }
-            if (dangling > 0) {
-                const spread = (d * dangling) / n;
-                for (let v = 0; v < n; v++) {
-                    next[v] += personal === null ? spread : spread * personal[v];
-                }
-            }
-            for (let u = 0; u < n; u++) {
-                const delta = this.deltas[u];
-                if (this.active[u] === 0 || Math.abs(delta) < threshold) {
-                    continue;
-                }
-                scores[u] += delta;
-                const ow = this.outW[u];
-                if (ow > 0) {
-                    for (let k = s.rowPtr[u]; k < s.rowPtr[u + 1]; k++) {
-                        const a = order[k];
-                        next[s.colIdx[a]] += d * delta * ((weights === null ? 1 : weights[a]) / ow);
-                    }
-                }
-            }
-            let maxDelta = 0;
-            activeCount = 0;
+            this.spreadDangling(next, d, personal);
+            this.propagate(next, d, threshold, weights);
             for (let v = 0; v < n; v++) {
                 next[v] += personal === null ? randomJump : (1 - d) * personal[v];
-                const size = Math.abs(next[v]);
-                maxDelta = Math.max(maxDelta, size);
-                this.active[v] = size >= threshold ? 1 : 0;
-                activeCount += this.active[v];
             }
+            activeCount = this.markActive(next, threshold);
             this.deltas = next;
-            if (maxDelta < tol) {
+            if (maxAbsDiff(next, null) < tol) {
                 break;
             }
         }
         normalize(scores);
         return scores.slice();
+    }
+
+    /**
+     * Spread the dangling nodes' score and pending delta over every node of `next`, by the
+     * personalization when one is given.
+     * @param next - The next round's deltas
+     * @param d - The damping factor
+     * @param personal - The normalised personalization, or null for uniform
+     */
+    private spreadDangling(next: F64, d: number, personal: F64 | null): void {
+        const { s, scores } = this;
+        const n = s.nodeCount;
+        let dangling = 0;
+        for (let u = 0; u < n; u++) {
+            if (s.rowPtr[u] === s.rowPtr[u + 1]) {
+                dangling += scores[u] + this.deltas[u];
+            }
+        }
+        if (dangling > 0) {
+            const spread = (d * dangling) / n;
+            for (let v = 0; v < n; v++) {
+                next[v] += personal === null ? spread : spread * personal[v];
+            }
+        }
+    }
+
+    /**
+     * Add each active node's delta of at least `threshold` to its score and push `d` times it
+     * along its out-arcs into `next`.
+     * @param next - The next round's deltas
+     * @param d - The damping factor
+     * @param threshold - The smallest delta that is propagated
+     * @param weights - Per-arc weights, or null for 1 each
+     */
+    private propagate(next: F64, d: number, threshold: number, weights: NumericVector | null): void {
+        const { s, order, scores } = this;
+        for (let u = 0; u < s.nodeCount; u++) {
+            const delta = this.deltas[u];
+            if (this.active[u] === 0 || Math.abs(delta) < threshold) {
+                continue;
+            }
+            scores[u] += delta;
+            if (this.outW[u] > 0) {
+                spreadRow(s, order, weights, u, this.outW[u], d * delta, next);
+            }
+        }
+    }
+
+    /**
+     * Make active exactly the nodes whose next delta is at least `threshold`.
+     * @param next - The next round's deltas
+     * @param threshold - The smallest delta that is propagated
+     * @returns The number of active nodes
+     */
+    private markActive(next: F64, threshold: number): number {
+        let activeCount = 0;
+        for (let v = 0; v < next.length; v++) {
+            this.active[v] = Math.abs(next[v]) >= threshold ? 1 : 0;
+            activeCount += this.active[v];
+        }
+        return activeCount;
     }
 }
 
@@ -418,7 +504,7 @@ export class PriorityDeltaPageRank {
         const tol = o.tolerance ?? 1e-6;
         const maxIter = o.maxIterations ?? 100;
         const threshold = o.deltaThreshold ?? tol / 10;
-        const { s, order, scores, deltas, heap } = this;
+        const { s, scores, deltas, heap } = this;
         const n = s.nodeCount;
         const weights = o.weighted === true ? this.weights : null;
         let iteration = 0;
@@ -431,27 +517,10 @@ export class PriorityDeltaPageRank {
             }
             scores[u] += delta;
             deltas[u] = 0;
-            const ow = weights === null ? s.rowPtr[u + 1] - s.rowPtr[u] : this.outW[u];
-            if (ow > 0) {
-                for (let k = s.rowPtr[u]; k < s.rowPtr[u + 1]; k++) {
-                    const a = order[k];
-                    const v = s.colIdx[a];
-                    const pending = deltas[v] + d * delta * ((weights === null ? 1 : weights[a]) / ow);
-                    deltas[v] = pending;
-                    if (Math.abs(pending) >= threshold) {
-                        heap.pushOrIncrease(v, Math.abs(pending));
-                    }
-                }
-            }
+            this.relax(u, d * delta, weights, threshold);
             processed++;
-            if (processed % 1000 === 0) {
-                let maxDelta = 0;
-                for (let v = 0; v < n; v++) {
-                    maxDelta = Math.max(maxDelta, Math.abs(deltas[v]));
-                }
-                if (maxDelta < tol) {
-                    break;
-                }
+            if (processed % 1000 === 0 && maxAbsDiff(deltas, null) < tol) {
+                break;
             }
             iteration++;
         }
@@ -462,5 +531,29 @@ export class PriorityDeltaPageRank {
         }
         normalize(scores);
         return scores.slice();
+    }
+
+    /**
+     * Pass `scale` of `u`'s processed delta to its out-neighbours, split by arc weight (or evenly
+     * when `weights` is null), and queue each neighbour whose pending delta reaches `threshold`.
+     * @param u - The processed node
+     * @param scale - The damping factor times its delta
+     * @param weights - Per-arc weights, or null to split evenly
+     * @param threshold - The smallest pending delta that is queued
+     */
+    private relax(u: number, scale: number, weights: NumericVector | null, threshold: number): void {
+        const { s, order, deltas, heap } = this;
+        const ow = weights === null ? s.rowPtr[u + 1] - s.rowPtr[u] : this.outW[u];
+        if (ow > 0) {
+            for (let k = s.rowPtr[u]; k < s.rowPtr[u + 1]; k++) {
+                const a = order[k];
+                const v = s.colIdx[a];
+                const pending = deltas[v] + scale * ((weights === null ? 1 : weights[a]) / ow);
+                deltas[v] = pending;
+                if (Math.abs(pending) >= threshold) {
+                    heap.pushOrIncrease(v, Math.abs(pending));
+                }
+            }
+        }
     }
 }

@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/graphty-org/brand/main/guide/on-white/png/graphty-webgpu-graph-algorithms-lockup-color-on-light-800w.png" alt="graphty webgpu-graph-algorithms" width="467">
+
 # @graphty/webgpu-graph-algorithms
 
 WebGPU-accelerated graph algorithms and layouts over the `@graphty/graph-format` snapshot, for Node
@@ -370,6 +372,19 @@ again. Any other failure (a device request that failed) rejects `current()`, and
 `@graphty/webgpu-graph-algorithms/acquire` has no build of its own: the `browser` export condition (and the
 default) resolves it to the `./browser` build, `node` to the `./node` build. The `./browser` and `./node`
 subpaths export the same `acquireAccelerator` for code that is only ever one or the other.
+
+A browser application that already draws with WebGPU can run on its own device instead of opening a second one:
+
+```ts
+import { acquireAccelerator } from "@graphty/webgpu-graph-algorithms/browser";
+
+const device = await adapter.requestDevice();
+const result = await acquireAccelerator({ device }).current();
+```
+
+The device stays yours: disposing the accelerator does not destroy it, and it should go after the accelerator. Your own uncaptured
+errors stay yours too, and a batch of the accelerator's that fails validation rejects that batch. After a loss, acquire again with the
+new device. `GpuContext.from(device, info, { errorSink: false })` is the same adoption without the managed handle.
 
 The lower-level calls below are what it is made of, for when you need a context without an accelerator, your own
 device, or control over limits and features.

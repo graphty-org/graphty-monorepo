@@ -1,0 +1,3294 @@
+{
+    "total_count": 25,
+    "jobs": [
+        {
+            "id": 121306490209,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "Build",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:10:54Z",
+            "started_at": "2026-10-25T22:13:26Z",
+            "completed_at": "2026-10-25T22:17:38Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T22:13:27Z",
+                    "completed_at": "2026-10-25T22:13:31Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-25T22:13:31Z",
+                    "completed_at": "2026-10-25T22:13:48Z"
+                },
+                {
+                    "name": "List advisory checks",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T22:13:48Z",
+                    "completed_at": "2026-10-25T22:13:48Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v6",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T22:13:48Z",
+                    "completed_at": "2026-10-25T22:13:51Z"
+                },
+                {
+                    "name": "Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-25T22:13:51Z",
+                    "completed_at": "2026-10-25T22:14:00Z"
+                },
+                {
+                    "name": "Install dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-25T22:14:00Z",
+                    "completed_at": "2026-10-25T22:14:08Z"
+                },
+                {
+                    "name": "Key of the selector's import graphs",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-25T22:14:08Z",
+                    "completed_at": "2026-10-25T22:14:08Z"
+                },
+                {
+                    "name": "Restore the selector's import graphs",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-25T22:14:08Z",
+                    "completed_at": "2026-10-25T22:14:09Z"
+                },
+                {
+                    "name": "Plan affected projects and test shards",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-25T22:14:09Z",
+                    "completed_at": "2026-10-25T22:14:18Z"
+                },
+                {
+                    "name": "Reuse an earlier run's results when only screenshot records changed",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-25T22:14:18Z",
+                    "completed_at": "2026-10-25T22:14:19Z"
+                },
+                {
+                    "name": "Record the tree this run tests",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 11,
+                    "started_at": "2026-10-25T22:14:19Z",
+                    "completed_at": "2026-10-25T22:14:19Z"
+                },
+                {
+                    "name": "Upload the record of the tested tree",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-25T22:14:19Z",
+                    "completed_at": "2026-10-25T22:14:21Z"
+                },
+                {
+                    "name": "Download the package builds of the run whose results are reused",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 13,
+                    "started_at": "2026-10-25T22:14:21Z",
+                    "completed_at": "2026-10-25T22:14:21Z"
+                },
+                {
+                    "name": "Probe the nx remote cache",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 14,
+                    "started_at": "2026-10-25T22:14:21Z",
+                    "completed_at": "2026-10-25T22:14:21Z"
+                },
+                {
+                    "name": "Build affected (PR)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 15,
+                    "started_at": "2026-10-25T22:14:21Z",
+                    "completed_at": "2026-10-25T22:14:23Z"
+                },
+                {
+                    "name": "Build the rest (PR), so every shard finds its artifact",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 16,
+                    "started_at": "2026-10-25T22:14:23Z",
+                    "completed_at": "2026-10-25T22:16:54Z"
+                },
+                {
+                    "name": "Plan the light check's test bins",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 17,
+                    "started_at": "2026-10-25T22:16:54Z",
+                    "completed_at": "2026-10-25T22:17:04Z"
+                },
+                {
+                    "name": "Upload the results plan",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 18,
+                    "started_at": "2026-10-25T22:17:04Z",
+                    "completed_at": "2026-10-25T22:17:05Z"
+                },
+                {
+                    "name": "Build all (master, a manual dispatch or the merge queue)",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 19,
+                    "started_at": "2026-10-25T22:17:05Z",
+                    "completed_at": "2026-10-25T22:17:05Z"
+                },
+                {
+                    "name": "Upload graphty's source maps to Sentry (master push)",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 20,
+                    "started_at": "2026-10-25T22:17:05Z",
+                    "completed_at": "2026-10-25T22:17:05Z"
+                },
+                {
+                    "name": "Upload all package builds",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 21,
+                    "started_at": "2026-10-25T22:17:05Z",
+                    "completed_at": "2026-10-25T22:17:12Z"
+                },
+                {
+                    "name": "Upload the nx profile",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 22,
+                    "started_at": "2026-10-25T22:17:12Z",
+                    "completed_at": "2026-10-25T22:17:13Z"
+                },
+                {
+                    "name": "Upload graph-format build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 23,
+                    "started_at": "2026-10-25T22:17:13Z",
+                    "completed_at": "2026-10-25T22:17:15Z"
+                },
+                {
+                    "name": "Upload graph-io build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 24,
+                    "started_at": "2026-10-25T22:17:15Z",
+                    "completed_at": "2026-10-25T22:17:18Z"
+                },
+                {
+                    "name": "Upload webgpu-graph-algorithms build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 25,
+                    "started_at": "2026-10-25T22:17:18Z",
+                    "completed_at": "2026-10-25T22:17:20Z"
+                },
+                {
+                    "name": "Upload graph-samples build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 26,
+                    "started_at": "2026-10-25T22:17:20Z",
+                    "completed_at": "2026-10-25T22:17:22Z"
+                },
+                {
+                    "name": "Upload algorithms build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 27,
+                    "started_at": "2026-10-25T22:17:22Z",
+                    "completed_at": "2026-10-25T22:17:23Z"
+                },
+                {
+                    "name": "Upload layout build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 28,
+                    "started_at": "2026-10-25T22:17:23Z",
+                    "completed_at": "2026-10-25T22:17:25Z"
+                },
+                {
+                    "name": "Upload graphty build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 29,
+                    "started_at": "2026-10-25T22:17:25Z",
+                    "completed_at": "2026-10-25T22:17:29Z"
+                },
+                {
+                    "name": "Upload graphty-element build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 30,
+                    "started_at": "2026-10-25T22:17:29Z",
+                    "completed_at": "2026-10-25T22:17:32Z"
+                },
+                {
+                    "name": "Upload remote-logger build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 31,
+                    "started_at": "2026-10-25T22:17:32Z",
+                    "completed_at": "2026-10-25T22:17:33Z"
+                },
+                {
+                    "name": "Upload compact-mantine build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 32,
+                    "started_at": "2026-10-25T22:17:33Z",
+                    "completed_at": "2026-10-25T22:17:35Z"
+                },
+                {
+                    "name": "Fail the summary checks now",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 33,
+                    "started_at": "2026-10-25T22:17:35Z",
+                    "completed_at": "2026-10-25T22:17:35Z"
+                },
+                {
+                    "name": "Post Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 64,
+                    "started_at": "2026-10-25T22:17:35Z",
+                    "completed_at": "2026-10-25T22:17:35Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v6",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 65,
+                    "started_at": "2026-10-25T22:17:35Z",
+                    "completed_at": "2026-10-25T22:17:35Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 66,
+                    "started_at": "2026-10-25T22:17:35Z",
+                    "completed_at": "2026-10-25T22:17:35Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 67,
+                    "started_at": "2026-10-25T22:17:35Z",
+                    "completed_at": "2026-10-25T22:17:36Z"
+                }
+            ]
+        },
+        {
+            "id": 121308080732,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "Docs",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:17:38Z",
+            "started_at": "2026-10-25T22:17:50Z",
+            "completed_at": "2026-10-25T22:22:38Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T22:17:51Z",
+                    "completed_at": "2026-10-25T22:17:53Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-25T22:17:53Z",
+                    "completed_at": "2026-10-25T22:18:11Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v6",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T22:18:11Z",
+                    "completed_at": "2026-10-25T22:18:15Z"
+                },
+                {
+                    "name": "Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T22:18:15Z",
+                    "completed_at": "2026-10-25T22:18:22Z"
+                },
+                {
+                    "name": "Install dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-25T22:18:22Z",
+                    "completed_at": "2026-10-25T22:18:31Z"
+                },
+                {
+                    "name": "Download all package builds",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-25T22:18:31Z",
+                    "completed_at": "2026-10-25T22:18:34Z"
+                },
+                {
+                    "name": "Build docs",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-25T22:18:34Z",
+                    "completed_at": "2026-10-25T22:21:59Z"
+                },
+                {
+                    "name": "Build algorithms gh-pages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-25T22:21:59Z",
+                    "completed_at": "2026-10-25T22:22:06Z"
+                },
+                {
+                    "name": "Build layout gh-pages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-25T22:22:06Z",
+                    "completed_at": "2026-10-25T22:22:08Z"
+                },
+                {
+                    "name": "Upload unified docs",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-25T22:22:08Z",
+                    "completed_at": "2026-10-25T22:22:33Z"
+                },
+                {
+                    "name": "Upload algorithms gh-pages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 11,
+                    "started_at": "2026-10-25T22:22:33Z",
+                    "completed_at": "2026-10-25T22:22:34Z"
+                },
+                {
+                    "name": "Upload layout gh-pages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-25T22:22:34Z",
+                    "completed_at": "2026-10-25T22:22:35Z"
+                },
+                {
+                    "name": "Fail the summary checks now",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 13,
+                    "started_at": "2026-10-25T22:22:35Z",
+                    "completed_at": "2026-10-25T22:22:35Z"
+                },
+                {
+                    "name": "Post Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 24,
+                    "started_at": "2026-10-25T22:22:35Z",
+                    "completed_at": "2026-10-25T22:22:35Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v6",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 25,
+                    "started_at": "2026-10-25T22:22:35Z",
+                    "completed_at": "2026-10-25T22:22:35Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 26,
+                    "started_at": "2026-10-25T22:22:35Z",
+                    "completed_at": "2026-10-25T22:22:36Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 27,
+                    "started_at": "2026-10-25T22:22:36Z",
+                    "completed_at": "2026-10-25T22:22:36Z"
+                }
+            ]
+        },
+        {
+            "id": 121308080739,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "Checks",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:17:38Z",
+            "started_at": "2026-10-25T22:18:14Z",
+            "completed_at": "2026-10-25T22:27:54Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T22:18:16Z",
+                    "completed_at": "2026-10-25T22:18:17Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-25T22:18:17Z",
+                    "completed_at": "2026-10-25T22:18:34Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v6",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T22:18:34Z",
+                    "completed_at": "2026-10-25T22:18:41Z"
+                },
+                {
+                    "name": "Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T22:18:41Z",
+                    "completed_at": "2026-10-25T22:18:53Z"
+                },
+                {
+                    "name": "Install dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-25T22:18:53Z",
+                    "completed_at": "2026-10-25T22:19:00Z"
+                },
+                {
+                    "name": "Download all package builds",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-25T22:19:00Z",
+                    "completed_at": "2026-10-25T22:19:04Z"
+                },
+                {
+                    "name": "CI workflow tests",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-25T22:19:04Z",
+                    "completed_at": "2026-10-25T22:21:49Z"
+                },
+                {
+                    "name": "Knip (dead code detection)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-25T22:21:49Z",
+                    "completed_at": "2026-10-25T22:22:38Z"
+                },
+                {
+                    "name": "Knip (production dependencies)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-25T22:22:38Z",
+                    "completed_at": "2026-10-25T22:22:56Z"
+                },
+                {
+                    "name": "Published dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-25T22:22:56Z",
+                    "completed_at": "2026-10-25T22:23:07Z"
+                },
+                {
+                    "name": "ESLint root config",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 11,
+                    "started_at": "2026-10-25T22:23:07Z",
+                    "completed_at": "2026-10-25T22:23:09Z"
+                },
+                {
+                    "name": "Formatting",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-25T22:23:09Z",
+                    "completed_at": "2026-10-25T22:26:39Z"
+                },
+                {
+                    "name": "Bundle size (graphty-element)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 13,
+                    "started_at": "2026-10-25T22:26:39Z",
+                    "completed_at": "2026-10-25T22:26:43Z"
+                },
+                {
+                    "name": "Bundle size (cytoscape-extensions)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 14,
+                    "started_at": "2026-10-25T22:26:43Z",
+                    "completed_at": "2026-10-25T22:26:49Z"
+                },
+                {
+                    "name": "Public API report (graphty-element)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 15,
+                    "started_at": "2026-10-25T22:26:49Z",
+                    "completed_at": "2026-10-25T22:27:34Z"
+                },
+                {
+                    "name": "Feature flags",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 16,
+                    "started_at": "2026-10-25T22:27:34Z",
+                    "completed_at": "2026-10-25T22:27:35Z"
+                },
+                {
+                    "name": "Declared build tools",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 17,
+                    "started_at": "2026-10-25T22:27:35Z",
+                    "completed_at": "2026-10-25T22:27:35Z"
+                },
+                {
+                    "name": "Release hold list",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 18,
+                    "started_at": "2026-10-25T22:27:35Z",
+                    "completed_at": "2026-10-25T22:27:43Z"
+                },
+                {
+                    "name": "Element data sources on graph-io",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 19,
+                    "started_at": "2026-10-25T22:27:43Z",
+                    "completed_at": "2026-10-25T22:27:43Z"
+                },
+                {
+                    "name": "Migration count script",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 20,
+                    "started_at": "2026-10-25T22:27:43Z",
+                    "completed_at": "2026-10-25T22:27:44Z"
+                },
+                {
+                    "name": "Legacy graph API use",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 21,
+                    "started_at": "2026-10-25T22:27:44Z",
+                    "completed_at": "2026-10-25T22:27:49Z"
+                },
+                {
+                    "name": "No committed walk screenshots",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 22,
+                    "started_at": "2026-10-25T22:27:49Z",
+                    "completed_at": "2026-10-25T22:27:50Z"
+                },
+                {
+                    "name": "compact-mantine Figma lock",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 23,
+                    "started_at": "2026-10-25T22:27:50Z",
+                    "completed_at": "2026-10-25T22:27:50Z"
+                },
+                {
+                    "name": "Fail the summary checks now",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 24,
+                    "started_at": "2026-10-25T22:27:50Z",
+                    "completed_at": "2026-10-25T22:27:50Z"
+                },
+                {
+                    "name": "Post Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 46,
+                    "started_at": "2026-10-25T22:27:50Z",
+                    "completed_at": "2026-10-25T22:27:50Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v6",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 47,
+                    "started_at": "2026-10-25T22:27:50Z",
+                    "completed_at": "2026-10-25T22:27:50Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 48,
+                    "started_at": "2026-10-25T22:27:50Z",
+                    "completed_at": "2026-10-25T22:27:51Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 49,
+                    "started_at": "2026-10-25T22:27:51Z",
+                    "completed_at": "2026-10-25T22:27:51Z"
+                }
+            ]
+        },
+        {
+            "id": 121308080765,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "Storybooks",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:17:38Z",
+            "started_at": "2026-10-25T22:19:02Z",
+            "completed_at": "2026-10-25T22:24:25Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T22:19:02Z",
+                    "completed_at": "2026-10-25T22:19:04Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-25T22:19:04Z",
+                    "completed_at": "2026-10-25T22:19:21Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v6",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T22:19:21Z",
+                    "completed_at": "2026-10-25T22:19:25Z"
+                },
+                {
+                    "name": "Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T22:19:25Z",
+                    "completed_at": "2026-10-25T22:19:33Z"
+                },
+                {
+                    "name": "Install dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-25T22:19:33Z",
+                    "completed_at": "2026-10-25T22:19:40Z"
+                },
+                {
+                    "name": "Download all package builds",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-25T22:19:40Z",
+                    "completed_at": "2026-10-25T22:19:42Z"
+                },
+                {
+                    "name": "Build Storybook (graphty-element)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-25T22:19:42Z",
+                    "completed_at": "2026-10-25T22:20:44Z"
+                },
+                {
+                    "name": "Build Storybook (graphty)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-25T22:20:44Z",
+                    "completed_at": "2026-10-25T22:21:46Z"
+                },
+                {
+                    "name": "Build Storybook (compact-mantine)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-25T22:21:46Z",
+                    "completed_at": "2026-10-25T22:22:13Z"
+                },
+                {
+                    "name": "Build Storybook (algorithms)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-25T22:22:13Z",
+                    "completed_at": "2026-10-25T22:22:27Z"
+                },
+                {
+                    "name": "Build Storybook (layout)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 11,
+                    "started_at": "2026-10-25T22:22:27Z",
+                    "completed_at": "2026-10-25T22:22:40Z"
+                },
+                {
+                    "name": "Build Storybook (cytoscape-extensions)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-25T22:22:40Z",
+                    "completed_at": "2026-10-25T22:22:59Z"
+                },
+                {
+                    "name": "Restore the style fidelity reference pictures",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 13,
+                    "started_at": "2026-10-25T22:22:59Z",
+                    "completed_at": "2026-10-25T22:23:01Z"
+                },
+                {
+                    "name": "Build Storybook (graph-io-fidelity)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 14,
+                    "started_at": "2026-10-25T22:23:01Z",
+                    "completed_at": "2026-10-25T22:24:07Z"
+                },
+                {
+                    "name": "Download the Storybooks of the run whose results are reused",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 15,
+                    "started_at": "2026-10-25T22:24:07Z",
+                    "completed_at": "2026-10-25T22:24:07Z"
+                },
+                {
+                    "name": "Put the reused Storybooks where this job's uploads read them",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 16,
+                    "started_at": "2026-10-25T22:24:07Z",
+                    "completed_at": "2026-10-25T22:24:07Z"
+                },
+                {
+                    "name": "Upload Storybook build (graphty-element)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 17,
+                    "started_at": "2026-10-25T22:24:07Z",
+                    "completed_at": "2026-10-25T22:24:09Z"
+                },
+                {
+                    "name": "Upload Storybook build (graphty)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 18,
+                    "started_at": "2026-10-25T22:24:09Z",
+                    "completed_at": "2026-10-25T22:24:11Z"
+                },
+                {
+                    "name": "Upload Storybook build (compact-mantine)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 19,
+                    "started_at": "2026-10-25T22:24:11Z",
+                    "completed_at": "2026-10-25T22:24:12Z"
+                },
+                {
+                    "name": "Upload Storybook build (algorithms)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 20,
+                    "started_at": "2026-10-25T22:24:12Z",
+                    "completed_at": "2026-10-25T22:24:14Z"
+                },
+                {
+                    "name": "Upload Storybook build (layout)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 21,
+                    "started_at": "2026-10-25T22:24:14Z",
+                    "completed_at": "2026-10-25T22:24:15Z"
+                },
+                {
+                    "name": "Upload Storybook build (cytoscape-extensions)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 22,
+                    "started_at": "2026-10-25T22:24:15Z",
+                    "completed_at": "2026-10-25T22:24:16Z"
+                },
+                {
+                    "name": "Upload Storybook build (graph-io-fidelity)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 23,
+                    "started_at": "2026-10-25T22:24:16Z",
+                    "completed_at": "2026-10-25T22:24:23Z"
+                },
+                {
+                    "name": "Fail the summary checks now",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 24,
+                    "started_at": "2026-10-25T22:24:23Z",
+                    "completed_at": "2026-10-25T22:24:23Z"
+                },
+                {
+                    "name": "Post Restore the style fidelity reference pictures",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 45,
+                    "started_at": "2026-10-25T22:24:23Z",
+                    "completed_at": "2026-10-25T22:24:23Z"
+                },
+                {
+                    "name": "Post Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 46,
+                    "started_at": "2026-10-25T22:24:23Z",
+                    "completed_at": "2026-10-25T22:24:23Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v6",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 47,
+                    "started_at": "2026-10-25T22:24:23Z",
+                    "completed_at": "2026-10-25T22:24:23Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 48,
+                    "started_at": "2026-10-25T22:24:23Z",
+                    "completed_at": "2026-10-25T22:24:24Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 49,
+                    "started_at": "2026-10-25T22:24:24Z",
+                    "completed_at": "2026-10-25T22:24:24Z"
+                }
+            ]
+        },
+        {
+            "id": 121308080795,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "Lint",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:17:38Z",
+            "started_at": "2026-10-25T22:19:02Z",
+            "completed_at": "2026-10-25T22:19:59Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T22:19:03Z",
+                    "completed_at": "2026-10-25T22:19:04Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-25T22:19:04Z",
+                    "completed_at": "2026-10-25T22:19:22Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v6",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T22:19:22Z",
+                    "completed_at": "2026-10-25T22:19:26Z"
+                },
+                {
+                    "name": "Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T22:19:26Z",
+                    "completed_at": "2026-10-25T22:19:36Z"
+                },
+                {
+                    "name": "Install dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-25T22:19:36Z",
+                    "completed_at": "2026-10-25T22:19:43Z"
+                },
+                {
+                    "name": "Download all package builds",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-25T22:19:43Z",
+                    "completed_at": "2026-10-25T22:19:47Z"
+                },
+                {
+                    "name": "Note when lint starts",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-25T22:19:47Z",
+                    "completed_at": "2026-10-25T22:19:47Z"
+                },
+                {
+                    "name": "Lint affected (PR)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-25T22:19:47Z",
+                    "completed_at": "2026-10-25T22:19:56Z"
+                },
+                {
+                    "name": "Lint all (master, a manual dispatch or the merge queue)",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 9,
+                    "started_at": "2026-10-25T22:19:56Z",
+                    "completed_at": "2026-10-25T22:19:56Z"
+                },
+                {
+                    "name": "Warn when lint runs past its budget",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-25T22:19:56Z",
+                    "completed_at": "2026-10-25T22:19:56Z"
+                },
+                {
+                    "name": "Fail the summary checks now",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 11,
+                    "started_at": "2026-10-25T22:19:56Z",
+                    "completed_at": "2026-10-25T22:19:56Z"
+                },
+                {
+                    "name": "Post Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 20,
+                    "started_at": "2026-10-25T22:19:56Z",
+                    "completed_at": "2026-10-25T22:19:56Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v6",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 21,
+                    "started_at": "2026-10-25T22:19:56Z",
+                    "completed_at": "2026-10-25T22:19:56Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 22,
+                    "started_at": "2026-10-25T22:19:56Z",
+                    "completed_at": "2026-10-25T22:19:56Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 23,
+                    "started_at": "2026-10-25T22:19:56Z",
+                    "completed_at": "2026-10-25T22:19:56Z"
+                }
+            ]
+        },
+        {
+            "id": 121308081456,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "Test (${{ matrix.shard }})",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-25T22:17:39Z",
+            "started_at": "2026-10-25T22:17:39Z",
+            "completed_at": "2026-10-25T22:17:38Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 121308081611,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "Story tests (${{ matrix.project }})",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-25T22:17:39Z",
+            "started_at": "2026-10-25T22:17:39Z",
+            "completed_at": "2026-10-25T22:17:38Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 121308081661,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "Selector import graphs",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-25T22:17:39Z",
+            "started_at": "2026-10-25T22:17:39Z",
+            "completed_at": "2026-10-25T22:17:38Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 121308081711,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "Performance Benchmarks",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-25T22:17:39Z",
+            "started_at": "2026-10-25T22:17:39Z",
+            "completed_at": "2026-10-25T22:17:38Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 121308081795,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "Cost Estimate Accuracy",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-25T22:17:39Z",
+            "started_at": "2026-10-25T22:17:39Z",
+            "completed_at": "2026-10-25T22:17:38Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 121309681502,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "Links",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:24:25Z",
+            "started_at": "2026-10-25T22:31:21Z",
+            "completed_at": "2026-10-25T22:33:46Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T22:31:22Z",
+                    "completed_at": "2026-10-25T22:31:23Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-25T22:31:23Z",
+                    "completed_at": "2026-10-25T22:31:35Z"
+                },
+                {
+                    "name": "Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T22:31:35Z",
+                    "completed_at": "2026-10-25T22:31:36Z"
+                },
+                {
+                    "name": "Download graphty build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T22:31:36Z",
+                    "completed_at": "2026-10-25T22:31:38Z"
+                },
+                {
+                    "name": "Download unified docs",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-25T22:31:38Z",
+                    "completed_at": "2026-10-25T22:31:46Z"
+                },
+                {
+                    "name": "Download Storybook build (graphty-element)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-25T22:31:46Z",
+                    "completed_at": "2026-10-25T22:31:49Z"
+                },
+                {
+                    "name": "Download Storybook build (graphty)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-25T22:31:49Z",
+                    "completed_at": "2026-10-25T22:31:51Z"
+                },
+                {
+                    "name": "Download Storybook build (compact-mantine)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-25T22:31:51Z",
+                    "completed_at": "2026-10-25T22:31:52Z"
+                },
+                {
+                    "name": "Download Storybook build (algorithms)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-25T22:31:52Z",
+                    "completed_at": "2026-10-25T22:31:54Z"
+                },
+                {
+                    "name": "Download Storybook build (layout)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-25T22:31:54Z",
+                    "completed_at": "2026-10-25T22:31:55Z"
+                },
+                {
+                    "name": "Download Storybook build (cytoscape-extensions)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 11,
+                    "started_at": "2026-10-25T22:31:55Z",
+                    "completed_at": "2026-10-25T22:31:57Z"
+                },
+                {
+                    "name": "Download Storybook build (graph-io-fidelity)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-25T22:31:57Z",
+                    "completed_at": "2026-10-25T22:32:00Z"
+                },
+                {
+                    "name": "Download algorithms gh-pages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 13,
+                    "started_at": "2026-10-25T22:32:00Z",
+                    "completed_at": "2026-10-25T22:32:01Z"
+                },
+                {
+                    "name": "Download layout gh-pages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 14,
+                    "started_at": "2026-10-25T22:32:01Z",
+                    "completed_at": "2026-10-25T22:32:02Z"
+                },
+                {
+                    "name": "Assemble the GitHub Pages site",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 15,
+                    "started_at": "2026-10-25T22:32:02Z",
+                    "completed_at": "2026-10-25T22:32:10Z"
+                },
+                {
+                    "name": "Check links",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 16,
+                    "started_at": "2026-10-25T22:32:10Z",
+                    "completed_at": "2026-10-25T22:33:42Z"
+                },
+                {
+                    "name": "Fail the summary checks now",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 17,
+                    "started_at": "2026-10-25T22:33:42Z",
+                    "completed_at": "2026-10-25T22:33:42Z"
+                },
+                {
+                    "name": "Post Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 33,
+                    "started_at": "2026-10-25T22:33:42Z",
+                    "completed_at": "2026-10-25T22:33:42Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 34,
+                    "started_at": "2026-10-25T22:33:42Z",
+                    "completed_at": "2026-10-25T22:33:42Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 35,
+                    "started_at": "2026-10-25T22:33:42Z",
+                    "completed_at": "2026-10-25T22:33:42Z"
+                }
+            ]
+        },
+        {
+            "id": 121309681600,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "visual (algorithms)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:24:25Z",
+            "started_at": "2026-10-25T22:40:32Z",
+            "completed_at": "2026-10-25T22:42:03Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T22:40:33Z",
+                    "completed_at": "2026-10-25T22:40:34Z"
+                },
+                {
+                    "name": "Skip a Storybook this pull request cannot affect",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 2,
+                    "started_at": "2026-10-25T22:40:34Z",
+                    "completed_at": "2026-10-25T22:40:34Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T22:40:34Z",
+                    "completed_at": "2026-10-25T22:40:47Z"
+                },
+                {
+                    "name": "Restore this project's baseline images",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T22:40:47Z",
+                    "completed_at": "2026-10-25T22:40:47Z"
+                },
+                {
+                    "name": "Fetch this project's baseline images and the pinned fonts from Git LFS",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-25T22:40:47Z",
+                    "completed_at": "2026-10-25T22:40:49Z"
+                },
+                {
+                    "name": "Use the base branch's capture code",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-25T22:40:49Z",
+                    "completed_at": "2026-10-25T22:40:49Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-25T22:40:49Z",
+                    "completed_at": "2026-10-25T22:40:50Z"
+                },
+                {
+                    "name": "Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-25T22:40:50Z",
+                    "completed_at": "2026-10-25T22:40:58Z"
+                },
+                {
+                    "name": "Install dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-25T22:40:58Z",
+                    "completed_at": "2026-10-25T22:41:04Z"
+                },
+                {
+                    "name": "Read the Playwright version",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-25T22:41:04Z",
+                    "completed_at": "2026-10-25T22:41:05Z"
+                },
+                {
+                    "name": "Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 11,
+                    "started_at": "2026-10-25T22:41:05Z",
+                    "completed_at": "2026-10-25T22:41:08Z"
+                },
+                {
+                    "name": "Run ./.github/actions/drop-microsoft-apt-source",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-25T22:41:08Z",
+                    "completed_at": "2026-10-25T22:41:08Z"
+                },
+                {
+                    "name": "Install Playwright system packages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 13,
+                    "started_at": "2026-10-25T22:41:08Z",
+                    "completed_at": "2026-10-25T22:41:16Z"
+                },
+                {
+                    "name": "Install Chromium",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 14,
+                    "started_at": "2026-10-25T22:41:16Z",
+                    "completed_at": "2026-10-25T22:41:17Z"
+                },
+                {
+                    "name": "Download Storybook build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 15,
+                    "started_at": "2026-10-25T22:41:17Z",
+                    "completed_at": "2026-10-25T22:41:17Z"
+                },
+                {
+                    "name": "Download master's newest capture",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 16,
+                    "started_at": "2026-10-25T22:41:17Z",
+                    "completed_at": "2026-10-25T22:41:23Z"
+                },
+                {
+                    "name": "Capture",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 17,
+                    "started_at": "2026-10-25T22:41:23Z",
+                    "completed_at": "2026-10-25T22:41:58Z"
+                },
+                {
+                    "name": "Upload captures",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 18,
+                    "started_at": "2026-10-25T22:41:58Z",
+                    "completed_at": "2026-10-25T22:41:59Z"
+                },
+                {
+                    "name": "Write the counts to the job summary",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 19,
+                    "started_at": "2026-10-25T22:41:59Z",
+                    "completed_at": "2026-10-25T22:41:59Z"
+                },
+                {
+                    "name": "Post Install Playwright system packages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 33,
+                    "started_at": "2026-10-25T22:41:59Z",
+                    "completed_at": "2026-10-25T22:41:59Z"
+                },
+                {
+                    "name": "Post Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 34,
+                    "started_at": "2026-10-25T22:41:59Z",
+                    "completed_at": "2026-10-25T22:41:59Z"
+                },
+                {
+                    "name": "Post Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 35,
+                    "started_at": "2026-10-25T22:41:59Z",
+                    "completed_at": "2026-10-25T22:41:59Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 36,
+                    "started_at": "2026-10-25T22:41:59Z",
+                    "completed_at": "2026-10-25T22:41:59Z"
+                },
+                {
+                    "name": "Post Restore this project's baseline images",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 37,
+                    "started_at": "2026-10-25T22:41:59Z",
+                    "completed_at": "2026-10-25T22:42:02Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 38,
+                    "started_at": "2026-10-25T22:42:02Z",
+                    "completed_at": "2026-10-25T22:42:02Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 39,
+                    "started_at": "2026-10-25T22:42:02Z",
+                    "completed_at": "2026-10-25T22:42:02Z"
+                }
+            ]
+        },
+        {
+            "id": 121309681631,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "visual (graph-io-fidelity)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:24:25Z",
+            "started_at": "2026-10-25T22:37:30Z",
+            "completed_at": "2026-10-25T22:56:56Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T22:37:31Z",
+                    "completed_at": "2026-10-25T22:37:34Z"
+                },
+                {
+                    "name": "Skip a Storybook this pull request cannot affect",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 2,
+                    "started_at": "2026-10-25T22:37:34Z",
+                    "completed_at": "2026-10-25T22:37:34Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T22:37:34Z",
+                    "completed_at": "2026-10-25T22:37:47Z"
+                },
+                {
+                    "name": "Restore this project's baseline images",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T22:37:47Z",
+                    "completed_at": "2026-10-25T22:37:53Z"
+                },
+                {
+                    "name": "Fetch this project's baseline images and the pinned fonts from Git LFS",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-25T22:37:53Z",
+                    "completed_at": "2026-10-25T22:37:56Z"
+                },
+                {
+                    "name": "Use the base branch's capture code",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-25T22:37:56Z",
+                    "completed_at": "2026-10-25T22:37:56Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-25T22:37:56Z",
+                    "completed_at": "2026-10-25T22:37:57Z"
+                },
+                {
+                    "name": "Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-25T22:37:57Z",
+                    "completed_at": "2026-10-25T22:38:06Z"
+                },
+                {
+                    "name": "Install dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-25T22:38:06Z",
+                    "completed_at": "2026-10-25T22:38:16Z"
+                },
+                {
+                    "name": "Read the Playwright version",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-25T22:38:16Z",
+                    "completed_at": "2026-10-25T22:38:16Z"
+                },
+                {
+                    "name": "Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 11,
+                    "started_at": "2026-10-25T22:38:16Z",
+                    "completed_at": "2026-10-25T22:38:16Z"
+                },
+                {
+                    "name": "Run ./.github/actions/drop-microsoft-apt-source",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-25T22:38:16Z",
+                    "completed_at": "2026-10-25T22:38:16Z"
+                },
+                {
+                    "name": "Install Playwright system packages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 13,
+                    "started_at": "2026-10-25T22:38:16Z",
+                    "completed_at": "2026-10-25T22:38:25Z"
+                },
+                {
+                    "name": "Install Chromium",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 14,
+                    "started_at": "2026-10-25T22:38:25Z",
+                    "completed_at": "2026-10-25T22:38:33Z"
+                },
+                {
+                    "name": "Download Storybook build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 15,
+                    "started_at": "2026-10-25T22:38:33Z",
+                    "completed_at": "2026-10-25T22:38:37Z"
+                },
+                {
+                    "name": "Download master's newest capture",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 16,
+                    "started_at": "2026-10-25T22:38:37Z",
+                    "completed_at": "2026-10-25T22:38:52Z"
+                },
+                {
+                    "name": "Capture",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 17,
+                    "started_at": "2026-10-25T22:38:52Z",
+                    "completed_at": "2026-10-25T22:56:39Z"
+                },
+                {
+                    "name": "Upload captures",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 18,
+                    "started_at": "2026-10-25T22:56:39Z",
+                    "completed_at": "2026-10-25T22:56:43Z"
+                },
+                {
+                    "name": "Write the counts to the job summary",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 19,
+                    "started_at": "2026-10-25T22:56:43Z",
+                    "completed_at": "2026-10-25T22:56:43Z"
+                },
+                {
+                    "name": "Post Install Playwright system packages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 33,
+                    "started_at": "2026-10-25T22:56:43Z",
+                    "completed_at": "2026-10-25T22:56:44Z"
+                },
+                {
+                    "name": "Post Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 34,
+                    "started_at": "2026-10-25T22:56:44Z",
+                    "completed_at": "2026-10-25T22:56:48Z"
+                },
+                {
+                    "name": "Post Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 35,
+                    "started_at": "2026-10-25T22:56:48Z",
+                    "completed_at": "2026-10-25T22:56:48Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 36,
+                    "started_at": "2026-10-25T22:56:48Z",
+                    "completed_at": "2026-10-25T22:56:48Z"
+                },
+                {
+                    "name": "Post Restore this project's baseline images",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 37,
+                    "started_at": "2026-10-25T22:56:48Z",
+                    "completed_at": "2026-10-25T22:56:53Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 38,
+                    "started_at": "2026-10-25T22:56:53Z",
+                    "completed_at": "2026-10-25T22:56:53Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 39,
+                    "started_at": "2026-10-25T22:56:53Z",
+                    "completed_at": "2026-10-25T22:56:53Z"
+                }
+            ]
+        },
+        {
+            "id": 121309681641,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "visual (cytoscape-extensions)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:24:25Z",
+            "started_at": "2026-10-25T22:34:12Z",
+            "completed_at": "2026-10-25T22:38:43Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T22:34:12Z",
+                    "completed_at": "2026-10-25T22:34:14Z"
+                },
+                {
+                    "name": "Skip a Storybook this pull request cannot affect",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 2,
+                    "started_at": "2026-10-25T22:34:14Z",
+                    "completed_at": "2026-10-25T22:34:14Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T22:34:14Z",
+                    "completed_at": "2026-10-25T22:34:26Z"
+                },
+                {
+                    "name": "Restore this project's baseline images",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T22:34:26Z",
+                    "completed_at": "2026-10-25T22:34:26Z"
+                },
+                {
+                    "name": "Fetch this project's baseline images and the pinned fonts from Git LFS",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-25T22:34:26Z",
+                    "completed_at": "2026-10-25T22:34:30Z"
+                },
+                {
+                    "name": "Use the base branch's capture code",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-25T22:34:30Z",
+                    "completed_at": "2026-10-25T22:34:30Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-25T22:34:30Z",
+                    "completed_at": "2026-10-25T22:34:31Z"
+                },
+                {
+                    "name": "Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-25T22:34:31Z",
+                    "completed_at": "2026-10-25T22:34:38Z"
+                },
+                {
+                    "name": "Install dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-25T22:34:38Z",
+                    "completed_at": "2026-10-25T22:34:49Z"
+                },
+                {
+                    "name": "Read the Playwright version",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-25T22:34:49Z",
+                    "completed_at": "2026-10-25T22:34:49Z"
+                },
+                {
+                    "name": "Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 11,
+                    "started_at": "2026-10-25T22:34:49Z",
+                    "completed_at": "2026-10-25T22:34:49Z"
+                },
+                {
+                    "name": "Run ./.github/actions/drop-microsoft-apt-source",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-25T22:34:49Z",
+                    "completed_at": "2026-10-25T22:34:49Z"
+                },
+                {
+                    "name": "Install Playwright system packages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 13,
+                    "started_at": "2026-10-25T22:34:49Z",
+                    "completed_at": "2026-10-25T22:35:00Z"
+                },
+                {
+                    "name": "Install Chromium",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 14,
+                    "started_at": "2026-10-25T22:35:00Z",
+                    "completed_at": "2026-10-25T22:35:05Z"
+                },
+                {
+                    "name": "Download Storybook build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 15,
+                    "started_at": "2026-10-25T22:35:05Z",
+                    "completed_at": "2026-10-25T22:35:06Z"
+                },
+                {
+                    "name": "Download master's newest capture",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 16,
+                    "started_at": "2026-10-25T22:35:06Z",
+                    "completed_at": "2026-10-25T22:35:10Z"
+                },
+                {
+                    "name": "Capture",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 17,
+                    "started_at": "2026-10-25T22:35:10Z",
+                    "completed_at": "2026-10-25T22:38:35Z"
+                },
+                {
+                    "name": "Upload captures",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 18,
+                    "started_at": "2026-10-25T22:38:35Z",
+                    "completed_at": "2026-10-25T22:38:36Z"
+                },
+                {
+                    "name": "Write the counts to the job summary",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 19,
+                    "started_at": "2026-10-25T22:38:36Z",
+                    "completed_at": "2026-10-25T22:38:36Z"
+                },
+                {
+                    "name": "Post Install Playwright system packages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 33,
+                    "started_at": "2026-10-25T22:38:36Z",
+                    "completed_at": "2026-10-25T22:38:36Z"
+                },
+                {
+                    "name": "Post Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 34,
+                    "started_at": "2026-10-25T22:38:36Z",
+                    "completed_at": "2026-10-25T22:38:39Z"
+                },
+                {
+                    "name": "Post Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 35,
+                    "started_at": "2026-10-25T22:38:39Z",
+                    "completed_at": "2026-10-25T22:38:39Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 36,
+                    "started_at": "2026-10-25T22:38:39Z",
+                    "completed_at": "2026-10-25T22:38:39Z"
+                },
+                {
+                    "name": "Post Restore this project's baseline images",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 37,
+                    "started_at": "2026-10-25T22:38:39Z",
+                    "completed_at": "2026-10-25T22:38:42Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 38,
+                    "started_at": "2026-10-25T22:38:42Z",
+                    "completed_at": "2026-10-25T22:38:42Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 39,
+                    "started_at": "2026-10-25T22:38:42Z",
+                    "completed_at": "2026-10-25T22:38:42Z"
+                }
+            ]
+        },
+        {
+            "id": 121309681645,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "visual (graphty-element)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:24:25Z",
+            "started_at": "2026-10-25T22:35:16Z",
+            "completed_at": "2026-10-25T22:42:23Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T22:35:17Z",
+                    "completed_at": "2026-10-25T22:35:18Z"
+                },
+                {
+                    "name": "Skip a Storybook this pull request cannot affect",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 2,
+                    "started_at": "2026-10-25T22:35:18Z",
+                    "completed_at": "2026-10-25T22:35:18Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T22:35:18Z",
+                    "completed_at": "2026-10-25T22:35:30Z"
+                },
+                {
+                    "name": "Restore this project's baseline images",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T22:35:30Z",
+                    "completed_at": "2026-10-25T22:35:30Z"
+                },
+                {
+                    "name": "Fetch this project's baseline images and the pinned fonts from Git LFS",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-25T22:35:30Z",
+                    "completed_at": "2026-10-25T22:35:35Z"
+                },
+                {
+                    "name": "Use the base branch's capture code",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-25T22:35:35Z",
+                    "completed_at": "2026-10-25T22:35:35Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-25T22:35:35Z",
+                    "completed_at": "2026-10-25T22:35:36Z"
+                },
+                {
+                    "name": "Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-25T22:35:36Z",
+                    "completed_at": "2026-10-25T22:35:43Z"
+                },
+                {
+                    "name": "Install dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-25T22:35:43Z",
+                    "completed_at": "2026-10-25T22:35:50Z"
+                },
+                {
+                    "name": "Read the Playwright version",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-25T22:35:50Z",
+                    "completed_at": "2026-10-25T22:35:50Z"
+                },
+                {
+                    "name": "Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 11,
+                    "started_at": "2026-10-25T22:35:50Z",
+                    "completed_at": "2026-10-25T22:35:51Z"
+                },
+                {
+                    "name": "Run ./.github/actions/drop-microsoft-apt-source",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-25T22:35:51Z",
+                    "completed_at": "2026-10-25T22:35:51Z"
+                },
+                {
+                    "name": "Install Playwright system packages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 13,
+                    "started_at": "2026-10-25T22:35:51Z",
+                    "completed_at": "2026-10-25T22:35:56Z"
+                },
+                {
+                    "name": "Install Chromium",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 14,
+                    "started_at": "2026-10-25T22:35:56Z",
+                    "completed_at": "2026-10-25T22:36:04Z"
+                },
+                {
+                    "name": "Download Storybook build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 15,
+                    "started_at": "2026-10-25T22:36:04Z",
+                    "completed_at": "2026-10-25T22:36:05Z"
+                },
+                {
+                    "name": "Download master's newest capture",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 16,
+                    "started_at": "2026-10-25T22:36:05Z",
+                    "completed_at": "2026-10-25T22:36:11Z"
+                },
+                {
+                    "name": "Capture",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 17,
+                    "started_at": "2026-10-25T22:36:11Z",
+                    "completed_at": "2026-10-25T22:42:16Z"
+                },
+                {
+                    "name": "Upload captures",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 18,
+                    "started_at": "2026-10-25T22:42:16Z",
+                    "completed_at": "2026-10-25T22:42:17Z"
+                },
+                {
+                    "name": "Write the counts to the job summary",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 19,
+                    "started_at": "2026-10-25T22:42:17Z",
+                    "completed_at": "2026-10-25T22:42:17Z"
+                },
+                {
+                    "name": "Post Install Playwright system packages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 33,
+                    "started_at": "2026-10-25T22:42:17Z",
+                    "completed_at": "2026-10-25T22:42:17Z"
+                },
+                {
+                    "name": "Post Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 34,
+                    "started_at": "2026-10-25T22:42:17Z",
+                    "completed_at": "2026-10-25T22:42:19Z"
+                },
+                {
+                    "name": "Post Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 35,
+                    "started_at": "2026-10-25T22:42:19Z",
+                    "completed_at": "2026-10-25T22:42:19Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 36,
+                    "started_at": "2026-10-25T22:42:19Z",
+                    "completed_at": "2026-10-25T22:42:19Z"
+                },
+                {
+                    "name": "Post Restore this project's baseline images",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 37,
+                    "started_at": "2026-10-25T22:42:19Z",
+                    "completed_at": "2026-10-25T22:42:22Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 38,
+                    "started_at": "2026-10-25T22:42:22Z",
+                    "completed_at": "2026-10-25T22:42:22Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 39,
+                    "started_at": "2026-10-25T22:42:22Z",
+                    "completed_at": "2026-10-25T22:42:22Z"
+                }
+            ]
+        },
+        {
+            "id": 121309681657,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "visual (layout)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:24:25Z",
+            "started_at": "2026-10-25T22:38:25Z",
+            "completed_at": "2026-10-25T22:39:39Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T22:38:26Z",
+                    "completed_at": "2026-10-25T22:38:28Z"
+                },
+                {
+                    "name": "Skip a Storybook this pull request cannot affect",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 2,
+                    "started_at": "2026-10-25T22:38:28Z",
+                    "completed_at": "2026-10-25T22:38:28Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T22:38:28Z",
+                    "completed_at": "2026-10-25T22:38:40Z"
+                },
+                {
+                    "name": "Restore this project's baseline images",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T22:38:40Z",
+                    "completed_at": "2026-10-25T22:38:40Z"
+                },
+                {
+                    "name": "Fetch this project's baseline images and the pinned fonts from Git LFS",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-25T22:38:40Z",
+                    "completed_at": "2026-10-25T22:38:43Z"
+                },
+                {
+                    "name": "Use the base branch's capture code",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-25T22:38:43Z",
+                    "completed_at": "2026-10-25T22:38:43Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-25T22:38:43Z",
+                    "completed_at": "2026-10-25T22:38:45Z"
+                },
+                {
+                    "name": "Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-25T22:38:45Z",
+                    "completed_at": "2026-10-25T22:38:53Z"
+                },
+                {
+                    "name": "Install dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-25T22:38:53Z",
+                    "completed_at": "2026-10-25T22:39:00Z"
+                },
+                {
+                    "name": "Read the Playwright version",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-25T22:39:00Z",
+                    "completed_at": "2026-10-25T22:39:00Z"
+                },
+                {
+                    "name": "Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 11,
+                    "started_at": "2026-10-25T22:39:00Z",
+                    "completed_at": "2026-10-25T22:39:03Z"
+                },
+                {
+                    "name": "Run ./.github/actions/drop-microsoft-apt-source",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-25T22:39:03Z",
+                    "completed_at": "2026-10-25T22:39:03Z"
+                },
+                {
+                    "name": "Install Playwright system packages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 13,
+                    "started_at": "2026-10-25T22:39:03Z",
+                    "completed_at": "2026-10-25T22:39:10Z"
+                },
+                {
+                    "name": "Install Chromium",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 14,
+                    "started_at": "2026-10-25T22:39:10Z",
+                    "completed_at": "2026-10-25T22:39:11Z"
+                },
+                {
+                    "name": "Download Storybook build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 15,
+                    "started_at": "2026-10-25T22:39:11Z",
+                    "completed_at": "2026-10-25T22:39:11Z"
+                },
+                {
+                    "name": "Download master's newest capture",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 16,
+                    "started_at": "2026-10-25T22:39:11Z",
+                    "completed_at": "2026-10-25T22:39:17Z"
+                },
+                {
+                    "name": "Capture",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 17,
+                    "started_at": "2026-10-25T22:39:17Z",
+                    "completed_at": "2026-10-25T22:39:33Z"
+                },
+                {
+                    "name": "Upload captures",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 18,
+                    "started_at": "2026-10-25T22:39:33Z",
+                    "completed_at": "2026-10-25T22:39:34Z"
+                },
+                {
+                    "name": "Write the counts to the job summary",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 19,
+                    "started_at": "2026-10-25T22:39:34Z",
+                    "completed_at": "2026-10-25T22:39:34Z"
+                },
+                {
+                    "name": "Post Install Playwright system packages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 33,
+                    "started_at": "2026-10-25T22:39:34Z",
+                    "completed_at": "2026-10-25T22:39:34Z"
+                },
+                {
+                    "name": "Post Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 34,
+                    "started_at": "2026-10-25T22:39:34Z",
+                    "completed_at": "2026-10-25T22:39:34Z"
+                },
+                {
+                    "name": "Post Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 35,
+                    "started_at": "2026-10-25T22:39:34Z",
+                    "completed_at": "2026-10-25T22:39:34Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 36,
+                    "started_at": "2026-10-25T22:39:34Z",
+                    "completed_at": "2026-10-25T22:39:34Z"
+                },
+                {
+                    "name": "Post Restore this project's baseline images",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 37,
+                    "started_at": "2026-10-25T22:39:34Z",
+                    "completed_at": "2026-10-25T22:39:37Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 38,
+                    "started_at": "2026-10-25T22:39:37Z",
+                    "completed_at": "2026-10-25T22:39:37Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 39,
+                    "started_at": "2026-10-25T22:39:37Z",
+                    "completed_at": "2026-10-25T22:39:37Z"
+                }
+            ]
+        },
+        {
+            "id": 121309681688,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "visual (compact-mantine)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:24:25Z",
+            "started_at": "2026-10-25T22:36:06Z",
+            "completed_at": "2026-10-25T22:43:04Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T22:36:07Z",
+                    "completed_at": "2026-10-25T22:36:08Z"
+                },
+                {
+                    "name": "Skip a Storybook this pull request cannot affect",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 2,
+                    "started_at": "2026-10-25T22:36:08Z",
+                    "completed_at": "2026-10-25T22:36:08Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T22:36:08Z",
+                    "completed_at": "2026-10-25T22:36:19Z"
+                },
+                {
+                    "name": "Restore this project's baseline images",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T22:36:19Z",
+                    "completed_at": "2026-10-25T22:36:20Z"
+                },
+                {
+                    "name": "Fetch this project's baseline images and the pinned fonts from Git LFS",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-25T22:36:20Z",
+                    "completed_at": "2026-10-25T22:36:36Z"
+                },
+                {
+                    "name": "Use the base branch's capture code",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-25T22:36:36Z",
+                    "completed_at": "2026-10-25T22:36:36Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-25T22:36:36Z",
+                    "completed_at": "2026-10-25T22:36:38Z"
+                },
+                {
+                    "name": "Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-25T22:36:38Z",
+                    "completed_at": "2026-10-25T22:36:45Z"
+                },
+                {
+                    "name": "Install dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-25T22:36:45Z",
+                    "completed_at": "2026-10-25T22:36:53Z"
+                },
+                {
+                    "name": "Read the Playwright version",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-25T22:36:53Z",
+                    "completed_at": "2026-10-25T22:36:53Z"
+                },
+                {
+                    "name": "Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 11,
+                    "started_at": "2026-10-25T22:36:53Z",
+                    "completed_at": "2026-10-25T22:36:54Z"
+                },
+                {
+                    "name": "Run ./.github/actions/drop-microsoft-apt-source",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-25T22:36:54Z",
+                    "completed_at": "2026-10-25T22:36:54Z"
+                },
+                {
+                    "name": "Install Playwright system packages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 13,
+                    "started_at": "2026-10-25T22:36:54Z",
+                    "completed_at": "2026-10-25T22:37:01Z"
+                },
+                {
+                    "name": "Install Chromium",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 14,
+                    "started_at": "2026-10-25T22:37:01Z",
+                    "completed_at": "2026-10-25T22:37:07Z"
+                },
+                {
+                    "name": "Download Storybook build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 15,
+                    "started_at": "2026-10-25T22:37:07Z",
+                    "completed_at": "2026-10-25T22:37:08Z"
+                },
+                {
+                    "name": "Download master's newest capture",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 16,
+                    "started_at": "2026-10-25T22:37:08Z",
+                    "completed_at": "2026-10-25T22:37:14Z"
+                },
+                {
+                    "name": "Capture",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 17,
+                    "started_at": "2026-10-25T22:37:14Z",
+                    "completed_at": "2026-10-25T22:42:57Z"
+                },
+                {
+                    "name": "Upload captures",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 18,
+                    "started_at": "2026-10-25T22:42:57Z",
+                    "completed_at": "2026-10-25T22:42:58Z"
+                },
+                {
+                    "name": "Write the counts to the job summary",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 19,
+                    "started_at": "2026-10-25T22:42:58Z",
+                    "completed_at": "2026-10-25T22:42:58Z"
+                },
+                {
+                    "name": "Post Install Playwright system packages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 33,
+                    "started_at": "2026-10-25T22:42:58Z",
+                    "completed_at": "2026-10-25T22:42:58Z"
+                },
+                {
+                    "name": "Post Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 34,
+                    "started_at": "2026-10-25T22:42:58Z",
+                    "completed_at": "2026-10-25T22:43:00Z"
+                },
+                {
+                    "name": "Post Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 35,
+                    "started_at": "2026-10-25T22:43:00Z",
+                    "completed_at": "2026-10-25T22:43:00Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 36,
+                    "started_at": "2026-10-25T22:43:00Z",
+                    "completed_at": "2026-10-25T22:43:00Z"
+                },
+                {
+                    "name": "Post Restore this project's baseline images",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 37,
+                    "started_at": "2026-10-25T22:43:00Z",
+                    "completed_at": "2026-10-25T22:43:03Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 38,
+                    "started_at": "2026-10-25T22:43:03Z",
+                    "completed_at": "2026-10-25T22:43:03Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 39,
+                    "started_at": "2026-10-25T22:43:03Z",
+                    "completed_at": "2026-10-25T22:43:03Z"
+                }
+            ]
+        },
+        {
+            "id": 121309681789,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "visual (graphty)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:24:25Z",
+            "started_at": "2026-10-25T22:40:50Z",
+            "completed_at": "2026-10-25T22:54:58Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T22:40:50Z",
+                    "completed_at": "2026-10-25T22:40:52Z"
+                },
+                {
+                    "name": "Skip a Storybook this pull request cannot affect",
+                    "status": "completed",
+                    "conclusion": "skipped",
+                    "number": 2,
+                    "started_at": "2026-10-25T22:40:52Z",
+                    "completed_at": "2026-10-25T22:40:52Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T22:40:52Z",
+                    "completed_at": "2026-10-25T22:41:03Z"
+                },
+                {
+                    "name": "Restore this project's baseline images",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T22:41:03Z",
+                    "completed_at": "2026-10-25T22:41:09Z"
+                },
+                {
+                    "name": "Fetch this project's baseline images and the pinned fonts from Git LFS",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-25T22:41:09Z",
+                    "completed_at": "2026-10-25T22:41:13Z"
+                },
+                {
+                    "name": "Use the base branch's capture code",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-25T22:41:13Z",
+                    "completed_at": "2026-10-25T22:41:13Z"
+                },
+                {
+                    "name": "Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-25T22:41:13Z",
+                    "completed_at": "2026-10-25T22:41:14Z"
+                },
+                {
+                    "name": "Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 8,
+                    "started_at": "2026-10-25T22:41:14Z",
+                    "completed_at": "2026-10-25T22:41:21Z"
+                },
+                {
+                    "name": "Install dependencies",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-25T22:41:21Z",
+                    "completed_at": "2026-10-25T22:41:29Z"
+                },
+                {
+                    "name": "Read the Playwright version",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-25T22:41:29Z",
+                    "completed_at": "2026-10-25T22:41:29Z"
+                },
+                {
+                    "name": "Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 11,
+                    "started_at": "2026-10-25T22:41:29Z",
+                    "completed_at": "2026-10-25T22:41:32Z"
+                },
+                {
+                    "name": "Run ./.github/actions/drop-microsoft-apt-source",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-25T22:41:32Z",
+                    "completed_at": "2026-10-25T22:41:32Z"
+                },
+                {
+                    "name": "Install Playwright system packages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 13,
+                    "started_at": "2026-10-25T22:41:32Z",
+                    "completed_at": "2026-10-25T22:41:38Z"
+                },
+                {
+                    "name": "Install Chromium",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 14,
+                    "started_at": "2026-10-25T22:41:38Z",
+                    "completed_at": "2026-10-25T22:41:38Z"
+                },
+                {
+                    "name": "Download Storybook build",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 15,
+                    "started_at": "2026-10-25T22:41:38Z",
+                    "completed_at": "2026-10-25T22:41:40Z"
+                },
+                {
+                    "name": "Download master's newest capture",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 16,
+                    "started_at": "2026-10-25T22:41:40Z",
+                    "completed_at": "2026-10-25T22:41:49Z"
+                },
+                {
+                    "name": "Capture",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 17,
+                    "started_at": "2026-10-25T22:41:49Z",
+                    "completed_at": "2026-10-25T22:54:47Z"
+                },
+                {
+                    "name": "Upload captures",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 18,
+                    "started_at": "2026-10-25T22:54:47Z",
+                    "completed_at": "2026-10-25T22:54:52Z"
+                },
+                {
+                    "name": "Write the counts to the job summary",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 19,
+                    "started_at": "2026-10-25T22:54:52Z",
+                    "completed_at": "2026-10-25T22:54:52Z"
+                },
+                {
+                    "name": "Post Install Playwright system packages",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 33,
+                    "started_at": "2026-10-25T22:54:52Z",
+                    "completed_at": "2026-10-25T22:54:52Z"
+                },
+                {
+                    "name": "Post Cache Playwright browsers",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 34,
+                    "started_at": "2026-10-25T22:54:52Z",
+                    "completed_at": "2026-10-25T22:54:52Z"
+                },
+                {
+                    "name": "Post Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 35,
+                    "started_at": "2026-10-25T22:54:52Z",
+                    "completed_at": "2026-10-25T22:54:52Z"
+                },
+                {
+                    "name": "Post Run pnpm/action-setup@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 36,
+                    "started_at": "2026-10-25T22:54:52Z",
+                    "completed_at": "2026-10-25T22:54:52Z"
+                },
+                {
+                    "name": "Post Restore this project's baseline images",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 37,
+                    "started_at": "2026-10-25T22:54:52Z",
+                    "completed_at": "2026-10-25T22:54:56Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 38,
+                    "started_at": "2026-10-25T22:54:56Z",
+                    "completed_at": "2026-10-25T22:54:56Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 39,
+                    "started_at": "2026-10-25T22:54:56Z",
+                    "completed_at": "2026-10-25T22:54:56Z"
+                }
+            ]
+        },
+        {
+            "id": 121309683168,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "Stories (${{ matrix.name }})",
+            "status": "completed",
+            "conclusion": "skipped",
+            "created_at": "2026-10-25T22:24:26Z",
+            "started_at": "2026-10-25T22:24:26Z",
+            "completed_at": "2026-10-25T22:24:25Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": []
+        },
+        {
+            "id": 121311877707,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "All Checks Pass",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:33:46Z",
+            "started_at": "2026-10-25T22:48:52Z",
+            "completed_at": "2026-10-25T22:48:56Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T22:48:53Z",
+                    "completed_at": "2026-10-25T22:48:53Z"
+                },
+                {
+                    "name": "Check all jobs passed",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-25T22:48:53Z",
+                    "completed_at": "2026-10-25T22:48:53Z"
+                },
+                {
+                    "name": "Clear this check's early verdicts",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T22:48:53Z",
+                    "completed_at": "2026-10-25T22:48:54Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T22:48:54Z",
+                    "completed_at": "2026-10-25T22:48:54Z"
+                }
+            ]
+        },
+        {
+            "id": 121315383196,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "Queue Checks Pass",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:48:57Z",
+            "started_at": "2026-10-25T22:58:15Z",
+            "completed_at": "2026-10-25T22:58:18Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T22:58:15Z",
+                    "completed_at": "2026-10-25T22:58:15Z"
+                },
+                {
+                    "name": "Check the run passed, and was the full suite in the queue",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-25T22:58:15Z",
+                    "completed_at": "2026-10-25T22:58:16Z"
+                },
+                {
+                    "name": "Clear this check's early verdicts",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T22:58:16Z",
+                    "completed_at": "2026-10-25T22:58:16Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T22:58:16Z",
+                    "completed_at": "2026-10-25T22:58:16Z"
+                }
+            ]
+        },
+        {
+            "id": 121317160851,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "Story tests parity (graphty)",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:56:56Z",
+            "started_at": "2026-10-25T23:04:54Z",
+            "completed_at": "2026-10-25T23:05:12Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T23:04:55Z",
+                    "completed_at": "2026-10-25T23:04:56Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-25T23:04:56Z",
+                    "completed_at": "2026-10-25T23:04:57Z"
+                },
+                {
+                    "name": "Download the old capture",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T23:04:57Z",
+                    "completed_at": "2026-10-25T23:05:00Z"
+                },
+                {
+                    "name": "Download the story tests' capture",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T23:05:00Z",
+                    "completed_at": "2026-10-25T23:05:01Z"
+                },
+                {
+                    "name": "Compare",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-25T23:05:01Z",
+                    "completed_at": "2026-10-25T23:05:01Z"
+                },
+                {
+                    "name": "Write the comparison to the job summary",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-25T23:05:01Z",
+                    "completed_at": "2026-10-25T23:05:01Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 12,
+                    "started_at": "2026-10-25T23:05:01Z",
+                    "completed_at": "2026-10-25T23:05:01Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 13,
+                    "started_at": "2026-10-25T23:05:01Z",
+                    "completed_at": "2026-10-25T23:05:01Z"
+                }
+            ]
+        },
+        {
+            "id": 121317160860,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "Flaky screenshots",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:56:56Z",
+            "started_at": "2026-10-25T23:05:15Z",
+            "completed_at": "2026-10-25T23:05:24Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T23:05:16Z",
+                    "completed_at": "2026-10-25T23:05:16Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-25T23:05:16Z",
+                    "completed_at": "2026-10-25T23:05:18Z"
+                },
+                {
+                    "name": "Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T23:05:18Z",
+                    "completed_at": "2026-10-25T23:05:18Z"
+                },
+                {
+                    "name": "Download visual captures",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T23:05:18Z",
+                    "completed_at": "2026-10-25T23:05:22Z"
+                },
+                {
+                    "name": "Report flaky screenshots",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-25T23:05:22Z",
+                    "completed_at": "2026-10-25T23:05:22Z"
+                },
+                {
+                    "name": "Post Setup Node.js",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 9,
+                    "started_at": "2026-10-25T23:05:22Z",
+                    "completed_at": "2026-10-25T23:05:22Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-25T23:05:22Z",
+                    "completed_at": "2026-10-25T23:05:22Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 11,
+                    "started_at": "2026-10-25T23:05:22Z",
+                    "completed_at": "2026-10-25T23:05:23Z"
+                }
+            ]
+        },
+        {
+            "id": 121317160934,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "Visual report",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T22:56:56Z",
+            "started_at": "2026-10-25T23:05:20Z",
+            "completed_at": "2026-10-25T23:05:40Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T23:05:21Z",
+                    "completed_at": "2026-10-25T23:05:22Z"
+                },
+                {
+                    "name": "Check out the gate",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-25T23:05:22Z",
+                    "completed_at": "2026-10-25T23:05:24Z"
+                },
+                {
+                    "name": "Download visual captures",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T23:05:24Z",
+                    "completed_at": "2026-10-25T23:05:28Z"
+                },
+                {
+                    "name": "Check visual changes were accepted",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 4,
+                    "started_at": "2026-10-25T23:05:28Z",
+                    "completed_at": "2026-10-25T23:05:38Z"
+                },
+                {
+                    "name": "Report the visual gate (does not block)",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-25T23:05:38Z",
+                    "completed_at": "2026-10-25T23:05:38Z"
+                },
+                {
+                    "name": "Post Check out the gate",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 10,
+                    "started_at": "2026-10-25T23:05:38Z",
+                    "completed_at": "2026-10-25T23:05:39Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 11,
+                    "started_at": "2026-10-25T23:05:39Z",
+                    "completed_at": "2026-10-25T23:05:39Z"
+                }
+            ]
+        },
+        {
+            "id": 121319099508,
+            "run_id": 40238975833,
+            "run_attempt": 1,
+            "workflow_name": "CI",
+            "name": "Timings",
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2026-10-25T23:05:24Z",
+            "started_at": "2026-10-25T23:09:02Z",
+            "completed_at": "2026-10-25T23:09:14Z",
+            "labels": ["ubuntu-24.04"],
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-10-25T23:09:03Z",
+                    "completed_at": "2026-10-25T23:09:04Z"
+                },
+                {
+                    "name": "Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 2,
+                    "started_at": "2026-10-25T23:09:04Z",
+                    "completed_at": "2026-10-25T23:09:06Z"
+                },
+                {
+                    "name": "Run ./.github/actions/timings",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 3,
+                    "started_at": "2026-10-25T23:09:06Z",
+                    "completed_at": "2026-10-25T23:09:12Z"
+                },
+                {
+                    "name": "Post Run ./.github/actions/timings",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 5,
+                    "started_at": "2026-10-25T23:09:12Z",
+                    "completed_at": "2026-10-25T23:09:12Z"
+                },
+                {
+                    "name": "Post Run actions/checkout@v4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 6,
+                    "started_at": "2026-10-25T23:09:12Z",
+                    "completed_at": "2026-10-25T23:09:12Z"
+                },
+                {
+                    "name": "Complete job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 7,
+                    "started_at": "2026-10-25T23:09:12Z",
+                    "completed_at": "2026-10-25T23:09:12Z"
+                }
+            ]
+        }
+    ]
+}

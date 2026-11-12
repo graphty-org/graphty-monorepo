@@ -12,7 +12,14 @@
  * `compactGlobalCss({ highContrast: true })` works without the attribute (SSR, shadow roots).
  */
 import interLatinWoff2 from "../../fonts/inter-latin-wght-normal.woff2";
-import { cmFont, highContrastDeclarations, primaryAccentDeclarations, tokenDeclarations } from "../tokens";
+import {
+    CM_ELEVATIONS,
+    cmFont,
+    graphtyAccentDeclarations,
+    highContrastDeclarations,
+    primaryAccentDeclarations,
+    tokenDeclarations,
+} from "../tokens";
 
 /** The latin subset's range, as @fontsource-variable/inter 5.3.0 declares it. */
 const LATIN_RANGE =
@@ -21,7 +28,9 @@ const LATIN_RANGE =
 /** Token-level switches the AA option flips (non-color values built from color tokens). */
 const FIGMA_SWITCHES = `--cm-field-shadow: none;
     --cm-field-shadow-hover: none;
-    --cm-field-border: var(--cm-border);`;
+    --cm-field-border: var(--cm-border);
+    --cm-segment-chosen-weight: 450;
+    --cm-tree-action-overlap: -4px;`;
 
 /*
  * Mantine's `c="dimmed"` color follows the AA secondary text, so `<Text c="dimmed">` meets AA too
@@ -33,6 +42,8 @@ const FIGMA_SWITCHES = `--cm-field-shadow: none;
 const AA_SWITCHES = `--cm-field-shadow: inset 0 0 0 1px var(--cm-field-edge);
     --cm-field-shadow-hover: inset 0 0 0 1px var(--cm-field-edge-hover);
     --cm-field-border: var(--cm-field-edge);
+    --cm-segment-chosen-weight: 600;
+    --cm-tree-action-overlap: 0px;
     --mantine-color-dimmed: var(--cm-text-secondary) !important;`;
 
 /**
@@ -46,6 +57,27 @@ export function highContrastBlock(selector: string): string {
     ${AA_SWITCHES}
 }`;
 }
+
+/**
+ * The graphty accent token block under a selector.
+ * @param selector - where the block applies
+ * @returns the CSS rule
+ */
+export function graphtyAccentBlock(selector: string): string {
+    return `${selector} {
+    ${graphtyAccentDeclarations()}
+}`;
+}
+
+/**
+ * What a menu or listbox row sets on itself while its highlight is filled: its label and check
+ * take the ink on the accent (`--cm-text-onbrand`), its trailing slot the dimmed one, so a lime
+ * highlight gets dark labels. `UNLIT` clears them wherever a rule clears the fill, so the ink
+ * follows the fill rule for rule.
+ */
+export const ROW_LIT =
+    "--cm-row-ink: var(--cm-text-onbrand); --cm-row-ink-secondary: var(--cm-text-onbrand-secondary);";
+export const ROW_UNLIT = "--cm-row-ink: initial; --cm-row-ink-secondary: initial;";
 
 const FOCUSABLE_REST = ".cm-focus-outside, .cm-focus-flush, .cm-focus-inside, .cm-focus-inside-2, .cm-focus-double";
 
@@ -72,6 +104,10 @@ ${highContrastBlock(':root[data-cm-contrast="high"]')}
 :root[data-cm-accent] {
     ${primaryAccentDeclarations()}
 }
+
+/* The graphty brand accent (createCompactTheme({ accent: "graphty" })): fixed brand values, so
+   after the derived block above. */
+${graphtyAccentBlock(':root[data-cm-accent="graphty"]')}
 
 /* Reduced motion: the few things that move (spec 2.8: a checkbox tick, a switch knob, a hover
    color, the help button's ring, the loading fade) change in one frame. Every such transition
@@ -101,6 +137,19 @@ body {
 ${FOCUSABLE_REST} {
     outline: 1px solid transparent;
 }
+/* The default ring: a Mantine focusable the theme gave no cm- class (an UnstyledButton with the
+   app's own class) still rings on keyboard focus. A control with a cm- class draws its own ring,
+   so it is left out; :where keeps this at Mantine's specificity so any later rule wins. */
+.mantine-focus-never:where(:not([class^="cm-"], [class*=" cm-"])):focus-visible {
+    outline: 1px solid var(--cm-border-selected);
+    outline-offset: 1px;
+}
+/* One cursor for every control: the arrow (the theme's cursorType, Figma's and the desktop's
+   convention). Mantine's UnstyledButton, the base of the rail, the toolbars and an app's own
+   buttons, draws the hand; without this a rail button showed the hand while a Button, a Checkbox
+   and a segment beside it showed the arrow. Only text drawn as a link (Anchor) keeps the hand.
+   The class is doubled to win whatever order the two stylesheets load in. */
+.mantine-UnstyledButton-root.mantine-UnstyledButton-root { cursor: default; }
 .cm-focus-outside { outline-offset: 1px; }
 .cm-focus-flush { outline-offset: 0; }
 .cm-focus-inside { outline-offset: -1px; }
@@ -134,6 +183,16 @@ ${FOCUSABLE_REST} {
 .cm-focus-switch:focus-visible {
     outline: 1px solid var(--cm-border-selected-strong);
     outline-offset: 1px;
+}
+
+/* A <fieldset> used as a plain group: none of the browser's border, padding, margin or
+   min-content floor, so it lays out exactly like a <div>. Zero specificity: a component's
+   own class still sets its padding, margin or border. */
+:where(.cm-fieldset) {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-inline-size: auto;
 }
 
 /* A subtree that renders dark in both themes: every token inside resolves dark. */
@@ -189,17 +248,37 @@ ${FOCUSABLE_REST} {
 .cm-field ::placeholder { color: var(--cm-text-tertiary); opacity: 1; }
 .cm-field ::selection { background-color: var(--cm-text-highlight); }
 
-/* The dark menu surface (spec 6.5, 8.1). The surface keeps the page's scheme so its shadow
-   follows the page; its children render dark. */
+/* The menu surface (spec 6.5, 8.1): menus, list boxes and context menus follow the page's
+   scheme. Every rule inside reads the menu tokens (--cm-bg-menu, --cm-text-menu, ...), which on
+   their own are the always-dark values; this surface points them at the page-following set, so a
+   light app gets a light menu with dark ink and a dark app the dark menu. The highlights are
+   Figma's brand and danger fills; the AA option darkens them and the shortcut on them.
+
+   The class cm-menu-inverse keeps Figma's always-dark menu in both schemes (a Menu adds it for
+   variant="inverse"; any other dropdown, a Select's or a Combobox's, takes it through
+   classNames={{ dropdown: "cm-menu-inverse" }}): the surface resolves dark and the
+   menu tokens and highlights keep their Figma values. Only its shadow follows the page. */
 .cm-menu-surface {
+    --cm-menu-shadow: var(--cm-elevation-400);
     background-color: var(--cm-bg-menu);
     color: var(--cm-text-menu);
     border: 0;
     border-radius: 13px;
-    box-shadow: var(--cm-elevation-400);
+    box-shadow: var(--cm-menu-shadow);
     padding: 8px 0;
 }
-.cm-menu-surface > * { color-scheme: dark; }
+.cm-menu-surface:not(.cm-menu-inverse) {
+    --cm-bg-menu: var(--cm-bg-menu-page);
+    --cm-text-menu: var(--cm-text-menu-page);
+    --cm-text-menu-secondary: var(--cm-text-menu-page-secondary);
+    --cm-text-menu-disabled: var(--cm-text-menu-page-disabled);
+    --cm-border-menu: var(--cm-border-menu-page);
+    --cm-text-onbrand-secondary: var(--cm-menu-onbrand-secondary);
+}
+.cm-menu-surface.cm-menu-inverse { color-scheme: dark; }
+:where([data-mantine-color-scheme="light"]) .cm-menu-surface.cm-menu-inverse {
+    --cm-menu-shadow: ${CM_ELEVATIONS["400"].light.join(", ")};
+}
 
 /* A menu or listbox row: 24 tall, text 16px from the menu edge, the highlight an inner pill
    inset 8px each side. Only one row is ever filled: a selected row gives its highlight up while
@@ -213,7 +292,7 @@ ${FOCUSABLE_REST} {
     height: 24px;
     padding: 0 16px;
     background: transparent;
-    color: var(--cm-text-menu);
+    color: var(--cm-row-ink, var(--cm-text-menu));
     ${cmFont("body")}
     cursor: default;
 }
@@ -231,13 +310,20 @@ ${FOCUSABLE_REST} {
 .cm-menu-row[aria-selected="true"]::before {
     background: var(--cm-bg-brand);
 }
-.cm-menu-surface:has(.cm-menu-row:hover) .cm-menu-row[aria-selected="true"]:not(:hover)::before {
+.cm-menu-row:hover,
+.cm-menu-row[data-hovered],
+.cm-menu-row[data-combobox-selected],
+.cm-menu-row[aria-selected="true"] { ${ROW_LIT} }
+.cm-menu-surface:not(.cm-pointer-still):has(.cm-menu-row:hover) .cm-menu-row[aria-selected="true"]:not(:hover)::before {
     background: transparent;
 }
+.cm-menu-surface:not(.cm-pointer-still):has(.cm-menu-row:hover) .cm-menu-row[aria-selected="true"]:not(:hover) { ${ROW_UNLIT} }
 .cm-menu-row[data-disabled],
 .cm-menu-row[aria-disabled="true"] { color: var(--cm-text-menu-disabled); }
 .cm-menu-row[data-disabled]::before,
 .cm-menu-row[aria-disabled="true"]::before { background: transparent; }
+.cm-menu-row[data-disabled],
+.cm-menu-row[aria-disabled="true"] { ${ROW_UNLIT} }
 /* The 16 x 16 check column; its glyph shows on a checked or selected row. */
 .cm-menu-row-check {
     display: inline-flex;

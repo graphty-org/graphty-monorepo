@@ -12,10 +12,11 @@
 
 import { assert, beforeEach, describe, it } from "vitest";
 
+import { nodeScopeOf } from "../../../src/ai/commands/selectors";
 import { clearStyles, findAndStyleEdges, findAndStyleNodes } from "../../../src/ai/commands/StyleCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
-import type { Layer } from "../../../src/session/styles";
+import type { Layer, SessionStylesApi } from "../../../src/session/styles";
 import { CHANNEL_DESCRIPTORS, NODE_OUTLINE_CAVEAT } from "../../../src/session/styles/channels";
 import { createMockContext, createTestGraph } from "../../helpers/test-graph";
 
@@ -77,6 +78,27 @@ describe("StyleCommands", () => {
             assert.deepStrictEqual(layer.set, { "node.color": "#0000ff", "node.size": 2 });
         });
 
+        it("styles the nodes at an end of a matching edge with connectedBy", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "data.type == 'server'",
+                    connectedBy: "data.weight > `0.5`",
+                    style: { color: "#ff9900" },
+                    layerName: "heavy",
+                },
+                context,
+            );
+
+            assert.strictEqual(result.success, true, result.message);
+            const layer = layerNamed("heavy");
+            assert.isDefined(layer);
+            assert.deepStrictEqual(layer.selector, {
+                match: "member",
+                of: nodeScopeOf("data.type == 'server'", "data.weight > `0.5`"),
+            });
+        });
+
         it("applies size styling", async () => {
             const result = await findAndStyleNodes.execute(
                 graph,
@@ -103,6 +125,31 @@ describe("StyleCommands", () => {
             );
 
             assert.strictEqual(result.success, true);
+        });
+
+        it("names a model and a picture by URL in an AI layer, which waits for the reader", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: {
+                        model: "https://example.com/models/rack.glb",
+                        texture: "https://example.com/pictures/dots.png",
+                    },
+                    layerName: "rack-models",
+                },
+                context,
+            );
+
+            assert.strictEqual(result.success, true);
+            const layer = layerNamed("rack-models");
+            assert.strictEqual(layer?.set?.["node.model"], "https://example.com/models/rack.glb");
+            assert.strictEqual(layer?.set?.["node.texture"], "https://example.com/pictures/dots.png");
+            assert.deepEqual(layer?.source, { by: "plugin", name: "graphty-ai" });
+            assert.isFalse(
+                (graph.getSession().styles as SessionStylesApi).modelUrlFromCode("https://example.com/models/rack.glb"),
+                "not the page's code: the fetch asks the reader first",
+            );
         });
 
         it("refuses a selector the element cannot parse, and says so", async () => {
@@ -155,6 +202,43 @@ describe("StyleCommands", () => {
             assert.strictEqual(result.success, true);
             assert.isDefined(layerNamed("no-match"));
             assert.include(result.message, "data.nonexistent");
+        });
+    });
+
+    describe("shader text from a model", () => {
+        const TEXT = `/* graphty-shader 1
+{ "id": "user/glow", "name": "Glow" }
+*/
+vec4 shade(NodeInput n) { return n.color * 1.2; }
+`;
+
+        it("adds it as content, held until the reader approves it, and names it on the layer", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                { selector: "", style: { shaderText: TEXT }, layerName: "glowing" },
+                context,
+            );
+
+            assert.strictEqual(result.success, true, result.message);
+            const { shaders } = graph.getSession();
+            assert.strictEqual(shaders.status("user/glow").state, "held");
+            assert.deepEqual(layerNamed("glowing")?.set?.["node.shaders"], [{ shader: "user/glow" }]);
+        });
+
+        it("refuses text that fails the checks, writing nothing", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "",
+                    style: { shaderText: TEXT.replace("return", "while (true) {} return") },
+                    layerName: "x",
+                },
+                context,
+            );
+
+            assert.strictEqual(result.success, false);
+            assert.lengthOf(graph.getSession().shaders.list(), 0);
+            assert.isUndefined(layerNamed("x"));
         });
     });
 
@@ -258,12 +342,10 @@ describe("StyleCommands", () => {
         });
 
         it("answers an outline width with the reason the element publishes for it", async () => {
-            // THE OUTLINE ITSELF IS DRAWN NOW -- `NodeEffects.applyOutlineEffect` resolves the
-            // instance's source mesh and hands it to a Babylon highlight layer -- so this is no
-            // longer "outlines do not work". It is narrower and permanent: the stroke's blur size
-            // belongs to that LAYER and not to a mesh, so one width is drawn for the whole scene.
-            // A channel for a per-node width would be a channel that claims to paint and does
-            // not, which is the defect the other direction.
+            // THE OUTLINE ITSELF IS DRAWN -- `NodeEffects.applyOutlineEffect` rings the node --
+            // so this is not "outlines do not work". It is narrower: the ring's width is a fixed
+            // share of the node's size, so a channel for a width would be a channel that claims
+            // to paint and does not.
             //
             // What is asserted is that the refusal carries a REASON, and that the reason is the
             // element's own published words rather than a second wording living in the AI layer.

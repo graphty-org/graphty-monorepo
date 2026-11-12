@@ -1,0 +1,102 @@
+{
+  "version": 2,
+  "pr": 2083,
+  "subject": {
+    "builtMerge": "8dd5c150f52bb8c91d270ff182841bb264c4501e",
+    "head": "5dc9d7396579ce075d6de7cc68db5375adbb31a3",
+    "runId": 38351103938,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "8dd5c150f52bb8c91d270ff182841bb264c4501e"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--bfs.png",
+      "from": "02dec004578d084c55b53adbfaee7d6352f796f629c380b5c3647bb894999889",
+      "to": "f9ea95b3c69a2f49351044bf5337ff8da38a0fc253ea40c7b7ea070451294b76",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--overview.png",
+      "from": "1402fe78479b0287fcbc20648165fd59b74da9864862ac8e528216d433c77275",
+      "to": "f72f7ad4e4d2cb48acdde97fb962b18041de894c1dd8ac42de83915852ed56c2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--spectral.png",
+      "from": "36a119c7e35e6ab071e419f76d552678c4402bb0c29688a7ae98921db003071c",
+      "to": "31f6a199768560d3b5afde2fba87702d108ccc8cb05fd08501fdc273cc2a8cc5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--spiral.png",
+      "from": "ce100b2b3c766ed28712cf55a986722ed430e6d4dff71d023500ff5149956891",
+      "to": "62661f7edf2bcb58431c195dc57deac1f2ac86fd534acd37c33b5839b5a77c0a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--breadth-first-search.png",
+      "from": "20eee9bf37e1489bddde1a3af6721db41f0ae64dd2c386c3f173f6d9e9ebc6fa",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--depth-first-search.png",
+      "from": "1fdee70ac714d600f504fe6a239e354f0fd7ba9443a53915f6ab265da49ecfe6",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--direction-optimized-bfs.png",
+      "from": "76cfe06ff813c9e312435d9ed96f9d2f116d1ed46845c6c7dc3b415f2f859595",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--kruskal-mst.png",
+      "from": "fbc16b0eb1a5c2677fb5a78cd4fa84ec5ad2dd5d7400a03ddd70b5188b3acd73",
+      "to": "c999958487bdf7b842e1ac91537bb55fa6f1414aa7e320eb85c930674f523e80",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--overview.png",
+      "from": "20aee4802fe3805e09824b2eb5229ffdd57c7ab67a985f6bdd923ebb64fe083c",
+      "to": "6e8619e605a6e4a83c1468121678a66f0131e8bf7f5217db27f026a4c19f7d44",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--prim-mst.png",
+      "from": "faab8fc8a5d823b4e6a5afc6c77aafcbd66aa4653ed03389112c598ded4a1e37",
+      "to": "bb89ffc6bbe6d6f1eae2dcc560bb61a237f877f4185d154000113f9b49f75046",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--has-cycle.png",
+      "from": "6c459a1c3889a7d333a3af3b04ca3dc7a98e1071d2415e35e9a714bbabe72510",
+      "to": "12e3fda233a7c9934d21aebb4dd68fed86c701fccf6270462ade8570c9e10419",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--overview.png",
+      "from": "5fdbff7a6b157ad7ab7c769030a0a7546865ac2c5517f20c909bcfd0d904203f",
+      "to": "658d5d4ca236fc37387dcbfd28085ba211e9aa8786e552f3f56701bb7b14c093",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-13T14:48:50.165Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiRFJvc1N1R1Uzak5aeGtLLW03VzF0UWlxQzdFeERZVjIzOF9JcUZxR0tzdyIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEYCIQCK90QRNGdia_AIXt-Wfgqn9J2LUFOiHdnD5ZA6mgS-owIhAPNxSAEotJDvi5w53YYeIWVjNz27K8QPGh-qn2iI6jyo"
+  }
+}

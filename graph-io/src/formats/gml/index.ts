@@ -60,6 +60,7 @@ import {
 
 export { gmlExporter, type GmlExportOptions } from "./exporter.js";
 export { gmlImporter, type GmlImportOptions } from "./importer.js";
+export { GML_STYLE_BLOCK_KEY, GML_STYLE_CAPABILITIES } from "./styles.js";
 
 /**
  * The issue codes the GML importer records, by name: the codes shared with
@@ -125,7 +126,7 @@ export const GML_ISSUE = Object.freeze({
     GRAPHICS: GRAPHICS_CODE,
     /** A graph, node or edge record nested in a node or edge; kept as json, not read as structure. */
     NESTED_ELEMENT: NESTED_ELEMENT_CODE,
-    /** YEd's isGroup / gid keys, kept as plain columns; the hierarchy is not read as containment. */
+    /** A yEd `gid` that names no other node; it stays a plain column value and puts the node in no group. */
     GROUPS: GROUPS_CODE,
     /**
      * An attribute's type was widened because a later value did not fit: an integer above 2^31 in an integer column,
@@ -193,7 +194,7 @@ export const GML_LOSS = Object.freeze({
     INVALID_KEY: INVALID_KEY_CODE,
     /** A column named like a structural key. */
     RESERVED_KEY: RESERVED_KEY_CODE,
-    /** A key rewritten under sanitizeKeys "mangle". */
+    /** A key rewritten under sanitizeKeys "mangle", or a column renamed because its key would read back as a style value. */
     KEY_MANGLED: KEY_MANGLED_CODE,
     /** A position column with more than three components. */
     POSITION_COMPONENTS: POSITION_COMPONENTS_CODE,

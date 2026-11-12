@@ -1,0 +1,985 @@
+{
+ "changes": {
+  "gone": [
+   "shaded-icospheres_1",
+   "plain-lines_1",
+   "fade-what-the-focused-node-is-not-linked-to_1",
+   "fade-the-links-the-focused-node-does-not-have_1",
+   "draw-the-focused-node-s-links-darker_1",
+   "highlight-the-focused-node_1",
+   "name-the-pointed-at-node_1",
+   "no-name-on-the-clicked-node-which-its-card-names_1",
+   "communities_1"
+  ],
+  "added": [
+   "everything_1",
+   "everything_2",
+   "poster_1",
+   "poster_2",
+   "selected_1",
+   "selected_2",
+   "hovered_1"
+  ],
+  "changed": []
+ },
+ "start": {
+  "tree": [
+   {
+    "id": "shaded-icospheres_1",
+    "kind": "layer",
+    "name": "Shaded icospheres",
+    "pin": "none",
+    "locked": false,
+    "hidden": false,
+    "children": []
+   },
+   {
+    "id": "plain-lines_1",
+    "kind": "layer",
+    "name": "Plain lines",
+    "pin": "none",
+    "locked": false,
+    "hidden": false,
+    "children": []
+   },
+   {
+    "id": "fade-what-the-focused-node-is-not-linked-to_1",
+    "kind": "layer",
+    "name": "Fade what the focused node is not linked to",
+    "pin": "none",
+    "locked": false,
+    "hidden": false,
+    "children": []
+   },
+   {
+    "id": "fade-the-links-the-focused-node-does-not-have_1",
+    "kind": "layer",
+    "name": "Fade the links the focused node does not have",
+    "pin": "none",
+    "locked": false,
+    "hidden": false,
+    "children": []
+   },
+   {
+    "id": "draw-the-focused-node-s-links-darker_1",
+    "kind": "layer",
+    "name": "Draw the focused node's links darker",
+    "pin": "none",
+    "locked": false,
+    "hidden": false,
+    "children": []
+   },
+   {
+    "id": "highlight-the-focused-node_1",
+    "kind": "layer",
+    "name": "Highlight the focused node",
+    "pin": "none",
+    "locked": false,
+    "hidden": false,
+    "children": []
+   },
+   {
+    "id": "name-the-pointed-at-node_1",
+    "kind": "layer",
+    "name": "Name the pointed-at node",
+    "pin": "none",
+    "locked": false,
+    "hidden": false,
+    "children": []
+   },
+   {
+    "id": "no-name-on-the-clicked-node-which-its-card-names_1",
+    "kind": "layer",
+    "name": "No name on the clicked node, which its card names",
+    "pin": "none",
+    "locked": false,
+    "hidden": false,
+    "children": []
+   },
+   {
+    "id": "communities_1",
+    "kind": "layer",
+    "name": "Communities",
+    "pin": "none",
+    "locked": false,
+    "hidden": false,
+    "children": []
+   }
+  ],
+  "layers": [
+   {
+    "id": "node-defaults_1",
+    "name": "Node defaults",
+    "kind": "base",
+    "source": {
+     "by": "element",
+     "reason": "default"
+    },
+    "locked": true,
+    "enabled": true,
+    "target": "node",
+    "selector": {
+     "match": "everything"
+    },
+    "set": {
+     "node.color": "#6366F1",
+     "node.size": 1,
+     "node.shape": "icosphere"
+    },
+    "counts": {
+     "matched": 77,
+     "painted": {
+      "node.color": 0,
+      "node.size": 0,
+      "node.shape": 0
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [
+      "shaded-icospheres_1",
+      "communities_1"
+     ],
+     "covers": {
+      "node.color": {
+       "layers": [
+        {
+         "layerId": "communities_1",
+         "count": 77
+        }
+       ],
+       "more": 0
+      },
+      "node.size": {
+       "layers": [
+        {
+         "layerId": "shaded-icospheres_1",
+         "count": 77
+        }
+       ],
+       "more": 0
+      },
+      "node.shape": {
+       "layers": [
+        {
+         "layerId": "shaded-icospheres_1",
+         "count": 77
+        }
+       ],
+       "more": 0
+      }
+     },
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "17.12"
+    }
+   },
+   {
+    "id": "edge-defaults_1",
+    "name": "Edge defaults",
+    "kind": "base",
+    "source": {
+     "by": "element",
+     "reason": "default"
+    },
+    "locked": true,
+    "enabled": true,
+    "target": "edge",
+    "selector": {
+     "match": "everything"
+    },
+    "set": {
+     "edge.color": "darkgrey",
+     "edge.width": 8,
+     "edge.style": "solid",
+     "edge.animationSpeed": 0
+    },
+    "counts": {
+     "matched": 254,
+     "painted": {
+      "edge.color": 0,
+      "edge.width": 254,
+      "edge.style": 254,
+      "edge.animationSpeed": 254
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [
+      "plain-lines_1"
+     ],
+     "covers": {
+      "edge.color": {
+       "layers": [
+        {
+         "layerId": "plain-lines_1",
+         "count": 254
+        }
+       ],
+       "more": 0
+      }
+     },
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "17.12"
+    }
+   },
+   {
+    "id": "shaded-icospheres_1",
+    "name": "Shaded icospheres",
+    "kind": "custom",
+    "source": {
+     "by": "user"
+    },
+    "locked": false,
+    "enabled": true,
+    "target": "node",
+    "selector": {
+     "match": "everything"
+    },
+    "set": {
+     "node.shape": "icosphere",
+     "node.sizeMode": "diameter",
+     "node.size": 2.56
+    },
+    "counts": {
+     "matched": 77,
+     "painted": {
+      "node.shape": 77,
+      "node.sizeMode": 77,
+      "node.size": 77
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [],
+     "covers": {},
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "17.12"
+    }
+   },
+   {
+    "id": "plain-lines_1",
+    "name": "Plain lines",
+    "kind": "custom",
+    "source": {
+     "by": "user"
+    },
+    "locked": false,
+    "enabled": true,
+    "target": "edge",
+    "selector": {
+     "match": "everything"
+    },
+    "set": {
+     "edge.color": "#2a3045",
+     "edge.opacity": 0.45,
+     "edge.arrowHead": "none"
+    },
+    "counts": {
+     "matched": 254,
+     "painted": {
+      "edge.color": 254,
+      "edge.opacity": 254,
+      "edge.arrowHead": 254
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [],
+     "covers": {},
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "17.12"
+    }
+   },
+   {
+    "id": "fade-what-the-focused-node-is-not-linked-to_1",
+    "name": "Fade what the focused node is not linked to",
+    "kind": "custom",
+    "source": {
+     "by": "user"
+    },
+    "locked": false,
+    "enabled": true,
+    "target": "node",
+    "selector": {
+     "match": "hover",
+     "reach": "neighbors",
+     "invert": true,
+     "orSelected": true
+    },
+    "set": {
+     "node.opacity": 0.3
+    },
+    "counts": {
+     "matched": 0,
+     "painted": {
+      "node.opacity": 0
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [],
+     "covers": {},
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "17.12"
+    }
+   },
+   {
+    "id": "fade-the-links-the-focused-node-does-not-have_1",
+    "name": "Fade the links the focused node does not have",
+    "kind": "custom",
+    "source": {
+     "by": "user"
+    },
+    "locked": false,
+    "enabled": true,
+    "target": "edge",
+    "selector": {
+     "match": "hover",
+     "invert": true,
+     "orSelected": true
+    },
+    "set": {
+     "edge.opacity": 0.15
+    },
+    "counts": {
+     "matched": 0,
+     "painted": {
+      "edge.opacity": 0
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [],
+     "covers": {},
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "17.12"
+    }
+   },
+   {
+    "id": "draw-the-focused-node-s-links-darker_1",
+    "name": "Draw the focused node's links darker",
+    "kind": "custom",
+    "source": {
+     "by": "user"
+    },
+    "locked": false,
+    "enabled": true,
+    "target": "edge",
+    "selector": {
+     "match": "hover",
+     "orSelected": true
+    },
+    "set": {
+     "edge.color": "#14161f",
+     "edge.opacity": 1,
+     "edge.width": 10
+    },
+    "counts": {
+     "matched": 0,
+     "painted": {
+      "edge.color": 0,
+      "edge.opacity": 0,
+      "edge.width": 0
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [],
+     "covers": {},
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "17.12"
+    }
+   },
+   {
+    "id": "highlight-the-focused-node_1",
+    "name": "Highlight the focused node",
+    "kind": "custom",
+    "source": {
+     "by": "user"
+    },
+    "locked": false,
+    "enabled": true,
+    "target": "node",
+    "selector": {
+     "match": "hover",
+     "orSelected": true
+    },
+    "set": {
+     "node.haloColor": "#97c800",
+     "node.haloOpacity": 0.5
+    },
+    "counts": {
+     "matched": 0,
+     "painted": {
+      "node.haloColor": 0,
+      "node.haloOpacity": 0
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [],
+     "covers": {},
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "17.12"
+    }
+   },
+   {
+    "id": "name-the-pointed-at-node_1",
+    "name": "Name the pointed-at node",
+    "kind": "custom",
+    "source": {
+     "by": "user"
+    },
+    "locked": false,
+    "enabled": true,
+    "target": "node",
+    "selector": {
+     "match": "everything"
+    },
+    "set": {
+     "node.tooltipStyle": {
+      "enabled": true,
+      "font": "Outfit",
+      "weight": 500,
+      "sizeMode": "screen",
+      "sizePx": 14,
+      "color": "#14161f",
+      "background": "#ffffff",
+      "padding": 4,
+      "cornerRadius": 4,
+      "location": "top",
+      "onTop": true
+     }
+    },
+    "encode": {
+     "node.tooltip": {
+      "template": [
+       "{data.id}"
+      ]
+     }
+    },
+    "counts": {
+     "matched": 77,
+     "painted": {
+      "node.tooltipStyle": 77,
+      "node.tooltip": 0
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [
+      "data.id"
+     ],
+     "paintedBy": [],
+     "covers": {},
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "17.12"
+    }
+   },
+   {
+    "id": "no-name-on-the-clicked-node-which-its-card-names_1",
+    "name": "No name on the clicked node, which its card names",
+    "kind": "custom",
+    "source": {
+     "by": "user"
+    },
+    "locked": false,
+    "enabled": true,
+    "target": "node",
+    "selector": {
+     "match": "member",
+     "of": "selection"
+    },
+    "set": {
+     "node.tooltipStyle": {
+      "enabled": false
+     }
+    },
+    "counts": {
+     "matched": 0,
+     "painted": {
+      "node.tooltipStyle": 0
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [],
+     "covers": {},
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "17.12"
+    }
+   },
+   {
+    "id": "communities_1",
+    "name": "Communities",
+    "kind": "encoding",
+    "source": {
+     "by": "run",
+     "runId": "louvain",
+     "algorithm": "louvain",
+     "params": {
+      "maxIterations": 100,
+      "resolution": 1,
+      "tolerance": 0.000001,
+      "useOptimized": true
+     }
+    },
+    "locked": false,
+    "enabled": true,
+    "target": "node",
+    "selector": {
+     "match": "has",
+     "path": "results.louvain.group"
+    },
+    "encode": {
+     "node.color": {
+      "by": "results.louvain.group",
+      "scale": "ordinal",
+      "overflow": "other",
+      "palette": "graphty-start-groups"
+     }
+    },
+    "counts": {
+     "matched": 77,
+     "painted": {
+      "node.color": 77
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [
+      "results.louvain.group"
+     ],
+     "paintedBy": [],
+     "covers": {},
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "17.12"
+    }
+   }
+  ]
+ },
+ "end": {
+  "tree": [
+   {
+    "id": "everything_2",
+    "kind": "layer",
+    "name": "Everything",
+    "pin": "bottom",
+    "locked": false,
+    "hidden": false,
+    "children": []
+   },
+   {
+    "id": "poster_2",
+    "kind": "layer",
+    "name": "Poster",
+    "pin": "none",
+    "locked": false,
+    "hidden": false,
+    "children": []
+   },
+   {
+    "id": "selected_2",
+    "kind": "layer",
+    "name": "Selected",
+    "pin": "top",
+    "locked": false,
+    "hidden": false,
+    "children": []
+   },
+   {
+    "id": "hovered_1",
+    "kind": "layer",
+    "name": "Hovered",
+    "pin": "top",
+    "locked": false,
+    "hidden": false,
+    "children": []
+   }
+  ],
+  "layers": [
+   {
+    "id": "node-defaults_1",
+    "name": "Node defaults",
+    "kind": "base",
+    "source": {
+     "by": "element",
+     "reason": "default"
+    },
+    "locked": true,
+    "enabled": true,
+    "target": "node",
+    "selector": {
+     "match": "everything"
+    },
+    "set": {
+     "node.color": "#6366F1",
+     "node.size": 1,
+     "node.shape": "icosphere"
+    },
+    "counts": {
+     "matched": 77,
+     "painted": {
+      "node.color": 0,
+      "node.size": 0,
+      "node.shape": 0
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [],
+     "covers": {},
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "5.10"
+    }
+   },
+   {
+    "id": "edge-defaults_1",
+    "name": "Edge defaults",
+    "kind": "base",
+    "source": {
+     "by": "element",
+     "reason": "default"
+    },
+    "locked": true,
+    "enabled": true,
+    "target": "edge",
+    "selector": {
+     "match": "everything"
+    },
+    "set": {
+     "edge.color": "darkgrey",
+     "edge.width": 8,
+     "edge.style": "solid",
+     "edge.animationSpeed": 0
+    },
+    "counts": {
+     "matched": 254,
+     "painted": {
+      "edge.color": 0,
+      "edge.width": 0,
+      "edge.style": 0,
+      "edge.animationSpeed": 0
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [],
+     "covers": {},
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "5.10"
+    }
+   },
+   {
+    "id": "everything_1",
+    "name": "Everything",
+    "kind": "custom",
+    "source": {
+     "by": "template",
+     "templateId": "graphty:starting-everything"
+    },
+    "locked": false,
+    "enabled": true,
+    "target": "edge",
+    "selector": {
+     "match": "everything"
+    },
+    "set": {
+     "edge.color": "darkgrey",
+     "edge.width": 8,
+     "edge.style": "solid",
+     "edge.animationSpeed": 0
+    },
+    "row": "everything_2",
+    "counts": {
+     "matched": 254,
+     "painted": {
+      "edge.color": 254,
+      "edge.width": 254,
+      "edge.style": 254,
+      "edge.animationSpeed": 254
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [],
+     "covers": {},
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "5.10"
+    }
+   },
+   {
+    "id": "everything_2",
+    "name": "Everything",
+    "kind": "custom",
+    "source": {
+     "by": "template",
+     "templateId": "graphty:starting-everything"
+    },
+    "locked": false,
+    "enabled": true,
+    "target": "node",
+    "selector": {
+     "match": "everything"
+    },
+    "set": {
+     "node.color": "#6366F1",
+     "node.size": 1,
+     "node.shape": "icosphere"
+    },
+    "row": "everything_2",
+    "counts": {
+     "matched": 77,
+     "painted": {
+      "node.color": 74,
+      "node.size": 77,
+      "node.shape": 77
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [
+      "poster_2"
+     ],
+     "covers": {
+      "node.color": {
+       "layers": [
+        {
+         "layerId": "poster_2",
+         "count": 3
+        }
+       ],
+       "more": 0
+      }
+     },
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "5.10"
+    }
+   },
+   {
+    "id": "poster_1",
+    "name": "Poster",
+    "kind": "custom",
+    "source": {
+     "by": "user"
+    },
+    "locked": false,
+    "enabled": true,
+    "target": "edge",
+    "selector": {
+     "match": "everything"
+    },
+    "row": "poster_2",
+    "counts": {
+     "matched": 254,
+     "painted": {},
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [],
+     "covers": {},
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "5.10"
+    }
+   },
+   {
+    "id": "poster_2",
+    "name": "Poster",
+    "kind": "custom",
+    "source": {
+     "by": "user"
+    },
+    "locked": false,
+    "enabled": true,
+    "target": "node",
+    "selector": {
+     "match": "rule",
+     "where": {
+      "kind": "text",
+      "reads": "data.name",
+      "mode": "substring",
+      "text": "Mlle"
+     }
+    },
+    "set": {
+     "node.color": "#FFA500"
+    },
+    "row": "poster_2",
+    "counts": {
+     "matched": 3,
+     "painted": {
+      "node.color": 3
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [],
+     "covers": {},
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "5.10"
+    }
+   },
+   {
+    "id": "selected_1",
+    "name": "Selected",
+    "kind": "custom",
+    "source": {
+     "by": "template",
+     "templateId": "graphty:starting-selected"
+    },
+    "locked": false,
+    "enabled": true,
+    "target": "edge",
+    "selector": {
+     "match": "state",
+     "state": "selected"
+    },
+    "set": {
+     "edge.bandColor": "#0077BB",
+     "edge.bandWidth": 2.5,
+     "edge.bandOpacity": 1
+    },
+    "row": "selected_2",
+    "counts": {
+     "matched": 0,
+     "painted": {
+      "edge.bandColor": 0,
+      "edge.bandWidth": 0,
+      "edge.bandOpacity": 0
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [],
+     "covers": {},
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "5.10"
+    }
+   },
+   {
+    "id": "selected_2",
+    "name": "Selected",
+    "kind": "custom",
+    "source": {
+     "by": "template",
+     "templateId": "graphty:starting-selected"
+    },
+    "locked": false,
+    "enabled": true,
+    "target": "node",
+    "selector": {
+     "match": "state",
+     "state": "selected"
+    },
+    "set": {
+     "node.haloColor": "#FFD700",
+     "node.haloScale": 1.45,
+     "node.haloOpacity": 1,
+     "node.glow": "#111111"
+    },
+    "row": "selected_2",
+    "counts": {
+     "matched": 0,
+     "painted": {
+      "node.haloColor": 0,
+      "node.haloScale": 0,
+      "node.haloOpacity": 0,
+      "node.glow": 0
+     },
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [],
+     "covers": {},
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "5.10"
+    }
+   },
+   {
+    "id": "hovered_1",
+    "name": "Hovered",
+    "kind": "custom",
+    "source": {
+     "by": "template",
+     "templateId": "graphty:starting-hovered"
+    },
+    "locked": false,
+    "enabled": true,
+    "target": "node",
+    "selector": {
+     "match": "state",
+     "state": "hovered"
+    },
+    "counts": {
+     "matched": 0,
+     "painted": {},
+     "noValue": 0,
+     "outsideScale": 0,
+     "reads": [],
+     "paintedBy": [],
+     "covers": {},
+     "undrawn": [],
+     "leftOut": [],
+     "tops": [],
+     "adjusted": [],
+     "revision": "5.10"
+    }
+   }
+  ]
+ }
+}

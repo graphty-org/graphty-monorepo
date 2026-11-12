@@ -389,7 +389,7 @@ describe("the simulation bridge against the Fruchterman-Reingold reference", () 
         // landed -- nothing inside a render loop can await a device -- so the wait is for the
         // budget to be spent rather than for the call.
         rig.graph.getLayoutManager().step();
-        await vi.waitUntil(() => rig.engine.isSettled, { timeout: 60_000, interval: 50 });
+        await vi.waitUntil(() => rig.engine.isSettled);
 
         const { temperature } = rig.engine.simulation as WithTemperature;
         assert.closeTo(

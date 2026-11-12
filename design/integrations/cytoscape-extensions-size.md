@@ -134,6 +134,8 @@ CI runs `pnpm --filter @graphty/cytoscape-extensions run size` in the build job,
 gate runs it when the package is affected. It rebuilds the parts in the first table and fails
 when one grows more than 10 percent (at least 1 KiB) over `cytoscape-extensions/size-budgets.json`,
 when a new part has no budget, or when a budget names a part that no longer exists. A growth that
-is intended is recorded by `node scripts/size.mjs --update` and committed with the reason. The
+is intended is recorded by `node scripts/size.mjs --update <part>` (the part's budget and the
+total's, since the total holds every part) or `--update` (every budget), and committed with the
+reason. A total left with under a quarter of its usual headroom prints a warning. The
 comparison rows measure other packages and are not budgeted; their growth reaches this package's
 budgets through the parts that load them.

@@ -6,10 +6,11 @@
 import { MantineProvider, MultiSelect, Select } from "@mantine/core";
 import { render } from "@testing-library/react";
 import React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { compactTheme } from "../../src";
+import { untilPasses } from "../../stories/helpers/settled";
 
 /**
  * Render with the compact theme.
@@ -26,7 +27,8 @@ function renderWithTheme(ui: React.ReactElement): ReturnType<typeof render> {
 
 /**
  * Open a field's list and wait until it is visible. floating-ui places it asynchronously after
- * that, so a test waits for the position it checks (vi.waitFor) rather than reading it at once.
+ * that, so a test waits for the position it checks (untilPasses, on frames with no deadline of its
+ * own, #2719) rather than reading it at once.
  * @param container - the render container
  * @returns the field's box and the open list
  */
@@ -39,7 +41,7 @@ async function open(container: HTMLElement): Promise<{ field: DOMRect; list: HTM
     }
     await userEvent.click(input);
     let list: HTMLElement | undefined;
-    await vi.waitFor(() => {
+    await untilPasses(() => {
         list = [...container.querySelectorAll<HTMLElement>(".cm-listbox")].find((el) => el.checkVisibility());
         expect(list).toBeDefined();
     });
@@ -60,7 +62,7 @@ describe("comboboxProps merge over the theme's list defaults", () => {
         const { field, list } = await open(container);
         const selected = list.querySelector<HTMLElement>("[data-checked]");
         expect(selected).not.toBeNull();
-        await vi.waitFor(() => {
+        await untilPasses(() => {
             const s = (selected as HTMLElement).getBoundingClientRect();
             expect(Math.abs(s.top - field.top)).toBeLessThanOrEqual(1);
             expect(Math.abs(list.getBoundingClientRect().left - (field.left - 8))).toBeLessThanOrEqual(1);
@@ -79,7 +81,7 @@ describe("comboboxProps merge over the theme's list defaults", () => {
             />,
         );
         const { field, list } = await open(container);
-        await vi.waitFor(() => {
+        await untilPasses(() => {
             expect(list.getBoundingClientRect().top - field.bottom).toBeCloseTo(4, 0);
             expect(Math.abs(list.getBoundingClientRect().left - field.left)).toBeLessThanOrEqual(1);
         });

@@ -87,6 +87,8 @@ export type DataMutation =
           readonly target?: string;
           /** The repeated-edge policy for this call. */
           readonly repeated?: DuplicatePolicy;
+          /** The record key weights are read from for this call, overriding `data.knownFields.edgeWeightPath`. */
+          readonly weight?: string;
           /**
            * The graph's direction, declared the way a node-link JSON file's `"directed"` key
            * declares it, and taken on the same terms: only while the graph holds no edges, and

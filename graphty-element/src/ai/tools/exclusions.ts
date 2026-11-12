@@ -553,7 +553,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionConfig", members: ["acceleration"], reason: "machine-preference", kind: BY_DESIGN },
     {
         root: "SessionDataApi",
-        members: ["store", "snapshot", "undirected", "fingerprint"],
+        members: ["store", "snapshot", "undirected", "fingerprint", "importColumns"],
         reason: "raw-data",
         kind: BY_DESIGN,
     },

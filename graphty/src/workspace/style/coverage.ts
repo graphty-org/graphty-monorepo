@@ -549,7 +549,7 @@ const VARY_DECISIONS = {
  * The drawn properties with no vary glyph, each with its decision; a yes-or-no property needs no
  * entry, its kind is its reason ({@link noVaryReason}). Every other drawn property varies by a value; an opacity varies from its settings pop-out ({@link VARY_DECISIONS}.opacity).
  */
-export const NO_VARY: Readonly<Partial<Record<Channel, string>>> = {
+const NO_VARY: Readonly<Partial<Record<Channel, string>>> = {
     "node.labelStyle": VARY_DECISIONS.look,
     "node.tooltipStyle": VARY_DECISIONS.look,
     "edge.labelStyle": VARY_DECISIONS.look,

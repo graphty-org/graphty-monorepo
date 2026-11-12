@@ -1,7 +1,7 @@
 /**
  * K2 of the ForceAtlas2 iteration, `fa2-attraction` (spec 7.5; contract 4.5): the gather of the attraction force
  * over the undirected CSR rows (both arcs present, so the sum is symmetric with no atomics), the linear or linlog
- * law, the optional weights, the distributed-action division by the mass in `pos.w`, written as the FIRST writer of
+ * law, the optional weights, the distributed-action division by the mass in `pos.w`, the dissuade-hubs division by the degree + 1 (DISSUADE_HUBS), written as the FIRST writer of
  * `force` each iteration (or combined into it under `P.accumulate`, the windowed pattern of 4.2). The arcs are read
  * inside the bound window [P.arcBase, P.arcEnd). P4-T5 (PD-6, PD-7) gives it the three degree tiers: TIER 0 is one
  * row per thread over `[P.tierStart, P.tierEnd)`; TIER 1 is 32 lanes per row over `[P.hiEnd, P.midEnd)` with a
@@ -84,6 +84,7 @@ fn row_force_dense(i: u32) -> vec3f {                          // TIER 0's strid
 fn finish(i: u32, f0: vec3f) {
     var f = f0;
     if (DISTRIBUTED && pos[i].w > 0.0) { f = f / pos[i].w; }   // an inert row (mass 0) never moves: left undivided, finite
+    if (DISSUADE_HUBS) { f = f / f32(rowPtr[i + 1u] - rowPtr[i] + 1u); }   // dissuade hubs (Jacomy et al. 2014, 2.4): divided by degree + 1
     if (P.accumulate == 1u) { f = f + load_force(i); }         // the windowed loop of 4.2 (arcBase != 0 dispatches after the first)
     store_force(i, f);                                         // overwrites: attraction is the first writer of force each iteration
 }

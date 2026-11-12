@@ -54,7 +54,7 @@ export interface ForceAtlas2Options extends CommonLayoutOptions, SimulationOptio
     /**
      * Dissuade hubs: divide each node's attraction by its degree + 1, so hubs are pushed to the edge of the drawing
      * and the nodes around them hold the centre. Applies on top of `distributedAction`. Default false. The GPU
-     * simulation does not read it yet.
+     * simulation honors it too.
      */
     readonly dissuadeHubs?: boolean | undefined;
     /**

@@ -1,9 +1,10 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { relative, resolve } from "node:path";
 
-import { defineConfig, loadEnv, UserConfig } from "vite";
+import { defineConfig, loadEnv, type Plugin, UserConfig } from "vite";
 import VitePluginCustomElementsManifest from "vite-plugin-cem";
-// import eslint from "vite-plugin-eslint";
+
+import { stubAnthropicNodeToolset } from "../vite.anthropic-sdk-stub.mjs";
 
 /**
  * The published entry points, as `<output file name>: <source file>`.
@@ -36,6 +37,7 @@ const entries = {
     react: "./react.ts",
     webgpu: "./webgpu.ts",
     ai: "./ai.ts",
+    credentials: "./credentials.ts",
 };
 
 /**
@@ -54,10 +56,14 @@ const entries = {
  * 130 packages, among them `@modelcontextprotocol/sdk`, `http-proxy` and `selfsigned`). No
  * published `.d.ts` names a remote-logger type, so copying it changes no public type.
  *
- * Because they are copied in, both are devDependencies: a consumer never resolves them. This set
- * stays so that declaring either as a dependency again cannot quietly externalise it.
+ * `@jsonhero/json-infer-types` (the AI layer's value and string-format classification) is copied
+ * in so that a consumer of the AI entry point installs nothing for it, as it was when it arrived
+ * through `@jsonhero/schema-infer` (issue #3278).
+ *
+ * Because they are copied in, all three are devDependencies: a consumer never resolves them. This
+ * set stays so that declaring one as a dependency again cannot quietly externalise it.
  */
-const bundledDependencies = new Set(["lodash", "@graphty/remote-logger"]);
+const bundledDependencies = new Set(["lodash", "@graphty/remote-logger", "@jsonhero/json-infer-types"]);
 
 /**
  * Every declared dependency and peer dependency, as a specifier matcher.
@@ -86,23 +92,208 @@ function externalDependencies(): RegExp[] {
         .map((name) => new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(/.*)?$`));
 }
 
+/**
+ * Writes `build/chunks.json`: for every chunk of the library build (and no other build that loads
+ * this config, such as Storybook's), its file, whether it is an
+ * entry, the modules built into it, and the chunks and packages it imports statically and with
+ * `import()`. `test/packaging/ai-lazy-chunks.test.ts` reads it to prove that what an entry point
+ * loads up front holds no AI framework or provider SDK (design/ai/tanstack-ai-harness-design.md,
+ * section 7, rule 6). `build/` is git-ignored and not published.
+ * @returns The plugin.
+ */
+function chunkMeta(): Plugin {
+    let library = false;
+    return {
+        name: "graphty-chunk-meta",
+        apply: "build",
+        configResolved(config): void {
+            library = config.build.lib !== false;
+        },
+        writeBundle(_options, bundle): void {
+            // Only the library build's chunks. Storybook's build loads this config too, and nx runs
+            // it beside this one (`build-storybook` waits only for the other packages' builds): its
+            // chunks written here were cached as this build's output and failed the test (#6665).
+            if (!library) {
+                return;
+            }
+
+            const chunks = Object.values(bundle).flatMap((output) =>
+                output.type === "chunk"
+                    ? [
+                          {
+                              fileName: output.fileName,
+                              isEntry: output.isEntry,
+                              modules: Object.keys(output.modules).map((id) => relative(__dirname, id)),
+                              imports: output.imports,
+                              dynamicImports: output.dynamicImports,
+                          },
+                      ]
+                    : [],
+            );
+            mkdirSync(resolve(__dirname, "build"), { recursive: true });
+            writeFileSync(resolve(__dirname, "build/chunks.json"), `${JSON.stringify({ chunks }, null, 1)}\n`);
+        },
+    };
+}
+
+/**
+ * Builds the in-page code sandbox (`src/ai/engine/tanstack/program.ts`) as its own chunk,
+ * `chunks/program-<hash>.js`, with QuickJS's WebAssembly beside the build as an asset. Nothing an
+ * entry exports reaches it statically: `loadProgramRunner()` loads it with `import()`. It is
+ * emitted here as well, so the chunk exists (and the packaging fixtures in
+ * `test/packaging/program-wasm.test.ts` can load it) whether or not a caller is built in yet.
+ * @returns The plugin.
+ */
+function programChunk(): Plugin {
+    return {
+        name: "graphty-program-chunk",
+        apply: "build",
+        buildStart(): void {
+            this.emitFile({
+                type: "chunk",
+                id: resolve(__dirname, "src/ai/engine/tanstack/program.ts"),
+                name: "program",
+            });
+        },
+        transform: {
+            filter: { id: /quickjs-wasmfile-release-sync\/dist\/emscripten-module\.browser\.mjs$/ },
+            handler(code): string {
+                // Emscripten's own `new URL("emscripten-module.wasm", import.meta.url)` is its default
+                // location, never used: program.ts always passes `wasmLocation`. Left in, a library
+                // build inlines the WebAssembly into the chunk as base64 (700 kB), and a consumer's
+                // bundler would look for a file beside a chunk that has none.
+                const replaced = code.replace(
+                    '(new URL("emscripten-module.wasm",import.meta.url)).href',
+                    '"emscripten-module.wasm"',
+                );
+                if (replaced === code) {
+                    this.error("the QuickJS module no longer has the default WebAssembly URL this build removes");
+                }
+
+                return replaced;
+            },
+        },
+    };
+}
+
+/**
+ * Writes `THIRD-PARTY-LICENSES.txt` beside the build: the license and notice files of every package
+ * whose code the build copies into its own output (TanStack AI and the provider SDKs in the AI
+ * chunks, lodash, and in the `./bundle` build everything), so the package ships the notices their
+ * licenses ask for. The `./bundle` build runs second and writes the full list.
+ * @returns The plugin.
+ */
+export function thirdPartyLicenses(): Plugin {
+    const SECTION_BREAK = ["", "", "-".repeat(80), "", ""].join("\n");
+    return {
+        name: "graphty-third-party-licenses",
+        apply: "build",
+        generateBundle(_options, bundle): void {
+            const packages = new Map<string, string>();
+            for (const output of Object.values(bundle)) {
+                // A virtual module (`\0`, a CommonJS proxy) stands beside the real file, which counts.
+                const ids = output.type === "chunk" ? Object.keys(output.modules) : [];
+                for (const id of ids.filter((m) => !m.startsWith("\0"))) {
+                    const at = id.lastIndexOf("/node_modules/") + "/node_modules/".length;
+                    const parts = id.slice(at).split("/");
+                    const name = parts[0].startsWith("@") ? `${parts[0]}/${parts[1]}` : parts[0];
+                    if (at >= "/node_modules/".length) {
+                        packages.set(name, `${id.slice(0, at)}${name}`);
+                    }
+                }
+            }
+
+            const sections = [...packages]
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([name, dir]) => {
+                    const { version, license } = JSON.parse(readFileSync(`${dir}/package.json`, "utf8")) as {
+                        version: string;
+                        license?: string;
+                    };
+                    const texts = readdirSync(dir)
+                        .filter((file) => /^(?:licen[cs]e|notice|copying)(?:[.-]|$)/i.test(file))
+                        .sort((a, b) => a.localeCompare(b))
+                        .map((file) => readFileSync(`${dir}/${file}`, "utf8").trim());
+                    return [`${name}@${version} (${license ?? "see below"})`, ...texts].join("\n\n");
+                });
+            this.emitFile({
+                type: "asset",
+                fileName: "THIRD-PARTY-LICENSES.txt",
+                source: `${sections.join(SECTION_BREAK)}\n`,
+            });
+        },
+    };
+}
+
+/**
+ * Write the file URLs in the plain form a consumer's bundler recognises.
+ *
+ * Vite writes a reference to a built file as a `new URL` nested in a `new URL`, which no other
+ * bundler recognises, and it drops the query. Rewritten to `new URL("<file>", import.meta.url)`:
+ *
+ * - the consumer's Vite, webpack or Parcel bundles the Graphviz Worker
+ *   (`src/layout/graphviz/worker.ts`) again and resolves the optional package, which Vite left as
+ *   an import, from the consumer's own install;
+ * - a shader thumbnail gets its `?no-inline` back. Without it the consumer's Vite inlines every
+ *   thumbnail under `assetsInlineLimit` as a `data:` URL, whose base64 can pass the 4096 characters
+ *   a descriptor's thumbnail may hold, and registering the preset throws on import.
+ *
+ * `test/packaging/consumer-bundlers.test.ts` builds and loads a default consumer, and fails if this
+ * stops matching what Vite writes.
+ * @returns the plugin
+ */
+function plainFileUrls(): Plugin {
+    return {
+        name: "graphty-plain-file-urls",
+        // After Vite has written its own references, which it does as chunks are rendered.
+        generateBundle(_options, bundle) {
+            for (const output of Object.values(bundle)) {
+                if (output.type === "chunk") {
+                    output.code = output.code.replaceAll(
+                        /new URL\(\s*(?:\/\* @vite-ignore \*\/\s*)?new URL\("([^"]+)", import\.meta\.url\)\.href,\s*"" \+ import\.meta\.url\s*\)/g,
+                        (_match, file: string) =>
+                            `new URL("${file}${file.endsWith(".webp") ? "?no-inline" : ""}", import.meta.url)`,
+                    );
+                }
+            }
+        },
+    };
+}
+
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
     // Load env file from monorepo root (one level up from this package).
     // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
     const monorepoRoot = resolve(__dirname, "..");
     const env = loadEnv(mode, monorepoRoot, "");
     const config: UserConfig = {
+        // Relative in the build, so the Graphviz Worker's file is found next to the chunk that
+        // starts it. The dev server and the test runners keep the root.
+        ...(command === "build" ? { base: "./" } : {}),
+        worker: {
+            format: "es",
+            plugins: () => [],
+            rollupOptions: { external: externalDependencies() },
+        },
         plugins: [
+            plainFileUrls(),
             // eslint(),
             VitePluginCustomElementsManifest({
                 files: ["./src/graphty-element.ts"],
                 lit: true,
             }),
+            chunkMeta(),
+            programChunk(),
+            stubAnthropicNodeToolset(),
+            thirdPartyLicenses(),
         ],
         define: {
             // Disable Lit dev mode warning
             "process.env.NODE_ENV": JSON.stringify(mode === "development" ? "production" : mode),
+            // The version a project file's `generator` names (src/session/runs/engine.ts).
+            __GRAPHTY_ELEMENT_VERSION__: JSON.stringify(
+                (JSON.parse(readFileSync(resolve(__dirname, "package.json"), "utf8")) as { version: string }).version,
+            ),
         },
         build: {
             lib: {
@@ -124,6 +315,8 @@ export default defineConfig(({ mode }) => {
                     // would be free to drop every registration and leave an element that
                     // renders nothing it knows how to render.
                     chunkFileNames: "chunks/[name]-[hash].js",
+                    // QuickJS's WebAssembly (the program chunk's), beside the chunks.
+                    assetFileNames: "chunks/[name]-[hash][extname]",
                 },
                 treeshake: {
                     // This does NOT override package.json's `sideEffects` array, and the
@@ -143,6 +336,10 @@ export default defineConfig(({ mode }) => {
                     moduleSideEffects: true,
                 },
             },
+        },
+        experimental: {
+            // The program chunk finds its WebAssembly relative to itself, wherever dist/ is served from.
+            renderBuiltUrl: (fileName) => (fileName.endsWith(".wasm") ? { relative: true } : undefined),
         },
         optimizeDeps: {
             exclude: ["@babylonjs/core", "@babylonjs/inspector"],

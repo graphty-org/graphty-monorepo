@@ -1,4 +1,4 @@
-import { NullEngine, type Quaternion, Scene, Vector3 } from "@babylonjs/core";
+import { NullEngine, type Quaternion, Scene, TransformNode, Vector3 } from "@babylonjs/core";
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test } from "vitest";
 
@@ -281,6 +281,62 @@ describe("PivotController", () => {
             assert.approximately(rot.w, 1, 0.0001);
 
             assert.approximately(controller.pivot.scaling.x, 1.0, 0.0001);
+        });
+    });
+
+    // The selection pivot in VR and AR: the reader is parented to the pivot, and a turn or zoom
+    // happens about the selected node without moving the reader when the center is set.
+    describe("center", () => {
+        /**
+         * Where something parented to the pivot is in the world.
+         * @param child - The child.
+         * @returns Its world position.
+         */
+        function worldOf(child: TransformNode): Vector3 {
+            controller.pivot.computeWorldMatrix(true);
+            return child.computeWorldMatrix(true).getTranslation();
+        }
+
+        let reader: TransformNode;
+        const center = new Vector3(3, 0, 0);
+
+        beforeEach(() => {
+            reader = new TransformNode("reader", scene);
+            reader.parent = controller.pivot;
+            reader.position.set(0, 0, -10);
+        });
+
+        test("setting it moves nothing", () => {
+            controller.center = center;
+            const at = worldOf(reader);
+            assert.approximately(Vector3.Distance(at, new Vector3(0, 0, -10)), 0, 1e-6);
+        });
+
+        test("a turn swings the reader about it", () => {
+            controller.center = center;
+            controller.rotate(Math.PI, 0);
+            // (0, 0, -10) half a turn about the Y axis through (3, 0, 0)
+            assert.approximately(Vector3.Distance(worldOf(reader), new Vector3(6, 0, 10)), 0, 1e-5);
+        });
+
+        test("a spin and a turn about an axis keep the reader's distance from it", () => {
+            controller.center = center;
+            controller.spin(0.7);
+            controller.rotateAroundAxis(new Vector3(1, 1, 0), 0.9);
+            const distance = Vector3.Distance(new Vector3(0, 0, -10), center);
+            assert.approximately(Vector3.Distance(worldOf(reader), center), distance, 1e-5);
+        });
+
+        test("a zoom scales the reader's offset from it", () => {
+            controller.center = center;
+            controller.zoom(1.05);
+            const expected = center.add(new Vector3(0, 0, -10).subtract(center).scale(1.05));
+            assert.approximately(Vector3.Distance(worldOf(reader), expected), 0, 1e-5);
+        });
+
+        test("without it, a turn swings the reader about the pivot's own position", () => {
+            controller.rotate(Math.PI, 0);
+            assert.approximately(Vector3.Distance(worldOf(reader), new Vector3(0, 0, 10)), 0, 1e-5);
         });
     });
 });

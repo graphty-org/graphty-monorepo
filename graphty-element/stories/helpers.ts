@@ -4,7 +4,6 @@
  */
 
 import type { Meta } from "@storybook/web-components-vite";
-import isChromatic from "chromatic/isChromatic";
 import lodash from "lodash";
 // Using direct property access instead of destructuring to avoid unbound-method warnings
 const deepSet = lodash.set.bind(lodash);
@@ -13,6 +12,7 @@ import { LABEL_STYLE_FIELDS } from "../src/catalog/label-style";
 import type { Channel, Encoding, LabelStyle, LayerSpec, StaticStyle } from "../src/catalog/types";
 import { type GraphBackgroundConfig, NodeShapes, type ViewMode } from "../src/config";
 import type { AlgorithmOnLoad } from "../src/config/DataConfig";
+import { pageDefaultFeatures } from "../src/features/resolve";
 import type { Graphty } from "../src/graphty-element";
 
 // Global storage for event promises set up by decorators
@@ -111,48 +111,14 @@ export const eventWaitingDecorator = (story: any): any => {
 };
 
 /**
- * How long a story's data source may take to answer.
- *
- * Only a story that names a data source waits at all, and one that does is waiting on a file,
- * which is why this is measured in seconds rather than in frames.
- */
-const DATA_LOAD_TIMEOUT_MS = 15000;
-
-/**
- * Reject when a promise has not settled in time, with a sentence a reader can act on.
- * @param promise - What is being waited for.
- * @param timeoutMs - How long to wait.
- * @param whatWasWaitedFor - Named in the error, so the failure says what did not happen.
- * @returns The promise's own resolution, or a rejection describing the timeout.
- */
-async function within(promise: Promise<void>, timeoutMs: number, whatWasWaitedFor: string): Promise<void> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    try {
-        await Promise.race([
-            promise,
-            new Promise<never>((_resolve, reject) => {
-                timer = setTimeout(() => {
-                    reject(new Error(`${whatWasWaitedFor} within ${String(timeoutMs)} ms.`));
-                }, timeoutMs);
-            }),
-        ]);
-    } finally {
-        if (timer !== undefined) {
-            clearTimeout(timer);
-        }
-    }
-}
-
-/**
  * Wait for a story's DATA SOURCE to finish loading, when it has one.
  *
  * `data-loaded` is emitted by a data source completing a load and by nothing else, so a story
  * that hands the element its nodes and edges directly never sees it. Waiting for it anyway is
  * what put a silent five second wait in front of every such story -- a wait that ended in the
  * story being captured regardless of whether anything had loaded. A story that DOES name a source
- * and never gets an answer now fails and says which source it was, because the alternative is
- * photographing an empty canvas and calling it a snapshot.
+ * waits for its answer, and one that never gets it is ended by the hang guard, because the
+ * alternative is photographing an empty canvas and calling it a snapshot.
  * @param canvasElement - The story's root element.
  */
 async function waitForDataLoaded(canvasElement: HTMLElement): Promise<void> {
@@ -176,17 +142,9 @@ async function waitForDataLoaded(canvasElement: HTMLElement): Promise<void> {
             });
         });
 
-    await within(loaded, DATA_LOAD_TIMEOUT_MS, `the ${source} data source did not finish loading`);
+    // No deadline of its own: the one hang guard (tools/test-wait-guard.mjs) ends a load that never comes.
+    await loaded;
 }
-
-/**
- * How long a story may take to reach a picture that will not change again.
- *
- * Generous against the 2.5 seconds every story here has been measured to need, and well inside
- * the 30 second timeout the Storybook test project allows, so the element's own message -- which
- * names what was still moving -- is what a reader sees rather than a bare harness timeout.
- */
-const STABLE_FRAME_TIMEOUT_MS = 15000;
 
 /**
  * Wait until the story's graph is drawing a picture that will not change again.
@@ -216,7 +174,9 @@ export async function waitForGraphSettled(canvasElement: HTMLElement): Promise<v
     // answer about the wrong picture.
     await waitForDataLoaded(canvasElement);
 
-    await graphtyElement.waitForStableFrame({ timeoutMs: STABLE_FRAME_TIMEOUT_MS });
+    // Under a runner, the element's own default (30 seconds, started after the runner's clock) is
+    // never the first to expire, so the runner's timeout is what bounds the wait.
+    await graphtyElement.waitForStableFrame();
 }
 
 // Helper to wait for skybox to load - only call this if your story actually uses a skybox
@@ -289,7 +249,7 @@ interface StorySetup {
     startingCameraDistance?: number;
     /** Algorithms to run once the data has loaded: names, or `{ algorithm, style, ... }` entries. */
     algorithms?: readonly AlgorithmOnLoad[];
-    /** How many layout steps to run before the first frame is drawn, under Chromatic. */
+    /** How many layout steps to run before the first frame is drawn, under capture. */
     preSteps?: number;
     /**
      * How many iterations a simulation layout computes per frame while it animates, for a story
@@ -299,6 +259,8 @@ interface StorySetup {
     stepMultiplier?: number;
     /** Hide labels whose words would overlap: the element's `labels.declutter` behaviour. */
     declutterLabels?: boolean;
+    /** How node labels draw their words: the element's `labels.labelText` behaviour. */
+    labelText?: "canvas" | "glyphs";
 }
 
 /**
@@ -310,24 +272,44 @@ interface StorySetup {
 export type StoryArgs = Graphty & { setup: StorySetup };
 
 /**
- * How many layout steps to run before the first frame, given what a story asks for under Chromatic.
+ * True inside a visual-review capture, whose story URL carries `chromatic=true`.
+ * @returns Whether this page is being captured.
+ */
+export function isVisualCapture(): boolean {
+    return /[?&]chromatic=true/.test(globalThis.location?.search ?? "");
+}
+
+/**
+ * True when something other than a reader runs this story: the Storybook test project
+ * (`.storybook/vitest.setup.ts` sets `__GRAPHTY_STORY_RUNNER__`) or a visual capture. A story's
+ * endless demo cycle runs only for a reader.
+ * @returns Whether a runner, not a reader, runs this story.
+ */
+export function isUnderRunner(): boolean {
+    return (
+        (globalThis as { __GRAPHTY_STORY_RUNNER__?: boolean }).__GRAPHTY_STORY_RUNNER__ === true || isVisualCapture()
+    );
+}
+
+/**
+ * How many layout steps to run before the first frame, given what a story asks for under capture.
  *
- * PRE-STEPS ARE FOR CHROMATIC ONLY. They are what makes a snapshot the same picture twice: a
+ * PRE-STEPS ARE FOR THE VISUAL CAPTURE ONLY. They are what makes a snapshot the same picture twice: a
  * physics layout that has not been stepped is a graph in mid-flight, and how far it has flown
  * depends on when the screenshot was taken. A reader in Storybook, and the Storybook test project,
  * get zero instead, so the layout animates and settles in front of them -- the play functions wait
  * for that settled frame with {@link waitForGraphSettled}.
- * @param chromaticSteps - The steps this story runs under Chromatic.
+ * @param captureSteps - The steps this story runs under capture.
  * @returns The steps to run here.
  */
-function preStepsHere(chromaticSteps: number): number {
-    return isChromatic() ? chromaticSteps : 0;
+function preStepsHere(captureSteps: number): number {
+    return isVisualCapture() ? captureSteps : 0;
 }
 
 /**
  * Fill in the defaults every story shares.
  *
- * The only one is the layout pre-step count. A story's `preSteps` is its Chromatic count, 2000
+ * The only one is the layout pre-step count. A story's `preSteps` is its capture count, 2000
  * when it names none; everywhere else it is zero, so the layout animates (see
  * {@link preStepsHere}).
  * @param opts - What this story wants.
@@ -400,13 +382,13 @@ function writeChannelControl(setup: StorySetup, name: string, value: unknown): b
 }
 
 /**
- * How many layout steps to run before the first frame is drawn, under Chromatic.
+ * How many layout steps to run before the first frame is drawn, under capture.
  *
  * Stories with a render function of their own call this, because they build the element
- * themselves and so do not pass through {@link applyConfiguration}. Outside Chromatic it sets
+ * themselves and so do not pass through {@link applyConfiguration}. Outside a capture it sets
  * zero, so the layout animates (see {@link preStepsHere}).
  * @param element - The element to configure.
- * @param preSteps - How many steps to run before the first frame under Chromatic.
+ * @param preSteps - How many steps to run before the first frame under capture.
  */
 export function setLayoutPreSteps(element: Graphty, preSteps: number): void {
     element.layoutBehavior = { layout: { preSteps: preStepsHere(preSteps) } };
@@ -478,9 +460,13 @@ function applyConfiguration(element: Graphty, setup: StorySetup): void {
 
     // One document, written once: two assignments would leave only the second, and a story that
     // declutters its labels used to lose its pre-steps that way.
-    const { preSteps, stepMultiplier, declutterLabels } = setup;
+    const { preSteps, stepMultiplier, declutterLabels, labelText } = setup;
+    const labels = {
+        ...(declutterLabels === undefined ? {} : { declutter: declutterLabels }),
+        ...(labelText === undefined ? {} : { labelText }),
+    };
 
-    if (preSteps !== undefined || stepMultiplier !== undefined || declutterLabels !== undefined) {
+    if (preSteps !== undefined || stepMultiplier !== undefined || Object.keys(labels).length > 0) {
         element.layoutBehavior = {
             ...(preSteps === undefined && stepMultiplier === undefined
                 ? {}
@@ -490,7 +476,7 @@ function applyConfiguration(element: Graphty, setup: StorySetup): void {
                           ...(stepMultiplier === undefined ? {} : { stepMultiplier }),
                       },
                   }),
-            ...(declutterLabels === undefined ? {} : { labels: { declutter: declutterLabels } }),
+            ...(Object.keys(labels).length === 0 ? {} : { labels }),
         };
     }
 
@@ -526,6 +512,12 @@ type RenderArg2 = Parameters<NonNullable<Meta["render"]>>[1];
 
 export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => {
     const g = document.createElement("graphty-element");
+
+    // First, as a page sets the attribute: the experiments are read when the element's session is
+    // made. Added to the page's own (`?features=` on the preview), which an element's list replaces.
+    if (Array.isArray(args.features)) {
+        g.features = [...pageDefaultFeatures(), ...(args.features as string[])];
+    }
 
     // Set runAlgorithmsOnLoad BEFORE setting data, because data loading triggers
     // the algorithm-run operation which checks this property
@@ -574,6 +566,7 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
 
         if (
             ![
+                "features",
                 "dataSource",
                 "dataSourceConfig",
                 "layout",
@@ -812,3 +805,27 @@ export const arrowTypes = [
     "half-open",
     "vee",
 ] as const;
+
+/**
+ * Real (browser-trusted) pointer input for play functions.
+ *
+ * A page's own script can only dispatch untrusted events, which skip the browser's hit testing,
+ * pointer capture and event ordering. The storybook test project's setup (.storybook/vitest.setup.ts)
+ * hands test/helpers/real-input.ts to every story as the `realInput` parameter, so a play function
+ * run as a test drives the browser itself. Storybook's own UI has no such input.
+ */
+export interface RealInput {
+    /** Move the mouse, no button held, to a point in CSS pixels from the element's top-left corner. */
+    hover(element: Element, point: { x: number; y: number }): Promise<void>;
+    /** Press and release the left button at a point in CSS pixels from the element's top-left corner. */
+    click(element: Element, point: { x: number; y: number }): Promise<void>;
+}
+
+/**
+ * The real input the test runner supplied, if any.
+ * @param parameters - The story context's parameters.
+ * @returns The real input, or undefined in Storybook's own UI.
+ */
+export function realInput(parameters: Record<string, unknown>): RealInput | undefined {
+    return parameters.realInput as RealInput | undefined;
+}

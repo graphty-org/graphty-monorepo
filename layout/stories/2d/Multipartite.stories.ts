@@ -108,8 +108,10 @@ function createMultipartiteStory(args: MultipartiteArgs): HTMLElement {
         isApplied = true;
 
         // Animate to final positions
-        updatePositions(svg, generatedGraph, finalPositions, 200, 250, 250);
-        updateStatus(statusPanel, "Multipartite layout applied! Nodes arranged in distinct layers.");
+        // The status says "applied" once the last frame is drawn; the play function waits on it
+        void updatePositions(svg, generatedGraph, finalPositions, 200, 250, 250).then(() =>
+            updateStatus(statusPanel, "Multipartite layout applied! Nodes arranged in distinct layers."),
+        );
     }
 
     /**
@@ -184,12 +186,9 @@ export const Multipartite: Story = {
         await userEvent.click(applyButton);
 
         // Wait for animation and status update
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("applied");
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("applied");
+        });
     },
 };

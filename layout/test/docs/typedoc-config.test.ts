@@ -6,13 +6,16 @@
  */
 
 import assert from "node:assert";
+import { execFile } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { promisify } from "node:util";
 
-import { Application, LogLevel } from "typedoc";
 import { describe, it } from "vitest";
 
 const PKG = resolve(__dirname, "../..");
+const CONVERTER = resolve(__dirname, "convert-typedoc.mjs");
+const execFileAsync = promisify(execFile);
 const config = JSON.parse(readFileSync(resolve(PKG, "typedoc.json"), "utf8")) as { entryPoints: string[] };
 
 describe("typedoc.json", () => {
@@ -30,16 +33,17 @@ describe("typedoc.json", () => {
     it("converts the API with no TypeDoc warnings", async () => {
         // An exported signature that names an unexported type, a broken {@link} or a stale entry point only warns,
         // and the warning is lost in the docs build log. Converting (no rendering) is enough to raise all of them.
-        const app = await Application.bootstrapWithPlugins({
-            options: resolve(PKG, "typedoc.json"),
-            tsconfig: resolve(PKG, "tsconfig.json"),
-            entryPoints: config.entryPoints.map((p) => resolve(PKG, p)),
-            logLevel: LogLevel.Warn,
-        });
-        const project = await app.convert();
-        assert.ok(project, "TypeDoc failed to convert the project");
-        app.validate(project);
-        assert.strictEqual(app.logger.warningCount, 0, "TypeDoc warnings: see the log above");
-        assert.strictEqual(app.logger.errorCount, 0, "TypeDoc errors: see the log above");
-    }, 120_000);
+        // In a child process, which coverage does not instrument (see convert-typedoc.mjs).
+        const { stdout } = await execFileAsync(process.execPath, [CONVERTER, PKG]);
+        const result = JSON.parse(stdout) as {
+            converted: boolean;
+            warningCount: number;
+            errorCount: number;
+            messages: string[];
+        };
+        const log = result.messages.join("\n");
+        assert.ok(result.converted, `TypeDoc failed to convert the project:\n${log}`);
+        assert.strictEqual(result.warningCount, 0, `TypeDoc warnings:\n${log}`);
+        assert.strictEqual(result.errorCount, 0, `TypeDoc errors:\n${log}`);
+    });
 });

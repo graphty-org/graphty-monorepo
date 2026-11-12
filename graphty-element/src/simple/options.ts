@@ -11,6 +11,7 @@
 
 import { OPTION_TYPES, type OptionDescriptor, type OptionType } from "../catalog/types";
 import { GraphtyError, type GraphtyErrorSource } from "../errors";
+import { quoteEach } from "../utils/quote-each";
 import { badDefinition, describeValue, sentenceCase, type SimpleVerb } from "./definition";
 import type { GraphView, NodeId } from "./types";
 import { carriedList, quoteId, requireCarried } from "./view";
@@ -43,6 +44,35 @@ export function expandOptions(verb: SimpleVerb, id: string, options: unknown): O
     }
 
     return Object.entries(options as Record<string, unknown>).map(([name, entry]) => expandOne(verb, id, name, entry));
+}
+
+/**
+ * Check a short-form option's "on": only an attribute or partition option takes one, and it names
+ * nodes or edges.
+ * @param verb - The call.
+ * @param id - The definition's id.
+ * @param field - The option's field path, `options.<name>`.
+ * @param type - The option's type.
+ * @param on - Its "on".
+ */
+function checkOn(verb: SimpleVerb, id: string, field: string, type: string, on: unknown): void {
+    if (!ATTRIBUTE_TYPES.has(type as OptionType)) {
+        throw badDefinition(
+            verb,
+            id,
+            `${field}.on`,
+            `"${field}" has "on", which only an "attribute" or "partition" option takes.`,
+        );
+    }
+
+    if (on !== "node" && on !== "edge") {
+        throw badDefinition(
+            verb,
+            id,
+            `${field}.on`,
+            `"${field}.on" must be "node" or "edge"; got ${describeValue(on)}.`,
+        );
+    }
 }
 
 /**
@@ -89,29 +119,12 @@ function expandOne(verb: SimpleVerb, id: string, name: string, entry: unknown): 
             verb,
             id,
             `${field}.type`,
-            `"${field}" needs a "type", one of ${AUTHORABLE_TYPES.map((item) => `"${item}"`).join(", ")}; ` +
-                `got ${describeValue(type)}.`,
+            `"${field}" needs a "type", one of ${quoteEach(AUTHORABLE_TYPES, ", ")}; ` + `got ${describeValue(type)}.`,
         );
     }
 
     if (on !== undefined) {
-        if (!ATTRIBUTE_TYPES.has(type as OptionType)) {
-            throw badDefinition(
-                verb,
-                id,
-                `${field}.on`,
-                `"${field}" has "on", which only an "attribute" or "partition" option takes.`,
-            );
-        }
-
-        if (on !== "node" && on !== "edge") {
-            throw badDefinition(
-                verb,
-                id,
-                `${field}.on`,
-                `"${field}.on" must be "node" or "edge"; got ${describeValue(on)}.`,
-            );
-        }
+        checkOn(verb, id, field, type, on);
     }
 
     if (type === "enum" && !Array.isArray(rest.values)) {

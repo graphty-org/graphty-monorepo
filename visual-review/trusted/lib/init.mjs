@@ -25,14 +25,14 @@ const MANAGERS = {
     pnpm: {
         lock: "pnpm-lock.yaml",
         cli: "pnpm exec visual-review",
-        setup: `- uses: pnpm/action-setup@v4\n\n${setup("pnpm", "pnpm install --frozen-lockfile")}`,
+        setup: `- uses: pnpm/action-setup@v6\n\n${setup("pnpm", "pnpm install --frozen-lockfile")}`,
     },
     yarn: { lock: "yarn.lock", cli: "yarn visual-review", setup: setup("yarn", "yarn install --frozen-lockfile") },
 };
 
 function setup(cache, install) {
     return [
-        "- uses: actions/setup-node@v4",
+        "- uses: actions/setup-node@v7",
         "  with:",
         "      node-version: 22.x",
         `      cache: ${cache}`,
@@ -163,8 +163,6 @@ export function init(root, { force = false } = {}) {
         )
             ? `wrote    .gitattributes (${rule} in Git LFS)`
             : "kept     .gitattributes",
-    );
-    report.push(
         !ignored(root, config.workDir) &&
             appendOnce(join(root, ".gitignore"), `/${config.workDir}/`, `/${config.workDir}/`)
             ? `wrote    .gitignore (/${config.workDir}/)`

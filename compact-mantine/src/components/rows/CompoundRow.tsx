@@ -254,7 +254,7 @@ function segmentFullText(segment: CompoundSegment): string | undefined {
  * @param props.index - This segment's position in the row, counting from zero
  * @returns The segment
  */
-function CompoundSegmentBox({ segment, grow, index }: CompoundSegmentBoxProps): React.JSX.Element {
+function CompoundSegmentBox({ segment, grow, index }: Readonly<CompoundSegmentBoxProps>): React.JSX.Element {
     const { glyph, value, unit, mono = false } = segment;
 
     let slotContent: React.ReactNode = null;
@@ -277,6 +277,7 @@ function CompoundSegmentBox({ segment, grow, index }: CompoundSegmentBoxProps): 
     // steps out of the way.
     const fullText = segmentFullText(segment);
     const fullTextReplacesDrawing = segment.fullValue !== undefined;
+    const seam = index > 0 ? HAIRLINE : 0;
 
     return (
         <Box
@@ -292,7 +293,7 @@ function CompoundSegmentBox({ segment, grow, index }: CompoundSegmentBoxProps): 
                 height: PANEL_GRID.CONTROL_HEIGHT,
                 paddingBlock: 0,
                 // The seam before a later segment is its first pixel of inset.
-                paddingInlineStart: slotContent === null ? SEGMENT_PADDING_X - (index > 0 ? HAIRLINE : 0) : 0,
+                paddingInlineStart: slotContent === null ? SEGMENT_PADDING_X - seam : 0,
                 paddingInlineEnd: SEGMENT_PADDING_X,
             }}
         >

@@ -8,5 +8,7 @@
 # ponytail: scans the working-tree copy of each file, not the staged blob; scan
 # `git show :<path>` through --stdinFileName if a staged-then-deleted secret ever matters.
 set -euo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
+# PREPUSH_ROOT: the checkout to scan when the gate runs from its live copy (tools/prepush.sh).
+cd "${PREPUSH_ROOT:-$(dirname "${BASH_SOURCE[0]}")/..}"
+unset PREPUSH_ROOT
 git diff --name-only -z --diff-filter=ACMR "$@" | xargs -0 -r pnpm exec secretlint --no-gitignore

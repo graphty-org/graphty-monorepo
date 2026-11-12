@@ -5,8 +5,8 @@
  * A still graph used to be drawn again on every animation frame. On a software GPU, which every
  * CI runner and headless browser has, each of those frames costs the page tens to hundreds of
  * milliseconds of its main thread, so a page holding a few still graphs answered a click slowly
- * (issue #1824). Frames are counted by the scene's own render id, and the
- * input is the browser's own (test/helpers/real-input.ts).
+ * (issue #1824). Frames are counted by the scene's own render id and by the render loop's own
+ * count of its ticks, and the input is the browser's own (test/helpers/real-input.ts).
  *
  * Every test ends on {@link restsOnTheCurrentPicture}: once the element has stopped drawing, the
  * canvas must hold exactly what a fresh frame would draw. That is the failure a frame skipped too
@@ -15,12 +15,19 @@
 
 import "../../src/graphty-element";
 
-import { MeshBuilder } from "@babylonjs/core";
-import { afterEach, assert, describe, it } from "vitest";
+import { CreateScreenshotAsync, MeshBuilder } from "@babylonjs/core";
+import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
+import type { RenderManager } from "../../src/managers/RenderManager";
 import { click, drag, nextFrame, type Point, wheel } from "../helpers/real-input";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 const WIDTH = 400;
 const HEIGHT = 300;
@@ -34,21 +41,14 @@ const NODES = [
 /** A spot with no node under it. */
 const EMPTY: Point = { x: 30, y: HEIGHT - 30 };
 
-/** How many animation frames in a row must pass undrawn for the graph to count as resting. */
-const RESTING_FRAMES = 20;
+/** How many of the loop's chances to draw in a row must pass undrawn for the graph to count as resting. */
+const RESTING_TICKS = 20;
 
-/**
- * Draws across {@link RESTING_FRAMES} animation frames that count as drawing every frame: the
- * element's loop and the test's wait are separate animation-frame callbacks, so the first and
- * last frame may fall on either side of the count.
- */
-const EVERY_FRAME = RESTING_FRAMES - 2;
+/** The loop's chances to draw after which a still graph drawing on demand has come to rest. */
+const SETTLING_TICKS = 120;
 
-/** Animation frames after which a still graph drawing on demand has come to rest. */
-const SETTLING_FRAMES = 120;
-
-/** How many animation frames a wait for rest may take before it gives up. */
-const MAX_FRAMES = 1200;
+/** How many frames a wait for rest lets the element draw before it gives up. */
+const MAX_DRAWS = 1200;
 
 const cleanups: (() => void)[] = [];
 
@@ -102,39 +102,53 @@ function countDraws(element: Graphty): { readonly count: () => number } {
 }
 
 /**
- * Waits until the element has drawn nothing for {@link RESTING_FRAMES} animation frames in a row.
+ * What the element's render loop has done with its ticks: drawn a frame, or rested on the one
+ * shown. A tick that waited for the GPU is neither, because it had no chance to draw; counting
+ * the loop's chances rather than animation frames is what keeps these tests true on a machine
+ * that skips or adds frames.
  * @param element - The element.
- * @returns How many animation frames it took.
+ * @returns The loop's running counts.
  */
-async function untilResting(element: Graphty): Promise<number> {
-    const draws = countDraws(element);
-    let quietSince = 0;
-    for (let frame = 1; frame <= MAX_FRAMES; frame++) {
-        const before = draws.count();
-        await nextFrame();
-        if (draws.count() !== before) {
-            quietSince = frame;
-        } else if (frame - quietSince >= RESTING_FRAMES) {
-            return frame;
-        }
-    }
-
-    throw new Error(`the element was still drawing after ${String(MAX_FRAMES)} animation frames`);
+function loopTicks(element: Graphty): { readonly drawn: number; readonly rested: number } {
+    return (element.graph as unknown as { renderManager: RenderManager }).renderManager.ticks;
 }
 
 /**
- * Draws counted across some animation frames.
+ * Waits until the element has rested on {@link RESTING_TICKS} of its chances to draw in a row.
  * @param element - The element.
- * @param frames - How many animation frames.
- * @returns How many frames the element drew.
  */
-async function drawsAcross(element: Graphty, frames: number): Promise<number> {
-    const draws = countDraws(element);
-    for (let i = 0; i < frames; i++) {
+async function untilResting(element: Graphty): Promise<void> {
+    const ticks = loopTicks(element);
+    const firstDraw = ticks.drawn;
+    let lastDraw = ticks.drawn;
+    let restedSince = ticks.rested;
+    while (ticks.rested - restedSince < RESTING_TICKS) {
+        if (ticks.drawn - firstDraw > MAX_DRAWS) {
+            throw new Error(`the element was still drawing after ${String(MAX_DRAWS)} frames`);
+        }
+
+        await nextFrame();
+        if (ticks.drawn !== lastDraw) {
+            lastDraw = ticks.drawn;
+            restedSince = ticks.rested;
+        }
+    }
+}
+
+/**
+ * What the element did with some of its render loop's chances to draw.
+ * @param element - The element.
+ * @param chances - How many ticks that could draw to wait for.
+ * @returns How many of them drew a frame and how many rested.
+ */
+async function ticksAcross(element: Graphty, chances: number): Promise<{ drawn: number; rested: number }> {
+    const ticks = loopTicks(element);
+    const { drawn, rested } = ticks;
+    while (ticks.drawn - drawn + (ticks.rested - rested) < chances) {
         await nextFrame();
     }
 
-    return draws.count();
+    return { drawn: ticks.drawn - drawn, rested: ticks.rested - rested };
 }
 
 /**
@@ -169,8 +183,10 @@ describe("renderOnDemand", () => {
 
         assert.isFalse(element.renderOnDemand);
         // Long enough for the same graph drawing on demand to have come to rest.
-        await drawsAcross(element, SETTLING_FRAMES);
-        assert.isAtLeast(await drawsAcross(element, RESTING_FRAMES), EVERY_FRAME, "the still graph is drawn again");
+        await ticksAcross(element, SETTLING_TICKS);
+        const drawing = await ticksAcross(element, RESTING_TICKS);
+        assert.strictEqual(drawing.rested, 0, "the still graph is drawn again at every chance");
+        assert.isAtLeast(drawing.drawn, RESTING_TICKS, "it drew at every chance it had");
     });
 
     it("stops drawing a still graph", async () => {
@@ -178,7 +194,9 @@ describe("renderOnDemand", () => {
 
         assert.isTrue(element.renderOnDemand);
         await restsOnTheCurrentPicture(element);
-        assert.strictEqual(await drawsAcross(element, RESTING_FRAMES), 0, "a resting graph draws nothing");
+        const resting = await ticksAcross(element, RESTING_TICKS);
+        assert.strictEqual(resting.drawn, 0, "a resting graph draws nothing");
+        assert.isAtLeast(resting.rested, RESTING_TICKS, "at every chance it had to draw");
     });
 
     it("draws while the reader turns the camera, then rests again", async () => {
@@ -241,6 +259,164 @@ describe("renderOnDemand", () => {
         assert.isAbove(draws.count(), 0, "the new size was drawn");
     });
 
+    it("draws again after a resize that ends at the size it rested at", async () => {
+        const element = await mounted(true);
+        await untilResting(element);
+        const { canvas, engine } = element.graph;
+        const width = engine.getRenderWidth();
+        const draws = countDraws(element);
+
+        // What a page that shrinks the window to 1 x 1 and restores it before the loop's next
+        // tick does: the element's ResizeObserver resizes the engine at each size, and assigning
+        // the canvas's width clears its drawing even when the size ends where it was. Driven
+        // through the engine because a ResizeObserver cannot be made to report both sizes
+        // between two of the loop's ticks.
+        element.style.width = "1px";
+        engine.resize();
+        element.style.width = `${String(WIDTH)}px`;
+        engine.resize();
+        assert.strictEqual(engine.getRenderWidth(), width, "the canvas is back at its size");
+
+        await restsOnTheCurrentPicture(element);
+        assert.isAbove(draws.count(), 0, "the cleared canvas was drawn again");
+        const copy = document.createElement("canvas");
+        copy.width = canvas.width;
+        copy.height = canvas.height;
+        const context = copy.getContext("2d");
+        assert.isNotNull(context);
+        context.drawImage(canvas, 0, 0);
+        const pixels = context.getImageData(0, 0, copy.width, copy.height).data;
+        assert.isTrue(
+            pixels.some((value, i) => i % 4 === 3 && value !== 0),
+            "the canvas is not empty",
+        );
+    });
+
+    for (const onDemand of [true, false]) {
+        it(`holds a drawn graph in the frame a resize is painted in (renderOnDemand ${String(onDemand)})`, async () => {
+            const element = await mounted(onDemand);
+            if (onDemand) {
+                await untilResting(element);
+            }
+
+            const { canvas } = element.graph;
+            // Created after the element's own ResizeObserver, so the browser delivers the same
+            // size change to it right after the element's, in the same rendering step, before
+            // that step paints and before any animation frame can draw: the drawing buffer read
+            // here is exactly what the page shows for the resize (and what a full-page
+            // screenshot, which resizes the page, captures).
+            const height = HEIGHT + 100;
+            const painted = new Promise<boolean>((resolve) => {
+                const observer = new ResizeObserver(([entry]) => {
+                    // The first delivery observes the size the element already had.
+                    if (entry.contentRect.height !== height) {
+                        return;
+                    }
+
+                    observer.disconnect();
+                    const copy = document.createElement("canvas");
+                    copy.width = canvas.width;
+                    copy.height = canvas.height;
+                    const context = copy.getContext("2d");
+                    assert.isNotNull(context);
+                    context.drawImage(canvas, 0, 0);
+                    const pixels = context.getImageData(0, 0, copy.width, copy.height).data;
+                    resolve(pixels.some((value, i) => i % 4 === 3 && value !== 0));
+                });
+                observer.observe(element);
+                cleanups.push(() => {
+                    observer.disconnect();
+                });
+            });
+            element.style.height = `${String(height)}px`;
+
+            assert.isTrue(await painted, "the canvas holds a frame, not the buffer the resize cleared");
+        });
+    }
+
+    // A full-page screenshot on a software GPU (#3704): the screenshot shrinks the page and
+    // restores it in two quick steps while the GPU is still drawing an earlier frame. The second
+    // resize clears the canvas again, and the frame the screenshot caught was empty.
+    describe("while the GPU is still drawing an earlier frame", () => {
+        /**
+         * Holds the element's GPU behind for the rest of the test, as a software GPU under load
+         * is: what the fence of the last frame says cannot be made slow on purpose.
+         * @param element - The element.
+         */
+        function gpuStaysBehind(element: Graphty): void {
+            const manager = (element.graph as unknown as { renderManager: { gpuBehind: () => boolean } }).renderManager;
+            const spy = vi.spyOn(manager, "gpuBehind").mockReturnValue(true);
+            cleanups.push(() => {
+                spy.mockRestore();
+            });
+        }
+
+        /**
+         * Whether the canvas's drawing buffer holds a frame rather than the empty buffer a resize
+         * leaves.
+         * @param canvas - The element's canvas.
+         * @returns True when any pixel is drawn.
+         */
+        function holdsAFrame(canvas: HTMLCanvasElement): boolean {
+            const copy = document.createElement("canvas");
+            copy.width = canvas.width;
+            copy.height = canvas.height;
+            const context = copy.getContext("2d");
+            assert.isNotNull(context);
+            context.drawImage(canvas, 0, 0);
+            return context
+                .getImageData(0, 0, copy.width, copy.height)
+                .data.some((value, i) => i % 4 === 3 && value !== 0);
+        }
+
+        it("holds a drawn graph in the frame of each of two resizes in a row", async () => {
+            const element = await mounted(true);
+            await untilResting(element);
+            gpuStaysBehind(element);
+            const { canvas } = element.graph;
+
+            // Each size is read in the rendering step its resize is painted in, by an observer
+            // created after the element's, so the element has resized (and drawn) first.
+            for (const height of [HEIGHT - 100, HEIGHT]) {
+                const painted = new Promise<boolean>((resolve) => {
+                    const observer = new ResizeObserver(([entry]) => {
+                        if (entry.contentRect.height !== height) {
+                            return;
+                        }
+
+                        observer.disconnect();
+                        resolve(holdsAFrame(canvas));
+                    });
+                    observer.observe(element);
+                    cleanups.push(() => {
+                        observer.disconnect();
+                    });
+                });
+                element.style.height = `${String(height)}px`;
+
+                assert.isTrue(await painted, `the canvas holds a frame at height ${String(height)}`);
+                // The next size in the next rendering step, as the screenshot's restore comes.
+                await nextFrame();
+            }
+        });
+
+        it("holds a drawn graph after a resize the window's resize event makes", async () => {
+            const element = await mounted(true);
+            await untilResting(element);
+            gpuStaysBehind(element);
+            const { canvas, engine } = element.graph;
+            const width = engine.getRenderWidth();
+
+            // The window's resize event can reach the element before its ResizeObserver does,
+            // and then it is the call that assigns the new size.
+            element.style.width = `${String(WIDTH + 100)}px`;
+            globalThis.dispatchEvent(new Event("resize"));
+
+            assert.isAbove(engine.getRenderWidth(), width, "the window's resize event resized the canvas");
+            assert.isTrue(holdsAFrame(canvas), "the canvas holds a frame, not the buffer the resize cleared");
+        });
+    });
+
     it("draws a style change and still reaches a stable frame", async () => {
         const element = await mounted(true);
         await untilResting(element);
@@ -281,6 +457,68 @@ describe("renderOnDemand", () => {
         assert.isAbove(draws.count(), 0, "the added mesh was drawn");
     });
 
+    it("draws a mesh added ready to draw in one frame, not again to check it", async () => {
+        const element = await mounted(true);
+        MeshBuilder.CreateBox("first-box", { size: 1 }, element.graph.scene);
+        await untilResting(element);
+        const before = loopTicks(element).drawn;
+
+        // Its shader is the first box's, already compiled: the frame that adds it draws it whole.
+        MeshBuilder.CreateBox("second-box", { size: 2 }, element.graph.scene);
+        await untilResting(element);
+        assert.strictEqual(loopTicks(element).drawn - before, 1, "one frame for the added mesh");
+        await restsOnTheCurrentPicture(element);
+    });
+
+    // A frame drawn again only to check that the one before left nothing moving costs a software
+    // GPU 200 to 800 ms of the page's main thread under load, and a reader's click waits behind it
+    // (#3537). A change made outside a frame is drawn by one frame.
+    it("draws a resize in one frame, not again to check it", async () => {
+        const element = await mounted(true);
+        await untilResting(element);
+        const before = loopTicks(element).drawn;
+
+        element.style.height = `${String(HEIGHT - 60)}px`;
+        await untilResting(element);
+        assert.strictEqual(loopTicks(element).drawn - before, 1, "one frame for the new size");
+        await restsOnTheCurrentPicture(element);
+    });
+
+    it("draws a camera moved through the API in one frame, not again to check it", async () => {
+        const element = await mounted(true);
+        await untilResting(element);
+        const before = loopTicks(element).drawn;
+
+        await element.setCameraState({ position: { x: 0, y: 0, z: 40 }, target: { x: 0, y: 0, z: 0 } });
+        await untilResting(element);
+        assert.strictEqual(loopTicks(element).drawn - before, 1, "one frame for the moved camera");
+        await restsOnTheCurrentPicture(element);
+    });
+
+    it("keeps drawing a camera that something moves inside each frame, until it stops", async () => {
+        const element = await mounted(true);
+        await untilResting(element);
+        const { scene } = element.graph;
+        const camera = scene.activeCamera;
+        assert.isNotNull(camera);
+        const STEPS = 10;
+        let steps = 0;
+        // Moves the camera only while a frame is drawn, as an inertia applied in onBeforeRender
+        // does: no tick can see the move before the frame that makes it.
+        const observer = scene.onBeforeRenderObservable.add(() => {
+            if (steps < STEPS) {
+                steps++;
+                camera.position.z -= 1;
+            }
+        });
+        cleanups.push(() => {
+            scene.onBeforeRenderObservable.remove(observer);
+        });
+
+        await restsOnTheCurrentPicture(element);
+        assert.strictEqual(steps, STEPS, "every step of the move was drawn");
+    });
+
     it("draws a selection style set while resting", async () => {
         const element = await mounted(true);
         await click(element, at(element, "b"));
@@ -289,6 +527,73 @@ describe("renderOnDemand", () => {
         element.selectionStyle = { color: "#7CB342", scale: 2 };
         await restsOnTheCurrentPicture(element);
         assert.isAbove(restyled.count(), 0, "the new selection style was drawn");
+    });
+
+    // Each pass over project state asked for a frame, and on a software GPU under load each frame
+    // costs the page 200 to 800 ms of its main thread: designating a time field and picking a step
+    // drew two frames of a picture neither changes (#4196).
+    it("draws no frame for a time field or a playback setting, which change no picture", async () => {
+        const element = await mounted(true);
+        await element.session.data.addNodes([{ id: "d", t: 2, position: { x: 0, y: -3, z: 0 } }]);
+        await untilResting(element);
+        const before = loopTicks(element).drawn;
+
+        await element.session.time.setField({ nodes: { start: "t" } });
+        await element.session.time.setSettings({ step: 1, mode: "cumulative" });
+        await element.session.styles.settled();
+        await untilResting(element);
+
+        assert.strictEqual(loopTicks(element).drawn - before, 0, "no frame for a setting that draws nothing");
+        await restsOnTheCurrentPicture(element);
+    });
+
+    // Ignoring a data issue writes only the issue state, which draws nothing, yet its pass drew a
+    // whole frame: on the airline sample each one cost 2.4 s of a software GPU (#3973).
+    it("draws no frame for ignoring a data issue, and one for the change after it", async () => {
+        const element = await mounted(true);
+        await element.session.data.import({ type: "csv", config: { data: "source,target\na,b\na,b\n" } });
+        await element.waitForStableFrame();
+        await untilResting(element);
+        const issues = element.session.data.issues();
+        assert.isNotEmpty(issues, "the repeated edge is an issue");
+        const before = loopTicks(element).drawn;
+
+        await element.session.data.ignoreIssues(issues);
+        await untilResting(element);
+        assert.strictEqual(loopTicks(element).drawn - before, 0, "no frame for the issue state");
+        assert.isEmpty(element.session.data.issues(), "the issue is ignored");
+
+        const { drawn } = loopTicks(element);
+        await element.session.styles.add({
+            name: "Red",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        await untilResting(element);
+        assert.isAtLeast(loopTicks(element).drawn - drawn, 1, "the style after it is drawn");
+        await restsOnTheCurrentPicture(element);
+    });
+
+    it("draws a time window and its ghosts, which a pass asks no frame for", async () => {
+        const element = await mounted(true);
+        await element.session.data.addNodes([
+            { id: "d", t: 1, position: { x: 0, y: -3, z: 0 } },
+            { id: "e", t: 5, position: { x: 3, y: -3, z: 0 } },
+        ]);
+        await element.session.time.setField({ nodes: { start: "t" } });
+        await untilResting(element);
+
+        const windowed = countDraws(element);
+        await element.session.time.window({ from: 0, to: 2 });
+        await restsOnTheCurrentPicture(element);
+        assert.isAbove(windowed.count(), 0, "the window was drawn");
+
+        const ghosted = countDraws(element);
+        await element.session.time.setSettings({ outside: "ghost" });
+        await element.session.styles.settled();
+        await restsOnTheCurrentPicture(element);
+        assert.isAbove(ghosted.count(), 0, "the ghosts were drawn");
     });
 
     it("draws a camera moved and animated through the API, then rests", async () => {
@@ -324,8 +629,10 @@ describe("renderOnDemand", () => {
                 set: animation.set,
             });
             // Past the frames any edit draws while it settles, only the animation is left asking.
-            await drawsAcross(element, SETTLING_FRAMES);
-            assert.isAtLeast(await drawsAcross(element, RESTING_FRAMES), EVERY_FRAME, "the animation is drawn");
+            await ticksAcross(element, SETTLING_TICKS);
+            const drawing = await ticksAcross(element, RESTING_TICKS);
+            assert.strictEqual(drawing.rested, 0, "the animation is drawn at every chance");
+            assert.isAtLeast(drawing.drawn, RESTING_TICKS, "it drew at every chance it had");
 
             await element.session.styles.remove(layer.id);
             await restsOnTheCurrentPicture(element);
@@ -342,6 +649,34 @@ describe("renderOnDemand", () => {
         await restsOnTheCurrentPicture(element);
     });
 
+    it("takes a see-through screenshot of a resting graph, at the size and quality asked for", async () => {
+        const element = await mounted(true, "2d");
+        await untilResting(element);
+        // The real canvas read, not test/setup.ts's stand-in picture.
+        const babylon = await vi.importActual<typeof import("@babylonjs/core")>("@babylonjs/core");
+        vi.mocked(CreateScreenshotAsync).mockImplementationOnce(babylon.CreateScreenshotAsync);
+
+        const shot = await element.captureScreenshot({
+            format: "webp",
+            quality: 0.5,
+            width: 320,
+            height: 240,
+            transparentBackground: true,
+        });
+
+        // Quality is the encoder's: it does not shrink the picture.
+        const picture = await createImageBitmap(shot.blob);
+        assert.strictEqual(picture.width, 320);
+        assert.strictEqual(picture.height, 240);
+        // The resting graph drew a frame with the background cleared, rather than handing back its
+        // last frame with the background in it.
+        const corner = new OffscreenCanvas(1, 1).getContext("2d");
+        assert.isNotNull(corner);
+        corner.drawImage(picture, 0, 0);
+        assert.strictEqual(corner.getImageData(0, 0, 1, 1).data[3], 0, "the corner is see-through");
+        await restsOnTheCurrentPicture(element);
+    });
+
     it("draws every frame of a video recording of a resting graph, and rests after it", async () => {
         const element = await mounted(true);
         await untilResting(element);
@@ -354,12 +689,46 @@ describe("renderOnDemand", () => {
         await restsOnTheCurrentPicture(element);
     });
 
+    it("rests a turning graph while its canvas is out of view, and draws it again in view", async () => {
+        // A graph below the fold kept drawing every turn of its camera nobody could see: on a
+        // software GPU the start page's hero cost the page about 160 ms a frame (#4426).
+        const element = await mounted(true);
+        const yaw = (): number => element.getCameraState().pivotRotation?.y ?? Number.NaN;
+        element.autoRotate = 1;
+        const inView = await ticksAcross(element, RESTING_TICKS);
+        assert.strictEqual(inView.rested, 0, "in view, the turning is drawn at every chance");
+
+        // Below the viewport, at the same size.
+        element.style.marginTop = "300vh";
+        await untilResting(element);
+        const before = yaw();
+        const outOfView = await ticksAcross(element, RESTING_TICKS);
+        assert.strictEqual(outOfView.drawn, 0, "out of view, the turning draws nothing");
+        assert.notStrictEqual(yaw(), before, "the camera kept turning");
+
+        element.style.marginTop = "";
+        const draws = countDraws(element);
+        const back = loopTicks(element).rested;
+        while (draws.count() === 0) {
+            if (loopTicks(element).rested - back > MAX_DRAWS) {
+                throw new Error("the turning graph was not drawn again back in view");
+            }
+
+            await nextFrame();
+        }
+
+        element.autoRotate = 0;
+        await restsOnTheCurrentPicture(element);
+    });
+
     it("switched off, draws every frame again", async () => {
         const element = await mounted(true);
         await untilResting(element);
 
         element.renderOnDemand = false;
 
-        assert.isAtLeast(await drawsAcross(element, RESTING_FRAMES), EVERY_FRAME, "the still graph is drawn again");
+        const drawing = await ticksAcross(element, RESTING_TICKS);
+        assert.strictEqual(drawing.rested, 0, "the still graph is drawn again at every chance");
+        assert.isAtLeast(drawing.drawn, RESTING_TICKS, "it drew at every chance it had");
     });
 });

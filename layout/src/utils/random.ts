@@ -3,15 +3,17 @@
  * Maintains exact same functionality as original implementation
  */
 
+import type { NestedNumbers } from "./numpy.js";
+
 /**
  * A deterministic random number generator based on a linear congruential generator (LCG) algorithm.
  * Provides consistent random sequences when initialized with the same seed.
  */
 export class RandomNumberGenerator {
-    private seed: number;
-    private m: number;
-    private a: number;
-    private c: number;
+    readonly seed: number;
+    private readonly m: number;
+    private readonly a: number;
+    private readonly c: number;
     private _state: number;
 
     /**
@@ -40,7 +42,7 @@ export class RandomNumberGenerator {
      * @param shape - Determines the output format: null for single number, number for 1D array, array for multi-dimensional array.
      * @returns A random number, 1D array, or multi-dimensional array depending on the shape parameter.
      */
-    rand(shape: number | number[] | null = null): number | number[] | number[][] {
+    rand(shape: number | number[] | null = null): NestedNumbers {
         if (shape === null) {
             return this._next();
         }
@@ -61,10 +63,10 @@ export class RandomNumberGenerator {
             return result;
         }
 
-        const result: (number | number[] | number[][])[] = [];
+        const result: NestedNumbers[] = [];
         for (let i = 0; i < shape[0]; i++) {
             result.push(this.rand(shape.slice(1)));
         }
-        return result as number[][];
+        return result;
     }
 }

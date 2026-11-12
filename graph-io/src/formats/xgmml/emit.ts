@@ -14,7 +14,9 @@ import { throwIfAborted } from "../../common/input.js";
 import { type ResolvedImportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { type ImportReportBuilder, type IssueLocation } from "../../common/report.js";
+import { itemAt } from "../../common/text.js";
 import { parseWeightText } from "../../common/weights.js";
+import { flipY } from "../../positions/convert.js";
 import { ColumnSet } from "./columns.js";
 import {
     CYTOSCAPE_ORIGIN_NAMESPACE,
@@ -208,6 +210,16 @@ function localRef(href: string): string | null {
 }
 
 /**
+ * The id a member names: its own id, else the id its local `#id` reference names.
+ * @param id - the member's id attribute, or null
+ * @param href - the member's xlink:href, or null
+ * @returns the id, or null when neither names one
+ */
+function memberRef(id: string | null, href: string | null): string | null {
+    return id ?? (href === null ? null : localRef(href));
+}
+
+/**
  * The nodes and edges a graph holds: its direct members, references resolved.
  * @param doc - the document
  * @param graph - the graph (a registered subnetwork), or null for the whole document
@@ -227,19 +239,7 @@ export function membersOf(
     const edges: EdgeRec[] = [];
     let dangling = 0;
     for (const member of graph.members) {
-        if (member.href === null) {
-            if (member.kind === "node") {
-                nodes.push(member);
-            } else {
-                edges.push(member);
-            }
-            continue;
-        }
-        const id = localRef(member.href);
-        let target: NodeRec | EdgeRec | undefined;
-        if (id !== null) {
-            target = member.kind === "node" ? nodeById.get(id) : edgeById.get(id);
-        }
+        const target = resolveMember(member, nodeById, edgeById);
         if (target === undefined) {
             dangling++;
         } else if (target.kind === "node") {
@@ -249,6 +249,29 @@ export function membersOf(
         }
     }
     return { nodes, edges, dangling };
+}
+
+/**
+ * The record a graph member stands for: itself when declared in place, else the node or edge its
+ * local `#id` reference names.
+ * @param member - the member
+ * @param nodeById - the first node declaration of each id
+ * @param edgeById - the first edge declaration of each id
+ * @returns the record, or undefined for a cross-file, malformed or dangling reference
+ */
+function resolveMember(
+    member: NodeRec | EdgeRec,
+    nodeById: ReadonlyMap<string, NodeRec>,
+    edgeById: ReadonlyMap<string, EdgeRec>,
+): NodeRec | EdgeRec | undefined {
+    if (member.href === null) {
+        return member;
+    }
+    const id = localRef(member.href);
+    if (id === null) {
+        return undefined;
+    }
+    return member.kind === "node" ? nodeById.get(id) : edgeById.get(id);
 }
 
 /**
@@ -264,6 +287,42 @@ function indexById<T extends NodeRec | EdgeRec>(records: readonly T[]): Map<stri
         }
     }
     return out;
+}
+
+/**
+ * Whether an edge repeats one already seen, remembering it otherwise: a repeat has the same id,
+ * or without one the same label and endpoints.
+ * @param seen - the keys seen so far, or null when repeats are kept
+ * @param record - the edge
+ * @returns true for a repeat
+ */
+function isRepeat(seen: Set<string> | null, record: EdgeRec): boolean {
+    if (seen === null) {
+        return false;
+    }
+    const key =
+        record.id ?? (record.label === null ? null : JSON.stringify([record.label, record.source, record.target]));
+    if (key === null) {
+        return false;
+    }
+    if (seen.has(key)) {
+        return true;
+    }
+    seen.add(key);
+    return false;
+}
+
+/**
+ * Whether a graph's att is one of its values: not RDF metadata, not the unnamed holder of a
+ * nested graph.
+ * @param att - the att
+ * @returns true to write it to the graph table
+ */
+function isGraphValueAtt(att: AttRec): boolean {
+    if (att.name !== null && META_ATTS.has(att.name)) {
+        return false;
+    }
+    return !(att.hasGraph && att.name === null);
 }
 
 /** Per-node state while emitting. */
@@ -391,7 +450,7 @@ export class XgmmlEmitter {
         }
         const containment = new Containment(this);
         containment.resolve(this.rowList, this.groupTest());
-        this.writeNodeExtras(graph);
+        this.writeNodeExtras(graph, (index) => containment.parentsOf(index));
         this.addEdges(members.edges, header);
         this.finishAliases();
         this.writeGraph(graph);
@@ -584,12 +643,16 @@ export class XgmmlEmitter {
         }
         const lower = t.toLowerCase();
         const readable = lower === "true" || lower === "yes" || lower === "false" || lower === "no";
+        let readAs: string;
+        if (readable) {
+            readAs = lower === "true" || lower === "yes" ? "1" : "0";
+        } else {
+            readAs = fallback ? "directed" : "undirected";
+        }
         this.report.warnOnce(
             "validation-error",
             XGMML_ISSUE.BAD_DIRECTED,
-            readable
-                ? `${this.prefix()}directed="${text}" is not 0 or 1; read as ${lower === "true" || lower === "yes" ? "1" : "0"}`
-                : `${this.prefix()}directed="${text}" is not 0 or 1; read as ${fallback ? "directed" : "undirected"}`,
+            `${this.prefix()}directed="${text}" is not 0 or 1; read as ${readAs}`,
             where,
             `${XGMML_ISSUE.BAD_DIRECTED}:${text}`,
         );
@@ -717,16 +780,7 @@ export class XgmmlEmitter {
             if (graph.owner !== null && isGroup(graph.owner)) {
                 continue;
             }
-            for (const member of graph.members) {
-                if (member.href === null) {
-                    continue;
-                }
-                const id = localRef(member.href);
-                const known = id !== null && (member.kind === "node" ? this.rows.has(id) : edgeIds.has(id));
-                if (!known) {
-                    dangling++;
-                }
-            }
+            dangling += this.danglingReferences(graph, edgeIds);
         }
         if (dangling > 0) {
             this.report.warning(
@@ -738,11 +792,33 @@ export class XgmmlEmitter {
     }
 
     /**
+     * How many `xlink:href` members of a graph name no node or edge of the document.
+     * @param graph - the graph
+     * @param edgeIds - the id of every edge
+     * @returns the count
+     */
+    private danglingReferences(graph: GraphRec, edgeIds: ReadonlySet<string | null>): number {
+        let dangling = 0;
+        for (const member of graph.members) {
+            if (member.href === null) {
+                continue;
+            }
+            const id = localRef(member.href);
+            const known = id !== null && (member.kind === "node" ? this.rows.has(id) : edgeIds.has(id));
+            if (!known) {
+                dangling++;
+            }
+        }
+        return dangling;
+    }
+
+    /**
      * Write the per-node values: label, attributes, XML attributes, graphics, positions, nested
      * network pointers and subgraph memberships.
      * @param graph - the subnetwork, or null
+     * @param parentsOf - each node's group nodes, by node index
      */
-    private writeNodeExtras(graph: GraphRec | null): void {
+    private writeNodeExtras(graph: GraphRec | null, parentsOf: (index: number) => readonly number[]): void {
         const labels: (string | undefined)[] = [];
         const positions = new Positions(this, this.dialect.cytoscape ? this.settings.zAs : "position");
         const graphics = new JsonColumn(this, "node", GRAPHICS_COLUMN, XGMML_ORIGIN_NAMESPACE, "graphics");
@@ -766,7 +842,7 @@ export class XgmmlEmitter {
             this.checkAbort();
         }
         this.writeLabels("node", labels, (row) => this.rowList[row].index);
-        positions.write();
+        positions.write(parentsOf);
         pointers.write();
         if (graph === null) {
             this.writeNetworks();
@@ -791,31 +867,20 @@ export class XgmmlEmitter {
     ): void {
         const merging = seen.size > 0;
         const names = new Set<string>();
-        if (record.name !== null) {
-            if (!(merging && seen.has("name"))) {
-                columns.addText(row, "name", record.name, where);
-            }
-            names.add("name");
-        }
-        for (const [key, value] of record.xmlAttrs) {
+        const addText = (key: string, value: string): void => {
             if (!(merging && seen.has(key))) {
                 columns.addText(row, key, value, where);
             }
             names.add(key);
+        };
+        if (record.name !== null) {
+            addText("name", record.name);
+        }
+        for (const [key, value] of record.xmlAttrs) {
+            addText(key, value);
         }
         for (const att of record.atts) {
-            if (
-                this.skipAtt(record, att) ||
-                (this.nameLabel[record.kind] && isNameAtt(att)) ||
-                (merging && att.name !== null && seen.has(att.name))
-            ) {
-                continue;
-            }
-            if (record.kind === "node" && att.name === "__isGroup" && record.nested.length > 0 && isCyTrue(att.value)) {
-                // the group is the containment itself (parent / parents and xgmml.subgraph)
-                continue;
-            }
-            if (att.hasGraph && att.name === null) {
+            if (!this.isAttColumn(record, att, merging, seen)) {
                 continue;
             }
             columns.addAtt(row, att, where);
@@ -826,6 +891,29 @@ export class XgmmlEmitter {
         for (const name of names) {
             seen.add(name);
         }
+    }
+
+    /**
+     * Whether an element's att becomes a column (skipAtt may warn, so it is tested first).
+     * @param record - the node or edge
+     * @param att - the att
+     * @param merging - whether an earlier declaration of the same node set names
+     * @param seen - the names set by earlier declarations
+     * @returns true to add the att as a column
+     */
+    private isAttColumn(record: NodeRec | EdgeRec, att: AttRec, merging: boolean, seen: Set<string>): boolean {
+        if (
+            this.skipAtt(record, att) ||
+            (this.nameLabel[record.kind] && isNameAtt(att)) ||
+            (merging && att.name !== null && seen.has(att.name))
+        ) {
+            return false;
+        }
+        if (record.kind === "node" && att.name === "__isGroup" && record.nested.length > 0 && isCyTrue(att.value)) {
+            // the group is the containment itself (parent / parents and xgmml.subgraph)
+            return false;
+        }
+        return !(att.hasGraph && att.name === null);
     }
 
     /**
@@ -887,17 +975,17 @@ export class XgmmlEmitter {
         });
     }
 
-    /** The `xgmml.networks` membership of nodes in root-level subgraphs of a generic document. */
-    private writeNetworks(): void {
-        const { subgraphs } = this.doc.root;
-        if (subgraphs.length === 0) {
-            return;
-        }
+    /**
+     * The names of the subgraphs each node row is a member of.
+     * @param subgraphs - the root-level subgraphs
+     * @returns the subgraph names by node row index
+     */
+    private networkMembership(subgraphs: readonly GraphRec[]): Map<number, string[]> {
         const member = new Map<number, string[]>();
         for (const graph of subgraphs) {
             const name = graph.id ?? graph.label ?? "";
             for (const m of graph.members) {
-                const id = m.kind === "node" ? (m.id ?? (m.href === null ? null : localRef(m.href))) : null;
+                const id = m.kind === "node" ? memberRef(m.id, m.href) : null;
                 const row = id === null ? undefined : this.rows.get(id);
                 if (row !== undefined && row.index >= 0) {
                     const list = member.get(row.index) ?? [];
@@ -906,6 +994,16 @@ export class XgmmlEmitter {
                 }
             }
         }
+        return member;
+    }
+
+    /** The `xgmml.networks` membership of nodes in root-level subgraphs of a generic document. */
+    private writeNetworks(): void {
+        const { subgraphs } = this.doc.root;
+        if (subgraphs.length === 0) {
+            return;
+        }
+        const member = this.networkMembership(subgraphs);
         if (member.size === 0) {
             return;
         }
@@ -942,17 +1040,10 @@ export class XgmmlEmitter {
         this.decideNameLabel("edge", records);
         for (const record of records) {
             const where = { line: record.line, element: record.id ?? record.label };
-            // a repeat has the same id, or without one the same label and endpoints
-            const key =
-                record.id ??
-                (record.label === null ? null : JSON.stringify([record.label, record.source, record.target]));
-            if (dedupe !== null && key !== null) {
-                if (dedupe.has(key)) {
-                    repeats++;
-                    firstRepeat ??= where;
-                    continue;
-                }
-                dedupe.add(key);
+            if (isRepeat(dedupe, record)) {
+                repeats++;
+                firstRepeat ??= where;
+                continue;
             }
             const index = this.addEdge(record, header, ids, where);
             this.checkAbort();
@@ -1192,7 +1283,7 @@ export class XgmmlEmitter {
             return;
         }
         ids.forEach((id, row) => {
-            const e = this.edgeIndex[row];
+            const e = itemAt(this.edgeIndex, row);
             if (id !== undefined && e !== undefined) {
                 try {
                     this.sink.setEdgeValue(handle, e, id);
@@ -1220,16 +1311,12 @@ export class XgmmlEmitter {
             }
         }
         for (const att of g.atts) {
-            if (att.name !== null && META_ATTS.has(att.name)) {
-                continue;
+            if (isGraphValueAtt(att)) {
+                this.graphColumns.addAtt(0, att, where);
             }
-            if (att.hasGraph && att.name === null) {
-                continue;
-            }
-            this.graphColumns.addAtt(0, att, where);
         }
         this.graphColumns.write(this.sink, () => 0);
-        const json: Record<string, unknown> = { ...(this.extras.graphJson ?? {}) };
+        const json: Record<string, unknown> = { ...this.extras.graphJson };
         if (g.graphics !== null && Object.keys(g.graphics).length > 0) {
             json[GRAPHICS_COLUMN] = g.graphics;
         }
@@ -1250,12 +1337,12 @@ export class XgmmlEmitter {
      */
     private writeMeta(graph: GraphRec | null): void {
         const g = graph ?? this.doc.root;
-        const { rdf } = this.doc;
-        const name = this.extras.graphName ?? g.label ?? rdf.title ?? g.id ?? undefined;
+        const metadata: Partial<Record<string, string>> = this.doc.rdf;
+        const name = this.extras.graphName ?? g.label ?? metadata.title ?? g.id ?? undefined;
         this.sink.setMeta({
             name: name ?? undefined,
-            description: rdf.description ?? undefined,
-            created: rdf.date ?? undefined,
+            description: metadata.description ?? undefined,
+            created: metadata.date ?? undefined,
             sourceFormat: this.extras.sourceFormat ?? FORMAT,
             sourceVersion: this.dialect.versionText ?? undefined,
             weightOrigin: this.weighted
@@ -1265,9 +1352,9 @@ export class XgmmlEmitter {
                 [META_KEY]: {
                     graphId: g.id,
                     directed: this.doc.root.attrs.get("directed") ?? null,
-                    rdf: Object.keys(rdf).length > 0 ? { ...rdf } : null,
+                    rdf: Object.keys(metadata).length > 0 ? { ...metadata } : null,
                 },
-                ...(this.extras.metaExtra ?? {}),
+                ...this.extras.metaExtra,
             },
         });
     }
@@ -1347,10 +1434,15 @@ class JsonColumn {
             return;
         }
         const sink = this.emitter.target;
-        if (this.domain === "node") {
-            sink.setNodeValue(this.handle, index, value);
-        } else {
-            sink.setEdgeValue(this.handle, index, value);
+        try {
+            if (this.domain === "node") {
+                sink.setNodeValue(this.handle, index, value);
+            } else {
+                sink.setEdgeValue(this.handle, index, value);
+            }
+        } catch (err) {
+            // a value the sink refuses (graphics nested deeper than a json cell holds) leaves the cell unset
+            this.emitter.issues.recordError(err, { element: this.name });
         }
     }
 }
@@ -1361,6 +1453,9 @@ class JsonColumn {
  */
 class Positions {
     private readonly values = new Map<number, [number, number, number]>();
+
+    /** Cytoscape's stored group locations by node index: per group network, a group's center or a member's offset. */
+    private readonly locations = new Map<number, Map<string, [number, number]>>();
 
     private readonly zValues = new Map<number, number>();
 
@@ -1382,6 +1477,12 @@ class Positions {
      * @param record - the record
      */
     add(row: NodeRow, record: NodeRec): void {
+        // a member stores its offset in its own atts, a group its center in its nested graph's
+        const locations =
+            row.index < 0 ? null : groupLocations([...record.atts, ...record.nested.flatMap((g) => g.atts)]);
+        if (locations !== null) {
+            this.locations.set(row.index, locations);
+        }
         if (row.index < 0 || (record.x === null && record.y === null && record.z === null)) {
             return;
         }
@@ -1396,8 +1497,7 @@ class Positions {
             }
         }
         if (x !== null && y !== null) {
-            const flipped = y === 0 ? 0 : -y;
-            this.values.set(row.index, [x, flipped, this.zAs === "position" ? (z ?? 0) : 0]);
+            this.values.set(row.index, [x, flipY(y), this.zAs === "position" ? (z ?? 0) : 0]);
         }
     }
 
@@ -1424,8 +1524,34 @@ class Positions {
         return n;
     }
 
-    /** Declare and write the position and z columns. */
-    write(): void {
+    /**
+     * Places the members of a collapsed Cytoscape group, which the file stores with no coordinates of their own, where
+     * Cytoscape puts them when the group is expanded: the group's stored center in that group network plus the
+     * member's stored offset (`__xLocation`, `__yLocation`, per `__groupNetworks.SUID`).
+     * @param parentsOf - each node's group nodes, by node index
+     */
+    private followGroups(parentsOf: (index: number) => readonly number[]): void {
+        for (const [index, own] of this.locations) {
+            if (this.values.has(index)) {
+                continue;
+            }
+            const at = parentsOf(index)
+                .flatMap((p) =>
+                    [...own].map(([network, [dx, dy]]) => ({ center: this.locations.get(p)?.get(network), dx, dy })),
+                )
+                .find((c) => c.center !== undefined);
+            if (at?.center !== undefined) {
+                this.values.set(index, [at.center[0] + at.dx, flipY(at.center[1] + at.dy), 0]);
+            }
+        }
+    }
+
+    /**
+     * Declare and write the position and z columns.
+     * @param parentsOf - each node's group nodes, by node index
+     */
+    write(parentsOf: (index: number) => readonly number[]): void {
+        this.followGroups(parentsOf);
         const sink = this.emitter.target;
         if (this.values.size > 0) {
             const handle = this.emitter.declare("node", {
@@ -1463,6 +1589,29 @@ class Positions {
             }
         }
     }
+}
+
+/**
+ * A node's stored Cytoscape group locations: `__xLocation` and `__yLocation` lists, item by item, keyed by the group
+ * network `__groupNetworks.SUID` names at the same index.
+ * @param atts - the node's atts
+ * @returns network to location, or null when the node stores none
+ */
+function groupLocations(atts: readonly AttRec[]): Map<string, [number, number]> | null {
+    const list = (name: string): (string | null)[] =>
+        atts.find((a) => a.name === name)?.children.map((c) => c.value) ?? [];
+    const networks = list("__groupNetworks.SUID");
+    const xs = list("__xLocation");
+    const ys = list("__yLocation");
+    const out = new Map<string, [number, number]>();
+    networks.forEach((network, i) => {
+        const x = Number(xs[i] ?? Number.NaN);
+        const y = Number(ys[i] ?? Number.NaN);
+        if (network !== null && Number.isFinite(x) && Number.isFinite(y)) {
+            out.set(network, [x, y]);
+        }
+    });
+    return out.size > 0 ? out : null;
 }
 
 /**
@@ -1591,30 +1740,7 @@ class Containment {
                     continue;
                 }
                 for (const graph of record.nested) {
-                    const atts = graph.atts.filter((a) => a.name !== null);
-                    if (graph.id !== null || graph.label !== null || atts.length > 0) {
-                        this.subgraphs.set(row.index, {
-                            id: graph.id,
-                            label: graph.label,
-                            atts: Object.fromEntries(atts.map((a) => [a.name, attJson(a)])),
-                        });
-                    }
-                    for (const member of graph.members) {
-                        if (member.kind !== "node") {
-                            continue;
-                        }
-                        const id = member.id ?? (member.href === null ? null : localRef(member.href));
-                        const child = id === null ? undefined : this.emitter.rowOf(id);
-                        if (child === undefined) {
-                            if (id === null || !this.emitter.missingMember(row.id, id)) {
-                                unknown++;
-                            }
-                            continue;
-                        }
-                        if (child.index >= 0) {
-                            this.link(child.index, row.index, member.line);
-                        }
-                    }
+                    unknown += this.resolveGraph(row, graph);
                 }
             }
         }
@@ -1625,6 +1751,41 @@ class Containment {
                 `${this.emitter.prefix()}${unknown} group member${plural(unknown)} ${agree(unknown, "names", "name")} no node of this graph`,
             );
         }
+    }
+
+    /**
+     * Record one nested graph of a group node: its subgraph value and its node members.
+     * @param row - the group node's row
+     * @param graph - the nested graph
+     * @returns the number of members that name no node of this graph
+     */
+    private resolveGraph(row: NodeRow, graph: GraphRec): number {
+        const atts = graph.atts.filter((a) => a.name !== null);
+        if (graph.id !== null || graph.label !== null || atts.length > 0) {
+            this.subgraphs.set(row.index, {
+                id: graph.id,
+                label: graph.label,
+                atts: Object.fromEntries(atts.map((a) => [a.name, attJson(a)])),
+            });
+        }
+        let unknown = 0;
+        for (const member of graph.members) {
+            if (member.kind !== "node") {
+                continue;
+            }
+            const id = member.id ?? (member.href === null ? null : localRef(member.href));
+            const child = id === null ? undefined : this.emitter.rowOf(id);
+            if (child === undefined) {
+                if (id === null || !this.emitter.missingMember(row.id, id)) {
+                    unknown++;
+                }
+                continue;
+            }
+            if (child.index >= 0) {
+                this.link(child.index, row.index, member.line);
+            }
+        }
+        return unknown;
     }
 
     /**
@@ -1674,31 +1835,47 @@ class Containment {
         return false;
     }
 
+    /**
+     * A node's group nodes.
+     * @param index - the node's index
+     * @returns the group nodes' indices
+     */
+    parentsOf(index: number): readonly number[] {
+        return this.parents.get(index) ?? [];
+    }
+
     /** Declare and write the parent (or parents) and subgraph columns. */
     write(): void {
-        const sink = this.emitter.target;
-        if (this.parents.size > 0) {
-            const multi = [...this.parents.values()].some((list) => list.length > 1);
-            const handle = this.emitter.declare("node", {
-                name: multi ? PARENTS_COLUMN : PARENT_COLUMN,
-                dtype: multi ? "list" : "u32",
-                itemDtype: multi ? "u32" : undefined,
-                role: multi ? "parents" : "parent",
-                refersTo: "node",
-                nullable: true,
-                origin: { format: FORMAT, id: null, title: null, type: "graph", namespace: null },
-            });
-            if (handle !== null) {
-                for (const [child, list] of this.parents) {
-                    sink.setNodeValue(handle, child, multi ? list : list[0]);
-                }
-            }
-        }
+        this.writeParents();
         if (this.subgraphs.size > 0) {
             const column = new JsonColumn(this.emitter, "node", SUBGRAPH_COLUMN, XGMML_ORIGIN_NAMESPACE, "graph");
             for (const [index, value] of this.subgraphs) {
                 column.set(index, value);
             }
+        }
+    }
+
+    /** Declare and write the parent (or parents) column. */
+    private writeParents(): void {
+        if (this.parents.size === 0) {
+            return;
+        }
+        const multi = [...this.parents.values()].some((list) => list.length > 1);
+        const shape = multi
+            ? ({ name: PARENTS_COLUMN, dtype: "list", itemDtype: "u32", role: "parents" } as const)
+            : ({ name: PARENT_COLUMN, dtype: "u32", itemDtype: undefined, role: "parent" } as const);
+        const handle = this.emitter.declare("node", {
+            ...shape,
+            refersTo: "node",
+            nullable: true,
+            origin: { format: FORMAT, id: null, title: null, type: "graph", namespace: null },
+        });
+        if (handle === null) {
+            return;
+        }
+        const sink = this.emitter.target;
+        for (const [child, list] of this.parents) {
+            sink.setNodeValue(handle, child, multi ? list : list[0]);
         }
     }
 }

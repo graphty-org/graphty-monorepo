@@ -183,12 +183,12 @@ const meta: Meta = {
             name: "layoutConfig.springLength",
         },
         ngraphSpringCoefficient: {
-            control: { type: "range", min: 0.0001, max: 0.01, step: 0.0001 },
+            control: { type: "range", min: 0.1, max: 2, step: 0.1 },
             table: { category: "NGraph Layout" },
             name: "layoutConfig.springCoefficient",
         },
         ngraphGravity: {
-            control: { type: "range", min: -10, max: 10, step: 0.1 },
+            control: { type: "range", min: -50, max: 0, step: 1 },
             table: { category: "NGraph Layout" },
             name: "layoutConfig.gravity",
         },
@@ -198,12 +198,12 @@ const meta: Meta = {
             name: "layoutConfig.theta",
         },
         ngraphDragCoefficient: {
-            control: { type: "range", min: 0.001, max: 0.1, step: 0.001 },
+            control: { type: "range", min: 0.05, max: 1, step: 0.05 },
             table: { category: "NGraph Layout" },
             name: "layoutConfig.dragCoefficient",
         },
         ngraphTimeStep: {
-            control: { type: "range", min: 1, max: 50, step: 1 },
+            control: { type: "range", min: 0.1, max: 2, step: 0.1 },
             table: { category: "NGraph Layout" },
             name: "layoutConfig.timeStep",
         },
@@ -241,12 +241,12 @@ export const ngraph: Story = {
         }),
         // Individual parameter args for controls
         ngraphSeed: 42,
-        // ngraphSpringLength: 30,
-        // ngraphSpringCoefficient: 0.0008,
-        // ngraphGravity: -1.2,
+        // ngraphSpringLength: 10,
+        // ngraphSpringCoefficient: 0.8,
+        // ngraphGravity: -12,
         // ngraphTheta: 0.8,
-        // ngraphDragCoefficient: 0.02,
-        // ngraphTimeStep: 20,
+        // ngraphDragCoefficient: 0.9,
+        // ngraphTimeStep: 0.5,
     },
     parameters: {
         controls: {
@@ -272,7 +272,7 @@ export const D3: Story = {
     args: {
         setup: storySetup({
             viewMode: "3d",
-            // D3 physics-based layout needs preSteps for Chromatic
+            // D3 physics-based layout needs preSteps for the visual capture
             preSteps: 15000,
         }),
         layout: "d3",
@@ -357,7 +357,7 @@ export const Random: Story = {
 export const Spring: Story = {
     args: {
         /*
-         * `preSteps` MATCHES `springIterations` BELOW, so under Chromatic the 50 iterations run
+         * `preSteps` MATCHES `springIterations` BELOW, so under capture the 50 iterations run
          * before the first frame is drawn, off the frame clock. Everywhere else the layout
          * animates, one iteration per rendered frame. The picture is the same either way:
          * Fruchterman-Reingold is deterministic under `seed` and stops at `iterations` whichever
@@ -426,7 +426,7 @@ export const ForceAtlas2: Story = {
             data: data3Url,
         },
         /*
-         * `preSteps` MATCHES `maxIter` BELOW, so under Chromatic the 500 iterations run before the
+         * `preSteps` MATCHES `maxIter` BELOW, so under capture the 500 iterations run before the
          * first frame. Everywhere else the layout animates, and a simulation computes
          * `stepMultiplier` iterations per RENDERED frame -- one, by default -- so 500 iterations
          * would be 500 frames: measured at 33 frames a second in the Storybook test browser, 15.1

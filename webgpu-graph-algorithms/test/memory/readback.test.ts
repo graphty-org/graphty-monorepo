@@ -315,13 +315,13 @@ describe("Readback", () => {
             await mapped;
             // the settle unmapped and freed the slot; the second slot is still borrowed
             expect(ring.borrowed).toBe(1);
-            expect(slot.buffer.mapState ?? "unmapped").toBe("unmapped");
+            expect((slot.buffer.mapState as GPUBufferMapState | undefined) ?? "unmapped").toBe("unmapped");
             const again = ring.borrowSlot(1024);
             expect(again).toBe(slot);
             await ring.mapSlot(again, 1024); // a fresh map on the returned slot works
             expect(new Uint32Array(again.buffer.getMappedRange(0, 1024))[3]).toBe(pattern(256, 5)[3]);
             ring.returnSlot(again);
-            expect(slot.buffer.mapState ?? "unmapped").toBe("unmapped");
+            expect((slot.buffer.mapState as GPUBufferMapState | undefined) ?? "unmapped").toBe("unmapped");
             ring.destroyAll();
             src.destroy();
             await ctx.allocator.check();

@@ -13,6 +13,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import { Graph } from "../../src/Graph";
 import type { Node } from "../../src/Node";
 import type { NodeDragHandler } from "../../src/NodeBehavior";
+import { assertPlaced } from "../helpers/placed-position";
 import { nextFrame } from "../helpers/real-input";
 
 /** How far the pointer moves the dragged node. */
@@ -123,6 +124,7 @@ function handler(node: Node): NodeDragHandler {
 function dragStart(graph: Graph): Node {
     const node = dragged(graph);
     const start = node.mesh.position.clone();
+    assertPlaced(start, "the dragged node");
     handler(node).onDragStart(start);
     handler(node).onDragUpdate(start.add(DELTA));
     return node;

@@ -1,0 +1,7 @@
+1 node [
+  {
+    method: 'GET',
+    url: 'https://example.com/api/people',
+    credential: true
+  }
+]

@@ -1,0 +1,148 @@
+[
+    {
+        "flow": "open-file",
+        "title": "Open my file, get a right drawing",
+        "screens": [
+            {
+                "file": "open-file-1-clean-file.html",
+                "caption": "A clean file opens on the Data page with its guessed roles as property rows, a view-only preview, and Load focused."
+            },
+            {
+                "file": "open-file-2-unsure-file.html",
+                "caption": "An unsure file marks only Name and Weight; the Name dropdown is open and the hovered choice lights its columns in the preview."
+            },
+            {
+                "file": "open-file-3-drawn.html",
+                "caption": "The graph is drawn with gene names, a counts chip on the canvas and one source row in the list beside it."
+            }
+        ]
+    },
+    {
+        "flow": "see-fix",
+        "title": "See what loaded, fix what is wrong",
+        "screens": [
+            {
+                "file": "see-fix-1-warnings.html",
+                "caption": "The Data page panel opens with summary rows, kind chips and a Warnings section, one row per kind of problem with its count and action."
+            },
+            {
+                "file": "see-fix-2-column-menu.html",
+                "caption": "Right-click a column row: Change type shows how many values convert and how many go blank before it applies."
+            }
+        ]
+    },
+    {
+        "flow": "filter",
+        "title": "Filter: show only what matches",
+        "screens": [
+            {
+                "file": "filter-1-entry-popover.html",
+                "caption": "Toolbar Filters opens a small popover over the canvas that starts with a column list; steps and sets stay on the Data page."
+            },
+            {
+                "file": "filter-2-one-condition.html",
+                "caption": "One condition row, padj < 0.05, with a live chip of 60 of 318 nodes and Show only or Highlight; the canvas previews it."
+            },
+            {
+                "file": "filter-3-filtered.html",
+                "caption": "Only the 60 matching nodes are drawn, the toolbar's Filters shows 1, the list beside the graph shows the filter, and the table shows 60 rows."
+            }
+        ]
+    },
+    {
+        "flow": "join",
+        "title": "Join a second file onto this graph",
+        "screens": [
+            {
+                "file": "join-1-join-prechosen.html",
+                "caption": "A second file dropped on the graph opens the Data page with Join pre-chosen: the match row, match chips, a +4 ignoring case row and the columns it adds."
+            },
+            {
+                "file": "join-2-join-menu.html",
+                "caption": "The Join button's menu holds the rarer choices: Add as new nodes and edges, Open as a separate graph, Replace data."
+            },
+            {
+                "file": "join-3-joined.html",
+                "caption": "After the join: two sources, the join as a row, the new columns with a joined icon, and a warning for the 6 nodes without a value."
+            }
+        ]
+    },
+    {
+        "flow": "replace",
+        "title": "Replace with a newer copy, keep my work",
+        "screens": [
+            {
+                "file": "replace-1-source-menu.html",
+                "caption": "Right-click a source row: Replace file... and, for a source read from a web address, Refresh from source."
+            },
+            {
+                "file": "replace-2-confirm-popover.html",
+                "caption": "Replace asks first in a popover from the source row: the new file, change chips, a column that no longer exists, and Keep checkboxes that start on."
+            },
+            {
+                "file": "replace-3-replaced.html",
+                "caption": "October's data with September's styles: change chips on the source rows, one warning row for the style that lost its column, and Undo."
+            }
+        ]
+    },
+    {
+        "flow": "export",
+        "title": "Export the filtered numbers (common Export)",
+        "screens": [
+            {
+                "file": "export-1-export-dialog.html",
+                "caption": "The app's one Export dialog on Data: CSV, the node table, and a Rows dropdown with All, Filtered 60 of 318 and Selection."
+            }
+        ]
+    },
+    {
+        "flow": "event-table",
+        "title": "One event table, several kinds of node",
+        "screens": [
+            {
+                "file": "event-table-1-nodes-from-columns.html",
+                "caption": "One event table: the Nodes section lists each column used as a kind of node with its count, the Edges section pairs them, and repeats are combined by count."
+            },
+            {
+                "file": "event-table-2-drawn-kinds.html",
+                "caption": "The drawn graph colors nodes by kind, with a chip per kind and its count."
+            }
+        ]
+    },
+    {
+        "flow": "server",
+        "title": "Query a database, load more, expand a node",
+        "screens": [
+            {
+                "file": "server-1-connect-test.html",
+                "caption": "Connect as property rows (kind, address, sign-in, query, limit); Test returns the first 20 live rows and the 40,000 match count before Load."
+            },
+            {
+                "file": "server-2-load-more.html",
+                "caption": "A capped load reads 5,000 of 40,000 on its source row, with Load more beside it."
+            },
+            {
+                "file": "server-3-expand-menu.html",
+                "caption": "Right-click a node: Expand from source with Depth, Limit and edge kinds; the count is known before it runs."
+            },
+            {
+                "file": "server-4-expanded.html",
+                "caption": "After expanding acct-4471 two steps with a limit of 50: the new nodes are ringed, the notice reads 50 of 212, and the expand is listed as a source."
+            }
+        ]
+    },
+    {
+        "flow": "filter-steps",
+        "title": "Filter steps, sets and a time window",
+        "screens": [
+            {
+                "file": "filter-steps-1-steps-and-sets.html",
+                "caption": "On the Data page, the Filters section stacks two ordered steps with toggles and counts, offers In largest connected part as a choice, and lists saved sets."
+            },
+            {
+                "file": "filter-steps-2-time-window.html",
+                "caption": "A filter on the time column becomes a range row with a histogram, a 30 days width and step arrows, and counts of 120 of 200 nodes and 340 of 612 edges."
+            }
+        ]
+    }
+]

@@ -68,8 +68,16 @@ describe("createCompactTheme (spec 3.1)", () => {
     });
 
     it("publishes the resolved option on theme.other.compact", () => {
-        expect(createCompactTheme().other?.compact).toEqual({ highContrast: false });
-        expect(createCompactTheme({ highContrast: true }).other?.compact).toEqual({ highContrast: true });
+        expect(createCompactTheme().other?.compact).toEqual({ highContrast: false, accent: "figma" });
+        expect(createCompactTheme({ highContrast: true }).other?.compact).toEqual({
+            highContrast: true,
+            accent: "figma",
+        });
+        expect(createCompactTheme({ accent: "graphty" }).other?.compact).toEqual({
+            highContrast: false,
+            accent: "graphty",
+        });
+        expect(createCompactTheme({ accent: "graphty" }).primaryColor).toBe("graphty");
     });
 
     it("keeps every extension's own vars result", () => {

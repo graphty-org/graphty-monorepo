@@ -564,7 +564,9 @@ describe("gmlImporter: ids", () => {
         expect(edges(snapshot)).toEqual(["a-7", "7-5"]);
         expect(column(snapshot, "nodes", "label")).toEqual(["a", "7", undefined]);
         expect(snapshot.nodes.require("label").meta.role).toBe("label");
-        expect(report.lossy).toEqual([{ code: ID_DROPPED_CODE, message: expect.any(String), column: null, count: 2 }]);
+        expect(report.lossy).toEqual([
+            { code: ID_DROPPED_CODE, message: expect.any(String) as unknown, column: null, count: 2 },
+        ]);
         expect(report.lossy[0].message).toContain("label");
     });
 
@@ -845,6 +847,21 @@ describe("gmlImporter: graphics and positions", () => {
         const { snapshot } = await importGml("graph [ node [ id 1 graphics [ x 1 y 2 ] ] ]", { positions: false });
         expect(snapshot.nodes.names()).toEqual(["graphics"]);
         expect(snapshot.nodes.require("graphics").value(0)).toEqual({ x: 1, y: 2 });
+    });
+
+    it("keepPositionSource keeps the whole record beside the position", async () => {
+        const { snapshot } = await importGml(
+            "graph [ node [ id 1 graphics [ x 1 y 2 w 3 ] ] node [ id 2 graphics [ x 4 y 5 ] ] ]",
+            {
+                keepPositionSource: true,
+            },
+        );
+        expect(snapshot.nodes.names()).toEqual(["position", "graphics"]);
+        expect(column(snapshot, "nodes", "graphics")).toEqual([
+            { x: 1, y: 2, w: 3 },
+            { x: 4, y: 5 },
+        ]);
+        expect(Array.from(snapshot.nodes.byRole("position")?.value(1) as ArrayLike<number>)).toEqual([4, 5, 0]);
     });
 
     it("renames the position column when a position key exists", async () => {

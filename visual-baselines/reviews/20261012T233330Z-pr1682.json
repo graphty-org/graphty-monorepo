@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "pr": 1682,
+  "subject": {
+    "builtMerge": "ade8f4123507c152003d9106c905ca8ca59737cd",
+    "head": "8541a6526d45f7fb0f01170376dc73f531a4b163",
+    "runId": 38302501801,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "Intel(R) Xeon(R) 6973P-C",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "ade8f4123507c152003d9106c905ca8ca59737cd"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery--formats.png",
+      "from": "1b0b48e2a12dc03f747a6a71326abae3008db2bb6c54528b76888905f805e6e3",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/layout-2d--arf.png",
+      "from": "8d920a022ad0c9b710eb157391e42d63d47a497f39ac1c48f3fba016319039fd",
+      "to": "d4ab46cabd5f3756be12ea6fff000ad28825b03cd61fd6c0be97f0fb89d32fef",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-12T23:33:30.202Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiWXBOekJEWUdzcVRkMFZIdWgwVzE2YzN2em5KY3hOYjY1YmNtaFQ5dmxEayIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEUCIQCHgRbqvju4EY12lQwplgKDc8pG64INHs92P03M0bsfAAIgcv0N1U6g5OKJW2O0nNweS1UZ1bIWbyICbw3Y5q-oQNw"
+  }
+}

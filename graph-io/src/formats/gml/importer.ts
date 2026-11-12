@@ -12,7 +12,9 @@
  * character references in strings, `Creator` / `Version` top-level metadata, `directed 0|1` and
  * `multigraph 0|1` graph flags, comments, keys and values on one line or split across lines, and
  * a `graphics [ x y z ]` node record mapped to the `position` role (note 07 section 9) with the
- * remaining graphics keys kept as a json column.
+ * remaining graphics keys kept as a json column, yEd's `gid` (the group a node sits in) read
+ * into the parent column as well as kept as a plain column, and OGDF's `rootcluster` read as group
+ * nodes (`cluster<id>`) holding their vertices through the parent column.
  *
  * Node ids are the `id` keys under `nodeIdFrom: "id"`, the `label` under `"label"`, and the node's
  * ordinal under `"index"`; `source` / `target` always resolve through the `id` keys. The GML spec
@@ -68,6 +70,8 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
+import { gmlPositions } from "./positions.js";
+import { gmlStyles } from "./styles.js";
 import {
     EMPTY_LIST_TEXT,
     EMPTY_TUPLE_TEXT,
@@ -97,6 +101,12 @@ export interface GmlImportOptions extends GraphChoiceOptions, CommonImportOption
      * @defaultValue true
      */
     positions?: boolean | undefined;
+    /**
+     * With `positions`, also keep the whole `graphics` record, x / y / z included, as the JSON
+     * attribute named `graphics`, so a reader gets both the position and the record as written.
+     * @defaultValue false
+     */
+    keepPositionSource?: boolean | undefined;
     /**
      * Store a text attribute whose values repeat a lot (fewer distinct values than half the rows)
      * as a dictionary column, which uses less memory and reads the same. Such a column reports
@@ -191,10 +201,14 @@ export const GRAPHICS_CODE = "W_GML_GRAPHICS";
  */
 export const NESTED_ELEMENT_CODE = "W_GML_NESTED_ELEMENT";
 /**
- * YEd's group keys (`isGroup`, `gid`); kept as plain node columns, the hierarchy is not read as containment.
+ * A yEd `gid` that names no other node: it stays a plain column value and puts the node in no group. Also an OGDF
+ * cluster `vertex` that names no node (it is in no cluster), and a cluster whose id a node has (it is read as no group).
  * @category Issue and loss codes
  */
 export const GROUPS_CODE = "W_GML_GROUPS";
+
+/** The parent column yEd's `gid` keys and OGDF's clusters are read into. */
+const GROUP_PARENT_COLUMN = "graphty.parent";
 /**
  * A key whose values mix numbers and strings; the column is string, the numbers kept as written.
  * @category Issue and loss codes
@@ -284,6 +298,22 @@ interface KeySchema {
     rest: boolean;
 }
 
+/**
+ * Record an integer value: an integer outside the i32 range makes the key wide, beyond 2^53 unsafe.
+ * @param entry - the key's schema entry
+ * @param text - the integer's text
+ */
+function observeInt(entry: KeySchema, text: string): void {
+    entry.kinds |= KIND_INT;
+    const n = Number(text);
+    if (n < I32_MIN || n > I32_MAX) {
+        entry.wide = true;
+        if (!Number.isSafeInteger(n)) {
+            entry.unsafe = true;
+        }
+    }
+}
+
 /** The column a key maps to in the second walk. */
 interface ColumnPlan {
     /** The key as written. */
@@ -353,7 +383,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * @param key - the key
  * @returns the role, or null
  */
-function roleOf(domain: "node" | "edge" | "graph", key: string): ColumnRole | null {
+function roleOf(domain: GmlDomain, key: string): ColumnRole | null {
     if (key === "label" && domain !== "graph") {
         return "label";
     }
@@ -377,6 +407,8 @@ class GmlImport {
     private readonly options: ResolvedImportOptions;
 
     private readonly positions: boolean;
+
+    private readonly keepPositionSource: boolean;
 
     private readonly dictionaries: boolean;
 
@@ -439,6 +471,18 @@ class GmlImport {
     /** The file ids of node blocks that were skipped: an edge naming one is skipped too, never given a new node. */
     private readonly skippedIds = new Set<NodeId>();
 
+    /** Each node's yEd `gid` (its group's file id): the node's index and the value token. */
+    private readonly groupRefs: [node: number, token: number][] = [];
+
+    /** The `[` of OGDF's `rootcluster` record (its cluster tree, after the graph block), or -1. */
+    private rootCluster = -1;
+
+    /** The parent column, once a node is given a parent. */
+    private parentHandle: ColumnHandle | null = null;
+
+    /** How many OGDF clusters were read, which names a cluster without an id. */
+    private clusterCount = 0;
+
     /** Node indices declared by a node block of this import, for duplicate detection. */
     private declared = new Uint32Array(64);
 
@@ -470,6 +514,7 @@ class GmlImport {
         this.report = report;
         this.options = options;
         this.positions = format?.positions ?? true;
+        this.keepPositionSource = format?.keepPositionSource ?? false;
         this.dictionaries = format?.dictionaries ?? true;
         this.coercer = new IdCoercer(options.ids);
     }
@@ -509,29 +554,51 @@ class GmlImport {
             if (key === "graph" && !record && scalarGraph < 0) {
                 scalarGraph = v;
             }
-            if (key === "graph" && record) {
-                if (this.graphCount++ === this.which) {
-                    this.graphOpen = v;
-                    this.scanGraph(v);
-                }
-            } else if (key === "Creator" && !record && this.creatorToken < 0) {
-                this.creatorToken = v;
-            } else if (key === "Version" && !record && this.versionToken < 0) {
-                this.versionToken = v;
-            } else {
-                this.observe(this.topSchema, "graph", key, v, TOP_SEQ);
-            }
+            this.scanTopPair(key, record, v);
         }
         if (this.graphOpen < 0) {
-            if (scalarGraph >= 0) {
-                this.report.fail(
-                    NO_GRAPH_CODE,
-                    `the graph key at line ${t.line[scalarGraph]} holds ${describeValue(t, scalarGraph)}, not a [ ... ] block; the input contains no graph block`,
-                    { line: t.line[scalarGraph] },
-                );
-            }
-            this.report.fail(NO_GRAPH_CODE, "the input contains no graph [ ... ] block", { line: null });
+            this.failNoGraph(t, scalarGraph);
         }
+    }
+
+    /**
+     * Handle one top-level pair other than a scalar `graph`.
+     * @param key - the key
+     * @param record - whether the value is a `[ ... ]` block
+     * @param v - the value token
+     */
+    private scanTopPair(key: string, record: boolean, v: number): void {
+        if (key === "graph" && record) {
+            if (this.graphCount++ === this.which) {
+                this.graphOpen = v;
+                this.scanGraph(v);
+            }
+        } else if (key === "Creator" && !record && this.creatorToken < 0) {
+            this.creatorToken = v;
+        } else if (key === "Version" && !record && this.versionToken < 0) {
+            this.versionToken = v;
+        } else if (key === "rootcluster" && record && this.rootCluster < 0) {
+            // OGDF's cluster tree is structure: its clusters are read as group nodes (pushClusters)
+            this.rootCluster = v;
+        } else {
+            this.observe(this.topSchema, "graph", key, v, TOP_SEQ);
+        }
+    }
+
+    /**
+     * Fail because the input holds no graph block.
+     * @param t - the tokens
+     * @param scalarGraph - the token of a scalar `graph` key, or -1
+     */
+    private failNoGraph(t: ReturnType<GmlImport["requireTokens"]>, scalarGraph: number): void {
+        if (scalarGraph >= 0) {
+            this.report.fail(
+                NO_GRAPH_CODE,
+                `the graph key at line ${t.line[scalarGraph]} holds ${describeValue(t, scalarGraph)}, not a [ ... ] block; the input contains no graph block`,
+                { line: t.line[scalarGraph] },
+            );
+        }
+        this.report.fail(NO_GRAPH_CODE, "the input contains no graph [ ... ] block", { line: null });
     }
 
     /**
@@ -583,29 +650,41 @@ class GmlImport {
         const close = t.match[open];
         const seq = this.seq++;
         const schema = domain === "node" ? this.nodeSchema : this.edgeSchema;
-        const { weightFrom, restoreMangledIds } = this.options;
         for (let p = open + 1; p < close; p = t.nextPair(p)) {
             const key = t.textOf(p);
             const v = p + 1;
-            if (domain === "node") {
-                if (key === "id") {
-                    continue;
-                }
-                if (key === ORIGINAL_ID_KEY && restoreMangledIds) {
-                    this.hasOriginalId = true;
-                    continue;
-                }
-            } else {
-                if (key === "source" || key === "target" || key === "directed") {
-                    continue;
-                }
-                if (key === weightFrom) {
-                    this.weightKinds |= kindBit(t, v);
-                    continue;
-                }
+            if (this.skipsKey(domain, key, v)) {
+                continue;
             }
             this.observe(schema, domain, key, v, seq);
         }
+    }
+
+    /**
+     * Whether a key of a node or edge block is structural (id, endpoints, weight, original id), not
+     * a column; notes the original id and the weight's kinds on the way.
+     * @param domain - node or edge
+     * @param key - the key
+     * @param v - the value token
+     * @returns true when the key is not a column
+     */
+    private skipsKey(domain: "node" | "edge", key: string, v: number): boolean {
+        const { weightFrom, restoreMangledIds } = this.options;
+        if (domain === "node") {
+            if (key === ORIGINAL_ID_KEY && restoreMangledIds) {
+                this.hasOriginalId = true;
+                return true;
+            }
+            return key === "id";
+        }
+        if (key === "source" || key === "target" || key === "directed") {
+            return true;
+        }
+        if (key === weightFrom) {
+            this.weightKinds |= kindBit(this.requireTokens(), v);
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -625,10 +704,50 @@ class GmlImport {
     ): void {
         const t = this.requireTokens();
         this.noteStructure(domain, key, v);
-        let entry = schema.get(key);
         const graphics = domain === "node" && key === "graphics" && this.positions;
+        const entry = this.schemaEntry(schema, domain, key, seq, graphics);
+        if (graphics && t.kind[v] !== TOKEN_OPEN) {
+            entry.rest = true;
+        }
+        switch (t.kind[v]) {
+            case TOKEN_STRING:
+                this.observeString(entry, domain, key, t.textOf(v));
+                return;
+            case TOKEN_INT:
+                observeInt(entry, t.textOf(v));
+                return;
+            case TOKEN_OPEN:
+                entry.kinds |= KIND_RECORD;
+                if (graphics) {
+                    this.inspectGraphics(entry, v);
+                }
+                return;
+            default:
+                entry.kinds |= KIND_REAL;
+                this.observeReal(domain, key, v);
+        }
+    }
+
+    /**
+     * The schema entry of a key, created on its first value; a key seen again in the same element
+     * becomes a list.
+     * @param schema - the table's schema
+     * @param domain - the table
+     * @param key - the key
+     * @param seq - the element sequence number
+     * @param graphics - whether the key is the node graphics record read for positions
+     * @returns the entry
+     */
+    private schemaEntry(
+        schema: Map<string, KeySchema>,
+        domain: "node" | "edge" | "graph",
+        key: string,
+        seq: number,
+        graphics: boolean,
+    ): KeySchema {
+        const entry = schema.get(key);
         if (entry === undefined) {
-            entry = {
+            const created: KeySchema = {
                 key,
                 kinds: 0,
                 list: false,
@@ -639,70 +758,65 @@ class GmlImport {
                 position: false,
                 rest: false,
             };
-            schema.set(key, entry);
-        } else if (entry.lastSeq === seq) {
+            schema.set(key, created);
+            return created;
+        }
+        if (entry.lastSeq === seq) {
             entry.list = true;
             // a repeated graphics record: the extra records go to the json column
             entry.rest ||= graphics;
         } else {
             entry.lastSeq = seq;
         }
-        if (graphics && t.kind[v] !== TOKEN_OPEN) {
-            entry.rest = true;
+        return entry;
+    }
+
+    /**
+     * Record a string value: a list marker makes the key a list, other text feeds the dictionary
+     * heuristic.
+     * @param entry - the key's schema entry
+     * @param domain - the table
+     * @param key - the key
+     * @param raw - the string's text
+     */
+    private observeString(entry: KeySchema, domain: "node" | "edge" | "graph", key: string, raw: string): void {
+        // a label is text: "[]" there is a label, never NetworkX's empty list
+        if (
+            raw === LIST_START_MARKER ||
+            (!isLabel(domain, key) && (raw === EMPTY_LIST_TEXT || raw === EMPTY_TUPLE_TEXT))
+        ) {
+            entry.list = true;
+            return;
         }
-        switch (t.kind[v]) {
-            case TOKEN_STRING: {
-                const raw = t.textOf(v);
-                // a label is text: "[]" there is a label, never NetworkX's empty list
-                if (
-                    raw === LIST_START_MARKER ||
-                    (!isLabel(domain, key) && (raw === EMPTY_LIST_TEXT || raw === EMPTY_TUPLE_TEXT))
-                ) {
-                    entry.list = true;
-                    return;
-                }
-                entry.kinds |= KIND_STRING;
-                if (entry.dict !== null && !entry.dict.decided) {
-                    entry.dict.observe(raw);
-                }
-                return;
-            }
-            case TOKEN_INT: {
-                entry.kinds |= KIND_INT;
-                const n = Number(t.textOf(v));
-                if (n < I32_MIN || n > I32_MAX) {
-                    entry.wide = true;
-                    if (!Number.isSafeInteger(n)) {
-                        entry.unsafe = true;
-                    }
-                }
-                return;
-            }
-            case TOKEN_OPEN:
-                entry.kinds |= KIND_RECORD;
-                if (domain === "node" && key === "graphics" && this.positions) {
-                    this.inspectGraphics(entry, v);
-                }
-                return;
-            default: {
-                entry.kinds |= KIND_REAL;
-                const text = t.textOf(v);
-                if (/\d/.test(text) && !Number.isFinite(Number(text))) {
-                    this.report.warnOnce(
-                        "precision",
-                        PRECISION_CODE,
-                        `${domain} key "${key}" holds the real ${text}, beyond the f64 range; it is stored as ${numberOfText(text) > 0 ? "" : "-"}Infinity`,
-                        { line: t.line[v], element: key },
-                        `${PRECISION_CODE}:overflow:${domain}:${key}`,
-                    );
-                }
-            }
+        entry.kinds |= KIND_STRING;
+        if (entry.dict !== null && !entry.dict.decided) {
+            entry.dict.observe(raw);
+        }
+    }
+
+    /**
+     * Warn once about a real beyond the f64 range.
+     * @param domain - the table
+     * @param key - the key
+     * @param v - the value token
+     */
+    private observeReal(domain: "node" | "edge" | "graph", key: string, v: number): void {
+        const t = this.requireTokens();
+        const text = t.textOf(v);
+        if (/\d/.test(text) && !Number.isFinite(Number(text))) {
+            this.report.warnOnce(
+                "precision",
+                PRECISION_CODE,
+                `${domain} key "${key}" holds the real ${text}, beyond the f64 range; it is stored as ${numberOfText(text) > 0 ? "" : "-"}Infinity`,
+                { line: t.line[v], element: key },
+                `${PRECISION_CODE}:overflow:${domain}:${key}`,
+            );
         }
     }
 
     /**
      * Warn about keys of a node or edge whose meaning GML readers give but this import does not:
-     * a nested graph / node / edge record, and yEd's group hierarchy.
+     * a nested graph / node / edge record.
      * @param domain - the table
      * @param key - the key
      * @param v - the value token
@@ -719,13 +833,6 @@ class GmlImport {
                 `a nested ${key} record inside a ${domain} is kept as the json column "${key}"; it is not read as structure`,
                 { line: t.line[v], element: key },
                 `${NESTED_ELEMENT_CODE}:${domain}:${key}`,
-            );
-        } else if (domain === "node" && (key === "isGroup" || key === "gid")) {
-            this.report.warnOnce(
-                "unsupported",
-                GROUPS_CODE,
-                "yEd group keys (isGroup, gid) are kept as plain node columns; the group hierarchy is not read as containment",
-                { line: t.line[v], element: key },
             );
         }
     }
@@ -755,7 +862,8 @@ class GmlImport {
         }
         const positioned = x && y;
         entry.position ||= positioned;
-        entry.rest ||= positioned ? other : true;
+        // with keepPositionSource the whole record, x / y / z included, goes to the json column too
+        entry.rest ||= positioned ? other || this.keepPositionSource : true;
     }
 
     // ============================================================ pass 2: the push
@@ -786,7 +894,160 @@ class GmlImport {
         }
         this.pushTopLevel();
         this.pushNodes();
+        this.pushGroups();
+        this.pushClusters();
         this.pushEdges();
+    }
+
+    /**
+     * Read yEd's group hierarchy into the parent column: a node's `gid` names the group node it sits in. A `gid` that
+     * names no node (or the node itself) is warned once and left a plain column value.
+     */
+    private pushGroups(): void {
+        const t = this.requireTokens();
+        for (const [node, v] of this.groupRefs) {
+            let parent: number = INVALID_INDEX;
+            try {
+                const fileId = this.coerceFileId(v, this.fileIdOf(v, "gid"));
+                parent = this.sink.indexOf(this.idMap?.get(fileId) ?? fileId);
+            } catch {
+                parent = INVALID_INDEX;
+            }
+            if (parent === INVALID_INDEX || parent === node) {
+                this.report.warnOnce(
+                    "validation-error",
+                    GROUPS_CODE,
+                    `gid ${t.kind[v] === TOKEN_OPEN ? "[...]" : t.textOf(v)} names no other node; it is kept as a plain column value`,
+                    { line: t.line[v], element: "gid" },
+                );
+                continue;
+            }
+            this.setParent(node, parent, "gid");
+        }
+    }
+
+    /**
+     * Put a node in a group: the parent column, declared on first use.
+     * @param node - the node's index
+     * @param parent - the group node's index
+     * @param type - the file key the hierarchy came from (`gid`, `rootcluster`)
+     */
+    private setParent(node: number, parent: number, type: string): void {
+        this.parentHandle ??= this.sink.declareNodeColumn({
+            name: uniqueColumnName(GROUP_PARENT_COLUMN, null, (c) => this.sink.nodeColumn(c) !== INVALID_INDEX),
+            dtype: "u32",
+            role: "parent",
+            refersTo: "node",
+            nullable: true,
+            origin: { format: "gml", id: null, title: null, type, namespace: null },
+        });
+        this.sink.setNodeValue(this.parentHandle, node, parent);
+    }
+
+    /**
+     * Read OGDF's cluster tree (`rootcluster`, GraphIO::writeGML): every cluster below the root becomes a group node
+     * (id `cluster<id>`) holding its `vertex` nodes and its child clusters, with its label, its box as the node's
+     * center and size, and its graphics as a node's (`color` is the outline, `style` the shape, `stipple` kept as
+     * `clusterStipple`, since OGDF draws a cluster's outline solid). The root cluster is
+     * the whole graph and draws nothing of its own. A `vertex` that names no node is warned once.
+     */
+    private pushClusters(): void {
+        if (this.rootCluster < 0) {
+            return;
+        }
+        const t = this.requireTokens();
+        const stack: [open: number, parent: number][] = [[this.rootCluster, INVALID_INDEX]];
+        for (let frame = stack.pop(); frame !== undefined; frame = stack.pop()) {
+            const [open, parent] = frame;
+            for (let p = open + 1; p < t.match[open]; p = t.nextPair(p)) {
+                const key = t.textOf(p);
+                const v = p + 1;
+                if (key === "cluster" && t.kind[v] === TOKEN_OPEN) {
+                    const cluster = this.addCluster(v, parent);
+                    if (cluster !== INVALID_INDEX) {
+                        stack.push([v, cluster]);
+                    }
+                } else if (key === "vertex" && parent !== INVALID_INDEX) {
+                    this.addClusterVertex(v, parent);
+                }
+            }
+        }
+    }
+
+    /**
+     * Put a cluster's `vertex` in it.
+     * @param v - the value token, the vertex's id as a string
+     * @param cluster - the cluster's group node
+     */
+    private addClusterVertex(v: number, cluster: number): void {
+        const t = this.requireTokens();
+        const id = t.kind[v] === TOKEN_STRING ? this.coercer.text(t.stringOf(v)) : null;
+        const node = id === null ? INVALID_INDEX : this.sink.indexOf(this.idMap?.get(id) ?? id);
+        if (node === INVALID_INDEX || node === cluster) {
+            this.report.warnOnce(
+                "validation-error",
+                GROUPS_CODE,
+                `cluster vertex ${describeValue(t, v)} names no node; it is in no cluster`,
+                { line: t.line[v], element: "vertex" },
+            );
+            return;
+        }
+        this.setParent(node, cluster, "rootcluster");
+    }
+
+    /**
+     * Add one OGDF cluster as a group node: its label, and its graphics box (x, y its top-left corner, width and
+     * height) as a node's center, w and h.
+     * @param open - the cluster record's `[`
+     * @param parent - the group node of the cluster it is in, or INVALID_INDEX under the root
+     * @returns the group node's index, or INVALID_INDEX when its id is taken
+     */
+    private addCluster(open: number, parent: number): number {
+        const t = this.requireTokens();
+        const record = parseRecord(t, open);
+        const ordinal = this.clusterCount++;
+        const ownId = typeof record.id === "number" || typeof record.id === "string" ? String(record.id) : null;
+        const fallback = `#${String(ordinal)}`;
+        const id = `cluster${ownId ?? fallback}`;
+        if (this.sink.indexOf(id) !== INVALID_INDEX) {
+            this.report.warnOnce(
+                "validation-error",
+                GROUPS_CODE,
+                `cluster ${id} has the id of a node; it is read as no group`,
+                { line: t.line[open], element: id },
+            );
+            return INVALID_INDEX;
+        }
+        const index = this.sink.addNode(id);
+        this.report.counts.nodes++;
+        if (parent !== INVALID_INDEX) {
+            this.setParent(index, parent, "rootcluster");
+        }
+        const label = this.nodePlans.get("label");
+        if (typeof record.label === "string" && record.label !== "" && label?.kind === "string" && !label.list) {
+            this.sink.setNodeValue(this.handleOf(label, "node"), index, record.label);
+        }
+        const graphics = this.nodePlans.get("graphics");
+        const g = isRecord(record.graphics) ? record.graphics : null;
+        if (g === null || graphics?.position === undefined || graphics.position === null) {
+            return index;
+        }
+        // GraphIO::drawSVG draws a cluster's outline solid whatever its stipple: it is kept under a name of its own
+        const { x, y, width, height, color, style, stipple, ...rest } = g;
+        if (typeof x === "number" && typeof y === "number" && typeof width === "number" && typeof height === "number") {
+            this.sink.setNodeValue(this.handleOf(graphics.position, "node"), index, [x + width / 2, y + height / 2, 0]);
+            Object.assign(rest, { w: width, h: height });
+        }
+        Object.assign(
+            rest,
+            color === undefined ? {} : { outline: color },
+            style === undefined ? {} : { type: style },
+            stipple === undefined ? {} : { clusterStipple: stipple },
+        );
+        if (graphics.rest !== null) {
+            this.sink.setNodeValue(this.handleOf(graphics.rest, "node"), index, rest);
+        }
+        return index;
     }
 
     /** Turn every schema entry into a column plan. */
@@ -803,6 +1064,61 @@ class GmlImport {
         for (const [key, entry] of this.topSchema) {
             this.topPlans.set(key, this.planOf("graph", entry, true));
         }
+    }
+
+    /**
+     * Warn about a key that mixes numbers and strings, or holds integers beyond 2^53.
+     * @param domain - the table
+     * @param entry - the schema entry
+     * @param asText - whether the integers are kept as text
+     */
+    private warnKinds(domain: "node" | "edge" | "graph", entry: KeySchema, asText: boolean): void {
+        if (
+            (entry.kinds & KIND_STRING) !== 0 &&
+            (entry.kinds & (KIND_INT | KIND_REAL)) !== 0 &&
+            (entry.kinds & KIND_RECORD) === 0
+        ) {
+            this.report.warnOnce(
+                "coercion",
+                WIDENED_CODE,
+                `${domain} key "${entry.key}" mixes numbers and strings; the column is string and the numbers are kept as written`,
+                { element: entry.key },
+                `${WIDENED_CODE}:${domain}:${entry.key}`,
+            );
+        }
+        if (entry.unsafe && !asText) {
+            this.report.warnOnce(
+                "precision",
+                PRECISION_CODE,
+                `${domain} key "${entry.key}" holds integers beyond 2^53; they are stored as the nearest f64 (pass long: "string" to keep every digit as text)`,
+                { element: entry.key },
+                `${PRECISION_CODE}:${domain}:${entry.key}`,
+            );
+        }
+    }
+
+    /**
+     * The plan of a node `graphics` record: the plan plus its position and rest columns.
+     * @param plan - the record's plan
+     * @param entry - the schema entry
+     * @returns the plan with its position (and rest) plans
+     */
+    private graphicsPlan(plan: ColumnPlan, entry: KeySchema): ColumnPlan {
+        const taken = (candidate: string): boolean =>
+            this.nodeSchema.has(candidate) || this.sink.nodeColumn(candidate) !== INVALID_INDEX;
+        const position: ColumnPlan = {
+            ...plan,
+            name: uniqueColumnName("position", "graphics", taken),
+            dtype: "f64",
+            itemDtype: null,
+            kind: "real",
+            list: false,
+            role: "position",
+        };
+        const rest: ColumnPlan | null = entry.rest
+            ? { ...plan, dtype: "json", itemDtype: null, kind: "record", list: false }
+            : null;
+        return { ...plan, position, rest };
     }
 
     /**
@@ -826,28 +1142,7 @@ class GmlImport {
         ) {
             scalar = "dict";
         }
-        if (
-            (entry.kinds & KIND_STRING) !== 0 &&
-            (entry.kinds & (KIND_INT | KIND_REAL)) !== 0 &&
-            (entry.kinds & KIND_RECORD) === 0
-        ) {
-            this.report.warnOnce(
-                "coercion",
-                WIDENED_CODE,
-                `${domain} key "${entry.key}" mixes numbers and strings; the column is string and the numbers are kept as written`,
-                { element: entry.key },
-                `${WIDENED_CODE}:${domain}:${entry.key}`,
-            );
-        }
-        if (entry.unsafe && !asText) {
-            this.report.warnOnce(
-                "precision",
-                PRECISION_CODE,
-                `${domain} key "${entry.key}" holds integers beyond 2^53; they are stored as the nearest f64 (pass long: "string" to keep every digit as text)`,
-                { element: entry.key },
-                `${PRECISION_CODE}:${domain}:${entry.key}`,
-            );
-        }
+        this.warnKinds(domain, entry, asText);
         const name = domain === "graph" ? this.uniqueGraphName(entry.key) : entry.key;
         let itemDtype: ScalarDtype | null = null;
         if (entry.list) {
@@ -870,21 +1165,7 @@ class GmlImport {
             seq: Number.NEGATIVE_INFINITY,
         };
         if (domain === "node" && entry.key === "graphics" && this.positions && (entry.kinds & KIND_RECORD) !== 0) {
-            const taken = (candidate: string): boolean =>
-                this.nodeSchema.has(candidate) || this.sink.nodeColumn(candidate) !== INVALID_INDEX;
-            const position: ColumnPlan = {
-                ...plan,
-                name: uniqueColumnName("position", "graphics", taken),
-                dtype: "f64",
-                itemDtype: null,
-                kind: "real",
-                list: false,
-                role: "position",
-            };
-            const rest: ColumnPlan | null = entry.rest
-                ? { ...plan, dtype: "json", itemDtype: null, kind: "record", list: false }
-                : null;
-            return { ...plan, position, rest };
+            return this.graphicsPlan(plan, entry);
         }
         return plan;
     }
@@ -1068,12 +1349,86 @@ class GmlImport {
     }
 
     /**
+     * Find a node block's id, label and original-id values.
+     * @param open - the block's `[`
+     * @param close - the block's `]`
+     * @returns each key's value token, or -1 when the block has none
+     */
+    private nodeKeyTokens(open: number, close: number): { idTok: number; labelTok: number; originalTok: number } {
+        const t = this.requireTokens();
+        let idTok = -1;
+        let labelTok = -1;
+        let originalTok = -1;
+        for (let p = open + 1; p < close; p = t.nextPair(p)) {
+            const key = t.textOf(p);
+            if (key === "id") {
+                idTok = this.structuralToken(idTok, p, "id");
+            } else if (key === "label") {
+                labelTok = labelTok < 0 ? p + 1 : labelTok;
+            } else if (key === ORIGINAL_ID_KEY && this.options.restoreMangledIds) {
+                originalTok = originalTok < 0 ? p + 1 : originalTok;
+            }
+        }
+        return { idTok, labelTok, originalTok };
+    }
+
+    /**
+     * The id a node is added to the sink under: its restored original id, else its label, its
+     * ordinal or its file id, as `nodeIdFrom` says.
+     * @param fileId - the node's file id
+     * @param labelTok - its label's value token, or -1
+     * @param originalTok - its original id's value token, or -1
+     * @param ordinal - its position among the file's nodes
+     * @returns the sink id
+     */
+    private nodeSinkId(fileId: NodeId, labelTok: number, originalTok: number, ordinal: number): NodeId {
+        if (originalTok >= 0) {
+            return this.restoredId(originalTok);
+        }
+        switch (this.options.nodeIdFrom) {
+            case "label":
+                if (labelTok < 0) {
+                    throw new GraphFormatError("E_INVALID_ID", "node has no label", {
+                        reason: "missing label",
+                    });
+                }
+                return this.coerceValueToken(labelTok);
+            case "index":
+                return ordinal;
+            default:
+                return fileId;
+        }
+    }
+
+    /**
+     * Note which sink id a file id resolves to, warning when a file id is declared twice.
+     * @param fileId - the file id
+     * @param sinkId - the sink id it now resolves to
+     * @param line - the node block's line
+     */
+    private mapFileId(fileId: NodeId, sinkId: NodeId, line: number): void {
+        if (this.idMap === null) {
+            return;
+        }
+        const before = this.idMap.get(fileId);
+        if (before !== undefined && before !== sinkId) {
+            this.report.warning(
+                "merged",
+                DUPLICATE_NODE_CODE,
+                `file id ${JSON.stringify(fileId)} is declared twice (nodes ${JSON.stringify(before)} and ${JSON.stringify(sinkId)}); edges to it resolve to the later`,
+                { line, element: String(fileId) },
+            );
+        }
+        this.idMap.set(fileId, sinkId);
+    }
+
+    /**
      * Push one node block.
      * @param open - the block's `[`
      */
     private importNode(open: number): void {
         const t = this.requireTokens();
-        const { sink, report, options } = this;
+        const { sink, report } = this;
         const close = t.match[open];
         const line = t.line[open];
         const ordinal = this.nodeOrdinal++;
@@ -1082,57 +1437,16 @@ class GmlImport {
         let sinkId: NodeId;
         let fileId: NodeId | undefined;
         try {
-            let idTok = -1;
-            let labelTok = -1;
-            let originalTok = -1;
-            for (let p = open + 1; p < close; p = t.nextPair(p)) {
-                const key = t.textOf(p);
-                if (key === "id") {
-                    idTok = this.structuralToken(idTok, p, "id");
-                } else if (key === "label") {
-                    labelTok = labelTok < 0 ? p + 1 : labelTok;
-                } else if (key === ORIGINAL_ID_KEY && options.restoreMangledIds) {
-                    originalTok = originalTok < 0 ? p + 1 : originalTok;
-                }
-            }
+            const { idTok, labelTok, originalTok } = this.nodeKeyTokens(open, close);
             if (idTok < 0) {
                 throw new GraphFormatError("E_INVALID_ID", "node has no id", { reason: "missing id" });
             }
             // the file id under the ids rule, so `id 1` and `source "1"` meet in idMap (except under
             // "keep", where the integer 1 and the string "1" are different ids by design)
             fileId = this.coerceFileId(idTok, this.fileIdOf(idTok, "id"));
-            if (originalTok >= 0) {
-                sinkId = this.restoredId(originalTok);
-            } else {
-                switch (options.nodeIdFrom) {
-                    case "label":
-                        if (labelTok < 0) {
-                            throw new GraphFormatError("E_INVALID_ID", "node has no label", {
-                                reason: "missing label",
-                            });
-                        }
-                        sinkId = this.coerceValueToken(labelTok);
-                        break;
-                    case "index":
-                        sinkId = ordinal;
-                        break;
-                    default:
-                        sinkId = fileId;
-                }
-            }
+            sinkId = this.nodeSinkId(fileId, labelTok, originalTok, ordinal);
             index = sink.addNode(sinkId);
-            if (this.idMap !== null) {
-                const before = this.idMap.get(fileId);
-                if (before !== undefined && before !== sinkId) {
-                    report.warning(
-                        "merged",
-                        DUPLICATE_NODE_CODE,
-                        `file id ${JSON.stringify(fileId)} is declared twice (nodes ${JSON.stringify(before)} and ${JSON.stringify(sinkId)}); edges to it resolve to the later`,
-                        { line, element: String(fileId) },
-                    );
-                }
-                this.idMap.set(fileId, sinkId);
-            }
+            this.mapFileId(fileId, sinkId, line);
         } catch (err) {
             this.recordNodeError(err, line);
             report.counts.skippedNodes++;
@@ -1154,31 +1468,46 @@ class GmlImport {
         }
         this.beginElement(this.seq++);
         try {
-            const graphics: number[] = [];
-            let graphicsPlan: ColumnPlan | null = null;
-            for (let p = open + 1; p < close; p = t.nextPair(p)) {
-                const key = t.textOf(p);
-                if (key === "id" || (key === ORIGINAL_ID_KEY && options.restoreMangledIds)) {
-                    continue;
-                }
-                const plan = this.nodePlans.get(key);
-                if (plan !== undefined && plan.position !== null) {
-                    graphicsPlan = plan;
-                    graphics.push(p + 1);
-                } else if (plan !== undefined) {
-                    this.writeNode(plan, index, p + 1);
-                }
-            }
-            if (graphicsPlan !== null) {
-                this.writeGraphics(graphicsPlan, index, graphics, {
-                    line: t.line[graphics[0]],
-                    element: String(sinkId),
-                });
-            }
+            this.writeNodeKeys(open, index, sinkId);
             this.flushLists("node", index);
         } catch (err) {
             this.touched.length = 0;
             report.recordError(err, { line, element: String(sinkId) });
+        }
+    }
+
+    /**
+     * Write one node block's keys into its columns: its graphics record into the position plan, a yEd `gid` noted
+     * for the group hierarchy, and every other planned key as it is.
+     * @param open - the block's `[`
+     * @param index - the node's index
+     * @param sinkId - the node's id, for the report
+     */
+    private writeNodeKeys(open: number, index: number, sinkId: NodeId): void {
+        const t = this.requireTokens();
+        const graphics: number[] = [];
+        let graphicsPlan: ColumnPlan | null = null;
+        for (let p = open + 1; p < t.match[open]; p = t.nextPair(p)) {
+            const key = t.textOf(p);
+            if (key === "id" || (key === ORIGINAL_ID_KEY && this.options.restoreMangledIds)) {
+                continue;
+            }
+            if (key === "gid") {
+                this.groupRefs.push([index, p + 1]);
+            }
+            const plan = this.nodePlans.get(key);
+            if (plan !== undefined && plan.position !== null) {
+                graphicsPlan = plan;
+                graphics.push(p + 1);
+            } else if (plan !== undefined) {
+                this.writeNode(plan, index, p + 1);
+            }
+        }
+        if (graphicsPlan !== null) {
+            this.writeGraphics(graphicsPlan, index, graphics, {
+                line: t.line[graphics[0]],
+                element: String(sinkId),
+            });
         }
     }
 
@@ -1189,49 +1518,13 @@ class GmlImport {
      */
     private importEdge(open: number, ordinal: number): void {
         const t = this.requireTokens();
-        const { sink, report, options } = this;
-        const close = t.match[open];
+        const { report } = this;
         const line = t.line[open];
         const element = `edge #${ordinal}`;
         this.checkAbort();
         let edge: number;
         try {
-            let sourceTok = -1;
-            let targetTok = -1;
-            let weightTok = -1;
-            let directedTok = -1;
-            for (let p = open + 1; p < close; p = t.nextPair(p)) {
-                const key = t.textOf(p);
-                if (key === "source") {
-                    sourceTok = this.structuralToken(sourceTok, p, "source");
-                } else if (key === "target") {
-                    targetTok = this.structuralToken(targetTok, p, "target");
-                } else if (key === "directed") {
-                    directedTok = this.structuralToken(directedTok, p, "directed");
-                } else if (key === options.weightFrom) {
-                    weightTok = p + 1;
-                }
-            }
-            if (sourceTok < 0 || targetTok < 0) {
-                throw new GraphFormatError("E_UNKNOWN_NODE", `edge has no ${sourceTok < 0 ? "source" : "target"}`, {
-                    reason: "missing endpoint",
-                });
-            }
-            const source = this.endpoint(sourceTok, "source");
-            const target = this.endpoint(targetTok, "target");
-            const weight = weightTok >= 0 ? this.weightOf(weightTok) : undefined;
-            const before = sink.edgeCount;
-            const sourceNew = sink.indexOf(source) === INVALID_INDEX;
-            const targetNew = source !== target && sink.indexOf(target) === INVALID_INDEX;
-            // an edge-level `directed` key overrides the graph's flag for that edge (mixed graphs)
-            const directed = this.readFlag(directedTok, "directed") ?? this.headerDirected;
-            edge = this.requireResolver().addEdge(source, target, directed ? "directed" : "undirected", weight, {
-                line,
-                element,
-            });
-            report.counts.edges += sink.edgeCount - before;
-            // endpoints the file never declares (addMissingNodes) are nodes of the sink too
-            report.counts.nodes += (sourceNew ? 1 : 0) + (targetNew ? 1 : 0);
+            edge = this.addEdgeBlock(open, line, element);
         } catch (err) {
             this.recordEdgeError(err, line, element);
             report.counts.skippedEdges++;
@@ -1239,20 +1532,94 @@ class GmlImport {
         }
         this.beginElement(this.seq++);
         try {
-            for (let p = open + 1; p < close; p = t.nextPair(p)) {
-                const key = t.textOf(p);
-                if (key === "source" || key === "target" || key === "directed" || key === options.weightFrom) {
-                    continue;
-                }
-                const plan = this.edgePlans.get(key);
-                if (plan !== undefined) {
-                    this.writeEdge(plan, edge, p + 1);
-                }
-            }
+            this.writeEdgeColumns(open, edge);
             this.flushLists("edge", edge);
         } catch (err) {
             this.touched.length = 0;
             report.recordError(err, { line, element });
+        }
+    }
+
+    /**
+     * Add the edge of one edge block to the sink from its structural keys, counting it and the
+     * endpoints it adds.
+     * @param open - the block's `[`
+     * @param line - the block's line
+     * @param element - the block's name, for messages
+     * @returns the edge index
+     */
+    private addEdgeBlock(open: number, line: number, element: string): number {
+        const { sink, report } = this;
+        const { sourceTok, targetTok, weightTok, directedTok } = this.edgeTokens(open);
+        if (sourceTok < 0 || targetTok < 0) {
+            throw new GraphFormatError("E_UNKNOWN_NODE", `edge has no ${sourceTok < 0 ? "source" : "target"}`, {
+                reason: "missing endpoint",
+            });
+        }
+        const source = this.endpoint(sourceTok, "source");
+        const target = this.endpoint(targetTok, "target");
+        const weight = weightTok >= 0 ? this.weightOf(weightTok) : undefined;
+        const before = sink.edgeCount;
+        const sourceNew = sink.indexOf(source) === INVALID_INDEX;
+        const targetNew = source !== target && sink.indexOf(target) === INVALID_INDEX;
+        // an edge-level `directed` key overrides the graph's flag for that edge (mixed graphs)
+        const directed = this.readFlag(directedTok, "directed") ?? this.headerDirected;
+        const edge = this.requireResolver().addEdge(source, target, directed ? "directed" : "undirected", weight, {
+            line,
+            element,
+        });
+        report.counts.edges += sink.edgeCount - before;
+        // endpoints the file never declares (addMissingNodes) are nodes of the sink too
+        report.counts.nodes += (sourceNew ? 1 : 0) + (targetNew ? 1 : 0);
+        return edge;
+    }
+
+    /**
+     * The value tokens of an edge block's structural keys, refusing a repeated endpoint or
+     * directed key.
+     * @param open - the block's `[`
+     * @returns the tokens, -1 for a key the block lacks
+     */
+    private edgeTokens(open: number): { sourceTok: number; targetTok: number; weightTok: number; directedTok: number } {
+        const t = this.requireTokens();
+        const close = t.match[open];
+        let sourceTok = -1;
+        let targetTok = -1;
+        let weightTok = -1;
+        let directedTok = -1;
+        for (let p = open + 1; p < close; p = t.nextPair(p)) {
+            const key = t.textOf(p);
+            if (key === "source") {
+                sourceTok = this.structuralToken(sourceTok, p, "source");
+            } else if (key === "target") {
+                targetTok = this.structuralToken(targetTok, p, "target");
+            } else if (key === "directed") {
+                directedTok = this.structuralToken(directedTok, p, "directed");
+            } else if (key === this.options.weightFrom) {
+                weightTok = p + 1;
+            }
+        }
+        return { sourceTok, targetTok, weightTok, directedTok };
+    }
+
+    /**
+     * Write the column cells of one edge block.
+     * @param open - the block's `[`
+     * @param edge - the edge index
+     */
+    private writeEdgeColumns(open: number, edge: number): void {
+        const t = this.requireTokens();
+        const close = t.match[open];
+        const { weightFrom } = this.options;
+        for (let p = open + 1; p < close; p = t.nextPair(p)) {
+            const key = t.textOf(p);
+            if (key === "source" || key === "target" || key === "directed" || key === weightFrom) {
+                continue;
+            }
+            const plan = this.edgePlans.get(key);
+            if (plan !== undefined) {
+                this.writeEdge(plan, edge, p + 1);
+            }
         }
     }
 
@@ -1541,7 +1908,8 @@ class GmlImport {
         const positionPlan = plan.position;
         let rest: unknown = first;
         if (isRecord(first) && positionPlan !== null) {
-            rest = this.writePosition(positionPlan, index, first, where);
+            const left = this.writePosition(positionPlan, index, this.keepPositionSource ? { ...first } : first, where);
+            rest = this.keepPositionSource ? first : left;
         } else if (!isRecord(first)) {
             this.graphicsWarning("scalar", `node ${where.element}'s graphics is not a record`, where);
         }
@@ -1924,10 +2292,12 @@ function sniffGml(head: Uint8Array): number {
  */
 export const gmlImporter: GraphImporter<GmlImportOptions> = Object.freeze({
     format: "gml",
-    options: Object.freeze(["dictionaries", "positions"]),
+    options: Object.freeze(["dictionaries", "keepPositionSource", "positions"]),
     extensions: Object.freeze([".gml"]),
     mimeTypes: Object.freeze(["text/x-gml", "text/plain"]),
     sniff: sniffGml,
+    styles: gmlStyles,
+    positions: gmlPositions,
     /**
      * Read a GML text into a sink.
      * @param input - the text, bytes or stream

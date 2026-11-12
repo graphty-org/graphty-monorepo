@@ -219,6 +219,22 @@ export class JsonlWriter {
     }
 
     /**
+     * Close the file handle open for a marker, if there is one, and forget its state.
+     * @param projectMarker - The project marker
+     */
+    private forgetMarker(projectMarker: string): void {
+        const state = this.markerStates.get(projectMarker);
+        if (state) {
+            try {
+                fs.closeSync(state.fd);
+            } catch {
+                // Ignore close errors
+            }
+            this.markerStates.delete(projectMarker);
+        }
+    }
+
+    /**
      * Clean up old project log files based on directory modification time.
      * Removes entire project directories that haven't been modified within the retention period.
      * @param retentionDays - Number of days to retain logs
@@ -251,16 +267,7 @@ export class JsonlWriter {
 
                     // Check if directory is older than retention period
                     if (stats.mtimeMs < cutoffMs) {
-                        // Close file handle if we have one open for this marker
-                        const state = this.markerStates.get(entry.name);
-                        if (state) {
-                            try {
-                                fs.closeSync(state.fd);
-                            } catch {
-                                // Ignore close errors
-                            }
-                            this.markerStates.delete(entry.name);
-                        }
+                        this.forgetMarker(entry.name);
 
                         // Remove the directory
                         fs.rmSync(dirPath, { recursive: true, force: true });

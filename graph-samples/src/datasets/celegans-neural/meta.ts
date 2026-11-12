@@ -1,4 +1,5 @@
 import { type DatasetMeta } from "../build.js";
+import { PACKED } from "../packed.js";
 
 /** What the celegansNeural dataset is, where it came from and under which terms. */
 export const celegansNeuralMeta: DatasetMeta = {
@@ -22,4 +23,6 @@ export const celegansNeuralMeta: DatasetMeta = {
         "directed, weighted centrality",
         "strongly connected components and reciprocity",
     ],
+    hosting: "remote",
+    ...PACKED["celegans-neural"],
 };

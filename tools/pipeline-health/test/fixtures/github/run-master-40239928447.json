@@ -1,0 +1,23 @@
+{
+    "id": 40239928447,
+    "name": "CI",
+    "path": ".github/workflows/ci.yml",
+    "head_branch": "master",
+    "head_sha": "29887ea75bbcbbb3536c6b5df15af06baf94dc1c",
+    "event": "push",
+    "status": "completed",
+    "conclusion": "success",
+    "run_attempt": 1,
+    "created_at": "2026-10-25T22:22:59Z",
+    "run_started_at": "2026-10-25T22:22:59Z",
+    "updated_at": "2026-10-25T23:53:39Z",
+    "display_title": "Merge pull request #3566 from graphty-org/ci/3446-pipeline-round-skill",
+    "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZJgoLQ",
+    "triggering_actor": {
+        "login": "graphty-agent"
+    },
+    "pull_requests": [],
+    "repository": {
+        "full_name": "graphty-org/graphty-monorepo"
+    }
+}

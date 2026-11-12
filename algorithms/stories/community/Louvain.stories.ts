@@ -309,12 +309,9 @@ export const Louvain: Story = {
         const detectButton = canvas.getByRole("button", { name: /detect communities/i });
         await userEvent.click(detectButton);
 
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("communities");
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("communities");
+        });
     },
 };

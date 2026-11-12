@@ -3,7 +3,7 @@
  *
  * WHY. A label asks for "Verdana" by default and the element loads no font of its own, so each
  * machine substitutes whatever it has installed: Liberation Serif on the Linux dev box, a DejaVu
- * face on Chromatic. Label geometry then differs by several pixels from one host to the next, and a
+ * face on a CI runner. Label geometry then differs by several pixels from one host to the next, and a
  * snapshot or a pixel-reading test measures the host instead of the element (#234).
  *
  * HOW. Inter (SIL Open Font License, `test/fonts/Inter-LICENSE.txt`) is committed under

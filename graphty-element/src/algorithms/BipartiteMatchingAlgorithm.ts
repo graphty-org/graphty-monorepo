@@ -31,10 +31,10 @@ import {
  * into two disjoint sets with edges only between sets.
  */
 export class BipartiteMatchingAlgorithm extends DeclaredAlgorithm {
-    static namespace = "graphty";
-    static type = "bipartite-matching";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "bipartite-matching";
     /** Pairs within the run's scope: the edge list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * Pair up the two sides of a two-sided graph so that as many nodes as possible get a partner.

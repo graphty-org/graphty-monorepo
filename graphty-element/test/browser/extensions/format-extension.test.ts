@@ -57,7 +57,7 @@
  */
 
 import { afterAll, afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { formatDescriptor, formatsForExtension } from "../../../catalog";
 import {
@@ -654,9 +654,6 @@ const ROSTER_THAT_GOES_BAD_EARLY = [
 // Mounting an element, and reading back what it holds
 // -------------------------------------------------------------------------------------------
 
-/** How long the element is given to build its scene before a test gives up on it. */
-const ELEMENT_READY_TIMEOUT_MS = 10000;
-
 /** How long a test waits for an event the element should already be emitting. */
 const EVENT_TIMEOUT_MS = 10000;
 
@@ -682,12 +679,9 @@ async function mountElement(): Promise<Graphty> {
     mounted.style.display = "block";
     container.appendChild(mounted);
 
-    await vi.waitFor(
-        () => {
-            assert.isTrue(mounted.graph.initialized, "the element finished initialising");
-        },
-        { timeout: ELEMENT_READY_TIMEOUT_MS },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(mounted.graph.initialized, "the element finished initialising");
+    });
 
     return mounted;
 }
@@ -921,7 +915,11 @@ describe("a third party's file format", () => {
             progress.map((event) => event.chunksProcessed),
             [1, 2, 3],
         );
-        assert.strictEqual(progress[0].edgeRecordsLoaded, LINKS, "the links arrive with the first chunk");
+        assert.deepStrictEqual(
+            progress.map((event) => event.edgeRecordsLoaded),
+            [0, 0, LINKS],
+            "the links arrive with the last chunk, after every node they join",
+        );
     });
 
     it("announces completion under its own format name, with what it loaded", async () => {

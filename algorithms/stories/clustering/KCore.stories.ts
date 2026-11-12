@@ -215,12 +215,9 @@ export const KCore: Story = {
         const computeButton = canvas.getByRole("button", { name: /compute k-cores/i });
         await userEvent.click(computeButton);
 
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("complete");
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("complete");
+        });
     },
 };

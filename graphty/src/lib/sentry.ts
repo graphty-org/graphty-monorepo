@@ -1,6 +1,26 @@
-import * as Sentry from "@sentry/react";
+import * as SentrySdk from "@sentry/react";
 
+import { siteConfig } from "../siteConfig";
 import { privacyFilters } from "./sentryPrivacy";
+
+/** The parts of Sentry's SDK this module calls. */
+export type SentryCalls = Pick<
+    typeof SentrySdk,
+    "init" | "close" | "replayIntegration" | "captureException" | "captureFeedback" | "getCurrentScope"
+>;
+
+/** Sentry's SDK, or the stand-in a test passed to {@link setSentryCallsForTests}. */
+let Sentry: SentryCalls = SentrySdk;
+
+/**
+ * Sends this module's calls to a stand-in rather than Sentry's SDK. A test passes one in here instead
+ * of mocking the module: in a browser test, a module mock switches the page's HTTP cache off
+ * (issue #3416).
+ * @param calls - the stand-in, or nothing for Sentry's SDK again.
+ */
+export function setSentryCallsForTests(calls?: SentryCalls): void {
+    Sentry = calls ?? SentrySdk;
+}
 
 let initialized = false;
 /**
@@ -8,14 +28,14 @@ let initialized = false;
  * instances are not supported" on a second replayIntegration(), and a reader can turn usage data
  * off and on again in one visit, so it is made once and restarted.
  */
-let replay: ReturnType<typeof Sentry.replayIntegration> | undefined;
+let replay: ReturnType<typeof SentrySdk.replayIntegration> | undefined;
 
 interface SentryConfig {
     dsn?: string;
     environment?: string;
     isProd?: boolean;
     /** Where events go; Sentry's own by default. Tests pass one that records them. */
-    transport?: Sentry.BrowserOptions["transport"];
+    transport?: SentrySdk.BrowserOptions["transport"];
 }
 
 /**
@@ -24,9 +44,12 @@ interface SentryConfig {
  * @returns The default Sentry configuration
  */
 function getDefaultConfig(): SentryConfig {
+    const { site, sentryEnvironment } = siteConfig();
     return {
         dsn: import.meta.env.VITE_SENTRY_DSN,
-        environment: import.meta.env.MODE,
+        // The site's label from its site.json, so canary's errors are not labelled production; a
+        // site that serves none is labelled as the build was before site.json existed.
+        environment: sentryEnvironment ?? (site === "unknown" ? import.meta.env.MODE : site),
         isProd: import.meta.env.PROD,
     };
 }
@@ -60,6 +83,22 @@ export function initSentry(config?: SentryConfig): void {
         integrations: [replay],
         // Every event, transaction and breadcrumb is cut down to an allowlist before it is sent.
         ...privacyFilters,
+        // Spans go out inside their transaction, through beforeSendTransaction above. Sentry 11's
+        // default, streaming each span on its own, skips that hook and would send span attributes
+        // (a request URL with its query, anything a caller set) unfiltered.
+        traceLifecycle: "static",
+        // Sentry 11 collects these by default, and some (the reader's IP address, inferred by Sentry's
+        // server from the request) are added after the event leaves the page, past every hook above.
+        dataCollection: {
+            userInfo: false,
+            cookies: false,
+            // the browser string, which privacyFilters keeps; every other header stays on the page
+            httpHeaders: { allow: ["User-Agent"] },
+            httpBodies: [],
+            urlQueryParams: false,
+            graphQL: { document: false, variables: false },
+            genAI: { inputs: false, outputs: false },
+        },
         transport: effectiveConfig.transport,
     });
     if (restart) {

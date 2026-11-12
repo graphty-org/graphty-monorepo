@@ -19,8 +19,10 @@ import {
     BC_PARAMS,
     BF_PARAMS,
     CLOSENESS_PARAMS,
+    COLLIDE_PARAMS,
     COMPACT_PARAMS,
     COO_PARAMS,
+    DRAWN_PARAMS,
     FA2_PARAMS,
     FA2_PARTIAL,
     FA2_STATE,
@@ -461,6 +463,100 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         snippetSlots: [],
         phase: "P4",
         storageCount: 5,
+    },
+    "cluster-centroid": {
+        entryPoint: "cluster_centroid",
+        bindings: [
+            [1, 0, "pos", "storage-ro", "array<vec4f>"],
+            [1, 1, "members", "storage-ro", "array<u32>"],
+            [1, 2, "clusterStart", "storage-ro", "array<u32>"],
+            [1, 3, "centroids", "storage", "array<vec4f>"],
+            [2, 0, "P", "uniform", "Fa2Params"],
+        ],
+        overrideDecls: [],
+        uniforms: [FA2_PARAMS],
+        needs: ["subgroups"],
+        snippetSlots: [],
+        phase: "P4",
+        storageCount: 4,
+    },
+    "cluster-pull": {
+        entryPoint: "cluster_pull",
+        bindings: [
+            [1, 0, "pos", "storage-ro", "array<vec4f>"],
+            [1, 1, "force", "storage", "array<f32>"],
+            [1, 2, "clusterOf", "storage-ro", "array<u32>"],
+            [1, 3, "centroids", "storage-ro", "array<vec4f>"],
+            [2, 0, "P", "uniform", "Fa2Params"],
+        ],
+        overrideDecls: [["LAW", "u32", 0]],
+        uniforms: [FA2_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P4",
+        storageCount: 4,
+    },
+    "collide-cell-key": {
+        entryPoint: "collide_cell_key",
+        bindings: [
+            [1, 0, "pos", "storage-ro", "array<vec4f>"],
+            [1, 1, "cellKey", "storage", "array<u32>"],
+            [1, 2, "cellVal", "storage", "array<u32>"],
+            [2, 0, "P", "uniform", "CollideParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [COLLIDE_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P4",
+        storageCount: 3,
+    },
+    "collide-gather": {
+        entryPoint: "collide_gather",
+        bindings: [
+            [1, 0, "pos", "storage-ro", "array<vec4f>"],
+            [1, 1, "radii", "storage-ro", "array<f32>"],
+            [1, 2, "sortedIdx", "storage-ro", "array<u32>"],
+            [1, 3, "cellStart", "storage-ro", "array<u32>"],
+            [1, 4, "fixedMask", "storage-ro", "array<u32>"],
+            [1, 5, "moves", "storage", "array<vec4f>"],
+            [2, 0, "P", "uniform", "CollideParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [COLLIDE_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P4",
+        storageCount: 6,
+    },
+    "collide-apply": {
+        entryPoint: "collide_apply",
+        bindings: [
+            [1, 0, "pos", "storage", "array<vec4f>"],
+            [1, 1, "moves", "storage-ro", "array<vec4f>"],
+            [2, 0, "P", "uniform", "CollideParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [COLLIDE_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P4",
+        storageCount: 2,
+    },
+    "to-drawn": {
+        entryPoint: "to_drawn",
+        bindings: [
+            [1, 0, "scene", "storage-ro", "array<f32>"],
+            [1, 1, "skip", "storage-ro", "array<u32>"],
+            [1, 2, "drawn", "storage", "array<vec4f>"],
+            [2, 0, "P", "uniform", "DrawnParams"],
+        ],
+        overrideDecls: [],
+        uniforms: [DRAWN_PARAMS],
+        needs: [],
+        snippetSlots: [],
+        phase: "P4",
+        storageCount: 3,
     },
     "grid-cell-key": {
         entryPoint: "grid_cell_key",
@@ -1163,7 +1259,7 @@ const PRELUDE_NAMES: ReadonlySet<string> = new Set(
 );
 
 /** Snippet texts that let a body with marker slots compose with its defaults (only VALUE exists in P0-P3). */
-const DEFAULT_SNIPPETS: Readonly<Record<string, string>> = { VALUE: "v = 1.0;" };
+const DEFAULT_SNIPPETS: Readonly<Partial<Record<string, string>>> = { VALUE: "v = 1.0;" };
 
 function defaultSnippets(entry: KernelEntry): Readonly<Record<string, string>> | undefined {
     if (entry.snippetSlots.length === 0) {
@@ -1363,7 +1459,7 @@ function plainAtomicUses(body: string, bindings: readonly { name: string; wgslTy
     const plain: string[] = [];
     for (const name of atomics) {
         for (const use of text.matchAll(new RegExp(`(.)\\b${name}\\b`, "g"))) {
-            const at = use.index ?? 0;
+            const at = use.index;
             const declaration = /var<workgroup>\s+$/.test(text.slice(0, at + 1));
             if (use[1] !== "&" && !declaration) {
                 plain.push(`${name} near "${text.slice(Math.max(0, at - 20), at + 30)}"`);
@@ -1542,6 +1638,9 @@ const BLOCKS: readonly BlockRow[] = [
             ["timeStep", 120],
             ["midEnd", 124],
             ["settleFloor", 128],
+            ["live", 132],
+            ["clusterStrength", 136],
+            ["clusterCount", 140],
         ],
     },
     {

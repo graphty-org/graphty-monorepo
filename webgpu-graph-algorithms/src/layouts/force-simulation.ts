@@ -15,6 +15,7 @@ import {
     FA2_FLAG_FIRST,
     MAX_1D_ITEMS,
     MAX_ITERATIONS_PER_STEP,
+    NO_CLUSTER,
     PARTIAL_BYTES,
     STATE_HEADER_BYTES,
     UNIFORM_SLOT_BYTES,
@@ -35,13 +36,23 @@ import { type DegreeTiers, degreeTiersOf } from "../primitives/core-shape.js";
 import { assertDeviceComputes } from "../primitives/verify.js";
 import { type PlanCaps } from "../types/context.js";
 import {
+    type DrawnOutput,
+    type DrawnTransform,
     type GpuLayoutSimulation,
     type LayoutStatsBase,
     type ResolvedLayoutTuning,
     type RunOptions,
 } from "../types/layout.js";
 import { type Binding } from "../types/memory.js";
-import { type CommonLayoutOptions, type SimulationOptions } from "../types/options.js";
+import {
+    type ClusterOptions,
+    type CollisionOptions,
+    type CommonLayoutOptions,
+    type SimulationOptions,
+} from "../types/options.js";
+import { ClusterStage } from "./clusters.js";
+import { CollisionStage, type CollisionUpdate } from "./collision.js";
+import { type DrawnRecord, DrawnStage } from "./drawn.js";
 import { type ResolvedWeights } from "./inputs.js";
 import { seedPositions } from "./seed.js";
 
@@ -121,6 +132,10 @@ export interface ModelInputs {
 export interface ForceModel<Options, Stats extends LayoutStatsBase> {
     readonly kind: "forceatlas2" | "fruchtermanReingold" | "springElectrical";
     readonly stages: readonly string[];
+    /** Recorded after every attraction, in its pass, on either tier: the cluster force, or null. */
+    afterAttraction?: ((pass: GPUComputePassEncoder, offset: number) => void) | null;
+    /** Recorded after every integrate, in its pass, on either tier: the collision force, or null. */
+    afterIntegrate?: ((pass: GPUComputePassEncoder) => void) | null;
     readonly params: UniformBlock;
     readonly state: UniformBlock;
     readonly trace: UniformBlock;
@@ -131,7 +146,8 @@ export interface ForceModel<Options, Stats extends LayoutStatsBase> {
     overrides(options: Options): Readonly<Record<string, number | boolean>>;
     specs(overrides: Readonly<Record<string, number | boolean>>, subgroups: boolean): readonly WgslModuleSpec[];
     bind(resources: ModelResources, overrides: Readonly<Record<string, number | boolean>>): Promise<void>;
-    paramsFor(iteration: number, options: Options): UniformValues;
+    /** `live` is n less the inert rows (setInert): what a model that sizes a constant by the node count reads. */
+    paramsFor(iteration: number, options: Options, live?: number): UniformValues;
     recordIteration(batch: CommandBatch, slot: number, tier: "exact" | "grid", upTo?: string): void;
     onLoad(state: StateWriter): void;
     onReheat(state: StateWriter): void;
@@ -168,7 +184,14 @@ const SHARED_STATE_FIELDS: readonly (readonly [string, number])[] = [
 ];
 
 /** The names of the shared buffers a BufferSpec may not reuse. */
-const SHARED_BUFFER_NAMES: readonly string[] = ["positions", "scenePositions", "fixed", "partials", "state", "trace"];
+const SHARED_BUFFER_NAMES: ReadonlySet<string> = new Set([
+    "positions",
+    "scenePositions",
+    "fixed",
+    "partials",
+    "state",
+    "trace",
+]);
 
 /** The buffers inspect() returns as Uint32Array: the mask, the trace records and the grid tier's index / count arrays (P4). */
 const U32_BUFFER_NAMES: ReadonlySet<string> = new Set([
@@ -527,6 +550,10 @@ interface PendingBatch {
     sceneOffset: number;
     stateOffset: number;
     profile: ReadbackRequest | null;
+    /** Whether this batch carried the collision's settling sweeps. */
+    sweptCollision: boolean;
+    /** The drawn ring slot this batch wrote and the transform it drew with, or null. */
+    drawn: DrawnRecord | null;
 }
 
 /**
@@ -559,6 +586,8 @@ function createPending(k: number, generation: number): PendingBatch {
         sceneOffset: 0,
         stateOffset: 0,
         profile: null,
+        sweptCollision: false,
+        drawn: null,
     };
 }
 
@@ -584,6 +613,84 @@ interface WeightsUpload {
 }
 
 // ============================================================ the simulation
+
+/**
+ * The load checks on the snapshot and the owner's array, in PLAN DECISION 16's order: E_SNAPSHOT (directed),
+ * E_TOO_LARGE (nodeCount), then the positions array (length, then a SharedArrayBuffer).
+ * @param snapshot - the snapshot
+ * @param positions - the owner's stride-3 array
+ * @param kind - the model's kind (for the error)
+ */
+function assertLoadable(snapshot: GraphSnapshot, positions: F32, kind: string): void {
+    if (snapshot.directed) {
+        throw new WebGpuGraphError(
+            "E_SNAPSHOT",
+            "a layout needs an undirected snapshot: pass toUndirected().snapshot",
+            {
+                reason: "directed",
+                serial: snapshot.serial,
+            },
+        );
+    }
+    const n = snapshot.nodeCount;
+    if (n > MAX_1D_ITEMS) {
+        throw new WebGpuGraphError(
+            "E_TOO_LARGE",
+            `${n} nodes exceed ${MAX_1D_ITEMS} (the third partials level is P4)`,
+            {
+                needed: n,
+                limit: MAX_1D_ITEMS,
+                path: "partials",
+                algorithm: kind,
+            },
+        );
+    }
+    if (positions.length !== 3 * n) {
+        throw invalidArgument(
+            "positions",
+            positions.length,
+            3 * n,
+            `positions has ${positions.length} entries, expected ${3 * n}`,
+        );
+    }
+    if (isSharedBuffer(positions.buffer)) {
+        throw invalidArgument(
+            "positions",
+            "SharedArrayBuffer",
+            "an ArrayBuffer-backed Float32Array",
+            "positions must not be backed by a SharedArrayBuffer",
+        );
+    }
+}
+
+/**
+ * The model's resolved inputs must cover the nodes: one mass per node and, when present, a fixed mask of
+ * ceil(n / 32) words or more.
+ * @param inputs - the model's inputs
+ * @param n - the node count
+ */
+function assertModelInputs(inputs: ModelInputs, n: number): void {
+    if (inputs.mass.length !== n) {
+        throw invalidArgument(
+            "nodeMass",
+            inputs.mass.length,
+            n,
+            `the model resolved ${inputs.mass.length} masses for ${n} nodes`,
+        );
+    }
+    const fixedWords = Math.ceil(n / 32);
+    if (inputs.fixed !== undefined && inputs.fixed !== null && inputs.fixed.length < fixedWords) {
+        throw invalidArgument(
+            "fixed",
+            inputs.fixed.length,
+            fixedWords,
+            `the model resolved a fixed mask of ${inputs.fixed.length} words, ${fixedWords} needed for ${n} nodes`,
+        );
+    }
+}
+
+/** Each model's law of attraction, the `LAW` the cluster force compiles with. */
+const CLUSTER_LAW = { forceatlas2: 0, fruchtermanReingold: 1, springElectrical: 2 } as const;
 
 /**
  * The shared layout state machine (spec 7.19): buffers, in-flight batches, readback, settle window, fixed mask,
@@ -629,7 +736,7 @@ export class ForceSimulation<
     private stateValue: "created" | "loaded" | "disposed" = "created";
     private generationValue = 0;
     private tierValue: "exact" | "grid";
-    private dimValue: 2 | 3;
+    private readonly dimValue: 2 | 3;
     private snapshot: GraphSnapshot | null = null;
     private serial: number | null = null;
     private owner: F32 | null = null;
@@ -644,6 +751,33 @@ export class ForceSimulation<
     private submitChain: Promise<void> = Promise.resolve();
     private fixedWords: U32 = new Uint32Array(0);
     private fixedDirty = false;
+    /** The rows setInert took out of the forces (mass 0 on the device, held still), or null for none. */
+    private inertWords: U32 | null = null;
+    /** The masses the model resolved at the last load, which a row made live again gets back. */
+    private massValues: F32 = new Float32Array(0);
+    /** n less the inert rows: the `live` count K1 and K4 divide by. */
+    private liveValue = 0;
+    /** What setClusters() set, the stage running it once compiled, and whether the upload is behind. */
+    private clusters: { readonly communities: Uint32Array<ArrayBuffer>; readonly strength: number } | null = null;
+    private clusterStage: ClusterStage | null = null;
+    private clustersDirty = false;
+
+    /** What setCollision() set, the stage running it once compiled, and whether the upload is behind. */
+    private collision: CollisionUpdate | null = null;
+    private collisionStage: CollisionStage | null = null;
+    /** What setDrawn() asked for (the owner's stride-4 rows), the stage writing the ring, its transform and skip mask. */
+    private drawnRows: { readonly slots: number; readonly rows: Float32Array<ArrayBuffer> } | null = null;
+    private drawnStage: DrawnStage | null = null;
+    private drawnTransform: DrawnTransform | null = null;
+    private drawnSkip: Uint32Array | null = null;
+    private landedDrawnValue: GPUBuffer | null = null;
+    private landedDrawnTransformValue: DrawnTransform | null = null;
+    private collisionDirty = false;
+    private collisionRadiiDirty = false;
+    /** The run is over and its settling sweeps are owed, so it does not read settled yet. */
+    private collisionOwed = false;
+    /** The settling sweeps have landed since the last load or reheat. */
+    private collisionSwept = false;
     private iterationsSubmitted = 0;
     private iterationsDoneValue = 0;
     private settledCountValue = 0;
@@ -708,7 +842,8 @@ export class ForceSimulation<
                 `maxInFlight must be an integer >= 1, got ${maxInFlight}`,
             );
         }
-        const dim = options.dim ?? FA2_DEFAULTS.dim;
+        // checked as a number: a JavaScript caller can pass anything
+        const dim: number = options.dim ?? FA2_DEFAULTS.dim;
         if (dim !== 2 && dim !== 3) {
             throw invalidArgument("dim", dim, "2 or 3", `dim must be 2 or 3, got ${String(dim)}`);
         }
@@ -887,45 +1022,8 @@ export class ForceSimulation<
     load(snapshot: GraphSnapshot, positions: F32): void {
         this.assertNotDisposed();
         this.ctx.assertReady();
-        if (snapshot.directed) {
-            throw new WebGpuGraphError(
-                "E_SNAPSHOT",
-                "a layout needs an undirected snapshot: pass toUndirected().snapshot",
-                {
-                    reason: "directed",
-                    serial: snapshot.serial,
-                },
-            );
-        }
+        assertLoadable(snapshot, positions, this.model.kind);
         const n = snapshot.nodeCount;
-        if (n > MAX_1D_ITEMS) {
-            throw new WebGpuGraphError(
-                "E_TOO_LARGE",
-                `${n} nodes exceed ${MAX_1D_ITEMS} (the third partials level is P4)`,
-                {
-                    needed: n,
-                    limit: MAX_1D_ITEMS,
-                    path: "partials",
-                    algorithm: this.model.kind,
-                },
-            );
-        }
-        if (positions.length !== 3 * n) {
-            throw invalidArgument(
-                "positions",
-                positions.length,
-                3 * n,
-                `positions has ${positions.length} entries, expected ${3 * n}`,
-            );
-        }
-        if (isSharedBuffer(positions.buffer)) {
-            throw invalidArgument(
-                "positions",
-                "SharedArrayBuffer",
-                "an ArrayBuffer-backed Float32Array",
-                "positions must not be backed by a SharedArrayBuffer",
-            );
-        }
         const scale = scaleOf(this.optionsValue);
         const center = centerOf(this.optionsValue);
         const tier = tierFor(this.tuning, n);
@@ -961,27 +1059,13 @@ export class ForceSimulation<
                 tiers = degreeTiersOf(this.ctx.residency.view(snapshot, "degreeOrder"));
             }
             inputs = this.model.inputs(snapshot, this.optionsValue);
-            if (inputs.mass.length !== n) {
-                throw invalidArgument(
-                    "nodeMass",
-                    inputs.mass.length,
-                    n,
-                    `the model resolved ${inputs.mass.length} masses for ${n} nodes`,
-                );
-            }
-            const fixedWords = Math.ceil(n / 32);
-            if (inputs.fixed !== undefined && inputs.fixed !== null && inputs.fixed.length < fixedWords) {
-                throw invalidArgument(
-                    "fixed",
-                    inputs.fixed.length,
-                    fixedWords,
-                    `the model resolved a fixed mask of ${inputs.fixed.length} words, ${fixedWords} needed for ${n} nodes`,
-                );
-            }
+            assertModelInputs(inputs, n);
         }
 
         // ---- every check passed: mutate
         this.generationValue++;
+        this.landedDrawnValue = null;
+        this.landedDrawnTransformValue = null;
         this.discardPending();
         const resized = this.buffers === null || n !== this.n || snapshot.serial !== this.serial;
         this.snapshot = snapshot;
@@ -1003,8 +1087,16 @@ export class ForceSimulation<
             this.overrideList.clear();
             this.fixedWords = makeMask(n);
             this.fixedDirty = false;
+            this.inertWords = null;
+            this.clusters = null;
+            this.collision = null;
+            this.drawnRows = null;
+            this.drawnSkip = null;
         }
-        if (inputs !== null && inputs.fixed !== undefined && inputs.fixed !== null) {
+        this.collisionOwed = false;
+        this.collisionSwept = false;
+        this.liveValue = n - this.inertCount();
+        if (inputs?.fixed !== undefined && inputs.fixed !== null) {
             this.fixedWords.set(inputs.fixed.subarray(0, Math.ceil(n / 32)));
             this.fixedDirty = true;
         }
@@ -1026,6 +1118,7 @@ export class ForceSimulation<
         this.buffers = buffers;
         const range = this.model.kind === "fruchtermanReingold" ? "fr" : "fa2";
         seedPositions(snapshot, positions, this.optionsValue.seed ?? null, this.dimValue, scale, center, range);
+        this.massValues = inputs.mass;
         this.uploadPositions(buffers, positions, inputs.mass);
         const weights = this.resolveWeightsBinding(snapshot, core, inputs.weights);
         const overrides = {
@@ -1200,6 +1293,126 @@ export class ForceSimulation<
     }
 
     /**
+     * Takes rows out of the forces (LayoutSimulation.setInert, issue #3075): an inert row weighs 0 in the `.w` lane, so
+     * every repulsion kernel skips it as it skips the pad, K2 skips its arcs and K5 leaves it out of partials A; it is
+     * held still with the fixed rows, and `live` (n less the inert rows) is what K1 and K4 divide by. The mask needs
+     * ceil(n / 32) words and is copied; only the rows whose state changed are written. Before the first batch the
+     * load statistics are written again over the live rows. Never reheats.
+     * @param mask - the NodeMask (LSB-first words)
+     */
+    setInert(mask: NodeMask): void {
+        this.assertLoaded();
+        const { n } = this;
+        const words = Math.ceil(n / 32);
+        if (mask.length < words) {
+            throw invalidArgument(
+                "mask",
+                mask.length,
+                words,
+                `setInert: the mask has ${mask.length} words, ${words} needed for ${n} nodes`,
+            );
+        }
+        const previous = this.inertWords;
+        const next = new Uint32Array(mask.subarray(0, words));
+        this.inertWords = next;
+        this.liveValue = n - this.inertCount();
+        this.fixedDirty = true;
+        const { buffers, owner } = this;
+        if (buffers === null || owner === null) {
+            return;
+        }
+        for (let i = 0; i < n; i++) {
+            const now = maskTest(next, i);
+            if ((previous !== null && maskTest(previous, i)) !== now) {
+                const w = new Float32Array([now ? 0 : this.massValues[i]]);
+                this.ctx.device.queue.writeBuffer(buffers.positions, 16 * i + 12, w);
+            }
+        }
+        if (this.firstPending) {
+            this.writeLoadStatistics(this.packLayout(owner), false);
+        }
+    }
+
+    /**
+     * Pulls communities together (LayoutSimulation.setClusters): the communities are copied and uploaded before the
+     * next batch, which waits for the stage's compile the first time. Never reheats.
+     * @param clusters - the communities and the strength, or null to stop
+     */
+    setClusters(clusters: ClusterOptions | null): void {
+        this.assertLoaded();
+        if (clusters === null) {
+            this.clusters = null;
+            this.dropClusterStage();
+            return;
+        }
+        const { communities, strength = 1 } = clusters;
+        if (communities.length !== this.n) {
+            throw invalidArgument("communities", communities.length, this.n, "setClusters: one community per node");
+        }
+        if (!Number.isFinite(strength) || strength < 0) {
+            throw invalidArgument("strength", strength, "finite and >= 0", "setClusters: strength must be >= 0");
+        }
+        if (communities.some((community) => community !== NO_CLUSTER && community >= this.n)) {
+            throw invalidArgument(
+                "communities",
+                "a community too large",
+                `below ${this.n}, or NO_CLUSTER`,
+                "setClusters: every community must be below the node count",
+            );
+        }
+        this.clusters = { communities: new Uint32Array(communities), strength };
+        this.clustersDirty = true;
+        const { resources } = this;
+        if (this.clusterStage === null && resources !== null) {
+            const generation = this.generationValue;
+            const promise = this.ready.catch(() => undefined).then(() => this.bindClusters(resources, generation));
+            void promise.catch(() => undefined);
+            this.ready = promise;
+        }
+    }
+
+    /**
+     * Keeps nodes from overlapping (LayoutSimulation.setCollision): the radii are copied and uploaded before the next
+     * batch, which waits for the stage's compile the first time. Never reheats.
+     * @param collision - the radii and how to read them, or null to stop
+     */
+    setCollision(collision: CollisionOptions | null): void {
+        this.assertLoaded();
+        if (collision === null) {
+            this.collision = null;
+            this.dropCollisionStage();
+            this.settledValue = this.computeSettled();
+            return;
+        }
+        const { radii, scale = 1, flat = false } = collision;
+        if (radii.length !== this.n) {
+            throw invalidArgument("radii", radii.length, this.n, "setCollision: one radius per node");
+        }
+        if (!Number.isFinite(scale) || scale <= 0) {
+            throw invalidArgument("scale", scale, "a finite number > 0", "setCollision: scale must be finite and > 0");
+        }
+        if (radii.some((radius) => !Number.isFinite(radius) || radius < 0)) {
+            throw invalidArgument(
+                "radii",
+                "a bad radius",
+                "finite and >= 0",
+                "setCollision: every radius must be finite and >= 0",
+            );
+        }
+        const same = this.collision?.radii.every((radius, i) => radius === radii[i]) === true;
+        this.collision = { radii: new Float32Array(radii), radiusScale: scale / this.scale, flat };
+        this.collisionDirty = true;
+        this.collisionRadiiDirty ||= !same;
+        const { resources } = this;
+        if (this.collisionStage === null && resources !== null) {
+            const generation = this.generationValue;
+            const promise = this.ready.catch(() => undefined).then(() => this.bindCollision(resources, generation));
+            void promise.catch(() => undefined);
+            this.ready = promise;
+        }
+    }
+
+    /**
      * Writes a scene-unit position (spec 7.12): into the owner's array at once, into the device (layout units, z 0
      * in 2D, 12 bytes at 16 i, queue-ordered before the next submit), into the override list keyed by the last
      * submitted batch id, then reheat(). PLAN DECISION 18: non-finite coordinates are E_INVALID_ARGUMENT.
@@ -1257,6 +1470,8 @@ export class ForceSimulation<
         this.iterationsDoneValue = 0;
         this.settledCountValue = 0;
         this.reheatedAfterBatchId = this.lastSubmittedBatchIdValue;
+        this.collisionOwed = false;
+        this.collisionSwept = false;
         this.writer.set("settledCount", 0);
         this.model.onReheat(this.writer);
         this.settledValue = this.computeSettled();
@@ -1315,6 +1530,96 @@ export class ForceSimulation<
         }
         this.model.onSetParams(patch, this.writer);
         this.reheat();
+    }
+
+    // ---------------------------------------------------------------- the drawn ring
+
+    /**
+     * The drawn ring slot of the last batch that landed (design/rendering/row-renderer.md 4.5): stride-4 drawn
+     * positions, 16 bytes a row, written on this simulation's device. Null with no drawn ring, before a batch landed
+     * with one, and after a load(): a batch in flight across a load never lands here. It stays unwritten until
+     * `slots` more batches were submitted, so a renderer copies it before submitting that many.
+     * @returns the buffer, or null
+     */
+    get landedDrawn(): GPUBuffer | null {
+        return this.landedDrawnValue;
+    }
+
+    /**
+     * The transform the batch of {@link landedDrawn} drew with, or null with it: what the owner publishes
+     * that landing with, so its own copy holds the same rows.
+     * @returns the transform, or null
+     */
+    get landedDrawnTransform(): DrawnTransform | null {
+        return this.landedDrawnTransformValue;
+    }
+
+    /**
+     * Makes every batch also write the renderer's drawn positions into a ring of `slots` device buffers (see
+     * {@link landedDrawn}). `rows` is the owner's stride-4 copy (x, y, z, w per node): it seeds every slot, and
+     * the w lane and the rows set by {@link setDrawnSkip} are only ever what the owner wrote. Null stops it.
+     * @param output - the slot count and the owner's rows, or null
+     */
+    setDrawn(output: DrawnOutput | null): void {
+        this.assertLoaded();
+        this.dropDrawnStage();
+        if (output === null) {
+            this.drawnRows = null;
+            return;
+        }
+        const { slots, rows } = output;
+        if (!Number.isInteger(slots) || slots < 1) {
+            throw invalidArgument("slots", slots, "an integer >= 1", "setDrawn: slots must be an integer >= 1");
+        }
+        if (rows.length !== 4 * this.n) {
+            throw invalidArgument("rows", rows.length, 4 * this.n, "setDrawn: four floats per node");
+        }
+        this.drawnRows = { slots, rows: new Float32Array(rows) };
+        const { resources } = this;
+        if (resources !== null) {
+            const generation = this.generationValue;
+            const promise = this.ready.catch(() => undefined).then(() => this.bindDrawn(resources, generation));
+            void promise.catch(() => undefined);
+            this.ready = promise;
+        }
+    }
+
+    /**
+     * Sets the transform the next batches draw with: drawn = (scene - center) * scale + target, z = 0 in 2D.
+     * @param transform - the transform
+     */
+    setDrawnTransform(transform: DrawnTransform): void {
+        if (!Number.isFinite(transform.scale)) {
+            throw invalidArgument("scale", transform.scale, "a finite number", "setDrawnTransform: scale");
+        }
+        this.drawnTransform = { center: [...transform.center], scale: transform.scale, target: [...transform.target] };
+        this.drawnStage?.transform(this.drawnTransform);
+    }
+
+    /**
+     * Sets the rows the next batches leave as the owner wrote them (held rows, followers).
+     * @param mask - one bit per node
+     */
+    setDrawnSkip(mask: NodeMask): void {
+        this.drawnSkip = new Uint32Array(mask);
+        this.drawnStage?.setSkip(this.drawnSkip);
+    }
+
+    /**
+     * Writes one node's drawn row into every slot of the ring (queue-ordered before the next submit).
+     * @param index - the node index (< n)
+     * @param x - drawn x
+     * @param y - drawn y
+     * @param z - drawn z
+     * @param w - the w lane
+     */
+    writeDrawn(index: number, x: number, y: number, z: number, w: number): void {
+        const output = this.drawnRows;
+        if (output === null || !Number.isInteger(index) || index < 0 || index >= this.n) {
+            throw invalidArgument("index", index, `an integer in [0, ${this.n}) with a drawn ring`, "writeDrawn");
+        }
+        output.rows.set([x, y, z, w], 4 * index);
+        this.drawnStage?.write(index, output.rows.subarray(4 * index, 4 * index + 4));
     }
 
     // ---------------------------------------------------------------- dispose and device loss
@@ -1391,10 +1696,13 @@ export class ForceSimulation<
         const { k } = record;
         const { device } = this.ctx;
         if (this.fixedDirty) {
-            device.queue.writeBuffer(buffers.fixed, 0, this.fixedWords);
+            device.queue.writeBuffer(buffers.fixed, 0, this.heldWords());
             this.fixedDirty = false;
         }
         this.flushStateWrites(buffers.state);
+        this.flushClusters();
+        const stage = this.flushCollision();
+        const sweeping = stage !== null && this.collisionOwed;
         const first = this.ring.reserve(k);
         for (let i = 0; i < k; i++) {
             const flags = i === 0 && this.firstPending ? FA2_FLAG_FIRST : 0;
@@ -1405,8 +1713,14 @@ export class ForceSimulation<
         const beforeEpilogue = this.lastIterationStage();
         for (let i = 0; i < k; i++) {
             // the last iteration records every stage (toScene included); the others stop before the epilogue
+            stage?.settling(sweeping && i === k - 1);
             this.model.recordIteration(batch, first + i, this.tierValue, i === k - 1 ? undefined : beforeEpilogue);
         }
+        batch.endPass();
+        const drawn = this.drawnStage;
+        const drawnRows = this.drawnRows?.rows ?? null;
+        record.drawn =
+            drawn === null || drawnRows === null ? null : drawn.record(batch.pass(`${this.label}/drawn`), drawnRows);
         batch.endPass();
         const scene = batch.readback(buffers.scene, 0, 12 * this.n);
         const state = batch.readback(buffers.state, 0, STATE_HEADER_BYTES + k * this.traceBytes);
@@ -1418,6 +1732,7 @@ export class ForceSimulation<
         record.sceneOffset = scene.offset;
         record.stateOffset = state.offset;
         record.profile = profile;
+        record.sweptCollision = sweeping;
         record.startedAt = performance.now();
         this.lastSubmittedBatchIdValue = submitted.id;
         this.iterationsSubmitted += k;
@@ -1454,6 +1769,8 @@ export class ForceSimulation<
                 return;
             }
             this.copyScene(owner, bytes, record);
+            this.landedDrawnValue = record.drawn?.buffer ?? null;
+            this.landedDrawnTransformValue = record.drawn?.transform ?? null;
             const header = new DataView(bytes, record.stateOffset, STATE_HEADER_BYTES);
             const trace = new DataView(bytes, record.stateOffset + STATE_HEADER_BYTES, k * this.traceBytes);
             this.writer.absorb(header);
@@ -1466,6 +1783,7 @@ export class ForceSimulation<
             this.iterationsDoneValue += k;
             // PLAN DECISION 21: a batch in flight at reheat() carries the pre-reheat settle counter
             this.settledCountValue = record.id <= this.reheatedAfterBatchId ? 0 : settledCount;
+            this.collisionSwept ||= record.sweptCollision && record.id > this.reheatedAfterBatchId;
             this.settledValue = this.computeSettled();
             record.resolve();
         } catch (err) {
@@ -1609,7 +1927,7 @@ export class ForceSimulation<
      */
     private paramsForSlot(global: number, index: number, flags: number): UniformValues {
         const [cx, cy, cz] = this.center;
-        const model = this.model.paramsFor(global, this.optionsValue);
+        const model = this.model.paramsFor(global, this.optionsValue, this.liveValue);
         const modelFlags = typeof model.flags === "number" ? model.flags : 0;
         const shared: UniformValues = {
             n: this.n,
@@ -1620,6 +1938,8 @@ export class ForceSimulation<
             scale: this.scale,
             center: [cx, cy, cz, 0],
             settleThreshold: this.settleThreshold(),
+            clusterStrength: this.clusters?.strength ?? 0,
+            clusterCount: this.clusterStage?.count ?? 0,
         };
         return { ...model, ...shared };
     }
@@ -1707,11 +2027,13 @@ export class ForceSimulation<
         if (this.stateValue !== "loaded") {
             return false;
         }
-        return (
+        const done =
             this.n === 0 ||
             this.iterationsDoneValue >= this.iterationBudget() ||
-            this.settledCountValue >= this.settleWindow()
-        );
+            this.settledCountValue >= this.settleWindow();
+        // the run is over, but the forces may have left pairs overlapping: one more batch carries the settling sweeps
+        this.collisionOwed = done && this.n > 0 && this.collision !== null && !this.collisionSwept;
+        return done && !this.collisionOwed;
     }
 
     // ---------------------------------------------------------------- private: buffers, upload, bind
@@ -1762,7 +2084,7 @@ export class ForceSimulation<
         bindings.set("trace", { buffer: state, offset: STATE_HEADER_BYTES, size: traceRegionBytes, window: null });
         const model = new Map<string, { readonly buffer: GPUBuffer; readonly spec: BufferSpec }>();
         for (const spec of this.model.buffers(n, this.dimValue)) {
-            if (SHARED_BUFFER_NAMES.includes(spec.name) || bindings.has(spec.name)) {
+            if (SHARED_BUFFER_NAMES.has(spec.name) || bindings.has(spec.name)) {
                 throw invalidArgument(
                     "BufferSpec.name",
                     spec.name,
@@ -1828,6 +2150,9 @@ export class ForceSimulation<
         }
         this.buffers = null;
         this.resources = null;
+        this.dropClusterStage();
+        this.dropCollisionStage();
+        this.dropDrawnStage();
         const doomed = [buffers.positions, buffers.scene, buffers.fixed, buffers.partials, buffers.state];
         for (const { buffer } of buffers.model.values()) {
             doomed.push(buffer);
@@ -1881,6 +2206,23 @@ export class ForceSimulation<
      * @param mass - the resolved masses
      */
     private uploadPositions(buffers: SimulationBuffers, positions: F32, mass: F32): void {
+        const packed = this.packLayout(positions);
+        for (let i = 0; i < this.n; i++) {
+            packed[4 * i + 3] = this.isInert(i) ? 0 : mass[i]; // an inert row weighs 0 (setInert)
+        }
+        this.ctx.device.queue.writeBuffer(buffers.positions, 0, packed);
+        this.writeLoadStatistics(packed, true);
+        this.model.onLoad(this.writer);
+        this.ctx.device.queue.writeBuffer(buffers.state, 0, this.writer.headerBytes());
+        this.writer.clearQueued();
+    }
+
+    /**
+     * The scene array as layout-unit vec4f rows, `.w` left 0 (z = 0 in 2D).
+     * @param positions - the owner's scene-unit array
+     * @returns 4 n floats
+     */
+    private packLayout(positions: F32): Float32Array<ArrayBuffer> {
         const { n, scale } = this;
         const [cx, cy, cz] = this.center;
         const packed = new Float32Array(4 * n);
@@ -1888,15 +2230,29 @@ export class ForceSimulation<
             packed[4 * i] = (positions[3 * i] - cx) / scale;
             packed[4 * i + 1] = (positions[3 * i + 1] - cy) / scale;
             packed[4 * i + 2] = this.dimValue === 2 ? 0 : (positions[3 * i + 2] - cz) / scale;
-            packed[4 * i + 3] = mass[i];
         }
-        this.ctx.device.queue.writeBuffer(buffers.positions, 0, packed);
+        return packed;
+    }
+
+    /**
+     * Queues load()'s statistics over the live rows (inert rows left out, as K5 leaves them out of partials A): the
+     * centroid, bbox, RMS radius and radius, f64 over the f32 values; with `restart`, iteration 0, settledCount 0
+     * and meanDisplacement 0 too.
+     * @param packed - the layout-unit vec4f rows
+     * @param restart - whether this is a load (the counters restart) or setInert before the first batch
+     */
+    private writeLoadStatistics(packed: Float32Array, restart: boolean): void {
+        const { n } = this;
+        const live = Math.max(this.liveValue, 1);
         let sx = 0;
         let sy = 0;
         let sz = 0;
         const lo = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
         const hi = [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
         for (let i = 0; i < n; i++) {
+            if (this.isInert(i)) {
+                continue;
+            }
             const x = packed[4 * i];
             const y = packed[4 * i + 1];
             const z = packed[4 * i + 2];
@@ -1910,12 +2266,15 @@ export class ForceSimulation<
             hi[1] = Math.max(hi[1], y);
             hi[2] = Math.max(hi[2], z);
         }
-        const mx = sx / n;
-        const my = sy / n;
-        const mz = sz / n;
+        const mx = sx / live;
+        const my = sy / live;
+        const mz = sz / live;
         let sumSq = 0;
         let maxSq = 0;
         for (let i = 0; i < n; i++) {
+            if (this.isInert(i)) {
+                continue;
+            }
             const dx = packed[4 * i] - mx;
             const dy = packed[4 * i + 1] - my;
             const dz = packed[4 * i + 2] - mz;
@@ -1924,17 +2283,55 @@ export class ForceSimulation<
             maxSq = Math.max(maxSq, q);
         }
         const { writer } = this;
-        writer.set("iteration", 0);
-        writer.set("settledCount", 0);
-        writer.set("meanDisplacement", 0);
+        if (restart) {
+            writer.set("iteration", 0);
+            writer.set("settledCount", 0);
+            writer.set("meanDisplacement", 0);
+        }
         writer.set("centroid", [mx, my, mz, 0]);
         writer.set("min", [lo[0], lo[1], lo[2], 0]);
         writer.set("max", [hi[0], hi[1], hi[2], 0]);
-        writer.set("rmsRadius", Math.sqrt(sumSq / n));
+        writer.set("rmsRadius", Math.sqrt(sumSq / live));
         writer.set("radius", Math.sqrt(maxSq));
-        this.model.onLoad(writer);
-        this.ctx.device.queue.writeBuffer(buffers.state, 0, writer.headerBytes());
-        writer.clearQueued();
+    }
+
+    /**
+     * Whether setInert took this row out of the forces.
+     * @param i - the row
+     * @returns true for an inert row
+     */
+    private isInert(i: number): boolean {
+        return this.inertWords !== null && maskTest(this.inertWords, i);
+    }
+
+    /**
+     * How many rows below n are inert.
+     * @returns the count
+     */
+    private inertCount(): number {
+        let count = 0;
+        for (let i = 0; i < this.n; i++) {
+            if (this.isInert(i)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * The words the device's fixed mask holds: the pins with every inert row OR-ed in, since an inert row never moves.
+     * @returns the mask words
+     */
+    private heldWords(): U32 {
+        const inert = this.inertWords;
+        if (inert === null) {
+            return this.fixedWords;
+        }
+        const held = this.fixedWords.slice();
+        for (let w = 0; w < held.length && w < inert.length; w++) {
+            held[w] |= inert[w];
+        }
+        return held;
     }
 
     /**
@@ -1966,7 +2363,7 @@ export class ForceSimulation<
             previous.column === resolved.column &&
             previous.version === resolved.column.version &&
             previous.data.length === resolved.data.length;
-        const data = reusable && previous !== null ? previous.data : resolved.data;
+        const data = reusable ? previous.data : resolved.data;
         const upload = this.ctx.residency.array(data, "weights", snapshot);
         this.weightsUpload = {
             serial: snapshot.serial,
@@ -2060,6 +2457,144 @@ export class ForceSimulation<
             return;
         }
         await this.model.bind(resources, overrides);
+        await this.bindClusters(resources, generation);
+        await this.bindCollision(resources, generation);
+        await this.bindDrawn(resources, generation);
+    }
+
+    /**
+     * Compiles and attaches the cluster stage when communities are set and none runs; a load or a setClusters(null) that
+     * overtook the compile drops the result.
+     * @param resources - the resources
+     * @param generation - the generation the bind belongs to
+     */
+    private async bindClusters(resources: ModelResources, generation: number): Promise<void> {
+        if (this.clusters === null || this.clusterStage !== null) {
+            return;
+        }
+        const wanted = (): boolean =>
+            this.stateValue === "loaded" && generation === this.generationValue && this.clusters !== null;
+        const stage = await ClusterStage.create(resources, CLUSTER_LAW[this.model.kind]);
+        if (!wanted()) {
+            stage.dispose();
+            return;
+        }
+        this.clusterStage = stage;
+        this.clustersDirty = true;
+        this.model.afterAttraction = (pass, offset): void => {
+            stage.record(pass, offset);
+        };
+    }
+
+    /** Uploads changed communities before a batch records. */
+    private flushClusters(): void {
+        const { clusters, clusterStage } = this;
+        if (clusters !== null && clusterStage !== null && this.clustersDirty) {
+            clusterStage.update(clusters.communities);
+            this.clustersDirty = false;
+        }
+    }
+
+    /** Detaches the cluster stage; its buffers return to the pool once the batches reading them are done. */
+    private dropClusterStage(): void {
+        const stage = this.clusterStage;
+        if (stage !== null) {
+            this.clusterStage = null;
+            this.model.afterAttraction = null;
+            this.afterInFlight(() => {
+                stage.dispose();
+            });
+        }
+    }
+
+    /**
+     * Compiles and attaches the collision stage when a collision is set and none runs; a load or a setCollision(null)
+     * that overtook the compile drops the result.
+     * @param resources - the resources
+     * @param generation - the generation the bind belongs to
+     */
+    private async bindCollision(resources: ModelResources, generation: number): Promise<void> {
+        if (this.collision === null || this.collisionStage !== null) {
+            return;
+        }
+        const wanted = (): boolean =>
+            this.stateValue === "loaded" && generation === this.generationValue && this.collision !== null;
+        const stage = await CollisionStage.create(resources);
+        if (!wanted()) {
+            stage.dispose();
+            return;
+        }
+        this.collisionStage = stage;
+        this.collisionDirty = true;
+        this.collisionRadiiDirty = true;
+        this.model.afterIntegrate = (pass: GPUComputePassEncoder): void => {
+            stage.record(pass);
+        };
+    }
+
+    /**
+     * Uploads a changed collision before a batch records.
+     * @returns the running stage, or null
+     */
+    private flushCollision(): CollisionStage | null {
+        const { collision, collisionStage } = this;
+        if (collision !== null && collisionStage !== null && this.collisionDirty) {
+            collisionStage.update(collision, this.collisionRadiiDirty);
+            this.collisionDirty = false;
+            this.collisionRadiiDirty = false;
+        }
+        return collisionStage;
+    }
+
+    /**
+     * Compiles and attaches the drawn ring when one is asked for and none runs; a load or a setDrawn() that
+     * overtook the compile drops the result.
+     * @param resources - the resources
+     * @param generation - the generation the bind belongs to
+     */
+    private async bindDrawn(resources: ModelResources, generation: number): Promise<void> {
+        const output = this.drawnRows;
+        if (output === null || this.drawnStage !== null || output.rows.length !== 4 * resources.n) {
+            return;
+        }
+        const stage = await DrawnStage.create(resources, output.slots);
+        if (this.stateValue !== "loaded" || generation !== this.generationValue || this.drawnRows !== output) {
+            stage.dispose();
+            return;
+        }
+        this.drawnStage = stage;
+        stage.write(0, output.rows);
+        if (this.drawnTransform !== null) {
+            stage.transform(this.drawnTransform);
+        }
+        if (this.drawnSkip !== null) {
+            stage.setSkip(this.drawnSkip);
+        }
+    }
+
+    /** Detaches the drawn ring; its buffers return to the pool once the batches writing them are done. */
+    private dropDrawnStage(): void {
+        const stage = this.drawnStage;
+        this.landedDrawnValue = null;
+        this.landedDrawnTransformValue = null;
+        if (stage !== null) {
+            this.drawnStage = null;
+            this.afterInFlight(() => {
+                stage.dispose();
+            });
+        }
+    }
+
+    /** Detaches the collision stage; its buffers return to the pool once the batches reading them are done. */
+    private dropCollisionStage(): void {
+        const stage = this.collisionStage;
+        if (stage !== null) {
+            this.collisionStage = null;
+            this.model.afterIntegrate = null;
+            this.afterInFlight(() => {
+                stage.dispose();
+            });
+        }
     }
 
     // ---------------------------------------------------------------- private: inspect and debug runs
@@ -2111,7 +2646,7 @@ export class ForceSimulation<
         const buffers = this.requireBuffers();
         const { device } = this.ctx;
         if (this.fixedDirty) {
-            device.queue.writeBuffer(buffers.fixed, 0, this.fixedWords);
+            device.queue.writeBuffer(buffers.fixed, 0, this.heldWords());
             this.fixedDirty = false;
         }
         this.flushStateWrites(buffers.state);

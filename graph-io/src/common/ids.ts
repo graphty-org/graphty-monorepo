@@ -17,11 +17,9 @@
 
 import { GraphFormatError, type IdCoercion, type NodeId } from "@graphty/graph-format";
 
-import { ID_MERGED_CODE } from "./codes.js";
-
 const CANONICAL_INTEGER = /^-?(0|[1-9]\d*)$/;
 
-export { ID_MERGED_CODE };
+export { ID_MERGED_CODE } from "./codes.js";
 
 /**
  * The "canonical" rule on one text cell.

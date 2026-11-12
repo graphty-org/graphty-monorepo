@@ -30,19 +30,21 @@ const cy = cytoscape({
 
 ### PageRank
 
-Cytoscape's `pageRank` follows edges from source to target and does not scale the link share by `d`, which equals standard PageRank with damping `1 / (2 - d)`: Cytoscape's 0.8 is graphty's 0.8333. For the same ranks, pass `directed: true` and convert the damping:
+Cytoscape's `pageRank` follows edges from source to target, so pass `directed: true` for the same ranks. From Cytoscape 3.34.5 its `dampingFactor` is the standard damping and carries over as it is:
 
 ```js
 // Before
 const before = cy.elements().pageRank({ dampingFactor: 0.8 });
 
 // After: the same formula
-const after = cy.elements().graphtyPageRank({ directed: true, dampingFactor: 1 / (2 - 0.8) });
+const after = cy.elements().graphtyPageRank({ directed: true, dampingFactor: 0.8 });
 
-console.log(before.rank("#b").toFixed(4), after.rank("#b").toFixed(4)); // 0.2866 0.2870
+console.log(before.rank("#b").toFixed(4), after.rank("#b").toFixed(4)); // 0.2871 0.2871
 ```
 
-Cytoscape stops sooner (with `precision: 1e-12` both print `0.286976`). `precision` becomes `tolerance` and `iterations` becomes `maxIterations` (default 100, was 200); the old names throw. graphty's defaults are undirected, damping 0.85.
+Before 3.34.5, Cytoscape did not scale the link share by `d`, which equals standard PageRank with damping `1 / (2 - d)`: its 0.8 is graphty's 0.8333. To reproduce ranks from an older Cytoscape, pass `dampingFactor: 1 / (2 - 0.8)`.
+
+Cytoscape stops sooner (with `precision: 1e-12` both print `0.287092`). `precision` becomes `tolerance` and `iterations` becomes `maxIterations` (default 100, was 200); the old names throw. graphty's defaults are undirected, damping 0.85.
 
 ### Dijkstra
 

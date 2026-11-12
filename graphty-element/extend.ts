@@ -47,6 +47,9 @@
 
 export type { RegisterOptions } from "./src/catalog/pluginRegistry";
 
+// The experiments every element and session on the page switches on unless it names its own.
+export { setDefaultFeatures } from "./src/features/resolve";
+
 // ---------------------------------------------------------------------------------------------
 // Options: one mechanism for all six points
 // ---------------------------------------------------------------------------------------------
@@ -64,7 +67,14 @@ export type { OptionContext } from "./src/catalog/options";
 export { resolveOptionValues } from "./src/catalog/options";
 export type { OptionsFromZodOptions, OptionsSource, OptionUiMeta } from "./src/catalog/optionsFromZod";
 export { optionsFromZod } from "./src/catalog/optionsFromZod";
-export type { OptionBound, OptionChoice, OptionDescriptor, OptionType } from "./src/catalog/types";
+export type {
+    OptionBound,
+    OptionChoice,
+    OptionDescriptor,
+    OptionType,
+    OptionUnsupported,
+    OptionUnsupportedCode,
+} from "./src/catalog/types";
 export { isOptionType, OPTION_TYPES } from "./src/catalog/types";
 
 // ---------------------------------------------------------------------------------------------
@@ -86,6 +96,35 @@ export {
 } from "./src/catalog/paletteRegistry";
 export type { PaletteDescriptor, PaletteId, PaletteRegistration } from "./src/catalog/types";
 export { KNOWN_PALETTE_IDS } from "./src/catalog/types";
+
+// ---------------------------------------------------------------------------------------------
+// Shader: a descriptor and a GLSL body, checked as pasted shader text is
+// ---------------------------------------------------------------------------------------------
+
+export { clearRegisteredShadersForTesting, registerShader } from "./src/catalog/shaderRegistry";
+export type {
+    ShaderClock,
+    ShaderClockBinding,
+    ShaderDescriptor,
+    ShaderPlace,
+    ShaderPreview,
+    ShaderRegistration,
+    ShaderSource,
+    ShaderTarget,
+} from "./src/catalog/shaders";
+export { shaderTemplate, type ShaderTemplatePlace } from "./src/catalog/shaderTemplate";
+
+// ---------------------------------------------------------------------------------------------
+// Layout transition: how nodes travel from one layout to the next, on the CPU
+// ---------------------------------------------------------------------------------------------
+
+export type {
+    TransitionDescriptor,
+    TransitionDrawable,
+    TransitionNode,
+    TransitionRegistration,
+} from "./src/transitions/registry";
+export { clearRegisteredTransitionsForTesting, registerTransition } from "./src/transitions/registry";
 
 // ---------------------------------------------------------------------------------------------
 // File format: a reader class carrying its own description
@@ -110,7 +149,7 @@ export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";
 export type { GraphLister, RegisteredFormat } from "./src/catalog/formatRegistry";
 export { clearRegisteredFormatsForTesting, registeredFormatDescriptors } from "./src/catalog/formatRegistry";
-export type { FormatDescriptor, FormatId } from "./src/catalog/types";
+export type { FormatDescriptor, FormatExportVariant, FormatId } from "./src/catalog/types";
 export { KNOWN_FORMAT_IDS } from "./src/catalog/types";
 export type { AdHocData } from "./src/config/index";
 export type {
@@ -123,6 +162,7 @@ export type {
 export { DataSource } from "./src/data/DataSource";
 export type { DataLoadingError, ErrorSummary } from "./src/data/ErrorAggregator";
 export { ErrorAggregator } from "./src/data/ErrorAggregator";
+export type { TimeField, TimeSource, TimeUnit } from "./src/session/time/TimeApi";
 
 /**
  * A READER FROM A GRAPH-IO IMPORTER. `DataSource.fromImporter(importer, descriptor)` turns a
@@ -155,7 +195,14 @@ export { ImportError } from "@graphty/graph-io";
  */
 export type { FormatWriterRegistration } from "./src/catalog/writerRegistry";
 export { clearRegisteredFormatWritersForTesting, registerFormatWriter } from "./src/catalog/writerRegistry";
-export type { ExportGraphOptions, ExportLoss, ExportLossCode, ExportResult } from "./src/data/export";
+export type {
+    ExportGraphOptions,
+    ExportLoss,
+    ExportLossCode,
+    ExportResult,
+    ExportScope,
+    ExportStyleLossCode,
+} from "./src/data/export";
 export type { CommonExportOptions, ExportCapabilities, GraphExporter, LossNote } from "@graphty/graph-io";
 
 // ---------------------------------------------------------------------------------------------
@@ -174,11 +221,13 @@ export type { CommonExportOptions, ExportCapabilities, GraphExporter, LossNote }
  */
 export type {
     CameraState,
+    CameraViewExtent,
     CameraViewInput,
     CameraViewRegistration,
     DrawingMode,
     GraphBounds,
     Vec3,
+    ViewInsets,
 } from "./src/camera/types";
 export {
     clearRegisteredCamerasForTesting,
@@ -187,6 +236,14 @@ export {
 } from "./src/catalog/cameraRegistry";
 export type { CameraDescriptor, CameraId } from "./src/catalog/types";
 export { KNOWN_CAMERA_IDS } from "./src/catalog/types";
+
+/*
+ * The two-hand XR gesture the element's own controls use, as plain math over `Vec3`: for a
+ * consumer building its own XR controls on top of the element. It needs no Babylon.js; a
+ * Babylon `Vector3` is a `Vec3`.
+ */
+export type { TwoHandGestureDelta } from "./src/cameras/twoHandGesture";
+export { twoHandGestureDelta } from "./src/cameras/twoHandGesture";
 
 // ---------------------------------------------------------------------------------------------
 // Layout: an engine the element steps, or an arrangement computed in one pass
@@ -223,7 +280,7 @@ export type { RegisteredLayout } from "./src/catalog/layoutRegistry";
 export { clearRegisteredLayoutsForTesting, registeredLayoutDescriptors } from "./src/catalog/layoutRegistry";
 export type { AuthoredLayoutDescriptor, LayoutDescriptor, LayoutId } from "./src/catalog/types";
 export { KNOWN_LAYOUT_IDS } from "./src/catalog/types";
-export type { Edge } from "./src/Edge";
+export type { Edge, EdgeCapEnd } from "./src/Edge";
 export type {
     EdgePosition,
     LayoutEngineStatics,
@@ -239,6 +296,7 @@ export type {
     SnapshotLayoutInput,
     SnapshotLayoutProgress,
     SnapshotLayoutRegistration,
+    SnapshotLayoutWarning,
 } from "./src/layout/SnapshotLayoutEngine";
 export { registerSnapshotLayout } from "./src/layout/SnapshotLayoutEngine";
 export type { Node, NodeIdType } from "./src/Node";
@@ -303,7 +361,7 @@ export type { RunId } from "./src/catalog/types";
 export type { ResultElementValues } from "./src/session/results/RunResult";
 export { checkShapeContract } from "./src/session/results/types";
 export type { CaveatCode, PartialCode } from "./src/session/runs/caveatFacts";
-export type { Caveats, Progress, WeightMeaning } from "./src/session/runs/types";
+export type { Caveats, Progress, WeightMeaning, WeightSkip } from "./src/session/runs/types";
 
 /*
  * WHAT A RUN COMPUTES OVER. `context.input(orientation)` hands `compute` the graph as graph-format
@@ -382,6 +440,7 @@ export { defineAlgorithm } from "./src/simple/defineAlgorithm";
 export { defineLayout } from "./src/simple/defineLayout";
 export { defineLogDestination } from "./src/simple/defineLogDestination";
 export { definePalette } from "./src/simple/definePalette";
+export { defineShader } from "./src/simple/defineShader";
 export type {
     AlgorithmContext,
     AlgorithmDefinition,
@@ -406,17 +465,46 @@ export type {
     PlainLogRecord,
     Point,
     Score,
+    ShaderDefinition,
+    ShaderParamShorthand,
     ShorthandValue,
     WholeGraphScoreDefinition,
 } from "./src/simple/types";
 export { compareNodeIds } from "./src/simple/view";
 
 // ---------------------------------------------------------------------------------------------
+// Whether a registration reaches the assistant
+// ---------------------------------------------------------------------------------------------
+
+/*
+ * NOT AN EXTENSION POINT: A CHECK OF THE SIX. Every algorithm, layout, format and camera view a
+ * plugin registers reaches graphty-element's assistant with no code of its own: the assistant's
+ * tools are generated from the catalog. `assistantReach()` asks, from the plugin's own test, what
+ * of its registrations a model could not be offered, as the element's own build asks of the
+ * built-ins.
+ */
+export type { AssistantReachCode } from "./src/ai/tools/reach";
+export { assistantReach } from "./src/ai/tools/reach";
+
+// ---------------------------------------------------------------------------------------------
 // How a plugin reports a failure
 // ---------------------------------------------------------------------------------------------
 
-export type { GraphtyErrorCode, GraphtyErrorInit, GraphtyErrorSource, GraphtyErrorTarget } from "./src/errors";
+// ---------------------------------------------------------------------------------------------
+// Network sources (experimental): graph-io's source contract and the element's load types
+// ---------------------------------------------------------------------------------------------
+
+export type {
+    GraphtyErrorCode,
+    GraphtyErrorDetails,
+    GraphtyErrorDetailsMap,
+    GraphtyErrorFor,
+    GraphtyErrorInit,
+    GraphtyErrorSource,
+    GraphtyErrorTarget,
+} from "./src/errors";
 export { GraphtyError, isGraphtyError } from "./src/errors";
+export * from "./src/session/sources/public";
 
 // ---------------------------------------------------------------------------------------------
 // Acceleration: internal, and not one of the six. A factory, registered by name, called with the
@@ -438,3 +526,17 @@ export {
     DEFAULT_ACCELERATOR_PRECISION,
     registerAccelerator,
 } from "./src/acceleration";
+
+// ---------------------------------------------------------------------------------------------
+// Autosave storage: the contract a custom autosave backend implements, and an in-memory one.
+// ---------------------------------------------------------------------------------------------
+
+export { memoryAutosaveStore } from "./src/autosave/memoryStore";
+export type {
+    AutosaveCommitOptions,
+    AutosaveEntryMeta,
+    AutosaveParts,
+    AutosaveStore,
+    AutosaveWrite,
+} from "./src/autosave/types";
+export { AutosaveConflict, isAutosaveConflict } from "./src/autosave/types";

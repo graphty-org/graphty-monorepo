@@ -14,23 +14,17 @@ function getNextPort(): number {
 }
 
 /**
- * Helper to wait for server to be listening with a timeout.
+ * Waits for a server to be listening, or for its start to fail. No deadline of its own: the one
+ * hang guard (tools/test-wait-guard.mjs) ends a start that never comes.
  * @param server - The server to wait for
- * @param timeoutMs - Timeout in milliseconds
  */
-async function waitForServer(server: http.Server | https.Server, timeoutMs = 5000): Promise<void> {
+async function waitForServer(server: http.Server | https.Server): Promise<void> {
     return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-            reject(new Error(`Server did not start within ${timeoutMs}ms`));
-        }, timeoutMs);
-
         server.once("listening", () => {
-            clearTimeout(timeout);
             resolve();
         });
 
         server.once("error", (err) => {
-            clearTimeout(timeout);
             reject(err);
         });
     });
@@ -103,7 +97,7 @@ describe("Log Server", () => {
         });
 
         expect(response.status).toBe(200);
-        const data = await response.json();
+        const data = (await response.json()) as { success: boolean };
         expect(data.success).toBe(true);
     });
 
@@ -130,7 +124,7 @@ describe("Log Server", () => {
         const response = await fetch(`http://127.0.0.1:${port}/logs`);
         expect(response.status).toBe(200);
 
-        const data = await response.json();
+        const data = (await response.json()) as Record<string, unknown[]>;
         expect(data["test-session-456"]).toBeDefined();
         expect(data["test-session-456"]).toHaveLength(2);
     });
@@ -159,7 +153,7 @@ describe("Log Server", () => {
         const response = await fetch(`http://127.0.0.1:${port}/logs/recent?n=2`);
         expect(response.status).toBe(200);
 
-        const data = await response.json();
+        const data = (await response.json()) as { showing: number; logs: unknown[] };
         expect(data.showing).toBe(2);
         expect(data.logs).toHaveLength(2);
     });
@@ -171,7 +165,7 @@ describe("Log Server", () => {
         for (const bad of ["abc", "0", "-2", "1.5"]) {
             const response = await fetch(`http://127.0.0.1:${port}/logs/recent?n=${bad}`);
             expect(response.status).toBe(400);
-            const data = await response.json();
+            const data = (await response.json()) as { error: string };
             expect(data.error).toBe(`n must be an integer of at least 1, got "${bad}"`);
         }
     });
@@ -210,7 +204,7 @@ describe("Log Server", () => {
         const response = await fetch(`http://127.0.0.1:${port}/logs/errors`);
         expect(response.status).toBe(200);
 
-        const data = await response.json();
+        const data = (await response.json()) as { total: number; logs: { level: string }[] };
         expect(data.total).toBe(1);
         expect(data.logs[0].level).toBe("ERROR");
     });
@@ -239,8 +233,8 @@ describe("Log Server", () => {
 
         // Verify logs are cleared
         const logsResponse = await fetch(`http://127.0.0.1:${port}/logs`);
-        const data = await logsResponse.json();
-        expect(Object.keys(data)).toHaveLength(0);
+        const data: unknown = await logsResponse.json();
+        expect(data).toEqual({});
     });
 
     test("should handle GET /health", async () => {
@@ -250,7 +244,7 @@ describe("Log Server", () => {
         const response = await fetch(`http://127.0.0.1:${port}/health`);
         expect(response.status).toBe(200);
 
-        const data = await response.json();
+        const data = (await response.json()) as { status: string; sessions: number };
         expect(data.status).toBe("ok");
         expect(data.sessions).toBe(0);
     });
@@ -409,7 +403,7 @@ describe("Log Server", () => {
 
         // Verify all were stored
         const logsResponse = await fetch(`http://127.0.0.1:${port}/logs`);
-        const data = await logsResponse.json();
+        const data = (await logsResponse.json()) as Record<string, unknown[]>;
         expect(data["test-session-levels"]).toHaveLength(8);
     });
 

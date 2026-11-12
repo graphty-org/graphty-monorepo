@@ -23,14 +23,11 @@ function getGlobalValue(name: "__REMOTE_LOG_PROJECT_MARKER__" | "__REMOTE_LOG_WO
         if (name === "__REMOTE_LOG_PROJECT_MARKER__") {
             return typeof __REMOTE_LOG_PROJECT_MARKER__ !== "undefined" ? __REMOTE_LOG_PROJECT_MARKER__ : undefined;
         }
-        if (name === "__REMOTE_LOG_WORKTREE_PATH__") {
-            return typeof __REMOTE_LOG_WORKTREE_PATH__ !== "undefined" ? __REMOTE_LOG_WORKTREE_PATH__ : undefined;
-        }
+        return typeof __REMOTE_LOG_WORKTREE_PATH__ !== "undefined" ? __REMOTE_LOG_WORKTREE_PATH__ : undefined;
     } catch {
         // ReferenceError if the global is not defined at all
         return undefined;
     }
-    return undefined;
 }
 
 /** Default configuration values */
@@ -95,7 +92,7 @@ export class RemoteLogClient {
     private flushPromise: Promise<void> | null = null;
 
     /** Tracks when each throttle pattern was last allowed through */
-    private throttleLastTimes = new Map<string, number>();
+    private readonly throttleLastTimes = new Map<string, number>();
 
     /**
      * Creates a new RemoteLogClient.

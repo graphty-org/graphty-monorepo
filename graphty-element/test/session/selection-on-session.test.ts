@@ -1,5 +1,6 @@
 import { assert, describe, it } from "vitest";
 
+import { createGraphSession } from "../../src/session/GraphSession";
 import type { SelectionDelta } from "../../src/session/selection";
 import { edgeBetween, type Harness, makeSession } from "./helpers";
 
@@ -36,6 +37,62 @@ function watchSelection(harness: Harness): SelectionDelta[] {
 }
 
 describe("session.selection", () => {
+    it("counts what apply would select, edges a rule matches included, without selecting", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        await session.data.addEdges([
+            { source: "a", target: "b", minutes: 12 },
+            { source: "b", target: "c", minutes: 4 },
+        ]);
+        const { selection } = session;
+
+        const counted = await selection.count({ text: "=minutes >= `10`" });
+        assert.deepStrictEqual(counted, { nodes: 0, edges: 1 });
+        assert.deepStrictEqual(await selection.count({ where: "minutes >= `10`" }), counted);
+        assert.strictEqual(selection.size, 0, "counting selects nothing");
+        await selection.apply({ text: "=minutes >= `10`" });
+        assert.strictEqual(selection.edges.length, counted.edges);
+        // A rule apply refuses is refused the same way.
+        try {
+            await selection.count({ where: "minutes >= 10" });
+            assert.fail("a bare number is refused");
+        } catch (error) {
+            assert.strictEqual((error as { code?: string }).code, "E_BAD_SELECTOR");
+        }
+        session.dispose();
+    });
+
+    it("lists the ids apply would select, edges a rule matches included, without selecting", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", group: 1 },
+            { id: "b", group: 2 },
+            { id: "c", group: 1 },
+        ]);
+        await session.data.addEdges([
+            { source: "a", target: "b", minutes: 12 },
+            { source: "b", target: "c", minutes: 4 },
+        ]);
+        const { selection } = session;
+
+        const nodes = await selection.members({ where: "data.group == `1`" });
+        assert.sameMembers(nodes.nodes.map(String), ["a", "c"]);
+        assert.deepStrictEqual(nodes.edges, []);
+        const edges = await selection.members({ where: "minutes >= `10`" });
+        assert.deepStrictEqual(edges.nodes, []);
+        assert.strictEqual(edges.edges.length, 1);
+        assert.strictEqual(selection.size, 0, "listing selects nothing");
+        await selection.apply({ where: "minutes >= `10`" });
+        assert.deepStrictEqual(selection.edges, edges.edges);
+        try {
+            await selection.members({ where: "minutes >= 10" });
+            assert.fail("a bare number is refused");
+        } catch (error) {
+            assert.strictEqual((error as { code?: string }).code, "E_BAD_SELECTOR");
+        }
+        session.dispose();
+    });
+
     it("starts empty and holds two sets, not one node", async () => {
         const harness = harnessOf();
 
@@ -164,6 +221,36 @@ describe("session.selection", () => {
         assert.strictEqual(statistics.cutEdges, 1, "c:d has one");
         assert.strictEqual(headcount?.mean, 45);
         assert.strictEqual(headcount?.direction, "above");
+        harness.session.dispose();
+    });
+
+    it("says how many selected nodes hold a value, for a partly filled column of all-different values", async () => {
+        const harness = makeSession();
+        harness.add(
+            [
+                { id: "a", email: "a@example.org" },
+                { id: "b", email: "b@example.org" },
+                { id: "c", email: "" },
+                { id: "d" },
+            ],
+            [],
+        );
+        await harness.session.selection.apply({ nodes: ["a", "b", "c", "d"] });
+
+        const statistics = await harness.session.selection.statistics();
+        const email = statistics.attributes.find((entry) => entry.path === "data.email");
+
+        assert.strictEqual(email?.count, 2, "empty text and a missing value are not values");
+        harness.session.dispose();
+    });
+
+    it("gives the selected nodes' lowest and highest degree, and none with no node selected", async () => {
+        const harness = harnessOf();
+        assert.strictEqual((await harness.session.selection.statistics()).degree, undefined);
+
+        await harness.session.selection.apply({ nodes: ["a", "c", "e"] });
+
+        assert.deepStrictEqual((await harness.session.selection.statistics()).degree, { min: 1, max: 2 });
         harness.session.dispose();
     });
 

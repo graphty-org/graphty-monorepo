@@ -8,14 +8,15 @@
  *
  * - the sets store's committed diff (`SetsStore.onCommit`), before any `set:changed`;
  * - a selection change and a visibility change, before their public events;
+ * - an element entering or leaving a state (hovered, pinned, ghosted);
  * - a run moving its result: queued for a re-run (the result is cleared), finished, or removed;
  * - an attribute write after load (`Graph.updateNodes`), announced once per batch on the store
  *   owner's input tick;
  * - a snapshot replacement, announced on the same tick once a freeze has been delivered.
  *
- * Ingest writes attributes too, but announces nothing: it also touches the store, and the freeze
- * that follows re-queues every watch. Announcing it would make a watch resolve mid-load and force
- * a freeze per ingested chunk.
+ * Ingest writes attributes too, but announces nothing: it also tells the store its records
+ * changed, and the freeze that follows re-queues every watch. Announcing it would make a watch
+ * resolve mid-load and force a freeze per ingested chunk.
  *
  * On the SAME snapshot a notification is synchronous: every watch whose signature moved resolves
  * at once and is handed the new resolution with the inputs that moved, so a layer can repaint the
@@ -39,6 +40,8 @@ import type { RunId, SetId } from "../../catalog/types";
 export type MovedInput =
     | { readonly kind: "sets"; readonly ids: readonly SetId[] }
     | { readonly kind: "selection" }
+    | { readonly kind: "hover" }
+    | { readonly kind: "state" }
     | { readonly kind: "visibility" }
     | { readonly kind: "run"; readonly run: RunId }
     | { readonly kind: "attributes"; readonly element: "node" | "edge"; readonly fields: readonly string[] }
@@ -190,6 +193,25 @@ export class SetsNotifier {
      */
     get pending(): number {
         return this.#queue.size;
+    }
+
+    /**
+     * Resolve every queued watch now, whatever the frame budget, for a caller that has asked to
+     * wait for the work already queued (`styles.settled()`). The frames that would have worked the
+     * queue may never come: the render loop stops in a background tab, while frames are held, and
+     * before the element is connected.
+     */
+    drain(): void {
+        for (const entry of [...this.#queue]) {
+            if (this.#queue.has(entry)) {
+                this.#settle(entry);
+            }
+        }
+
+        if (this.#queue.size === 0) {
+            this.#cancelFrame?.();
+            this.#cancelFrame = null;
+        }
     }
 
     /** Cancel the queued work and drop every watch. */

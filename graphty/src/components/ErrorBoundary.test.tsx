@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { SourceMapTestContent } from "../stories/Sentry.stories";
-import { fireEvent, render, screen } from "../test/test-utils";
+import { render, screen } from "../test/test-utils";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { ErrorFallback } from "./ErrorFallback";
 
@@ -30,6 +31,27 @@ describe("ErrorBoundary", () => {
         expect(screen.getByRole("button", { name: /Try again/i })).toBeInTheDocument();
         spy.mockRestore();
     });
+
+    it("lets a held loading screen go when a render crashes, so it never covers the fallback", () => {
+        const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+        const signals: unknown[] = [];
+        const hear = (event: Event): void => {
+            signals.push((event as CustomEvent<unknown>).detail);
+        };
+        document.addEventListener("graphty-boot", hear);
+        render(
+            <ErrorBoundary>
+                <ThrowingComponent />
+            </ErrorBoundary>,
+        );
+        document.removeEventListener("graphty-boot", hear);
+        expect(signals).toContainEqual({
+            line: "render crashed: Error: Test render error",
+            error: true,
+            done: true,
+        });
+        spy.mockRestore();
+    });
 });
 
 describe("ErrorFallback", () => {
@@ -39,10 +61,10 @@ describe("ErrorFallback", () => {
         expect(screen.getByText(/An unexpected error occurred/)).toBeInTheDocument();
     });
 
-    it("calls resetError when Try again button is clicked", () => {
+    it("calls resetError when Try again button is clicked", async () => {
         const resetError = vi.fn();
         render(<ErrorFallback error={new Error("Demo error")} resetError={resetError} />);
-        fireEvent.click(screen.getByRole("button", { name: /Try again/i }));
+        await userEvent.click(screen.getByRole("button", { name: /Try again/i }));
         expect(resetError).toHaveBeenCalled();
     });
 });

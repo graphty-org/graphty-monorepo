@@ -1,4 +1,4 @@
-import { Meta } from "@storybook/blocks";
+import { Meta } from "@storybook/addon-docs/blocks";
 
 <Meta title="Introduction/Events and shared props" />
 
@@ -74,7 +74,7 @@ settles.
 ## Opening and closing
 
 Anything that opens and closes takes `opened`, `defaultOpened` and `onOpenChange(opened, event?)`:
-`ControlSection`, `ControlSubGroup`, `InfoCircle` and the whole `Popout` family. Supply `opened` to
+`ControlSection`, `InfoCircle` and the whole `Popout` family. Supply `opened` to
 drive it from your own state, or leave it out and let the component remember.
 
 ## Content that arrives later
@@ -102,7 +102,7 @@ live region has to be in the document before the change it announces.
 | `trailing`                                  | The row's occasional control, in the fixed 24px slot every row ends with. Always a node, always the last thing in the row.                                                                                                                |
 | `actions`                                   | Buttons that belong to a container rather than to a row: a section header's, a pop-out panel's, an action row's cluster.                                                                                                                  |
 | `disabled`                                  | Present but cannot be used: dimmed, skipped by Tab, announced as unavailable.                                                                                                                                                             |
-| `disabledReason`                            | One sentence saying why a control is disabled, shown while it is (`ToggleRow`, `ToggleWithContent`, `StyleNumberInput`).                                                                                                                  |
+| `disabledReason`                            | One sentence saying why a control is disabled, shown while it is (`ToggleRow`, `ToggleWithContent`, `PanelField`).                                                                                                                        |
 | `selected`                                  | Which item of a list the reader has picked. Not the same as a control's own value.                                                                                                                                                        |
 | `busy` / `live`                             | The content arrives from something that finishes later.                                                                                                                                                                                   |
 | `opened` / `defaultOpened` / `onOpenChange` | Anything that opens and closes.                                                                                                                                                                                                           |

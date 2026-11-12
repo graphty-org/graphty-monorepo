@@ -96,18 +96,19 @@ describe("framing the graph", () => {
             }
 
             const at = engine.getNodePosition(node);
-            const half = node.size / 2;
+            // out to the size the node is drawn, as framing measures it (#3087)
+            const half = node.drawnHalfExtents;
             const position = new Vector3(at.x, at.y, at.z ?? 0);
 
             min ??= position.clone();
             max ??= position.clone();
 
-            min.x = Math.min(min.x, position.x - half);
-            min.y = Math.min(min.y, position.y - half);
-            min.z = Math.min(min.z, position.z - half);
-            max.x = Math.max(max.x, position.x + half);
-            max.y = Math.max(max.y, position.y + half);
-            max.z = Math.max(max.z, position.z + half);
+            min.x = Math.min(min.x, position.x - half.x);
+            min.y = Math.min(min.y, position.y - half.y);
+            min.z = Math.min(min.z, position.z - half.z);
+            max.x = Math.max(max.x, position.x + half.x);
+            max.y = Math.max(max.y, position.y + half.y);
+            max.z = Math.max(max.z, position.z + half.z);
         }
 
         return min && max ? { min, max } : undefined;

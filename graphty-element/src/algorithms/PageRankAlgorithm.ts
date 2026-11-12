@@ -1,5 +1,5 @@
 import { type F64, type GraphSnapshot, INVALID_INDEX, type NodeId as AlgorithmNodeId } from "@graphty/graph-format";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type InferOptions, parseOptions } from "../config";
@@ -43,14 +43,6 @@ const pageRankOptionsSchema = defineOptions({
         meta: {
             label: "Tolerance",
             description: "Convergence threshold for early stopping",
-            advanced: true,
-        },
-    },
-    weight: {
-        schema: z.string().nullable().default(null),
-        meta: {
-            label: "Weight Attribute",
-            description: "Edge attribute name for weighted PageRank (empty = unweighted)",
             advanced: true,
         },
     },
@@ -115,10 +107,12 @@ function perNode(snapshot: GraphSnapshot, values: ReadonlyMap<AlgorithmNodeId, n
  * range to make one with.
  */
 export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
-    static namespace = "graphty";
-    static type = "pagerank";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "pagerank";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static readonly weightMeaning = "strength" as const;
     /** Ranks over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * NEW: Zod-based options schema for unified validation and UI metadata
@@ -127,13 +121,13 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
      * - PageRankAlgorithm.zodOptionsSchema (the schema)
      * - pageRankOptionsSchema (exported from module)
      */
-    static zodOptionsSchema = pageRankOptionsSchema;
+    static readonly zodOptionsSchema = pageRankOptionsSchema;
 
     /**
      * LEGACY: Old-style options schema for backward compatibility
      * @deprecated Use zodOptionsSchema instead. This will be removed in a future version.
      */
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         dampingFactor: {
             type: "number",
             default: 0.85,
@@ -161,13 +155,6 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
             max: 0.1,
             advanced: true,
         },
-        weight: {
-            type: "string",
-            default: null,
-            label: "Weight Attribute",
-            description: "Edge attribute name for weighted PageRank (empty = unweighted)",
-            advanced: true,
-        },
         useDelta: {
             type: "boolean",
             default: true,
@@ -181,7 +168,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
     /**
      * Resolved options using the NEW Zod-based validation
      */
-    private zodOptions: PageRankSchemaOptions;
+    private readonly zodOptions: PageRankSchemaOptions;
 
     /**
      * The two Map-valued options, kept from what the caller passed.
@@ -223,7 +210,8 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         // Get options from NEW Zod-based schema (validated at construction)
-        const { dampingFactor, maxIterations, tolerance, weight } = this.zodOptions;
+        const { dampingFactor, maxIterations, tolerance } = this.zodOptions;
+        const { weight } = this.weightReading();
         // Map types are programmatic-only (not in schema) - kept from the constructor's arguments
         const initialRanks = this.programmaticOptions.initialRanks ?? undefined;
         const personalization = this.programmaticOptions.personalization ?? undefined;
@@ -254,8 +242,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
                 dampingFactor,
                 maxIterations,
                 tolerance,
-                // ONE weight column, so naming an attribute is the same request as asking for a
-                // weighted run: the snapshot carries the weight the element resolved.
+                // The snapshot carries the weight the run reads (see `weightReading`).
                 weighted: weight !== null,
                 ...(plain ? {} : { convergenceNorm: "max" as const }),
                 ...(initialRanks === undefined ? {} : { initialRanks: perNode(s, initialRanks, 1 / s.nodeCount) }),
@@ -309,7 +296,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
             caveats: {
                 exact: true,
                 direction: snapshot.directed ? "directed" : "undirected",
-                weight: weight === null ? null : { attribute: weight, meaning: "strength" },
+                ...this.weightCaveats(),
                 precision,
                 method: "power-iteration",
                 converged: value.converged,

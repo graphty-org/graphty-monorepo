@@ -5,7 +5,7 @@
  * kept by name whose body stops showing its subject is a story the roster is perfectly happy
  * with, and it is not a hypothetical: `Styles/Layered::ArrowSizeVariations` carried a comment
  * promising caps at 0.5 and 2.0 while all three of its layers wrote only a cap TYPE, so the
- * picture held one size and the name said three. Chromatic could not see it either -- the
+ * picture held one size and the name said three. The screenshot review could not see it either -- the
  * baseline it diffs against was the same hollow picture.
  *
  * THE RULE, in one sentence: a story whose name contains the name of a style channel must write
@@ -81,8 +81,47 @@ const SUBJECT_TREE = "Styles/";
  * story is about. One word, three subjects, so it picks out none of them. The subjects it used
  * to stand in for are still checked under their own words: an arrow caption story claims
  * "arrow", and `Styles/Label::TextAlign` claims "align".
+ *
+ * "font" joined it with the label field channels for the same reason. In `node.labelFont` it
+ * means the typeface; in a story name -- `FontSize`, `FontWeight` -- it is the prefix of any
+ * typography at all, so it picks out no one subject. Those stories are still checked under
+ * "size" and "weight".
+ *
+ * "effect" joined it with the first shader channels, whose effects map meant the shader effects
+ * a layer added; in a story name -- `WireframeEffectLayers` -- it is the name of the style editor's
+ * Effects group, which holds the outline, the glow, the halo and the wireframe too, so it picks
+ * out no one subject. Those stories are still checked under "wireframe", "glow" and the rest.
+ *
+ * "on" came with `labelOnTop`, where it is a preposition joining "label" to "top"; in a story
+ * name -- `OnHover`, `OnOneNodeOnly` -- it is a preposition too, naming when, not what. That
+ * channel's stories are still checked under "top".
+ *
+ * "line" came with `labelLineHeight`, `chartLineWidth` and `shapeLines`, where it is a line of a
+ * label's text, of a chart or drawn over a node; in a story name -- `LineOpacity`, `TwoDAllLines`
+ * -- it is the edge itself. "box" came with `pieFitBox`, a pie's fit to its node's box; in a story
+ * name -- `Box` -- it is a node shape. Neither names one subject.
+ *
+ * "screen" came with `labelMinScreenSize`, the screen size below which a label is hidden; in a
+ * story name -- `ScreenSizedLabels` -- it is the label style's `sizeMode: "screen"`, a value
+ * rather than a channel. The minimum-size stories are still checked under "min" and "size".
+ *
+ * "left" came with `groupMinWidthBiasLeft`, which side of a group a minimum width grows from; in
+ * a story name -- `StudioAboveLeftFront` -- it is the direction a light shines from. The bias
+ * stories are still checked under "bias".
  */
-const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text"]);
+const NOT_A_SUBJECT = new Set([
+    "node",
+    "edge",
+    "style",
+    "text",
+    "font",
+    "effect",
+    "on",
+    "line",
+    "box",
+    "screen",
+    "left",
+]);
 
 /** One story that names a subject and does not show it. */
 export interface SubjectFinding {
@@ -177,6 +216,16 @@ function written(story: StoryDeclaration, fileChannels: readonly string[]): { wo
 
     if (story.writesColour) {
         found.add("color");
+    }
+
+    // A label style's gradient fills the panel behind its words: it is that label's background
+    // (`labelBackground`), so it shows "background" the way a hex in its `background` field does.
+    // `Styles/Label::BackgroundGradient` paints one with no field of that name.
+    if (
+        story.labelFields.some((field) => words(field).includes("gradient")) ||
+        (found.has("gradient") && found.has("label"))
+    ) {
+        found.add("background");
     }
 
     return { words: found, paths };

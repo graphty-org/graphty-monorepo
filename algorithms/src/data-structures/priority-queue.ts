@@ -6,7 +6,7 @@
  */
 export class PriorityQueue<T> {
     private heap: { item: T; priority: number }[];
-    private compareFn: (a: number, b: number) => number;
+    private readonly compareFn: (a: number, b: number) => number;
 
     /**
      * Creates a new PriorityQueue instance.
@@ -42,12 +42,9 @@ export class PriorityQueue<T> {
             return this.heap.pop()?.item;
         }
 
+        // two or more items: the root stays, the last one moves to the top
         const root = this.heap[0];
         const lastElement = this.heap.pop();
-
-        if (!root) {
-            return undefined;
-        }
 
         if (lastElement) {
             this.heap[0] = lastElement;
@@ -62,8 +59,7 @@ export class PriorityQueue<T> {
      * @returns The item with the highest priority, or undefined if the queue is empty
      */
     peek(): T | undefined {
-        const first = this.heap[0];
-        return first ? first.item : undefined;
+        return this.heap.length === 0 ? undefined : this.heap[0].item;
     }
 
     /**
@@ -96,10 +92,6 @@ export class PriorityQueue<T> {
         }
 
         const element = this.heap[index];
-        if (!element) {
-            return false;
-        }
-
         const oldPriority = element.priority;
         element.priority = newPriority;
 
@@ -142,7 +134,7 @@ export class PriorityQueue<T> {
         const current = this.heap[index];
         const parent = this.heap[parentIndex];
 
-        if (current && parent && this.compareFn(current.priority, parent.priority) < 0) {
+        if (this.compareFn(current.priority, parent.priority) < 0) {
             this.swap(index, parentIndex);
             this.heapifyUp(parentIndex);
         }
@@ -161,24 +153,14 @@ export class PriorityQueue<T> {
         const leftChild = this.heap[leftChildIndex];
         const target = this.heap[targetIndex];
 
-        if (
-            leftChildIndex < this.heap.length &&
-            leftChild &&
-            target &&
-            this.compareFn(leftChild.priority, target.priority) < 0
-        ) {
+        if (leftChildIndex < this.heap.length && this.compareFn(leftChild.priority, target.priority) < 0) {
             targetIndex = leftChildIndex;
         }
 
         const rightChild = this.heap[rightChildIndex];
         const newTarget = this.heap[targetIndex];
 
-        if (
-            rightChildIndex < this.heap.length &&
-            rightChild &&
-            newTarget &&
-            this.compareFn(rightChild.priority, newTarget.priority) < 0
-        ) {
+        if (rightChildIndex < this.heap.length && this.compareFn(rightChild.priority, newTarget.priority) < 0) {
             targetIndex = rightChildIndex;
         }
 
@@ -196,10 +178,7 @@ export class PriorityQueue<T> {
      */
     private swap(i: number, j: number): void {
         const temp = this.heap[i];
-        const other = this.heap[j];
-        if (temp && other) {
-            this.heap[i] = other;
-            this.heap[j] = temp;
-        }
+        this.heap[i] = this.heap[j];
+        this.heap[j] = temp;
     }
 }

@@ -1902,6 +1902,25 @@ export const COMMANDS = [
                 run: () => real.session.visibility.set(min === null ? null : { kind: "degree", min }),
             })),
     ),
+    fc
+        .array(fc.tuple(fc.constantFrom("keep", "exclude", "select" as const), fc.nat({ max: 3 }), fc.boolean()), {
+            maxLength: 3,
+        })
+        .map(
+            (list) =>
+                new Edit(`conditions ${JSON.stringify(list)}`, (real) => ({
+                    key: null,
+                    run: () =>
+                        real.session.visibility.setConditions(
+                            list.map(([effect, min, on], at) => ({
+                                id: `c${String(at)}`,
+                                on,
+                                effect,
+                                rule: { kind: "degree", min },
+                            })),
+                        ),
+                })),
+        ),
     fc.option(fc.nat({ max: 3 })).map(
         (to) =>
             new Edit(`window to ${String(to)}`, (real) => ({

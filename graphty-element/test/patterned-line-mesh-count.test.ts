@@ -1,8 +1,14 @@
 import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { FilledArrowRenderer } from "../src/meshes/FilledArrowRenderer";
-import { discreteMeshCount, discreteMeshOffsets, patternElementPeriod } from "../src/meshes/PatternedLineMesh";
+import {
+    alternatingMeshCount,
+    alternatingMeshOffsets,
+    discreteMeshCount,
+    discreteMeshOffsets,
+    patternElementPeriod,
+} from "../src/meshes/PatternedLineMesh";
 import { PatternedLineRenderer } from "../src/meshes/PatternedLineRenderer";
 
 /**
@@ -73,8 +79,21 @@ describe("patterned line element count", () => {
 
         test("collapses to the two boundary elements on a line too short to hold more", () => {
             const meshWidth = patternWidthForStyleWidth(8);
-            assert.equal(discreteMeshCount(0, meshWidth), 2);
-            assert.equal(discreteMeshCount(meshWidth, meshWidth), 2);
+            const gap = patternElementPeriod(meshWidth) - meshWidth;
+            assert.equal(discreteMeshCount(2 * meshWidth + gap * 1.01, meshWidth), 2);
+            assert.equal(discreteMeshCount(2 * meshWidth + gap + patternElementPeriod(meshWidth) * 0.99, meshWidth), 2);
+        });
+
+        test("draws one element, at the start, on a line with no room for two and a gap", () => {
+            // two squeezed onto it touch or overlap and draw a solid line (pajek-synth-lines arc 2 -> 3)
+            const meshWidth = patternWidthForStyleWidth(8);
+            const gap = patternElementPeriod(meshWidth) - meshWidth;
+            for (const length of [0, meshWidth, 2 * meshWidth, 2 * meshWidth + gap * 0.99]) {
+                assert.equal(discreteMeshCount(length, meshWidth), 1, `length ${length}`);
+            }
+            assert.deepEqual(discreteMeshOffsets(2 * meshWidth, meshWidth, 1), [meshWidth / 2]);
+            // shorter than the element: centered on it
+            assert.deepEqual(discreteMeshOffsets(meshWidth / 2, meshWidth, 1), [meshWidth / 4]);
         });
     });
 
@@ -125,21 +144,21 @@ describe("patterned line element count", () => {
             scene = new Scene(new NullEngine());
         });
 
+        afterEach(() => {
+            scene.getEngine().dispose();
+        });
+
         for (const pattern of ["zigzag", "sinewave"] as const) {
             for (const patternCount of [undefined, 12, 40]) {
                 test(`${pattern} with patternCount ${String(patternCount)}`, () => {
                     const start = new Vector3(0, 0, 0);
-                    const line = PatternedLineRenderer.create(
-                        pattern,
-                        start,
-                        new Vector3(LENGTH, 0, 0),
-                        8,
-                        "#ffffff",
-                        1,
-                        scene,
-                        false,
+                    const line = PatternedLineRenderer.create(pattern, start, new Vector3(LENGTH, 0, 0), scene, {
+                        width: 8,
+                        color: "#ffffff",
+                        opacity: 1,
+                        is2DMode: false,
                         patternCount,
-                    );
+                    });
 
                     const last = line.elements[line.elements.length - 1];
                     const lastStart = last.position.subtract(start).length();
@@ -153,6 +172,120 @@ describe("patterned line element count", () => {
         }
     });
 
+    describe("a line whose length changes", () => {
+        let scene: Scene;
+
+        beforeEach(() => {
+            scene = new Scene(new NullEngine());
+        });
+
+        afterEach(() => {
+            scene.getEngine().dispose();
+        });
+
+        test("drops the element it no longer has room for, so no two overlap", () => {
+            // pajek-synth-lines arc 2 -> 3: laid out longer, then shortened, it kept an element too many and its
+            // dashes overlapped into a solid line
+            const width = 0.2;
+            const line = PatternedLineRenderer.create("dash", new Vector3(0, 0, 0), new Vector3(10, 0, 0), scene, {
+                width,
+                color: "#ffffff",
+                opacity: 1,
+                is2DMode: false,
+            });
+            const before = line.elements.length;
+            const meshWidth = (line as unknown as { getRenderedMeshSize(): number }).getRenderedMeshSize();
+            // room for one element fewer
+            const shorter = 10 - patternElementPeriod(meshWidth);
+            line.update(new Vector3(0, 0, 0), new Vector3(shorter, 0, 0));
+            assert.equal(line.elements.length, discreteMeshCount(shorter, meshWidth), "the count");
+            assert.isBelow(line.elements.length, before);
+            const xs = line.elements.map((el) => el.position.x);
+            for (let i = 1; i < xs.length; i++) {
+                assert.isAtLeast(xs[i] - xs[i - 1], meshWidth, `elements ${String(i - 1)} and ${String(i)} overlap`);
+            }
+            line.dispose();
+        });
+
+        // A line that reached its length through other lengths draws what a line made at that
+        // length draws: with a one-element slack, a dashed edge whose ends settled in another
+        // order kept one dash more or less, and a screenshot of it changed between runs.
+        for (const pattern of ["dash", "dot", "zigzag"] as const) {
+            test(`${pattern} updated to a length matches one created there`, () => {
+                const options = { width: 0.1, color: "#000000", opacity: 1 };
+                const start = new Vector3(0, 0, 0);
+                const line = PatternedLineRenderer.create(pattern, start, new Vector3(10, 0, 0), scene, options);
+                for (const length of [10.1, 10.3, 10.6, 9.9, 9.6, 9.3, 10]) {
+                    line.update(start, new Vector3(length, 0, 0));
+                    const fresh = PatternedLineRenderer.create(
+                        pattern,
+                        start,
+                        new Vector3(length, 0, 0),
+                        scene,
+                        options,
+                    );
+                    assert.equal(line.elements.length, fresh.elements.length, `${pattern} at length ${length}`);
+                    fresh.dispose();
+                }
+                line.dispose();
+            });
+        }
+    });
+
+    describe("a pattern whose shapes alternate in length (dash-dot)", () => {
+        let scene: Scene;
+
+        beforeEach(() => {
+            scene = new Scene(new NullEngine());
+        });
+
+        afterEach(() => {
+            scene.getEngine().dispose();
+        });
+
+        test("with one length for every shape, counts and places as the spacing rule does", () => {
+            for (const [length, meshWidth] of [
+                // lengths off a count's exact boundary, where two ways of summing round differently
+                [10.03, 0.1],
+                [3.3, 0.7],
+                [0.5, 0.4],
+            ]) {
+                const gap = patternElementPeriod(meshWidth) - meshWidth;
+                const count = discreteMeshCount(length, meshWidth);
+                assert.equal(alternatingMeshCount(length, [meshWidth, meshWidth], gap), count);
+                const expected = discreteMeshOffsets(length, meshWidth, count);
+                alternatingMeshOffsets(length, [meshWidth, meshWidth], count).forEach((o, i) => {
+                    assert.closeTo(o, expected[i], 1e-9, `offset ${String(i)} at length ${String(length)}`);
+                });
+            }
+        });
+
+        test("counts each dot at its own length, so a dash-dot keeps its dash and dot close", () => {
+            // cx-syn-mappings edge 426->429 (Cytoscape's DASH_DOT, issue #5774): a line under twelve widths long held
+            // a dash and a dot, 6.8 widths apart, counted as though the dot were a dash; Cytoscape draws them two
+            // widths apart. A dash, a dot and a dash fit it with more than the least clear space between.
+            const width = 0.1;
+            const length = 11.77 * width;
+            const start = new Vector3(0, 0, 0);
+            const line = PatternedLineRenderer.create("dash-dot", start, new Vector3(length, 0, 0), scene, {
+                width,
+                color: "#000000",
+                opacity: 1,
+                is2DMode: true,
+            });
+            assert.equal(line.elements.length, 3);
+            const [dash, dot] = [3 * width, width];
+            const xs = line.elements.map((el) => el.position.x);
+            // positions are held in single precision
+            assert.closeTo(xs[0], dash / 2, 1e-6, "the first dash starts the line");
+            assert.closeTo(xs[2], length - dash / 2, 1e-6, "the last dash ends it");
+            const gaps = [xs[1] - dot / 2 - (xs[0] + dash / 2), xs[2] - dash / 2 - (xs[1] + dot / 2)];
+            assert.closeTo(gaps[0], gaps[1], 1e-6, "the gaps are even");
+            assert.isBelow(gaps[0], 3 * width, "a gap no longer than a dash");
+            line.dispose();
+        });
+    });
+
     describe("the material leak this suite also guards", () => {
         let scene: Scene;
 
@@ -160,18 +293,18 @@ describe("patterned line element count", () => {
             scene = new Scene(new NullEngine());
         });
 
+        afterEach(() => {
+            scene.getEngine().dispose();
+        });
+
         test("a disposed pattern mesh stops receiving per-frame camera updates", () => {
             const before = FilledArrowRenderer.getActiveMaterialCount();
 
-            const line = PatternedLineRenderer.create(
-                "dot",
-                new Vector3(0, 0, 0),
-                new Vector3(0, 0, 5),
-                8,
-                "#ffffff",
-                1,
-                scene,
-            );
+            const line = PatternedLineRenderer.create("dot", new Vector3(0, 0, 0), new Vector3(0, 0, 5), scene, {
+                width: 8,
+                color: "#ffffff",
+                opacity: 1,
+            });
             assert.isAbove(
                 FilledArrowRenderer.getActiveMaterialCount(),
                 before,

@@ -11,7 +11,44 @@ import {
     type ChangeHandler,
     getActivationMeta,
 } from "../../types/events";
+import { EllipsizedName } from "./EllipsizedName";
 import { holdsSomething, TrailingSlot } from "./TrailingSlot";
+
+/** What counts as a trailing control of its own, which keeps its clicks out of the row's. */
+const TRAILING_CONTROL =
+    "button, a[href], input, select, textarea, label, [role]:not([role='presentation']), [tabindex]";
+
+/** After an @, a slash, an underscore, or a dot that is not a decimal point. */
+const BREAK_AFTER = /(?<=[@/_])|(?<=\.)(?=\D)/;
+
+/**
+ * A stat's text reading with a line break allowed after each @, slash, underscore or dot, so a
+ * long email or address wraps at its parts ("press@" / "harlandev.example") rather than mid-word.
+ * @param value - the reading as given
+ * @returns the reading, a string broken into parts with `<wbr>` between them
+ */
+function breakAtPunctuation(value: React.ReactNode): React.ReactNode {
+    if (typeof value !== "string") {
+        return value;
+    }
+    const parts = value.split(BREAK_AFTER);
+    if (parts.length < 2) {
+        return value;
+    }
+    // Each part is keyed by where it starts in the string: the parts are never empty, so the
+    // offsets are distinct, and only the first part starts at 0.
+    let start = 0;
+    return parts.map((part) => {
+        const offset = start;
+        start += part.length;
+        return (
+            <React.Fragment key={offset}>
+                {offset > 0 && <wbr />}
+                {part}
+            </React.Fragment>
+        );
+    });
+}
 
 /**
  * Props for the DataRow component.
@@ -36,6 +73,9 @@ export interface DataRowProps {
      * in the primary color at weight 500, because the reading is the half the
      * reader came for. The pair is exposed as one `role="group"` named by the
      * name, so a screen reader reads "Nodes, 1,000,000" as one unit (WCAG 1.3.1).
+     * A reading too long for the row beside its name wraps onto more lines and
+     * the row grows, and so does a name too long for its half, so a stat is
+     * never cut short.
      *
      * Leave it off for a list of the reader's own strings -- datasets, files,
      * nodes -- where the name is the thing being read.
@@ -81,6 +121,11 @@ export interface DataRowProps {
     onBlur?: React.FocusEventHandler<HTMLElement>;
     /** The row's occasional control, in the 24px slot at its trailing edge. Drawn only when there is something to put there. */
     trailing?: React.ReactNode;
+    /**
+     * What activating the row does, read after its name (`aria-description`): "Select this node
+     * and its neighbors". Pair it with a tooltip carrying the same words for the pointer.
+     */
+    description?: string;
 }
 
 /**
@@ -114,6 +159,7 @@ export interface DataRowProps {
  * @param props.onFocus - Called when the row's body takes focus
  * @param props.onBlur - Called when the row's body loses focus
  * @param props.trailing - The row's occasional control, in the 24px slot at its trailing edge
+ * @param props.description - What activating the row does, read after its name
  * @returns The data row
  * @example
  * ```tsx
@@ -139,13 +185,16 @@ export function DataRow({
     onFocus,
     onBlur,
     trailing,
+    description,
 }: DataRowProps): React.JSX.Element {
     useCompactStyles();
     const nameId = useId();
     // Every fraction digit the caller gave is kept: rounding a reading is the
     // caller's call, made by passing a string.
     const numberFormatter = useNumberFormatter({ maximumFractionDigits: 20 });
-    const reading = typeof value === "number" ? numberFormatter.format(value) : value;
+    // A stat's text reading wraps at its parts; any other row's is cut whole.
+    const shown = stat ? breakAtPunctuation(value) : value;
+    const reading = typeof value === "number" ? numberFormatter.format(value) : shown;
     const interactive = onClick !== undefined;
     const hasIcon = icon !== undefined && icon !== null;
     const hasValue = value !== undefined && value !== null;
@@ -153,6 +202,7 @@ export function DataRow({
     // ARIA Authoring Practices, Button pattern: name from content, Enter and
     // Space activate it, and the current row of a set is marked aria-current.
     const ariaCurrent = selected ? true : undefined;
+    const button = useRef<HTMLButtonElement>(null);
 
     /**
      * Reports an activation to the consumer, with the source stated separately.
@@ -160,6 +210,23 @@ export function DataRow({
      */
     const handleClick = (event: React.MouseEvent<HTMLButtonElement>): void => {
         onClick?.(event, getActivationMeta(event));
+    };
+
+    /**
+     * A clickable row's trailing glyph is part of the row: a click there that
+     * no control of its own takes (a chevron, not a reset button) activates the
+     * row, as a click on its name would. The keyboard needs nothing, because the
+     * row's button is already the one stop.
+     * @param event - A click anywhere in the trailing slot
+     */
+    const handleTrailingClick = (event: React.MouseEvent<HTMLElement>): void => {
+        // closest() also climbs above the slot, past the row's own group; only a control inside the slot counts.
+        const control = (event.target as Element).closest(TRAILING_CONTROL);
+        if (!interactive || (control !== null && event.currentTarget.contains(control))) {
+            return;
+        }
+        button.current?.focus();
+        onClick(event, getActivationMeta(event));
     };
 
     const body = (
@@ -171,21 +238,27 @@ export function DataRow({
             )}
 
             {/* The reader's own string. It ellipsizes when the row is too
-                narrow, so it carries the whole string as a title for a pointer.
+                narrow, and then a pointer gets the whole string as a tooltip.
                 Ellipsizing is a drawing rather than a truncation: the full
                 string is still the element's text, so it is still the whole
                 accessible name of the row. */}
-            <span className="cm-data-row-name" data-testid="data-row-name" id={stat ? nameId : undefined} title={name}>
-                {name}
-            </span>
+            <EllipsizedName
+                className="cm-data-row-name"
+                testId="data-row-name"
+                id={stat ? nameId : undefined}
+                name={name}
+            />
 
-            {hasValue && (
-                <span className="cm-data-row-value" data-testid="data-row-value">
-                    {reading}
-                </span>
-            )}
+            {/* A reading the row cannot fit beside its name (a phrase, not a number) gets at
+                least half the row's width. A stat's reading then wraps onto more lines, so it is
+                never cut; any other row's is cut and carries its whole text as its own tooltip.
+                Either way the whole text is in the accessible name. */}
+            {hasValue && <EllipsizedName self className="cm-data-row-value" testId="data-row-value" name={reading} />}
         </>
     );
+
+    // ARIA 1.3's description, which the a11y lint's role table predates.
+    const descriptionProps = description === undefined ? {} : { "aria-description": description };
 
     // The fills (hover, selected) and the focus ring are the row's pseudo elements, a 24px pill
     // inset 4 8 4 12 in the 32px row (design/figma-spec.md 10.5), drawn by tree.css.ts.
@@ -195,7 +268,7 @@ export function DataRow({
     // name and the drawn one cannot drift apart. It sits on the outer row so it holds
     // the row's button too.
     return (
-        <div
+        <div // NOSONAR(S6819): a stat's name and value are text, not form controls, and the role applies only to a stat row
             data-testid="data-row"
             className="cm-data-row"
             role={stat ? "group" : undefined}
@@ -210,7 +283,9 @@ export function DataRow({
                     type="button"
                     className="cm-data-row-body"
                     data-testid="data-row-button"
+                    ref={button}
                     aria-current={ariaCurrent}
+                    {...descriptionProps}
                     onClick={handleClick}
                     onFocus={onFocus}
                     onBlur={onBlur}
@@ -231,7 +306,16 @@ export function DataRow({
 
             {/* Drawn only when it holds something. The slot ends at x 232, the
                 end of the row's pill and the grid's trailing column. */}
-            {hasTrailing && <TrailingSlot>{trailing}</TrailingSlot>}
+            {hasTrailing && (
+                // Presentational: the pointer's extra target. The keyboard's stop is the row's button.
+                <div // NOSONAR(S6819): no image here; a pointer-only extra target, while the keyboard uses the row's button
+                    role="presentation"
+                    style={{ display: "contents" }}
+                    onClick={handleTrailingClick}
+                >
+                    <TrailingSlot>{trailing}</TrailingSlot>
+                </div>
+            )}
         </div>
     );
 }
@@ -428,7 +512,7 @@ export function DataRowHeader({
     const describesSort = inRow && (sortable || sorted);
 
     return (
-        <div
+        <div // NOSONAR(S6819): the same element is a plain header outside a row; the role is set only inside a row, where th would also need a table
             ref={self}
             data-testid="data-row-header"
             className="cm-data-row-header"

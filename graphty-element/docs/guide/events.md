@@ -8,48 +8,55 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 
 ## Available Events
 
-| Event                                                          | Trigger                                                                            | Event Data                                                       |
-| -------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `graph-settled`                                                | Layout finished                                                                    | `{ settled: boolean }`                                           |
-| `graph-frame-stable`                                           | The picture is final: layout converged, camera framed, frame drawn                 | `{ frames }`                                                     |
-| `zoom-to-fit-complete`                                         | Auto-framing moved the camera around the whole graph                               | `{ boundingBoxMin, boundingBoxMax }`                             |
-| `data-loaded`                                                  | Initial data loaded                                                                | `{ details: { report, ... }, cause? }`                           |
-| `data-added`                                                   | Incremental data added                                                             | `{ dataType, count, cause? }`                                    |
-| `selection-changed`                                            | Node selected/deselected                                                           | `{ node, previousNode }`                                         |
-| `camera-state-changed`                                         | Camera moved                                                                       | `{ state }`                                                      |
-| `style-changed`                                                | Styles updated                                                                     | `{ reason, layers, painted, unresolvedPaths }`                   |
-| `node-click`                                                   | User clicked node                                                                  | `{ node, data, event }`                                          |
-| `node-hover`                                                   | Mouse entered node                                                                 | `{ node, data }`                                                 |
-| `node-drag-start`                                              | Started dragging node                                                              | `{ node, position, pinned }`                                     |
-| `node-drag-end`                                                | Finished dragging node                                                             | `{ node, position, pinned }`                                     |
-| `elements-removed`                                             | Nodes and their edges removed                                                      | `{ nodes, edges, cause? }`                                       |
-| `data-cleared`                                                 | All data cleared (`clearData()`, a replacing load, or undo back to an empty graph) | none                                                             |
-| `data-loading-progress`                                        | A chunk of a load arrived                                                          | `{ nodeRecordsLoaded, edgeRecordsLoaded, chunksProcessed, ... }` |
-| `data-loading-complete`                                        | A load finished                                                                    | `{ nodesLoaded, edgesLoaded, report, loadId, ... }`              |
-| `data-loading-error`                                           | A load failed                                                                      | `{ error, format, loadId, ... }`                                 |
-| `layout-progress`                                              | A layout reported how far its arrangement has got                                  | `{ layoutType, fraction, message? }`                             |
-| `graph-started`                                                | The render loop started                                                            | `{ timestamp }`                                                  |
-| `layout-changed`                                               | A new layout is now running                                                        | `{ layoutType, options }`                                        |
-| `operation-cancelled`                                          | A queued operation was aborted                                                     | `{ id, reason }`                                                 |
-| `stats-update`                                                 | Every 60 graph updates, with the performance counters                              | `{ totalUpdates, stats }`                                        |
-| `input-enabled-changed`                                        | `setInputEnabled()` switched canvas input on or off                                | `{ enabled }`                                                    |
-| `xr-session-started`                                           | A VR or AR session started                                                         | `{ mode, requestedReferenceSpace, referenceSpace }`              |
-| `xr-session-ended`                                             | A VR or AR session ended, left by the element or ended by the headset              | `{ mode, cause }`                                                |
-| `input:pointer-down`, `input:pointer-move`, `input:pointer-up` | A pointer pressed, moved or released on the canvas                                 | `{ x, y }` (the DOM event's `clientX`, `clientY`)                |
-| `input:wheel`                                                  | The wheel turned over the canvas                                                   | `{ deltaX, deltaY, deltaZ, deltaMode }`                          |
-| `input:touch-start`, `input:touch-move`                        | Touches started or moved on the canvas                                             | `{ array: [{ x, y }, ...] }`                                     |
-| `input:touch-end`                                              | Touches ended on the canvas                                                        | `{ array: [{ value: touchId }, ...] }`                           |
-| `input:key-down`, `input:key-up`                               | A key pressed or released on the canvas                                            | `{ key, code, ctrlKey, shiftKey, altKey, metaKey }`              |
-| `input:undo`, `input:redo`, `input:select-all`                 | Ctrl or Cmd with Z, Shift+Z or Y, or A on the canvas                               | none                                                             |
-| `render-initialized`                                           | The renderer is ready                                                              | `{ engine, scene }`                                              |
-| `manager-initialized`                                          | One of the element's managers finished starting                                    | `{ managerName, elapsedTime }`                                   |
-| `lifecycle-initialized`                                        | Every manager finished starting                                                    | `{ totalTime, managerCount }`                                    |
-| `error`                                                        | Error occurred                                                                     | `{ error, context }`                                             |
+| Event                                                          | Trigger                                                                                                                                                                                                                                                             | Event Data                                                       |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `graph-settled`                                                | Layout finished                                                                                                                                                                                                                                                     | `{ settled: boolean }`                                           |
+| `graph-frame-stable`                                           | The picture is final: layout converged, camera framed, frame drawn                                                                                                                                                                                                  | `{ frames }`                                                     |
+| `graph-first-frame`                                            | The first frame showing the nodes is drawn (the layout may still move them)                                                                                                                                                                                         | `{ frames }`                                                     |
+| `zoom-to-fit-complete`                                         | Auto-framing moved the camera around the whole graph                                                                                                                                                                                                                | `{ boundingBoxMin, boundingBoxMax }`                             |
+| `data-loaded`                                                  | Initial data loaded                                                                                                                                                                                                                                                 | `{ details: { report, ... }, cause? }`                           |
+| `data-added`                                                   | Incremental data added                                                                                                                                                                                                                                              | `{ dataType, count, cause? }`                                    |
+| `selection-changed`                                            | Node selected/deselected                                                                                                                                                                                                                                            | `{ node, previousNode }`                                         |
+| `camera-state-changed`                                         | Camera moved                                                                                                                                                                                                                                                        | `{ state }`                                                      |
+| `style-changed`                                                | Styles updated                                                                                                                                                                                                                                                      | `{ reason, layers, painted, unresolvedPaths, warnings }`         |
+| `node-click`                                                   | User clicked node                                                                                                                                                                                                                                                   | `{ node, data, event }`                                          |
+| `node-hover`                                                   | Mouse entered node                                                                                                                                                                                                                                                  | `{ node, data }`                                                 |
+| `node-drag-start`                                              | Started dragging node                                                                                                                                                                                                                                               | `{ node, position, pinned }`                                     |
+| `node-drag-end`                                                | Finished dragging node                                                                                                                                                                                                                                              | `{ node, position, pinned }`                                     |
+| `elements-removed`                                             | Nodes and their edges removed                                                                                                                                                                                                                                       | `{ nodes, edges, cause? }`                                       |
+| `data-cleared`                                                 | All data cleared (`clearData()`, a replacing load, or undo back to an empty graph)                                                                                                                                                                                  | none                                                             |
+| `data-loading-progress`                                        | A chunk of a load arrived                                                                                                                                                                                                                                           | `{ nodeRecordsLoaded, edgeRecordsLoaded, chunksProcessed, ... }` |
+| `data-loading-complete`                                        | A load finished                                                                                                                                                                                                                                                     | `{ nodesLoaded, edgesLoaded, report, loadId, ... }`              |
+| `data-loading-error`                                           | A load failed                                                                                                                                                                                                                                                       | `{ error, format, loadId, ... }`                                 |
+| `layout-progress`                                              | A layout reported how far its arrangement has got                                                                                                                                                                                                                   | `{ layoutType, fraction, message? }`                             |
+| `graph-started`                                                | The render loop started                                                                                                                                                                                                                                             | `{ timestamp }`                                                  |
+| `layout-changed`                                               | A new layout is now running                                                                                                                                                                                                                                         | `{ layoutType, options }`                                        |
+| `layout-warning`                                               | A layout could not place every node (`W_NO_POSITION`) or ignored options (`W_UNKNOWN_OPTION`), a 2D view replaced `dim` (`W_DIMENSION_OVERRIDDEN`), or an edge weight's meaning was assumed or unreadable (`W_WEIGHT_MEANING_ASSUMED`, `W_WEIGHT_MEANING_MISMATCH`) | `{ layoutType, code, params }`                                   |
+| `operation-cancelled`                                          | A queued operation was aborted: the whole queue was cleared (`queue-cleared`) or this one operation was cancelled (`cancelled`)                                                                                                                                     | `{ id, code }`                                                   |
+| `stats-update`                                                 | Every 60 graph updates, with the performance counters                                                                                                                                                                                                               | `{ totalUpdates, stats }`                                        |
+| `input-enabled-changed`                                        | `setInputEnabled()` switched canvas input on or off                                                                                                                                                                                                                 | `{ enabled }`                                                    |
+| `xr-session-started`                                           | A VR or AR session started                                                                                                                                                                                                                                          | `{ mode, requestedReferenceSpace, referenceSpace }`              |
+| `xr-session-ended`                                             | A VR or AR session ended, left by the element or ended by the headset                                                                                                                                                                                               | `{ mode, cause }`                                                |
+| `input:pointer-down`, `input:pointer-move`, `input:pointer-up` | A pointer pressed, moved or released on the canvas                                                                                                                                                                                                                  | `{ x, y }` (the DOM event's `clientX`, `clientY`)                |
+| `input:wheel`                                                  | The wheel turned over the canvas                                                                                                                                                                                                                                    | `{ deltaX, deltaY, deltaZ, deltaMode }`                          |
+| `input:touch-start`, `input:touch-move`                        | Touches started or moved on the canvas                                                                                                                                                                                                                              | `{ array: [{ x, y }, ...] }`                                     |
+| `input:touch-end`                                              | Touches ended on the canvas                                                                                                                                                                                                                                         | `{ array: [{ value: touchId }, ...] }`                           |
+| `input:key-down`, `input:key-up`                               | A key pressed or released on the canvas                                                                                                                                                                                                                             | `{ key, code, ctrlKey, shiftKey, altKey, metaKey }`              |
+| `input:undo`, `input:redo`, `input:select-all`                 | Ctrl or Cmd with Z, Shift+Z or Y, or A on the canvas                                                                                                                                                                                                                | none                                                             |
+| `render-initialized`                                           | The renderer is ready                                                                                                                                                                                                                                               | `{ engine, scene }`                                              |
+| `manager-initialized`                                          | One of the element's managers finished starting                                                                                                                                                                                                                     | `{ managerName, elapsedTime }`                                   |
+| `lifecycle-initialized`                                        | Every manager finished starting                                                                                                                                                                                                                                     | `{ totalTime, managerCount }`                                    |
+| `error`                                                        | Error occurred                                                                                                                                                                                                                                                      | `{ error, context }`                                             |
 
 `cause` on the three data events is set when undo, redo, a restore or a rolled-back change added
 or removed the rows: `"undo"`, `"redo"`, `"restore"` or `"rollback"`. A listener that starts work
 when data arrives should skip those, or it starts the work again on every undo. See
 [Undo and History](./undo#following-changes).
+
+`code` on `operation-cancelled` says why the operation stopped: `"queue-cleared"` or
+`"cancelled"`. Write the words you show from it. The detail also carries `reason`, an English
+sentence (`"Queue cleared"`, `"Manual cancellation"`); it is deprecated and is removed in the next
+major release, so read `code` instead.
 
 There is no edge-click event. Edge meshes are not pickable, so nothing could emit one; it returns,
 with a serialisable detail, when edge picking lands.
@@ -78,6 +85,11 @@ graph.on("data-loading-complete", ({ nodesLoaded, edgesLoaded, report }) => {
 
 The same report is available afterwards, without keeping the event, as
 `element.session.data.lastImport()`.
+
+`data-loading-complete` and `data-loaded` are heard once the load is in the graph for good: its
+step is in the history, its nodes are placed and painted, and a replacing load or `clearData` can
+no longer withdraw it. A load that is withdrawn before then emits neither, and its promise rejects
+with `E_SUPERSEDED`.
 
 ### Every load has an id
 
@@ -300,6 +312,29 @@ element.addEventListener("graphty-project-status", (e) => {
 
 On the session the same change is `project:status`. See [Project Files](./project-file).
 
+### Autosave events
+
+With the `autosave` attribute on, four more events report what autosave does. They live on the
+element, not the session, because autosave uses the browser's storage and page lifecycle. None
+fires at connect: read `element.autosaver.status` once, then listen.
+
+```javascript
+element.addEventListener("graphty-autosave-status", (e) => {
+    const { state, savedAt, problem } = e.detail; // state: "off" | "saved" | "pending" | "failing"
+});
+element.addEventListener("graphty-autosave-restored", (e) => {
+    const { entry, savedAt, revision, report } = e.detail; // the same as `await element.autosaver.ready`
+});
+element.addEventListener("graphty-autosave-available", (e) => {
+    const { entry, reason, problem } = e.detail; // reason: "page-data-changed" | "held-by-other-tab" | "restore-failed" | "manual"
+});
+element.addEventListener("graphty-autosave-at-risk", (e) => {
+    const { code, params } = e.detail; // "W_AUTOSAVE_ORIGIN_EPHEMERAL", once per page load
+});
+```
+
+See [Autosave](./autosave).
+
 ### graphty-note-change
 
 A note was written, edited or removed, by a call, an undo or a redo. One event per note:
@@ -314,6 +349,12 @@ element.addEventListener("graphty-note-change", (e) => {
 On the session the same change is `note:changed`, whose payload also carries the frozen record as
 `note`. See [Notes](./notes#hearing-about-changes).
 
+### graphty-warning
+
+A notice that stops nothing, as a code and its parameters (`e.detail.code`, `e.detail.params`).
+Today the one code is `W_ANTIALIAS_LATE`: `antialias` was changed after the engine was built. See
+[Renderer](./renderer#smoothing-antialias).
+
 ### style-changed
 
 A layer was added, changed, removed or moved. One event per EDIT rather than one per layer,
@@ -326,6 +367,44 @@ graph.on("style-changed", (e) => {
     console.log(e.reason, `${e.layers} layer(s)`, e.painted);
     // The stack itself is read back with graph.getSession().styles.list()
 });
+```
+
+One repaint can carry many edits: a grouping run such as Louvain adds a layer per group, and a
+held undo passes several steps, so one pass can publish dozens of `style:changed` events in a row.
+A listener that only re-reads the picture -- `styles.legend()`, `styles.counts()` -- listens to
+the session's `style:batch-changed` instead. It fires once per repaint, right after the last
+`style:changed` of that repaint (for an undo, a redo or a restore, in a microtask after the last
+step), with `{ edits, layers, cause }`: how many `style:changed` events it closes, every layer
+they touched (each once), and the cause of the last one:
+
+```typescript
+session.on("style:batch-changed", ({ edits, layers }) => {
+    drawKey(session.styles.legend()); // once per repaint, however many edits it carried
+});
+```
+
+A layer refused for what it says about shaders rejects its run, and a run nobody awaits leaves no
+trace of that. The session also publishes `style:refused` with `{ problems }`, each a
+`{ code, params }` your application words, such as `shader.uses-not-a-list` for a `node.shaders`
+written as something other than a list:
+
+```typescript
+session.on("style:refused", ({ problems }) => {
+    report(problems); // [{ code: "shader.uses-not-a-list", params: { channel, found } }]
+});
+```
+
+An edit to data alone -- `data.updateNodes()` moving a value into a new category -- repaints the
+layers that read it but publishes no `style:changed`, and `project:changed` fires before that
+repaint, so a legend read on it shows the previous categories. `project:derived`, with the same
+`{ slices, cause }`, fires once the picture has caught up with every change made so far -- after
+any repaint, including one the element put off or started on its own -- so a read on it is
+current. A burst of changes made together gets one event, carrying every slice they touched. A
+key that must follow every change listens to both:
+
+```typescript
+session.on("style:batch-changed", () => drawKey(session.styles.legend()));
+session.on("project:derived", () => drawKey(session.styles.legend())); // data edits, undo, runs
 ```
 
 ## Event Timing

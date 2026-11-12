@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Convert the bundled sample datasets from their published sources into
- * src/datasets/<name>/data.ts.
+ * Convert the small sample datasets from their published sources into data/<name>.ts, the
+ * repository's copy that scripts/pack-datasets.mjs publishes on graphty.app (no package bundles it).
  *
  *     node scripts/convert-datasets.mjs [--cache <dir>]
  *
@@ -103,6 +103,12 @@ const SOURCES = {
         url: "https://release.geneontology.org/2026-08-05/ontology/subsets/goslim_generic.obo",
         sha256: "a28d9dd0364e39a6dc926599bd628c524d3c389017b5398642c8cf2484d9f111",
         file: "goslim_generic-2026-08-05.obo",
+    },
+    venice: {
+        // Kujala et al., public transport networks of 25 cities, v1.2 (Zenodo record 1186215)
+        url: "https://zenodo.org/api/records/1186215/files/venice.zip/content",
+        sha256: "898c28eb15acfe1a70eab751f985756d103500a1326be3c1d3f35773a1339c08",
+        file: "kujala-venice.zip",
     },
 };
 
@@ -236,6 +242,15 @@ function checkSimple(name, directed, edges) {
     }
 }
 
+/** A semicolon-separated file as rows of fields, without its header line. */
+function semicolonRows(text) {
+    return text
+        .split(/\r?\n/)
+        .slice(1)
+        .filter((line) => line.length > 0)
+        .map((line) => line.split(";"));
+}
+
 // ------------------------------------------------------------------ datasets
 
 const CONVERTERS = {
@@ -291,7 +306,7 @@ const CONVERTERS = {
     "davis-southern-women"(social) {
         const body = pythonFunction(social, "davis_southern_women_graph");
         const list = (name) =>
-            [...body.match(new RegExp(`${name} = \\[([^\\]]*)\\]`))[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+            [...body.match(new RegExp(String.raw`${name} = \[([^\]]*)\]`))[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
         const women = list("women");
         const events = list("events");
         const ids = [...women, ...events];
@@ -548,7 +563,7 @@ const CONVERTERS = {
         const used = [...new Set([...pairs.keys()].flatMap((key) => key.split(",")))].sort((a, b) => a - b);
         const rows = used.map((id) => airports.get(id));
         const index = new Map(used.map((id, i) => [id, i]));
-        const code = (value) => (value === "\\N" || value === "" ? null : value);
+        const code = (value) => (value === String.raw`\N` || value === "" ? null : value);
         const ids = rows.map(([id, , , , iata, icao]) => code(iata) ?? code(icao) ?? `openflights-${id}`);
         if (new Set(ids).size !== ids.length) {
             throw new Error("openflights: airport codes are not unique");
@@ -568,6 +583,45 @@ const CONVERTERS = {
                 // 67.40750122070312
                 latitude: { dtype: "f64", values: rows.map((row) => Math.round(Number(row[6]) * 1e6) / 1e6) },
                 longitude: { dtype: "f64", values: rows.map((row) => Math.round(Number(row[7]) * 1e6) / 1e6) },
+            },
+        };
+    },
+
+    "venice-transit"(_social, files) {
+        // network_nodes.csv: stop_I;lat;lon;name. network_combined.csv: from_stop_I;to_stop_I;d;
+        // duration_avg;n_vehicles;route_I_counts;route_type, one row per stop pair and GTFS route type
+        // (0 tram, 3 bus, 4 ferry); d is the straight-line distance in metres.
+        const stops = semicolonRows(
+            Buffer.from(unzipMember(files.venice, "venice/network_nodes.csv"), "latin1").toString("utf8"),
+        );
+        const index = new Map(stops.map(([id], i) => [id, i]));
+        const MODE = { 0: "tram", 3: "bus", 4: "ferry" };
+        const modes = stops.map(() => new Set());
+        const links = new Map();
+        for (const [from, to, d, , , , type] of semicolonRows(
+            unzipMember(files.venice, "venice/network_combined.csv"),
+        )) {
+            if (!index.has(from) || !index.has(to) || MODE[type] === undefined) {
+                throw new Error(`venice-transit: unexpected link ${from} -> ${to} (route type ${type})`);
+            }
+            modes[index.get(from)].add(MODE[type]);
+            modes[index.get(to)].add(MODE[type]);
+            // a pair served by two modes is one link; its distance is the same in both rows
+            links.set(`${index.get(from)},${index.get(to)}`, Number(d));
+        }
+        const modeOf = modes.map((set) => [...set].sort().join(" and "));
+        const categories = [...new Set(modeOf)].sort();
+        return {
+            directed: true,
+            nodeCount: stops.length,
+            ids: stops.map(([id]) => id),
+            edges: [...links.keys()].flatMap((key) => key.split(",").map(Number)),
+            weights: [...links.values()],
+            columns: {
+                label: { dtype: "string", role: "label", values: stops.map((row) => row[3]) },
+                latitude: { dtype: "f64", values: stops.map((row) => Number(row[1])) },
+                longitude: { dtype: "f64", values: stops.map((row) => Number(row[2])) },
+                mode: { dtype: "dict", categories, codes: modeOf.map((mode) => categories.indexOf(mode)) },
             },
         };
     },
@@ -639,6 +693,7 @@ const SOURCE_OF = {
     "celegans-neural": "celegans",
     "political-blogs": "polblogs",
     openflights: ["airports", "routes"],
+    "venice-transit": "venice",
     ...Object.fromEntries(Object.entries(GRAPH_IO_DATASETS).map(([name, { source }]) => [name, source])),
 };
 
@@ -680,7 +735,7 @@ async function main() {
         const provenance = [SOURCE_OF[name]]
             .flat()
             .flatMap((key) => [`// Source: ${SOURCES[key].url}`, `// sha256: ${SOURCES[key].sha256}`]);
-        const out = path.join(packageRoot, "src/datasets", name, "data.ts");
+        const out = path.join(packageRoot, "data", `${name}.ts`);
         mkdirSync(path.dirname(out), { recursive: true });
         writeFileSync(
             out,
@@ -688,7 +743,7 @@ async function main() {
                 "// THIS FILE IS AUTO GENERATED: DO NOT EDIT THIS FILE. INSTEAD EDIT graph-samples/scripts/convert-datasets.mjs",
                 ...provenance,
                 "",
-                'import { type DatasetData } from "../build.js";',
+                'import { type DatasetData } from "./build.js";',
                 "",
                 `export const DATA: DatasetData = ${asciiJson(data)};`,
                 "",

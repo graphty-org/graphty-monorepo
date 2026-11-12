@@ -88,7 +88,8 @@ export function installUncapturedErrorSink(
     onError: ((error: WebGpuGraphError) => void) | null,
 ): () => void {
     let installed = true;
-    const label = device.label ?? "";
+    const { label: deviceLabel }: { label: unknown } = device;
+    const label = typeof deviceLabel === "string" ? deviceLabel : "";
     const listener = (event: GPUUncapturedErrorEvent): void => {
         if (!installed) {
             return;

@@ -1,0 +1,4544 @@
+{
+ "provenance": {
+  "side": "reference",
+  "route": "cyjs-hop",
+  "tool": "Cytoscape.js in Playwright Chromium",
+  "version": "3.34.3",
+  "command": "cytoscape({ elements, style, layout: { name: \"preset\" } }); style(), position(), width(), endpoints",
+  "sourceSha256": "30d2badb29939b45e229c8910a9d19271811052cd9c812ea047b4c736619e8b0",
+  "generatedAt": "2026-10-13T22:31:02.495Z"
+ },
+ "canCarry": {
+  "position": "yes",
+  "size": "altered",
+  "shape": "yes",
+  "fill": "yes",
+  "fillOpacity": "yes",
+  "borderColor": "yes",
+  "borderWidth": "yes",
+  "borderStyle": "yes",
+  "labelText": "yes",
+  "labelColor": "yes",
+  "fontSize": "altered",
+  "labelPosition": "yes",
+  "visible": "yes",
+  "zOrder": "yes",
+  "edgeColor": "yes",
+  "edgeOpacity": "yes",
+  "edgeWidth": "yes",
+  "lineStyle": "yes",
+  "arrows": "yes",
+  "edgePath": "no",
+  "selfLoops": "yes",
+  "edgeLabel": "yes",
+  "groups": "yes",
+  "annotations": "no",
+  "background": "yes"
+ },
+ "nodes": [
+  {
+   "id": "CHEMBL1651027",
+   "x": -7552.881,
+   "y": 723.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#bfcdf5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "omega-conotoxin GVIA",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 0
+  },
+  {
+   "id": "CHEMBL429023",
+   "x": -11242.881,
+   "y": 723.4,
+   "w": 140,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#bfcdf5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "rotenone",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 1
+  },
+  {
+   "id": "CHEMBL3",
+   "x": -10004.934,
+   "y": 723.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#bfcdf5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "(−)-nicotine",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 2
+  },
+  {
+   "id": "CHEMBL721",
+   "x": -7352.881,
+   "y": 723.4,
+   "w": 140,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#bfcdf5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "acrolein",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 3
+  },
+  {
+   "id": "CHEMBL742",
+   "x": -8442.881,
+   "y": 723.4,
+   "w": 140,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#bfcdf5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ketamine",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 4
+  },
+  {
+   "id": "CHEMBL275528",
+   "x": -8642.881,
+   "y": 723.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#bfcdf5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "phencyclidine",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 5
+  },
+  {
+   "id": "CHEMBL65",
+   "x": -6462.881,
+   "y": 723.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#bfcdf5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "camptothecin",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 6
+  },
+  {
+   "id": "ENSG00000100644",
+   "x": -6671.006,
+   "y": 1008.4,
+   "w": 87.5,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#74c476",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "HIF1A",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 7
+  },
+  {
+   "id": "ENSG00000165092",
+   "x": -7152.881,
+   "y": 1008.4,
+   "w": 122.5,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#74c476",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "ALDH1A1",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 8
+  },
+  {
+   "id": "ENSG00000105464",
+   "x": -8211.631,
+   "y": 1008.4,
+   "w": 105,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#74c476",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "GRIN2D",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 9
+  },
+  {
+   "id": "ENSG00000273079",
+   "x": -8751.631,
+   "y": 1008.4,
+   "w": 105,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#74c476",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "GRIN2B",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 10
+  },
+  {
+   "id": "ENSG00000183454",
+   "x": -8896.631,
+   "y": 1008.4,
+   "w": 105,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#74c476",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "GRIN2A",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 11
+  },
+  {
+   "id": "ENSG00000198886",
+   "x": -11216.631,
+   "y": 1008.4,
+   "w": 105,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#74c476",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "MT-ND4",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 12
+  },
+  {
+   "id": "ENSG00000176884",
+   "x": -9198.568,
+   "y": 1008.4,
+   "w": 87.5,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#74c476",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "GRIN1",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 13
+  },
+  {
+   "id": "ENSG00000161509",
+   "x": -8616.631,
+   "y": 1008.4,
+   "w": 105,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#74c476",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "GRIN2C",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 14
+  },
+  {
+   "id": "ENSG00000148408",
+   "x": -7552.881,
+   "y": 1008.4,
+   "w": 122.5,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#74c476",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "CACNA1B",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 15
+  },
+  {
+   "id": "ENSG00000116032",
+   "x": -8481.631,
+   "y": 1008.4,
+   "w": 105,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#74c476",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "GRIN3B",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 16
+  },
+  {
+   "id": "ENSG00000198785",
+   "x": -8346.631,
+   "y": 1008.4,
+   "w": 105,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#74c476",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "GRIN3A",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 17
+  },
+  {
+   "id": "ENSG00000198900",
+   "x": -6412.881,
+   "y": 1008.4,
+   "w": 70,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#74c476",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "TOP1",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 18
+  },
+  {
+   "id": "ENSG00000080644",
+   "x": -10114.934,
+   "y": 1008.4,
+   "w": 105,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#74c476",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "CHRNA3",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 19
+  },
+  {
+   "id": "ENSG00000101204",
+   "x": -9979.934,
+   "y": 1008.4,
+   "w": 105,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#74c476",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "CHRNA4",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 20
+  },
+  {
+   "id": "ENSG00000175344",
+   "x": -9844.934,
+   "y": 1008.4,
+   "w": 105,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#74c476",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "CHRNA7",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 21
+  },
+  {
+   "id": "ENSG00000160716",
+   "x": -10249.934,
+   "y": 1008.4,
+   "w": 105,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#74c476",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "CHRNB2",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 22
+  },
+  {
+   "id": "https://identifiers.org/aop/3",
+   "x": -11042.881,
+   "y": 313.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#feb24c",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Inhibition of the mitochondrial complex I of nigro-striatal neurons leads to parkinsonian motor deficits",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 23
+  },
+  {
+   "id": "https://identifiers.org/aop.events/896",
+   "x": -10992.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Parkinsonian motor deficits",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 24
+  },
+  {
+   "id": "https://identifiers.org/aop.events/637",
+   "x": -10302.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "impaired, Learning and memory",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 25
+  },
+  {
+   "id": "https://identifiers.org/aop/398",
+   "x": -7152.881,
+   "y": 313.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#feb24c",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Inhibition of ALDH1A (RALDH) leading to impaired fertility via disrupted meiotic initiation of fetal oogonia of the ovary",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 26
+  },
+  {
+   "id": "https://identifiers.org/aop.events/406",
+   "x": -7152.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "impaired, Fertility",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 27
+  },
+  {
+   "id": "https://identifiers.org/aop.events/352",
+   "x": -7732.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "N/A, Neurodegeneration",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 28
+  },
+  {
+   "id": "https://identifiers.org/aop.events/351",
+   "x": -8692.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Increased Mortality",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 29
+  },
+  {
+   "id": "https://identifiers.org/aop.events/350",
+   "x": -10072.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Increase, Mortality",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 30
+  },
+  {
+   "id": "https://identifiers.org/aop/475",
+   "x": -8242.881,
+   "y": 313.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#feb24c",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Binding of chemicals to ionotropic glutamate receptors leads to impairment of learning and memory via loss of drebrin from dendritic spines of neurons",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 31
+  },
+  {
+   "id": "https://identifiers.org/aop/48",
+   "x": -8472.881,
+   "y": 313.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#feb24c",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Binding of agonists to ionotropic glutamate receptors in adult brain causes excitotoxicity that mediates neuronal cell death, contributing to learning and memory impairment.",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 32
+  },
+  {
+   "id": "https://identifiers.org/aop/12",
+   "x": -7782.881,
+   "y": 313.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#feb24c",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Chronic binding of antagonist to N-methyl-D-aspartate receptors (NMDARs) during brain development leads to neurodegeneration with impairment in learning and memory in aging",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 33
+  },
+  {
+   "id": "https://identifiers.org/aop/13",
+   "x": -8012.881,
+   "y": 313.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#feb24c",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Chronic binding of antagonist to N-methyl-D-aspartate receptors (NMDARs) during brain development induces impairment of learning and memory abilities",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 34
+  },
+  {
+   "id": "https://identifiers.org/aop.events/341",
+   "x": -8217.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Impairment, Learning and memory",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 35
+  },
+  {
+   "id": "https://identifiers.org/aop/522",
+   "x": -7502.881,
+   "y": 313.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#feb24c",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Estrogen antagonism leading to increased risk of autism-like behavior",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 36
+  },
+  {
+   "id": "https://identifiers.org/aop.events/2209",
+   "x": -7502.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "autism-like behavior",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 37
+  },
+  {
+   "id": "https://identifiers.org/aop/436",
+   "x": -6922.881,
+   "y": 313.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#feb24c",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Inhibition of RALDH2 causes reduced all-trans retinoic acid levels, leading to transposition of the great arteries",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 38
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1970",
+   "x": -6922.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "transposition of the great arteries",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 39
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1841",
+   "x": -9842.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Encephalitis",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 40
+  },
+  {
+   "id": "https://identifiers.org/aop/450",
+   "x": -8872.881,
+   "y": 313.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#feb24c",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Inhibition of AChE and activation of CYP2E1 leading to sensory axonal peripheral neuropathy and mortality",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 41
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1583",
+   "x": -8922.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Sensory axonal peripheral neuropathy",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 42
+  },
+  {
+   "id": "https://identifiers.org/aop/276",
+   "x": -11272.881,
+   "y": 313.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#feb24c",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Inhibition of complex I of the electron transport chain leading to chemical induced Fanconi syndrome",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 43
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1564",
+   "x": -11272.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Chemical induced Fanconi syndrome",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 44
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1549",
+   "x": -10532.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Liver Injury",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 45
+  },
+  {
+   "id": "https://identifiers.org/aop/273",
+   "x": -10712.881,
+   "y": 313.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#feb24c",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Mitochondrial complex inhibition leading to liver injury",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 46
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1548",
+   "x": -10762.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Necrotic Tissue",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 47
+  },
+  {
+   "id": "https://identifiers.org/aop/220",
+   "x": -6692.881,
+   "y": 313.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#feb24c",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Cyp2E1 Activation Leading to Liver Cancer",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 48
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1395",
+   "x": -6692.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Liver Cancer",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 49
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1363",
+   "x": -9152.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Increased, epilepsy",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 50
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1348",
+   "x": -9612.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Increase, seizure",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 51
+  },
+  {
+   "id": "https://identifiers.org/aop/471",
+   "x": -9641.452,
+   "y": 313.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#feb24c",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Various neuronal effects induced by elavl3, sox10, and mbp",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 52
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1016",
+   "x": -9382.881,
+   "y": -56.6,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fb6a4a",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Inhibition, Feeding",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 53
+  },
+  {
+   "id": "https://identifiers.org/aop.events/875",
+   "x": -8242.881,
+   "y": 723.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fa9fb5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#3030f0",
+    "width": 20,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Binding of agonist, Ionotropic glutamate receptors",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 54
+  },
+  {
+   "id": "https://identifiers.org/aop.events/618",
+   "x": -8872.881,
+   "y": 723.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fa9fb5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Decreased, Neuronal network function in adult brain",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 55
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1880",
+   "x": -7152.881,
+   "y": 723.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fa9fb5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#3030f0",
+    "width": 20,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Inhibition of ALDH1A (RALDH)",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 56
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1881",
+   "x": -6922.881,
+   "y": 723.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fa9fb5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Decreased, all-trans retinoic acid (atRA) concentration",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 57
+  },
+  {
+   "id": "https://identifiers.org/aop.events/888",
+   "x": -11042.881,
+   "y": 723.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fa9fb5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#3030f0",
+    "width": 20,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Binding of inhibitor, NADH-ubiquinone oxidoreductase (complex I)",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 58
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1394",
+   "x": -6692.881,
+   "y": 723.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fa9fb5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Induction, persistent proliferation/sustained proliferation",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 59
+  },
+  {
+   "id": "https://identifiers.org/aop.events/195",
+   "x": -7782.881,
+   "y": 723.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fa9fb5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Inhibition, NMDARs",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 60
+  },
+  {
+   "id": "https://identifiers.org/aop.events/201",
+   "x": -8012.881,
+   "y": 723.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#fa9fb5",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#3030f0",
+    "width": 20,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Binding of antagonist, NMDA receptors",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 61
+  },
+  {
+   "id": "WP3584",
+   "x": -9399.934,
+   "y": 1463.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#1deff2",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "MECP2 and associated Rett syndrome",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 62
+  },
+  {
+   "id": "WP4222",
+   "x": -9169.934,
+   "y": 1463.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#1deff2",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Phosphodiesterases in neuronal function",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 63
+  },
+  {
+   "id": "WP4875",
+   "x": -8939.934,
+   "y": 1463.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#1deff2",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Disruption of postsynaptic signaling by CNV",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 64
+  },
+  {
+   "id": "WP4906",
+   "x": -6829.131,
+   "y": 1463.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#1deff2",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "3q29 copy number variation syndrome",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 65
+  },
+  {
+   "id": "WP4942",
+   "x": -9859.934,
+   "y": 1463.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#1deff2",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "15q13.3 copy number variation syndrome",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 66
+  },
+  {
+   "id": "WP5398",
+   "x": -8709.934,
+   "y": 1463.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#1deff2",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "NRXN1 deletion syndrome",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 67
+  },
+  {
+   "id": "WP5407",
+   "x": -9629.934,
+   "y": 1463.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#1deff2",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "15q11q13 copy number variation",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 68
+  },
+  {
+   "id": "WP5408",
+   "x": -6369.131,
+   "y": 1463.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#1deff2",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "15q25 copy number variation",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 69
+  },
+  {
+   "id": "164",
+   "x": -8357.881,
+   "y": 1463.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#b48fff",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Synaptic signalling & cell junction",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 70
+  },
+  {
+   "id": "166",
+   "x": -6599.131,
+   "y": 1463.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#b48fff",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Regulation of metabolic processes",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 71
+  },
+  {
+   "id": "170",
+   "x": -7152.881,
+   "y": 1463.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#b48fff",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Synaptic signalling & neurotransmitter transport",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 72
+  },
+  {
+   "id": "186",
+   "x": -10089.934,
+   "y": 1463.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#b48fff",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Acetylcholine receptor & channel activity",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 73
+  },
+  {
+   "id": "195",
+   "x": -11216.631,
+   "y": 1463.4,
+   "w": 200,
+   "h": 40,
+   "shape": "roundrect",
+   "fill": "#b48fff",
+   "fillOpacity": 1,
+   "border": {
+    "color": "#000000",
+    "width": 2,
+    "style": "solid"
+   },
+   "label": {
+    "text": "Citric acid cycle",
+    "fontSize": 25,
+    "color": "#000000",
+    "position": "inside",
+    "visible": true
+   },
+   "visible": true,
+   "z": 74
+  }
+ ],
+ "edges": [
+  {
+   "id": "CHEMBL1651027->ENSG00000148408",
+   "source": "CHEMBL1651027",
+   "target": "ENSG00000148408",
+   "points": [
+    [
+     -7552.881,
+     723.4
+    ],
+    [
+     -7552.881,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL429023->ENSG00000198886",
+   "source": "CHEMBL429023",
+   "target": "ENSG00000198886",
+   "points": [
+    [
+     -11242.881,
+     723.4
+    ],
+    [
+     -11216.631,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL3->ENSG00000101204",
+   "source": "CHEMBL3",
+   "target": "ENSG00000101204",
+   "points": [
+    [
+     -10004.934,
+     723.4
+    ],
+    [
+     -9979.934,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL3->ENSG00000175344",
+   "source": "CHEMBL3",
+   "target": "ENSG00000175344",
+   "points": [
+    [
+     -10004.934,
+     723.4
+    ],
+    [
+     -9844.934,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL3->ENSG00000160716",
+   "source": "CHEMBL3",
+   "target": "ENSG00000160716",
+   "points": [
+    [
+     -10004.934,
+     723.4
+    ],
+    [
+     -10249.934,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL3->ENSG00000080644",
+   "source": "CHEMBL3",
+   "target": "ENSG00000080644",
+   "points": [
+    [
+     -10004.934,
+     723.4
+    ],
+    [
+     -10114.934,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL721->ENSG00000165092",
+   "source": "CHEMBL721",
+   "target": "ENSG00000165092",
+   "points": [
+    [
+     -7352.881,
+     723.4
+    ],
+    [
+     -7152.881,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL742->ENSG00000198785",
+   "source": "CHEMBL742",
+   "target": "ENSG00000198785",
+   "points": [
+    [
+     -8442.881,
+     723.4
+    ],
+    [
+     -8346.631,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL742->ENSG00000105464",
+   "source": "CHEMBL742",
+   "target": "ENSG00000105464",
+   "points": [
+    [
+     -8442.881,
+     723.4
+    ],
+    [
+     -8211.631,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL742->ENSG00000116032",
+   "source": "CHEMBL742",
+   "target": "ENSG00000116032",
+   "points": [
+    [
+     -8442.881,
+     723.4
+    ],
+    [
+     -8481.631,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL742->ENSG00000161509",
+   "source": "CHEMBL742",
+   "target": "ENSG00000161509",
+   "points": [
+    [
+     -8442.881,
+     723.4
+    ],
+    [
+     -8616.631,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL275528->ENSG00000198785",
+   "source": "CHEMBL275528",
+   "target": "ENSG00000198785",
+   "points": [
+    [
+     -8642.881,
+     723.4
+    ],
+    [
+     -8346.631,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL275528->ENSG00000105464",
+   "source": "CHEMBL275528",
+   "target": "ENSG00000105464",
+   "points": [
+    [
+     -8642.881,
+     723.4
+    ],
+    [
+     -8211.631,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL275528->ENSG00000161509",
+   "source": "CHEMBL275528",
+   "target": "ENSG00000161509",
+   "points": [
+    [
+     -8642.881,
+     723.4
+    ],
+    [
+     -8616.631,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL275528->ENSG00000183454",
+   "source": "CHEMBL275528",
+   "target": "ENSG00000183454",
+   "points": [
+    [
+     -8642.881,
+     723.4
+    ],
+    [
+     -8896.631,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL275528->ENSG00000176884",
+   "source": "CHEMBL275528",
+   "target": "ENSG00000176884",
+   "points": [
+    [
+     -8642.881,
+     723.4
+    ],
+    [
+     -9198.568,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL275528->ENSG00000273079",
+   "source": "CHEMBL275528",
+   "target": "ENSG00000273079",
+   "points": [
+    [
+     -8642.881,
+     723.4
+    ],
+    [
+     -8751.631,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL275528->ENSG00000116032",
+   "source": "CHEMBL275528",
+   "target": "ENSG00000116032",
+   "points": [
+    [
+     -8642.881,
+     723.4
+    ],
+    [
+     -8481.631,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL65->ENSG00000100644",
+   "source": "CHEMBL65",
+   "target": "ENSG00000100644",
+   "points": [
+    [
+     -6462.881,
+     723.4
+    ],
+    [
+     -6671.006,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "CHEMBL65->ENSG00000198900",
+   "source": "CHEMBL65",
+   "target": "ENSG00000198900",
+   "points": [
+    [
+     -6462.881,
+     723.4
+    ],
+    [
+     -6412.881,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000100644->166",
+   "source": "ENSG00000100644",
+   "target": "166",
+   "points": [
+    [
+     -6671.006,
+     1008.4
+    ],
+    [
+     -6599.131,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000100644->WP4906",
+   "source": "ENSG00000100644",
+   "target": "WP4906",
+   "points": [
+    [
+     -6671.006,
+     1008.4
+    ],
+    [
+     -6829.131,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000165092->170",
+   "source": "ENSG00000165092",
+   "target": "170",
+   "points": [
+    [
+     -7152.881,
+     1008.4
+    ],
+    [
+     -7152.881,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000105464->164",
+   "source": "ENSG00000105464",
+   "target": "164",
+   "points": [
+    [
+     -8211.631,
+     1008.4
+    ],
+    [
+     -8357.881,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000105464->WP5398",
+   "source": "ENSG00000105464",
+   "target": "WP5398",
+   "points": [
+    [
+     -8211.631,
+     1008.4
+    ],
+    [
+     -8709.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000105464->WP4222",
+   "source": "ENSG00000105464",
+   "target": "WP4222",
+   "points": [
+    [
+     -8211.631,
+     1008.4
+    ],
+    [
+     -9169.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000105464->WP4875",
+   "source": "ENSG00000105464",
+   "target": "WP4875",
+   "points": [
+    [
+     -8211.631,
+     1008.4
+    ],
+    [
+     -8939.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000273079->WP4875",
+   "source": "ENSG00000273079",
+   "target": "WP4875",
+   "points": [
+    [
+     -8751.631,
+     1008.4
+    ],
+    [
+     -8939.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000273079->WP5398",
+   "source": "ENSG00000273079",
+   "target": "WP5398",
+   "points": [
+    [
+     -8751.631,
+     1008.4
+    ],
+    [
+     -8709.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000273079->WP4222",
+   "source": "ENSG00000273079",
+   "target": "WP4222",
+   "points": [
+    [
+     -8751.631,
+     1008.4
+    ],
+    [
+     -9169.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000273079->164",
+   "source": "ENSG00000273079",
+   "target": "164",
+   "points": [
+    [
+     -8751.631,
+     1008.4
+    ],
+    [
+     -8357.881,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000183454->164",
+   "source": "ENSG00000183454",
+   "target": "164",
+   "points": [
+    [
+     -8896.631,
+     1008.4
+    ],
+    [
+     -8357.881,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000183454->WP5398",
+   "source": "ENSG00000183454",
+   "target": "WP5398",
+   "points": [
+    [
+     -8896.631,
+     1008.4
+    ],
+    [
+     -8709.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000183454->WP4222",
+   "source": "ENSG00000183454",
+   "target": "WP4222",
+   "points": [
+    [
+     -8896.631,
+     1008.4
+    ],
+    [
+     -9169.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000183454->WP4875",
+   "source": "ENSG00000183454",
+   "target": "WP4875",
+   "points": [
+    [
+     -8896.631,
+     1008.4
+    ],
+    [
+     -8939.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000198886->195",
+   "source": "ENSG00000198886",
+   "target": "195",
+   "points": [
+    [
+     -11216.631,
+     1008.4
+    ],
+    [
+     -11216.631,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000176884->WP5398",
+   "source": "ENSG00000176884",
+   "target": "WP5398",
+   "points": [
+    [
+     -9198.568,
+     1008.4
+    ],
+    [
+     -8709.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000176884->164",
+   "source": "ENSG00000176884",
+   "target": "164",
+   "points": [
+    [
+     -9198.568,
+     1008.4
+    ],
+    [
+     -8357.881,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000176884->WP4875",
+   "source": "ENSG00000176884",
+   "target": "WP4875",
+   "points": [
+    [
+     -9198.568,
+     1008.4
+    ],
+    [
+     -8939.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000176884->WP3584",
+   "source": "ENSG00000176884",
+   "target": "WP3584",
+   "points": [
+    [
+     -9198.568,
+     1008.4
+    ],
+    [
+     -9399.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000176884->WP4222",
+   "source": "ENSG00000176884",
+   "target": "WP4222",
+   "points": [
+    [
+     -9198.568,
+     1008.4
+    ],
+    [
+     -9169.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000161509->164",
+   "source": "ENSG00000161509",
+   "target": "164",
+   "points": [
+    [
+     -8616.631,
+     1008.4
+    ],
+    [
+     -8357.881,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000161509->WP5398",
+   "source": "ENSG00000161509",
+   "target": "WP5398",
+   "points": [
+    [
+     -8616.631,
+     1008.4
+    ],
+    [
+     -8709.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000161509->WP4222",
+   "source": "ENSG00000161509",
+   "target": "WP4222",
+   "points": [
+    [
+     -8616.631,
+     1008.4
+    ],
+    [
+     -9169.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000161509->WP4875",
+   "source": "ENSG00000161509",
+   "target": "WP4875",
+   "points": [
+    [
+     -8616.631,
+     1008.4
+    ],
+    [
+     -8939.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000148408->164",
+   "source": "ENSG00000148408",
+   "target": "164",
+   "points": [
+    [
+     -7552.881,
+     1008.4
+    ],
+    [
+     -8357.881,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000116032->164",
+   "source": "ENSG00000116032",
+   "target": "164",
+   "points": [
+    [
+     -8481.631,
+     1008.4
+    ],
+    [
+     -8357.881,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000116032->WP5398",
+   "source": "ENSG00000116032",
+   "target": "WP5398",
+   "points": [
+    [
+     -8481.631,
+     1008.4
+    ],
+    [
+     -8709.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000198785->164",
+   "source": "ENSG00000198785",
+   "target": "164",
+   "points": [
+    [
+     -8346.631,
+     1008.4
+    ],
+    [
+     -8357.881,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000198785->WP5398",
+   "source": "ENSG00000198785",
+   "target": "WP5398",
+   "points": [
+    [
+     -8346.631,
+     1008.4
+    ],
+    [
+     -8709.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000198900->WP5408",
+   "source": "ENSG00000198900",
+   "target": "WP5408",
+   "points": [
+    [
+     -6412.881,
+     1008.4
+    ],
+    [
+     -6369.131,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000198900->166",
+   "source": "ENSG00000198900",
+   "target": "166",
+   "points": [
+    [
+     -6412.881,
+     1008.4
+    ],
+    [
+     -6599.131,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000080644->186",
+   "source": "ENSG00000080644",
+   "target": "186",
+   "points": [
+    [
+     -10114.934,
+     1008.4
+    ],
+    [
+     -10089.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000101204->186",
+   "source": "ENSG00000101204",
+   "target": "186",
+   "points": [
+    [
+     -9979.934,
+     1008.4
+    ],
+    [
+     -10089.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000175344->186",
+   "source": "ENSG00000175344",
+   "target": "186",
+   "points": [
+    [
+     -9844.934,
+     1008.4
+    ],
+    [
+     -10089.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000175344->WP4942",
+   "source": "ENSG00000175344",
+   "target": "WP4942",
+   "points": [
+    [
+     -9844.934,
+     1008.4
+    ],
+    [
+     -9859.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000175344->WP5407",
+   "source": "ENSG00000175344",
+   "target": "WP5407",
+   "points": [
+    [
+     -9844.934,
+     1008.4
+    ],
+    [
+     -9629.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000175344->WP4222",
+   "source": "ENSG00000175344",
+   "target": "WP4222",
+   "points": [
+    [
+     -9844.934,
+     1008.4
+    ],
+    [
+     -9169.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "ENSG00000160716->186",
+   "source": "ENSG00000160716",
+   "target": "186",
+   "points": [
+    [
+     -10249.934,
+     1008.4
+    ],
+    [
+     -10089.934,
+     1463.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/3->https://identifiers.org/aop.events/888",
+   "source": "https://identifiers.org/aop/3",
+   "target": "https://identifiers.org/aop.events/888",
+   "points": [
+    [
+     -11042.881,
+     313.4
+    ],
+    [
+     -11042.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#3030f0",
+   "opacity": 1,
+   "width": 3,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/896->https://identifiers.org/aop/471",
+   "source": "https://identifiers.org/aop.events/896",
+   "target": "https://identifiers.org/aop/471",
+   "points": [
+    [
+     -10992.881,
+     -56.6
+    ],
+    [
+     -9641.452,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/896->https://identifiers.org/aop/3",
+   "source": "https://identifiers.org/aop.events/896",
+   "target": "https://identifiers.org/aop/3",
+   "points": [
+    [
+     -10992.881,
+     -56.6
+    ],
+    [
+     -11042.881,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/637->https://identifiers.org/aop/471",
+   "source": "https://identifiers.org/aop.events/637",
+   "target": "https://identifiers.org/aop/471",
+   "points": [
+    [
+     -10302.881,
+     -56.6
+    ],
+    [
+     -9641.452,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/398->https://identifiers.org/aop.events/1880",
+   "source": "https://identifiers.org/aop/398",
+   "target": "https://identifiers.org/aop.events/1880",
+   "points": [
+    [
+     -7152.881,
+     313.4
+    ],
+    [
+     -7152.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#3030f0",
+   "opacity": 1,
+   "width": 3,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/398->https://identifiers.org/aop.events/1881",
+   "source": "https://identifiers.org/aop/398",
+   "target": "https://identifiers.org/aop.events/1881",
+   "points": [
+    [
+     -7152.881,
+     313.4
+    ],
+    [
+     -6922.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/406->https://identifiers.org/aop/398",
+   "source": "https://identifiers.org/aop.events/406",
+   "target": "https://identifiers.org/aop/398",
+   "points": [
+    [
+     -7152.881,
+     -56.6
+    ],
+    [
+     -7152.881,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/352->https://identifiers.org/aop/12",
+   "source": "https://identifiers.org/aop.events/352",
+   "target": "https://identifiers.org/aop/12",
+   "points": [
+    [
+     -7732.881,
+     -56.6
+    ],
+    [
+     -7782.881,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/351->https://identifiers.org/aop/450",
+   "source": "https://identifiers.org/aop.events/351",
+   "target": "https://identifiers.org/aop/450",
+   "points": [
+    [
+     -8692.881,
+     -56.6
+    ],
+    [
+     -8872.881,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/350->https://identifiers.org/aop/471",
+   "source": "https://identifiers.org/aop.events/350",
+   "target": "https://identifiers.org/aop/471",
+   "points": [
+    [
+     -10072.881,
+     -56.6
+    ],
+    [
+     -9641.452,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/475->https://identifiers.org/aop.events/875",
+   "source": "https://identifiers.org/aop/475",
+   "target": "https://identifiers.org/aop.events/875",
+   "points": [
+    [
+     -8242.881,
+     313.4
+    ],
+    [
+     -8242.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#3030f0",
+   "opacity": 1,
+   "width": 3,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/48->https://identifiers.org/aop.events/618",
+   "source": "https://identifiers.org/aop/48",
+   "target": "https://identifiers.org/aop.events/618",
+   "points": [
+    [
+     -8472.881,
+     313.4
+    ],
+    [
+     -8872.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/48->https://identifiers.org/aop.events/875",
+   "source": "https://identifiers.org/aop/48",
+   "target": "https://identifiers.org/aop.events/875",
+   "points": [
+    [
+     -8472.881,
+     313.4
+    ],
+    [
+     -8242.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#3030f0",
+   "opacity": 1,
+   "width": 3,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/12->https://identifiers.org/aop.events/201",
+   "source": "https://identifiers.org/aop/12",
+   "target": "https://identifiers.org/aop.events/201",
+   "points": [
+    [
+     -7782.881,
+     313.4
+    ],
+    [
+     -8012.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#3030f0",
+   "opacity": 1,
+   "width": 3,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/12->https://identifiers.org/aop.events/195",
+   "source": "https://identifiers.org/aop/12",
+   "target": "https://identifiers.org/aop.events/195",
+   "points": [
+    [
+     -7782.881,
+     313.4
+    ],
+    [
+     -7782.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/13->https://identifiers.org/aop.events/195",
+   "source": "https://identifiers.org/aop/13",
+   "target": "https://identifiers.org/aop.events/195",
+   "points": [
+    [
+     -8012.881,
+     313.4
+    ],
+    [
+     -7782.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/13->https://identifiers.org/aop.events/201",
+   "source": "https://identifiers.org/aop/13",
+   "target": "https://identifiers.org/aop.events/201",
+   "points": [
+    [
+     -8012.881,
+     313.4
+    ],
+    [
+     -8012.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#3030f0",
+   "opacity": 1,
+   "width": 3,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/341->https://identifiers.org/aop/12",
+   "source": "https://identifiers.org/aop.events/341",
+   "target": "https://identifiers.org/aop/12",
+   "points": [
+    [
+     -8217.881,
+     -56.6
+    ],
+    [
+     -7782.881,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/341->https://identifiers.org/aop/13",
+   "source": "https://identifiers.org/aop.events/341",
+   "target": "https://identifiers.org/aop/13",
+   "points": [
+    [
+     -8217.881,
+     -56.6
+    ],
+    [
+     -8012.881,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/341->https://identifiers.org/aop/475",
+   "source": "https://identifiers.org/aop.events/341",
+   "target": "https://identifiers.org/aop/475",
+   "points": [
+    [
+     -8217.881,
+     -56.6
+    ],
+    [
+     -8242.881,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/341->https://identifiers.org/aop/48",
+   "source": "https://identifiers.org/aop.events/341",
+   "target": "https://identifiers.org/aop/48",
+   "points": [
+    [
+     -8217.881,
+     -56.6
+    ],
+    [
+     -8472.881,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/522->https://identifiers.org/aop.events/195",
+   "source": "https://identifiers.org/aop/522",
+   "target": "https://identifiers.org/aop.events/195",
+   "points": [
+    [
+     -7502.881,
+     313.4
+    ],
+    [
+     -7782.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/2209->https://identifiers.org/aop/522",
+   "source": "https://identifiers.org/aop.events/2209",
+   "target": "https://identifiers.org/aop/522",
+   "points": [
+    [
+     -7502.881,
+     -56.6
+    ],
+    [
+     -7502.881,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/436->https://identifiers.org/aop.events/1881",
+   "source": "https://identifiers.org/aop/436",
+   "target": "https://identifiers.org/aop.events/1881",
+   "points": [
+    [
+     -6922.881,
+     313.4
+    ],
+    [
+     -6922.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/436->https://identifiers.org/aop.events/1880",
+   "source": "https://identifiers.org/aop/436",
+   "target": "https://identifiers.org/aop.events/1880",
+   "points": [
+    [
+     -6922.881,
+     313.4
+    ],
+    [
+     -7152.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#3030f0",
+   "opacity": 1,
+   "width": 3,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1970->https://identifiers.org/aop/436",
+   "source": "https://identifiers.org/aop.events/1970",
+   "target": "https://identifiers.org/aop/436",
+   "points": [
+    [
+     -6922.881,
+     -56.6
+    ],
+    [
+     -6922.881,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1841->https://identifiers.org/aop/471",
+   "source": "https://identifiers.org/aop.events/1841",
+   "target": "https://identifiers.org/aop/471",
+   "points": [
+    [
+     -9842.881,
+     -56.6
+    ],
+    [
+     -9641.452,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/450->https://identifiers.org/aop.events/618",
+   "source": "https://identifiers.org/aop/450",
+   "target": "https://identifiers.org/aop.events/618",
+   "points": [
+    [
+     -8872.881,
+     313.4
+    ],
+    [
+     -8872.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1583->https://identifiers.org/aop/450",
+   "source": "https://identifiers.org/aop.events/1583",
+   "target": "https://identifiers.org/aop/450",
+   "points": [
+    [
+     -8922.881,
+     -56.6
+    ],
+    [
+     -8872.881,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/276->https://identifiers.org/aop.events/888",
+   "source": "https://identifiers.org/aop/276",
+   "target": "https://identifiers.org/aop.events/888",
+   "points": [
+    [
+     -11272.881,
+     313.4
+    ],
+    [
+     -11042.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#3030f0",
+   "opacity": 1,
+   "width": 3,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1564->https://identifiers.org/aop/276",
+   "source": "https://identifiers.org/aop.events/1564",
+   "target": "https://identifiers.org/aop/276",
+   "points": [
+    [
+     -11272.881,
+     -56.6
+    ],
+    [
+     -11272.881,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1549->https://identifiers.org/aop/273",
+   "source": "https://identifiers.org/aop.events/1549",
+   "target": "https://identifiers.org/aop/273",
+   "points": [
+    [
+     -10532.881,
+     -56.6
+    ],
+    [
+     -10712.881,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/273->https://identifiers.org/aop.events/888",
+   "source": "https://identifiers.org/aop/273",
+   "target": "https://identifiers.org/aop.events/888",
+   "points": [
+    [
+     -10712.881,
+     313.4
+    ],
+    [
+     -11042.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#3030f0",
+   "opacity": 1,
+   "width": 3,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1548->https://identifiers.org/aop/273",
+   "source": "https://identifiers.org/aop.events/1548",
+   "target": "https://identifiers.org/aop/273",
+   "points": [
+    [
+     -10762.881,
+     -56.6
+    ],
+    [
+     -10712.881,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/220->https://identifiers.org/aop.events/1394",
+   "source": "https://identifiers.org/aop/220",
+   "target": "https://identifiers.org/aop.events/1394",
+   "points": [
+    [
+     -6692.881,
+     313.4
+    ],
+    [
+     -6692.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1395->https://identifiers.org/aop/220",
+   "source": "https://identifiers.org/aop.events/1395",
+   "target": "https://identifiers.org/aop/220",
+   "points": [
+    [
+     -6692.881,
+     -56.6
+    ],
+    [
+     -6692.881,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1363->https://identifiers.org/aop/471",
+   "source": "https://identifiers.org/aop.events/1363",
+   "target": "https://identifiers.org/aop/471",
+   "points": [
+    [
+     -9152.881,
+     -56.6
+    ],
+    [
+     -9641.452,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1348->https://identifiers.org/aop/471",
+   "source": "https://identifiers.org/aop.events/1348",
+   "target": "https://identifiers.org/aop/471",
+   "points": [
+    [
+     -9612.881,
+     -56.6
+    ],
+    [
+     -9641.452,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop/471->https://identifiers.org/aop.events/618",
+   "source": "https://identifiers.org/aop/471",
+   "target": "https://identifiers.org/aop.events/618",
+   "points": [
+    [
+     -9641.452,
+     313.4
+    ],
+    [
+     -8872.881,
+     723.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1016->https://identifiers.org/aop/471",
+   "source": "https://identifiers.org/aop.events/1016",
+   "target": "https://identifiers.org/aop/471",
+   "points": [
+    [
+     -9382.881,
+     -56.6
+    ],
+    [
+     -9641.452,
+     313.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/875->ENSG00000105464",
+   "source": "https://identifiers.org/aop.events/875",
+   "target": "ENSG00000105464",
+   "points": [
+    [
+     -8242.881,
+     723.4
+    ],
+    [
+     -8211.631,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/618->ENSG00000273079",
+   "source": "https://identifiers.org/aop.events/618",
+   "target": "ENSG00000273079",
+   "points": [
+    [
+     -8872.881,
+     723.4
+    ],
+    [
+     -8751.631,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/618->ENSG00000183454",
+   "source": "https://identifiers.org/aop.events/618",
+   "target": "ENSG00000183454",
+   "points": [
+    [
+     -8872.881,
+     723.4
+    ],
+    [
+     -8896.631,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1880->ENSG00000165092",
+   "source": "https://identifiers.org/aop.events/1880",
+   "target": "ENSG00000165092",
+   "points": [
+    [
+     -7152.881,
+     723.4
+    ],
+    [
+     -7152.881,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1881->ENSG00000165092",
+   "source": "https://identifiers.org/aop.events/1881",
+   "target": "ENSG00000165092",
+   "points": [
+    [
+     -6922.881,
+     723.4
+    ],
+    [
+     -7152.881,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/888->ENSG00000198886",
+   "source": "https://identifiers.org/aop.events/888",
+   "target": "ENSG00000198886",
+   "points": [
+    [
+     -11042.881,
+     723.4
+    ],
+    [
+     -11216.631,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/1394->ENSG00000100644",
+   "source": "https://identifiers.org/aop.events/1394",
+   "target": "ENSG00000100644",
+   "points": [
+    [
+     -6692.881,
+     723.4
+    ],
+    [
+     -6671.006,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/195->ENSG00000105464",
+   "source": "https://identifiers.org/aop.events/195",
+   "target": "ENSG00000105464",
+   "points": [
+    [
+     -7782.881,
+     723.4
+    ],
+    [
+     -8211.631,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  },
+  {
+   "id": "https://identifiers.org/aop.events/201->ENSG00000105464",
+   "source": "https://identifiers.org/aop.events/201",
+   "target": "ENSG00000105464",
+   "points": [
+    [
+     -8012.881,
+     723.4
+    ],
+    [
+     -8211.631,
+     1008.4
+    ]
+   ],
+   "curved": false,
+   "color": "#bcbcbc",
+   "opacity": 1,
+   "width": 1,
+   "style": "solid",
+   "arrow": {
+    "source": "filled-triangle",
+    "target": "none"
+   },
+   "label": null
+  }
+ ],
+ "groups": [],
+ "gaps": []
+}

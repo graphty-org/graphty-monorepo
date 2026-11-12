@@ -27,3 +27,21 @@ visual-fonts/fonts/** filter=lfs diff=lfs merge=lfs -text
 # The design mocks' screenshots are Git LFS objects for the same reason as the visual baselines; the
 # HTML beside each one is the source and regenerates it.
 design/ui/**/*.png filter=lfs diff=lfs merge=lfs -text
+# The style fidelity stories' reference pictures (graph-io/fidelity-stories/references/SOURCES.md), Git LFS
+# for the same reason; the package's build-storybook pulls them.
+graph-io/fidelity-stories/references/*.png filter=lfs diff=lfs merge=lfs -text
+# The style fidelity oracles' rasterized PNGs (graph-io/test/fidelity/oracles/tools/rasterize.mjs), Git LFS for the
+# same reason; the SVG beside each one is the program's own output and regenerates it.
+graph-io/test/fidelity/oracles/*.png filter=lfs diff=lfs merge=lfs -text
+
+# The style fidelity corpus's large inputs that only the reference extractors read (graph-io/test/fidelity/references/
+# cytoscape-loads/SOURCES.md), Git LFS for the same reason; no test reads them.
+graph-io/test/fidelity/references/cytoscape-loads/*.gz filter=lfs diff=lfs merge=lfs -text
+
+# The CI workflow test list: every branch adding a tool test appends a line, so a union merge keeps both sides.
+tools/tool-tests.txt merge=union
+
+# Studio memory: two studies on separate branches both rewrite the top of these files. Keep both sides'
+# lines on a merge instead of stopping it; the next notes step tidies them.
+design/ui/studio/notes/*.md merge=union
+design/ui/studio/owner-decisions.md merge=union

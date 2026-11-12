@@ -1,4 +1,5 @@
 import { type DatasetMeta } from "../build.js";
+import { PACKED } from "../packed.js";
 
 /** What the stelzl-interactome dataset is, where it came from and under which terms. */
 export const stelzlInteractomeMeta: DatasetMeta = {
@@ -25,4 +26,6 @@ export const stelzlInteractomeMeta: DatasetMeta = {
         "degree distribution and hubs of a real interactome",
         "community detection in a protein network",
     ],
+    hosting: "remote",
+    ...PACKED["stelzl-interactome"],
 };

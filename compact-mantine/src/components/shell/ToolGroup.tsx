@@ -40,7 +40,7 @@ function asMenuItemRadio(el: HTMLButtonElement | null): void {
 
 /**
  * A tool and its flyout (Figma's tool group): the face is the LAST tool picked from the flyout,
- * and a 16 x 32 chevron 1px after it opens a dark menu 4px above, start-aligned to the chevron,
+ * and a 16 x 32 chevron 1px after it opens a menu 4px above, start-aligned to the chevron,
  * whose rows are radios with a check on the current face. Picking a row selects the tool, makes
  * it the face and closes the menu.
  * @param props - Component props
@@ -97,7 +97,7 @@ export function ToolGroup({
     };
 
     return (
-        <div className="cm-tool-group" role="group" aria-label={face.label}>
+        <fieldset className="cm-fieldset cm-tool-group" aria-label={face.label}>
             <ToolButton
                 ref={faceRef}
                 label={face.label}
@@ -154,6 +154,6 @@ export function ToolGroup({
                     ))}
                 </Menu.Dropdown>
             </Menu>
-        </div>
+        </fieldset>
     );
 }

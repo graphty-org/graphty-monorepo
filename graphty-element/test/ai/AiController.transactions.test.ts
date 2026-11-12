@@ -15,6 +15,10 @@ import { AiController } from "../../src/ai/AiController";
 import { CommandRegistry } from "../../src/ai/commands";
 import type { CommandContext } from "../../src/ai/commands/types";
 import type { LlmProvider, LlmResponse } from "../../src/ai/providers/types";
+import { finishAtOnce } from "../session/runs/harness";
+
+/** Holds every algorithm run until the test opens it, so a run outlives the batch that started it. */
+let runsGate: Gate | undefined;
 
 /** One ask's answer, and the gate it waits on first, if any. */
 interface Turn {
@@ -98,13 +102,23 @@ describe("an assistant message's transactions", () => {
     let session: GraphSession;
     let registry: CommandRegistry;
     let ran: string[];
+    let runs: PromiseLike<unknown>[];
     let baseline: number;
 
     beforeEach(async () => {
-        session = createGraphSession();
+        runsGate = undefined;
+        session = createGraphSession({
+            runs: {
+                execute: async (context) => {
+                    await runsGate?.promise;
+                    return finishAtOnce(context);
+                },
+            },
+        });
         await session.data.addNodes([{ id: "a" }]);
         baseline = session.history.position;
         ran = [];
+        runs = [];
         registry = new CommandRegistry();
         registry.register({
             name: "addNode",
@@ -116,6 +130,22 @@ describe("an assistant message's transactions", () => {
                 ran.push(id);
                 await context?.tx.data.addNodes([{ id }]);
                 return { success: true, message: `added ${id}` };
+            },
+        });
+        registry.register({
+            name: "runAlgorithm",
+            description: "Runs an algorithm, left to finish after the batch commits",
+            parameters: z.object({ name: z.string() }),
+            examples: [],
+            execute: (_graph, params, context) => {
+                // Not awaited, as run_algorithm leaves its run to settle after the commit: the run
+                // commits in its own tail, after the batch's transaction has recorded.
+                const run = context?.tx.runs.start(String(params.name), undefined, { style: false });
+                if (run !== undefined) {
+                    runs.push(run);
+                }
+
+                return Promise.resolve({ success: true, message: "started" });
             },
         });
         registry.register({
@@ -186,6 +216,46 @@ describe("an assistant message's transactions", () => {
         assert.exists(session.data.node("a"));
     });
 
+    it("keeps an algorithm run in a later batch in the message's one undo step", async () => {
+        runsGate = gate();
+        const model = scriptedModel([call("addNode", { id: "x" }), call("runAlgorithm", { name: "degree" })]);
+
+        const result = await assistant(model).execute("add x, then degree");
+        runsGate.open();
+        await Promise.all(runs);
+
+        assert.isTrue(result.success, result.message);
+        const steps = newSteps();
+        // The run committed in its own tail and recorded "Ran degree" beside the message's step.
+        assert.lengthOf(steps, 1, steps.map((step) => step.label).join(", "));
+        assert.strictEqual(steps[0].label, "add x, then degree");
+        assert.deepEqual([...steps[0].ops], ["data.apply", "algo.run"]);
+    });
+
+    it("keeps two algorithm runs in batches of their own in one undo step, under the message's label", async () => {
+        runsGate = gate();
+        const thinking = gate();
+        const model = scriptedModel([
+            call("runAlgorithm", { name: "degree" }),
+            call("runAlgorithm", { name: "pagerank" }, thinking),
+        ]);
+        const message = assistant(model).execute("rank the nodes");
+        await model.asked(2);
+        // The first run commits while the model thinks, as run_algorithm waits for it to.
+        runsGate.open();
+        await runs[0];
+        thinking.open();
+
+        const result = await message;
+        await Promise.all(runs);
+
+        assert.isTrue(result.success, result.message);
+        const steps = newSteps();
+        assert.lengthOf(steps, 1, steps.map((step) => step.label).join(", "));
+        assert.strictEqual(steps[0].label, "rank the nodes");
+        assert.strictEqual(steps[0].provenance.via, "assistant");
+    });
+
     it("records the batches after a person's edit as their own step, marked as continuing the message", async () => {
         const thinking = gate();
         const model = scriptedModel([call("addNode", { id: "x" }), call("addNode", { id: "y" }, thinking)]);
@@ -221,9 +291,25 @@ describe("an assistant message's transactions", () => {
         const result = await message;
 
         assert.isFalse(result.success);
+        assert.strictEqual(result.code, "AI_CANCELLED");
+        assert.deepEqual(result.params, { steps: 1 }, "the two batches were one undo step");
         assert.notExists(session.data.node("x"));
         assert.notExists(session.data.node("y"));
         assert.lengthOf(newSteps(), 0);
+    });
+
+    it("says nothing was taken back when a message is cancelled before it changed anything", async () => {
+        const thinking = gate();
+        const model = scriptedModel([{ response: { text: "never", toolCalls: [] }, gate: thinking.promise }]);
+        const controller = assistant(model);
+        const message = controller.execute("add x");
+        await model.asked(1);
+
+        controller.cancel();
+        const result = await message;
+
+        assert.strictEqual(result.code, "AI_CANCELLED");
+        assert.deepEqual(result.params, {});
     });
 
     it("ends the message, running no further tool, when the person undoes it while the model thinks", async () => {
@@ -255,6 +341,7 @@ describe("an assistant message's transactions", () => {
         const result = await message;
 
         assert.isFalse(result.success);
+        assert.deepEqual(result.params, {}, "nothing could be taken back");
         assert.strictEqual(session.data.node("a")?.team, "blue", "the person's edit stays");
         assert.exists(session.data.node("x"), "the message's step under it is not reverted out of order");
         assert.lengthOf(newSteps(), 2);

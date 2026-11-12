@@ -7,7 +7,7 @@
  * thing it painted.
  */
 
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import { caveat } from "../session/runs/caveatFacts";
@@ -29,7 +29,7 @@ const linkPredictionOptionsSchema = defineOptions({
         meta: {
             label: "Method",
             description:
-                "Common neighbours counts the neighbours two nodes share. Adamic-Adar counts them too, but a shared neighbour with few connections counts for more than one with many.",
+                "Common neighbors counts the neighbors two nodes share. Adamic-Adar counts them too, but a shared neighbor with few connections counts for more than one with many.",
         },
     },
     topK: {
@@ -54,22 +54,22 @@ interface LinkPredictionOptions extends Record<string, unknown> {
  * the two share, and keeps the best.
  */
 export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOptions> {
-    static namespace = "graphty";
-    static type = "link-prediction";
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "link-prediction";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = linkPredictionOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = linkPredictionOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         method: {
             type: "select",
             default: "adamic-adar",
             label: "Method",
             description:
-                "Common neighbours counts the neighbours two nodes share. Adamic-Adar counts them too, but a shared neighbour with few connections counts for more than one with many.",
+                "Common neighbors counts the neighbors two nodes share. Adamic-Adar counts them too, but a shared neighbor with few connections counts for more than one with many.",
             options: [
                 { value: "adamic-adar", label: "Adamic-Adar" },
-                { value: "common-neighbors", label: "Common neighbours" },
+                { value: "common-neighbors", label: "Common neighbors" },
             ],
         },
         topK: {

@@ -11,6 +11,7 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, test } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { drawnFrames } from "../helpers/drawn-frames";
 
 const NODES = ["a", "b", "c", "d", "e", "f", "g", "h"].map((id) => ({ id }));
 const EDGES = [
@@ -52,13 +53,16 @@ function mount(dimension: "2d" | "3d", seed: number): Graphty {
 }
 
 /**
- * Let a few frames run.
- * @param count - How many.
+ * Wait until the element holds the nodes just written, then let it update a few times over them.
+ * @param element - The element.
+ * @param updates - How many drawn frames, each a layout step, to let run.
  */
-async function frames(count: number): Promise<void> {
-    for (let i = 0; i < count; i++) {
+async function stepOverNodes(element: Graphty, updates: number): Promise<void> {
+    while (element.graph.getDataManager().nodes.size === 0) {
         await new Promise((resolve) => requestAnimationFrame(resolve));
     }
+
+    await drawnFrames(element.graph.getScene(), updates);
 }
 
 /**
@@ -97,7 +101,7 @@ async function loadAtOnce(element: Graphty): Promise<Record<string, number[]>> {
  */
 async function loadInTwoTurns(element: Graphty): Promise<Record<string, number[]>> {
     element.nodeData = NODES;
-    await frames(5);
+    await stepOverNodes(element, 5);
     element.edgeData = EDGES;
     await element.waitForStableFrame();
     return positions(element);

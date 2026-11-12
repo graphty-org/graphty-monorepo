@@ -222,7 +222,7 @@ describe("review page: stale caches", () => {
         expect(await page.locator("#accept").getAttribute("class")).toContain("loading");
         await page.keyboard.press("k");
         await page.keyboard.press("j");
-        await expect.poll(() => page.locator('#stage img[alt^="baseline of"]').count(), { timeout: 3000 }).toBe(1);
+        await expect.poll(() => page.locator('#stage img[alt^="baseline of"]').count()).toBe(1);
     });
 
     // Only the most recently used images and diffs are kept; older object URLs are revoked.
@@ -290,8 +290,11 @@ describe("review page: stale caches", () => {
 });
 
 describe("review page: decisions", () => {
-    // A double click's second click, landing on the next item's Accept, is ignored.
-    it("A double click on Accept, or a held A key, accepts the next items without showing them", async () => {
+    /**
+     * Double-clicks Accept on item 2, the second click landing once item 3 is on the screen.
+     * @param {number} [rate] how many times slower the tab's CPU runs (Chromium's throttling)
+     */
+    async function doubleClickAccept(rate = 1) {
         const r = makeRepo();
         await open(r, world(r));
         await review();
@@ -299,15 +302,28 @@ describe("review page: decisions", () => {
         // Accept waits for both images.
         await page.locator('#stage img[alt^="new image of"]').waitFor();
         await ready();
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send("Emulation.setCPUThrottlingRate", { rate });
         const box = await page.locator("#accept").boundingBox();
-        const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
-        await page.mouse.click(x, y);
-        // The second click lands as the next item shows, on its Accept.
+        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+        // The second click of the same double click (the browser counts it: detail 2) lands as
+        // the next item shows, on its Accept, however long after the first the page runs it.
         await page.locator("#position", { hasText: /^3 of / }).waitFor();
-        await page.mouse.click(x, y);
+        await page.mouse.down({ clickCount: 2 });
+        await page.mouse.up({ clickCount: 2 });
         await settled();
+        await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
         expect(await decisions()).not.toHaveProperty("slider--sizes.png");
-    });
+    }
+
+    // A double click's second click, landing on the next item's Accept, is ignored.
+    it("A double click on Accept, or a held A key, accepts the next items without showing them", () =>
+        doubleClickAccept());
+
+    // The same on a page running 20 times slower: dropped by which item the double click began
+    // on, not by how soon after it the page gets to the second click.
+    it("A double click on Accept, or a held A key, accepts the next items without showing them (a slow page)", () =>
+        doubleClickAccept(20));
 
     // A held decision key decides once.
     it("A double click on Accept, or a held A key, accepts the next items without showing them (a held A key)", async () => {
@@ -462,28 +478,28 @@ describe("review page: rendering and routing", () => {
             await route.continue().catch(() => {});
             answered++;
         });
-        // Back twice and Forward once, without waiting for any to land: story -> grid -> targets,
-        // whose route waits, -> grid again before that wait ends.
-        await page.evaluate(
-            () =>
-                new Promise((resolve) => {
-                    globalThis.history.back();
-                    setTimeout(() => globalThis.history.back(), 50);
-                    setTimeout(() => {
-                        globalThis.history.forward();
-                        resolve();
-                    }, 150);
-                }),
-        );
+        // Back twice and Forward once: story -> grid -> targets, whose route waits, -> grid again
+        // before that wait ends. Each press goes once the one before it has landed (its popstate,
+        // after the page's own handler ran): Chromium drops a Back or Forward asked for while
+        // another is still in flight, which left the page on the targets screen (#2447).
+        await page.evaluate(() => {
+            globalThis.pops = 0;
+            globalThis.addEventListener("popstate", () => globalThis.pops++);
+        });
+        const press = async (step, pops) => {
+            await page.evaluate((s) => globalThis.history[s](), step);
+            await page.waitForFunction((n) => globalThis.pops >= n, pops);
+        };
+        await press("back", 1);
+        await press("back", 2);
+        await expect.poll(() => asked).toBe(1);
+        await press("forward", 3);
         pressed();
         // The grid is shown and the targets route has its answer; a superseded route that went on
-        // would now draw the targets or push an entry, within a moment of its answer. The wait is
-        // counted from the answer, not from the presses, so a slow machine waits longer instead of
-        // running out of the test's time.
+        // would now draw the targets or push an entry, within a moment of its answer. The wait has
+        // no limit of its own, so a slow machine waits longer instead of failing early.
         await expect
-            .poll(async () => asked >= 1 && answered === asked && (await page.locator(".component").count()) > 0, {
-                timeout: 8000,
-            })
+            .poll(async () => asked >= 1 && answered === asked && (await page.locator(".component").count()) > 0)
             .toBe(true);
         // The superseded route has read its answer and handled it.
         await page.evaluate(
@@ -545,7 +561,7 @@ describe("review page: rendering and routing", () => {
             }),
         );
         await page.goto(`${s.origin}/#token=${TOKEN}`);
-        await expect.poll(() => calls, { timeout: 5000 }).toBeGreaterThan(2);
+        await expect.poll(() => calls).toBeGreaterThan(2);
         await expect.poll(() => page.locator("body").textContent()).toMatch(/interrupted|restarted/i);
     });
 });

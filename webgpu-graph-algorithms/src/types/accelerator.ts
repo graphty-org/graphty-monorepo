@@ -7,28 +7,15 @@
 
 import type {
     AlgorithmAccelerator,
-    ApspResultLike,
-    BellmanFordResultLike,
     BetweennessAcceleratorOptions,
     BfsOptions,
-    BfsResultLike,
     ClosenessAcceleratorOptions,
-    ClosenessResultLike,
-    CommunityResultLike,
-    CorenessResultLike,
-    EdgeScoresResultLike,
     HitsOptionsLike,
-    HitsResultLike,
-    LabelResultLike,
     MstOptions,
-    MstResultLike,
-    PageRankResultLike,
-    ScoresResultLike,
     SsspOptions,
-    SsspResultLike,
 } from "@graphty/algorithms";
 import type { F32, F64, GraphSnapshot } from "@graphty/graph-format";
-import type { LayoutAccelerator, LayoutSimulation } from "@graphty/layout";
+import type { LayoutAccelerator } from "@graphty/layout";
 
 import type { GpuContext } from "../context.js";
 import type {
@@ -60,7 +47,7 @@ import type { GpuBellmanFordResult, GpuBfsResult, GpuSsspResult } from "./traver
 // surface is unchanged and src/types/layout.ts keeps resolving them from here. `export type`, never a bare
 // `export { ... }`: isolatedModules makes the bare form TS1205.
 
-export type { LayoutAccelerator, LayoutSimulation };
+export type { LayoutAccelerator, LayoutSimulation } from "@graphty/layout";
 
 // ---- the real @graphty/algorithms interfaces (spec 9.2, D27): imported at W1b now that A2's first
 // commit exists, re-exported so this package's public surface is unchanged. `export type`, never a
@@ -87,7 +74,7 @@ export type {
     ScoresResultLike,
     SsspOptions,
     SsspResultLike,
-};
+} from "@graphty/algorithms";
 
 // ---- the package's own accelerator surface (spec 3.3); grows one method per shipped algorithm from P7
 

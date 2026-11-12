@@ -10,15 +10,16 @@ import { HOSTED_DATASETS } from "./hosted.js";
 import { karateMeta } from "./karate/meta.js";
 import { knuthMilesMeta } from "./knuth-miles/meta.js";
 import { lesMiserablesMeta } from "./les-miserables/meta.js";
-import { BUNDLED_DATASET_NAMES } from "./names.js";
+import { SMALL_DATASET_NAMES } from "./names.js";
 import { openflightsMeta } from "./openflights/meta.js";
 import { politicalBlogsMeta } from "./political-blogs/meta.js";
 import { politicalBooksMeta } from "./political-books/meta.js";
 import { stelzlInteractomeMeta } from "./stelzl-interactome/meta.js";
+import { veniceTransitMeta } from "./venice-transit/meta.js";
 import { wikipathwaysSenescenceAutophagyMeta } from "./wikipathways-senescence-autophagy/meta.js";
 import { yeastPerturbationMeta } from "./yeast-perturbation/meta.js";
 
-const BUNDLED = {
+const SMALL = {
     karate: karateMeta,
     "florentine-families": florentineFamiliesMeta,
     "davis-southern-women": davisSouthernWomenMeta,
@@ -31,18 +32,20 @@ const BUNDLED = {
     "celegans-neural": celegansNeuralMeta,
     "political-blogs": politicalBlogsMeta,
     openflights: openflightsMeta,
+    "venice-transit": veniceTransitMeta,
     "yeast-perturbation": yeastPerturbationMeta,
     "stelzl-interactome": stelzlInteractomeMeta,
     "wikipathways-senescence-autophagy": wikipathwaysSenescenceAutophagyMeta,
     "go-slim-generic": goSlimGenericMeta,
-} satisfies Record<(typeof BUNDLED_DATASET_NAMES)[number], DatasetMeta>;
+} satisfies Record<(typeof SMALL_DATASET_NAMES)[number], DatasetMeta>;
 
+// Marked pure so a bundler drops every dataset's metadata from a page that never reads DATASETS: Rollup sees on its
+// own that the map has no side effects, Rolldown (Vite 8) keeps the call without the annotation.
 /**
- * The metadata of every dataset (no graph data). A bundled dataset's edges load only from its own
- * subpath, `@graphty/graph-samples/datasets/<name>`; a dataset with `hosting: "remote"` loads with
- * `fetchDataset(name)`.
+ * The metadata of every dataset (no graph data). Every dataset is `hosting: "remote"`: its graph
+ * downloads from graphty.app with `fetchDataset(name)` (or, for a small one, the loader of its subpath
+ * `@graphty/graph-samples/datasets/<name>`).
  */
-export const DATASETS: readonly DatasetMeta[] = [
-    ...BUNDLED_DATASET_NAMES.map((name) => BUNDLED[name]),
-    ...HOSTED_DATASETS,
-];
+export const DATASETS: readonly DatasetMeta[] = /* @__PURE__ */ SMALL_DATASET_NAMES.map(
+    (name): DatasetMeta => SMALL[name],
+).concat(HOSTED_DATASETS);

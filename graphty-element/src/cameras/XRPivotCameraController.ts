@@ -20,10 +20,11 @@ const logger: Logger = GraphtyLogger.getLogger(["graphty", "camera", "xr"]);
  * - Pan translates the scene
  */
 export class XRPivotCameraController {
-    private pivotController: PivotController;
-    private inputHandler: XRInputHandler;
-    private xr: WebXRDefaultExperience;
-    private scene: Scene;
+    /** The pivot the reader is parented to; its `center` is what turns and zooms happen about. */
+    readonly pivotController: PivotController;
+    private readonly inputHandler: XRInputHandler;
+    private readonly xr: WebXRDefaultExperience;
+    private readonly scene: Scene;
     private frameCount = 0;
 
     /**

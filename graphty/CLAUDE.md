@@ -19,7 +19,7 @@ graphty is a React application that wraps `<graphty-element>` with a full-featur
 ```
 graphty/
 ├── src/
-│   ├── App.tsx               # Main application component (routes ?demo; otherwise the shell)
+│   ├── App.tsx               # Main application component (?demo gallery, else the workspace)
 │   ├── main.tsx              # Entry point
 │   ├── theme.ts              # Mantine theme configuration
 │   ├── components/
@@ -40,10 +40,10 @@ graphty/
 └── index.html
 ```
 
-`src/workspace/` is the tier 1 shell, reachable at `?next` until the Switch-over
-(design/ui/tier1-real-app/plan.md): `Workspace.tsx`, `frame/`, `state/`, `commands/registry.ts`,
+`src/workspace/` is the tier 1 shell and the app's default surface (design/ui/tier1-real-app/plan.md):
+`Workspace.tsx`, `frame/`, `state/`, `commands/registry.ts`,
 `keys/`, and one directory per later package. Each package registers its commands in its own
-`commands.ts`, which `registrations.ts` collects.
+`commands.ts`, which `registrations.ts` collects. `?next` also opens the workspace, for old links.
 
 ## Essential Commands
 
@@ -90,7 +90,7 @@ When testing from mobile devices:
 ### Sidebar Controls
 
 The panels build their controls from `@graphty/compact-mantine` (`CompactColorInput`,
-`StyleNumberInput`, `StyleSelect`, `ControlSection`, `ControlSubGroup` and the rest). Do not copy
+`FieldRow`, `PanelField`, `ResetButton`, `ControlSection` and the rest). Do not copy
 one into the app: a control the app needs that compact-mantine lacks, or gets wrong, is fixed there.
 
 ### graphty-element Integration
@@ -114,9 +114,8 @@ The element records each change and owns the history; the app never keeps its ow
   The `graphty/no-element-mutation` lint rule (`eslint-rules/no-element-mutation.js`) reports
   them. It reads `graphty-element/build/doors.json`, which the element's build writes, so build
   graphty-element before linting the app.
-- Undo, Redo and the History list read the element's history through
-  `src/components/shell/topbar/useSessionHistory.ts` and call `session.undo()`, `session.redo()`
-  and `session.history.restoreTo()`.
+- Undo and Redo read the element's history (`session.history`) and call `session.undo()` and
+  `session.redo()`.
 
 ## Testing
 
@@ -125,15 +124,23 @@ The element records each change and owns the history; the app never keeps its ow
 - Use `assert` instead of `expect` for assertions
 - Store temporary files in `./tmp`
 
+### Test projects
+
+- `browser` - Browser-based tests (Playwright)
+- `real-element` - `*.real-element.test.tsx`: the app with the real graphty-element, unmocked
+- `large-graph` - `LargeGraph.*.real-element.test.tsx` alone, as `real-element` runs the others: each file has its own CI shard, `graphty-large-graph-N`, because it takes up to half the per-file guard on CI; a new file adds a part (`LARGE_GRAPH_PARTS` in tools/ci-test-matrix.mjs)
+- `storybook` - every story's play function as a test (its own CI shard, `graphty-storybook`); in CI each story's screenshot is also taken and compared with its baseline inside its test (`VISUAL_REVIEW_STORY_OUT`, `@graphty/visual-review/vitest`): that is the project's screenshot capture
+- `eslint-rules` - Node tests of the app's own lint rules (`graphty/eslint-rules/`)
+
 ## Storybook
 
 - Requires HTTPS: start it through servherd with protocol "https", env PORT={{port}} and
   HOST=0.0.0.0, and the command
   `env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} npm run storybook`
 - Stories are in `src/stories/`
-- Visual regression via Chromatic
+- Visual regression via visual-review (see "Visual review" in the root CLAUDE.md)
 - The eruda debug console is off in Storybook; append `&eruda` to a story URL to switch it on
-  (it never loads under Chromatic or an automated browser)
+  (it never loads in a visual capture or an automated browser)
 
 ## graphty-element Feedback
 
@@ -142,3 +149,16 @@ If you encounter bugs or API difficulties with graphty-element while working on 
 - Document the issue clearly
 - Report it so the graphty-element package can be improved
 - The graphty-element API should be intuitive and easy to use
+
+## UI Components
+
+- Use the default components. Never write a bespoke control to work around one
+- If a shared component is wrong, fix the shared component, so every caller gets the fix
+- Example (2026-09-13): the app shell's lock button grew a custom contrast ring because
+  Mantine's `light` active state measured 1.21:1 against the panel header where WCAG 1.4.11
+  asks 3:1. The ring left one control in the app behaving unlike every other toggle. The fix
+  belonged in `compact-mantine`'s ActionIcon theme, and once it was there the local ring was
+  deleted
+- compact-mantine is locked to Figma (owner, 2026-10-23): never change its look or behavior away from
+  Figma, a Figma test's expected value, its token values or `compact-mantine/design/figma-spec.md`
+  section 14 without the owner's `Figma-Approved: <reason>` commit trailer. See `compact-mantine/CLAUDE.md`

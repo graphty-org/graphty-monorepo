@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "../../test/test-utils";
 import { theme } from "../../theme";
 import { ErrorFallback } from "../ErrorFallback";
-import { RunLayoutsModal } from "../RunLayoutsModal";
 
 describe("theme compliance", () => {
     describe("semantic color variables", () => {
@@ -52,22 +51,6 @@ describe("theme compliance", () => {
                 </MantineProvider>,
             );
             expect(container).toBeTruthy();
-        });
-    });
-
-    describe("Modal theme compliance", () => {
-        it("RunLayoutsModal uses semantic color variables instead of dark-X colors", () => {
-            render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
-            const modal = screen.getByRole("dialog");
-            // Check that the modal rendered
-            expect(modal).toBeInTheDocument();
-            // Get all inline styles and verify no dark-X patterns
-            const allElements = modal.querySelectorAll("*");
-            allElements.forEach((el) => {
-                const style = el.getAttribute("style") ?? "";
-                // Should not contain --mantine-color-dark-N patterns in inline styles
-                expect(style).not.toMatch(/--mantine-color-dark-[0-9]/);
-            });
         });
     });
 

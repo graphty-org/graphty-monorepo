@@ -29,6 +29,8 @@ import { inspect } from "node:util";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { type Recording, replayFetch } from "../src/index.js";
+
 const DOCS = fileURLToPath(new URL("../docs/", import.meta.url));
 const EXAMPLES = join(DOCS, "examples");
 const CORPUS = fileURLToPath(new URL("corpus/", import.meta.url));
@@ -37,6 +39,10 @@ const PICKED_FILE = "got.gexf";
 /** What an `<input type="file" multiple>` gets: the two tables of a CSV graph. */
 const PICKED_FILES = ["got-edges.csv", "got-nodes.csv"];
 const EXPORT_FILE = "simple.graphml";
+/** What www.ndexbio.org answered on 2026-10-17: the NDEx examples run against the successful ones. */
+const NDEX_RECORDINGS = fileURLToPath(new URL("sources/ndex/recordings/", import.meta.url));
+/** What query.wikidata.org answered on 2026-10-20: the SPARQL example runs against it. */
+const WIKIDATA_RECORDING = fileURLToPath(new URL("sources/sparql/recordings/wikidata-advisors.json", import.meta.url));
 
 /**
  * Every file under a directory, recursively.
@@ -129,11 +135,28 @@ function installGlobals(dir: string, run: Run): Map<string, FakeElement> {
         output.push(`[confirm] ${message}`);
         return true;
     });
-    vi.stubGlobal("fetch", (url: string | URL, init?: RequestInit): Promise<Response> => {
-        const last = basename(new URL(String(url), "https://example.com/").pathname);
+    const ndex = replayFetch(
+        ["wp5483-cx2", "search", "expand", "pcnet-summary"].flatMap(
+            (f) => JSON.parse(readFileSync(join(NDEX_RECORDINGS, `${f}.json`), "utf8")) as Recording[],
+        ),
+        { secretQuery: ["accesskey"] },
+    );
+    const wikidata = replayFetch(JSON.parse(readFileSync(WIKIDATA_RECORDING, "utf8")) as Recording[]);
+    vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        // a network source's ctx.fetch passes a Request
+        const url = input instanceof Request ? input.url : String(input);
+        const { host } = new URL(url, "https://example.com/");
+        if (host === "www.ndexbio.org") {
+            return ndex(input, init);
+        }
+        if (host === "query.wikidata.org") {
+            return wikidata(input, init);
+        }
+        const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+        const last = basename(new URL(url, "https://example.com/").pathname);
         const name = last === "export" ? EXPORT_FILE : last;
-        if (init?.method === "POST") {
-            output.push(`[upload] ${String(url)}`);
+        if (method === "POST") {
+            output.push(`[upload] ${url}`);
             return Promise.resolve(new Response("ok"));
         }
         try {
@@ -199,10 +222,71 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
+/** The package's published entry points by the name a reader imports them with (package.json's exports). */
+const PUBLISHED: ReadonlySet<string> = new Set(
+    Object.keys(
+        (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { exports: object }).exports,
+    ).map((k) => (k === "." ? "@graphty/graph-io" : `@graphty/graph-io/${k.slice(2)}`)),
+);
+
+/** The examples that show a format plugin's simple path: they import nothing a reader would not have. */
+const SIMPLE_PATHS = ["styles/importer.ts", "styles/exporter.ts", "styles/slots.ts"];
+
+/**
+ * The module specifiers an example imports.
+ * @param text - the example's source
+ * @returns the specifiers, static and dynamic
+ */
+function specifiers(text: string): string[] {
+    return [...text.matchAll(/(?:\bfrom\s+|\bimport\s*\(\s*|^import\s+)"([^"]+)"/gm)].map((m) => m[1]);
+}
+
+/**
+ * Whether a reader who installed the package can import a specifier: a published entry point, graph-format, a
+ * Node module, the CDN copy, React, or (for an example that builds on another the same page shows) a sibling example.
+ * @param spec - the specifier
+ * @param file - the example importing it
+ * @param siblings - whether a sibling example counts
+ * @returns true when it can
+ */
+function readerCanImport(spec: string, file: string, siblings: boolean): boolean {
+    if (PUBLISHED.has(spec) || spec === "@graphty/graph-format" || spec.startsWith("node:") || spec === "react") {
+        return true;
+    }
+    if (spec === "https://esm.sh/@graphty/graph-io") {
+        return true;
+    }
+    const sibling = /^\.\/([\w-]+)\.js$/.exec(spec);
+    return siblings && sibling !== null && existsSync(join(file, "..", `${sibling[1]}.ts`));
+}
+
 describe("documentation examples", () => {
     const files = walk(EXAMPLES)
         .filter((f) => f.endsWith(".ts") || f.endsWith(".js"))
         .sort();
+
+    it("import only what a reader can import", () => {
+        // a relative path into the package or a src/ import would run here and fail for every reader
+        const wrong = files.flatMap((file) => {
+            const name = relative(EXAMPLES, file);
+            const siblings = !SIMPLE_PATHS.includes(name);
+            return specifiers(readFileSync(file, "utf8"))
+                .filter((spec) => !readerCanImport(spec, file, siblings))
+                .map((spec) => `${name}: ${spec}`);
+        });
+        expect(wrong).toEqual([]);
+        for (const name of SIMPLE_PATHS) {
+            expect(existsSync(join(EXAMPLES, name)), name).toBe(true);
+        }
+    });
+
+    it("rejects a relative or src/ import", () => {
+        const file = join(EXAMPLES, "styles", "importer.ts");
+        expect(readerCanImport("../../src/index.js", file, true)).toBe(false);
+        expect(readerCanImport("@graphty/graph-io/src/styles/index.js", file, true)).toBe(false);
+        expect(readerCanImport("./exporter.js", file, false)).toBe(false);
+        expect(specifiers('import { a } from "../x.js";\nawait import("./y.js");')).toEqual(["../x.js", "./y.js"]);
+    });
 
     it("exist", () => {
         expect(files.length).toBeGreaterThan(0);

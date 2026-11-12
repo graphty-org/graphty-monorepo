@@ -131,7 +131,9 @@ export function kernelModules() {
     const segments = text.split(/\bid:\s*"/).slice(1); // each segment starts with an entry's id
     for (const segment of segments) {
         const id = /^([\w-]+)"/.exec(segment)?.[1];
-        const files = [...wgslImports].filter(([name]) => new RegExp(`\\b${name}\\b`).test(segment)).map(([, f]) => f);
+        const files = [...wgslImports]
+            .filter(([name]) => new RegExp(String.raw`\b${name}\b`).test(segment))
+            .map(([, f]) => f);
         if (id !== undefined) {
             modules.set(id, [...(modules.get(id) ?? []), ...files]);
         }
@@ -160,19 +162,51 @@ function reachedSrc(roots, kernels) {
             continue;
         }
         seen.add(file);
-        for (const spec of file === managed ? [] : relativeImports(file)) {
-            const target = resolveImport(file, spec);
-            if (target !== null && !(file === registry && spec.startsWith("./wgsl/"))) {
-                stack.push(target);
-            }
+        stack.push(...edgesOf(file, registry, managed, kernels));
+    }
+    return new Set([...seen].map((f) => rel(f)).filter((f) => f.startsWith("src/")));
+}
+
+/**
+ * The files one file leads to in reachedSrc's walk: its relative imports (none for src/managed.ts, and not the
+ * registry's WGSL imports), then the WGSL modules of every kernel id it names (except in the registry itself).
+ * @param {string} file - the absolute file
+ * @param {string} registry - the absolute src/kernels.ts
+ * @param {string} managed - the absolute src/managed.ts
+ * @param {Map<string, string[]>} kernels - from kernelModules()
+ * @returns {string[]} absolute files, in walk order
+ */
+function edgesOf(file, registry, managed, kernels) {
+    const out = [];
+    for (const spec of file === managed ? [] : relativeImports(file)) {
+        const target = resolveImport(file, spec);
+        if (target !== null && !(file === registry && spec.startsWith("./wgsl/"))) {
+            out.push(target);
         }
-        if (file !== registry) {
-            for (const m of readFileSync(file, "utf8").matchAll(/["'`]([\w-]+)["'`]/g)) {
-                stack.push(...(kernels.get(m[1]) ?? []));
+    }
+    if (file !== registry) {
+        for (const m of readFileSync(file, "utf8").matchAll(/["'`]([\w-]+)["'`]/g)) {
+            out.push(...(kernels.get(m[1]) ?? []));
+        }
+    }
+    return out;
+}
+
+/**
+ * The identifiers benchmarks/run.ts imports from its sibling files, and the file of each.
+ * @param {string} runTs - the text of benchmarks/run.ts
+ * @returns {Map<string, string>} imported identifier -> package-relative bench file
+ */
+function benchImports(runTs) {
+    const importedFrom = new Map();
+    for (const m of runTs.matchAll(/import\s*\{([^}]*)\}\s*from\s*"\.\/([\w.-]+)\.js"/g)) {
+        for (const id of m[1].split(",").map((s) => s.replace(/^\s*type\s+/, "").trim())) {
+            if (id !== "") {
+                importedFrom.set(id, `benchmarks/${m[2]}.ts`);
             }
         }
     }
-    return new Set([...seen].map((f) => rel(f)).filter((f) => f.startsWith("src/")));
+    return importedFrom;
 }
 
 /**
@@ -183,15 +217,7 @@ function reachedSrc(roots, kernels) {
  */
 export function declaredGroups(read = (p) => readFileSync(join(PACKAGE_DIR, p), "utf8")) {
     const runTs = read("benchmarks/run.ts");
-    /** @type {Map<string, string>} imported identifier -> package-relative bench file */
-    const importedFrom = new Map();
-    for (const m of runTs.matchAll(/import\s*\{([^}]*)\}\s*from\s*"\.\/([\w.-]+)\.js"/g)) {
-        for (const id of m[1].split(",").map((s) => s.replace(/^\s*type\s+/, "").trim())) {
-            if (id !== "") {
-                importedFrom.set(id, `benchmarks/${m[2]}.ts`);
-            }
-        }
-    }
+    const importedFrom = benchImports(runTs);
     const block = /const GROUPS\b[^\n]*=\s*\{\n([\s\S]*?)\n\};/.exec(runTs);
     if (block === null) {
         throw new Error("benchmarks/run.ts: no `const GROUPS = { ... };` found");
@@ -204,7 +230,7 @@ export function declaredGroups(read = (p) => readFileSync(join(PACKAGE_DIR, p), 
         }
         let name = m[3] ?? m[4];
         if (m[2] !== undefined) {
-            const value = new RegExp(`export const ${m[2]}\\s*=\\s*"([\\w-]+)"`).exec(read(benchFile));
+            const value = new RegExp(String.raw`export const ${m[2]}\s*=\s*"([\w-]+)"`).exec(read(benchFile));
             if (value === null) {
                 throw new Error(`${benchFile}: no \`export const ${m[2]} = "..."\``);
             }

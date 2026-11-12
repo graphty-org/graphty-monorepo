@@ -1,11 +1,13 @@
 import { resolve } from "node:path";
 
-import type { Alias } from "vite";
+import type { Alias, PluginOption } from "vite";
+
+import { stubAnthropicNodeToolset } from "../vite.anthropic-sdk-stub.mjs";
 
 /**
  * Module aliases shared by the dev server and build (vite.config.ts), the tests
  * (vitest.config.ts) and Storybook (which loads vite.config.ts), so all three run the same
- * graphty-element.
+ * graphty-element and compact-mantine.
  *
  * An ordered list, not a map: the graphty-element rules must be tried before the bare "@"
  * rule, and the root entry point before the subpath one.
@@ -25,5 +27,19 @@ export const aliases: Alias[] = [
         find: /^@graphty\/graphty-element\/(.+)$/,
         replacement: resolve(__dirname, "../graphty-element/$1.ts"),
     },
+    // compact-mantine is read from source too, for the same reason: a dev server built against
+    // a stale compact-mantine dist fails at boot when app code imports a component the old
+    // build lacks (issue #6112). tsconfig.json carries the same rule.
+    {
+        find: /^@graphty\/compact-mantine$/,
+        replacement: resolve(__dirname, "../compact-mantine/src/index.ts"),
+    },
     { find: "@", replacement: resolve(__dirname, "./src") },
 ];
+
+/**
+ * The build plugins graphty-element's own build applies to its source, which the app needs too
+ * because it reads graphty-element from source (above). A consumer of the published package
+ * gets graphty-element's built chunks and needs none of them.
+ */
+export const elementSourcePlugins: PluginOption[] = [stubAnthropicNodeToolset()];

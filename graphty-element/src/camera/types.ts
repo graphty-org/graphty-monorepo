@@ -29,6 +29,12 @@ export interface Vec3 {
 /** Which way the element is drawing: flat, or in three dimensions. */
 export type DrawingMode = "2d" | "3d";
 
+/**
+ * What each node counts as in the box a camera view frames: `"centers"` its centre alone (the
+ * default), `"drawn"` the box it is drawn in, so a big node at the edge of the frame is not cut off.
+ */
+export type CameraViewExtent = "centers" | "drawn";
+
 /** An axis-aligned box around the elements a view is being asked to frame, in world units. */
 export interface GraphBounds {
     readonly min: Vec3;
@@ -72,8 +78,17 @@ export interface CameraState {
     fov?: number;
 
     // 2D Camera Properties
+    /**
+     * How far in a 2D camera is: 1 shows 5 world units either side of `pan` across, 2 shows half
+     * that. To show a half-width of `h` units, ask for `5 / h`.
+     */
     zoom?: number;
     pan?: { x: number; y: number };
+    /**
+     * How far a 2D view is turned: the angle the drawing is turned counterclockwise on screen, in
+     * radians, about the view's center (`pan`). 0 is unturned. A reader's two-finger turn and the
+     * project setting `viewRotation` both set it.
+     */
     rotation?: number;
 
     // Orthographic frustum (advanced)
@@ -85,6 +100,18 @@ export interface CameraState {
     // OrbitCameraController-specific fields
     pivotRotation?: { x: number; y: number; z: number };
     cameraDistance?: number;
+}
+
+/**
+ * Margins of the drawing surface that something else covers, such as a key or a toolbar laid
+ * over the canvas, in CSS pixels per side. Every fit keeps the elements it frames out of them,
+ * and in 3D the camera's center of view is the center of what is left. A side left out is 0.
+ */
+export interface ViewInsets {
+    readonly top?: number;
+    readonly right?: number;
+    readonly bottom?: number;
+    readonly left?: number;
 }
 
 /** Everything a view is told before it decides where the viewer stands. */
@@ -110,10 +137,21 @@ export interface CameraViewInput {
      * extension point exists to prevent.
      */
     readonly viewport: { readonly width: number; readonly height: number };
+    /**
+     * The view insets in force, in the same device pixels as `viewport`. A view that frames
+     * should keep the box out of them; absent or all zero, the whole viewport is free.
+     */
+    readonly insets?: Required<ViewInsets>;
     /** The vertical field of view in radians. Absent in 2D, which has no perspective. */
     readonly fov?: number;
     /** Where the camera is right now, so a view can be relative to it. */
     readonly current: CameraState;
+    /**
+     * The side the drawing is meant to be seen from, as a unit direction from what is framed
+     * toward the viewer, when the active layout has one: a map or a globe is read from -z.
+     * Absent for a layout that looks the same from every side.
+     */
+    readonly facing?: { readonly x: number; readonly y: number; readonly z: number };
     /** The view's own options, resolved against the defaults its descriptor declares. */
     readonly options: Readonly<Record<string, unknown>>;
 }

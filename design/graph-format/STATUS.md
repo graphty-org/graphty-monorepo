@@ -561,9 +561,11 @@ candidate for confirmation by the owner; none contradicts an invariant.
 
 - `layoutSegments()` reports the arena byte length as the end of the last non-empty segment (no
   trailing padding), matching the 10.3 worked numbers.
-- A fresh resizable staging buffer reserves `max(byteLength, 256 MiB)` of address space; growth past
-  it reallocates with a doubled reservation; a RangeError on the reservation itself retries with
-  `maxByteLength === byteLength`.
+- A fresh resizable staging buffer reserves `max(byteLength, 1 MiB)` of address space; growth past
+  it reallocates with a reservation 16 times larger up to 256 MiB, doubled beyond that (WebKit gives
+  a process about 64 GiB for every ArrayBuffer and frees a reservation only on garbage collection, so
+  a fixed 256 MiB per buffer ran a page of a few graphs out of memory); a RangeError on the
+  reservation itself retries with `maxByteLength === byteLength`.
 - Growable capacity is rounded to 16 elements then 64 bytes.
 - Every bitmap keeps bits `>= N` clear; counting / iteration take an explicit bit count.
 - The bitmap module holds only the helpers the package calls (`bitmapAnd` / `bitmapOr` /

@@ -12,6 +12,7 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, test } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { drawnFrames } from "../helpers/drawn-frames";
 
 /** The graph of the Data/Basic story. */
 const NODES = [{ id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }];
@@ -51,13 +52,16 @@ function mount(preSteps: number): Graphty {
 }
 
 /**
- * Let a few frames run.
- * @param count - How many.
+ * Wait until the element holds the nodes just written, then let it update a few times over them.
+ * @param element - The element.
+ * @param updates - How many drawn frames, each a layout step, to let run.
  */
-async function frames(count: number): Promise<void> {
-    for (let i = 0; i < count; i++) {
+async function stepOverNodes(element: Graphty, updates: number): Promise<void> {
+    while (element.graph.getDataManager().nodes.size === 0) {
         await new Promise((resolve) => requestAnimationFrame(resolve));
     }
+
+    await drawnFrames(element.graph.getScene(), updates);
 }
 
 /**
@@ -97,7 +101,7 @@ describe("a seeded layout whose nodes and edges arrive in separate turns", () =>
 
             const element = mount(preSteps);
             element.nodeData = NODES;
-            await frames(5);
+            await stepOverNodes(element, 5);
             assert.isAbove(element.graph.getDataManager().nodes.size, 0, "the nodes were drawn before the edges");
             element.edgeData = EDGES;
             await element.waitForStableFrame();
@@ -112,7 +116,8 @@ describe("a seeded layout whose nodes and edges arrive in separate turns", () =>
             element.nodeData = NODES;
             await element.waitForStableFrame();
             await element.graph.addEdges(EDGES.slice(0, 3));
-            await frames(3);
+            // Three updates over the first edges alone, as frames between two fetches would run.
+            await drawnFrames(element.graph.getScene(), 3);
             await element.graph.addEdges(EDGES.slice(3));
             await element.waitForStableFrame();
 

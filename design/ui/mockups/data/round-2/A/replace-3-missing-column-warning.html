@@ -1,0 +1,4156 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>supplier-network</title>
+        <style>
+            body {
+                margin: 0;
+                background: #111;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    "Segoe UI",
+                    sans-serif;
+            }
+            a {
+                color: #5b8ff9;
+            }
+            a:hover {
+                color: #75a5f9;
+            }
+        </style>
+    </head>
+    <body>
+        <div
+            style="
+                width: 1440px;
+                height: 900px;
+                position: relative;
+                overflow: hidden;
+                background: #2c2c2c;
+                color: #ffffff;
+                font-size: 12px;
+                line-height: 16px;
+            "
+        >
+            <div
+                style="
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    width: 1440px;
+                    height: 40px;
+                    background: #2c2c2c;
+                    border-bottom: 1px solid #444444;
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
+                    padding: 0 16px;
+                    box-sizing: border-box;
+                "
+            >
+                <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="flex: none"
+                >
+                    <path d="M2.5 4h11M2.5 8h11M2.5 12h11" /></svg
+                ><span style="font-weight: 600; font-size: 13px">supplier-network</span
+                ><span style="color: #b3b3b3; display: flex; gap: 12px"
+                    ><svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M5 3.5 2.5 6 5 8.5" />
+                        <path d="M2.5 6h7a3.5 3.5 0 0 1 0 7H7" /></svg
+                    ><svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M11 3.5 13.5 6 11 8.5" />
+                        <path d="M13.5 6h-7a3.5 3.5 0 0 0 0 7H9" /></svg></span
+                ><span style="color: #b3b3b3; display: flex; align-items: center; gap: 6px"
+                    ><svg
+                        width="13"
+                        height="13"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <rect x="3.5" y="7" width="9" height="6.5" rx="1" />
+                        <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" /></svg
+                    >Local only</span
+                >
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    left: 0;
+                    top: 40px;
+                    width: 57px;
+                    height: 860px;
+                    background: #2c2c2c;
+                    border-right: 1px solid #444444;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 10px;
+                    padding-top: 12px;
+                    box-sizing: border-box;
+                "
+            >
+                <div
+                    style="
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        font-size: 10px;
+                        color: #b3b3b3;
+                    "
+                >
+                    <div
+                        style="
+                            width: 32px;
+                            height: 28px;
+                            border-radius: 6px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: #b3b3b3;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <circle cx="4" cy="4" r="2" />
+                            <circle cx="12" cy="6" r="2" />
+                            <circle cx="6" cy="12" r="2" />
+                            <path d="M5.8 4.6 10.1 5.5M4.6 5.9l.9 4.2M7.7 11 10.5 7.4" />
+                        </svg>
+                    </div>
+                    Graph
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        font-size: 10px;
+                        color: #fff;
+                    "
+                >
+                    <div
+                        style="
+                            width: 32px;
+                            height: 28px;
+                            border-radius: 6px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            background: #0a6dc2;
+                            color: #fff;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <ellipse cx="8" cy="4" rx="5" ry="2" />
+                            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" />
+                        </svg>
+                    </div>
+                    Data
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        font-size: 10px;
+                        color: #b3b3b3;
+                    "
+                >
+                    <div
+                        style="
+                            width: 32px;
+                            height: 28px;
+                            border-radius: 6px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: #b3b3b3;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M4 2.5h6l2.5 2.5v8.5h-8.5z" />
+                            <path d="M6 7.5h4.5M6 10h4.5" />
+                        </svg>
+                    </div>
+                    Notes
+                </div>
+                <div style="flex: 1"></div>
+                <div style="padding-bottom: 14px">
+                    <div
+                        style="
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            gap: 3px;
+                            font-size: 10px;
+                            color: #b3b3b3;
+                        "
+                    >
+                        <div
+                            style="
+                                width: 32px;
+                                height: 28px;
+                                border-radius: 6px;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                color: #b3b3b3;
+                            "
+                        >
+                            <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none"
+                            >
+                                <circle cx="8" cy="8" r="2.2" />
+                                <path
+                                    d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1"
+                                />
+                            </svg>
+                        </div>
+                        Settings
+                    </div>
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    left: 57px;
+                    top: 40px;
+                    width: 240px;
+                    height: 860px;
+                    background: #2c2c2c;
+                    border-right: 1px solid #444444;
+                    overflow: hidden;
+                    box-sizing: border-box;
+                    left: 57px;
+                "
+            >
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        height: 40px;
+                        padding: 0 10px 0 16px;
+                        font-size: 13px;
+                        font-weight: 600;
+                    "
+                >
+                    supplier-network
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        height: 32px;
+                        padding: 0 10px 0 8px;
+                        font-weight: 600;
+                        font-size: 12px;
+                    "
+                >
+                    <span style="color: #b3b3b3; display: flex"
+                        ><svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg></span
+                    ><span>Sources</span
+                    ><span style="margin-left: auto; display: flex; align-items: center; gap: 6px"
+                        ><span style="color: #b3b3b3; display: flex"
+                            ><svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none"
+                            >
+                                <path d="M8 3.5v9M3.5 8h9" /></svg></span
+                    ></span>
+                </div>
+                <div style="display: flex; align-items: flex-start; gap: 8px; padding: 5px 10px 5px 16px">
+                    <span style="color: #b3b3b3; display: flex; padding-top: 1px"
+                        ><svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M4 2.5h5.5L12 5v8.5H4z" />
+                            <path d="M9.5 2.5V5H12" /></svg
+                    ></span>
+                    <div style="flex: 1; min-width: 0">
+                        <div
+                            style="
+                                flex: 1;
+                                min-width: 0;
+                                white-space: nowrap;
+                                overflow: hidden;
+                                text-overflow: ellipsis;
+                            "
+                        >
+                            suppliers-oct.csv
+                        </div>
+                        <div style="display: flex; gap: 4px; margin-top: 3px; flex-wrap: wrap">
+                            <span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 4px;
+                                    height: 18px;
+                                    padding: 0 6px;
+                                    border-radius: 9px;
+                                    background: #383838;
+                                    color: #ffffff;
+                                    font-size: 11px;
+                                    white-space: nowrap;
+                                    flex: none;
+                                "
+                                >129 nodes</span
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 4px; padding: 0 10px 6px 38px">
+                    <span
+                        style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 4px;
+                            height: 18px;
+                            padding: 0 6px;
+                            border-radius: 9px;
+                            background: #1e3d2c;
+                            color: #4fd18b;
+                            font-size: 11px;
+                            white-space: nowrap;
+                            flex: none;
+                        "
+                        >+12</span
+                    ><span
+                        style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 4px;
+                            height: 18px;
+                            padding: 0 6px;
+                            border-radius: 9px;
+                            background: #4a2422;
+                            color: #ff8a80;
+                            font-size: 11px;
+                            white-space: nowrap;
+                            flex: none;
+                        "
+                        >-3</span
+                    ><span
+                        style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 4px;
+                            height: 18px;
+                            padding: 0 6px;
+                            border-radius: 9px;
+                            background: #1b3a57;
+                            color: #cfe8ff;
+                            font-size: 11px;
+                            white-space: nowrap;
+                            flex: none;
+                        "
+                        >40 changed</span
+                    >
+                </div>
+                <div style="display: flex; align-items: flex-start; gap: 8px; padding: 5px 10px 5px 16px">
+                    <span style="color: #b3b3b3; display: flex; padding-top: 1px"
+                        ><svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M4 2.5h5.5L12 5v8.5H4z" />
+                            <path d="M9.5 2.5V5H12" /></svg
+                    ></span>
+                    <div style="flex: 1; min-width: 0">
+                        <div
+                            style="
+                                flex: 1;
+                                min-width: 0;
+                                white-space: nowrap;
+                                overflow: hidden;
+                                text-overflow: ellipsis;
+                            "
+                        >
+                            ships_to.csv
+                        </div>
+                        <div style="display: flex; gap: 4px; margin-top: 3px; flex-wrap: wrap">
+                            <span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 4px;
+                                    height: 18px;
+                                    padding: 0 6px;
+                                    border-radius: 9px;
+                                    background: #383838;
+                                    color: #ffffff;
+                                    font-size: 11px;
+                                    white-space: nowrap;
+                                    flex: none;
+                                "
+                                >412 edges</span
+                            >
+                        </div>
+                    </div>
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        height: 32px;
+                        padding: 0 10px 0 8px;
+                        font-weight: 600;
+                        font-size: 12px;
+                        border-top: 1px solid #444444;
+                    "
+                >
+                    <span style="color: #b3b3b3; display: flex"
+                        ><svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg></span
+                    ><span>Warnings</span
+                    ><span style="margin-left: auto; display: flex; align-items: center; gap: 6px"
+                        ><span
+                            style="
+                                display: inline-flex;
+                                align-items: center;
+                                gap: 4px;
+                                height: 18px;
+                                padding: 0 6px;
+                                border-radius: 9px;
+                                background: #4a3a1e;
+                                color: #ffc470;
+                                font-size: 11px;
+                                white-space: nowrap;
+                                flex: none;
+                            "
+                            >1</span
+                        ></span
+                    >
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        height: 26px;
+                        padding: 0 10px 0 16px;
+                        height: 30px;
+                    "
+                >
+                    <span style="display: flex; color: #ffc470; width: 16px; justify-content: center"
+                        ><svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M8 2.5 14 13H2z" />
+                            <path d="M8 6.5v3M8 11.2v.3" /></svg></span
+                    ><span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis"
+                        >Style Tier: tier not found</span
+                    >
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 10px 0 16px">
+                    <span
+                        style="
+                            width: 58px;
+                            flex: none;
+                            color: #b3b3b3;
+                            font-size: 11px;
+                            white-space: nowrap;
+                            overflow: hidden;
+                        "
+                        >Map to</span
+                    >
+                    <div
+                        style="
+                            flex: 1;
+                            min-width: 0;
+                            display: flex;
+                            align-items: center;
+                            gap: 6px;
+                            height: 24px;
+                            padding: 0 6px;
+                            border-radius: 4px;
+                            background: #383838;
+                            font-size: 12px;
+                            box-sizing: border-box;
+                            white-space: nowrap;
+                            box-shadow: inset 0 0 0 1px #0c8ce9;
+                        "
+                    >
+                        <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis">tier_level</span
+                        ><span style="color: #b3b3b3; display: flex"
+                            ><svg
+                                width="10"
+                                height="10"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none"
+                            >
+                                <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                        ></span>
+                    </div>
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        height: 32px;
+                        padding: 0 10px 0 8px;
+                        font-weight: 600;
+                        font-size: 12px;
+                        border-top: 1px solid #444444;
+                    "
+                >
+                    <span style="color: #b3b3b3; display: flex"
+                        ><svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg></span
+                    ><span>Nodes</span
+                    ><span style="margin-left: auto; display: flex; align-items: center; gap: 6px"
+                        ><span style="color: #b3b3b3; display: flex"
+                            ><svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none"
+                            >
+                                <path d="M8 3.5v9M3.5 8h9" /></svg></span
+                    ></span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 10px 0 16px">
+                    <span
+                        style="
+                            width: 58px;
+                            flex: none;
+                            color: #b3b3b3;
+                            font-size: 11px;
+                            white-space: nowrap;
+                            overflow: hidden;
+                        "
+                        >Name</span
+                    >
+                    <div
+                        style="
+                            flex: 1;
+                            min-width: 0;
+                            display: flex;
+                            align-items: center;
+                            gap: 6px;
+                            height: 24px;
+                            padding: 0 6px;
+                            border-radius: 4px;
+                            background: #383838;
+                            font-size: 12px;
+                            box-sizing: border-box;
+                            white-space: nowrap;
+                        "
+                    >
+                        <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis"
+                            >supplier_name</span
+                        ><span style="color: #b3b3b3; display: flex"
+                            ><svg
+                                width="10"
+                                height="10"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none"
+                            >
+                                <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                        ></span>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px 0 16px">
+                    <span
+                        style="
+                            width: 16px;
+                            flex: none;
+                            color: #b3b3b3;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 10px;
+                            font-weight: 700;
+                        "
+                        >Aa</span
+                    ><span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis"
+                        >supplier_name</span
+                    ><span
+                        style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 4px;
+                            height: 18px;
+                            padding: 0 6px;
+                            border-radius: 9px;
+                            background: #383838;
+                            color: #ffffff;
+                            font-size: 11px;
+                            white-space: nowrap;
+                            flex: none;
+                        "
+                        >Name</span
+                    >
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px 0 16px">
+                    <span
+                        style="
+                            width: 16px;
+                            flex: none;
+                            color: #b3b3b3;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 10px;
+                            font-weight: 700;
+                        "
+                        ><svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <circle cx="5" cy="5" r="2" />
+                            <circle cx="11" cy="5" r="2" />
+                            <circle cx="8" cy="11" r="2" /></svg></span
+                    ><span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis"
+                        >region</span
+                    >
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px 0 16px">
+                    <span
+                        style="
+                            width: 16px;
+                            flex: none;
+                            color: #b3b3b3;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 10px;
+                            font-weight: 700;
+                        "
+                        ><svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <circle cx="5" cy="5" r="2" />
+                            <circle cx="11" cy="5" r="2" />
+                            <circle cx="8" cy="11" r="2" /></svg></span
+                    ><span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis"
+                        >tier_level</span
+                    >
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px 0 16px">
+                    <span
+                        style="
+                            width: 16px;
+                            flex: none;
+                            color: #b3b3b3;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 10px;
+                            font-weight: 700;
+                            font-size: 12px;
+                        "
+                        >#</span
+                    ><span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis"
+                        >spend_usd</span
+                    >
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        height: 32px;
+                        padding: 0 10px 0 8px;
+                        font-weight: 600;
+                        font-size: 12px;
+                        border-top: 1px solid #444444;
+                    "
+                >
+                    <span style="color: #b3b3b3; display: flex"
+                        ><svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg></span
+                    ><span>Edges</span
+                    ><span style="margin-left: auto; display: flex; align-items: center; gap: 6px"
+                        ><span style="color: #b3b3b3; display: flex"
+                            ><svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none"
+                            >
+                                <path d="M8 3.5v9M3.5 8h9" /></svg></span
+                    ></span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 10px 0 16px">
+                    <span
+                        style="
+                            width: 58px;
+                            flex: none;
+                            color: #b3b3b3;
+                            font-size: 11px;
+                            white-space: nowrap;
+                            overflow: hidden;
+                        "
+                        >Source</span
+                    >
+                    <div
+                        style="
+                            flex: 1;
+                            min-width: 0;
+                            display: flex;
+                            align-items: center;
+                            gap: 6px;
+                            height: 24px;
+                            padding: 0 6px;
+                            border-radius: 4px;
+                            background: #383838;
+                            font-size: 12px;
+                            box-sizing: border-box;
+                            white-space: nowrap;
+                        "
+                    >
+                        <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis">from_id</span
+                        ><span style="color: #b3b3b3; display: flex"
+                            ><svg
+                                width="10"
+                                height="10"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none"
+                            >
+                                <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                        ></span>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 10px 0 16px">
+                    <span
+                        style="
+                            width: 58px;
+                            flex: none;
+                            color: #b3b3b3;
+                            font-size: 11px;
+                            white-space: nowrap;
+                            overflow: hidden;
+                        "
+                        >Target</span
+                    >
+                    <div
+                        style="
+                            flex: 1;
+                            min-width: 0;
+                            display: flex;
+                            align-items: center;
+                            gap: 6px;
+                            height: 24px;
+                            padding: 0 6px;
+                            border-radius: 4px;
+                            background: #383838;
+                            font-size: 12px;
+                            box-sizing: border-box;
+                            white-space: nowrap;
+                        "
+                    >
+                        <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis">to_id</span
+                        ><span style="color: #b3b3b3; display: flex"
+                            ><svg
+                                width="10"
+                                height="10"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none"
+                            >
+                                <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                        ></span>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 10px 0 16px">
+                    <span
+                        style="
+                            width: 58px;
+                            flex: none;
+                            color: #b3b3b3;
+                            font-size: 11px;
+                            white-space: nowrap;
+                            overflow: hidden;
+                        "
+                        >Weight</span
+                    >
+                    <div
+                        style="
+                            flex: 1;
+                            min-width: 0;
+                            display: flex;
+                            align-items: center;
+                            gap: 6px;
+                            height: 24px;
+                            padding: 0 6px;
+                            border-radius: 4px;
+                            background: #383838;
+                            font-size: 12px;
+                            box-sizing: border-box;
+                            white-space: nowrap;
+                        "
+                    >
+                        <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis">volume</span
+                        ><span style="color: #b3b3b3; display: flex"
+                            ><svg
+                                width="10"
+                                height="10"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none"
+                            >
+                                <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                        ></span>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px 0 16px">
+                    <span
+                        style="
+                            width: 16px;
+                            flex: none;
+                            color: #b3b3b3;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 10px;
+                            font-weight: 700;
+                        "
+                        ><svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <rect x="2.5" y="3.5" width="11" height="10" rx="1" />
+                            <path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" /></svg></span
+                    ><span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis"
+                        >month</span
+                    >
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        height: 32px;
+                        padding: 0 10px 0 8px;
+                        font-weight: 600;
+                        font-size: 12px;
+                        border-top: 1px solid #444444;
+                    "
+                >
+                    <span style="color: #b3b3b3; display: flex"
+                        ><svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg></span
+                    ><span>Filters</span
+                    ><span style="margin-left: auto; display: flex; align-items: center; gap: 6px"
+                        ><span style="color: #b3b3b3; display: flex"
+                            ><svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none"
+                            >
+                                <path d="M8 3.5v9M3.5 8h9" /></svg></span
+                    ></span>
+                </div>
+                <div style="display: flex; align-items: flex-start; gap: 8px; padding: 5px 10px 5px 16px">
+                    <span style="color: #b3b3b3; display: flex; padding-top: 1px"
+                        ><svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M2.5 4h11M4.5 8h7M6.5 12h3" /></svg
+                    ></span>
+                    <div style="flex: 1; min-width: 0">
+                        <div
+                            style="
+                                flex: 1;
+                                min-width: 0;
+                                white-space: nowrap;
+                                overflow: hidden;
+                                text-overflow: ellipsis;
+                            "
+                        >
+                            region is EMEA
+                        </div>
+                        <div style="display: flex; gap: 4px; margin-top: 3px; flex-wrap: wrap">
+                            <span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 4px;
+                                    height: 18px;
+                                    padding: 0 6px;
+                                    border-radius: 9px;
+                                    background: #383838;
+                                    color: #ffffff;
+                                    font-size: 11px;
+                                    white-space: nowrap;
+                                    flex: none;
+                                "
+                                >51 of 129</span
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    left: 297px;
+                    top: 40px;
+                    width: 1143px;
+                    height: 860px;
+                    background: #f5f5f5;
+                    overflow: hidden;
+                "
+            >
+                <svg width="1143" height="860" viewBox="0 0 1143 860" style="position: absolute; left: 0; top: 0">
+                    <line
+                        x1="887.3"
+                        y1="361.1"
+                        x2="885.4"
+                        y2="385.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="887.3"
+                        y1="361.1"
+                        x2="881.3"
+                        y2="375.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="655.0"
+                        y1="704.4"
+                        x2="665.4"
+                        y2="708.4"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="655.0"
+                        y1="704.4"
+                        x2="647.7"
+                        y2="707.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="655.0"
+                        y1="704.4"
+                        x2="677.6"
+                        y2="708.5"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="327.2"
+                        y1="486.8"
+                        x2="317.2"
+                        y2="448.5"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="327.2"
+                        y1="486.8"
+                        x2="303.6"
+                        y2="458.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="327.2"
+                        y1="486.8"
+                        x2="378.5"
+                        y2="432.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="587.1"
+                        y1="163.5"
+                        x2="576.8"
+                        y2="159.2"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="587.1"
+                        y1="163.5"
+                        x2="592.4"
+                        y2="167.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="587.1"
+                        y1="163.5"
+                        x2="575.5"
+                        y2="177.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="798.5"
+                        y1="329.3"
+                        x2="753.3"
+                        y2="342.9"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="798.5"
+                        y1="329.3"
+                        x2="814.8"
+                        y2="300.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="798.5"
+                        y1="329.3"
+                        x2="809.4"
+                        y2="316.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="798.5"
+                        y1="329.3"
+                        x2="769.8"
+                        y2="352.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="458.3"
+                        y1="708.4"
+                        x2="536.4"
+                        y2="714.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="458.3"
+                        y1="708.4"
+                        x2="413.5"
+                        y2="627.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="274.4"
+                        y1="424.9"
+                        x2="272.3"
+                        y2="433.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="274.4"
+                        y1="424.9"
+                        x2="276.3"
+                        y2="431.5"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="666.4"
+                        y1="168.0"
+                        x2="684.3"
+                        y2="147.3"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="666.4"
+                        y1="168.0"
+                        x2="650.1"
+                        y2="140.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="666.4"
+                        y1="168.0"
+                        x2="631.7"
+                        y2="141.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="885.4"
+                        y1="385.6"
+                        x2="881.3"
+                        y2="375.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="885.4"
+                        y1="385.6"
+                        x2="845.7"
+                        y2="397.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="885.4"
+                        y1="385.6"
+                        x2="871.9"
+                        y2="422.5"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="536.4"
+                        y1="714.6"
+                        x2="586.2"
+                        y2="684.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="536.4"
+                        y1="714.6"
+                        x2="568.8"
+                        y2="668.4"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="274.7"
+                        y1="454.0"
+                        x2="272.3"
+                        y2="433.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="274.7"
+                        y1="454.0"
+                        x2="303.6"
+                        y2="458.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="274.7"
+                        y1="454.0"
+                        x2="256.5"
+                        y2="451.3"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="535.5"
+                        y1="154.3"
+                        x2="550.7"
+                        y2="175.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="535.5"
+                        y1="154.3"
+                        x2="569.3"
+                        y2="132.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="985.0"
+                        y1="313.6"
+                        x2="980.8"
+                        y2="338.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="985.0"
+                        y1="313.6"
+                        x2="951.6"
+                        y2="363.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="615.8"
+                        y1="645.6"
+                        x2="609.9"
+                        y2="662.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="615.8"
+                        y1="645.6"
+                        x2="628.7"
+                        y2="648.3"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="615.8"
+                        y1="645.6"
+                        x2="605.4"
+                        y2="647.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="615.8"
+                        y1="645.6"
+                        x2="609.5"
+                        y2="628.5"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="363.6"
+                        y1="286.4"
+                        x2="258.5"
+                        y2="295.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="363.6"
+                        y1="286.4"
+                        x2="252.2"
+                        y2="322.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="708.7"
+                        y1="203.3"
+                        x2="776.9"
+                        y2="153.3"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="708.7"
+                        y1="203.3"
+                        x2="696.9"
+                        y2="260.3"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="708.7"
+                        y1="203.3"
+                        x2="692.7"
+                        y2="202.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="708.7"
+                        y1="203.3"
+                        x2="719.9"
+                        y2="177.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="930.4"
+                        y1="286.7"
+                        x2="906.5"
+                        y2="317.4"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="930.4"
+                        y1="286.7"
+                        x2="901.9"
+                        y2="307.4"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="665.4"
+                        y1="708.4"
+                        x2="647.7"
+                        y2="707.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="665.4"
+                        y1="708.4"
+                        x2="677.6"
+                        y2="708.5"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="258.2"
+                        y1="385.5"
+                        x2="269.0"
+                        y2="379.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="258.2"
+                        y1="385.5"
+                        x2="286.9"
+                        y2="379.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="258.2"
+                        y1="385.5"
+                        x2="240.6"
+                        y2="377.3"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="258.2"
+                        y1="385.5"
+                        x2="255.1"
+                        y2="372.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="576.8"
+                        y1="159.2"
+                        x2="592.4"
+                        y2="167.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="576.8"
+                        y1="159.2"
+                        x2="575.5"
+                        y2="177.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="576.8"
+                        y1="159.2"
+                        x2="574.3"
+                        y2="124.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="576.8"
+                        y1="159.2"
+                        x2="569.3"
+                        y2="132.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="923.4"
+                        y1="353.8"
+                        x2="909.6"
+                        y2="340.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="923.4"
+                        y1="353.8"
+                        x2="951.6"
+                        y2="363.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="923.4"
+                        y1="353.8"
+                        x2="912.1"
+                        y2="356.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="609.9"
+                        y1="662.8"
+                        x2="631.7"
+                        y2="667.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="609.9"
+                        y1="662.8"
+                        x2="605.4"
+                        y2="647.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="609.9"
+                        y1="662.8"
+                        x2="586.2"
+                        y2="684.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="609.9"
+                        y1="662.8"
+                        x2="568.8"
+                        y2="668.4"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="189.4"
+                        y1="340.9"
+                        x2="193.9"
+                        y2="371.3"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="189.4"
+                        y1="340.9"
+                        x2="165.0"
+                        y2="357.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="776.9"
+                        y1="153.3"
+                        x2="719.9"
+                        y2="177.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="980.8"
+                        y1="338.1"
+                        x2="951.6"
+                        y2="363.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="628.7"
+                        y1="648.3"
+                        x2="631.7"
+                        y2="667.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="628.7"
+                        y1="648.3"
+                        x2="643.9"
+                        y2="618.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="205.8"
+                        y1="373.6"
+                        x2="193.9"
+                        y2="371.3"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="205.8"
+                        y1="373.6"
+                        x2="220.5"
+                        y2="406.9"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="205.8"
+                        y1="373.6"
+                        x2="240.6"
+                        y2="377.3"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="918.1"
+                        y1="450.7"
+                        x2="934.1"
+                        y2="405.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="918.1"
+                        y1="450.7"
+                        x2="930.5"
+                        y2="429.2"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="562.7"
+                        y1="570.8"
+                        x2="581.7"
+                        y2="488.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="562.7"
+                        y1="570.8"
+                        x2="609.5"
+                        y2="628.5"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="562.7"
+                        y1="570.8"
+                        x2="514.3"
+                        y2="570.4"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="317.2"
+                        y1="448.5"
+                        x2="303.6"
+                        y2="458.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="317.2"
+                        y1="448.5"
+                        x2="378.5"
+                        y2="432.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="684.3"
+                        y1="147.3"
+                        x2="650.1"
+                        y2="140.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="909.6"
+                        y1="340.0"
+                        x2="906.5"
+                        y2="317.4"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="909.6"
+                        y1="340.0"
+                        x2="912.1"
+                        y2="356.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="531.4"
+                        y1="644.1"
+                        x2="491.6"
+                        y2="618.2"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="531.4"
+                        y1="644.1"
+                        x2="568.8"
+                        y2="668.4"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="156.6"
+                        y1="450.1"
+                        x2="162.2"
+                        y2="406.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="156.6"
+                        y1="450.1"
+                        x2="184.5"
+                        y2="478.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="575.5"
+                        y1="177.6"
+                        x2="550.7"
+                        y2="175.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="575.5"
+                        y1="177.6"
+                        x2="598.0"
+                        y2="201.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="1016.7"
+                        y1="427.6"
+                        x2="934.1"
+                        y2="405.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="1016.7"
+                        y1="427.6"
+                        x2="930.5"
+                        y2="429.2"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="673.6"
+                        y1="641.2"
+                        x2="654.0"
+                        y2="650.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="673.6"
+                        y1="641.2"
+                        x2="692.4"
+                        y2="655.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="673.6"
+                        y1="641.2"
+                        x2="666.5"
+                        y2="664.2"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="211.5"
+                        y1="489.2"
+                        x2="220.7"
+                        y2="458.5"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="211.5"
+                        y1="489.2"
+                        x2="188.6"
+                        y2="484.3"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="211.5"
+                        y1="489.2"
+                        x2="184.5"
+                        y2="478.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="650.1"
+                        y1="140.8"
+                        x2="631.7"
+                        y2="141.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="753.3"
+                        y1="342.9"
+                        x2="769.8"
+                        y2="352.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="193.9"
+                        y1="371.3"
+                        x2="162.2"
+                        y2="406.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="193.9"
+                        y1="371.3"
+                        x2="165.0"
+                        y2="357.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="636.0"
+                        y1="193.3"
+                        x2="650.2"
+                        y2="203.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="636.0"
+                        y1="193.3"
+                        x2="619.1"
+                        y2="206.9"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="934.1"
+                        y1="405.0"
+                        x2="930.5"
+                        y2="429.2"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="934.1"
+                        y1="405.0"
+                        x2="936.4"
+                        y2="380.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="581.7"
+                        y1="488.1"
+                        x2="514.3"
+                        y2="570.4"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="269.0"
+                        y1="379.7"
+                        x2="286.9"
+                        y2="379.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="269.0"
+                        y1="379.7"
+                        x2="255.1"
+                        y2="372.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="623.7"
+                        y1="50.0"
+                        x2="574.3"
+                        y2="124.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="623.7"
+                        y1="50.0"
+                        x2="631.7"
+                        y2="141.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="861.4"
+                        y1="348.1"
+                        x2="833.2"
+                        y2="347.5"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="861.4"
+                        y1="348.1"
+                        x2="881.0"
+                        y2="328.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="605.4"
+                        y1="647.8"
+                        x2="609.5"
+                        y2="628.5"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="272.3"
+                        y1="433.1"
+                        x2="256.5"
+                        y2="451.3"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="272.3"
+                        y1="433.1"
+                        x2="276.3"
+                        y2="431.5"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="696.9"
+                        y1="260.3"
+                        x2="692.7"
+                        y2="202.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="951.6"
+                        y1="363.8"
+                        x2="936.4"
+                        y2="380.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="654.0"
+                        y1="650.7"
+                        x2="643.9"
+                        y2="618.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="654.0"
+                        y1="650.7"
+                        x2="666.5"
+                        y2="664.2"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="634.2"
+                        y1="239.3"
+                        x2="650.2"
+                        y2="203.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="634.2"
+                        y1="239.3"
+                        x2="619.1"
+                        y2="206.9"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="840.3"
+                        y1="282.6"
+                        x2="847.5"
+                        y2="279.3"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="840.3"
+                        y1="282.6"
+                        x2="814.8"
+                        y2="300.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="684.2"
+                        y1="577.8"
+                        x2="643.9"
+                        y2="618.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="684.2"
+                        y1="577.8"
+                        x2="650.6"
+                        y2="581.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="684.2"
+                        y1="577.8"
+                        x2="740.7"
+                        y2="561.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="162.2"
+                        y1="406.7"
+                        x2="115.5"
+                        y2="386.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="506.0"
+                        y1="207.0"
+                        x2="503.8"
+                        y2="238.5"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="506.0"
+                        y1="207.0"
+                        x2="536.9"
+                        y2="209.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="506.0"
+                        y1="207.0"
+                        x2="470.5"
+                        y2="248.5"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="833.2"
+                        y1="347.5"
+                        x2="809.4"
+                        y2="316.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="833.2"
+                        y1="347.5"
+                        x2="799.6"
+                        y2="376.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="723.1"
+                        y1="681.3"
+                        x2="692.4"
+                        y2="655.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="723.1"
+                        y1="681.3"
+                        x2="677.6"
+                        y2="708.5"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="723.1"
+                        y1="681.3"
+                        x2="795.8"
+                        y2="656.3"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="258.5"
+                        y1="295.7"
+                        x2="252.2"
+                        y2="322.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="258.5"
+                        y1="295.7"
+                        x2="255.1"
+                        y2="372.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="574.3"
+                        y1="124.1"
+                        x2="569.3"
+                        y2="132.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="692.4"
+                        y1="655.0"
+                        x2="666.5"
+                        y2="664.2"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="692.4"
+                        y1="655.0"
+                        x2="795.8"
+                        y2="656.3"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="581.6"
+                        y1="238.2"
+                        x2="561.1"
+                        y2="295.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="581.6"
+                        y1="238.2"
+                        x2="598.0"
+                        y2="201.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="581.6"
+                        y1="238.2"
+                        x2="619.1"
+                        y2="206.9"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="847.5"
+                        y1="279.3"
+                        x2="814.8"
+                        y2="300.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="252.2"
+                        y1="322.8"
+                        x2="255.1"
+                        y2="372.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="692.7"
+                        y1="202.0"
+                        x2="677.9"
+                        y2="199.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="692.7"
+                        y1="202.0"
+                        x2="719.9"
+                        y2="177.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="906.5"
+                        y1="317.4"
+                        x2="901.9"
+                        y2="307.4"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="906.5"
+                        y1="317.4"
+                        x2="881.0"
+                        y2="328.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="220.7"
+                        y1="458.5"
+                        x2="235.4"
+                        y2="465.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="586.2"
+                        y1="684.0"
+                        x2="568.8"
+                        y2="668.4"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="188.6"
+                        y1="484.3"
+                        x2="184.5"
+                        y2="478.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="650.2"
+                        y1="203.1"
+                        x2="677.9"
+                        y2="199.8"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="814.8"
+                        y1="300.1"
+                        x2="809.4"
+                        y2="316.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="491.6"
+                        y1="618.2"
+                        x2="413.5"
+                        y2="627.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="491.6"
+                        y1="618.2"
+                        x2="514.3"
+                        y2="570.4"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="256.5"
+                        y1="451.3"
+                        x2="235.4"
+                        y2="465.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="845.7"
+                        y1="397.7"
+                        x2="871.9"
+                        y2="422.5"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="643.9"
+                        y1="618.1"
+                        x2="650.6"
+                        y2="581.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="561.1"
+                        y1="295.6"
+                        x2="503.8"
+                        y2="238.5"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="650.6"
+                        y1="581.0"
+                        x2="740.7"
+                        y2="561.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="165.0"
+                        y1="357.7"
+                        x2="115.5"
+                        y2="386.7"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="550.7"
+                        y1="175.8"
+                        x2="536.9"
+                        y2="209.0"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="901.9"
+                        y1="307.4"
+                        x2="881.0"
+                        y2="328.1"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="220.5"
+                        y1="406.9"
+                        x2="240.6"
+                        y2="377.3"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="503.8"
+                        y1="238.5"
+                        x2="470.5"
+                        y2="248.5"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="240.6"
+                        y1="377.3"
+                        x2="255.1"
+                        y2="372.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="598.0"
+                        y1="201.8"
+                        x2="619.1"
+                        y2="206.9"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <line
+                        x1="799.6"
+                        y1="376.6"
+                        x2="769.8"
+                        y2="352.6"
+                        stroke="#9aa0ad"
+                        stroke-width=".8"
+                        stroke-opacity="1.0"
+                    />
+                    <circle
+                        cx="887.3"
+                        cy="361.1"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="655.0"
+                        cy="704.4"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="327.2"
+                        cy="486.8"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle cx="327.2" cy="486.8" r="9" fill="none" stroke="#2f9e44" stroke-width="2" />
+                    <circle
+                        cx="587.1"
+                        cy="163.5"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="798.5"
+                        cy="329.3"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="458.3"
+                        cy="708.4"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="274.4"
+                        cy="424.9"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="666.4"
+                        cy="168.0"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="885.4"
+                        cy="385.6"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="536.4"
+                        cy="714.6"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="274.7"
+                        cy="454.0"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="535.5"
+                        cy="154.3"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="985.0"
+                        cy="313.6"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle cx="985.0" cy="313.6" r="9" fill="none" stroke="#2f9e44" stroke-width="2" />
+                    <circle
+                        cx="615.8"
+                        cy="645.6"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="363.6"
+                        cy="286.4"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="708.7"
+                        cy="203.3"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="930.4"
+                        cy="286.7"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="665.4"
+                        cy="708.4"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="258.2"
+                        cy="385.5"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="576.8"
+                        cy="159.2"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="923.4"
+                        cy="353.8"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="609.9"
+                        cy="662.8"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="189.4"
+                        cy="340.9"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle cx="189.4" cy="340.9" r="9" fill="none" stroke="#2f9e44" stroke-width="2" />
+                    <circle
+                        cx="776.9"
+                        cy="153.3"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="980.8"
+                        cy="338.1"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="628.7"
+                        cy="648.3"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="205.8"
+                        cy="373.6"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="592.4"
+                        cy="167.0"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="918.1"
+                        cy="450.7"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="562.7"
+                        cy="570.8"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="317.2"
+                        cy="448.5"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="684.3"
+                        cy="147.3"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="909.6"
+                        cy="340.0"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle cx="909.6" cy="340.0" r="9" fill="none" stroke="#2f9e44" stroke-width="2" />
+                    <circle
+                        cx="531.4"
+                        cy="644.1"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="156.6"
+                        cy="450.1"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="575.5"
+                        cy="177.6"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="1016.7"
+                        cy="427.6"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="673.6"
+                        cy="641.2"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="211.5"
+                        cy="489.2"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="650.1"
+                        cy="140.8"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="753.3"
+                        cy="342.9"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="631.7"
+                        cy="667.1"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="193.9"
+                        cy="371.3"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle cx="193.9" cy="371.3" r="9" fill="none" stroke="#2f9e44" stroke-width="2" />
+                    <circle
+                        cx="636.0"
+                        cy="193.3"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="934.1"
+                        cy="405.0"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="581.7"
+                        cy="488.1"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="269.0"
+                        cy="379.7"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="623.7"
+                        cy="50.0"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="861.4"
+                        cy="348.1"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="605.4"
+                        cy="647.8"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="272.3"
+                        cy="433.1"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="696.9"
+                        cy="260.3"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="951.6"
+                        cy="363.8"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle cx="951.6" cy="363.8" r="9" fill="none" stroke="#2f9e44" stroke-width="2" />
+                    <circle
+                        cx="654.0"
+                        cy="650.7"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="286.9"
+                        cy="379.8"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="634.2"
+                        cy="239.3"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="840.3"
+                        cy="282.6"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="684.2"
+                        cy="577.8"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="162.2"
+                        cy="406.7"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="506.0"
+                        cy="207.0"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="833.2"
+                        cy="347.5"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="723.1"
+                        cy="681.3"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="258.5"
+                        cy="295.7"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle cx="258.5" cy="295.7" r="9" fill="none" stroke="#2f9e44" stroke-width="2" />
+                    <circle
+                        cx="574.3"
+                        cy="124.1"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="930.5"
+                        cy="429.2"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="692.4"
+                        cy="655.0"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="303.6"
+                        cy="458.1"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="581.6"
+                        cy="238.2"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="847.5"
+                        cy="279.3"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="647.7"
+                        cy="707.6"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="252.2"
+                        cy="322.8"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="692.7"
+                        cy="202.0"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="906.5"
+                        cy="317.4"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle cx="906.5" cy="317.4" r="9" fill="none" stroke="#2f9e44" stroke-width="2" />
+                    <circle
+                        cx="677.6"
+                        cy="708.5"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="220.7"
+                        cy="458.5"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="631.7"
+                        cy="141.0"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="881.3"
+                        cy="375.8"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="586.2"
+                        cy="684.0"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="188.6"
+                        cy="484.3"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="650.2"
+                        cy="203.1"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="814.8"
+                        cy="300.1"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="491.6"
+                        cy="618.2"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="256.5"
+                        cy="451.3"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle cx="256.5" cy="451.3" r="9" fill="none" stroke="#2f9e44" stroke-width="2" />
+                    <circle
+                        cx="677.9"
+                        cy="199.8"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="845.7"
+                        cy="397.7"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="643.9"
+                        cy="618.1"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="184.5"
+                        cy="478.7"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="561.1"
+                        cy="295.6"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="809.4"
+                        cy="316.7"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="650.6"
+                        cy="581.0"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="165.0"
+                        cy="357.7"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="550.7"
+                        cy="175.8"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="936.4"
+                        cy="380.1"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle cx="936.4" cy="380.1" r="9" fill="none" stroke="#2f9e44" stroke-width="2" />
+                    <circle
+                        cx="666.5"
+                        cy="664.2"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="115.5"
+                        cy="386.7"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="569.3"
+                        cy="132.0"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="901.9"
+                        cy="307.4"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="568.8"
+                        cy="668.4"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="220.5"
+                        cy="406.9"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="503.8"
+                        cy="238.5"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="871.9"
+                        cy="422.5"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="795.8"
+                        cy="656.3"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="240.6"
+                        cy="377.3"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle cx="240.6" cy="377.3" r="9" fill="none" stroke="#2f9e44" stroke-width="2" />
+                    <circle
+                        cx="719.9"
+                        cy="177.6"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="912.1"
+                        cy="356.6"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="413.5"
+                        cy="627.7"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="276.3"
+                        cy="431.5"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="598.0"
+                        cy="201.8"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="799.6"
+                        cy="376.6"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="609.5"
+                        cy="628.5"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="378.5"
+                        cy="432.6"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="536.9"
+                        cy="209.0"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="769.8"
+                        cy="352.6"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle cx="769.8" cy="352.6" r="9" fill="none" stroke="#2f9e44" stroke-width="2" />
+                    <circle
+                        cx="740.7"
+                        cy="561.7"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="255.1"
+                        cy="372.6"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="619.1"
+                        cy="206.9"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="881.0"
+                        cy="328.1"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="514.3"
+                        cy="570.4"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="235.4"
+                        cy="465.1"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <circle
+                        cx="470.5"
+                        cy="248.5"
+                        r="6"
+                        fill="#5c5fe0"
+                        fill-opacity="1"
+                        stroke="#ffffff"
+                        stroke-width="1"
+                    />
+                    <text x="896.3" y="365.1" font-size="11" fill="#333" font-family="system-ui,sans-serif">
+                        Acme Metals
+                    </text>
+                    <text x="717.7" y="207.3" font-size="11" fill="#333" font-family="system-ui,sans-serif">
+                        Nordic Steel
+                    </text>
+                    <text x="326.2" y="452.5" font-size="11" fill="#333" font-family="system-ui,sans-serif">
+                        Kobe Alloys
+                    </text>
+                    <text x="590.7" y="492.1" font-size="11" fill="#333" font-family="system-ui,sans-serif">
+                        Delta Plastics
+                    </text>
+                    <text x="842.2" y="351.5" font-size="11" fill="#333" font-family="system-ui,sans-serif">
+                        Sierra Chips
+                    </text>
+                    <text x="640.7" y="145.0" font-size="11" fill="#333" font-family="system-ui,sans-serif">
+                        Lumen Glass
+                    </text>
+                    <text x="174.0" y="361.7" font-size="11" fill="#333" font-family="system-ui,sans-serif">
+                        Orbit Freight
+                    </text>
+                    <text x="422.5" y="631.7" font-size="11" fill="#333" font-family="system-ui,sans-serif">
+                        Pacific Resin
+                    </text>
+                </svg>
+                <div style="position: absolute; left: 12px; top: 12px; display: flex; gap: 6px; z-index: 4">
+                    <span
+                        style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 5px;
+                            height: 22px;
+                            padding: 0 8px;
+                            border-radius: 11px;
+                            background: #ffffff;
+                            border: 1px solid #dddddd;
+                            color: #333;
+                            font-size: 11px;
+                        "
+                        ><svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <circle cx="8" cy="8" r="4.5" /></svg
+                        >129 nodes</span
+                    ><span
+                        style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 5px;
+                            height: 22px;
+                            padding: 0 8px;
+                            border-radius: 11px;
+                            background: #ffffff;
+                            border: 1px solid #dddddd;
+                            color: #333;
+                            font-size: 11px;
+                        "
+                        ><svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M3 13c3-1 7-5 10-10" /></svg
+                        >412 edges</span
+                    >
+                </div>
+                <div
+                    style="
+                        position: absolute;
+                        left: 413px;
+                        bottom: 12px;
+                        width: 316px;
+                        height: 48px;
+                        box-sizing: border-box;
+                        background: #1f1f1f;
+                        border-radius: 10px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        padding: 0 8px;
+                        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+                        z-index: 5;
+                    "
+                >
+                    <div
+                        style="
+                            position: relative;
+                            display: flex;
+                            align-items: center;
+                            gap: 2px;
+                            justify-content: center;
+                            min-width: 32px;
+                            height: 32px;
+                            border-radius: 6px;
+                            color: #e6e6e6;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M6 2.5h4M6.8 2.5v4L3.5 12.5a1 1 0 0 0 .9 1.5h7.2a1 1 0 0 0 .9-1.5L9.2 6.5v-4" />
+                        </svg>
+                    </div>
+                    <div
+                        style="
+                            position: relative;
+                            display: flex;
+                            align-items: center;
+                            gap: 2px;
+                            justify-content: center;
+                            min-width: 32px;
+                            height: 32px;
+                            border-radius: 6px;
+                            color: #e6e6e6;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M2.5 13.5v-11M2.5 13.5h11" />
+                            <circle cx="6" cy="9" r="1.3" />
+                            <circle cx="10.5" cy="5.5" r="1.3" />
+                            <path d="M7 8.2 9.5 6.3" />
+                        </svg>
+                    </div>
+                    <div style="width: 1px; height: 26px; background: #444444"></div>
+                    <div
+                        style="
+                            position: relative;
+                            display: flex;
+                            align-items: center;
+                            gap: 2px;
+                            justify-content: center;
+                            min-width: 32px;
+                            height: 32px;
+                            border-radius: 6px;
+                            color: #e6e6e6;
+                        "
+                    >
+                        <span style="font-size: 11px; font-weight: 600">3D</span
+                        ><svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="m4.5 6.5 3.5 3.5 3.5-3.5" />
+                        </svg>
+                    </div>
+                    <div style="width: 1px; height: 26px; background: #444444"></div>
+                    <div
+                        style="
+                            position: relative;
+                            display: flex;
+                            align-items: center;
+                            gap: 2px;
+                            justify-content: center;
+                            min-width: 32px;
+                            height: 32px;
+                            border-radius: 6px;
+                            color: #e6e6e6;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.5M2.5 8h.5M2.5 12h.5" />
+                        </svg>
+                    </div>
+                    <div
+                        style="
+                            position: relative;
+                            display: flex;
+                            align-items: center;
+                            gap: 2px;
+                            justify-content: center;
+                            min-width: 32px;
+                            height: 32px;
+                            border-radius: 6px;
+                            color: #e6e6e6;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <rect x="2.5" y="2.5" width="11" height="11" rx="1" />
+                            <path d="M2.5 6h11M2.5 9.5h11M6.5 2.5v11" />
+                        </svg>
+                    </div>
+                    <div
+                        style="
+                            position: relative;
+                            display: flex;
+                            align-items: center;
+                            gap: 2px;
+                            justify-content: center;
+                            min-width: 32px;
+                            height: 32px;
+                            border-radius: 6px;
+                            color: #e6e6e6;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M2.5 4h11M4.5 8h7M6.5 12h3" />
+                        </svg>
+                    </div>
+                    <div style="width: 1px; height: 26px; background: #444444"></div>
+                    <div
+                        style="
+                            position: relative;
+                            display: flex;
+                            align-items: center;
+                            gap: 2px;
+                            justify-content: center;
+                            min-width: 32px;
+                            height: 32px;
+                            border-radius: 6px;
+                            color: #e6e6e6;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <circle cx="7" cy="7" r="4.2" />
+                            <path d="m10.2 10.2 3.3 3.3" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    background: #1e1e1e;
+                    border-radius: 8px;
+                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+                    color: #ffffff;
+                    padding: 6px 0;
+                    z-index: 12;
+                    font-size: 12px;
+                    left: 139px;
+                    top: 330px;
+                    width: 160px;
+                "
+            >
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        height: 24px;
+                        padding: 0 10px 0 8px;
+                        background: #0c8ce9;
+                    "
+                >
+                    <span style="width: 14px; display: flex; justify-content: center"></span
+                    ><span style="white-space: nowrap">tier_level</span
+                    ><span
+                        style="
+                            margin-left: auto;
+                            padding-left: 16px;
+                            color: #ffffff;
+                            font-size: 11px;
+                            display: flex;
+                            align-items: center;
+                            gap: 4px;
+                        "
+                        >1, 2, 3</span
+                    >
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 10px 0 8px">
+                    <span style="width: 14px; display: flex; justify-content: center"></span
+                    ><span style="white-space: nowrap">region</span>
+                </div>
+                <div style="height: 1px; background: #3a3a3a; margin: 5px 0"></div>
+                <div style="display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 10px 0 8px">
+                    <span style="width: 14px; display: flex; justify-content: center"
+                        ><svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.7 9h5.6l.7-9" /></svg></span
+                    ><span style="white-space: nowrap">Remove the style</span>
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: #fff;
+                    z-index: 30;
+                    left: 300px;
+                    top: 280px;
+                "
+            >
+                <span
+                    style="
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 9px;
+                        background: #e8590c;
+                        color: #fff;
+                        font-size: 11px;
+                        font-weight: 700;
+                        flex: none;
+                    "
+                    >1</span
+                ><span style="background: #e8590c; padding: 2px 6px; border-radius: 4px; white-space: nowrap"
+                    >Only what broke asks</span
+                >
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: #fff;
+                    z-index: 30;
+                    left: 420px;
+                    top: 360px;
+                "
+            >
+                <span
+                    style="
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 9px;
+                        background: #e8590c;
+                        color: #fff;
+                        font-size: 11px;
+                        font-weight: 700;
+                        flex: none;
+                    "
+                    >2</span
+                ><span style="background: #e8590c; padding: 2px 6px; border-radius: 4px; white-space: nowrap"
+                    >Pick the renamed column</span
+                >
+            </div>
+        </div>
+    </body>
+</html>

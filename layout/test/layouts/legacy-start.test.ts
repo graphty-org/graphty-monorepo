@@ -6,9 +6,11 @@ import { arf, kamadaKawai, type LayoutResult } from "../../src";
 /*
  * ARF and the 3D Kamada-Kawai start from seeded random positions, and both carry a change of 3e-8 in that start
  * to a visibly different drawing (ARF is chaotic at 1000 iterations; Kamada-Kawai settles in another local
- * minimum). A float32 start did exactly that to the layout stories. The expected rows are layout 1.x's
- * `arfLayout` and `kamadaKawaiLayout` on the stories' default graph (random, 10 nodes, seed 42); the snapshot
- * layouts must reproduce them to their float32 output.
+ * minimum). A float32 start did exactly that to the layout stories. The expected rows are, for ARF, NetworkX's
+ * `arf_layout` iteration run in NumPy (float64) from the same seeded start (layout 1.x's `arfLayout` had the spring
+ * and the repulsion swapped, which pulled every node into one spot), and for Kamada-Kawai layout 1.x's
+ * `kamadaKawaiLayout`, on the stories' default graph (random, 10 nodes, seed 42); the snapshot layouts must reproduce
+ * them to their float32 output.
  */
 
 /** The layout stories' default graph: generateGraph("random", 10, 42). */
@@ -38,17 +40,17 @@ const EDGES: [number, number][] = [
     [2, 9],
 ];
 
-const ARF_1X = [
-    [0.6464063457, 0.4541222688],
-    [0.6360273771, 0.4689170904],
-    [0.6611746093, 0.4437165508],
-    [0.651034054, 0.4366326334],
-    [0.6591867236, 0.4668832677],
-    [0.62998736, 0.4464895383],
-    [0.6289089196, 0.4587998294],
-    [0.6387133889, 0.4377208765],
-    [0.6479665893, 0.4721439211],
-    [0.6644182183, 0.4556604238],
+const ARF_STORY = [
+    [-1.242352848, -0.5199519723],
+    [2.392504193, 0.599397014],
+    [1.26602283, -1.379788714],
+    [0.4448073395, 2.567777745],
+    [-1.244880714, 1.650431679],
+    [0.840870997, 1.155508554],
+    [2.230213354, 2.072512913],
+    [2.383897285, -0.611964005],
+    [-0.04223848936, -1.47464221],
+    [-0.5650203488, 0.4818053876],
 ];
 
 const KAMADA_KAWAI_3D_1X = [
@@ -83,8 +85,8 @@ function assertRows(actual: LayoutResult, expected: number[][]): void {
 }
 
 describe("layout 1.x drawings of the seeded layouts", () => {
-    it("arf draws the story graph as arfLayout did", () => {
-        assertRows(arf(storyGraph(), { scaling: 1, a: 1.1, maxIter: 1000, seed: 42 }), ARF_1X);
+    it("arf draws the story graph as NetworkX's arf_layout does", () => {
+        assertRows(arf(storyGraph(), { scaling: 1, a: 1.1, maxIter: 1000, seed: 42 }), ARF_STORY);
     });
 
     it("kamadaKawai in 3D draws the story graph as kamadaKawaiLayout did", () => {

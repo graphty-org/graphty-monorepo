@@ -353,33 +353,69 @@ export function genrmfGraph(options: GenrmfOptions): FlowNetwork {
     for (let f = 0; f < b; f++) {
         const base = f * side;
         frame.fill(f, base, base + side);
-        for (let r = 0; r < a; r++) {
-            for (let c = 0; c < a; c++) {
-                const count = gridArcs(out, base, a, a, r, c);
-                for (let i = 0; i < count; i++) {
-                    capacities.push(c2 * side);
-                }
-            }
-        }
+        pushFrameArcs(out, capacities, base, a, c2 * side);
         if (f === b - 1) {
             break;
         }
         stream.reset(f);
-        for (let i = 0; i < side; i++) {
-            perm[i] = i;
-        }
-        for (let i = side - 1; i > 0; i--) {
-            const j = stream.nextBelow(i + 1);
-            const t = perm[i];
-            perm[i] = perm[j];
-            perm[j] = t;
-        }
-        for (let j = 0; j < side; j++) {
-            out.push(base + j, base + side + perm[j]);
-            capacities.push(c1 + stream.nextBelow(c2 - c1 + 1));
-        }
+        linkFrames(stream, perm, out, capacities, base, c1, c2);
     }
     return toNetwork(n, out, capacities, 0, n - 1, { frame });
+}
+
+/**
+ * One GENRMF frame's grid arcs, node by node, each with the same capacity.
+ * @param out - receives the arcs
+ * @param capacities - receives their capacities
+ * @param base - the frame's first node
+ * @param a - the frame's side
+ * @param capacity - the capacity of every arc
+ */
+function pushFrameArcs(out: EdgeBuffer, capacities: number[], base: number, a: number, capacity: number): void {
+    for (let r = 0; r < a; r++) {
+        for (let c = 0; c < a; c++) {
+            const count = gridArcs(out, base, a, a, r, c);
+            for (let i = 0; i < count; i++) {
+                capacities.push(capacity);
+            }
+        }
+    }
+}
+
+/**
+ * The GENRMF arcs from one frame to the next: draws perm, a Fisher-Yates shuffle of
+ * 0 .. side - 1, then one capacity in [c1, c2] per arc j -> perm[j], j ascending.
+ * @param stream - the frame's stream, already reset
+ * @param perm - scratch of length side (the frame's node count)
+ * @param out - receives the arcs
+ * @param capacities - receives their capacities
+ * @param base - the frame's first node
+ * @param c1 - the smallest capacity
+ * @param c2 - the largest capacity
+ */
+function linkFrames(
+    stream: RandomStream,
+    perm: Uint32Array,
+    out: EdgeBuffer,
+    capacities: number[],
+    base: number,
+    c1: number,
+    c2: number,
+): void {
+    const side = perm.length;
+    for (let i = 0; i < side; i++) {
+        perm[i] = i;
+    }
+    for (let i = side - 1; i > 0; i--) {
+        const j = stream.nextBelow(i + 1);
+        const t = perm[i];
+        perm[i] = perm[j];
+        perm[j] = t;
+    }
+    for (let j = 0; j < side; j++) {
+        out.push(base + j, base + side + perm[j]);
+        capacities.push(c1 + stream.nextBelow(c2 - c1 + 1));
+    }
 }
 
 /** Options of {@link akGraph}. */

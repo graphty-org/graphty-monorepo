@@ -88,6 +88,16 @@ function isDigit(c: number): boolean {
 }
 
 /**
+ * Whether a code unit is a blank between tokens: space, tab, vertical tab, form feed, or a U+FEFF
+ * after the start (concatenated files), which the shared text check reports.
+ * @param c - the code unit
+ * @returns true for a blank
+ */
+function isBlank(c: number): boolean {
+    return c === 0x20 || c === 0x09 || c === 0x0b || c === 0x0c || c === BOM_CODE;
+}
+
+/**
  * A pull lexer over one DOT document with arbitrary lookahead.
  * @category Plugin helpers
  */
@@ -148,15 +158,15 @@ export class DotTokenizer {
         const { line } = this;
         const c = text.charCodeAt(start);
         switch (c) {
-            case 0x7b: // {
-            case 0x7d: // }
-            case 0x5b: // [
-            case 0x5d: // ]
-            case 0x3b: // ;
-            case 0x2c: // ,
-            case 0x3d: // =
-            case 0x3a: // :
-            case 0x2b: // +
+            case 0x7b: // "{"
+            case 0x7d: // "}"
+            case 0x5b: // "["
+            case 0x5d: // "]"
+            case 0x3b: // ";"
+            case 0x2c: // ","
+            case 0x3d: // "="
+            case 0x3a: // ":"
+            case 0x2b: // "+"
                 this.pos++;
                 return { kind: "punct", text: text[start], quoted: false, html: false, line };
             case 0x2d: {
@@ -247,38 +257,66 @@ export class DotTokenizer {
                 this.pos = i + 1;
                 return { kind: "id", text: out, quoted: true, html: false, line };
             }
-            if (c === 0x5c) {
-                const d = text.charCodeAt(i + 1);
-                if (d === 0x22) {
-                    out += `${text.slice(segment, i)}"`;
-                    i += 2;
-                    segment = i;
-                    continue;
+            if (c === 0x5c && this.isQuotedSplice(i)) {
+                out += text.slice(segment, i);
+                if (text.codePointAt(i + 1) === 0x22) {
+                    out += '"';
                 }
-                if (d === 0x5c) {
-                    // Graphviz's scanner consumes a backslash pair as one unit (both kept), so the
-                    // second backslash never escapes a closing quote: "x\\" is the text x\\
-                    i += 2;
-                    continue;
-                }
-                if (d === 0x0a || d === 0x0d) {
-                    out += text.slice(segment, i);
-                    i += d === 0x0d && text.charCodeAt(i + 2) === 0x0a ? 3 : 2;
-                    this.line++;
-                    segment = i;
-                    continue;
-                }
-                i++;
-                continue;
+                i = this.quotedSpliceEnd(i);
+                segment = i;
+            } else {
+                i = this.quotedStep(i, c);
             }
-            if (c === 0x0a || c === 0x0d) {
-                if (c === 0x0d && text.charCodeAt(i + 1) === 0x0a) {
-                    i++;
-                }
-                this.line++;
-            }
-            i++;
         }
+    }
+
+    /**
+     * Whether the backslash at `i` inside a quoted string starts a sequence that changes the decoded
+     * text: `\"` (an escaped quote) or a backslash before a line break (a line continuation).
+     * @param i - the offset of the backslash
+     * @returns true for an escaped quote or a line continuation
+     */
+    private isQuotedSplice(i: number): boolean {
+        const d = this.text.codePointAt(i + 1);
+        return d === 0x22 || d === 0x0a || d === 0x0d;
+    }
+
+    /**
+     * The offset just past an escaped quote or a line continuation, counting the line a
+     * continuation ends.
+     * @param i - the offset of the backslash
+     * @returns the offset after the sequence
+     */
+    private quotedSpliceEnd(i: number): number {
+        const { text } = this;
+        const d = text.charCodeAt(i + 1);
+        if (d === 0x22) {
+            return i + 2;
+        }
+        this.line++;
+        return d === 0x0d && text.codePointAt(i + 2) === 0x0a ? i + 3 : i + 2;
+    }
+
+    /**
+     * Step over one unit of a quoted string kept as written: a backslash pair (consumed as one unit,
+     * as Graphviz's scanner does, so the second backslash never escapes a closing quote: "x\\" is
+     * the text x\\), a lone backslash, a raw line break (counted) or any other character.
+     * @param i - the offset of the unit
+     * @param c - the code unit at `i`
+     * @returns the offset after the unit
+     */
+    private quotedStep(i: number, c: number): number {
+        const { text } = this;
+        if (c === 0x5c) {
+            return text.codePointAt(i + 1) === 0x5c ? i + 2 : i + 1;
+        }
+        if (c === 0x0a) {
+            this.line++;
+        } else if (c === 0x0d) {
+            this.line++;
+            return text.codePointAt(i + 1) === 0x0a ? i + 2 : i + 1;
+        }
+        return i + 1;
     }
 
     /**
@@ -313,49 +351,61 @@ export class DotTokenizer {
      */
     private skipTrivia(): void {
         const { text } = this;
-        for (;;) {
-            if (this.pos >= text.length) {
+        while (this.pos < text.length) {
+            const c = text.charCodeAt(this.pos);
+            if (isBlank(c)) {
+                this.pos++;
+            } else if (!this.skipBreakOrComment(c)) {
                 return;
             }
-            const c = text.charCodeAt(this.pos);
-            if (c === 0x0a) {
-                this.line++;
-                this.pos++;
-                this.skipPreprocessorLine();
-                continue;
-            }
-            if (c === 0x0d) {
-                this.line++;
-                this.pos += text.charCodeAt(this.pos + 1) === 0x0a ? 2 : 1;
-                this.skipPreprocessorLine();
-                continue;
-            }
-            if (c === 0x20 || c === 0x09 || c === 0x0b || c === 0x0c) {
-                this.pos++;
-                continue;
-            }
-            if (c === BOM_CODE) {
-                // a U+FEFF after the start (concatenated files) is whitespace; the shared text check reports it
-                this.pos++;
-                continue;
-            }
-            if (c === 0x2f) {
-                const d = text.charCodeAt(this.pos + 1);
-                if (d === 0x2f) {
-                    this.skipToLineEnd();
-                    continue;
-                }
-                if (d === 0x2a) {
-                    this.skipBlockComment();
-                    continue;
-                }
-            }
-            if (c === 0x23 && this.pos === 0) {
-                this.skipToLineEnd();
-                continue;
-            }
-            return;
         }
+    }
+
+    /**
+     * Skip one line break, comment or leading `#` line at the current position.
+     * @param c - the code unit at the current position
+     * @returns false when the current position starts a token
+     */
+    private skipBreakOrComment(c: number): boolean {
+        if (c === 0x0a || c === 0x0d) {
+            this.skipLineBreak(c);
+            return true;
+        }
+        if (c === 0x2f) {
+            return this.skipComment();
+        }
+        if (c === 0x23 && this.pos === 0) {
+            this.skipToLineEnd();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Consume the line break at the current position (CR LF as one) and a `#` line after it.
+     * @param c - the code unit at the current position, LF or CR
+     */
+    private skipLineBreak(c: number): void {
+        this.line++;
+        this.pos += c === 0x0d && this.text.codePointAt(this.pos + 1) === 0x0a ? 2 : 1;
+        this.skipPreprocessorLine();
+    }
+
+    /**
+     * Skip a `//` or block comment starting at the current `/`.
+     * @returns false when the `/` starts no comment
+     */
+    private skipComment(): boolean {
+        const d = this.text.codePointAt(this.pos + 1);
+        if (d === 0x2f) {
+            this.skipToLineEnd();
+            return true;
+        }
+        if (d === 0x2a) {
+            this.skipBlockComment();
+            return true;
+        }
+        return false;
     }
 
     /**

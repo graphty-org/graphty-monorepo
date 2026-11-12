@@ -6,7 +6,7 @@
  * frame. A derivation that forgot to repaint on undo -- a layer's colour left on the meshes, a
  * skybox dome left in the scene, a node left where the drag dropped it -- keeps every state digest
  * equal and changes the frame, which is what is measured here. The act-then-undo stories in
- * `stories/Undo.stories.ts` are the same cases as Chromatic snapshots; Chromatic compares a story
+ * `stories/Undo.stories.ts` are the same cases as visual-review snapshots; visual review compares a story
  * only with its own last snapshot, so equality with the untouched picture is asserted here.
  *
  * Two things on screen are the reader's rather than the project's, and are put back by hand before
@@ -82,7 +82,7 @@ async function loadedGraph(dimension: "2d" | "3d"): Promise<Graph> {
  */
 async function picture(graph: Graph): Promise<Uint8Array> {
     await graph.getSession().styles.settled();
-    await graph.waitForStableFrame({ timeoutMs: 20_000 });
+    await graph.waitForStableFrame();
     graph.getUpdateManager().renderFrames(1);
     const { engine } = graph;
     return (await engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight())) as unknown as Uint8Array;

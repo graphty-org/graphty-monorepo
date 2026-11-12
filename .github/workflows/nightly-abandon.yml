@@ -1,0 +1,70 @@
+name: Abandon the held nightly candidate
+
+# Ends the held nightly candidate without promoting it (design/ci/channels-pipeline.md section 3, "Held candidate"):
+# clears the results store's hold, records its head rejected (so a later approval of it promotes nothing), closes
+# the "Nightly held on" issue with the reason, and deletes branch channel/candidate. The next full run tests master's
+# newest commit again, and holds it if it is not clean.
+#
+#   gh workflow run nightly-abandon.yml --ref master -f reason="<why>"
+#
+# Abandoning publishes nothing and is undone by the next full run, so it needs no approval: the owner, an agent or a
+# pipeline round may run it (owner, 2026-10-27). release.yml's candidate_fix job also abandons on its own before a
+# full or restart pick (tools/channel/hold.mjs autoAbandon). Its own concurrency group, never release-train, so it
+# neither waits for a train nor holds one; it ends only the hold it read (the store clears it by base and head, the
+# branch is deleted with a lease on that head), so a train that moved or replaced the hold meanwhile keeps its own.
+
+on:
+    workflow_dispatch:
+        inputs:
+            reason:
+                description: "Why the held candidate is abandoned (written on the hold issue)"
+                required: true
+                type: string
+
+permissions:
+    contents: read
+
+concurrency:
+    group: nightly-abandon
+    cancel-in-progress: false
+
+jobs:
+    abandon:
+        name: Abandon the held candidate
+        if: ${{ github.ref == 'refs/heads/master' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        environment: release # the deploy key, which alone may delete channel/candidate
+        permissions:
+            contents: read # the delete goes over SSH with the deploy key, not with this token
+            issues: write # close the hold issue
+            id-token: write # the results store
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  sparse-checkout: tools
+                  ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+
+            # the runner's own Node: nothing is installed next to the deploy key
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+
+            - name: End the hold
+              id: end
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  WHY: "abandoned by ${{ github.actor }}: ${{ inputs.reason }}"
+                  ABANDONED: "true"
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: node tools/channel/hold.mjs end
+
+            - name: Delete channel/candidate
+              if: ${{ steps.end.outputs.head != '' }}
+              env:
+                  HEAD_SHA: ${{ steps.end.outputs.head }}
+              run: |
+                  git push --no-verify --force-with-lease=refs/heads/channel/candidate:"$HEAD_SHA" origin :refs/heads/channel/candidate ||
+                      echo "::warning::could not delete channel/candidate at ${HEAD_SHA}; the hold ended in the results store"

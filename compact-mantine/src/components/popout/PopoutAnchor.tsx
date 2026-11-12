@@ -8,6 +8,7 @@ import {
     type Ref,
     type RefObject,
     useContext,
+    useMemo,
     useRef,
 } from "react";
 
@@ -76,6 +77,7 @@ export interface PopoutAnchorProps {
  */
 export function PopoutAnchor({ children }: PopoutAnchorProps): JSX.Element {
     const anchorRef = useRef<HTMLElement | null>(null);
+    const context = useMemo(() => ({ anchorRef }), []);
 
     if (!isValidElement(children)) {
         throw new Error("PopoutAnchor requires a single valid React element as its child");
@@ -88,5 +90,5 @@ export function PopoutAnchor({ children }: PopoutAnchorProps): JSX.Element {
         ref: anchorRef as Ref<HTMLElement>,
     });
 
-    return <PopoutAnchorContext.Provider value={{ anchorRef }}>{childWithRef}</PopoutAnchorContext.Provider>;
+    return <PopoutAnchorContext.Provider value={context}>{childWithRef}</PopoutAnchorContext.Provider>;
 }

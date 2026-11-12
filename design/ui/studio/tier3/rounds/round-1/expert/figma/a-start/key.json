@@ -1,0 +1,53 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Color: Picked 6 of 77 nodes",
+   "rows": [
+    {
+     "text": "Color: Picked",
+     "color": "#e15759"
+    }
+   ]
+  },
+  {
+   "title": "Color: name",
+   "text": "Color: name Anzelma Blacheville Bossuet Boulatruelle Other 69",
+   "rows": [
+    {
+     "text": "Anzelma",
+     "color": "#e69f00"
+    },
+    {
+     "text": "Blacheville",
+     "color": "#cc79a7"
+    },
+    {
+     "text": "Bossuet",
+     "color": "#000000"
+    },
+    {
+     "text": "Boulatruelle",
+     "color": "#f0e442"
+    },
+    {
+     "text": "Other 69",
+     "color": "#686868"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#686868": 67,
+   "#e15759": 6,
+   "#cc79a7": 1,
+   "#f0e442": 1,
+   "#e69f00": 1,
+   "#000000": 1
+  },
+  "edges": {
+   "#a9a9a9": 254
+  }
+ }
+}

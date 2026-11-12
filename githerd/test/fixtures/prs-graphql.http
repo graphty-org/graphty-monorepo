@@ -1,0 +1,145 @@
+HTTP/2.0 200 OK
+X-Ratelimit-Limit: 5000
+X-Ratelimit-Remaining: 4974
+X-Ratelimit-Reset: 1790962434
+X-Ratelimit-Resource: graphql
+X-Ratelimit-Used: 26
+
+{
+  "data": {
+    "rateLimit": {
+      "cost": 2,
+      "remaining": 4974,
+      "used": 26,
+      "resetAt": "2026-10-02T17:13:54Z"
+    },
+    "repository": {
+      "defaultBranchRef": {
+        "target": {
+          "oid": "3e38b709e9452081eb1ee20d6441da676dfd500b"
+        }
+      },
+      "pullRequests": {
+        "totalCount": 9,
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "Y3Vyc29yOnYyOpK0MjAyNi0wOS0yN1QwNzoxMToyM1rPAAAAARNm32g="
+        },
+        "nodes": [
+          {
+            "number": 409,
+            "title": "feat(compact-mantine)!: match the figma editor's components in light and dark",
+            "isDraft": false,
+            "updatedAt": "2026-10-02T15:40:26Z",
+            "createdAt": "2026-09-26T04:36:29Z",
+            "headRefName": "feat/compact-mantine-figma",
+            "headRefOid": "9c22721885e7acf0d85669cba975a9d61b599993",
+            "baseRefName": "master",
+            "baseRefOid": "a9912df0546c209f974b77fdd8c1b7c1e02cdddd",
+            "mergeable": "CONFLICTING",
+            "mergeStateStatus": "DIRTY",
+            "autoMergeRequest": null,
+            "labels": {
+              "nodes": []
+            },
+            "author": {
+              "login": "apowers313"
+            },
+            "commits": {
+              "nodes": [
+                {
+                  "commit": {
+                    "committedDate": "2026-10-02T15:40:23Z",
+                    "statusCheckRollup": null
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "number": 710,
+            "title": "feat(cytoscape): cytoscape.js v3 adapter for every graphty layout and algorithm",
+            "isDraft": false,
+            "updatedAt": "2026-10-02T15:26:34Z",
+            "createdAt": "2026-10-02T15:26:34Z",
+            "headRefName": "feat/cytoscape-adapter",
+            "headRefOid": "c22cb8594b03701814135182780347297e1737e7",
+            "baseRefName": "master",
+            "baseRefOid": "dc12f9ad4140e01add72dc068137aefcc3604d99",
+            "mergeable": "MERGEABLE",
+            "mergeStateStatus": "CLEAN",
+            "autoMergeRequest": null,
+            "labels": {
+              "nodes": []
+            },
+            "author": {
+              "login": "apowers313"
+            },
+            "commits": {
+              "nodes": [
+                {
+                  "commit": {
+                    "committedDate": "2026-10-02T15:05:57Z",
+                    "statusCheckRollup": {
+                      "state": "SUCCESS",
+                      "contexts": {
+                        "totalCount": 41,
+                        "nodes": [
+                          {
+                            "__typename": "CheckRun",
+                            "name": "Build",
+                            "status": "COMPLETED",
+                            "conclusion": "SUCCESS",
+                            "detailsUrl": "https://github.com/graphty-org/graphty-monorepo/actions/runs/37027006459/job/110904081817",
+                            "checkSuite": {
+                              "workflowRun": {
+                                "workflow": {
+                                  "name": "CI"
+                                },
+                                "databaseId": 37027006459
+                              }
+                            }
+                          },
+                          {
+                            "__typename": "CheckRun",
+                            "name": "Test (metal on macos-26)",
+                            "status": "COMPLETED",
+                            "conclusion": "SUCCESS",
+                            "detailsUrl": "https://github.com/graphty-org/graphty-monorepo/actions/runs/37027006621/job/110904083307",
+                            "checkSuite": {
+                              "workflowRun": {
+                                "workflow": {
+                                  "name": "Hosts"
+                                },
+                                "databaseId": 37027006621
+                              }
+                            }
+                          },
+                          {
+                            "__typename": "CheckRun",
+                            "name": "Lint PR Title",
+                            "status": "COMPLETED",
+                            "conclusion": "SUCCESS",
+                            "detailsUrl": "https://github.com/graphty-org/graphty-monorepo/actions/runs/37027006856/job/110904127819",
+                            "checkSuite": {
+                              "workflowRun": {
+                                "workflow": {
+                                  "name": "PR Title"
+                                },
+                                "databaseId": 37027006856
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

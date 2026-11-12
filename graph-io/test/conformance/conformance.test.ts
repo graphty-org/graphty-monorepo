@@ -192,20 +192,15 @@ describe("schemas: exports against the official XSDs and JSON Schema", () => {
     const hits = (name: string): number =>
         (schemaResult?.invalid ?? []).flatMap((doc) => classifyDocument(doc)).filter((e) => e.cls?.name === name)
             .length;
-    // eslint-disable-next-line local/no-test-timing -- waits on one Python child process that validates about 6,700 exported documents (pure-Python jsonschema is most of it; 14 s idle, 40-50 s beside other test runs), so it outruns the 30 s suite limit; runs only where Python has lxml and jsonschema, never in CI, tracked in #1636
-    it.skipIf(python === null)(
-        "every error is a documented deviation or a known failure",
-        async () => {
-            schemaResult = await validateExports(python ?? "python3");
-            const unexplained = schemaResult.invalid.flatMap((doc) =>
-                classifyDocument(doc)
-                    .filter((e) => e.cls === null)
-                    .map((e) => `${doc.file}: ${e.message}`),
-            );
-            expect(unexplained).toEqual([]);
-        },
-        120_000,
-    );
+    it.skipIf(python === null)("every error is a documented deviation or a known failure", async () => {
+        schemaResult = await validateExports(python ?? "python3");
+        const unexplained = schemaResult.invalid.flatMap((doc) =>
+            classifyDocument(doc)
+                .filter((e) => e.cls === null)
+                .map((e) => `${doc.file}: ${e.message}`),
+        );
+        expect(unexplained).toEqual([]);
+    });
     for (const known of SCHEMA_KNOWN_FAILURES) {
         it.skipIf(python === null).fails(`known failure: ${known.name}`, () => {
             expect(hits(known.name)).toBe(0);

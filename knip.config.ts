@@ -21,17 +21,28 @@ const config: KnipConfig = {
             entry: [
                 "vite.shared.config.ts",
                 "vitest.shared.config.ts",
+                // First setup file of the packages' browser test projects (named in their vitest configs)
+                "vitest.browser-coverage-setup.ts",
+                // Every package's wait guard setup file (named in their vitest configs)
+                "vitest.wait-guard-setup.ts",
+                // Serves map tiles from a fixture in the browser test projects (vitest.map-tiles.mjs)
+                "vitest.map-tiles-setup.ts",
                 "docs/.vitepress/config.ts",
                 "tools/*.mjs",
                 "tools/changelog-renderer.cjs",
                 // The release scheduler Worker (deployed by wrangler, not imported) and its tests
                 "tools/release-scheduler/src/worker.js",
                 "tools/release-scheduler/test/*.test.mjs",
+                // The results Worker (deployed by wrangler) and its tests
+                "tools/results-service/src/worker.js",
+                "tools/results-service/test/*.test.mjs",
+                // The nx cache Worker (deployed by wrangler) and its tests
+                "tools/nx-cache-worker/src/worker.js",
+                "tools/nx-cache-worker/test/*.test.mjs",
             ],
-            project: ["*.ts", "*.js", "tools/**/*.{ts,js,cjs,sh}"],
+            project: ["*.ts", "*.js", "tools/**/*.{ts,js,cjs}"],
             ignoreDependencies: [
                 // Nx plugins are used dynamically
-                "@nx/react",
                 "@nx/js",
                 // Coverage merging (used in tools/merge-coverage.sh via pnpm exec)
                 "lcov-result-merger",
@@ -42,6 +53,9 @@ const config: KnipConfig = {
                 // Semantic release plugins (used by nx release and child packages)
                 "@semantic-release/changelog",
                 "@semantic-release/git",
+                // The githerd CLI, linked at the root so `pnpm exec githerd` works from any
+                // checkout; nothing imports it
+                "@graphty/githerd",
                 // SonarQube scanner (run as node_modules/.bin/sonar-scanner-npm by tools/sonar/api.mjs)
                 "@sonar/scan",
             ],
@@ -54,15 +68,57 @@ const config: KnipConfig = {
                 "src/index.ts!",
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
-                "scripts/**/*.{ts,js}",
+                "scripts/**/*.{ts,js,mjs}",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
         },
 
-        // graph-io package (src/index.ts re-exports every per-format subpath barrel)
+        // graph-io package (src/index.ts re-exports every per-format subpath barrel; src/styles/index.ts is
+        // the format-independent @graphty/graph-io/styles entry and src/positions/index.ts the ./positions one)
         "graph-io": {
-            entry: ["src/index.ts!", "test/**/*.test.ts", "test/types/**/*.test-d.ts", "scripts/**/*.{ts,js}"],
-            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            // the network source subpaths are published entries of their own (@graphty/graph-io/sources/<name>)
+            entry: [
+                "src/index.ts!",
+                "src/styles/index.ts!",
+                "src/positions/index.ts!",
+                "src/sources/*/index.ts!",
+                // the unpublished barrel of the whole style engine, for graph-io's own tests and scripts
+                "src/styles/internal.ts",
+                "test/**/*.test.ts",
+                "test/types/**/*.test-d.ts",
+                // the style harness loads every module in formats/ by directory listing; isolated.ts is the
+                // per-file runner scripts/styles-corpus.mjs spawns
+                "test/styles/formats/*.ts",
+                "test/styles/isolated.ts",
+                "scripts/**/*.{ts,js,mjs}",
+                // the style fidelity Storybook (npm run build-storybook), which loads graphty-element from source
+                "fidelity-stories/.storybook/*.ts",
+                "fidelity-stories/stories/**/*.stories.ts",
+            ],
+            project: [
+                "src/**/*.ts!",
+                "test/**/*.ts",
+                "benchmarks/**/*.ts",
+                "scripts/**/*.{ts,js,mjs}",
+                "fidelity-stories/**/*.ts",
+            ],
+            // `neo4j-driver` is an optional peer (and a devDependency), loaded by `await import()` only for
+            // the Cypher source's Bolt transport. `lint:knip:prod` runs --strict and would report it as
+            // unlisted; the default run resolves it as a devDependency and hints an ignore as redundant.
+            ignoreDependencies: [
+                ...(production ? ["neo4j-driver"] : []),
+                // the pinned libraries that draw the web-library oracles, loaded by createRequire and by
+                // esbuild from test/fidelity/oracles/tools/web/ and test/fidelity/generators/specimens/
+                "@resvg/resvg-js",
+                "@sigma/export-image",
+                "graphology",
+                "sigma",
+                "svgcanvas",
+                "vis-data",
+                "vis-network",
+                // the peer of the fidelity Storybook's web-components renderer
+                "lit",
+            ],
         },
 
         // cytoscape-extensions package (@graphty/cytoscape-extensions): Cytoscape.js extensions over the graphty packages
@@ -79,8 +135,10 @@ const config: KnipConfig = {
                 "test/**/*.test.ts",
                 // compiled by test/consumer-types.test.ts as a consumer would compile it
                 "test/consumer/consumer.ts",
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
             ],
-            project: ["src/**/*.ts!", "scripts/**/*.ts", "test/**/*.ts", "stories/**/*.ts", ".storybook/*.ts"],
+            project: ["src/**/*.ts!", "scripts/**/*.ts", "test/**/*.ts", "stories/**/*.{ts,mdx}", ".storybook/*.ts"],
             // `webgpu` (Dawn for Node) is an OPTIONAL peer that nothing here imports: @graphty/webgpu-graph-algorithms
             // loads it at run time, and declaring it here is what lets a package manager hand it through (only
             // --production calls it unused; the normal run sees the GPU package's own use). `cytoscape`
@@ -89,7 +147,8 @@ const config: KnipConfig = {
             ignoreDependencies: production ? ["webgpu", "cytoscape"] : [],
         },
 
-        // graph-samples package: the root, generators and every dataset subpath are entries
+        // graph-samples package: the root, generators and every dataset subpath are entries; data/ is the
+        // repository's copy of the small datasets, read by scripts/pack-datasets.mjs and the tests, never shipped
         "graph-samples": {
             // "!" marks what ships: the only patterns knip reads in --production (lint:knip:prod)
             entry: [
@@ -98,8 +157,15 @@ const config: KnipConfig = {
                 "src/datasets/*/index.ts!",
                 "test/**/*.test.ts",
                 "scripts/**/*.{ts,js,mjs}",
+                "data/*.ts",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
+            project: ["src/**/*.ts!", "data/**/*.ts", "test/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
+        },
+
+        // babylonjs-map package: the root and the Babylon-free "./location" and "./projection" subpaths are entries
+        "babylonjs-map": {
+            entry: ["src/index.ts!", "src/location/index.ts!", "src/projection/index.ts!", "test/**/*.test.ts"],
+            project: ["src/**/*.ts!", "test/**/*.ts"],
         },
 
         // webgpu-graph-algorithms package: the root barrel re-exports neither subpath, so both are entries; the test
@@ -126,7 +192,10 @@ const config: KnipConfig = {
         // Algorithms package
         algorithms: {
             entry: [
-                "algorithms.ts!",
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
+                // the root entry: a default run derives it from package.json, a --production run does not
+                ...(production ? ["algorithms.ts!"] : []),
                 "src/index.ts!",
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
@@ -134,13 +203,12 @@ const config: KnipConfig = {
                 "test/helpers/golden-cases/vitest.config.ts",
                 "scripts/**/*.{ts,js}",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js}", ".storybook/*.mdx"],
             ignoreDependencies: [
                 // Storybook implicit dependencies
                 "@storybook/html",
                 // Build/dev tools
                 "gh-pages",
-                "chromatic",
                 // Benchmark tooling
                 "benchmark",
                 "@types/benchmark",
@@ -159,6 +227,8 @@ const config: KnipConfig = {
         // Layout package
         layout: {
             entry: [
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
                 "src/index.ts!",
                 "test/**/*.test.ts",
                 "test/types/**/*.test-d.ts",
@@ -166,10 +236,9 @@ const config: KnipConfig = {
                 "test/consumer/*.ts",
                 "scripts/**/*.{ts,js}",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js}", ".storybook/*.mdx"],
             ignoreDependencies: [
                 "@storybook/html",
-                "chromatic",
                 // Three.js for 3D examples/demos
                 "three",
                 "@types/three",
@@ -181,6 +250,8 @@ const config: KnipConfig = {
         // graphty-element package
         "graphty-element": {
             entry: [
+                // Loaded by its storybook vitest project only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
                 // The published entry points. Each has a subpath in package.json's exports map,
                 // so each is a door a consumer comes through and nothing reachable from one is
                 // dead. A default run derives them from the exports map (and hints a repeat as
@@ -191,6 +262,7 @@ const config: KnipConfig = {
                           "ai.ts!",
                           "catalog.ts!",
                           "commands.ts!",
+                          "credentials.ts!",
                           "extend.ts!",
                           "format.ts!",
                           "logging.ts!",
@@ -203,6 +275,10 @@ const config: KnipConfig = {
                     : []),
                 // The self-contained bundle's entry, built by vite.bundle.config.ts.
                 "bundle.ts!",
+                // The lazily imported model chunk (design/rendering/node-models.md). Nothing imports it
+                // yet: drawing nodes as models, the package that adds the one dynamic import() of it,
+                // comes next, and until then tools/check-bundle-size.mjs builds it on its own.
+                "src/models/chunk.ts!",
                 // The types-only ./jsx entry. Its exports map entry names only a .d.ts, which knip
                 // does not map back to a source file, so it is listed for both runs.
                 "jsx.ts!",
@@ -216,32 +292,50 @@ const config: KnipConfig = {
                 "*.ts!",
                 "src/**/*.ts!",
                 "test/**/*.ts",
-                "stories/**/*.ts",
+                "stories/**/*.{ts,mdx}",
+                ".storybook/*.mdx",
                 "scripts/**/*.{ts,js}",
                 "benchmarks/**/*.ts",
             ],
             ignoreDependencies: [
                 // Peer dependencies (provided by consumer)
                 "@mlc-ai/web-llm",
-                // The optional peers: the GPU package, the AI SDK and its key store. Each is an
-                // optional peer and an exact devDependency, imported from src so the element works
-                // without it and lights up with it. `lint:knip:prod` runs --strict, which reads only
-                // peers and dependencies, and would report them as unlisted; the default run
-                // resolves them as devDependencies and hints an ignore as redundant.
+                // The optional peers: the GPU package, Graphviz and the key store. Each is an optional
+                // peer and an exact devDependency, imported from src so the element works without it
+                // and lights up with it. `lint:knip:prod` runs --strict, which reads only peers and
+                // dependencies, and would report them as unlisted; the default run resolves them as
+                // devDependencies and hints an ignore as redundant.
                 ...(production
                     ? [
                           "@graphty/webgpu-graph-algorithms",
-                          "@ai-sdk/anthropic",
-                          "@ai-sdk/google",
-                          "@ai-sdk/openai",
-                          "ai",
                           "encrypt-storage",
+                          "@hpcc-js/wasm-graphviz",
+                          // the types of React, for the types-only ./jsx entry (dist/jsx.d.ts imports
+                          // "react"), which --production follows into the build
+                          "@types/react",
                       ]
                     : []),
                 // Copied into dist by vite.config.ts (`bundledDependencies`, and ngraph.random because
                 // nothing externalises it), so each is a devDependency that production source imports.
+                // TanStack AI is built into the AI engine's own chunks the same way, imported only by
+                // src/ai/engine/tanstack/ (design/ai/tanstack-ai-harness-design.md, section 3.2), and so
+                // is the in-page code sandbox (TanStack Code Mode's QuickJS driver and its WebAssembly).
                 // Only `lint:knip:prod` would report them, as unlisted.
-                ...(production ? ["lodash", "ngraph.random", "@graphty/remote-logger"] : []),
+                ...(production
+                    ? [
+                          "lodash",
+                          "ngraph.random",
+                          "@graphty/remote-logger",
+                          "@tanstack/ai",
+                          "@tanstack/ai-anthropic",
+                          "@tanstack/ai-gemini",
+                          "@tanstack/ai-openai",
+                          "@tanstack/ai-code-mode",
+                          "@tanstack/ai-isolate-quickjs",
+                          "@jitl/quickjs-wasmfile-release-sync",
+                          "@jsonhero/json-infer-types",
+                      ]
+                    : []),
                 // Storybook addons
                 "@storybook/addon-console",
                 "@storybook/test",
@@ -258,7 +352,7 @@ const config: KnipConfig = {
             ],
         },
 
-        // graphty React app
+        // graphty React app (left out of the production run: see ignoreWorkspaces below)
         graphty: {
             entry: [
                 "src/App.tsx!",
@@ -266,14 +360,19 @@ const config: KnipConfig = {
                 "src/stories/**/*.stories.tsx",
                 "eslint-rules/**/*.test.ts",
                 "scripts/**/*.ts",
+                // Loaded by vitest.config.ts only when VISUAL_REVIEW_STORY_OUT is set (issue #3471).
+                ".storybook/vitest.setup.visual.ts",
             ],
-            project: ["src/**/*.{ts,tsx}!", "eslint-rules/*.js", "eslint-rules/__tests__/*.ts", "scripts/**/*.ts"],
-            ignoreDependencies: [
-                // Loaded only under import.meta.env.DEV (src/main.tsx) and declared in the root
-                // package.json; `lint:knip:prod` runs --strict, which reads only this workspace's own
-                // dependencies, and would otherwise report it as unlisted.
-                ...(production ? ["eruda"] : []),
+            project: [
+                "src/**/*.{ts,tsx}!",
+                "eslint-rules/*.js",
+                "eslint-rules/__tests__/*.ts",
+                "scripts/**/*.ts",
+                ".storybook/*.mdx",
             ],
+            // ci.yml's Sentry upload runs it as `timeout 60 pnpm exec sentry-cli ...` (bounded so a hang
+            // cannot cancel the build), and knip does not read a command behind `timeout`.
+            ignoreDependencies: ["@sentry/cli"],
         },
 
         // remote-logger package
@@ -286,6 +385,15 @@ const config: KnipConfig = {
         "visual-review": {
             entry: ["test/**/*.test.mjs"],
             project: ["trusted/**/*.mjs!", "capture/**/*.mjs!", "test/**/*.mjs"],
+            // `vitest` is an optional peer: capture/story-test.d.mts (the ./vitest entry's types) imports
+            // vitest/node, which --strict reports as unlisted because it reads no optional peers
+            ignoreDependencies: production ? ["vitest"] : [],
+        },
+
+        // githerd daemon, launcher and CLI (plain .mjs, no build)
+        githerd: {
+            entry: ["test/**/*.test.mjs"],
+            project: ["bin/**/*.mjs!", "lib/**/*.mjs!", "test/**/*.mjs"],
         },
 
         // compact-mantine package
@@ -294,12 +402,22 @@ const config: KnipConfig = {
             // import.meta.glob (src/theme/components/index.ts, src/theme/global-styles.ts), which
             // knip cannot follow, so they are entries of their own.
             entry: [
+                // The package root, for the production run: package.json exports name dist/index.js,
+                // which a --production run follows into the build instead of src/. The default run
+                // takes the root from vite.config.ts's library entry.
+                ...(production ? ["src/index.ts!"] : []),
                 "src/theme/components/*.ts!",
                 "src/theme/css/*.css.ts!",
                 "tests/**/*.test.{ts,tsx}",
                 "stories/**/*.stories.tsx",
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
             ],
-            project: ["src/**/*.{ts,tsx}!", "tests/**/*.{ts,tsx}", "stories/**/*.tsx"],
+            project: ["src/**/*.{ts,tsx}!", "tests/**/*.{ts,tsx}", "stories/**/*.{tsx,mdx}"],
+            // A --production run drops every entry a plugin names for development, and the Vite plugin
+            // names src/index.ts (the library entry), so it would drop the root entry above with it.
+            // The plugin finds nothing else that run reads.
+            ...(production ? { vite: false } : {}),
             ignoreDependencies: [
                 // Used in storybook demos
                 "@zag-js/floating-panel",
@@ -308,6 +426,9 @@ const config: KnipConfig = {
                 // tests/a11y/stories-axe.browser.test.tsx to enforce what the addon only reports.
                 // Declaring it would change pnpm-lock.yaml.
                 "axe-core",
+                // The types of the `react` peer, which the published declaration files (dist/index.d.ts)
+                // import and --production follows into the build
+                ...(production ? ["@types/react"] : []),
             ],
         },
     },
@@ -322,21 +443,13 @@ const config: KnipConfig = {
     // be referenced once inside its own file, in all six workspaces.
     //
     // The narrower mechanism is per symbol: knip skips any export whose JSDoc block
-    // carries a `@public` tag (knip 5 honours `@public` with no `tags` entry needed), so a
+    // carries a `@public` tag (knip honours `@public` with no `tags` entry needed), so a
     // deliberate public surface states that intent at the declaration and everything else
     // stays under dead-code detection. Add `@public` -- with a clause saying why -- rather
     // than reaching for a blanket setting or an ignore pattern.
 
-    // `StatusBarAccelerationMode`, in the app's status-bar model, is referenced only by the
-    // `acceleration?: StatusBarAccelerationMode` member of `StatusBarIssuesModel` declared beside it in
-    // the same file, which is why knip reports it unused. It exists to NAME a published signature: drop
-    // the export and that member has a type no caller can write down. The per-symbol mechanism above is
-    // `@public` at the declaration, and this entry is a stand-in for it -- delete this entry when the tag
-    // lands. Until then the ignore covers that one file and unused TYPES alone, so a dead value export in
-    // it is still reported.
-    ignoreIssues: {
-        "graphty/src/components/shell/statusbar/statusBarModel.ts": ["types"],
-    },
+    // A standalone package with its own dependencies and lockfile, outside the pnpm workspace
+    ignore: ["tools/pipeline-health/**"],
 
     // `@internal` marks an export that exists ONLY because TypeScript's declaration emit requires
     // every named type in a published signature to be exported -- the parameter and return types
@@ -349,6 +462,11 @@ const config: KnipConfig = {
     // `stripInternal`, so there the tag also keeps a symbol that other modules import out of the
     // published .d.ts files, and removing it would publish it. Tag hints never fail the gate;
     // configuration hints do (below).
+    // graphty publishes only its built site (dist/), which bundles everything and imports nothing, so
+    // every one of its dependencies is a devDependency and it has no production code for
+    // `lint:knip:prod` to check; tools/check-published-deps.mjs checks what it ships. The default run
+    // still checks it.
+    ignoreWorkspaces: production ? ["graphty"] : [],
     tags: ["-internal"],
 
     // A configuration hint means knip.config.ts has gone stale (an ignore that matches nothing,
@@ -358,10 +476,25 @@ const config: KnipConfig = {
     // Ignore unlisted binaries that are shell built-ins or CI tools
     ignoreBinaries: [
         "wait", // Shell built-in used in npm scripts
-        // coverage:preview scripts run `npx serve` with a ${PORT:?...} guard, which knip no longer
-        // recognises as an npx invocation.
-        "serve",
+        // System tools that scripts and tests run with execFileSync or spawn (knip 6 reads those calls;
+        // knip 5 did not): none is an npm package, so none can be listed as a dependency.
+        "dot", // Graphviz
+        "fc-list",
+        "flock",
+        "ionice",
+        "jq",
+        "mkfifo",
+        "nvidia-smi",
+        "pkill",
+        "pgrep",
+        "safaridriver",
+        "ssh-keygen",
+        "taskset",
     ],
+
+    // Shell scripts that tools/ runs by a path from the repository root (its working directory),
+    // which knip resolves from the calling file's own directory instead and cannot find.
+    ignoreUnresolved: ["tools/release-held.sh", "tools/gpu-runner-lost.sh"],
 };
 
 export default config;

@@ -12,7 +12,7 @@ import {
     collectPropertyValues,
     generateHistogram,
     getAvailableProperties,
-    getNestedProperty,
+    getDataField,
     truncateObjectStrings,
 } from "../schema/utils";
 import type { CommandResult, GraphCommand } from "./types";
@@ -190,7 +190,7 @@ export const sampleData: GraphCommand = {
 
                 if (stratifyBy) {
                     sampledNodes = stratifiedSample(nodes, count, (node) => {
-                        const value = getNestedProperty(node.data, stratifyBy);
+                        const value = getDataField(node.data, stratifyBy);
                         return typeof value === "string" ? value : undefined;
                     });
                 } else {
@@ -210,7 +210,7 @@ export const sampleData: GraphCommand = {
 
                 if (stratifyBy) {
                     sampledEdges = stratifiedSample(edges, count, (edge) => {
-                        const value = getNestedProperty(edge.data, stratifyBy);
+                        const value = getDataField(edge.data, stratifyBy);
                         return typeof value === "string" ? value : undefined;
                     });
                 } else {
@@ -443,7 +443,7 @@ function analyzeBooleanProperty(
     nullCount: number,
 ): BooleanPropertyResult {
     const booleanValues = values.filter((v): v is boolean => typeof v === "boolean");
-    const trueCount = booleanValues.filter((v) => v).length;
+    const trueCount = booleanValues.filter(Boolean).length;
     const falseCount = booleanValues.length - trueCount;
 
     return {

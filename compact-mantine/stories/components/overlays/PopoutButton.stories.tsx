@@ -1,6 +1,6 @@
 import { Box, Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 
 import { ControlGroup, Popout, PopoutButton, PopoutManager, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -12,7 +12,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
 // Demo stories carry no play function: Storybook runs one as soon as a story loads, so a demo
 // that drove itself opened and closed its own panel on every visit. The assertions live on the
 // `*Interactions` twins, hidden from the sidebar and the docs page and still run by the test
-// runner and Chromatic.
+// runner and the visual capture.
 const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
 
 // On the docs page every story renders in its own iframe (docs.story.inline false). Inline, a
@@ -182,7 +182,7 @@ export const DefaultInteractions: Story = {
         await expect(button).toHaveAttribute("aria-expanded", "true");
         await expect(button).toHaveAttribute("data-open", "true");
 
-        const panel = await canvas.findByRole("dialog");
+        const panel = await canvas.findByRole("dialog", {});
         await expect(panel).toBeVisible();
 
         await userEvent.keyboard("{Escape}");

@@ -15,12 +15,13 @@ import {
     type EncodingRun,
     type EncodingSource,
     type EncodingSpec,
-    type HighlightSpec,
     type Layer,
+    type MarkSpec,
     type SessionStylesApi,
     type StyleSuggestion,
 } from "../../../src/session/styles/index";
 import type { SelectorSource } from "../../../src/session/styles/predicate";
+import { DEFAULT_HIGHLIGHT } from "../../../src/session/styles/StylesApi";
 import type { ElementSession, GraphSession, StyleProblem } from "../../../src/session/types";
 import { fixtureSession } from "../history/fixture-session";
 import { stubResult } from "../runs/harness";
@@ -73,13 +74,13 @@ const PAGERANK = runOf("pagerank", "node-metric", [field("value", "node", "numbe
 /** An edge measurement, which asks for the other half and therefore clashes with none of them. */
 const EDGE_BETWEENNESS = runOf("edgebetweenness", "edge-metric", [field("value", "edge", "number", "edgebetweenness")]);
 
-/** A route, which is a highlight rather than an encoding. */
+/** A route, which is a mark rather than an encoding. */
 const ROUTE = runOf("route", "path", [
     field("onPath", "node", "boolean", "route"),
     field("onPath", "edge", "boolean", "route"),
 ]);
 
-/** A chosen set of nodes, which is the other kind of highlight. */
+/** A chosen set of nodes, which is another kind of mark. */
 const INFLUENCERS = runOf("influencers", "node-set", [field("in", "node", "boolean", "influencers")]);
 
 /** A bare fact, which has nothing per element and therefore suggests nothing. */
@@ -134,13 +135,21 @@ function layerOf(id: LayerId, source: LayerSource, extra: Partial<Layer> = {}): 
 
 /** The encodings among some suggestions. */
 function encodings(suggestions: readonly StyleSuggestion[]): EncodingSpec[] {
-    return suggestions.flatMap((suggestion) => (suggestion.as === "highlight" ? [] : [suggestion.spec]));
+    return suggestions.flatMap((suggestion) => (suggestion.as === "encoding" ? [suggestion.spec] : []));
 }
 
-/** The highlights among some suggestions. */
-function highlights(suggestions: readonly StyleSuggestion[]): HighlightSpec[] {
+/** The marks among some suggestions. */
+function marks(suggestions: readonly StyleSuggestion[]): MarkSpec[] {
+    return suggestions.flatMap((suggestion) => (suggestion.as === "mark" ? [suggestion.spec] : []));
+}
+
+/** The highlights among some suggestions, which the element's own derivation never makes. */
+function highlights(suggestions: readonly StyleSuggestion[]): unknown[] {
     return suggestions.flatMap((suggestion) => (suggestion.as === "highlight" ? [suggestion.spec] : []));
 }
+
+/** What a mark paints the elements an algorithm chose: its own values, not the highlight colour. */
+const MARK_SET = { "node.color": "#D55E00", "edge.color": "#D55E00", "edge.width": DEFAULT_HIGHLIGHT.edgeWidth };
 
 /** The run ids some suggestions encode, in order. */
 function encodedRuns(suggestions: readonly StyleSuggestion[]): string[] {
@@ -219,13 +228,14 @@ describe("when a finished run paints", () => {
         assert.lengthOf(harness.policy.completed(DIAMETER, false).paint, 0);
     });
 
-    it("highlights a run that chose a subset rather than measuring everything", () => {
+    it("marks a run that chose a subset with explicit channels, never as a highlight", () => {
         const harness = record();
 
         const { paint } = harness.policy.completed(ROUTE, false);
 
         assert.lengthOf(encodings(paint), 0);
-        assert.deepStrictEqual(highlights(paint), [{ run: "route", field: "onPath" }]);
+        assert.lengthOf(highlights(paint), 0);
+        assert.deepStrictEqual(marks(paint), [{ run: "route", field: "onPath", set: MARK_SET }]);
     });
 
     it("reports a refusal rather than losing it", () => {
@@ -307,14 +317,14 @@ describe("when somebody has already said what that channel looks like", () => {
         harness.layers = [layerOf("one node", { by: "user" }, { selector: { match: "ids", nodes: ["n0"] } })];
 
         assert.lengthOf(harness.policy.completed(BETWEENNESS, false).paint, 1);
-        assert.lengthOf(highlights(harness.policy.completed(INFLUENCERS, false).paint), 1);
+        assert.lengthOf(marks(harness.policy.completed(INFLUENCERS, false).paint), 1);
     });
 
-    it("suppresses a highlight when an authored layer drives a colour it would paint", () => {
+    it("suppresses a mark when an authored layer drives a colour it would paint", () => {
         const harness = record();
         harness.layers = [layerOf("mine", { by: "user" })];
 
-        assert.lengthOf(highlights(harness.policy.completed(INFLUENCERS, false).paint), 0);
+        assert.lengthOf(marks(harness.policy.completed(INFLUENCERS, false).paint), 0);
     });
 });
 
@@ -353,16 +363,18 @@ describe("when a sweep finishes", () => {
         assert.deepStrictEqual(encodedRuns(hold.release().paint), ["degree", "edgebetweenness"]);
     });
 
-    it("keeps one highlight however many members chose a subset", () => {
+    it("keeps every member's mark, because a mark hides nothing another member painted", () => {
         const harness = record();
         const hold = harness.policy.hold();
 
         harness.policy.completed(ROUTE, false, hold);
         harness.policy.completed(INFLUENCERS, false, hold);
-        const held = highlights(hold.release().paint);
+        const held = marks(hold.release().paint);
 
-        assert.lengthOf(held, 1);
-        assert.strictEqual(held[0].run, "influencers");
+        assert.deepStrictEqual(
+            held.map((spec) => spec.run),
+            ["route", "influencers"],
+        );
     });
 
     it("holds only the batch's own members: a run finishing beside the batch paints at once", () => {
@@ -485,7 +497,13 @@ function realStack(): { styles: SessionStylesApi; finish: (run: AutoApplyRun) =>
     const policy = createAutoApplyPolicy({ styles: () => styles });
     const finish = async (run: AutoApplyRun): Promise<void> => {
         for (const suggestion of policy.completed(run, false).paint) {
-            await (suggestion.as === "highlight" ? styles.highlight(suggestion.spec) : styles.encode(suggestion.spec));
+            if (suggestion.as === "encoding") {
+                await styles.encode(suggestion.spec);
+            } else if (suggestion.as === "mark") {
+                await styles.mark(suggestion.spec);
+            } else {
+                await styles.highlight(suggestion.spec);
+            }
         }
     };
 
@@ -547,40 +565,108 @@ describe("what the policy leaves in a real stack", () => {
         assert.deepStrictEqual(layers[2].selector, { match: "has", path: "results.degree.value" });
     });
 
-    it("paints a route as one exclusive highlight over both halves it runs through", async () => {
+    it("paints a route as ordinary layers over both halves it runs through, with explicit channels", async () => {
         const { styles, finish } = realStack();
 
         await finish(ROUTE);
 
-        const highlights = styles.list().filter((layer) => layer.kind === "highlight");
+        const layers = styles.list().slice(1);
 
-        assert.lengthOf(highlights, 2, "one layer per half: a layer never paints both");
+        assert.lengthOf(layers, 2, "one layer per half: a layer never paints both");
+        assert.isFalse(
+            layers.some((layer) => layer.kind === "highlight"),
+            "an algorithm never paints through a highlight",
+        );
         assert.deepStrictEqual(
-            highlights.map((layer) => layer.target),
+            layers.map((layer) => layer.target),
             ["node", "edge"],
         );
+        assert.deepStrictEqual(layers[0].set, { "node.color": "#D55E00" });
+        assert.deepStrictEqual(layers[1].set, { "edge.color": "#D55E00", "edge.width": DEFAULT_HIGHLIGHT.edgeWidth });
         // The membership column carries FALSE for the elements the run looked at and did not
         // choose, so a presence test would paint the whole neighbourhood in the route's colour.
-        assert.deepStrictEqual(highlights[0].selector, {
-            match: "expression",
-            where: "results.route.onPath == `true`",
-        });
+        for (const layer of layers) {
+            assert.deepStrictEqual(layer.selector, {
+                match: "expression",
+                where: "results.route.onPath == `true`",
+            });
+        }
     });
 
-    it("replaces a highlight when a second run chooses a different subset", async () => {
+    it("keeps both pictures when a second run chooses a different subset", async () => {
         const { styles, finish } = realStack();
 
         await finish(ROUTE);
         await finish(INFLUENCERS);
 
+        const wheres = styles
+            .list()
+            .slice(1)
+            .map((layer) => (layer.selector.match === "expression" ? layer.selector.where : layer.selector.match));
+
+        assert.deepStrictEqual(wheres, [
+            "results.route.onPath == `true`",
+            "results.route.onPath == `true`",
+            "results.influencers.in == `true`",
+        ]);
+    });
+
+    it("replaces a run's own mark rather than stacking a copy when it is marked again", async () => {
+        const { styles, finish } = realStack();
+
+        await finish(ROUTE);
+        await finish(INFLUENCERS);
+        const [suggestion] = marks(createAutoApplyPolicy({ styles: () => styles }).completed(ROUTE, false).paint);
+        await styles.mark(suggestion);
+
+        const runs = styles
+            .list()
+            .slice(1)
+            .map((layer) => (layer.source.by === "run" ? `${layer.source.runId} ${layer.target}` : "?"));
+
+        assert.deepStrictEqual(runs, ["influencers node", "route node", "route edge"]);
+    });
+
+    it("does not follow the element's highlight colour", async () => {
+        const mutable = DEFAULT_HIGHLIGHT as { color: string };
+        const was = mutable.color;
+        mutable.color = "#332288";
+        try {
+            const { styles, finish } = realStack();
+
+            await finish(ROUTE);
+
+            const colors = styles
+                .list()
+                .slice(1)
+                .map((layer) => layer.set?.["node.color"] ?? layer.set?.["edge.color"]);
+
+            assert.deepStrictEqual(colors, ["#D55E00", "#D55E00"]);
+        } finally {
+            mutable.color = was;
+        }
+    });
+
+    it("still lets a caller who asks for a highlight have an exclusive one in the highlight colour", async () => {
+        const { styles, finish } = realStack();
+
+        await finish(ROUTE);
+        await styles.highlight({ run: "influencers" });
+        await styles.highlight({ run: "route" });
+
         const highlights = styles.list().filter((layer) => layer.kind === "highlight");
 
-        assert.lengthOf(highlights, 1);
-        assert.strictEqual(highlights[0].target, "node");
-        assert.deepStrictEqual(highlights[0].selector, {
-            match: "expression",
-            where: "results.influencers.in == `true`",
-        });
+        assert.deepStrictEqual(
+            highlights.map((layer) => layer.target),
+            ["node", "edge"],
+            "the second highlight replaced the first",
+        );
+        assert.deepStrictEqual(highlights[0].set, { "node.color": DEFAULT_HIGHLIGHT.color });
+        assert.lengthOf(
+            styles.list().filter((layer) => layer.kind === "encoding"),
+            2,
+            "the route's own mark was not swept by a highlight",
+        );
     });
 
     it("leaves the element's own layers where they are", async () => {

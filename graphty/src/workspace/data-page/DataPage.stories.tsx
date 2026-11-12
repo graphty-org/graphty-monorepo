@@ -4,7 +4,7 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, waitFor, within } from "storybook/test";
 
-import { createWorkspaceStore } from "../state/store";
+import { freshStore, storeOf } from "../../stories/freshStore";
 import { Workspace } from "../Workspace";
 import { type DataPageRequest, openDataPage } from "./request";
 
@@ -53,18 +53,27 @@ type Story = StoryObj<typeof meta>;
 const OPEN_PROJECT = { name: "Les Miserables", id: 1 };
 
 /**
- * Waits until the page has read its source: the sample grid, or the problem block.
+ * Waits until the page has read its source and counted it: the sample grid or the problem block,
+ * with the footer no longer "Still counting", the page's fonts loaded, and a frame drawn since. The rows and the count
+ * arrive separately, and the count moves focus to Load: a play that acted on the rows alone opened
+ * the role menu before the count, so the shot caught "Still counting" or the menu closing (#6127).
  * @param canvasElement - the story's root.
  */
 async function read(canvasElement: HTMLElement): Promise<void> {
-    await waitFor(
-        () => {
-            if (canvasElement.querySelector('[role="grid"] [role="gridcell"], [role="alert"]') === null) {
-                throw new Error("still reading");
-            }
-        },
-        { timeout: 10_000 },
-    );
+    await waitFor(() => {
+        if (canvasElement.querySelector('[role="grid"] [role="gridcell"], [role="alert"]') === null) {
+            throw new Error("still reading");
+        }
+        const footer = canvasElement.textContent;
+        if (footer.includes("Still reading the file") || footer.includes("Still counting")) {
+            throw new Error("still counting");
+        }
+    });
+    // The grid sizes its columns from the font; Inter swaps in after the first frame lays the text
+    // out, and the grid measures again when it has, so wait for that load and a frame after it.
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await document.fonts.ready;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
 }
 
 /**
@@ -75,10 +84,11 @@ async function read(canvasElement: HTMLElement): Promise<void> {
  * @returns the story.
  */
 function pageStory(request: DataPageRequest, after?: (canvas: ReturnType<typeof within>) => Promise<void>): Story {
-    const store = createWorkspaceStore(request.intent === "add" ? { project: OPEN_PROJECT } : {});
     return {
-        args: { store },
-        play: async ({ canvasElement }) => {
+        ...freshStore(request.intent === "add" ? { project: OPEN_PROJECT } : {}),
+        play: async (context) => {
+            const { canvasElement } = context;
+            const store = storeOf(context);
             await customElements.whenDefined("graphty-element");
             store.set({ page: "panels" });
             openDataPage(store, request);
@@ -94,15 +104,15 @@ function pageStory(request: DataPageRequest, after?: (canvas: ReturnType<typeof 
  * Reads an address typed into From a URL... under Tables "+".
  * @param canvas - the story's canvas.
  * @param address - the address.
- * @param submit - whether to press Read.
+ * @param submit - whether to press Enter.
  */
 async function enterUrl(canvas: ReturnType<typeof within>, address: string, submit: boolean): Promise<void> {
     await userEvent.click(await canvas.findByRole("button", { name: "Add a table" }));
     await userEvent.click(await within(document.body).findByRole("menuitem", { name: "From a URL..." }));
-    await userEvent.type(await within(document.body).findByRole("textbox", { name: "Address" }), address);
-    if (submit) {
-        await userEvent.click(within(document.body).getByRole("button", { name: "Read" }));
-    }
+    await userEvent.type(
+        await within(document.body).findByRole("textbox", { name: "Address" }),
+        submit ? `${address}{Enter}` : address,
+    );
 }
 
 /** New from data... with nothing chosen yet: one gray line with the way in (`#/data-page/empty`). */
@@ -127,7 +137,7 @@ export const Transfers: Story = pageStory({
 export const RoleMenu: Story = pageStory(
     { intent: "new", files: [new File([ACCOUNTS], "account.csv"), new File([TRANSFERS], "transfers.csv")] },
     async (canvas) => {
-        await userEvent.click(await canvas.findByRole("combobox", { name: "owner" }));
+        await userEvent.click(await canvas.findByRole("combobox", { name: "Role of owner" }));
         await within(document.body).findByRole("option", { name: "Name" });
     },
 );
@@ -137,7 +147,7 @@ export const UnmatchedRows: Story = pageStory(
     { intent: "new", files: [new File([ACCOUNTS], "account.csv"), new File([TRANSFERS], "transfers.csv")] },
     async (canvas) => {
         await userEvent.click(await canvas.findByRole("button", { name: "Show the 1 unmatched row" }));
-        await canvas.findByText("1 unmatched row");
+        await canvas.findByText(/^1 unmatched row/, {});
     },
 );
 
@@ -169,8 +179,8 @@ export const RefusedParse: Story = pageStory({ intent: "new", files: [new File([
 
 /** An address that cannot be fetched (`#/data-page/refused-fetch`). */
 export const RefusedFetch: Story = pageStory({ intent: "new" }, async (canvas) => {
-    await enterUrl(canvas, "/no-such-file.csv", true);
-    await canvas.findByRole("alert", {}, { timeout: 10_000 });
+    await enterUrl(canvas, "https://example.invalid/no-such-file.csv", true);
+    await canvas.findByRole("alert", {});
 });
 
 /** Adding to the open project: the title names it (`Add to <project>`). */

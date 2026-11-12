@@ -41,6 +41,7 @@ import { isCanonicalIntegerText } from "../../common/ids.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { formatTemporal, type TemporalKind } from "../../common/temporal.js";
+import { jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
@@ -400,6 +401,17 @@ class ExportPlan {
         this.checkStoredIds();
         this.directionNotes();
         const slots = new Set([this.kind, this.labels, this.idSpace].flatMap((c) => (c === null ? [] : [c.meta.name])));
+        this.addGenericNotes(generic, slots);
+        this.notes.push(...this.ownNotes);
+        this.filterNotesByPart();
+    }
+
+    /**
+     * Add the generic capability notes, leaving out the ones this format reads back as they were.
+     * @param generic - the notes the capability check found
+     * @param slots - the names of the :TYPE, :LABEL and :ID(Space) columns
+     */
+    private addGenericNotes(generic: ReturnType<typeof checkCapabilities>, slots: ReadonlySet<string>): void {
         for (const gen of generic) {
             if (gen.code === LOSS.JSON && gen.column !== null && this.writtenAsPoint(gen.column)) {
                 continue;
@@ -412,7 +424,8 @@ class ExportPlan {
                 this.fatalEdges = new GraphFormatError("E_DIRECTED", gen.message, { reason: "mixed direction" });
             }
             if ((gen.code === LOSS.POSITIONS || gen.code === LOSS.VIZ) && gen.column !== null) {
-                // written as a plain property (a point for a position); the role is what is lost
+                // written as a plain property (a point for a position); the role is what is lost. Deprecated for
+                // the style roles (next major): styles reach a file only through the style writer.
                 this.notes.push(
                     Object.freeze({
                         code: gen.code,
@@ -425,8 +438,6 @@ class ExportPlan {
             }
             this.notes.push(gen);
         }
-        this.notes.push(...this.ownNotes);
-        this.filterNotesByPart();
     }
 
     /**
@@ -531,59 +542,14 @@ class ExportPlan {
         const mapped = declared === null ? null : mapDeclaredType(NEO4J, declared, "f64");
         const label = `${meta.domain} column "${meta.name}"`;
         if (meta.dtype === "list") {
-            const itemDtype = meta.itemDtype ?? "string";
-            const compatible =
-                mapped !== null && mapped.list && mapped.itemDtype === itemDtype && mapped.kind !== "long";
-            let scalar = compatible
-                ? { type: declaredScalar(declared as string), kind: kindOf(mapped), temporal: mapped.temporal }
-                : defaultScalar(itemDtype);
-            if (mapped !== null && mapped.list && mapped.kind === "long" && itemDtype === "f64") {
-                scalar = this.integralOrDouble(column, declaredScalar(declared as string), label);
-            }
-            const itemComponents = meta.itemComponents ?? 1;
-            if (itemComponents > 1) {
-                this.note(
-                    LOSS.COMPONENTS,
-                    `${label} holds items of ${itemComponents} components; they are flattened into one array`,
-                    meta.name,
-                    column.length - column.nullCount,
-                );
-            }
-            this.checkArrayItems(column, scalar, label);
-            return {
-                column,
-                header: formatHeaderField(meta.name, `${scalar.type}[]`, null),
-                scalar,
-                list: true,
-                companion,
-            };
+            return this.planListColumn(column, companion, declared, mapped, label);
         }
-        let scalar: ScalarPlan;
-        const compatible = mapped !== null && !mapped.list && mapped.dtype === meta.dtype;
-        if (compatible && mapped.kind === "long") {
-            scalar = this.integralOrDouble(column, declared as string, label);
-        } else if (compatible) {
-            scalar = { type: declared as string, kind: kindOf(mapped), temporal: mapped.temporal };
-        } else {
-            scalar = defaultScalar(meta.dtype);
-        }
+        const scalar = this.scalarColumnPlan(column, declared, mapped, label);
         // the generic check treats position and visual columns by role only; their dtype and
         // stride are checked here so the notes match those of any other column
         const visual = meta.role === "position" || (meta.role !== null && isVizRole(meta.role));
-        if (visual && meta.dtype === "json" && scalar.kind !== "point") {
-            this.note(
-                LOSS.JSON,
-                `${label} holds nested values; the format has no nested values`,
-                meta.name,
-                column.length - column.nullCount,
-            );
-        } else if (visual && meta.dtype !== "json" && !NEO4J_CAPABILITIES.dtypes.includes(meta.dtype)) {
-            this.note(
-                LOSS.DTYPE,
-                `${label} is ${meta.dtype}; the format cannot keep that dtype`,
-                meta.name,
-                column.length - column.nullCount,
-            );
+        if (visual) {
+            this.noteVisualColumn(column, scalar, label);
         }
         if (meta.components > 1) {
             if (visual) {
@@ -609,6 +575,99 @@ class ExportPlan {
     }
 
     /**
+     * Plan one list column: its item type from the declared type when compatible, with notes.
+     * @param column - the list column
+     * @param companion - its text companion, or null
+     * @param declared - the declared type text, or null
+     * @param mapped - the declared type resolved, or null
+     * @param label - the column label for messages
+     * @returns the plan
+     */
+    private planListColumn(
+        column: Column,
+        companion: Column | null,
+        declared: string | null,
+        mapped: DeclaredTypeSpec | null,
+        label: string,
+    ): ColumnPlan {
+        const { meta } = column;
+        const itemDtype = meta.itemDtype ?? "string";
+        const compatible = mapped !== null && mapped.list && mapped.itemDtype === itemDtype && mapped.kind !== "long";
+        let scalar = compatible
+            ? { type: declaredScalar(declared as string), kind: kindOf(mapped), temporal: mapped.temporal }
+            : defaultScalar(itemDtype);
+        if (mapped !== null && mapped.list && mapped.kind === "long" && itemDtype === "f64") {
+            scalar = this.integralOrDouble(column, declaredScalar(declared as string), label);
+        }
+        const itemComponents = meta.itemComponents ?? 1;
+        if (itemComponents > 1) {
+            this.note(
+                LOSS.COMPONENTS,
+                `${label} holds items of ${itemComponents} components; they are flattened into one array`,
+                meta.name,
+                column.length - column.nullCount,
+            );
+        }
+        this.checkArrayItems(column, scalar, label);
+        return {
+            column,
+            header: formatHeaderField(meta.name, `${scalar.type}[]`, null),
+            scalar,
+            list: true,
+            companion,
+        };
+    }
+
+    /**
+     * The scalar plan of a non-list column: the declared type when compatible, the dtype's default otherwise.
+     * @param column - the column
+     * @param declared - the declared type text, or null
+     * @param mapped - the declared type resolved, or null
+     * @param label - the column label for messages
+     * @returns the scalar plan
+     */
+    private scalarColumnPlan(
+        column: Column,
+        declared: string | null,
+        mapped: DeclaredTypeSpec | null,
+        label: string,
+    ): ScalarPlan {
+        const compatible = mapped !== null && !mapped.list && mapped.dtype === column.meta.dtype;
+        if (compatible && mapped.kind === "long") {
+            return this.integralOrDouble(column, declared as string, label);
+        }
+        if (compatible) {
+            return { type: declared as string, kind: kindOf(mapped), temporal: mapped.temporal };
+        }
+        return defaultScalar(column.meta.dtype);
+    }
+
+    /**
+     * Note a position or visual column whose dtype the format cannot keep.
+     * @param column - the column
+     * @param scalar - its scalar plan
+     * @param label - the column label for messages
+     */
+    private noteVisualColumn(column: Column, scalar: ScalarPlan, label: string): void {
+        const { meta } = column;
+        if (meta.dtype === "json" && scalar.kind !== "point") {
+            this.note(
+                LOSS.JSON,
+                `${label} holds nested values; the format has no nested values`,
+                meta.name,
+                column.length - column.nullCount,
+            );
+        } else if (meta.dtype !== "json" && !NEO4J_CAPABILITIES.dtypes.includes(meta.dtype)) {
+            this.note(
+                LOSS.DTYPE,
+                `${label} is ${meta.dtype}; the format cannot keep that dtype`,
+                meta.name,
+                column.length - column.nullCount,
+            );
+        }
+    }
+
+    /**
      * The plan of an f64 column declared with an integer type: kept when every set value is
      * integral, written as double (with a note) otherwise.
      * @param column - the column
@@ -617,22 +676,7 @@ class ExportPlan {
      * @returns the scalar plan
      */
     private integralOrDouble(column: Column, declared: string, label: string): ScalarPlan {
-        let integral = true;
-        if (column.dtype === "f64") {
-            for (let r = 0; r < column.length && integral; r++) {
-                if (column.isSet(r) && !Number.isInteger(column.data[r])) {
-                    integral = false;
-                }
-            }
-        } else if (column.dtype === "list" && column.child.dtype === "f64") {
-            const { data } = column.child;
-            for (let i = 0; i < data.length && integral; i++) {
-                if (!Number.isInteger(data[i])) {
-                    integral = false;
-                }
-            }
-        }
-        if (integral) {
+        if (holdsOnlyIntegers(column)) {
             return { type: declared, kind: "integer", temporal: null };
         }
         this.note(
@@ -719,48 +763,7 @@ class ExportPlan {
 
     /** Check the node ids' text forms: type changes under the canonical rule and collisions. */
     private checkIds(): void {
-        const { ids } = this.snapshot;
-        let typeChanges = 0;
-        let collisions = 0;
-        switch (ids.kind) {
-            case "identity":
-            case "dense":
-                break;
-            case "numeric":
-                for (let i = 0; i < ids.size; i++) {
-                    if (!Number.isSafeInteger(ids.idOf(i))) {
-                        typeChanges++;
-                    }
-                }
-                break;
-            case "string":
-                for (let i = 0; i < ids.size; i++) {
-                    if (isCanonicalIntegerText(String(ids.idOf(i)))) {
-                        typeChanges++;
-                    }
-                }
-                break;
-            case "mixed": {
-                const seen = new Set<string>();
-                for (let i = 0; i < ids.size; i++) {
-                    const id = ids.idOf(i);
-                    const text = String(id);
-                    if (typeof id === "number" ? !Number.isSafeInteger(id) : isCanonicalIntegerText(text)) {
-                        typeChanges++;
-                    }
-                    if (seen.has(text)) {
-                        collisions++;
-                    } else {
-                        seen.add(text);
-                    }
-                }
-                break;
-            }
-            default: {
-                const name: string = ids.kind;
-                throw new GraphFormatError("E_UNSUPPORTED", `unknown id map kind ${name}`, { kind: name });
-            }
-        }
+        const { typeChanges, collisions } = idTextIssues(this.snapshot.ids);
         if (typeChanges > 0) {
             this.note(
                 ID_TEXT_TYPE_LOSS,
@@ -897,7 +900,7 @@ class ExportPlan {
      */
     spaceOf(index: number): string | null {
         const { idSpace } = this;
-        if (idSpace === null || !idSpace.isSet(index)) {
+        if (!idSpace?.isSet(index)) {
             return null;
         }
         const value = idSpace.value(index);
@@ -1165,14 +1168,11 @@ class ExportPlan {
      */
     private labelsText(index: number): string | null {
         const { labels } = this;
-        if (labels === null || !labels.isSet(index)) {
+        if (!labels?.isSet(index)) {
             return null;
         }
         if (labels.dtype === "list") {
-            return labels
-                .sliceOf(index)
-                .map((item) => String(item))
-                .join(this.options.arrayDelimiter);
+            return labels.sliceOf(index).map(String).join(this.options.arrayDelimiter);
         }
         return textOf(labels, index);
     }
@@ -1189,22 +1189,33 @@ class ExportPlan {
             return null;
         }
         if (plan.list) {
-            const items = column.dtype === "list" ? column.sliceOf(row) : (column.value(row) as ArrayLike<unknown>);
-            const texts: string[] = [];
-            for (const item of Array.from(items)) {
-                // an item of several components (itemComponents > 1) is flattened into the array
-                if (Array.isArray(item) || ArrayBuffer.isView(item)) {
-                    for (const component of Array.from(item as ArrayLike<unknown>)) {
-                        texts.push(formatScalar(component, scalar, null));
-                    }
-                } else {
-                    texts.push(formatScalar(item, scalar, null));
-                }
-            }
-            return texts.join(this.options.arrayDelimiter);
+            return this.listText(plan, row);
         }
-        const text = companion !== null && companion.isSet(row) ? textOf(companion, row) : null;
+        const text = companion?.isSet(row) ? textOf(companion, row) : null;
         return formatScalar(column.dtype === "json" ? column.values[row] : column.value(row), scalar, text);
+    }
+
+    /**
+     * The text of one list cell: its items joined by the array delimiter.
+     * @param plan - the column plan
+     * @param row - the row, which is set
+     * @returns the text
+     */
+    private listText(plan: ColumnPlan, row: number): string {
+        const { column, scalar } = plan;
+        const items = column.dtype === "list" ? column.sliceOf(row) : (column.value(row) as ArrayLike<unknown>);
+        const texts: string[] = [];
+        for (const item of Array.from(items)) {
+            // an item of several components (itemComponents > 1) is flattened into the array
+            if (Array.isArray(item) || ArrayBuffer.isView(item)) {
+                for (const component of Array.from(item as ArrayLike<unknown>)) {
+                    texts.push(formatScalar(component, scalar, null));
+                }
+            } else {
+                texts.push(formatScalar(item, scalar, null));
+            }
+        }
+        return texts.join(this.options.arrayDelimiter);
     }
 }
 
@@ -1246,6 +1257,64 @@ function isStoredId(meta: ColumnMeta): boolean {
  */
 function isVizRole(role: string): boolean {
     return role === "color" || role === "size" || role === "shape" || role === "thickness";
+}
+
+/**
+ * Count the node ids whose text re-imports as another type, and the ids whose text another id shares.
+ * @param ids - the id map
+ * @returns the two counts
+ */
+function idTextIssues(ids: GraphSnapshot["ids"]): { typeChanges: number; collisions: number } {
+    let typeChanges = 0;
+    switch (ids.kind) {
+        case "identity":
+        case "dense":
+            return { typeChanges: 0, collisions: 0 };
+        case "numeric":
+            for (let i = 0; i < ids.size; i++) {
+                if (!Number.isSafeInteger(ids.idOf(i))) {
+                    typeChanges++;
+                }
+            }
+            return { typeChanges, collisions: 0 };
+        case "string":
+            for (let i = 0; i < ids.size; i++) {
+                if (isCanonicalIntegerText(String(ids.idOf(i)))) {
+                    typeChanges++;
+                }
+            }
+            return { typeChanges, collisions: 0 };
+        case "mixed":
+            return mixedIdTextIssues(ids);
+        default: {
+            const name: string = ids.kind;
+            throw new GraphFormatError("E_UNSUPPORTED", `unknown id map kind ${name}`, { kind: name });
+        }
+    }
+}
+
+/**
+ * Count type changes and text collisions over a mixed id map (numbers and strings).
+ * @param ids - the id map
+ * @returns the two counts
+ */
+function mixedIdTextIssues(ids: GraphSnapshot["ids"]): { typeChanges: number; collisions: number } {
+    let typeChanges = 0;
+    let collisions = 0;
+    const seen = new Set<string>();
+    for (let i = 0; i < ids.size; i++) {
+        const id = ids.idOf(i);
+        const text = String(id);
+        if (typeof id === "number" ? !Number.isSafeInteger(id) : isCanonicalIntegerText(text)) {
+            typeChanges++;
+        }
+        if (seen.has(text)) {
+            collisions++;
+        } else {
+            seen.add(text);
+        }
+    }
+    return { typeChanges, collisions };
 }
 
 /**
@@ -1323,6 +1392,16 @@ function defaultScalar(dtype: Dtype | ScalarDtype): ScalarPlan {
 }
 
 /**
+ * Format a number with a formatter; any other value is written as String(value).
+ * @param value - the value
+ * @param format - the number formatter
+ * @returns the text
+ */
+function numberOrString(value: unknown, format: (n: number) => string): string {
+    return typeof value === "number" ? format(value) : String(value);
+}
+
+/**
  * Format one scalar value for a cell.
  * @param value - the value
  * @param scalar - the plan
@@ -1332,26 +1411,26 @@ function defaultScalar(dtype: Dtype | ScalarDtype): ScalarPlan {
 function formatScalar(value: unknown, scalar: ScalarPlan, text: string | null): string {
     switch (scalar.kind) {
         case "integer":
-            return typeof value === "number" ? formatInteger(value) : String(value);
+            return numberOrString(value, formatInteger);
         case "float":
-            return typeof value === "number" ? formatF32(value) : String(value);
+            return numberOrString(value, formatF32);
         case "double":
-            return typeof value === "number" ? formatF64(value) : String(value);
+            return numberOrString(value, formatF64);
         case "boolean":
             return value === true ? "true" : "false";
         case "string":
-            return typeof value === "string" ? value : String(value);
+            return String(value);
         case "temporal":
-            if (text !== null) {
-                return text;
-            }
-            return typeof value === "number" && scalar.temporal !== null
-                ? formatTemporal(value, scalar.temporal)
-                : String(value);
+            return (
+                text ??
+                numberOrString(value, (n) =>
+                    scalar.temporal === null ? String(n) : formatTemporal(n, scalar.temporal),
+                )
+            );
         case "point":
             return formatPoint(value);
         case "json":
-            return JSON.stringify(value) ?? "";
+            return jsonText(value) ?? "";
         default: {
             const name: string = scalar.kind;
             throw new GraphFormatError("E_UNSUPPORTED", `unknown cell kind ${name}`, { kind: name });
@@ -1367,7 +1446,7 @@ function formatScalar(value: unknown, scalar: ScalarPlan, text: string | null): 
  */
 function formatPoint(value: unknown): string {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
-        return JSON.stringify(value) ?? "";
+        return jsonText(value) ?? "";
     }
     const parts: string[] = [];
     for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
@@ -1376,7 +1455,7 @@ function formatPoint(value: unknown): string {
         } else if (typeof item === "string") {
             parts.push(`${key}:'${item.replaceAll("'", "")}'`);
         } else {
-            return JSON.stringify(value) ?? "";
+            return jsonText(value) ?? "";
         }
     }
     return `{${parts.join(", ")}}`;
@@ -1409,7 +1488,7 @@ function textOf(column: Column, row: number): string {
         case "list":
             return column.sliceOf(row).map(String).join(",");
         case "json":
-            return JSON.stringify(column.values[row]) ?? "";
+            return jsonText(column.values[row]) ?? "";
         case "bool":
             return column.value(row) === true ? "true" : "false";
         default: {
@@ -1541,4 +1620,27 @@ function weightPropertyOf(snapshot: GraphSnapshot): string | null {
     const neo4j = (snapshot.meta.extra as { neo4j?: { weightProperty?: unknown } } | null)?.neo4j;
     const name = neo4j?.weightProperty;
     return typeof name === "string" && name !== "" ? name : null;
+}
+
+/**
+ * Whether every set value of an f64 column, or of an f64 list column's items, is integral.
+ * @param column - the column
+ * @returns false when a value is not an integer
+ */
+function holdsOnlyIntegers(column: Column): boolean {
+    if (column.dtype === "f64") {
+        for (let r = 0; r < column.length; r++) {
+            if (column.isSet(r) && !Number.isInteger(column.data[r])) {
+                return false;
+            }
+        }
+    } else if (column.dtype === "list" && column.child.dtype === "f64") {
+        const { data } = column.child;
+        for (let i = 0; i < data.length; i++) {
+            if (!Number.isInteger(data[i])) {
+                return false;
+            }
+        }
+    }
+    return true;
 }

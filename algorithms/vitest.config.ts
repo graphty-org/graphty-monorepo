@@ -1,12 +1,12 @@
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { ciReporters } from "../vitest.ci-junit.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
+import { baseTest } from "../vitest.base.mjs";
 
-export default defineConfig({
+const config = defineConfig({
     test: {
-        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
-        globalSetup: ["../tools/test-slots.mjs"],
+        ...baseTest({ reporters: ["verbose"] }),
         projects: [
             {
                 test: {
@@ -14,7 +14,6 @@ export default defineConfig({
                     globals: true,
                     environment: "happy-dom",
                     pool: "forks",
-                    testTimeout: 30000,
                     // see test/setup/yield-to-event-loop.ts -- without it a file of long synchronous
                     // tests holds the worker past vitest's fixed 60 s RPC timeout and fails a green run
                     setupFiles: ["./test/setup/yield-to-event-loop.ts"],
@@ -35,6 +34,11 @@ export default defineConfig({
             {
                 test: {
                     name: "browser",
+                    // Three pages at a time, as on a 4-core CI runner (Vitest's default is
+                    // min(12, cores - 1); a --maxWorkers flag does not reach a browser project).
+                    maxWorkers: 3,
+                    // Vitest refuses two projects with different maxWorkers in one group order.
+                    sequence: { groupOrder: 1 },
                     browser: {
                         enabled: true,
                         headless: true,
@@ -42,8 +46,6 @@ export default defineConfig({
                         instances: [{ browser: "chromium" }],
                     },
                     include: ["test/browser/**/*.test.ts"],
-                    testTimeout: 60000,
-                    hookTimeout: 60000,
                 },
             },
         ],
@@ -77,10 +79,7 @@ export default defineConfig({
                           statements: 80,
                       },
         },
-        reporters: ["verbose", ...ciReporters()],
         slowTestThreshold: 5000,
-        // Force exit after tests complete to prevent hanging
-        teardownTimeout: 10000,
     },
     resolve: {
         alias: {
@@ -88,3 +87,6 @@ export default defineConfig({
         },
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

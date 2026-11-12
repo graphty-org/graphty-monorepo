@@ -1,7 +1,7 @@
 /**
  * The fixed lexical grammar of design section 5.1 for untyped text sources (CSV cells, GML
- * values, DOT strings, Pajek tokens), reproduced from the core's reference implementation so the
- * two agree (invariant I15). Text importers parse each cell with parseTextCell() and push the JS
+ * values, DOT strings, Pajek tokens), classified by the core's own `inferTextDtype` so the two
+ * agree (invariant I15). Text importers parse each cell with parseTextCell() and push the JS
  * value; the sink's per-column inference then widens `bool -> i32 -> f64 -> string` and never per
  * cell, so a column that saw `1` and then `"01"` becomes string for all rows.
  *
@@ -13,15 +13,18 @@
  * - everything else is `string`.
  */
 
-import { type ColumnHandle, GraphFormatError, type GraphSink, INVALID_INDEX } from "@graphty/graph-format";
+import {
+    type ColumnHandle,
+    GraphFormatError,
+    type GraphSink,
+    inferTextDtype as coreInferTextDtype,
+    INVALID_INDEX,
+} from "@graphty/graph-format";
 
 import { PRECISION_CODE } from "./codes.js";
 import { type ImportReportBuilder } from "./report.js";
 
 const I32_TEXT = /^-?(0|[1-9]\d*)$/;
-const F64_TEXT = /^[+-]?((0|[1-9]\d*)(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
-const I32_MIN = -2147483648;
-const I32_MAX = 2147483647;
 
 /**
  * The dtype a text cell parses as under the fixed text grammar.
@@ -50,20 +53,7 @@ export function trimTrailingZeros(digits: string): string {
  * @category Plugin helpers
  */
 export function inferTextDtype(text: string): TextDtype {
-    if (text === "true" || text === "false") {
-        return "bool";
-    }
-    if (I32_TEXT.test(text)) {
-        const n = Number(text);
-        if (n >= I32_MIN && n <= I32_MAX) {
-            return "i32";
-        }
-        return Number.isFinite(n) ? "f64" : "string";
-    }
-    if (F64_TEXT.test(text) && Number.isFinite(Number(text))) {
-        return "f64";
-    }
-    return "string";
+    return coreInferTextDtype(text);
 }
 
 /**
@@ -202,21 +192,7 @@ export class TextCellWriter {
     write(row: number, text: string): void {
         const kind = inferTextDtype(text);
         const value = parseTextCell(text);
-        if (
-            typeof value === "number" &&
-            !Number.isSafeInteger(value) &&
-            I32_TEXT.test(text) &&
-            BigInt(text) !== BigInt(value)
-        ) {
-            // an integer beyond 2^53 is stored as the nearest double; say so once per column
-            this.report.warnOnce(
-                "precision",
-                PRECISION_CODE,
-                `${this.domain} column "${this.name}": integers beyond 2^53 are stored as the nearest double (first: ${text})`,
-                { element: this.name },
-                `${PRECISION_CODE}:${this.domain}:${this.name}`,
-            );
-        }
+        this.warnIfImprecise(text, value);
         const wasString = this.textDtype === "string";
         const textDtype =
             this.textDtype === null || textDtypeRank(kind) > textDtypeRank(this.textDtype) ? kind : this.textDtype;
@@ -247,6 +223,29 @@ export class TextCellWriter {
         }
         if (this.textDtype === "f64" && this.valueDtype !== "f64") {
             this.widen("f64");
+        }
+    }
+
+    /**
+     * Warn, once per column, when the cell is an integer beyond 2^53 that is stored as the nearest
+     * double.
+     * @param text - the cell text
+     * @param value - the parsed value
+     */
+    private warnIfImprecise(text: string, value: unknown): void {
+        if (
+            typeof value === "number" &&
+            !Number.isSafeInteger(value) &&
+            I32_TEXT.test(text) &&
+            BigInt(text) !== BigInt(value)
+        ) {
+            this.report.warnOnce(
+                "precision",
+                PRECISION_CODE,
+                `${this.domain} column "${this.name}": integers beyond 2^53 are stored as the nearest double (first: ${text})`,
+                { element: this.name },
+                `${PRECISION_CODE}:${this.domain}:${this.name}`,
+            );
         }
     }
 
@@ -330,4 +329,26 @@ function kindOfValue(value: boolean | number | string): TextDtype {
         return "string";
     }
     return Number.isInteger(value) && value >= -2147483648 && value <= 2147483647 ? "i32" : "f64";
+}
+
+/**
+ * `JSON.stringify` typed as it behaves: it returns undefined, not text, for undefined, a function
+ * or a symbol, which a value read from a file or passed by a caller can be.
+ * @param value - the value
+ * @returns its JSON text, or undefined when it has none
+ */
+export function jsonText(value: unknown): string | undefined {
+    return JSON.stringify(value);
+}
+
+/**
+ * An item of an array, typed as it behaves: undefined past the end (a short row of a malformed
+ * file) or for a capture group that took no part in a regular expression match, though the
+ * array's type says otherwise. Unlike `Array.prototype.at`, a negative index is undefined too.
+ * @param items - the array, or a regular expression match
+ * @param index - the index
+ * @returns the item, or undefined when there is none
+ */
+export function itemAt<T>(items: ArrayLike<T>, index: number): T | undefined {
+    return items[index];
 }

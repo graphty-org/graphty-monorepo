@@ -1,0 +1,106 @@
+/* THE SELECTION EDITOR WHILE THE `selection-workspace` EXPERIMENT IS OFF (issue #5805): the rules of
+   the outline-and-pane workspace (SelectionEditorInline.tsx) that the full-screen modal changed,
+   scoped to it. Deleted when the experiment graduates. The workspace is laid over the left panel and
+   the canvas (a style layer's, whose inspector stays beside it) or over the canvas and the
+   inspector (a filter card's, whose Filters list stays beside it); the editor measures where. No
+   scrim: its center is transparent and lets clicks through to the canvas, which it never re-frames. */
+.sel-ws.sel-inline {
+    position: fixed;
+    z-index: 20;
+    display: grid;
+    grid-template-rows: 40px minmax(0, 1fr);
+    min-width: 0;
+    min-height: 0;
+    pointer-events: none;
+}
+
+.sel-inline .sel-ws-head,
+.sel-inline .sel-ws-outline,
+.sel-inline .sel-ws-props,
+.sel-inline .sel-ws-strip,
+.sel-inline .sel-ws-preview .ws-legend-card,
+.sel-inline .sel-ws-fit {
+    pointer-events: auto;
+}
+
+.sel-inline .sel-ws-body {
+    display: grid;
+    grid-template-columns: fit-content(280px) minmax(0, 1fr) auto;
+    min-height: 0;
+}
+
+.sel-inline .sel-ws-outline {
+    min-width: max(200px, var(--sel-ws-cover-start, 0px));
+    max-width: max(280px, var(--sel-ws-cover-start, 0px));
+    overflow: hidden auto;
+    padding: 4px;
+    background: var(--cm-bg);
+    border-inline-end: 1px solid var(--cm-border);
+}
+
+.sel-inline .sel-ws-center[data-strip] {
+    grid-template-rows: minmax(0, 1fr) 30%;
+}
+
+.sel-inline .sel-ws-fit {
+    position: absolute;
+    inset-block-start: 8px;
+    inset-inline-end: 8px;
+}
+
+/* Fit sits on the canvas, which stays light in the dark theme: it takes the preview key's card
+   surface, so its words keep their contrast in both themes. */
+.sel-inline .sel-ws-fit.sel-ws-fit {
+    background: var(--cm-bg);
+    border: 1px solid var(--cm-border);
+    border-radius: var(--mantine-radius-sm);
+}
+
+.sel-inline .sel-ws-props.sel-pane-box {
+    border-top: 0;
+}
+
+.sel-inline .sel-ws-props {
+    width: max(320px, var(--sel-ws-cover-end, 0px));
+    overflow: hidden auto;
+    padding: 8px 16px;
+    background: var(--cm-bg);
+    border-inline-start: 1px solid var(--cm-border);
+}
+
+.ws-body:has(> .sel-inline) .ws-canvas-overlays .ws-legend-card {
+    display: none;
+}
+
+/* While the workspace is open, the drawing takes the preview cell's box (the editor writes the
+   inset), so the canvas is the frame and nothing lies over it. */
+.ws-canvas[data-sel-inline] .ws-canvas-surface {
+    position: absolute;
+    inset: var(--sel-preview-inset, 0);
+    height: auto;
+}
+
+/* The sidebar title row's Edit is drawn on hover or focus, over the row's end, so the name keeps
+   the row's width at rest (the row itself opens the workspace too). */
+.sel-rest-inline .sel-title-row {
+    position: relative;
+}
+
+.sel-rest-inline .sel-title-row [data-edit] {
+    position: absolute;
+    inset-inline-end: 4px;
+    background: var(--cm-bg);
+    opacity: 0;
+}
+
+.sel-rest-inline .sel-title-row:hover [data-edit],
+.sel-rest-inline .sel-title-row:focus-within [data-edit],
+.sel-rest-inline .sel-title-row [data-edit]:focus-visible {
+    opacity: 1;
+}
+
+/* Edit takes the count's place, never half of it: the count goes while Edit is drawn. */
+.sel-rest-inline .sel-title-row:hover .sel-count,
+.sel-rest-inline .sel-title-row:focus-within .sel-count {
+    visibility: hidden;
+}

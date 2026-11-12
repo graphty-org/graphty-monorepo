@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, test, vi } from "vitest";
 import type { OrbitCameraController } from "../../../src/cameras/OrbitCameraController";
 import type { OrbitInputController } from "../../../src/cameras/OrbitInputController";
 import type { Graph } from "../../../src/Graph";
+import { holdKey, releaseHeldKeys } from "../../helpers/real-input";
 import { setupTestGraph, teardownTestGraph } from "../helpers/interaction-helpers";
 
 /**
@@ -34,15 +35,12 @@ function get3DControllers(graph: Graph): {
 }
 
 /**
- * Helper to simulate keyboard key state
+ * Press a key and hold it on the focused canvas: a real key press through `userEvent`, which
+ * the input controller's own listeners receive. `releaseHeldKeys` lets it go after the test.
  */
-function setKeyState(inputController: OrbitInputController, key: string, pressed: boolean): void {
-    // Access private keysDown via type assertion
-    // Note: Keys are stored in lowercase in OrbitInputController
-    const controller = inputController as unknown as {
-        keysDown: Record<string, boolean>;
-    };
-    controller.keysDown[key.toLowerCase()] = pressed;
+async function pressKey(graph: Graph, key: string): Promise<void> {
+    graph.canvas.focus();
+    await holdKey(key);
 }
 
 /**
@@ -79,19 +77,20 @@ describe("3D Input Direction Verification", () => {
         graph = await setupTestGraph({ mode: "3d" });
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+        await releaseHeldKeys();
         vi.restoreAllMocks();
         teardownTestGraph(graph);
     });
 
-    test("ArrowLeft rotates camera LEFT (decreases yaw)", () => {
+    test("ArrowLeft rotates camera LEFT (decreases yaw)", async () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
 
         // Simulate ArrowLeft key press
-        setKeyState(inputController, "arrowleft", true);
+        await pressKey(graph, "ArrowLeft");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -99,24 +98,19 @@ describe("3D Input Direction Verification", () => {
         // Get final rotation
         const finalRotation = getPivotRotation(cameraController);
 
-        // Looking at OrbitInputController.ts lines 143-144:
-        // if (keys.arrowleft) { this.rotationVelocityY += this.config.keyboardRotationSpeed; }
-        // Then at lines 180-182:
-        // if (Math.abs(this.rotationVelocityY) > 0.00001) {
-        //     cam.rotate(-this.rotationVelocityY / this.config.trackballRotationSpeed, 0);
-        // So ArrowLeft adds positive velocityY, then rotate is called with -velocityY (negative dx)
-        // After the XR convention fix, rotate() uses dx directly (not -dx), so negative dx decreases yaw
+        // A held ArrowLeft calls rotate(-keyboardRotationSpeed / trackballRotationSpeed, 0) each
+        // frame, and a negative dx decreases yaw
         assert.isBelow(finalRotation.yaw, initialRotation.yaw, "ArrowLeft should rotate camera LEFT (decrease yaw)");
     });
 
-    test("ArrowRight rotates camera RIGHT (increases yaw)", () => {
+    test("ArrowRight rotates camera RIGHT (increases yaw)", async () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
 
         // Simulate ArrowRight key press
-        setKeyState(inputController, "arrowright", true);
+        await pressKey(graph, "ArrowRight");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -124,21 +118,18 @@ describe("3D Input Direction Verification", () => {
         // Get final rotation
         const finalRotation = getPivotRotation(cameraController);
 
-        // Looking at OrbitInputController.ts lines 147-148:
-        // if (keys.arrowright) { this.rotationVelocityY -= this.config.keyboardRotationSpeed; }
-        // Then rotate(-velocityY, 0) = rotate(positive, 0) = positive dx
-        // After the XR convention fix, rotate() uses dx directly, so positive dx increases yaw
+        // A held ArrowRight calls rotate with a positive dx each frame, which increases yaw
         assert.isAbove(finalRotation.yaw, initialRotation.yaw, "ArrowRight should rotate camera RIGHT (increase yaw)");
     });
 
-    test("ArrowUp tilts camera UP", () => {
+    test("ArrowUp tilts camera UP", async () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
 
         // Simulate ArrowUp key press
-        setKeyState(inputController, "arrowup", true);
+        await pressKey(graph, "ArrowUp");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -146,24 +137,19 @@ describe("3D Input Direction Verification", () => {
         // Get final rotation
         const finalRotation = getPivotRotation(cameraController);
 
-        // Looking at OrbitInputController.ts lines 151-152:
-        // if (keys.arrowup) { this.rotationVelocityX += this.config.keyboardRotationSpeed; }
-        // Then at lines 175-177:
-        // cam.rotate(0, -this.rotationVelocityX / this.config.trackballRotationSpeed);
-        // So ArrowUp adds positive velocityX, then rotate is called with -velocityX = negative dy
-        // Negative dy to OrbitCameraController.rotate means tilt up (looking up)
-        // This should result in pitch change
+        // A held ArrowUp calls rotate(0, -keyboardRotationSpeed / trackballRotationSpeed) each
+        // frame: a negative dy, which tilts the camera up
         assert.notEqual(finalRotation.pitch, initialRotation.pitch, "ArrowUp should tilt camera UP (change pitch)");
     });
 
-    test("ArrowDown tilts camera DOWN", () => {
+    test("ArrowDown tilts camera DOWN", async () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
 
         // Simulate ArrowDown key press
-        setKeyState(inputController, "arrowdown", true);
+        await pressKey(graph, "ArrowDown");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -171,20 +157,18 @@ describe("3D Input Direction Verification", () => {
         // Get final rotation
         const finalRotation = getPivotRotation(cameraController);
 
-        // Looking at OrbitInputController.ts lines 155-156:
-        // if (keys.arrowdown) { this.rotationVelocityX -= this.config.keyboardRotationSpeed; }
-        // Then rotate(0, -velocityX) = rotate(0, positive) = positive dy = tilt down
+        // A held ArrowDown calls rotate with a positive dy each frame, which tilts the camera down
         assert.notEqual(finalRotation.pitch, initialRotation.pitch, "ArrowDown should tilt camera DOWN (change pitch)");
     });
 
-    test("W key zooms IN (decreases camera distance)", () => {
+    test("W key zooms IN (decreases camera distance)", async () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial camera distance
         const initialDistance = cameraController.cameraDistance;
 
         // Simulate W key press
-        setKeyState(inputController, "w", true);
+        await pressKey(graph, "w");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -192,20 +176,18 @@ describe("3D Input Direction Verification", () => {
         // Get final distance
         const finalDistance = cameraController.cameraDistance;
 
-        // Looking at OrbitInputController.ts lines 159-160:
-        // if (keys.w) { cam.zoom(-this.config.keyboardZoomSpeed); }
-        // zoom() with negative delta decreases cameraDistance = zoom in
+        // W multiplies the distance by (1 - keyboardZoomSpeed) each frame = zoom in
         assert.isBelow(finalDistance, initialDistance, "W key should zoom IN (decrease camera distance)");
     });
 
-    test("S key zooms OUT (increases camera distance)", () => {
+    test("S key zooms OUT (increases camera distance)", async () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial camera distance
         const initialDistance = cameraController.cameraDistance;
 
         // Simulate S key press
-        setKeyState(inputController, "s", true);
+        await pressKey(graph, "s");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -213,20 +195,18 @@ describe("3D Input Direction Verification", () => {
         // Get final distance
         const finalDistance = cameraController.cameraDistance;
 
-        // Looking at OrbitInputController.ts lines 163-164:
-        // if (keys.s) { cam.zoom(this.config.keyboardZoomSpeed); }
-        // zoom() with positive delta increases cameraDistance = zoom out
+        // S divides the distance by (1 - keyboardZoomSpeed) each frame = zoom out
         assert.isAbove(finalDistance, initialDistance, "S key should zoom OUT (increase camera distance)");
     });
 
-    test("A key spins camera LEFT (yaw rotation)", () => {
+    test("A key spins camera LEFT (yaw rotation)", async () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
 
         // Simulate A key press
-        setKeyState(inputController, "a", true);
+        await pressKey(graph, "a");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -240,14 +220,14 @@ describe("3D Input Direction Verification", () => {
         assert.isAbove(finalRotation.roll, initialRotation.roll, "A key should spin camera LEFT (increase roll)");
     });
 
-    test("D key spins camera RIGHT (yaw rotation)", () => {
+    test("D key spins camera RIGHT (yaw rotation)", async () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
 
         // Simulate D key press
-        setKeyState(inputController, "d", true);
+        await pressKey(graph, "d");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -314,12 +294,7 @@ describe("3D Input Direction Verification", () => {
         // Record initial camera distance
         const initialDistance = cameraController.cameraDistance;
 
-        // Simulate pinch spread (scale increases, which maps to negative zoom delta)
-        // Looking at OrbitInputController.ts lines 84-85:
-        // const scaleDelta = ev.scale - lastScale;
-        // this.controller.zoom(-scaleDelta * this.config.pinchZoomSensitivity);
-        // If scale increases by 0.5 (spread), scaleDelta = 0.5, zoom(-0.5 * sensitivity)
-        // zoom() with negative delta decreases distance = zoom in
+        // A pinch maps the change in finger gap onto a zoom; a spread is a negative delta = zoom in
         const scaleDelta = 0.5; // spread
         const pinchSensitivity = 10; // typical sensitivity
         cameraController.zoom(-scaleDelta * pinchSensitivity);

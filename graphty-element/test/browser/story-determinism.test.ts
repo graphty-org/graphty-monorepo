@@ -1,5 +1,5 @@
 /**
- * @file Every story Chromatic snapshots draws the same picture every run.
+ * @file Every story the visual capture snapshots draws the same picture every run.
  *
  * It checks for:
  *
@@ -20,7 +20,7 @@
  * reaches Lit, Babylon and the DOM at load time. The Node project cannot load them.
  *
  * WHY `storySetup` IS REPLACED. `storySetup()` turns the pre-step count a story names into zero
- * whenever the page is not Chromatic, which is where this test runs, and fills in 2000 when the
+ * whenever the page is not a visual capture, which is where this test runs, and fills in 2000 when the
  * story names none. Replacing it with a function that hands back exactly what the story asked for
  * lets this test read the count the story itself named.
  */
@@ -232,7 +232,7 @@ function layoutIssues(file: string, stories: readonly CheckedStory[], settlingHe
             continue;
         }
 
-        // A story Chromatic never snapshots cannot produce a Chromatic diff.
+        // A story the visual capture never snapshots cannot produce a visual diff.
         if ((parameters.chromatic as { disableSnapshot?: boolean } | undefined)?.disableSnapshot === true) {
             continue;
         }
@@ -263,7 +263,7 @@ function layoutIssues(file: string, stories: readonly CheckedStory[], settlingHe
             }
         } else if (setup === undefined && behaviourPreSteps === undefined) {
             issues.push(
-                `${where} uses physics layout "${layout}" without preSteps - will not settle before Chromatic capture`,
+                `${where} uses physics layout "${layout}" without preSteps - will not settle before the visual capture`,
             );
         }
 
@@ -275,7 +275,7 @@ function layoutIssues(file: string, stories: readonly CheckedStory[], settlingHe
         if (!settles) {
             issues.push(
                 `${where} uses physics layout "${layout}" without waitForGraphSettled in its play function - ` +
-                    "will not settle before Chromatic capture",
+                    "will not settle before the visual capture",
             );
         }
     }
@@ -337,7 +337,7 @@ describe("Story Determinism", () => {
         assert.isAbove(files.length, 20, "the glob must find the package's story files");
     });
 
-    it.each(files)("%s uses deterministic patterns for Chromatic visual testing", async (file) => {
+    it.each(files)("%s uses deterministic patterns for the visual capture", async (file) => {
         const source = storySources[file];
         const settlingHelpers = new Set([...helperSettles, ...settlingHelperNames(source)]);
         const stories = composedStories(await storyModules[file]());

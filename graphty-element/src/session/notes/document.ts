@@ -11,6 +11,7 @@
  */
 
 import { GraphtyError } from "../../errors/GraphtyError";
+import { isPlainObject } from "../../utils/isPlainObject";
 import type { NoteEntry } from "../project/state";
 import { canonicalize } from "../runs/runId";
 import type { Note, NoteId, NoteMergeOptions, NotesDocument, Problem } from "./types";
@@ -19,7 +20,6 @@ import {
     checkMediaType,
     checkText,
     codePoints,
-    isPlain,
     NOTE_LIMITS,
     recordOf,
     unknownFields,
@@ -78,7 +78,7 @@ function pointerSegment(key: string): string {
  * @returns The copy, frozen.
  */
 function memberCopy(value: unknown, depth: number, seen: Set<object>): unknown {
-    if (typeof value !== "object" || value === null || (!Array.isArray(value) && !isPlain(value))) {
+    if (typeof value !== "object" || value === null || (!Array.isArray(value) && !isPlainObject(value))) {
         return value;
     }
 
@@ -134,7 +134,7 @@ function frozenCopy(value: unknown): unknown {
         return Object.freeze(value.map(frozenCopy));
     }
 
-    if (!isPlain(value)) {
+    if (!isPlainObject(value)) {
         throw new Error("not plain JSON");
     }
 
@@ -184,7 +184,7 @@ function keysAre(value: object, allowed: readonly string[], required: readonly s
  * @returns True when it is.
  */
 function isEdgeForm(edge: unknown): boolean {
-    if (!isPlain(edge) || !keysAre(edge, ["source", "target", "id", "ordinal", "among"], ["source", "target"])) {
+    if (!isPlainObject(edge) || !keysAre(edge, ["source", "target", "id", "ordinal", "among"], ["source", "target"])) {
         return false;
     }
 
@@ -237,13 +237,13 @@ function isTargetForm(target: object): boolean {
         return isString(t.result, 256);
     }
 
-    if (keysAre(t, ["item"]) && isPlain(t.item) && keysAre(t.item, ["result", "run", "key"])) {
+    if (keysAre(t, ["item"]) && isPlainObject(t.item) && keysAre(t.item, ["result", "run", "key"])) {
         const { item } = t as { item: Record<string, unknown> };
         const { key } = item;
         return (
             isString(item.result, 256) &&
             isString(item.run, 256) &&
-            isPlain(key) &&
+            isPlainObject(key) &&
             keysAre(key, ["field", "value"]) &&
             isString(key.field, 256) &&
             (typeof key.value === "string" || typeof key.value === "boolean" || isId(key.value))
@@ -357,13 +357,78 @@ function objectsOf(value: unknown, what: string): readonly object[] {
 
     return Object.freeze(
         value.map((entry: unknown) => {
-            if (!isPlain(entry) || Object.keys(entry).length === 0 || Object.keys(entry).length > 64) {
+            if (!isPlainObject(entry) || Object.keys(entry).length === 0 || Object.keys(entry).length > 64) {
                 throw new Error(`one of its ${what} is not an object of 1 to 64 members`);
             }
 
             return frozenCopy(entry) as object;
         }),
     );
+}
+
+/**
+ * Check a note's times and author, as the schema checks them.
+ * @param time - Its time.
+ * @param edited - Its edited time, if any.
+ * @param done - Its done time, if any.
+ * @param author - Its author, if any.
+ * @throws With the reason the note is skipped.
+ */
+function checkTimesAndAuthor(
+    time: unknown,
+    edited: unknown,
+    done: unknown,
+    author: unknown,
+): asserts author is string | undefined {
+    if (Number.isNaN(instantOf(time))) {
+        throw new Error("its time is missing or not a real date and time with an offset");
+    }
+
+    if (edited !== undefined && Number.isNaN(instantOf(edited))) {
+        throw new Error("its edited is not a real date and time with an offset");
+    }
+
+    if (done !== undefined && Number.isNaN(instantOf(done))) {
+        throw new Error("its done is not a real date and time with an offset");
+    }
+
+    if (author !== undefined && (!isString(author, 256) || !/\S/u.test(author))) {
+        throw new Error("its author is empty, only white space, or longer than 256 characters");
+    }
+}
+
+/**
+ * Note each time more than a day after the moment of opening.
+ * @param at - The note's pointer.
+ * @param now - The moment of opening.
+ * @param notices - Where notices go.
+ * @param time - Its time.
+ * @param edited - Its edited time, if any.
+ * @param done - Its done time, if any.
+ */
+function pushFutureTimes(
+    at: string,
+    now: number,
+    notices: Problem[],
+    time: unknown,
+    edited: unknown,
+    done: unknown,
+): void {
+    for (const [field, value] of [
+        ["time", time],
+        ["edited", edited],
+        ["done", done],
+    ] as const) {
+        if (value !== undefined && instantOf(value) > now + DAY) {
+            notices.push(
+                Object.freeze({
+                    what: `${at}/${field}`,
+                    reason: `The note's ${field} is more than a day after it was opened; it is kept as written.`,
+                    code: "W_FUTURE_TIME" as const,
+                }),
+            );
+        }
+    }
 }
 
 /**
@@ -376,7 +441,7 @@ function objectsOf(value: unknown, what: string): readonly object[] {
  * @throws With the reason the note is skipped.
  */
 function readNote(raw: unknown, at: string, now: number, notices: Problem[]): Note {
-    if (!isPlain(raw)) {
+    if (!isPlainObject(raw)) {
         throw new Error("it is not an object");
     }
 
@@ -388,30 +453,13 @@ function readNote(raw: unknown, at: string, now: number, notices: Problem[]): No
         throw new Error("its id is not note_ followed by 1 to 64 letters, digits, - or _");
     }
 
-    const { time } = raw;
-    if (Number.isNaN(instantOf(time))) {
-        throw new Error("its time is missing or not a real date and time with an offset");
-    }
-
-    const { edited } = raw;
-    if (edited !== undefined && Number.isNaN(instantOf(edited))) {
-        throw new Error("its edited is not a real date and time with an offset");
-    }
-
-    const { done } = raw;
-    if (done !== undefined && Number.isNaN(instantOf(done))) {
-        throw new Error("its done is not a real date and time with an offset");
-    }
-
-    const { author } = raw;
-    if (author !== undefined && (!isString(author, 256) || !/\S/u.test(author))) {
-        throw new Error("its author is empty, only white space, or longer than 256 characters");
-    }
+    const { time, edited, done, author } = raw;
+    checkTimesAndAuthor(time, edited, done, author);
 
     const targets = objectsOf(raw.targets, "targets");
     for (const target of targets) {
         const { edge } = target as { edge?: unknown };
-        if (isPlain(edge) && isSessionEdgeId(edge.id)) {
+        if (isPlainObject(edge) && isSessionEdgeId(edge.id)) {
             sessionEdgesFromFiles.add(target);
         }
     }
@@ -433,21 +481,7 @@ function readNote(raw: unknown, at: string, now: number, notices: Problem[]): No
         );
     }
 
-    for (const [field, value] of [
-        ["time", time],
-        ["edited", edited],
-        ["done", done],
-    ] as const) {
-        if (value !== undefined && instantOf(value) > now + DAY) {
-            notices.push(
-                Object.freeze({
-                    what: `${at}/${field}`,
-                    reason: `The note's ${field} is more than a day after it was opened; it is kept as written.`,
-                    code: "W_FUTURE_TIME" as const,
-                }),
-            );
-        }
-    }
+    pushFutureTimes(at, now, notices, time, edited, done);
 
     return recordOf(
         {
@@ -479,22 +513,11 @@ interface ReadMember {
 }
 
 /**
- * Read a `graphty-notes` member.
- * @param input - The member, parsed from JSON.
- * @param now - The moment of opening.
- * @returns The member's notes, checked.
- * @throws A `GraphtyError` for a member refused whole.
+ * Refuse a notes member whose version this release does not read.
+ * @param version - The member's version field.
+ * @throws A `GraphtyError` for a version that is not a positive whole number, or not 1.
  */
-export function readMember(input: unknown, now: number): ReadMember {
-    // Everything below reads this copy, never the caller's object.
-    const document = memberCopy(input, 1, new Set());
-    if (!isPlain(document) || document.kind !== "graphty-notes") {
-        throw refuseMember("E_BAD_DOCUMENT", 'A notes member is an object whose kind is "graphty-notes".', {
-            kind: isPlain(document) ? document.kind : undefined,
-        });
-    }
-
-    const { version } = document;
+function checkMemberVersion(version: unknown): void {
     if (!Number.isInteger(version) || (version as number) < 1) {
         throw refuseMember("E_BAD_DOCUMENT", "A notes member's version is a positive whole number.");
     }
@@ -510,6 +533,47 @@ export function readMember(input: unknown, now: number): ReadMember {
             },
         );
     }
+}
+
+/**
+ * A notice for each member field this release does not know.
+ * @param document - The member.
+ * @returns The notices, in field order.
+ */
+function unknownMemberNotices(document: Readonly<Record<string, unknown>>): Problem[] {
+    const notices: Problem[] = [];
+    for (const key of Object.keys(document)) {
+        if (!MEMBER_FIELDS.has(key)) {
+            notices.push(
+                Object.freeze({
+                    what: `/${pointerSegment(key)}`,
+                    reason: `The member field ${JSON.stringify(key.slice(0, 256))} is not one this release knows; it is ignored.`,
+                    code: "W_UNKNOWN_MEMBER" as const,
+                }),
+            );
+        }
+    }
+
+    return notices;
+}
+
+/**
+ * Read a `graphty-notes` member.
+ * @param input - The member, parsed from JSON.
+ * @param now - The moment of opening.
+ * @returns The member's notes, checked.
+ * @throws A `GraphtyError` for a member refused whole.
+ */
+export function readMember(input: unknown, now: number): ReadMember {
+    // Everything below reads this copy, never the caller's object.
+    const document = memberCopy(input, 1, new Set());
+    if (!isPlainObject(document) || document.kind !== "graphty-notes") {
+        throw refuseMember("E_BAD_DOCUMENT", 'A notes member is an object whose kind is "graphty-notes".', {
+            kind: isPlainObject(document) ? document.kind : undefined,
+        });
+    }
+
+    checkMemberVersion(document.version);
 
     const { notes, name, description, extensions } = document;
     if (!Array.isArray(notes)) {
@@ -541,18 +605,7 @@ export function readMember(input: unknown, now: number): ReadMember {
         }
     }
 
-    const notices: Problem[] = [];
-    for (const key of Object.keys(document)) {
-        if (!MEMBER_FIELDS.has(key)) {
-            notices.push(
-                Object.freeze({
-                    what: `/${pointerSegment(key)}`,
-                    reason: `The member field ${JSON.stringify(key.slice(0, 256))} is not one this release knows; it is ignored.`,
-                    code: "W_UNKNOWN_MEMBER" as const,
-                }),
-            );
-        }
-    }
+    const notices = unknownMemberNotices(document);
 
     const read: Note[] = [];
     const skipped: Problem[] = [];

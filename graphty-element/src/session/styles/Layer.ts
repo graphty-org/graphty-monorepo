@@ -45,27 +45,60 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { LABEL_LOOKS, labelLook } from "../../catalog/label-looks";
 import { knownPaletteIds, paletteDescriptor } from "../../catalog/palettes";
+import { shaderDescriptor, shaderIdsFor } from "../../catalog/shaderRegistry";
+import {
+    isClockBinding,
+    isShaderId,
+    isShaderParamName,
+    SHADER_CLOCKS,
+    type ShaderClockBinding,
+    type ShaderDescriptor,
+    type ShaderPlace,
+    shaderPlaceProblem,
+    type ShaderProblem,
+} from "../../catalog/shaders";
 import type {
     Binding,
     BindingOverflow,
     ChannelValue,
+    CombineMode,
     Encoding,
     GraphtyErrorCode,
+    LabelStyle,
     LayerId,
     LayerKind,
     LayerSource,
     LayerSpec,
+    LayerUnmatchedGroup,
     Path,
     Rgba,
     StaticStyle,
 } from "../../catalog/types";
+import { MIN_DRAWN_FONT_SIZE } from "../../config/RichTextStyle";
 import { isGraphtyError } from "../../errors";
+import type { GraphtyWarningCode } from "../../errors/codes";
+import { isPlainObject } from "../../utils/isPlainObject";
 import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
-import { type ChannelDescriptor, channelDescriptor, channelsFor, toColorValue } from "./channels";
-import type { CompiledSelector, SelectorSource, SelectorTarget } from "./predicate";
+import type { CodedFact } from "../shared";
+import {
+    type ChannelDescriptor,
+    channelDescriptor,
+    channelsFor,
+    isEnumCount,
+    labelFieldOf,
+    modelBindingProblem,
+    parseShaderParamAddress,
+    toColorValue,
+} from "./channels";
+import { type RuleBinding, stopsProblem } from "./encoding";
+import type { FileStyleOrigin } from "./fileStyles/origin";
+import { parseTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
+import { colorsProblem } from "./palettes";
+import { columnsFor, type CompiledSelector, type SelectorSource, type SelectorTarget } from "./predicate";
 import type { ScaleRegistry } from "./scales";
 import { compileSelector, type Selector } from "./selector";
 
@@ -115,6 +148,11 @@ export interface Layer {
     /** The declarative value-to-channel bindings it writes, when it has any. */
     readonly encode?: Encoding;
     /**
+     * What the last re-run of a run it reads could not match to its groups: see
+     * {@link LayerUnmatchedGroup}. Absent when everything matched.
+     */
+    readonly unmatched?: readonly LayerUnmatchedGroup[];
+    /**
      * The consumer's own bag, carried untouched.
      *
      * The element never reads it, copies it, validates it or freezes it: what was handed in is
@@ -125,6 +163,24 @@ export interface Layer {
      * with the next release.
      */
     readonly userData?: Record<string, unknown>;
+    /**
+     * The row this layer is a part of, when it is one part of a row that paints nodes and edges:
+     * the id of the row's node part. Absent, the layer is a row of its own. See `styles.addRow`.
+     */
+    readonly row?: LayerId;
+    /**
+     * Present, and true, while the layer's row or a folder holding it is hidden
+     * (`styles.hideRow`): the layer paints nothing, whatever `enabled` says, and paints again
+     * when the row is shown. Absent while the row is shown.
+     */
+    readonly hidden?: true;
+    /**
+     * Where a layer made from a file's styles came from, read with `fileStyleOf(layer)`; absent
+     * on every other layer. The element's own facts, kept apart from `userData` so a consumer's
+     * bag is never shared with them. Never used to paint.
+     * @experimental file-styles
+     */
+    readonly fileStyle?: FileStyleOrigin;
 }
 
 /**
@@ -162,6 +218,14 @@ export interface LayerProblem {
     readonly position?: number;
     /** The names that would have been right, nearest first. */
     readonly candidates?: readonly string[];
+    /**
+     * A refused shader use, as a code and its values: `shader.place-unsupported`
+     * `{ shader, place, allowed }`, `shader.target-mismatch` `{ expected, found }`, or
+     * `shader.uses-not-a-list` `{ channel, found }` for a shader list written as something else
+     * (`found` is the `typeof` it was written as, or `"null"`).
+     * @since 3.36.0
+     */
+    readonly fact?: ShaderProblem;
 }
 
 /**
@@ -192,6 +256,28 @@ export interface ValidationResult {
      * have meant the column, which reads as `data.graphty.<name>`.
      */
     readonly shadowedPaths: readonly Path[];
+    /**
+     * What will paint nothing, or not as written, as codes. Not errors: the layer is still added.
+     *
+     * `W_UNKNOWN_ID`: a `{ match: "ids" }` selector names ids no element of the layer's target
+     * answers to now, by either spelling of an integer id. `params.target` is `"node"` or
+     * `"edge"`, `params.ids` those ids as the layer named them.
+     *
+     * `W_ALPHA_IGNORED`: a color with an alpha written to a channel that cannot draw it
+     * translucent (`node.outline`), so it is drawn opaque. `params.channel` and `params.path`.
+     *
+     * `W_TEXT_TOO_SMALL`: a text size under 1 written to a label, tooltip or caption size, which
+     * draws no text. `params.channel`, `params.path` and `params.value`.
+     *
+     * `W_LABEL_STYLE_BOUND`: a whole label style channel (`node.labelStyle`) bound to a path. No
+     * scale produces a whole label style, so the binding paints nothing. `params.channel` is the
+     * channel, `params.path` where in the specification (`encode.node.labelStyle`), and
+     * `params.fieldChannels` the label field channels that can be bound instead
+     * (`node.labelSize` ...), empty when the channel has none.
+     *
+     * New codes may be added in a minor release: word an unknown one generically.
+     */
+    readonly warnings: readonly CodedFact<GraphtyWarningCode>[];
 }
 
 /**
@@ -235,6 +321,23 @@ export interface LayerCheckOptions {
      * @returns The scope the layer holds.
      */
     readonly admitScope?: (scope: unknown) => unknown;
+    /**
+     * A `{ match: "rule" }` selector's rule as the layer stores it: every union leaf given its
+     * branch and step ids and branch colors. Absent, the rule is stored as given.
+     */
+    readonly admitRule?: (rule: unknown) => unknown;
+    /**
+     * Whether the layer may write no channel: an edit asked to keep a layer whose last value it
+     * takes away, which then stays in place painting nothing, as a starting row that writes
+     * nothing does.
+     */
+    readonly mayBeEmpty?: boolean;
+    /**
+     * What a shader id the catalog does not list (or of the wrong kind) is: `"refuse"`, the
+     * default, refuses the layer, as `styles.add` does; `"report"` accepts it, as a loaded style
+     * document is, and `styles.counts` reports it as drawing nothing.
+     */
+    readonly shaders?: "refuse" | "report";
 }
 
 /**
@@ -322,6 +425,11 @@ export interface RepaintContext {
      * @param progress - What changed.
      */
     report(progress: RunProgressReport): void;
+    /**
+     * True when the elements named are all that changed, so the renderer places what is painted
+     * and visits nothing else: a time window's slide.
+     */
+    readonly rowsOnly?: boolean;
 }
 
 /** How much a repaint actually painted, which is what the change announcement carries. */
@@ -358,7 +466,7 @@ const ID_FALLBACK = "layer";
 const RUN_PATH_PREFIX = "results.";
 
 /** The overflow policies a binding may name. */
-const OVERFLOW_POLICIES: readonly BindingOverflow[] = Object.freeze(["other", "shape", "extend"]);
+const OVERFLOW_POLICIES: readonly BindingOverflow[] = Object.freeze(["other", "shape", "pattern", "extend"]);
 
 /** The source a specification that named none is given. */
 const USER_SOURCE: LayerSource = Object.freeze({ by: "user" });
@@ -368,6 +476,91 @@ const NO_PATHS: readonly Path[] = Object.freeze([]);
 
 /** Nothing was wrong. */
 const NO_PROBLEMS: readonly LayerProblem[] = Object.freeze([]);
+
+/** Nothing to warn about. */
+const NO_WARNINGS: readonly CodedFact<GraphtyWarningCode>[] = Object.freeze([]);
+
+/**
+ * The warnings a layer's selector earns: the ids an `ids` selector names that nothing answers to.
+ * @param spec - The specification.
+ * @param target - The layer's target, or null when it could not be settled.
+ * @param elements - Where an id is looked up.
+ * @returns The warnings; none when the session cannot look an id up.
+ */
+function selectorWarnings(
+    spec: LayerSpec,
+    target: SelectorTarget | null,
+    elements: SelectorSource,
+): readonly CodedFact<GraphtyWarningCode>[] {
+    const selector = spec.selector as { match?: unknown; nodes?: unknown; edges?: unknown } | null | undefined;
+    if (target === null || selector?.match !== "ids") {
+        return NO_WARNINGS;
+    }
+
+    const named = (target === "node" ? selector.nodes : selector.edges) as readonly (string | number)[] | undefined;
+    const { indexOf } = columnsFor(elements, target);
+    if (named === undefined || indexOf === null) {
+        return NO_WARNINGS;
+    }
+
+    const unknown = named.filter((id) => indexOf(id) === undefined);
+
+    return unknown.length === 0
+        ? NO_WARNINGS
+        : Object.freeze([
+              Object.freeze({ code: "W_UNKNOWN_ID" as const, params: Object.freeze({ target, ids: unknown }) }),
+          ]);
+}
+
+/** The color channels that draw a color opaque whatever its alpha. See `NodeEffects.applyOutlineEffect`. */
+const OPAQUE_COLOR_CHANNELS: readonly string[] = ["node.outline"];
+
+/**
+ * The warnings a layer's literal colors earn: an alpha written to a channel that cannot draw it.
+ *
+ * Every other color channel multiplies a color's alpha into its opacity (issue #2071); an
+ * outline cannot be drawn translucent, so its alpha is dropped and this says so.
+ * @param spec - The specification.
+ * @returns The warnings; none when every literal color can be drawn as written.
+ */
+function alphaWarnings(spec: LayerSpec): readonly CodedFact<GraphtyWarningCode>[] {
+    return OPAQUE_COLOR_CHANNELS.filter((channel) => {
+        const color = toColorValue(asColorInput(spec.set?.[channel as keyof typeof spec.set]));
+
+        return color !== null && color.a < 1;
+    }).map((channel) =>
+        Object.freeze({ code: "W_ALPHA_IGNORED" as const, params: Object.freeze({ channel, path: `set.${channel}` }) }),
+    );
+}
+
+/** The text size channels: each draws no text under {@link MIN_DRAWN_FONT_SIZE}. */
+const TEXT_SIZE_CHANNELS: readonly string[] = [
+    "node.labelSize",
+    "node.tooltipSize",
+    "edge.labelSize",
+    "edge.arrowHeadTextSize",
+    "edge.arrowTailTextSize",
+];
+
+/**
+ * The warnings a layer's literal text sizes earn: a size under 1 draws no text.
+ * @param spec - The specification.
+ * @returns The warnings; none when every literal size draws.
+ */
+function textSizeWarnings(spec: LayerSpec): readonly CodedFact<GraphtyWarningCode>[] {
+    return TEXT_SIZE_CHANNELS.flatMap((channel) => {
+        const value = spec.set?.[channel as keyof typeof spec.set];
+
+        return typeof value === "number" && value < MIN_DRAWN_FONT_SIZE
+            ? [
+                  Object.freeze({
+                      code: "W_TEXT_TOO_SMALL" as const,
+                      params: Object.freeze({ channel, path: `set.${channel}`, value }),
+                  }),
+              ]
+            : [];
+    });
+}
 
 /**
  * Mint the id a new layer will carry.
@@ -483,6 +676,8 @@ function asColorInput(value: unknown): Rgba | string | null {
 interface ProblemLog {
     /** The problems so far, in the order they were found. */
     readonly problems: LayerProblem[];
+    /** The warnings so far, in the order they were found. */
+    readonly warnings: CodedFact<GraphtyWarningCode>[];
     /** The paths the specification reads, in the order it names them, without repeats. */
     readonly paths: Path[];
 }
@@ -540,6 +735,11 @@ function problemFrom(error: unknown, path: string): LayerProblem {
  * @returns The problem, or null when the value is one the channel takes.
  */
 function checkStaticValue(descriptor: ChannelDescriptor, value: ChannelValue, path: string): LayerProblem | null {
+    // An effect's off value is a value of the channel, whatever kind it otherwise takes.
+    if (descriptor.off !== undefined && value === descriptor.off) {
+        return null;
+    }
+
     switch (descriptor.accepts) {
         case "color":
             return toColorValue(asColorInput(value)) === null
@@ -562,13 +762,7 @@ function checkStaticValue(descriptor: ChannelDescriptor, value: ChannelValue, pa
         case "enum":
             return checkEnum(descriptor, value, path);
         case "labelStyle":
-            return typeof value === "object" && value !== null && !Array.isArray(value)
-                ? null
-                : {
-                      code: "E_BAD_LAYER",
-                      message: `${descriptor.plainName} takes a label style, such as { sizePx: 14, weight: "bold" }.`,
-                      path,
-                  };
+            return checkLabelStyle(descriptor, value, path);
         default:
             return {
                 code: "E_UNSUPPORTED",
@@ -576,6 +770,38 @@ function checkStaticValue(descriptor: ChannelDescriptor, value: ChannelValue, pa
                 path,
             };
     }
+}
+
+/**
+ * Check a label style: an object, naming no look the catalog lacks.
+ * @param descriptor - The channel.
+ * @param value - The value.
+ * @param path - Where it sits in the specification.
+ * @returns The problem, or null.
+ */
+function checkLabelStyle(descriptor: ChannelDescriptor, value: ChannelValue, path: string): LayerProblem | null {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return {
+            code: "E_BAD_LAYER",
+            message: `${descriptor.plainName} takes a label style, such as { sizePx: 14, weight: "bold" }.`,
+            path,
+        };
+    }
+
+    const { look } = value as LabelStyle;
+
+    if (look === undefined || labelLook(look) !== undefined) {
+        return null;
+    }
+
+    const candidates = LABEL_LOOKS.map((entry) => entry.id);
+
+    return {
+        code: "E_OPTION_RANGE",
+        message: `${descriptor.plainName} names no look "${look}"; the looks are ${candidates.join(", ")}.`,
+        path: `${path}.look`,
+        candidates,
+    };
 }
 
 /**
@@ -617,7 +843,14 @@ function checkNumber(descriptor: ChannelDescriptor, value: ChannelValue, path: s
 function checkEnum(descriptor: ChannelDescriptor, value: ChannelValue, path: string): LayerProblem | null {
     const values = descriptor.values ?? [];
 
-    if (typeof value === "string" && values.includes(value)) {
+    // A boolean is read by its name, for a channel such as `node.modelTint` that takes true,
+    // false or a word.
+    if ((typeof value === "string" || typeof value === "boolean") && values.includes(String(value))) {
+        return null;
+    }
+
+    // An enum with a `min` also takes a whole number from there up (a segment count).
+    if (isEnumCount(descriptor, value)) {
         return null;
     }
 
@@ -683,6 +916,125 @@ function checkChannel(
     return descriptor;
 }
 
+/** The combine modes a binding may name. */
+const COMBINE_MODES: readonly CombineMode[] = ["replace", "multiply", "add"];
+
+/**
+ * Check a binding's combine mode: one of the three, and only "replace" on a channel that is not a
+ * number, since only numbers multiply or add.
+ * @param descriptor - The channel it writes.
+ * @param binding - The binding.
+ * @param path - Where in the specification it sits.
+ * @param log - Where problems are collected.
+ */
+function checkCombine(descriptor: ChannelDescriptor, binding: Binding, path: string, log: ProblemLog): void {
+    const combine = "combine" in binding ? binding.combine : undefined;
+
+    if (combine === undefined || combine === "replace") {
+        return;
+    }
+
+    if (!COMBINE_MODES.includes(combine)) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `"${combine}" is not a combine mode.`,
+            path: `${path}.combine`,
+            candidates: COMBINE_MODES,
+        });
+    } else if (descriptor.accepts !== "number") {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `${descriptor.channel} is not a number, so it can only replace what lies beneath.`,
+            path: `${path}.combine`,
+            candidates: ["replace"],
+        });
+    }
+}
+
+/**
+ * Check a template binding: a text channel, and lines whose placeholders parse.
+ * @param descriptor - The channel it writes.
+ * @param template - The lines, as authored.
+ * @param path - Where in the specification it sits.
+ * @param log - Where problems and paths are collected.
+ */
+function checkTemplate(descriptor: ChannelDescriptor, template: unknown, path: string, log: ProblemLog): void {
+    if (!TEMPLATE_CHANNELS.includes(descriptor.channel)) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `${descriptor.plainName} is not text, so it cannot be built from a template.`,
+            path,
+            candidates: TEMPLATE_CHANNELS,
+        });
+
+        return;
+    }
+
+    try {
+        for (const read of parseTemplate(template).paths) {
+            readsPath(log, read);
+        }
+    } catch (thrown) {
+        report(log, problemFrom(thrown, path));
+    }
+}
+
+/**
+ * Check a binding's overflow policy.
+ * @param descriptor - The channel it writes.
+ * @param overflow - The policy, as authored.
+ * @param path - Where the binding sits in the specification.
+ * @param log - Where problems are collected.
+ */
+function checkOverflow(
+    descriptor: ChannelDescriptor,
+    overflow: BindingOverflow | undefined,
+    path: string,
+    log: ProblemLog,
+): void {
+    if (overflow !== undefined && !OVERFLOW_POLICIES.includes(overflow)) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `"${overflow}" is not an overflow policy.`,
+            path: `${path}.overflow`,
+            candidates: OVERFLOW_POLICIES,
+        });
+    } else if (overflow === "shape" && descriptor.target === "edge") {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `overflow "shape" draws the groups past the palette in other node shapes, and an edge has no shape, so ${descriptor.channel} cannot use it. Use "other" or "extend".`,
+            path: `${path}.overflow`,
+            candidates: ["pattern", "other", "extend"],
+        });
+    } else if (overflow === "pattern" && descriptor.target === "node") {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `overflow "pattern" draws the groups past the palette in other edge line patterns, and a node has no line, so ${descriptor.channel} cannot use it. Use "shape", "other" or "extend".`,
+            path: `${path}.overflow`,
+            candidates: ["shape", "other", "extend"],
+        });
+    }
+}
+
+/**
+ * Check a binding's list of values not to paint.
+ * @param hidden - The list, as authored.
+ * @param path - Where the binding sits in the specification.
+ * @param log - Where problems are collected.
+ */
+function checkHidden(hidden: unknown, path: string, log: ProblemLog): void {
+    if (
+        hidden !== undefined &&
+        (!Array.isArray(hidden) || !hidden.every((value) => ["string", "number", "boolean"].includes(typeof value)))
+    ) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: "hidden lists the values not to paint, such as [0, 3]: strings, numbers or booleans.",
+            path: `${path}.hidden`,
+        });
+    }
+}
+
 /**
  * Check one encoded binding.
  * @param descriptor - The channel it writes.
@@ -700,7 +1052,27 @@ function checkBinding(
     universal: boolean,
     log: ProblemLog,
 ): void {
+    if ("template" in binding) {
+        checkTemplate(descriptor, binding.template, `${path}.template`, log);
+
+        return;
+    }
+
+    checkCombine(descriptor, binding, path, log);
+
     if (!("by" in binding)) {
+        if (descriptor.accepts === "number" && (binding.combine === "multiply" || binding.combine === "add")) {
+            if (typeof binding.value !== "number" || !Number.isFinite(binding.value)) {
+                report(log, {
+                    code: "E_BAD_LAYER",
+                    message: `${descriptor.plainName} is multiplied or added by a number.`,
+                    path: `${path}.value`,
+                });
+            }
+
+            return;
+        }
+
         const problem = checkStaticValue(descriptor, binding.value, `${path}.value`);
 
         if (problem !== null) {
@@ -708,6 +1080,10 @@ function checkBinding(
         }
 
         return;
+    }
+
+    if (descriptor.accepts === "labelStyle") {
+        warnLabelStyleBound(descriptor, path, log);
     }
 
     if (typeof binding.by !== "string" || binding.by.trim() === "") {
@@ -721,7 +1097,59 @@ function checkBinding(
     }
 
     readsPath(log, binding.by);
+    checkBindingOptions(descriptor, binding, path, options, log);
 
+    // Only a binding that paints a MISSING value reaches an element the run never measured: an
+    // element with no value is otherwise not painted at all (encoding.ts), so a layer matching
+    // everything already paints just the measured ones, and refusing it only turned a fitting
+    // field into a failed edit.
+    if (universal && binding.by.startsWith(RUN_PATH_PREFIX) && typeof binding.missing === "object") {
+        report(log, {
+            code: "E_UNSCOPED_RUN_ENCODING",
+            message:
+                `This layer paints every ${descriptor.target} and encodes ${descriptor.channel} from "${binding.by}" ` +
+                "with a value for a missing result, which would paint elements the run never measured. Scope it to " +
+                `the elements that carry the result with { match: "has", path: "${binding.by}" }, or drop missing.`,
+            path: "selector",
+        });
+    }
+}
+
+/**
+ * Reports a binding of a whole label style channel. Accepted, because refusing would reject stacks that load today,
+ * saved projects among them; reported, because no scale produces a whole label style, so it paints nothing.
+ * @param descriptor - The channel.
+ * @param path - Where in the specification the binding sits.
+ * @param log - Where warnings are collected.
+ */
+function warnLabelStyleBound(descriptor: ChannelDescriptor, path: string, log: ProblemLog): void {
+    log.warnings.push({
+        code: "W_LABEL_STYLE_BOUND",
+        params: {
+            channel: descriptor.channel,
+            path,
+            fieldChannels: channelsFor(descriptor.target)
+                .map((entry) => entry.channel)
+                .filter((channel) => labelFieldOf(channel)?.into === descriptor.channel),
+        },
+    });
+}
+
+/**
+ * Check what a binding says besides its path: its scale, palette, overflow, unmapped values, stops and hidden values.
+ * @param descriptor - The channel it writes.
+ * @param binding - The binding.
+ * @param path - Where in the specification it sits.
+ * @param options - The scales a binding may name.
+ * @param log - Where problems are collected.
+ */
+function checkBindingOptions(
+    descriptor: ChannelDescriptor,
+    binding: RuleBinding,
+    path: string,
+    options: LayerCheckOptions,
+    log: ProblemLog,
+): void {
     if (binding.scale !== undefined && options.scales.get(binding.scale) === undefined) {
         report(log, {
             code: "E_UNKNOWN_SCALE",
@@ -746,44 +1174,33 @@ function checkBinding(
         });
     }
 
-    if (binding.overflow !== undefined && !OVERFLOW_POLICIES.includes(binding.overflow)) {
+    if (binding.colors !== undefined) {
+        const problem =
+            binding.palette === undefined
+                ? colorsProblem(binding.colors)
+                : "A binding names a palette or carries its own colors, not both.";
+        if (problem !== null) {
+            report(log, { code: "E_BAD_LAYER", message: problem, path: `${path}.colors` });
+        }
+    }
+
+    checkOverflow(descriptor, binding.overflow, path, log);
+
+    if (binding.unmapped !== undefined && binding.unmapped !== "skip") {
         report(log, {
             code: "E_BAD_LAYER",
-            message: `"${binding.overflow}" is not an overflow policy.`,
-            path: `${path}.overflow`,
-            candidates: OVERFLOW_POLICIES,
-        });
-    } else if (binding.overflow === "shape" && descriptor.target === "edge") {
-        report(log, {
-            code: "E_BAD_LAYER",
-            message: `overflow "shape" draws the groups past the palette in other node shapes, and an edge has no shape, so ${descriptor.channel} cannot use it. Use "other" or "extend".`,
-            path: `${path}.overflow`,
-            candidates: ["other", "extend"],
+            message: `"${String(binding.unmapped)}" is not what an unmapped value does.`,
+            path: `${path}.unmapped`,
+            candidates: ["skip"],
         });
     }
 
-    if (
-        binding.hidden !== undefined &&
-        (!Array.isArray(binding.hidden) ||
-            !binding.hidden.every((value) => ["string", "number", "boolean"].includes(typeof value)))
-    ) {
-        report(log, {
-            code: "E_BAD_LAYER",
-            message: "hidden lists the values not to paint, such as [0, 3]: strings, numbers or booleans.",
-            path: `${path}.hidden`,
-        });
+    const stops = binding.stops === undefined ? null : stopsProblem(descriptor, binding);
+    if (stops !== null) {
+        report(log, { code: "E_BAD_LAYER", message: stops, path: `${path}.stops` });
     }
 
-    if (universal && binding.by.startsWith(RUN_PATH_PREFIX)) {
-        report(log, {
-            code: "E_UNSCOPED_RUN_ENCODING",
-            message:
-                `This layer paints every ${descriptor.target} and encodes ${descriptor.channel} from "${binding.by}", ` +
-                "which would paint elements the run never measured. Scope it to the elements that carry the result " +
-                `with { match: "has", path: "${binding.by}" }.`,
-            path: "selector",
-        });
-    }
+    checkHidden(binding.hidden, path, log);
 }
 
 /**
@@ -832,8 +1249,9 @@ function resolveTarget(spec: LayerSpec, channels: readonly string[], log: Proble
  * @param spec - The specification.
  * @param channels - The channels it writes.
  * @param log - Where problems are collected.
+ * @param mayBeEmpty - Whether it may write no channel.
  */
-function checkShape(spec: LayerSpec, channels: readonly string[], log: ProblemLog): void {
+function checkShape(spec: LayerSpec, channels: readonly string[], log: ProblemLog, mayBeEmpty = false): void {
     if (typeof spec.name !== "string" || spec.name.trim() === "") {
         report(log, {
             code: "E_BAD_LAYER",
@@ -851,7 +1269,10 @@ function checkShape(spec: LayerSpec, channels: readonly string[], log: ProblemLo
         });
     }
 
-    if (channels.length === 0) {
+    // A starting row (Everything, Hovered) is there to be written into, so it may start empty, and
+    // so may a part of a row, which a row write adds empty when it changes what the row paints.
+    const starting = spec.source?.by === "template" && spec.source.templateId.startsWith("graphty:starting-");
+    if (channels.length === 0 && !starting && spec.row === undefined && !mayBeEmpty) {
         report(log, {
             code: "E_BAD_LAYER",
             message: "A layer with neither a set nor an encode writes no channel and would paint nothing.",
@@ -911,13 +1332,19 @@ function checkSelector(
  * @returns The specification to check and build from.
  */
 function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: ProblemLog): LayerSpec {
-    const selector = spec.selector as { match?: unknown; of?: unknown } | undefined;
-    if (
-        options.admitScope === undefined ||
-        typeof selector !== "object" ||
-        selector === null ||
-        selector.match !== "member"
-    ) {
+    const selector = spec.selector as { match?: unknown; of?: unknown; where?: unknown } | undefined;
+    if (options.admitRule !== undefined && typeof selector === "object" && selector?.match === "rule") {
+        try {
+            const where = options.admitRule(selector.where);
+            return where === selector.where ? spec : ({ ...spec, selector: { ...selector, where } } as LayerSpec);
+        } catch (error) {
+            report(log, problemFrom(error, "selector"));
+
+            return spec;
+        }
+    }
+
+    if (options.admitScope === undefined || typeof selector !== "object" || selector?.match !== "member") {
         return spec;
     }
 
@@ -928,6 +1355,54 @@ function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: Pr
         report(log, problemFrom(error, "selector"));
 
         return spec;
+    }
+}
+
+/**
+ * Check one channel the specification sets: its name, then its value -- a shader value or a
+ * static one.
+ * @param channel - The channel's name.
+ * @param value - The value it is set to.
+ * @param target - The layer's target, or null when it could not be settled.
+ * @param catalog - Whether shader ids are checked against the catalog.
+ * @param log - Where problems and paths are collected.
+ */
+function checkSetChannel(
+    channel: string,
+    value: ChannelValue | undefined,
+    target: SelectorTarget | null,
+    catalog: boolean,
+    log: ProblemLog,
+): void {
+    const path = `set.${channel}`;
+    const descriptor = checkChannel(channel, target, path, log);
+
+    if (descriptor?.shaderTarget !== undefined && value !== undefined) {
+        checkShaderValue(descriptor, value, path, catalog, log);
+    } else if (descriptor !== null && value !== undefined) {
+        const problem = checkStaticValue(descriptor, value, path);
+
+        if (problem !== null) {
+            report(log, problem);
+        }
+    }
+}
+
+/**
+ * Report a binding `node.model` or `node.texture` cannot take.
+ * @param descriptor - The channel's descriptor.
+ * @param binding - The binding.
+ * @param path - Where the binding sits in the specification.
+ * @param log - Where problems are collected.
+ */
+function checkModelBinding(descriptor: ChannelDescriptor, binding: Binding, path: string, log: ProblemLog): void {
+    if (descriptor.channel !== "node.model" && descriptor.channel !== "node.texture") {
+        return;
+    }
+
+    const blocked = modelBindingProblem(binding, path);
+    if (blocked !== null) {
+        report(log, blocked);
     }
 }
 
@@ -946,26 +1421,358 @@ function checkChannels(
     options: LayerCheckOptions,
     log: ProblemLog,
 ): void {
+    const catalog = options.shaders !== "report";
     for (const [channel, value] of Object.entries(spec.set ?? {})) {
-        const path = `set.${channel}`;
-        const descriptor = checkChannel(channel, target, path, log);
-
-        if (descriptor !== null && value !== undefined) {
-            const problem = checkStaticValue(descriptor, value, path);
-
-            if (problem !== null) {
-                report(log, problem);
-            }
-        }
+        checkSetChannel(channel, value, target, catalog, log);
     }
 
     for (const [channel, binding] of Object.entries(spec.encode ?? {})) {
         const path = `encode.${channel}`;
+        const address = parseShaderParamAddress(channel);
+        if (address !== null && binding !== undefined) {
+            checkParamBinding(channel, binding, target, path, catalog, log);
+            continue;
+        }
+
         const descriptor = checkChannel(channel, target, path, log);
 
         if (descriptor !== null && binding !== undefined) {
             checkBinding(descriptor, binding, path, options, universal, log);
+            checkModelBinding(descriptor, binding, path, log);
         }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Shaders: ids from the catalog, maps keyed by id, parameters each shader declares
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Check one shader id against the catalog: it must be listed, drawn on the list's target (a node
+ * list also takes group outlines), and allowed at the place the use asks for.
+ * @param id - The id.
+ * @param target - The list's target.
+ * @param place - The place the use asks for, or undefined for the shader's own.
+ * @param path - Where it sits in the specification.
+ * @param log - Where problems are collected.
+ * @returns The shader, or null when it was refused.
+ */
+function checkShaderRef(
+    id: string,
+    target: "node" | "edge",
+    place: ShaderPlace | undefined,
+    path: string,
+    log: ProblemLog,
+): ShaderDescriptor | null {
+    const descriptor = shaderDescriptor(id);
+    if (descriptor === undefined) {
+        report(log, {
+            code: "E_UNKNOWN_SHADER",
+            message: `There is no shader called "${id}".`,
+            path,
+            candidates: shaderIdsFor(target),
+        });
+
+        return null;
+    }
+
+    const takes = target === "node" ? ["node", "group"] : ["edge"];
+    if (!takes.includes(descriptor.target)) {
+        report(log, {
+            code: "E_SHADER_KIND",
+            message: `"${id}" draws on the ${descriptor.target}, and this list takes ${target} shaders.`,
+            path,
+            candidates: shaderIdsFor(target),
+            fact: { code: "shader.target-mismatch", params: { expected: target, found: descriptor.target } },
+        });
+
+        return null;
+    }
+
+    const problem = shaderPlaceProblem(descriptor, place);
+    if (problem !== null) {
+        report(log, {
+            code: "E_SHADER_KIND",
+            message: `"${id}" cannot draw at "${String(place)}".`,
+            path: `${path.replace(/\.shader$/, "")}.place`,
+            candidates: [...(descriptor.places ?? [])],
+            fact: problem,
+        });
+
+        return null;
+    }
+
+    return descriptor;
+}
+
+/**
+ * Check one parameter value against what its shader declares.
+ * @param shader - The shader, or null when the catalog was not consulted.
+ * @param name - The parameter's id.
+ * @param value - Its value.
+ * @param path - Where it sits in the specification.
+ * @param log - Where problems are collected.
+ */
+function checkParamValue(
+    shader: ShaderDescriptor | null,
+    name: string,
+    value: unknown,
+    path: string,
+    log: ProblemLog,
+): void {
+    if (isClockBinding(value)) {
+        checkClockBinding(shader, name, value, path, log);
+
+        return;
+    }
+
+    if (!isShaderParamName(name) || !["number", "string", "boolean"].includes(typeof value)) {
+        report(log, { code: "E_BAD_LAYER", message: `"${name}" is not a parameter a shader can take.`, path });
+
+        return;
+    }
+
+    if (shader === null) {
+        return;
+    }
+
+    const param = shader.params.find((entry) => entry.name === name);
+    if (param === undefined) {
+        report(log, {
+            code: "E_UNKNOWN_SHADER_PARAM",
+            message: `The shader "${shader.id}" declares no parameter "${name}".`,
+            path,
+            candidates: shader.params.map((entry) => entry.name),
+        });
+
+        return;
+    }
+
+    if (!paramValueFits(param, value)) {
+        report(log, {
+            code: "E_OPTION_RANGE",
+            message: `${String(value)} is not a value "${name}" of "${shader.id}" takes.`,
+            path,
+            ...(param.values === undefined ? {} : { candidates: param.values.map((choice) => choice.value) }),
+        });
+    }
+}
+
+/**
+ * Check a parameter bound to a clock: a clock the element keeps, a domain of two increasing
+ * numbers, and a number or color parameter.
+ * @param shader - The shader, or null when the catalog was not consulted.
+ * @param name - The parameter's id.
+ * @param binding - The binding.
+ * @param path - Where it sits in the specification.
+ * @param log - Where problems are collected.
+ */
+function checkClockBinding(
+    shader: ShaderDescriptor | null,
+    name: string,
+    binding: ShaderClockBinding,
+    path: string,
+    log: ProblemLog,
+): void {
+    const [from, to] = Array.isArray(binding.domain) ? binding.domain : [];
+    const param = shader?.params.find((entry) => entry.name === name);
+    const sound =
+        SHADER_CLOCKS.includes(binding.by) &&
+        typeof from === "number" &&
+        typeof to === "number" &&
+        from < to &&
+        (param === undefined || param.type === "number" || param.type === "color");
+    if (!sound) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `"${name}" is bound to a clock as { by: "since.matched", domain: [0, 0.3] }, on a number or color.`,
+            path,
+        });
+    } else if (shader !== null && param === undefined) {
+        checkParamValue(shader, name, 0, path, log);
+    }
+}
+
+/**
+ * Whether a value is one a parameter takes.
+ * @param param - The parameter.
+ * @param value - The value.
+ * @returns True when it fits its type and range.
+ */
+function paramValueFits(param: ShaderDescriptor["params"][number], value: unknown): boolean {
+    switch (param.type) {
+        case "number":
+        case "integer": {
+            const { min, max } = param;
+            return (
+                typeof value === "number" &&
+                Number.isFinite(value) &&
+                (param.type === "number" || Number.isInteger(value)) &&
+                (typeof min !== "number" || value >= min) &&
+                (typeof max !== "number" || value <= max)
+            );
+        }
+        case "boolean":
+            return typeof value === "boolean";
+        case "color":
+            return typeof value === "string" && toColorValue(value) !== null;
+        default:
+            return typeof value === "string" && (param.values ?? []).some((choice) => choice.value === value);
+    }
+}
+
+/**
+ * Check one parameter set: a map of parameter values.
+ * @param shader - The shader it belongs to, or null when the catalog was not consulted.
+ * @param params - The set.
+ * @param path - Where it sits in the specification.
+ * @param log - Where problems are collected.
+ */
+function checkParamSet(shader: ShaderDescriptor | null, params: unknown, path: string, log: ProblemLog): void {
+    if (!isPlainObject(params)) {
+        report(log, { code: "E_BAD_LAYER", message: "A shader's parameters are a map, such as { speed: 2 }.", path });
+
+        return;
+    }
+
+    for (const [name, value] of Object.entries(params)) {
+        checkParamValue(shader, name, value, `${path}.${name}`, log);
+    }
+}
+
+/** The members a shader use may carry. */
+const USE_KEYS: ReadonlySet<string> = new Set(["shader", "place", "params", "groupBy", "off"]);
+
+/**
+ * Check one use of a shader list: its shape, its shader and place against the catalog, its
+ * parameters, and `groupBy` (place `group` only).
+ * @param use - The entry.
+ * @param target - The list's target.
+ * @param path - Where it sits in the specification.
+ * @param catalog - Whether to consult the catalog, which a loaded document does not.
+ * @param log - Where problems and paths are collected.
+ */
+function checkShaderUse(use: unknown, target: "node" | "edge", path: string, catalog: boolean, log: ProblemLog): void {
+    if (!isPlainObject(use) || !isShaderId(use.shader) || Object.keys(use).some((key) => !USE_KEYS.has(key))) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: 'A shader use is { shader: "<id>", place?, params?, groupBy?, off? }.',
+            path,
+        });
+
+        return;
+    }
+
+    const place = use.place as ShaderPlace | undefined;
+    if (use.off !== undefined && use.off !== true) {
+        report(log, { code: "E_BAD_LAYER", message: "off is true, or left out.", path: `${path}.off` });
+    }
+
+    const checkedPlace = use.off === true ? undefined : place;
+    const shader = catalog ? checkShaderRef(use.shader, target, checkedPlace, `${path}.shader`, log) : null;
+    if (use.params !== undefined) {
+        checkParamSet(shader, use.params, `${path}.params`, log);
+    }
+
+    if (use.groupBy === undefined) {
+        return;
+    }
+
+    const at = place ?? shader?.place;
+    if (typeof use.groupBy !== "string" || use.groupBy.trim() === "" || (at !== undefined && at !== "group")) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: 'groupBy is a path, such as "data.community", on a use at the place "group".',
+            path: `${path}.groupBy`,
+        });
+    } else {
+        readsPath(log, use.groupBy);
+    }
+}
+
+/**
+ * Check a value written to a shader list channel: a list of uses.
+ * @param descriptor - The channel.
+ * @param value - The value.
+ * @param path - Where it sits in the specification.
+ * @param catalog - Whether to consult the catalog, which a loaded document does not.
+ * @param log - Where problems are collected.
+ */
+function checkShaderValue(
+    descriptor: ChannelDescriptor,
+    value: unknown,
+    path: string,
+    catalog: boolean,
+    log: ProblemLog,
+): void {
+    if (!Array.isArray(value)) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `${descriptor.plainName} takes a list of shader uses, such as [{ shader: "lock-on-reticle" }].`,
+            path,
+            fact: {
+                code: "shader.uses-not-a-list",
+                params: { channel: descriptor.channel, found: value === null ? "null" : typeof value },
+            },
+        });
+
+        return;
+    }
+
+    const target = descriptor.shaderTarget ?? "node";
+    value.forEach((use: unknown, at) => {
+        checkShaderUse(use, target, `${path}.${String(at)}`, catalog, log);
+    });
+}
+
+/**
+ * Check an `encode` key that binds one shader parameter per element.
+ * @param name - The key: `<channel>.<shader>.<parameter>`.
+ * @param binding - Its binding.
+ * @param target - The layer's target, or null when it could not be settled.
+ * @param path - Where it sits in the specification.
+ * @param catalog - Whether to consult the catalog.
+ * @param log - Where problems and paths are collected.
+ */
+function checkParamBinding(
+    name: string,
+    binding: Binding,
+    target: SelectorTarget | null,
+    path: string,
+    catalog: boolean,
+    log: ProblemLog,
+): void {
+    const address = parseShaderParamAddress(name);
+    const descriptor = address === null ? null : checkChannel(address.channel, target, path, log);
+    if (address === null || descriptor === null) {
+        return;
+    }
+
+    if ("by" in binding && typeof binding.by === "string") {
+        readsPath(log, binding.by);
+    }
+
+    if (!isShaderId(address.shader)) {
+        report(log, { code: "E_BAD_LAYER", message: "The address does not name a shader id.", path });
+
+        return;
+    }
+
+    const shader = catalog
+        ? checkShaderRef(address.shader, descriptor.shaderTarget ?? "node", undefined, path, log)
+        : null;
+    if (shader === null) {
+        return;
+    }
+
+    const param = shader.params.find((entry) => entry.name === address.param);
+    if (param?.varies !== true) {
+        report(log, {
+            code: "E_UNKNOWN_SHADER_PARAM",
+            message: `The shader "${shader.id}" declares no parameter "${address.param}" that varies per element.`,
+            path,
+            candidates: shader.params.filter((entry) => entry.varies === true).map((entry) => entry.name),
+        });
     }
 }
 
@@ -982,12 +1789,12 @@ function checkChannels(
  * @returns The verdict, and the compiled layer when the verdict is that it is sound.
  */
 export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): LayerCheck {
-    const log: ProblemLog = { problems: [], paths: [] };
+    const log: ProblemLog = { problems: [], warnings: [], paths: [] };
     const spec = admitSelectorScope(given, options, log);
     const channels = channelsWritten(spec);
     const target = resolveTarget(spec, channels, log);
 
-    checkShape(spec, channels, log);
+    checkShape(spec, channels, log, options.mayBeEmpty === true);
 
     const universal =
         typeof spec.selector === "object" && spec.selector !== null && spec.selector.match === "everything";
@@ -1014,13 +1821,27 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
                 errors: Object.freeze([...log.problems]),
                 unresolvedPaths,
                 shadowedPaths,
+                warnings: log.warnings.length === 0 ? NO_WARNINGS : Object.freeze([...log.warnings]),
             }),
             layer: null,
         };
     }
 
+    const warnings = [
+        ...log.warnings,
+        ...selectorWarnings(spec, target, options.elements),
+        ...alphaWarnings(spec),
+        ...textSizeWarnings(spec),
+    ];
+
     return {
-        result: Object.freeze({ ok: true, errors: NO_PROBLEMS, unresolvedPaths, shadowedPaths }),
+        result: Object.freeze({
+            ok: true,
+            errors: NO_PROBLEMS,
+            unresolvedPaths,
+            shadowedPaths,
+            warnings: warnings.length === 0 ? NO_WARNINGS : Object.freeze(warnings),
+        }),
         layer: buildLayer(spec, options.id, target, compiled, log.paths),
     };
 }
@@ -1056,9 +1877,12 @@ function buildLayer(
         selector: frozen(spec.selector as Selector),
         ...(spec.set === undefined ? {} : { set: frozen(spec.set) }),
         ...(spec.encode === undefined ? {} : { encode: frozen(spec.encode) }),
+        ...(spec.unmatched === undefined ? {} : { unmatched: frozen(spec.unmatched) }),
         // Stored by reference and never copied: "round-trips untouched" is not a figure of speech,
         // and a consumer keeping a live object in here gets the same object back.
         ...(spec.userData === undefined ? {} : { userData: spec.userData }),
+        ...(spec.row === undefined ? {} : { row: spec.row }),
+        ...(spec.fileStyle === undefined ? {} : { fileStyle: frozen(spec.fileStyle) }),
     });
 
     return Object.freeze({ layer, selector, reads: Object.freeze([...reads]) });
@@ -1077,8 +1901,11 @@ export function specOf(layer: Layer): LayerSpec {
         selector: layer.selector,
         source: layer.source,
         enabled: layer.enabled,
+        ...(layer.unmatched === undefined ? {} : { unmatched: layer.unmatched }),
         ...(layer.set === undefined ? {} : { set: layer.set }),
         ...(layer.encode === undefined ? {} : { encode: layer.encode }),
         ...(layer.userData === undefined ? {} : { userData: layer.userData }),
+        ...(layer.row === undefined ? {} : { row: layer.row }),
+        ...(layer.fileStyle === undefined ? {} : { fileStyle: layer.fileStyle }),
     };
 }

@@ -459,6 +459,19 @@ describe("checkCapabilities extras for plugins", () => {
         ]);
     });
 
+    it("without extras.roles, a role column is written as a plain attribute and loses its role", () => {
+        const notes = checkCapabilities(graph(), caps, resolveExportOptions(undefined));
+        expect(notes.filter((n) => n.code === LOSS.ROLE)).toEqual([
+            {
+                code: LOSS.ROLE,
+                message:
+                    'node column "name" (label) is written as a plain attribute; the format has no label slot and the role is lost',
+                column: "name",
+                count: 1,
+            },
+        ]);
+    });
+
     it("idsReadBack notes the ids that come back with another type", () => {
         const notes = checkCapabilities(graph(), caps, resolveExportOptions(undefined), {
             attributes: false,

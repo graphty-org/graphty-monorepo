@@ -152,23 +152,9 @@ function checkListItem(meta: ColumnMeta, row: number, item: unknown): void {
         case "f64":
         case "i32":
         case "u32":
-        case "u8": {
-            if (components === 1) {
-                if (typeof item !== "number" || !representableNumber(itemDtype, item)) {
-                    throw cellError(meta, row, `list item is not a representable ${itemDtype}`, typeof item);
-                }
-                return;
-            }
-            if (!Array.isArray(item) || item.length !== components) {
-                throw cellError(meta, row, `list item is not ${components} numbers`, typeof item);
-            }
-            for (const k of item as unknown[]) {
-                if (typeof k !== "number" || !representableNumber(itemDtype, k)) {
-                    throw cellError(meta, row, `list item component is not a representable ${itemDtype}`, typeof k);
-                }
-            }
+        case "u8":
+            checkNumericListItem(meta, row, item, itemDtype, components);
             return;
-        }
         case "bool":
             if (typeof item !== "boolean") {
                 throw cellError(meta, row, "list item is not a boolean", typeof item);
@@ -187,6 +173,38 @@ function checkListItem(meta: ColumnMeta, row: number, item: unknown): void {
         default: {
             const name: string = itemDtype;
             throw new GraphFormatError("E_COLUMN_TYPE", `unknown dtype ${name}`, { dtype: name });
+        }
+    }
+}
+
+/**
+ * Check one list item of a numeric list column: a representable number, or for a multi-component
+ * item an array of exactly `components` representable numbers.
+ * @param meta - the list column
+ * @param row - the row
+ * @param item - the item
+ * @param itemDtype - the numeric item dtype
+ * @param components - the item components
+ */
+function checkNumericListItem(
+    meta: ColumnMeta,
+    row: number,
+    item: unknown,
+    itemDtype: "f32" | "f64" | "i32" | "u32" | "u8",
+    components: number,
+): void {
+    if (components === 1) {
+        if (typeof item !== "number" || !representableNumber(itemDtype, item)) {
+            throw cellError(meta, row, `list item is not a representable ${itemDtype}`, typeof item);
+        }
+        return;
+    }
+    if (!Array.isArray(item) || item.length !== components) {
+        throw cellError(meta, row, `list item is not ${components} numbers`, typeof item);
+    }
+    for (const k of item as unknown[]) {
+        if (typeof k !== "number" || !representableNumber(itemDtype, k)) {
+            throw cellError(meta, row, `list item component is not a representable ${itemDtype}`, typeof k);
         }
     }
 }
@@ -498,53 +516,101 @@ export class StagingColumn {
         const rows = indexMap === null ? this.length : indexMap.length;
         const out = new StagingColumn(this.meta, this.inferred, this.resizable, this.dictionary ?? undefined);
         out.ensureLength(rows);
-        const { components } = this.meta;
-        const rewrite = valueRemap !== null && this.meta.refersTo !== null;
+        const remap = valueRemap !== null && this.meta.refersTo !== null ? valueRemap : null;
         for (let i = 0; i < rows; i++) {
             const old = indexMap === null ? i : indexMap[i];
-            if (!this.isSet(old)) {
-                continue;
-            }
-            if (out.typed !== null && this.typed !== null) {
-                if (rewrite) {
-                    const mapped = remapIndex(this.typed.get(old), valueRemap);
-                    if (mapped === INVALID_INDEX) {
-                        // dangling reference: INVALID_INDEX (the fill of a refersTo column) with the row unset
-                        out.unsetDangling(i);
-                        continue;
-                    }
-                    out.typed.set(i, mapped);
-                } else {
-                    for (let k = 0; k < components; k++) {
-                        out.typed.set(i * components + k, this.typed.get(old * components + k));
-                    }
-                }
-            } else if (out.bits !== null && this.bits !== null) {
-                out.bits.set(i, this.bits.get(old));
-            } else if (out.values !== null && this.values !== null) {
-                let value = this.values[old];
-                if (rewrite) {
-                    const items = value as readonly number[];
-                    const kept: number[] = [];
-                    for (const item of items) {
-                        const mapped = remapIndex(item, valueRemap);
-                        if (mapped !== INVALID_INDEX) {
-                            kept.push(mapped);
-                        }
-                    }
-                    if (kept.length === 0 && items.length > 0) {
-                        out.unsetDangling(i);
-                        continue;
-                    }
-                    value = kept;
-                }
-                out.values[i] = value;
-            }
-            if (out.validity !== null) {
+            if (this.isSet(old) && this.gatherRow(out, i, old, remap) && out.validity !== null) {
                 out.validity.set(i, true);
             }
         }
         return out;
+    }
+
+    /**
+     * Copy one set row into a gathered column (the body of `gather`).
+     * @param out - the gathered column
+     * @param i - the new row
+     * @param old - the source row
+     * @param remap - the value remap when `refersTo` values are rewritten, or null
+     * @returns false when the row was left unset because its reference dangled
+     */
+    private gatherRow(out: StagingColumn, i: number, old: number, remap: U32 | null): boolean {
+        if (out.typed !== null && this.typed !== null) {
+            return this.gatherTyped(out, out.typed, this.typed, i, old, remap);
+        }
+        if (out.bits !== null && this.bits !== null) {
+            out.bits.set(i, this.bits.get(old));
+            return true;
+        }
+        if (out.values !== null && this.values !== null) {
+            return this.gatherValue(out, out.values, this.values[old], i, remap);
+        }
+        return true;
+    }
+
+    /**
+     * Copy one typed row (every component, or the remapped scalar reference).
+     * @param out - the gathered column
+     * @param target - its typed storage
+     * @param source - this column's typed storage
+     * @param i - the new row
+     * @param old - the source row
+     * @param remap - the value remap, or null
+     * @returns false when the reference dangled and the row was left unset
+     */
+    private gatherTyped(
+        out: StagingColumn,
+        target: GrowableTypedArray<TypedArrayData>,
+        source: GrowableTypedArray<TypedArrayData>,
+        i: number,
+        old: number,
+        remap: U32 | null,
+    ): boolean {
+        if (remap !== null) {
+            const mapped = remapIndex(source.get(old), remap);
+            if (mapped === INVALID_INDEX) {
+                // dangling reference: INVALID_INDEX (the fill of a refersTo column) with the row unset
+                out.unsetDangling(i);
+                return false;
+            }
+            target.set(i, mapped);
+            return true;
+        }
+        const { components } = this.meta;
+        for (let k = 0; k < components; k++) {
+            target.set(i * components + k, source.get(old * components + k));
+        }
+        return true;
+    }
+
+    /**
+     * Copy one raw value, dropping dangling items of a reference list.
+     * @param out - the gathered column
+     * @param target - its raw values
+     * @param value - the source row's value
+     * @param i - the new row
+     * @param remap - the value remap, or null
+     * @returns false when every item dangled and the row was left unset
+     */
+    private gatherValue(out: StagingColumn, target: unknown[], value: unknown, i: number, remap: U32 | null): boolean {
+        if (remap === null) {
+            target[i] = value;
+            return true;
+        }
+        const items = value as readonly number[];
+        const kept: number[] = [];
+        for (const item of items) {
+            const mapped = remapIndex(item, remap);
+            if (mapped !== INVALID_INDEX) {
+                kept.push(mapped);
+            }
+        }
+        if (kept.length === 0 && items.length > 0) {
+            out.unsetDangling(i);
+            return false;
+        }
+        target[i] = kept;
+        return true;
     }
 
     /**
@@ -564,7 +630,7 @@ export class StagingColumn {
         validity.resize(this.length, false);
         const { typed } = this;
         for (let row = 0; row < i; row++) {
-            if (typed === null || typed.get(row) !== INVALID_INDEX) {
+            if (typed?.get(row) !== INVALID_INDEX) {
                 validity.set(row, true);
             }
         }
@@ -585,12 +651,7 @@ export class StagingColumn {
         const { meta } = this;
         const { dtype, components } = meta;
         if (this.inferrer !== null) {
-            const source = this.values as unknown[];
-            const entries = new Array<unknown>(rows);
-            for (let row = 0; row < rows; row++) {
-                entries[row] = this.isSet(row) ? source[row] : undefined;
-            }
-            return columnOfValues(meta, entries);
+            return columnOfValues(meta, this.rawEntries(rows, false));
         }
         let validity: U32 | null = null;
         if (this.validity !== null && this.validity.count() !== rows) {
@@ -614,15 +675,8 @@ export class StagingColumn {
             case "f64":
             case "i32":
             case "u32":
-            case "u8": {
-                const data = allocNumeric(dtype, rows * components);
-                data.set((this.typed as GrowableTypedArray<TypedArrayData>).view().subarray(0, rows * components));
-                parts.data = data;
-                if (meta.refersTo !== null && this.validity === null) {
-                    unsetFillReferences(parts, data as U32, rows);
-                }
-                return createColumn(parts);
-            }
+            case "u8":
+                return this.numericColumn(parts, dtype, rows * components);
             case "bool":
                 parts.data = (this.bits as GrowableBitmap).trim();
                 return createColumn(parts);
@@ -635,20 +689,51 @@ export class StagingColumn {
             }
             case "string":
             case "list":
-            case "json": {
-                const source = this.values as unknown[];
-                const entries = new Array<unknown>(rows);
-                for (let row = 0; row < rows; row++) {
-                    const value = this.isSet(row) ? source[row] : undefined;
-                    entries[row] = value === undefined ? this.unsetEntry() : value;
-                }
-                return columnOfValues(meta, entries);
-            }
+            case "json":
+                return columnOfValues(meta, this.rawEntries(rows, true));
             default: {
                 const name: string = dtype;
                 throw new GraphFormatError("E_COLUMN_TYPE", `unknown dtype ${name}`, { dtype: name });
             }
         }
+    }
+
+    /**
+     * The raw value of every row for `columnOfValues`, undefined (or the unset entry) where unset.
+     * @param rows - the row count
+     * @param fillUnset - true to give an unset (or undefined) row `unsetEntry()` instead of undefined
+     * @returns one entry per row
+     */
+    private rawEntries(rows: number, fillUnset: boolean): unknown[] {
+        const source = this.values as unknown[];
+        const entries = new Array<unknown>(rows);
+        for (let row = 0; row < rows; row++) {
+            const value = this.isSet(row) ? source[row] : undefined;
+            entries[row] = fillUnset && value === undefined ? this.unsetEntry() : value;
+        }
+        return entries;
+    }
+
+    /**
+     * Freeze a numeric column: copy `length` staged values into an exact-length buffer, unset the
+     * INVALID_INDEX fill rows of a non-nullable reference column, and build the column.
+     * @param parts - the column parts, completed here
+     * @param dtype - the numeric dtype
+     * @param length - rows times components
+     * @returns the frozen column
+     */
+    private numericColumn(
+        parts: MutableColumnParts,
+        dtype: "f32" | "f64" | "i32" | "u32" | "u8",
+        length: number,
+    ): Column {
+        const data = allocNumeric(dtype, length);
+        data.set((this.typed as GrowableTypedArray<TypedArrayData>).view().subarray(0, length));
+        parts.data = data;
+        if (this.meta.refersTo !== null && this.validity === null) {
+            unsetFillReferences(parts, data as U32, parts.length);
+        }
+        return createColumn(parts);
     }
 
     /**
@@ -827,30 +912,14 @@ export class StagingColumn {
      */
     private coerce(row: number, value: unknown): unknown {
         const { meta } = this;
-        const { dtype, components } = meta;
+        const { dtype } = meta;
         switch (dtype) {
             case "f32":
             case "f64":
             case "i32":
             case "u32":
-            case "u8": {
-                const scalar = typeof value === "boolean" ? Number(value) : value;
-                if (typeof scalar === "number") {
-                    if (!representableNumber(dtype, scalar)) {
-                        throw cellError(meta, row, `${scalar} is not representable`, scalar);
-                    }
-                    return scalar;
-                }
-                if (components === 1 || !isArrayLikeNumbers(scalar, components)) {
-                    throw cellError(meta, row, `not ${components} number(s)`, typeof scalar);
-                }
-                for (let k = 0; k < components; k++) {
-                    if (!representableNumber(dtype, scalar[k])) {
-                        throw cellError(meta, row, `${scalar[k]} is not representable`, scalar[k]);
-                    }
-                }
-                return scalar;
-            }
+            case "u8":
+                return coerceNumeric(meta, dtype, row, value);
             case "bool":
                 return coerceValue(value, "bool") === true;
             case "dict":
@@ -862,15 +931,8 @@ export class StagingColumn {
                 assertWellFormedString(text, { column: meta.name, row });
                 return detachString(text);
             }
-            case "list": {
-                if (!Array.isArray(value)) {
-                    throw cellError(meta, row, "not an array", typeof value);
-                }
-                for (const item of value as unknown[]) {
-                    checkListItem(meta, row, item);
-                }
-                return (value as unknown[]).map((item) => (typeof item === "string" ? detachString(item) : item));
-            }
+            case "list":
+                return coerceList(meta, row, value);
             case "json":
                 assertJsonValue(value, `${meta.name}[${row}]`);
                 return value;
@@ -931,6 +993,57 @@ export class StagingColumn {
             }
         }
     }
+}
+
+/**
+ * Validate a value for a numeric column: a number (a boolean counts as 0 or 1) representable in the
+ * dtype, or for a multi-component column an array of `components` representable numbers.
+ * @param meta - the column
+ * @param dtype - its numeric dtype
+ * @param row - the row (error details only)
+ * @param value - the value
+ * @returns the number or the array
+ */
+function coerceNumeric(
+    meta: ColumnMeta,
+    dtype: "f32" | "f64" | "i32" | "u32" | "u8",
+    row: number,
+    value: unknown,
+): unknown {
+    const { components } = meta;
+    const scalar = typeof value === "boolean" ? Number(value) : value;
+    if (typeof scalar === "number") {
+        if (!representableNumber(dtype, scalar)) {
+            throw cellError(meta, row, `${scalar} is not representable`, scalar);
+        }
+        return scalar;
+    }
+    if (components === 1 || !isArrayLikeNumbers(scalar, components)) {
+        throw cellError(meta, row, `not ${components} number(s)`, typeof scalar);
+    }
+    for (let k = 0; k < components; k++) {
+        if (!representableNumber(dtype, scalar[k])) {
+            throw cellError(meta, row, `${scalar[k]} is not representable`, scalar[k]);
+        }
+    }
+    return scalar;
+}
+
+/**
+ * Validate a value for a list column and return a copy with its strings detached.
+ * @param meta - the column
+ * @param row - the row (error details only)
+ * @param value - the value
+ * @returns the copied list
+ */
+function coerceList(meta: ColumnMeta, row: number, value: unknown): unknown[] {
+    if (!Array.isArray(value)) {
+        throw cellError(meta, row, "not an array", typeof value);
+    }
+    for (const item of value as unknown[]) {
+        checkListItem(meta, row, item);
+    }
+    return (value as unknown[]).map((item) => (typeof item === "string" ? detachString(item) : item));
 }
 
 /**
@@ -1373,16 +1486,12 @@ export class Staging {
         this.edgeAlive.resize(end, true);
         this.nextOut.resize(end);
         this.nextIn.resize(end);
-        this.selfLoopCount += linkEdgeRange(
-            this.src.array,
-            this.dst.array,
-            first,
-            end,
-            this.firstOut.array,
-            this.firstIn.array,
-            this.nextOut.array,
-            this.nextIn.array,
-        );
+        this.selfLoopCount += linkEdgeRange(this.src.array, this.dst.array, first, end, {
+            firstOut: this.firstOut.array,
+            firstIn: this.firstIn.array,
+            nextOut: this.nextOut.array,
+            nextIn: this.nextIn.array,
+        });
         this.liveEdgeCount += count;
         return first;
     }
@@ -1698,6 +1807,18 @@ interface CompactionPlan {
     readonly mergedWeightSet: U32 | null;
 }
 
+/** The four incidence-list arrays (backing views) that edge linking writes. */
+interface IncidenceLists {
+    /** Out-list heads, per node. */
+    readonly firstOut: U32;
+    /** In-list heads, per node. */
+    readonly firstIn: U32;
+    /** Receives the out-list links, per edge. */
+    readonly nextOut: U32;
+    /** Receives the in-list links, per edge. */
+    readonly nextIn: U32;
+}
+
 /**
  * Link the edges [first, end) into both incidence lists in index order, exactly as pushEdge does one
  * at a time (every list head becomes the highest linked index).
@@ -1705,22 +1826,11 @@ interface CompactionPlan {
  * @param dst - targets (backing view)
  * @param first - the first edge to link
  * @param end - one past the last edge to link
- * @param firstOut - out-list heads
- * @param firstIn - in-list heads
- * @param nextOut - receives the out-list links
- * @param nextIn - receives the in-list links
+ * @param lists - the incidence lists to link into
  * @returns the number of self-loops among the linked edges
  */
-function linkEdgeRange(
-    src: U32,
-    dst: U32,
-    first: number,
-    end: number,
-    firstOut: U32,
-    firstIn: U32,
-    nextOut: U32,
-    nextIn: U32,
-): number {
+function linkEdgeRange(src: U32, dst: U32, first: number, end: number, lists: IncidenceLists): number {
+    const { firstOut, firstIn, nextOut, nextIn } = lists;
     let loops = 0;
     for (let e = first; e < end; e++) {
         const u = src[e];
@@ -1745,10 +1855,7 @@ function linkEdgeRange(
  * @param nodeRemap - old node index -> new node index
  * @param outSrc - receives the remapped sources
  * @param outDst - receives the remapped targets
- * @param firstOut - out-list heads, INVALID_INDEX on entry
- * @param firstIn - in-list heads, INVALID_INDEX on entry
- * @param nextOut - receives the out-list links
- * @param nextIn - receives the in-list links
+ * @param lists - the incidence lists to rebuild, every head INVALID_INDEX on entry
  * @returns the self-loop count
  */
 function gatherEdges(
@@ -1758,11 +1865,9 @@ function gatherEdges(
     nodeRemap: U32,
     outSrc: U32,
     outDst: U32,
-    firstOut: U32,
-    firstIn: U32,
-    nextOut: U32,
-    nextIn: U32,
+    lists: IncidenceLists,
 ): number {
+    const { firstOut, firstIn, nextOut, nextIn } = lists;
     const edgeCount = origin.length;
     let loops = 0;
     for (let e = 0; e < edgeCount; e++) {
@@ -1812,6 +1917,71 @@ function applyMergedWeights(merged: Float64Array, stored: U32, weights: TypedArr
 }
 
 /**
+ * Fill a compacted staging's node ids and id-to-index map from the surviving nodes' old ids.
+ * @param ids - the source node ids
+ * @param origin - new node -> old node
+ * @param out - the compacted staging
+ */
+function gatherNodeIds(ids: readonly NodeId[], origin: U32, out: Staging): void {
+    const count = origin.length;
+    const gathered = new Array<NodeId>(count);
+    const map = new Map<NodeId, number>();
+    for (let i = 0; i < count; i++) {
+        const id = ids[origin[i]];
+        gathered[i] = id;
+        map.set(id, i);
+    }
+    out.ids = gathered;
+    out.idToIndex = map;
+}
+
+/**
+ * Gather the surviving edges' weights (1 when the source is unweighted), then store merged weights.
+ * @param source - the source staging
+ * @param plan - the compaction plan
+ * @param weight - the compacted staging's weight storage
+ * @param origin - new edge -> old edge
+ */
+function gatherWeights(
+    source: Staging,
+    plan: CompactionPlan,
+    weight: GrowableTypedArray<TypedArrayData>,
+    origin: U32,
+): void {
+    const edgeCount = origin.length;
+    weight.resize(edgeCount);
+    const weights = weight.array;
+    if (source.weight === null) {
+        weights.fill(1, 0, edgeCount);
+    } else {
+        gatherValues(source.weight.array, origin, weights);
+    }
+    if (plan.mergedWeights !== null && plan.mergedWeightStored !== null) {
+        applyMergedWeights(plan.mergedWeights, plan.mergedWeightStored, weights, edgeCount);
+    }
+}
+
+/**
+ * Set the explicit-weight bit of every surviving edge whose source edge had one, or whose merged
+ * group did.
+ * @param source - the source staging
+ * @param mergedWeightSet - per new edge, bit set when its merged group had an explicit weight, or null
+ * @param weightSet - the compacted staging's explicit-weight bits
+ * @param origin - new edge -> old edge
+ */
+function gatherWeightSet(source: Staging, mergedWeightSet: U32 | null, weightSet: GrowableBitmap, origin: U32): void {
+    const edgeCount = origin.length;
+    weightSet.resize(edgeCount, false);
+    for (let e = 0; e < edgeCount; e++) {
+        const explicit =
+            source.weightExplicit(origin[e]) || (mergedWeightSet !== null && bitmapGet(mergedWeightSet, e));
+        if (explicit) {
+            weightSet.set(e, true);
+        }
+    }
+}
+
+/**
  * Gather a new staging through a compaction plan (design section 6.3 step 1). The source is left
  * untouched; the result has no tombstones, fresh `ids` / `idToIndex` objects (or none when every node
  * is anonymous), rebuilt incidence lists, gathered columns with `refersTo` values rewritten, and
@@ -1835,15 +2005,7 @@ export function compactStaging(source: Staging, plan: CompactionPlan): Staging {
     out.firstIn.resize(nodes.count, INVALID_INDEX);
     out.liveNodeCount = nodes.count;
     if (source.ids !== null) {
-        const ids = new Array<NodeId>(nodes.count);
-        const map = new Map<NodeId, number>();
-        for (let i = 0; i < nodes.count; i++) {
-            const id = source.ids[nodes.origin[i]];
-            ids[i] = id;
-            map.set(id, i);
-        }
-        out.ids = ids;
-        out.idToIndex = map;
+        gatherNodeIds(source.ids, nodes.origin, out);
     }
     // edges: gathered in new-index order through the backing views (one typed-array pass, design
     // section 6.3 step 1), weights and explicit-weight bits carried, lists rebuilt by pushing every
@@ -1869,34 +2031,18 @@ export function compactStaging(source: Staging, plan: CompactionPlan): Staging {
         nodeRemap,
         out.src.array,
         out.dst.array,
-        out.firstOut.array,
-        out.firstIn.array,
-        out.nextOut.array,
-        out.nextIn.array,
+        {
+            firstOut: out.firstOut.array,
+            firstIn: out.firstIn.array,
+            nextOut: out.nextOut.array,
+            nextIn: out.nextIn.array,
+        },
     );
     if (out.weight !== null) {
-        out.weight.resize(edgeCount);
-        const weights = out.weight.array;
-        if (source.weight === null) {
-            weights.fill(1, 0, edgeCount);
-        } else {
-            gatherValues(source.weight.array, origin, weights);
-        }
-        if (plan.mergedWeights !== null && plan.mergedWeightStored !== null) {
-            applyMergedWeights(plan.mergedWeights, plan.mergedWeightStored, weights, edgeCount);
-        }
+        gatherWeights(source, plan, out.weight, origin);
     }
     if (out.weightSet !== null) {
-        out.weightSet.resize(edgeCount, false);
-        for (let e = 0; e < edgeCount; e++) {
-            let explicit = source.weightExplicit(origin[e]);
-            if (plan.mergedWeightSet !== null && bitmapGet(plan.mergedWeightSet, e)) {
-                explicit = true;
-            }
-            if (explicit) {
-                out.weightSet.set(e, true);
-            }
-        }
+        gatherWeightSet(source, plan.mergedWeightSet, out.weightSet, origin);
     }
     // columns
     const refs: IndexMaps = { node: nodeRemap, edge: plan.edgeValues ?? edges.remap };

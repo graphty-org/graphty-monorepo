@@ -1,7 +1,7 @@
 import { afterEach, assert, test } from "vitest";
 
 import { type Graph, operationQueueOf } from "../../../src/Graph";
-import { nextFrame } from "../../helpers/real-input";
+import { drawnFrames } from "../../helpers/drawn-frames";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
@@ -90,10 +90,9 @@ test("screenshots wait for queued operations when waitForOperations is true", as
         })
         .then(() => order.push("screenshot"));
 
-    // Screenshot should wait for the operation, however many frames are drawn
-    for (let frame = 0; frame < 5; frame++) {
-        await nextFrame();
-    }
+    // Screenshot should wait for the operation, however many frames are drawn; five drawn frames, any of which a
+    // capture that did not wait would have been taken from
+    await drawnFrames(graph.getScene(), 5);
     assert.deepEqual(order, [], "Neither should be complete while the operation is held");
 
     // Release the operation and wait for both to complete

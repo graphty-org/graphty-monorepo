@@ -1,5 +1,5 @@
 import { markovClustering } from "@graphty/algorithms";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
@@ -62,6 +62,8 @@ interface MarkovClusteringOptions extends Record<string, unknown> {
 export class MarkovClusteringAlgorithm extends DeclaredAlgorithm<MarkovClusteringOptions> {
     static readonly namespace = "graphty";
     static readonly type = "markov-clustering";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static readonly weightMeaning = "strength" as const;
     /** Groups over the run's scope: the node list and the graph both come from the input. */
     static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
@@ -137,7 +139,7 @@ export class MarkovClusteringAlgorithm extends DeclaredAlgorithm<MarkovClusterin
             caveats: declaredCaveats({
                 method: "markov-clustering",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "strength" },
+                ...this.weightCaveats(),
                 converged: value.converged,
                 iterations: value.iterations,
                 facts: [caveat("partition.unscored", { algorithm: "markov-clustering" })],

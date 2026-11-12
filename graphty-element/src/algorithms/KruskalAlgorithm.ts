@@ -26,10 +26,12 @@ import {
  * Kruskal's minimum spanning tree: the cheapest edges that join the graph, or the run's scope.
  */
 export class KruskalAlgorithm extends DeclaredAlgorithm {
-    static namespace = "graphty";
-    static type = "kruskal";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "kruskal";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static readonly weightMeaning = "distance" as const;
     /** Spans the run's scope: the edge list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * Find the cheapest set of edges that still joins every node.
@@ -74,7 +76,7 @@ export class KruskalAlgorithm extends DeclaredAlgorithm {
             caveats: declaredCaveats({
                 method: "kruskal",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "distance" },
+                ...this.weightCaveats(),
                 precision,
                 facts: [caveat("tree.edge-count", { edges: value.edges.length })],
             }),

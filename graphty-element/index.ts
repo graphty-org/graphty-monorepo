@@ -44,13 +44,14 @@ import "./src/graphty-element";
 // =============================================================================
 // Core classes
 // =============================================================================
-export { Edge } from "./src/Edge";
+export { Edge, type EdgeCapEnd } from "./src/Edge";
 export type { NodeScreenPosition } from "./src/Graph";
 export { Graph } from "./src/Graph";
 export type {
     GraphtyCapabilitiesChangeDetail,
     GraphtyElementEventMap,
     GraphtyHistoryChangeDetail,
+    GraphtyModelChangeDetail,
     GraphtyNoteChangeDetail,
     GraphtyRunChangeDetail,
 } from "./src/graphty-element";
@@ -74,16 +75,33 @@ export { Node } from "./src/Node";
 // Style configuration types
 export type {
     AdHocData,
+    // The map under the location map layout, as `element.basemap` takes it, and what it is doing
+    BasemapConfig,
+    BasemapSourceId,
+    BasemapStatus,
     EdgeStyleConfig,
+    // The room `element.fitInsets` keeps clear when the graph is framed
+    FitInsets,
+    // How the location map's globe looks, as `element.globeLook` takes it
+    GlobeLook,
     // What the graph is drawn against, as `element.background` takes it
     GraphBackgroundConfig,
     ImageData,
+    // How nodes travel to a new layout, as `session.config.set({ layoutTransition })` takes it
+    LayoutTransitionConfig,
+    // How the 3D nodes are lit, as `element.lighting` takes it
+    Lighting,
+    LocationSourceFact,
+    MapFrameFact,
     NodeStyleConfig,
     RichTextStyleType,
     // View mode types
     ViewMode,
     // XR configuration types
+    XRAiConfig,
+    XRAiControlCode,
     XRConfig,
+    XRControllerButton,
     XRInputConfig,
     XRModeConfig,
     XRTeleportationConfig,
@@ -98,7 +116,9 @@ export type { PartialXRConfig } from "./src/config/xr-config-schema";
 
 // Style configuration values and helpers
 export {
+    Basemap,
     colorToHex,
+    DEFAULT_LIGHTING,
     DEFAULT_VIEW_MODE,
     defaultEdgeStyle,
     defaultNodeStyle,
@@ -106,7 +126,9 @@ export {
     defaultXRConfig,
     EdgeStyle,
     GraphBackground,
+    isLighting,
     isViewMode,
+    LIGHTING_VALUES,
     NodeShapes,
     NodeStyle,
     RichTextStyle,
@@ -116,21 +138,29 @@ export {
 // The suggested-styles types are gone with the hand-written blocks they described. A run derives
 // what it suggests from its own result shape: `element.getSuggestedStyles(algorithm)` answers with
 // `StyleSuggestion`s, and `session.styles.encode()` / `highlight()` apply them.
-export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./src/session/styles";
+export type { EncodingSuggestion, HighlightSuggestion, MarkSuggestion, StyleSuggestion } from "./src/session/styles";
 
 // The shapes every session verb names things with: a data column, a run's result column, a coded
 // fact (graphty-element reports facts, never sentences) and a progress report
+export type { RenderQuality, RenderQualityChange, RenderQualityCode, ShaderSettings } from "./src/session/shaders";
 export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
+// Which experiments an element switched on (element.enabledFeatures)
+export type { FeatureId } from "./src/features/registry";
+export type { EnabledFeatures } from "./src/features/resolve";
 // How many node labels the element draws, and why the rest are not (element.nodeLabelCounts), and
 // one node's label as drawn (element.labelOf)
-export type { NodeLabel, NodeLabelCounts } from "./src/managers/LabelDeclutter";
+export type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./src/managers/LabelDeclutter";
 
 // What a find box lists without selecting: `element.session.find(text)`
 export type {
+    FindAtLeastRow,
+    FindContainsRow,
     FindEnd,
     FindHit,
     FindHitBase,
     FindKind,
+    FindMatchValue,
+    FindNamedRow,
     FindOptions,
     FindResult,
     FindValueRow,
@@ -141,7 +171,7 @@ export type { Neighbor, NeighborOptions, NeighborPage, NeighborSort } from "./sr
 // The id `e.detail.nodeId` and `neighbors(id)` carry; the same type as `NodeIdType`
 export type { NodeId } from "./src/catalog/types";
 // What `element.elementAt({ x, y })` finds under a point
-export type { ElementAtResult } from "./src/catalog/types";
+export type { DrawnShaders, ElementAtResult, GroupOutlineAtResult } from "./src/catalog/types";
 // What a run's suggested style did when it first completed: `element.session.runs.painting(id)`
 export type { RunPainting, SuggestionOutcome } from "./src/session/runs";
 
@@ -168,7 +198,9 @@ export type {
 
 // The project file: the whole session as one graphty document, as `element.session.project`
 export type {
+    AssetStorage,
     ProjectApi,
+    ProjectAssetChoice,
     ProjectOpenOptions,
     ProjectOpenReport,
     ProjectProblem,
@@ -179,6 +211,17 @@ export type {
     SavedProject,
 } from "./src/session/projectFile";
 export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+// What autosave reports: its status, its codes, its entries and what a restore found.
+export type { AutosaveAtRisk } from "./src/autosave/elementAutosave";
+export type {
+    AutosaveApi,
+    AutosaveAvailable,
+    AutosaveCode,
+    AutosaveEntry,
+    AutosaveOptions,
+    AutosaveRestored,
+    AutosaveStatus,
+} from "./src/autosave/types";
 
 // Color palettes for visualizations
 export * from "./src/config/palettes/index";
@@ -186,6 +229,10 @@ export * from "./src/config/palettes/index";
 // =============================================================================
 // Layout Engine
 // =============================================================================
+export type { GraphvizCapability } from "./src/layout/graphviz/availability";
+export { graphvizAvailability } from "./src/layout/graphviz/availability";
+export type { GraphvizEngine } from "./src/layout/graphviz/engines";
+export type { GraphvizFailureCode } from "./src/layout/graphviz/protocol";
 export type { EdgePosition, Position, SimpleLayoutConfigType, SimpleLayoutOpts } from "./src/layout/LayoutEngine";
 export { LayoutEngine, SimpleLayoutConfig } from "./src/layout/LayoutEngine";
 // eslint-disable-next-line @typescript-eslint/no-deprecated -- still published through 3.x for layouts written against it
@@ -196,7 +243,14 @@ export { SimpleLayoutEngine } from "./src/layout/LayoutEngine";
 // =============================================================================
 export type { BaseDataSourceConfig, DataSourceChunk } from "./src/data/DataSource";
 export { DataSource } from "./src/data/DataSource";
-export type { ExportGraphOptions, ExportLoss, ExportLossCode, ExportResult } from "./src/data/export";
+export type {
+    ExportGraphOptions,
+    ExportLoss,
+    ExportLossCode,
+    ExportResult,
+    ExportScope,
+    ExportStyleLossCode,
+} from "./src/data/export";
 
 // Error aggregation for data loading
 export type { DataLoadingError, ErrorSummary } from "./src/data/index";
@@ -222,6 +276,7 @@ export type {
     SnapshotLayoutInput,
     SnapshotLayoutProgress,
     SnapshotLayoutRegistration,
+    SnapshotLayoutWarning,
 } from "./src/layout/SnapshotLayoutEngine";
 export { registerSnapshotLayout } from "./src/layout/SnapshotLayoutEngine";
 // The simple tier's verbs, so a page with no build step reaches them from the bundle too.
@@ -229,12 +284,14 @@ export { defineAlgorithm } from "./src/simple/defineAlgorithm";
 export { defineLayout } from "./src/simple/defineLayout";
 export { defineLogDestination } from "./src/simple/defineLogDestination";
 export { definePalette } from "./src/simple/definePalette";
+export { defineShader } from "./src/simple/defineShader";
 
 // =============================================================================
 // Events
 // =============================================================================
 export type {
     AiEventType,
+    BasemapStatusEvent,
     CameraStateChangedEvent,
     DataLoadingCompleteEvent,
     DataLoadingErrorEvent,
@@ -265,6 +322,7 @@ export type {
     InputTouchEvent,
     InputWheelEvent,
     LayoutChangedEvent,
+    LayoutWarningEvent,
     NodeAddEvent,
     NodeClickEvent,
     NodeDragEndEvent,
@@ -318,15 +376,20 @@ export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants
 // =============================================================================
 // Screenshot exports
 // =============================================================================
+export type { CameraViewExtent, ViewInsets } from "./src/camera/types";
 export { ScreenshotError, ScreenshotErrorCode } from "./src/screenshot/ScreenshotError";
 export type {
     CameraAnimationOptions,
     CameraState,
     ClipboardStatus,
     QualityEnhancementOptions,
+    ScreenshotLegendSection,
     ScreenshotOptions,
     ScreenshotResult,
 } from "./src/screenshot/types";
+
+// One node drawn alone, for a key or a picker (element.nodeThumbnail)
+export type { ModelThumbnailOptions, NodeThumbnailOptions } from "./src/meshes/NodeThumbnail";
 
 // Capability check for screenshot support
 export type { CapabilityCheck } from "./src/screenshot/capability-check";
@@ -357,6 +420,9 @@ export { BUILTIN_PRESETS } from "./src/camera/presets";
 export type {
     AccelerationErrorCode,
     GraphtyErrorCode,
+    GraphtyErrorDetails,
+    GraphtyErrorDetailsMap,
+    GraphtyErrorFor,
     GraphtyErrorInit,
     GraphtyErrorJson,
     GraphtyErrorSource,
@@ -374,7 +440,14 @@ export {
 // =============================================================================
 // Renderer
 // =============================================================================
-export type { ActiveRenderer, RendererRequest, RendererStatus } from "./src/managers/RenderManager";
+export type {
+    ActiveRenderer,
+    LayoutDevice,
+    PixelRatio,
+    RendererRequest,
+    RendererStatus,
+} from "./src/managers/RenderManager";
+export type { RenderPath, RowCounts } from "./src/meshes/NodeBatch";
 
 // =============================================================================
 // Acceleration
@@ -395,6 +468,7 @@ export type {
     Limits,
     WorkerCapability,
     XrCapability,
+    XrUnavailableReason,
 } from "./src/acceleration";
 export {
     ACCELERATION_MIN_NODES_DEFAULT,
@@ -404,3 +478,10 @@ export {
     CPU_PRECISION,
     isAccelerationPolicy,
 } from "./src/acceleration";
+
+// ---------------------------------------------------------------------------------------------
+// Network sources (experimental): graph-io's source contract and the element's load types
+// ---------------------------------------------------------------------------------------------
+
+export type { CredentialStore, SourceCredentialTarget, StoredCredentialInfo } from "./src/credentials/CredentialStore";
+export * from "./src/session/sources/public";

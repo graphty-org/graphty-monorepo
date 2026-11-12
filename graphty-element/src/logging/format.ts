@@ -46,8 +46,7 @@ export function formatLogRecord(record: LogRecord, options?: LogFormatOptions): 
         parts.push(`[${record.category.join(".")}]`);
     }
 
-    parts.push(`[${LOG_LEVEL_TO_NAME[record.level]}]`);
-    parts.push(record.message);
+    parts.push(`[${LOG_LEVEL_TO_NAME[record.level]}]`, record.message);
 
     return parts.join(" ");
 }

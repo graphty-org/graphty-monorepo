@@ -9,13 +9,15 @@ import type {
     DataSourceInput,
     DraftRow,
     GraphSession,
+    LoadChoices,
     LoadDraft,
     LoadReport,
     RecordPage,
 } from "@graphty/graphty-element/session";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { INITIAL_CHOICES, loadChoices, type PageChoices } from "./choices";
+import { fileStylesOn } from "../features";
+import { INITIAL_CHOICES, initialChoices as freshChoices, loadChoices, type PageChoices } from "./choices";
 
 /** What the reader handed over. */
 export type PageSource =
@@ -58,7 +60,7 @@ export function sourceName(source: PageSource): string {
  * @param settings - the reader's file settings.
  * @returns what `prepare` takes.
  */
-function sourceInput(source: PageSource, settings: ReadSettings): DataSourceInput {
+export function sourceInput(source: PageSource, settings: ReadSettings): DataSourceInput {
     const extra = {
         ...(settings.delimiter === undefined ? {} : { delimiter: settings.delimiter }),
         ...(settings.errorLimit === undefined ? {} : { errorLimit: settings.errorLimit }),
@@ -108,10 +110,11 @@ export interface LoadDraftState {
     setFilter: (filter: RowFilter) => void;
     /**
      * Loads the draft with the reader's choices.
+     * @param history - "start" when the load makes a new graph, which starts its history.
      * @returns true once the rows are in the graph; false when the element refused the load,
      *     which `loadError` then holds.
      */
-    load: () => Promise<boolean>;
+    load: (history?: LoadChoices["history"]) => Promise<boolean>;
 }
 
 /**
@@ -119,19 +122,22 @@ export interface LoadDraftState {
  * @param session - the element's session, or null before it has come up.
  * @param mode - "replace" for a new graph, "merge" to add to the open project.
  * @param initial - the source a door handed over, if any.
+ * @param initialChoices - the choices a door handed over with it (Edit source...), kept while the
+ *     page reads that same source with no file settings.
  * @returns the page's state and setters.
  */
 export function useLoadDraft(
     session: GraphSession | null,
     mode: "replace" | "merge",
     initial: PageSource | null,
+    initialChoices: PageChoices = INITIAL_CHOICES,
 ): LoadDraftState {
     const [source, setSource] = useState<PageSource | null>(initial);
     const [settings, setSettings] = useState<ReadSettings>({});
     const [draft, setDraft] = useState<LoadDraft | null>(null);
     const [reading, setReading] = useState(false);
     const [readError, setReadError] = useState<unknown>(null);
-    const [choices, setChoices] = useState<PageChoices>(INITIAL_CHOICES);
+    const [choices, setChoices] = useState<PageChoices>(initialChoices);
     const [report, setReport] = useState<LoadReport | null>(null);
     const [reportError, setReportError] = useState<unknown>(null);
     const [tableId, setTableId] = useState<string | null>(null);
@@ -141,6 +147,8 @@ export function useLoadDraft(
     const [loadError, setLoadError] = useState<unknown>(null);
     /** The draft a load was started on: leaving the page must not dispose it mid-load. */
     const loadingDraft = useRef<LoadDraft | null>(null);
+    /** Whether loads carry a file's styles: a boolean, so the hooks below re-run only when it flips. */
+    const fileStyles = fileStylesOn(session);
 
     const chooseSource = useCallback((next: PageSource | null) => {
         setSource(next);
@@ -154,7 +162,13 @@ export function useLoadDraft(
         setReportError(null);
         setReadError(null);
         setRows(null);
-        setChoices(INITIAL_CHOICES);
+        // The choices a door handed over hold for its own source; any other starts from the
+        // reader's preferences (whether a file's styles are imported).
+        setChoices(
+            source === initial && Object.keys(settings).length === 0 && initialChoices !== INITIAL_CHOICES
+                ? initialChoices
+                : freshChoices(fileStylesOn(session)),
+        );
         setLoadError(null);
         setFilter("all");
         if (session === null || source === null) {
@@ -188,7 +202,7 @@ export function useLoadDraft(
                 held.dispose();
             }
         };
-    }, [session, source, settings]);
+    }, [session, source, settings, initial, initialChoices]);
 
     // What a load with these choices would do: recomputed on the held rows, no I/O.
     useEffect(() => {
@@ -197,7 +211,7 @@ export function useLoadDraft(
         }
         let stale = false;
         setLoadError(null);
-        draft.report(loadChoices(draft, choices, mode)).then(
+        draft.report(loadChoices(draft, choices, mode, fileStyles)).then(
             (next) => {
                 if (!stale) {
                     setReport(next);
@@ -214,17 +228,17 @@ export function useLoadDraft(
         return () => {
             stale = true;
         };
-    }, [draft, choices, mode]);
+    }, [draft, choices, mode, fileStyles]);
 
-    // The grid's rows. The element reads the unmatched and rejected filters with the choices of
-    // the last report() call (draft.ts filter), so they wait for that report; #927 asks rows() to
-    // take the choices itself.
+    // The grid's rows. The unmatched and rejected filters are read under the same choices the
+    // report counted with: without them the element reads a load that replaces the graph, so an
+    // edge table added to a graph would list none of the rows the report calls unmatched.
     useEffect(() => {
-        if (draft === null || tableId === null || (filter !== "all" && report === null)) {
+        if (draft === null || tableId === null) {
             return undefined;
         }
         let stale = false;
-        const only = filter === "all" ? {} : { only: filter };
+        const only = filter === "all" ? {} : { only: filter, choices: loadChoices(draft, choices, mode, fileStyles) };
         // "Show the 32 unmatched rows" shows all of them, not a sample (round 8).
         const limit = filter === "all" ? SAMPLE_ROWS : Infinity;
         draft.rows(tableId, { limit, ...only }).then(
@@ -240,26 +254,32 @@ export function useLoadDraft(
         return () => {
             stale = true;
         };
-    }, [draft, tableId, filter, report]);
+    }, [draft, tableId, filter, choices, mode, fileStyles]);
 
-    const load = useCallback(async (): Promise<boolean> => {
-        if (draft === null) {
-            return false;
-        }
-        setLoading(true);
-        loadingDraft.current = draft;
-        try {
-            await draft.load(loadChoices(draft, choices, mode));
-            return true;
-        } catch (error: unknown) {
-            setLoadError(error);
-            return false;
-        } finally {
-            // A refused load leaves the draft on the page, which disposes it as usual.
-            loadingDraft.current = null;
-            setLoading(false);
-        }
-    }, [draft, choices, mode]);
+    const load = useCallback(
+        async (history?: LoadChoices["history"]): Promise<boolean> => {
+            if (draft === null) {
+                return false;
+            }
+            setLoading(true);
+            loadingDraft.current = draft;
+            try {
+                await draft.load({
+                    ...loadChoices(draft, choices, mode, fileStyles),
+                    ...(history === undefined ? {} : { history }),
+                });
+                return true;
+            } catch (error: unknown) {
+                setLoadError(error);
+                return false;
+            } finally {
+                // A refused load leaves the draft on the page, which disposes it as usual.
+                loadingDraft.current = null;
+                setLoading(false);
+            }
+        },
+        [draft, choices, mode, fileStyles],
+    );
 
     return {
         source,

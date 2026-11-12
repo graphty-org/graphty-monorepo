@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { PositionMap } from "../src/types/index.js";
 import { rescaleLayout } from "../src/utils/rescale";
 
 describe("Bug Report #3: rescaleLayout returns all zeros when encountering NaN values", () => {
@@ -58,7 +59,7 @@ describe("Bug Report #3: rescaleLayout returns all zeros when encountering NaN v
         // 2. Ignores NaN values when calculating distances
         // 3. Preserves NaN values in the output
 
-        const result = rescaleLayout(positions, 1, [0, 0, 0]);
+        const result = rescaleLayout(positions, 1, [0, 0, 0]) as PositionMap;
 
         // The function now properly handles NaN: X and Y are rescaled, Z remains NaN
         expect(result.node1[0]).toBe(0); // X is rescaled to center

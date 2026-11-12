@@ -1,8 +1,16 @@
-import { type F64, type GraphSnapshot, type NodeRef, resolveNode } from "@graphty/graph-format";
+import {
+    detAcos,
+    detCos,
+    detSin,
+    type F64,
+    type GraphSnapshot,
+    type NodeRef,
+    resolveNode,
+} from "@graphty/graph-format";
 
 import type { LayoutResult } from "../positions.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
-import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
+import { type CommonLayoutOptions, planar, refusal, resolve, result } from "./common.js";
 import { type ShellRotate, shellRows } from "./shell.js";
 
 /** Options of the index-based radial layout. */
@@ -53,39 +61,56 @@ function neighboursByEdge(g: GraphSnapshot, u: number): number[] {
 }
 
 /**
- * The breadth-first rings around a root: ring k holds the nodes k hops away (edges taken as undirected, neighbours
- * visited in edge order), and every node the root cannot reach goes on one extra ring after the last.
- * @param g - an undirected snapshot
- * @param root - the root index, or null for the node with the most distinct neighbours
- * @returns node indices per ring, the root's ring first, and each reached node's breadth-first parent (-1 for the root
- * and for nodes the root cannot reach)
+ * The node with the most distinct neighbours (the first on a tie).
+ * @param g - an undirected snapshot with at least one node
+ * @returns its index
  */
-function radialRings(g: GraphSnapshot, root: number | null): { rings: number[][]; parent: Int32Array } {
-    const n = g.nodeCount;
-    const parent = new Int32Array(n).fill(-1);
-    if (n === 0) {
-        return { rings: [], parent };
-    }
-    if (root === null) {
-        let best = 0;
-        let bestDegree = -1;
-        for (let u = 0; u < n; u++) {
-            let degree = 0;
-            for (let a = g.rowPtr[u]; a < g.rowPtr[u + 1]; a++) {
-                if (a === g.rowPtr[u] || g.colIdx[a] !== g.colIdx[a - 1]) {
-                    degree++;
-                }
-            }
-            if (degree > bestDegree) {
-                best = u;
-                bestDegree = degree;
+function mostNeighbours(g: GraphSnapshot): number {
+    let best = 0;
+    let bestDegree = -1;
+    for (let u = 0; u < g.nodeCount; u++) {
+        let degree = 0;
+        for (let a = g.rowPtr[u]; a < g.rowPtr[u + 1]; a++) {
+            if (a === g.rowPtr[u] || g.colIdx[a] !== g.colIdx[a - 1]) {
+                degree++;
             }
         }
-        root = best;
-    } else if (!Number.isInteger(root) || root < 0 || root >= n) {
-        throw new Error(`root node ${String(root)} is not in the graph`);
+        if (degree > bestDegree) {
+            best = u;
+            bestDegree = degree;
+        }
     }
-    const visited = new Uint8Array(n);
+    return best;
+}
+
+/**
+ * The root option, checked, or the node with the most distinct neighbours when it is null.
+ * @param g - an undirected snapshot with at least one node
+ * @param root - the root option
+ * @returns the root index
+ */
+function checkedRoot(g: GraphSnapshot, root: number | null): number {
+    if (root === null) {
+        return mostNeighbours(g);
+    }
+    if (!Number.isInteger(root) || root < 0 || root >= g.nodeCount) {
+        throw refusal(new Error(`root node ${String(root)} is not in the graph`), "E_BAD_NODE", {
+            option: "root",
+            index: root,
+        });
+    }
+    return root;
+}
+
+/**
+ * The breadth-first rings the root reaches, neighbours visited in edge order.
+ * @param g - an undirected snapshot
+ * @param root - the root index
+ * @param parent - all -1 on entry; receives each reached node's breadth-first parent
+ * @returns node indices per ring, the root's first
+ */
+function breadthFirstRings(g: GraphSnapshot, root: number, parent: Int32Array): number[][] {
+    const visited = new Uint8Array(g.nodeCount);
     visited[root] = 1;
     const rings: number[][] = [[root]];
     for (let ring = rings[0]; ring.length > 0;) {
@@ -104,9 +129,27 @@ function radialRings(g: GraphSnapshot, root: number | null): { rings: number[][]
         }
         ring = next;
     }
+    return rings;
+}
+
+/**
+ * The breadth-first rings around a root: ring k holds the nodes k hops away (edges taken as undirected, neighbours
+ * visited in edge order), and every node the root cannot reach goes on one extra ring after the last.
+ * @param g - an undirected snapshot
+ * @param root - the root index, or null for the node with the most distinct neighbours
+ * @returns node indices per ring, the root's ring first, and each reached node's breadth-first parent (-1 for the root
+ * and for nodes the root cannot reach)
+ */
+function radialRings(g: GraphSnapshot, root: number | null): { rings: number[][]; parent: Int32Array } {
+    const n = g.nodeCount;
+    const parent = new Int32Array(n).fill(-1);
+    if (n === 0) {
+        return { rings: [], parent };
+    }
+    const rings = breadthFirstRings(g, checkedRoot(g, root), parent);
     const unreachable: number[] = [];
     for (let u = 0; u < n; u++) {
-        if (visited[u] === 0) {
+        if (parent[u] === -1 && u !== rings[0][0]) {
             unreachable.push(u);
         }
     }
@@ -178,12 +221,12 @@ function sectorRows(
         start[rings[0][0]] = Math.PI / 4 - Math.PI;
     }
     const place = (u: number, radius: number, theta: number): void => {
-        rows[2 * u] = Math.cos(theta) * radius + center[0];
-        rows[2 * u + 1] = Math.sin(theta) * radius + center[1];
+        rows[2 * u] = detCos(theta) * radius + center[0];
+        rows[2 * u + 1] = detSin(theta) * radius + center[1];
     };
     place(rings[0][0], 0, 0);
     for (let k = 1; k < reachedRings; k++) {
-        const tangentWedge = 2 * Math.acos(k / (k + 1));
+        const tangentWedge = 2 * detAcos(k / (k + 1));
         for (const u of rings[k]) {
             const p = parent[u];
             const share = (width[p] * leaves[u]) / leaves[p];
@@ -212,16 +255,31 @@ function sectorRows(
  * @param options - `scale` is the radius of the outermost ring; `root` the centre node; `rotate` the turn of each ring
  * past the one inside it; `arrangement` how a ring's nodes are spread
  * @returns the layout
+ * @throws an Error with `code` `E_BAD_NODE` and `params` `{ option: "root", index }` when `root` is an index that is
+ * not a node (a `{ id }` the graph does not hold is graph-format's `E_UNKNOWN_NODE`), and `E_BAD_OPTION` with
+ * `{ option, value }` for an unknown `arrangement` or a `rotate` with `arrangement: "sectors"`
  */
 export function radial(s: GraphSnapshot, options: RadialLayoutOptions = {}): LayoutResult {
     const { n, dim, scale, center } = resolve(s, options);
     const root = options.root ?? null;
-    const { arrangement = "rings", rotate } = options;
+    const { rotate } = options;
+    // a string, not the option type: a JavaScript caller may pass any value
+    const arrangement: string = options.arrangement ?? "rings";
     if (arrangement !== "rings" && arrangement !== "sectors") {
-        throw new Error(`arrangement must be "rings" or "sectors", not ${String(arrangement)}`);
+        throw refusal(new Error(`arrangement must be "rings" or "sectors", not ${arrangement}`), "E_BAD_OPTION", {
+            option: "arrangement",
+            value: arrangement,
+        });
     }
     if (arrangement === "sectors" && rotate !== undefined && rotate !== 0) {
-        throw new Error('rotate turns each ring separately, which only arrangement: "rings" allows');
+        throw refusal(
+            new Error('rotate turns each ring separately, which only arrangement: "rings" allows'),
+            "E_BAD_OPTION",
+            {
+                option: "rotate",
+                value: rotate,
+            },
+        );
     }
     const { rings, parent } = radialRings(toLayoutSnapshot(s), root === null ? null : resolveNode(s, root));
     if (arrangement === "sectors") {

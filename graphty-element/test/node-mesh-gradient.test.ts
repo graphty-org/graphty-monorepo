@@ -1,5 +1,5 @@
 import { Mesh, NullEngine, Scene, StandardMaterial } from "@babylonjs/core";
-import { afterAll, assert, beforeAll, beforeEach, describe, test } from "vitest";
+import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, test } from "vitest";
 
 import { NodeShapes } from "../src/config/NodeStyle";
 import { MeshCache } from "../src/meshes/MeshCache";
@@ -29,6 +29,10 @@ describe("NodeMesh shape vocabulary", () => {
 
     beforeEach(() => {
         shapeScene = new Scene(new NullEngine());
+    });
+
+    afterEach(() => {
+        shapeScene.getEngine().dispose();
     });
 
     test("every NodeShapes member has a registered shape creator", () => {
@@ -67,6 +71,10 @@ describe("NodeMesh gradient colour without a canvas", () => {
         const engine = new NullEngine();
         scene = new Scene(engine);
         meshCache = new MeshCache();
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     function materialFor(styleId: string, color: unknown, is2D = false): StandardMaterial {
@@ -154,7 +162,7 @@ describe("NodeMesh gradient colour without a canvas", () => {
  * `document`. Node.js defines neither, so without a stand-in every gradient in this project takes
  * the flat first-stop fallback and the branch that actually assigns a texture is never executed.
  * The real ramp -- the pixels -- is verified in test/browser/node-mesh-gradient.test.ts against a
- * real canvas, and ultimately by a Chromatic screenshot, because "it renders" is the whole claim.
+ * real canvas, and ultimately by a visual-review screenshot, because "it renders" is the whole claim.
  * What THESE tests pin is the wiring that the memory bound depends on: that a gradient reaches
  * `diffuseTexture` at all, that equal gradients share ONE texture, and that the per-scene ceiling
  * engages instead of allocating without limit.
@@ -248,6 +256,10 @@ describe("NodeMesh gradient textures with a stand-in canvas", () => {
         meshCache = new MeshCache();
     });
 
+    afterEach(() => {
+        scene.getEngine().dispose();
+    });
+
     function materialFor(styleId: string, color: unknown, is2D = false): StandardMaterial {
         const mesh = NodeMesh.create(
             meshCache,
@@ -276,6 +288,21 @@ describe("NodeMesh gradient textures with a stand-in canvas", () => {
         const mat = materialFor("tex-radial", radial);
 
         assert.isNotNull(mat.diffuseTexture);
+    });
+
+    test("a gradient with a see-through stop reads its alpha from the ramp; an opaque one stays opaque", () => {
+        // yEd's color2 with an alpha (#C8C8C8 into #00000000) fades the node to clear across its box
+        const clear = materialFor("tex-clear", { ...linear, colors: ["#C8C8C8", "#00000000"] });
+        const halfIn2D = materialFor("tex-half-2d", { ...linear, colors: ["#FF8800", "#FF880080"] }, true);
+        const opaque = materialFor("tex-opaque", { ...linear, colors: ["#FF0000", "#0000FFFF"] });
+
+        assert.strictEqual(clear.opacityTexture, clear.diffuseTexture);
+        assert.isTrue(clear.needAlphaBlending());
+        // a lit node blends the fade rather than cutting it off where the alpha test would
+        assert.isNotOk(clear.needAlphaTesting());
+        assert.strictEqual(halfIn2D.opacityTexture, halfIn2D.emissiveTexture);
+        assert.isNull(opaque.opacityTexture);
+        assert.isNotOk(opaque.needAlphaBlending());
     });
 
     test("a solid colour produces a diffuseColor and NO texture", () => {
@@ -316,6 +343,7 @@ describe("NodeMesh gradient textures with a stand-in canvas", () => {
 
         assert.isTrue(mat.disableLighting);
         assert.isNotNull(mat.emissiveTexture);
+        assert.isNull(mat.diffuseTexture);
     });
 
     test("past the per-scene ceiling a gradient falls back to a flat first stop", () => {
@@ -348,6 +376,7 @@ describe("NodeMesh gradient textures with a stand-in canvas", () => {
             materialFor(`tex-fill-${i}`, { colorType: "gradient", direction: i, colors: ["#FF0000", "#0000FF"] });
         }
 
+        scene.getEngine().dispose();
         scene = new Scene(new NullEngine());
         meshCache = new MeshCache();
         const mat = materialFor("tex-fresh", linear);

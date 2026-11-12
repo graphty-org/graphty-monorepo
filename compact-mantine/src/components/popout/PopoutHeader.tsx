@@ -29,6 +29,7 @@ import type { PopoutHeaderProps } from "../../types/popout";
  * @param props.onClose - Called when the close button is activated
  * @param props.dragTriggerProps - Props that make the bar a drag handle
  * @param props.actions - Optional action buttons, shown before the close button
+ * @param props.closeLabel - The close button's accessible name
  * @param props.activeTab - Currently selected tab
  * @param props.onTabChange - Called when a different tab is selected, with its id first
  * @param props.titleId - ID given to the title element, which names the panel
@@ -40,6 +41,7 @@ export function PopoutHeader({
     onClose,
     dragTriggerProps = {},
     actions = [],
+    closeLabel,
     activeTab,
     onTabChange,
     titleId,
@@ -103,7 +105,7 @@ export function PopoutHeader({
                 data-testid="popout-header-close"
                 className="cm-popout-close"
                 onClick={onClose}
-                aria-label={labels.closePanel}
+                aria-label={closeLabel ?? labels.closePanel}
             />
         </Box>
     );

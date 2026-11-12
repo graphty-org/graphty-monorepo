@@ -1999,8 +1999,7 @@
           "E_GRAPHML_KEY_FOR_INVALID",
           "W_GRAPHML_KEY_DOMAIN"
         ]
-      },
-      "knownFailure": "key for=\"graphml\" is rejected as an error (sources.md 2.4, 10)"
+      }
     },
     {
       "file": "authored/yed-classic.graphml",
@@ -2023,8 +2022,7 @@
         "forbidCodes": [
           "E_GRAPHML_KEY_FOR_INVALID"
         ]
-      },
-      "knownFailure": "key for=\"graphml\" is rejected as an error (sources.md 2.4, 10)"
+      }
     },
     {
       "file": "authored/whitespace-typed.graphml",

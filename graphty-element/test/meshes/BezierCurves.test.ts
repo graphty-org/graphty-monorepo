@@ -50,7 +50,8 @@ describe("Bezier Curve Generation", () => {
 
     test("point density creates smooth curves", () => {
         const src = new Vector3(0, 0, 0);
-        const dst = new Vector3(100, 0, 0); // Long edge
+        // Short enough to stay under BEZIER_MAX_SEGMENTS, which a longer edge is held to.
+        const dst = new Vector3(3, 0, 0);
 
         const curvePoints = EdgeMesh.createBezierLine(src, dst);
 

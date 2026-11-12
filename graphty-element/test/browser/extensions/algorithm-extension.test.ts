@@ -849,12 +849,9 @@ DeclaredAlgorithm.register(SharedRank);
  * @param what - What is being waited for, for the failure message.
  */
 async function waitFor(predicate: () => boolean, what: string): Promise<void> {
-    await vi.waitFor(
-        () => {
-            assert.isTrue(predicate(), `Timed out waiting for ${what}`);
-        },
-        { timeout: 5000 },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(predicate(), `Timed out waiting for ${what}`);
+    });
 }
 
 /**
@@ -1691,7 +1688,7 @@ describe("an algorithm written outside this package", () => {
         const suggestions = graph.getSuggestedStyles("alphabet-walk");
 
         assert.lengthOf(suggestions, 1, "a route is one picture, however many kinds of element it runs through");
-        assert.strictEqual(suggestions[0].as, "highlight", "a route highlights what it chose rather than ramping");
+        assert.strictEqual(suggestions[0].as, "mark", "a route marks what it chose rather than ramping");
         assert.deepStrictEqual(
             suggestions[0].channels,
             ["node.color", "edge.color"],

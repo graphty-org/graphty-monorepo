@@ -89,6 +89,73 @@ export interface GraphtyErrorJson {
     causeMessage?: string;
 }
 
+/**
+ * The facts a `GraphtyError` of one code carries in `details`, for the codes whose facts are
+ * documented. Every field is optional: an error re-reported from a sibling package carries that
+ * package's facts, which may leave one out. More codes and fields may be added in a minor release.
+ * @since 3.38.0
+ */
+export interface GraphtyErrorDetailsMap {
+    /** A name that is not a column, attribute or result field. */
+    E_UNKNOWN_ATTRIBUTE: {
+        /** The names closest to the one asked for, nearest first. */
+        readonly candidates?: readonly string[];
+        /** Every name that would have been accepted, when the list is short enough to give. */
+        readonly available?: readonly string[];
+        /** The run whose fields were searched, when the name was a run's field. */
+        readonly run?: string;
+        /** The field asked for, when the name was a run's field. */
+        readonly field?: string;
+    };
+    /** A layout id no layout is registered under. */
+    E_UNKNOWN_LAYOUT: {
+        /** The id asked for. */
+        readonly layout?: string;
+        /** Every registered layout id. */
+        readonly available?: readonly string[];
+    };
+    /** A size past a limit. */
+    E_TOO_LARGE: {
+        /** The limit. */
+        readonly limit?: number;
+        /** The count that passed it. */
+        readonly count?: number;
+        /** What `count` counts: `"nodes"`, `"edges"`, `"bytes"` and so on. */
+        readonly of?: string;
+        /** The nodes and edges the graph held when the limit was passed. */
+        readonly graph?: { readonly nodes: number; readonly edges: number };
+    };
+    /** A file or source that cannot be read as its format. */
+    E_PARSE_FAILED: {
+        /** The format it was read as. */
+        readonly format?: string;
+        /** The 1-based line the reader stopped at, when it knows one. */
+        readonly line?: number;
+    };
+    /** An id that is already taken. */
+    E_DUPLICATE_ID: {
+        /** The repeated id. */
+        readonly id?: string | number;
+    };
+}
+
+/**
+ * The `details` of a `GraphtyError` with code `C`: the documented facts of that code, over the
+ * plain record every error carries.
+ * @since 3.38.0
+ */
+export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> &
+    (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
+
+/**
+ * A `GraphtyError` whose `details` follow its `code`: one member per code, so checking `code`
+ * narrows `details`. What {@link isGraphtyError} narrows a caught value to.
+ * @since 3.38.0
+ */
+export type GraphtyErrorFor<C extends GraphtyErrorCode = GraphtyErrorCode> = C extends GraphtyErrorCode
+    ? GraphtyError & { readonly code: C; readonly details: GraphtyErrorDetails<C> }
+    : never;
+
 const EMPTY_DETAILS: Readonly<Record<string, unknown>> = Object.freeze({});
 
 /**
@@ -120,17 +187,34 @@ function foreignCodeOf(value: unknown): string | undefined {
 }
 
 /**
- * Reads the `params` object a sibling package's coded error carries.
+ * Sibling codes that name a refusal the element already has a code for, under another spelling:
+ * the algorithms and layout packages' `E_BAD_OPTION` is the element's `E_OPTION_RANGE`, their
+ * `E_BAD_NODE` and graph-format's `E_UNKNOWN_NODE` its `E_UNKNOWN_ELEMENT`, and a layout's
+ * `E_UNKNOWN_COLUMN` / `E_COLUMN_TYPE` its `E_UNKNOWN_ATTRIBUTE` / `E_ATTRIBUTE_TYPE`. Used only in
+ * place of `E_INTERNAL`: a caller that names its own code (an import's `E_PARSE_FAILED`) keeps it.
+ */
+const SIBLING_ALIASES: Readonly<Record<string, { code: GraphtyErrorCode; details?: Record<string, unknown> }>> = {
+    E_BAD_OPTION: { code: "E_OPTION_RANGE" },
+    E_BAD_NODE: { code: "E_UNKNOWN_ELEMENT", details: { kind: "node" } },
+    E_UNKNOWN_NODE: { code: "E_UNKNOWN_ELEMENT", details: { kind: "node" } },
+    E_UNKNOWN_COLUMN: { code: "E_UNKNOWN_ATTRIBUTE" },
+    E_COLUMN_TYPE: { code: "E_ATTRIBUTE_TYPE" },
+};
+
+/**
+ * Reads the facts a sibling package's coded error carries: its `params`, or else (graph-format's
+ * `GraphFormatError`) its `details`.
  * @param value - The thrown value.
  * @returns Its params, or an empty object.
  */
 function paramsOf(value: unknown): Record<string, unknown> {
-    if (typeof value !== "object" || value === null || !("params" in value)) {
+    if (typeof value !== "object" || value === null) {
         return {};
     }
 
-    const { params } = value;
-    return typeof params === "object" && params !== null ? { ...(params as Record<string, unknown>) } : {};
+    const { params, details } = value as { params?: unknown; details?: unknown };
+    const facts = params ?? details;
+    return typeof facts === "object" && facts !== null ? { ...(facts as Record<string, unknown>) } : {};
 }
 
 /**
@@ -202,9 +286,11 @@ export class GraphtyError extends Error {
      * A sibling package -- graph-io, graph-format, the WebGPU peer -- throws its own class. The
      * class does not cross the boundary, so the element carries the code instead: when the
      * original's `code` is one the element knows, that code wins; when it is a string the
-     * element does not know, it is kept in `details.sourceCode` and the caller's code is used.
-     * A value that is already a `GraphtyError` is returned untouched, so the most specific code
-     * survives.
+     * element does not know, it is kept in `details.sourceCode` and the caller's code is used --
+     * unless the caller's code is `E_INTERNAL` and the sibling's code names a refusal the element
+     * has under another spelling (`E_BAD_OPTION` is `E_OPTION_RANGE`), which is then used. The
+     * sibling's `params` become `details`. A value that is already a `GraphtyError` is returned
+     * untouched, so the most specific code survives.
      * @param cause - The thrown value being wrapped.
      * @param init - The code, area and facts to use when the original supplies none.
      * @returns The error to throw.
@@ -222,12 +308,16 @@ export class GraphtyError extends Error {
         const message = init.message ?? (cause instanceof Error ? cause.message : String(cause));
         // A sibling's coded error carries its facts as `params` (an algorithm's E_TOO_LARGE: the
         // node count, the bound, the bytes); they become details, under the caller's own.
-        const facts = { ...paramsOf(cause), ...init.details };
+        const alias =
+            foreign !== undefined && init.code === "E_INTERNAL" && Object.hasOwn(SIBLING_ALIASES, foreign)
+                ? SIBLING_ALIASES[foreign]
+                : undefined;
+        const facts = { ...alias?.details, ...paramsOf(cause), ...init.details };
         const details = foreign === undefined ? facts : { ...facts, sourceCode: foreign };
 
         return new GraphtyError({
             ...init,
-            code: inherited ?? init.code,
+            code: inherited ?? alias?.code ?? init.code,
             message,
             details,
             cause,
@@ -267,10 +357,12 @@ export class GraphtyError extends Error {
  * Narrows an unknown caught value to a `GraphtyError`.
  *
  * The shape of every `catch` block that handles element failures: test it, then switch on
- * `err.code`.
+ * `err.code`. Checking the code narrows `details` to that code's facts
+ * ({@link GraphtyErrorDetailsMap}), so `err.details.candidates` after
+ * `err.code === "E_UNKNOWN_ATTRIBUTE"` is a `readonly string[] | undefined`.
  * @param value - The caught value.
  * @returns True when the value is a `GraphtyError`.
  */
-export function isGraphtyError(value: unknown): value is GraphtyError {
+export function isGraphtyError(value: unknown): value is GraphtyErrorFor {
     return value instanceof GraphtyError;
 }

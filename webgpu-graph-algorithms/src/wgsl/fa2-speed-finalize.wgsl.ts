@@ -10,6 +10,8 @@
  * traction is EXACTLY half the swing and the predicate sits on its knife edge; a multiplication by 2 and the
  * comparison are exact on every device, while WGSL grants f32 division 2.5 ULP and Dawn on NVIDIA returns 2 + 1 ulp
  * for 2.2% of the inputs x / (x / 2) (tmp/p3-fix/div-probe.mjs), which took the branch the CPU reference never takes.
+ * With every node fixed the partials are 0 and the controller holds (#3255): `swing == 0` would otherwise raise the
+ * speed by half every iteration, unbounded.
  */
 export const fa2SpeedFinalizeWgsl = /* wgsl */ `
 @compute @workgroup_size(WG)
@@ -22,7 +24,7 @@ fn speed_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         var swing = t.x;
         var traction = t.y;
         if (SWING_MODE == 1u) { swing = S.swing + t.x; traction = S.traction + t.y; }   // NetworkX accumulates across iterations from 1
-        let n = f32(P.n);
+        let n = f32(max(P.live, 1u));                                               // inert rows are not counted (setInert)
         let optJitter = 0.05 * sqrt(n);
         let minJitter = sqrt(optJitter);
         let maxJitter = 10.0;
@@ -40,7 +42,11 @@ fn speed_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         } else if (S.speed < 1000.0) {
             eff = eff * 1.3;
         }
-        S.speed = S.speed + min(targetSpeed - S.speed, 0.5 * S.speed);
+        if (t.x == 0.0 && t.y == 0.0) {                                              // nothing free to measure: hold, or the next unpin throws nodes away (#3255)
+            eff = S.speedEfficiency;
+        } else {
+            S.speed = S.speed + min(targetSpeed - S.speed, 0.5 * S.speed);
+        }
         S.speedEfficiency = eff;
         S.swing = swing;
         S.traction = traction;

@@ -14,29 +14,22 @@
  *   2.1 s for 1,000, and a continuous colour encoding makes the distinct count the element count.
  * - Repainting the graph on every edit instead of the elements the edit touched.
  *
- * HOW THE BUDGET IS ASSERTED, and why it is not a bare stopwatch. This file runs beside two
- * hundred others on a machine with fewer cores than test files, and the same edit measures 9.8 ms
- * alone and 23.9 ms while the rest of the suite is running -- so a bare 16 ms ceiling would be a
- * test of how busy the runner is. Every budget here is therefore asserted twice:
+ * WHAT IS ASSERTED IS COUNTED WORK. Each of the three is a kind of work the edit can be made to
+ * count, so each is held to a count that no amount of load on the machine changes:
  *
- * - Against a REFERENCE MEASURED IN THIS PROCESS AT THIS MOMENT: the `jmespath.search()` pass the
- *   repaint replaces, and a scanning interner like the one it replaces. The same arithmetic on
- *   the same hardware under the same load, so the ratio means the same thing wherever this runs
- *   and however busy the machine is. This is the assertion that actually guards the budget.
- * - Against a generous absolute ceiling, as a backstop for the case where the reference itself
- *   gets faster. Four frames, because the contention factor measured above is nearly three and a
- *   runner with fewer cores is worse -- the CONTRACT is one frame, and the printed number,
- *   measured with this file running on its own, is the one to read.
+ * - No `jmespath.search()` call during any edit, and a bounded number of column reads per element.
+ * - Interning compares a style with the few filed under its hash, never with every style minted:
+ *   the comparisons per element stay flat as the styles accumulate (`internCounters`).
+ * - An edit paints the elements it touches -- all 50,000 for a layer over the whole graph, the 300
+ *   a narrow run measured for a layer bound to it, none for a layer that matches nothing -- and
+ *   reads no element it does not paint (`onPainted` / `lastPainted`).
  *
- * IT GATES NO PUSH. A ratio between two stopwatches read at different moments still moves with
- * whatever else the machine is doing (24.7 ms against a 24.55 ms ceiling in a busy pre-push gate),
- * so this file runs in ci.yml's advisory "performance" job and by hand. What it times is pinned by
- * counts in the gating tests: repaint.test.ts proves an edit reads only the elements its run
- * measured and repaints nothing for a layer that matches nothing, and selector.test.ts that a
- * compiled selector reads each element's column once.
- *
- * EVERY MEASUREMENT IS PRINTED, pass or fail, so a CI log carries the numbers and a regression
- * shows up as a trend rather than as a sudden red.
+ * THE TIMINGS ARE PRINTED, NEVER ASSERTED. Each edit's main-thread time is printed beside the 16 ms
+ * the design allows and beside the `jmespath.search()` pass it replaces, measured in this process,
+ * so a CI log shows the trend; the same edit measures 9.8 ms alone and 23.9 ms while the rest of a
+ * suite runs, so a ceiling on it would measure the machine. The file runs in ci.yml's advisory
+ * "performance" job and by hand; repaint.test.ts and selector.test.ts pin the same mechanisms,
+ * gating, on small inputs.
  */
 
 import { existsSync, readFileSync } from "node:fs";
@@ -51,43 +44,31 @@ import {
     type RepaintContext,
     type SessionStylesApi,
 } from "../../../src/session/styles/index";
-import { createStyleInterner } from "../../../src/session/styles/intern";
+import { createStyleInterner, internCounters } from "../../../src/session/styles/intern";
 import type { SelectorSource } from "../../../src/session/styles/predicate";
 import { createLayerRepaint, type RepaintEngine } from "../../../src/session/styles/repaint";
+import { assertScalesLinearly } from "../../helpers/cost";
 
 /** The element count the budget is stated at. */
 const ELEMENTS = 50_000;
 
-/** The budget the design states: one frame of main-thread work for one single-layer edit. */
+/** The budget the design states: one frame of main-thread work for one single-layer edit. Printed. */
 const FRAME_MS = 16;
 
 /**
- * How much slower this file measures while the rest of the suite runs beside it.
- *
- * Measured on this machine: the same edit costs 10.1 ms alone and 28.8 ms under a full-suite run,
- * a factor of 2.9, and a runner with fewer cores than this one is worse. The absolute ceilings
- * below are the budget times this, so that a busy runner cannot fail them on its own; the ratios
- * against the references measured beside them are what actually hold the budget.
+ * How many column reads one element may cost an edit that paints it, all of them of the column
+ * the layer names: whether the selector matches it, and the value the encoding maps, read by the
+ * passes that settle the scale and paint it. Four measured. A `search()` per element, or a root
+ * object built per element, reads every column the element has instead, and a pass that ran once
+ * per layer in the stack reads it once more per layer.
  */
-const CONTENTION = 4;
+const READS_PER_ELEMENT = 4;
 
 /**
- * What the reference selector pass costs on an idle, uninstrumented machine.
- *
- * Only ever used to work out how much slower the CURRENT process is than that, so the absolute
- * ceilings can be scaled by the same factor. See {@link ceilingFor}.
+ * How many held styles a lookup may compare with, on average, before it is a scan rather than a
+ * hash: a hash compares with the one style filed under the same hash and, rarely, a collision.
  */
-const SEARCH_PASS_REFERENCE_MS = 100;
-
-/**
- * How many times cheaper than the OLD SELECTOR PASS ALONE a whole edit has to be.
- *
- * The comparison is deliberately unfair to this implementation: the reference is only the
- * `jmespath.search()` calls the old path made -- 1,843 ns each, 92 ms for one layer at 50,000
- * nodes -- while the measured side is the whole edit, validation, preparation, paint, interning
- * and all. Anything that reintroduces a parse per element fails this by construction.
- */
-const SEARCH_SPEEDUP = 4;
+const COMPARISONS_PER_LOOKUP = 2;
 
 /** How many elements the narrow run measured, of the fifty thousand in the graph. */
 const NARROW = 300;
@@ -115,9 +96,22 @@ const ELEMENT_BASE: ElementLayerSpec = {
     set: { "node.color": "#333333", "node.size": 1 },
 };
 
+/** The column reads the source below has answered, and which elements they were for. */
+const counted = {
+    reads: 0,
+    /** Every element read, when {@link counted.track} is on; off while a wide edit is timed. */
+    readIndices: new Set<number>(),
+    track: false,
+};
+
 /** What the session can say about one element. */
 const ELEMENTS_SOURCE: SelectorSource = {
     nodeValue: (index, path) => {
+        counted.reads++;
+        if (counted.track) {
+            counted.readIndices.add(index);
+        }
+
         if (path === WIDE_PATH) {
             return SCORES[index];
         }
@@ -181,6 +175,89 @@ interface Measurement {
     readonly wall: number;
     /** The session the last round was made against, for the assertions about what was painted. */
     readonly harness: Harness;
+    /** The work the last round did, which is the same in every round. */
+    readonly work: Work;
+}
+
+/** The work one edit did, counted. */
+interface Work {
+    /** Column reads the edit made. */
+    readonly reads: number;
+    /** Nodes painted, summed over every pass the edit ran. */
+    readonly painted: number;
+    /** Repaint passes the edit ran. */
+    readonly passes: number;
+    /** Held styles a lookup was compared with. */
+    readonly comparisons: number;
+    /** `jmespath.search()` calls made. */
+    readonly searches: number;
+}
+
+/**
+ * Count the work one edit does against one session.
+ * @param engine - The engine the edit repaints.
+ * @param edit - The edit.
+ * @returns What it did.
+ */
+async function countWork(engine: RepaintEngine, edit: () => PromiseLike<unknown>): Promise<Work> {
+    const { reads } = counted;
+    const { comparisons } = internCounters;
+    let painted = 0;
+    let passes = 0;
+    let searches = 0;
+    const { search } = jmespath;
+    jmespath.search = (data, expression) => {
+        searches++;
+        return search(data, expression);
+    };
+    const stop = engine.onPainted(() => {
+        passes++;
+        painted += engine.lastPainted("node").length;
+    });
+
+    try {
+        await edit();
+    } finally {
+        stop();
+        jmespath.search = search;
+    }
+
+    return {
+        reads: counted.reads - reads,
+        painted,
+        passes,
+        comparisons: internCounters.comparisons - comparisons,
+        searches,
+    };
+}
+
+/**
+ * Assert an edit painted every element of the graph once, as one pass, within its read and
+ * comparison allowance and without a `search()`.
+ * @param work - What the edit did.
+ */
+function assertPaintedTheGraphOnce(work: Work): void {
+    assert.strictEqual(work.searches, 0, "no jmespath.search() call");
+    assert.strictEqual(work.passes, 1, "one pass");
+    assert.strictEqual(work.painted, ELEMENTS, "every node painted, once");
+    assert.isAtMost(work.reads, READS_PER_ELEMENT * ELEMENTS, "a bounded number of column reads per node");
+    assert.isAtMost(
+        work.comparisons,
+        COMPARISONS_PER_LOOKUP * ELEMENTS,
+        "interning compared each node with a few styles",
+    );
+}
+
+/**
+ * The counted work, for the printed line.
+ * @param work - What an edit did.
+ * @returns It, as text.
+ */
+function describeWork(work: Work): string {
+    return (
+        `painted ${String(work.painted)} in ${String(work.passes)} pass(es), ${String(work.reads)} reads, ` +
+        `${String(work.comparisons)} style comparisons`
+    );
 }
 
 /**
@@ -264,14 +341,16 @@ async function measureEdit(edit: (harness: Harness) => PromiseLike<unknown>): Pr
     let best = Number.POSITIVE_INFINITY;
     let wall = Number.POSITIVE_INFINITY;
     let harness = await makeHarness();
+    let work: Work | undefined;
 
     for (let round = 0; round < ROUNDS; round++) {
         harness = round === 0 ? harness : await makeHarness();
 
+        const current = harness;
         const clock = performance.now();
         const cpu = cpuMs();
 
-        await edit(harness);
+        work = await countWork(current.engine, () => edit(current));
 
         const spent = cpuMs() - cpu;
 
@@ -281,7 +360,9 @@ async function measureEdit(edit: (harness: Harness) => PromiseLike<unknown>): Pr
         }
     }
 
-    return { ms: best, wall, harness };
+    assert.isDefined(work);
+
+    return { ms: best, wall, harness, work };
 }
 
 /**
@@ -309,33 +390,15 @@ function reportEdit(label: string, measurement: Measurement, budget: number, ext
 }
 
 describe("a single-layer edit stays inside one frame", () => {
-    /** What the old selector pass costs on this machine, under this load, right now. */
+    /** What the old selector pass costs on this machine, under this load, right now. Printed. */
     const searchPass = measureSearchPass();
 
     /**
-     * The absolute ceiling for one edit, scaled by how slow this process actually is.
-     *
-     * The ratios against `searchPass` are what hold the budget, because both sides are measured
-     * in the same process and a slow environment moves them together. The absolute ceiling is a
-     * belt, and a belt sized in real milliseconds stops meaning anything once the environment
-     * stops running at real speed.
-     *
-     * CI runs this file under v8 coverage, which instruments every function in the measured path
-     * and does not touch the wall clock. That read 72 ms against a fixed 64 ms ceiling -- a
-     * failure that says nothing about the repaint. Rather than loosen the number for everyone, or
-     * try to detect coverage (there is no runtime signal for the v8 provider: no `__coverage__`
-     * global, and none of the VITEST_* variables say), the ceiling is scaled by the slowdown this
-     * process is already demonstrating on the reference pass beside it.
-     *
-     * So an idle uninstrumented run keeps the tight ceiling it has always had, and an instrumented
-     * or heavily loaded one is held to the same standard in ITS units.
-     * @returns The ceiling in milliseconds.
+     * The printed comparison against that pass.
+     * @param ms - What an edit took.
+     * @returns The ratio, as text.
      */
-    function ceilingFor(): number {
-        const slowdown = Math.max(1, searchPass / SEARCH_PASS_REFERENCE_MS);
-
-        return FRAME_MS * CONTENTION * slowdown;
-    }
+    const versusSearch = (ms: number): string => `${(searchPass / ms).toFixed(1)}x cheaper than the search pass`;
 
     it("measures the selector pass it is being held against", () => {
         report(
@@ -345,9 +408,22 @@ describe("a single-layer edit stays inside one frame", () => {
             `${((searchPass * 1e6) / ELEMENTS).toFixed(0)} ns each`,
         );
 
-        // Not a budget, a sanity check: a reference of nothing would make every ratio below
-        // meaningless, and that is exactly how a benchmark quietly stops testing anything.
-        assert.isAbove(searchPass, FRAME_MS, "one search per element cannot plausibly fit in a frame");
+        // Not a budget, a check that the counter below sees what it is meant to: the reference
+        // pass makes a search() per element, so a count of zero during an edit means something.
+        const { search } = jmespath;
+        let searches = 0;
+        jmespath.search = (data, expression) => {
+            searches++;
+            return search(data, expression);
+        };
+
+        try {
+            measureSearchPass();
+        } finally {
+            jmespath.search = search;
+        }
+
+        assert.strictEqual(searches, ELEMENTS);
     });
 
     it("colours fifty thousand nodes by a metric in under one frame", async () => {
@@ -358,20 +434,19 @@ describe("a single-layer edit stays inside one frame", () => {
                 encode: { "node.color": { by: WIDE_PATH, scale: "linear", palette: "viridis" } },
             }),
         );
-        const { ms, harness } = measurement;
+        const { ms, harness, work } = measurement;
 
         reportEdit(
             "colour encoding, 50,000 nodes",
             measurement,
             FRAME_MS,
-            `${String(harness.engine.meshCount("node"))} meshes`,
+            `${String(harness.engine.meshCount("node"))} meshes  ${versusSearch(ms)}  ${describeWork(work)}`,
         );
 
         // The pass really did paint: a benchmark that measures an edit which was refused, or one
         // that matched nothing, is a benchmark that measures nothing.
         assert.notStrictEqual(harness.engine.styleOf("node", 17)["node.color"]?.hex, "#333333");
-        assert.isBelow(ms, searchPass / SEARCH_SPEEDUP);
-        assert.isBelow(ms, ceilingFor());
+        assertPaintedTheGraphOnce(work);
     });
 
     it("does not mint a source mesh per colour", async () => {
@@ -406,24 +481,30 @@ describe("a single-layer edit stays inside one frame", () => {
                 encode: { "node.size": { by: WIDE_PATH, scale: "linear", range: [1, 8] } },
             }),
         );
-        const { ms, harness } = measurement;
+        const { ms, harness, work } = measurement;
         const meshes = harness.engine.meshCount("node");
 
-        reportEdit("size encoding, 50,000 nodes", measurement, FRAME_MS, `${String(meshes)} meshes`);
+        reportEdit(
+            "size encoding, 50,000 nodes",
+            measurement,
+            FRAME_MS,
+            `${String(meshes)} meshes  ${versusSearch(ms)}  ${describeWork(work)}`,
+        );
 
         assert.isAbove(meshes, 100, "the encoding really did mint many distinct meshes");
-        assert.isBelow(ms, searchPass / SEARCH_SPEEDUP);
-        assert.isBelow(ms, ceilingFor());
+        // A scan would compare each node with half the meshes minted before it: hundreds each.
+        assertPaintedTheGraphOnce(work);
     });
 
     it("takes a wide layer back off again in under 16 ms", async () => {
         // Removal is the case a layer editor hits most and the one the design's worked example of
         // the old defect ends at: 50,000 elements have to be given back what the layers beneath
-        // painted, which means visiting all of them.
+        // painted, which means visiting all of them -- once, as one pass.
         let best = Number.POSITIVE_INFINITY;
+        let work: Work | undefined;
 
         for (let round = 0; round < ROUNDS; round++) {
-            const { styles } = await makeHarness();
+            const { engine, styles } = await makeHarness();
             const layer = await styles.add({
                 name: "Betweenness",
                 selector: { match: "has", path: WIDE_PATH },
@@ -432,15 +513,15 @@ describe("a single-layer edit stays inside one frame", () => {
 
             const started = cpuMs();
 
-            await styles.remove(layer.id);
+            work = await countWork(engine, () => styles.remove(layer.id));
 
             best = Math.min(best, cpuMs() - started);
         }
 
-        report("removing a 50,000-element layer", best, FRAME_MS);
+        assert.isDefined(work);
+        report("removing a 50,000-element layer", best, FRAME_MS, `${versusSearch(best)}  ${describeWork(work)}`);
 
-        assert.isBelow(best, searchPass / SEARCH_SPEEDUP);
-        assert.isBelow(best, ceilingFor());
+        assertPaintedTheGraphOnce(work);
     });
 });
 
@@ -454,28 +535,46 @@ describe("an edit costs what it touches, not what the graph holds", () => {
             }),
         );
 
-        const narrow = await measureEdit((h) =>
-            h.styles.add({
-                name: "Communities",
-                selector: { match: "has", path: NARROW_PATH },
-                encode: { "node.color": { by: NARROW_PATH, scale: "ordinal", palette: "okabe-ito" } },
-            }),
-        );
+        counted.readIndices.clear();
+        counted.track = true;
 
-        reportEdit("run-bound layer, 300 of 50,000", narrow, FRAME_MS, `${(wide.ms / narrow.ms).toFixed(1)}x cheaper`);
+        let narrow: Measurement;
+
+        try {
+            narrow = await measureEdit((h) =>
+                h.styles.add({
+                    name: "Communities",
+                    selector: { match: "has", path: NARROW_PATH },
+                    encode: { "node.color": { by: NARROW_PATH, scale: "ordinal", palette: "okabe-ito" } },
+                }),
+            );
+        } finally {
+            counted.track = false;
+        }
+
+        reportEdit(
+            "run-bound layer, 300 of 50,000",
+            narrow,
+            FRAME_MS,
+            `${(wide.wall / narrow.wall).toFixed(1)}x cheaper than the wide edit, by the clock  ${describeWork(narrow.work)}`,
+        );
 
         const { engine } = narrow.harness;
 
         assert.notStrictEqual(engine.styleOf("node", NARROW_INDICES[1])["node.color"]?.hex, "#333333");
         assert.strictEqual(engine.styleOf("node", 1)["node.color"]?.hex, "#333333", "an unmeasured node is untouched");
 
-        // The machine-independent assertion, and the one that actually tests the measured-column
-        // rule: the same
-        // edit over six hundredths of the graph has to be several times cheaper. An
-        // implementation that walks the node list to find what this layer matches costs roughly
-        // the same for both, whatever the absolute numbers on the machine are.
-        assert.isBelow(narrow.ms, wide.ms / 3);
-        assert.isBelow(narrow.ms, (FRAME_MS / 4) * CONTENTION);
+        // The assertion that tests the measured-column rule, counted: the edit paints exactly the
+        // three hundred elements the run measured, and reads no element outside them. An
+        // implementation that walks the node list to find what this layer matches reads all fifty
+        // thousand, whatever the machine.
+        const measured = new Set(NARROW_INDICES);
+        const strays = [...counted.readIndices].filter((index) => !measured.has(index));
+
+        assert.strictEqual(narrow.work.searches, 0, "no jmespath.search() call");
+        assert.strictEqual(narrow.work.painted, NARROW, "the measured elements painted, once");
+        assert.isAtMost(narrow.work.reads, READS_PER_ELEMENT * NARROW, "reads bounded by the run, not the graph");
+        assert.deepEqual(strays, [], "no element outside the run was read");
     });
 
     it("repaints nothing at all for a layer that matches nothing", async () => {
@@ -487,9 +586,11 @@ describe("an edit costs what it touches, not what the graph holds", () => {
             }),
         );
 
-        reportEdit("the floor: an edit that paints nothing", measurement, FRAME_MS / 4);
+        reportEdit("the floor: an edit that paints nothing", measurement, FRAME_MS / 4, describeWork(measurement.work));
 
-        assert.isBelow(measurement.ms, (FRAME_MS / 4) * CONTENTION);
+        assert.strictEqual(measurement.work.painted, 0, "nothing painted");
+        assert.strictEqual(measurement.work.reads, 0, "nothing read");
+        assert.strictEqual(measurement.work.comparisons, 0, "nothing interned");
     });
 });
 
@@ -596,7 +697,31 @@ describe("interning is a hash, not a scan", () => {
         return best;
     };
 
-    it("stays flat as styles accumulate where a scan grows with them", () => {
+    /**
+     * Count the comparisons interning a run of distinct styles makes: each style minted once, then
+     * looked up once more, so every lookup of the second half has a held style to compare with.
+     * @param distinct - How many distinct styles to mint.
+     * @returns How many held styles the lookups were compared with.
+     */
+    const comparisonsInterning = (distinct: number): number => {
+        const before = internCounters.comparisons;
+        const interner = createStyleInterner<number>();
+
+        for (let pass = 0; pass < 2; pass++) {
+            for (let value = 0; value < distinct; value++) {
+                interner.begin();
+                interner.pushText("sphere");
+                interner.pushNumber(value);
+                interner.end(() => value);
+            }
+        }
+
+        assert.strictEqual(interner.size, distinct);
+
+        return internCounters.comparisons - before;
+    };
+
+    it("stays flat as styles accumulate where a scan grows with them", async () => {
         /** The smaller of the two style counts the two methods are compared at. */
         const few = 1_000;
 
@@ -611,25 +736,25 @@ describe("interning is a hash, not a scan", () => {
         const hashMany = bestOf(timeInterning, many);
         const scanFew = bestOf(timeScanning, few);
         const scanMany = bestOf(timeScanning, many);
-        const hashGrowth = hashMany / hashFew;
-        const scanGrowth = scanMany / scanFew;
 
         console.log(
             `per distinct style, hash                     ${hashFew.toFixed(0).padStart(6)} ns at 1,000 ` +
-                `${hashMany.toFixed(0).padStart(6)} ns at 8,000   ${hashGrowth.toFixed(2)}x`,
+                `${hashMany.toFixed(0).padStart(6)} ns at 8,000   ${(hashMany / hashFew).toFixed(2)}x`,
         );
         console.log(
             `per distinct style, the scan it replaces     ${scanFew.toFixed(0).padStart(6)} ns at 1,000 ` +
-                `${scanMany.toFixed(0).padStart(6)} ns at 8,000   ${scanGrowth.toFixed(2)}x`,
+                `${scanMany.toFixed(0).padStart(6)} ns at 8,000   ${(scanMany / scanFew).toFixed(2)}x`,
         );
 
-        // THE WHOLE ASSERTION, and it is a shape rather than a number. Eight times as many styles
-        // cost a scan several times as much EACH, and cost a hash roughly the same. Both sides
-        // are measured in the same breath on the same machine under the same load, so a slow or a
-        // busy runner moves them together and the comparison survives it.
-        assert.isAbove(scanGrowth, 3, "the reference really is the linear scan it claims to be");
-        assert.isBelow(hashGrowth, scanGrowth / 2, "a hash does not care how many styles came before");
-        assert.isAbove(scanMany / hashMany, 4);
+        // THE WHOLE ASSERTION, and it is a count rather than a time. Eight times as many styles
+        // cost a hash about eight times as many comparisons in all, one or so per lookup; a scan
+        // compares each new style with every style before it, which is sixty-four times as many.
+        const { large } = await assertScalesLinearly(comparisonsInterning, {
+            sizes: [few, many],
+            counter: "held styles compared while interning",
+        });
+
+        assert.isAtMost(large, COMPARISONS_PER_LOOKUP * 2 * many, "a lookup compares with a few held styles");
     });
 
     it("mints one distinct style per element without leaving the frame's neighbourhood", () => {
@@ -637,13 +762,19 @@ describe("interning is a hash, not a scan", () => {
 
         const perStyle = bestOf(timeInterning, ELEMENTS);
         const ms = (perStyle * ELEMENTS) / 1e6;
+        const comparisons = comparisonsInterning(ELEMENTS);
 
-        report("interning 50,000 distinct styles", ms, FRAME_MS, `${perStyle.toFixed(0)} ns each`);
+        report(
+            "interning 50,000 distinct styles",
+            ms,
+            FRAME_MS,
+            `${perStyle.toFixed(0)} ns each, ${String(comparisons)} comparisons over two lookups each`,
+        );
 
         // One distinct mesh per node is not a picture anybody draws -- it is what a continuous
         // encoding of a mesh-keying channel does at full precision, and it is the load that
-        // measured 2.1 s at ONE THOUSAND styles when interning was a scan. It is held to two
-        // frames rather than one because it is the pathological case and not the budgeted one.
-        assert.isBelow(ms, FRAME_MS * 2 * CONTENTION);
+        // measured 2.1 s at ONE THOUSAND styles when interning was a scan. Counted: each of the
+        // hundred thousand lookups compares with a few held styles, not with the fifty thousand.
+        assert.isAtMost(comparisons, COMPARISONS_PER_LOOKUP * 2 * ELEMENTS);
     });
 });

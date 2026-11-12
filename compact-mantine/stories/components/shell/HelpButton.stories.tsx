@@ -1,6 +1,6 @@
 import { Group, Menu, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { HelpButton } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -48,7 +48,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * |---|---|
  * | Button | 32 x 32 circle, `--cm-bg`, elevation 200, no hover change |
  * | Focus ring | 1px at -2px, fading in over 200ms |
- * | Menu | the dark menu, 4px above, end-aligned |
+ * | Menu | the menu, 4px above, end-aligned |
  */
 const meta: Meta<typeof HelpButton> = {
     title: "Components/App shell/HelpButton",

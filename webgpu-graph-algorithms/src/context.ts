@@ -27,7 +27,14 @@ import { Profiler } from "./kernel/profiler.js";
 import { BufferPool } from "./memory/buffer-pool.js";
 import { Readback } from "./memory/readback.js";
 import { GraphResidency } from "./memory/residency.js";
-import type { GpuCaps, GpuContextOptions, GpuDebugFlags, ProbeOptions, ProbeResult } from "./types/context.js";
+import type {
+    FromOptions,
+    GpuCaps,
+    GpuContextOptions,
+    GpuDebugFlags,
+    ProbeOptions,
+    ProbeResult,
+} from "./types/context.js";
 
 /** The label a context and its device carry when create() is given none. */
 const DEFAULT_LABEL = "webgpu-graph-algorithms";
@@ -44,6 +51,8 @@ interface ContextInit {
     readonly label: string;
     readonly onError: ((error: WebGpuGraphError) => void) | null;
     readonly warnUnreleasedSnapshots: number;
+    /** False on a device shared with a renderer; see FromOptions.errorSink. */
+    readonly errorSink: boolean;
 }
 
 /**
@@ -119,6 +128,11 @@ export class GpuContext {
      * @internal
      */
     readonly debug: GpuDebugFlags;
+    /**
+     * True when no uncaptured-error sink is installed, so each batch's errors come from a scope around its submit.
+     * @internal
+     */
+    readonly scopesBatches: boolean;
 
     private currentState: "ready" | "lost" | "disposed" = "ready";
     private lostError: WebGpuGraphError | null = null;
@@ -149,7 +163,10 @@ export class GpuContext {
         this.profiler = init.device.features.has("timestamp-query")
             ? new Profiler(init.device, true, init.caps.runtime !== "node")
             : null;
-        this.uninstallSink = installUncapturedErrorSink(init.device, this.slot, init.onError);
+        this.scopesBatches = !init.errorSink;
+        this.uninstallSink = init.errorSink
+            ? installUncapturedErrorSink(init.device, this.slot, init.onError)
+            : (): void => undefined;
         this.lost = watchDeviceLost(init.device, (info) => {
             this.handleLost(info);
         });
@@ -216,6 +233,7 @@ export class GpuContext {
                 label,
                 onError,
                 warnUnreleasedSnapshots,
+                errorSink: true,
             });
         }
         const adapter = await adapterOf(options);
@@ -241,7 +259,15 @@ export class GpuContext {
             device.destroy();
             throw err;
         }
-        return new GpuContext({ device, caps, ownsDevice: true, label, onError, warnUnreleasedSnapshots });
+        return new GpuContext({
+            device,
+            caps,
+            ownsDevice: true,
+            label,
+            onError,
+            warnUnreleasedSnapshots,
+            errorSink: true,
+        });
     }
 
     /**
@@ -249,12 +275,14 @@ export class GpuContext {
      * otherwise). The context is labelled with the device's label, or "GpuContext.from" when it has none.
      * @param device - the device to adopt
      * @param info - what the caller knows about the adapter, if anything
+     * @param options - see FromOptions
      * @returns the context
      */
-    static from(device: GPUDevice, info?: Partial<GpuCaps>): GpuContext {
+    static from(device: GPUDevice, info?: Partial<GpuCaps>, options?: FromOptions): GpuContext {
         const caps = capsFromDevice(device, info);
         assertPlanLimits(caps);
-        const deviceLabel: string = device.label ?? "";
+        const { label }: { label: unknown } = device;
+        const deviceLabel = typeof label === "string" ? label : "";
         return new GpuContext({
             device,
             caps,
@@ -262,6 +290,7 @@ export class GpuContext {
             label: deviceLabel === "" ? "GpuContext.from" : deviceLabel,
             onError: null,
             warnUnreleasedSnapshots: DEFAULT_WARN_UNRELEASED_SNAPSHOTS,
+            errorSink: options?.errorSink ?? true,
         });
     }
 

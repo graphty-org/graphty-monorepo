@@ -355,12 +355,9 @@ export const Connected: Story = {
         await userEvent.click(findButton);
 
         // Wait for status to update
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("component");
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("component");
+        });
     },
 };

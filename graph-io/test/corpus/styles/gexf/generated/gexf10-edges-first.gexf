@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://www.gephi.org/gexf" xmlns:viz="http://www.gephi.org/gexf/viz">
+<graph type="static">
+<attributes class="node" type="static">
+<attribute id="0" title="disclass" type="string"/>
+</attributes>
+<edges>
+<edge id="0" source="118" target="101" type="dir"/>
+<edge id="1" source="113" target="115" type="dir"/>
+<edge id="2" source="118" target="100" type="dir"/>
+<edge id="3" source="106" target="114" type="dir"/>
+<edge id="4" source="115" target="108" type="dir"/>
+<edge id="5" source="120" target="105" type="dir"/>
+<edge id="6" source="101" target="116" type="dir"/>
+<edge id="7" source="115" target="110" type="dir"/>
+<edge id="8" source="102" target="107" type="dir"/>
+<edge id="9" source="123" target="111" type="dir"/>
+<edge id="10" source="101" target="113" type="dir"/>
+<edge id="11" source="104" target="119" type="dir"/>
+<edge id="12" source="111" target="112" type="dir"/>
+<edge id="13" source="113" target="109" type="dir"/>
+<edge id="14" source="121" target="108" type="dir"/>
+<edge id="15" source="114" target="105" type="dir"/>
+<edge id="16" source="121" target="109" type="dir"/>
+<edge id="17" source="121" target="111" type="dir"/>
+<edge id="18" source="104" target="114" type="dir"/>
+<edge id="19" source="107" target="114" type="dir"/>
+<edge id="20" source="119" target="112" type="dir"/>
+<edge id="21" source="101" target="118" type="dir"/>
+<edge id="22" source="100" target="107" type="dir"/>
+<edge id="23" source="104" target="106" type="dir"/>
+<edge id="24" source="109" target="117" type="dir"/>
+<edge id="25" source="111" target="107" type="dir"/>
+<edge id="26" source="110" target="121" type="dir"/>
+<edge id="27" source="117" target="114" type="dir"/>
+<edge id="28" source="113" target="115" type="dir"/>
+<edge id="29" source="102" target="120" type="dir"/>
+</edges>
+<nodes>
+<node id="100" label="n100" pid="0">
+<attvalues>
+<attvalue id="0" value="Neurological"/>
+</attvalues>
+<viz:color b="68" g="68" r="238"/>
+</node>
+<node id="101" label="n101" pid="0">
+<attvalues>
+<attvalue id="0" value="Cardiovascular"/>
+</attvalues>
+<viz:color b="255" g="153" r="0"/>
+</node>
+<node id="102" label="n102" pid="0">
+<attvalues>
+<attvalue id="0" value="Metabolic"/>
+</attvalues>
+<viz:color b="247" g="236" r="179"/>
+</node>
+<node id="103" label="n103" pid="0">
+<attvalues>
+<attvalue id="0" value="gene"/>
+</attvalues>
+<viz:color b="105" g="33" r="24"/>
+</node>
+<node id="104" label="n104" pid="0">
+<attvalues>
+<attvalue id="0" value="Neurological"/>
+</attvalues>
+<viz:color b="68" g="68" r="238"/>
+</node>
+<node id="105" label="n105" pid="0">
+<attvalues>
+<attvalue id="0" value="Cardiovascular"/>
+</attvalues>
+<viz:color b="255" g="153" r="0"/>
+</node>
+<node id="106" label="n106" pid="0">
+<attvalues>
+<attvalue id="0" value="Metabolic"/>
+</attvalues>
+<viz:color b="247" g="236" r="179"/>
+</node>
+<node id="107" label="n107" pid="0">
+<attvalues>
+<attvalue id="0" value="gene"/>
+</attvalues>
+<viz:color b="105" g="33" r="24"/>
+</node>
+<node id="108" label="n108" pid="0">
+<attvalues>
+<attvalue id="0" value="Neurological"/>
+</attvalues>
+<viz:color b="68" g="68" r="238"/>
+</node>
+<node id="109" label="n109" pid="0">
+<attvalues>
+<attvalue id="0" value="Cardiovascular"/>
+</attvalues>
+<viz:color b="255" g="153" r="0"/>
+</node>
+<node id="110" label="n110" pid="0">
+<attvalues>
+<attvalue id="0" value="Metabolic"/>
+</attvalues>
+<viz:color b="247" g="236" r="179"/>
+</node>
+<node id="111" label="n111" pid="0">
+<attvalues>
+<attvalue id="0" value="gene"/>
+</attvalues>
+<viz:color b="105" g="33" r="24"/>
+</node>
+<node id="112" label="n112" pid="0">
+<attvalues>
+<attvalue id="0" value="Neurological"/>
+</attvalues>
+<viz:color b="68" g="68" r="238"/>
+</node>
+<node id="113" label="n113" pid="0">
+<attvalues>
+<attvalue id="0" value="Cardiovascular"/>
+</attvalues>
+<viz:color b="255" g="153" r="0"/>
+</node>
+<node id="114" label="n114" pid="0">
+<attvalues>
+<attvalue id="0" value="Metabolic"/>
+</attvalues>
+<viz:color b="247" g="236" r="179"/>
+</node>
+<node id="115" label="n115" pid="0">
+<attvalues>
+<attvalue id="0" value="gene"/>
+</attvalues>
+<viz:color b="105" g="33" r="24"/>
+</node>
+<node id="116" label="n116" pid="0">
+<attvalues>
+<attvalue id="0" value="Neurological"/>
+</attvalues>
+<viz:color b="68" g="68" r="238"/>
+</node>
+<node id="117" label="n117" pid="0">
+<attvalues>
+<attvalue id="0" value="Cardiovascular"/>
+</attvalues>
+<viz:color b="255" g="153" r="0"/>
+</node>
+<node id="118" label="n118" pid="0">
+<attvalues>
+<attvalue id="0" value="Metabolic"/>
+</attvalues>
+<viz:color b="247" g="236" r="179"/>
+</node>
+<node id="119" label="n119" pid="0">
+<attvalues>
+<attvalue id="0" value="gene"/>
+</attvalues>
+<viz:color b="105" g="33" r="24"/>
+</node>
+<node id="120" label="n120" pid="0">
+<attvalues>
+<attvalue id="0" value="Neurological"/>
+</attvalues>
+<viz:color b="68" g="68" r="238"/>
+</node>
+<node id="121" label="n121" pid="0">
+<attvalues>
+<attvalue id="0" value="Cardiovascular"/>
+</attvalues>
+<viz:color b="255" g="153" r="0"/>
+</node>
+<node id="122" label="n122" pid="0">
+<attvalues>
+<attvalue id="0" value="Metabolic"/>
+</attvalues>
+<viz:color b="247" g="236" r="179"/>
+</node>
+<node id="123" label="n123" pid="0">
+<attvalues>
+<attvalue id="0" value="gene"/>
+</attvalues>
+<viz:color b="105" g="33" r="24"/>
+</node>
+</nodes>
+</graph>
+</gexf>

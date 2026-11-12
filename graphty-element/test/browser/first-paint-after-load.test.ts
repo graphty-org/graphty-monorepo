@@ -68,12 +68,6 @@ const LAYER: LayerSpec = {
     set: { "node.color": "crimson" },
 };
 
-/** How long an element may take to build its renderer. */
-const MOUNT_TIMEOUT_MS = 10000;
-
-/** How long a write verb's run may take to commit or refuse. */
-const RUN_TIMEOUT_MS = 5000;
-
 /** The ways a graph can arrive in the element. */
 const LOAD_PATHS = ["the nodeData property", "addNodes and addEdges", "addDataFromSource"] as const;
 
@@ -110,12 +104,9 @@ async function mount(): Promise<Graphty> {
     mounted.style.display = "block";
     container.appendChild(mounted);
 
-    await vi.waitFor(
-        () => {
-            assert.isTrue(mounted.graph.initialized, "the element finished initialising");
-        },
-        { timeout: MOUNT_TIMEOUT_MS },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(mounted.graph.initialized, "the element finished initialising");
+    });
 
     return mounted;
 }
@@ -187,7 +178,7 @@ describe("whatever load path brought a graph in, the style stack has painted it"
                 if (timing === "with the layer added before the load and awaited") {
                     run = session.styles.add(LAYER);
 
-                    const outcome = await assertRunSettles(run, RUN_TIMEOUT_MS, `${where}: the layer`);
+                    const outcome = await assertRunSettles(run);
 
                     assert.strictEqual(outcome, "resolved", `${where}: the element refused a valid layer`);
                 }
@@ -208,7 +199,7 @@ describe("whatever load path brought a graph in, the style stack has painted it"
                 await settle(element);
 
                 if (run !== null) {
-                    const outcome = await assertRunSettles(run, RUN_TIMEOUT_MS, `${where}: the layer`);
+                    const outcome = await assertRunSettles(run);
 
                     assert.strictEqual(outcome, "resolved", `${where}: the element refused a valid layer`);
                     assertStackContains(session, [LAYER.name], where);

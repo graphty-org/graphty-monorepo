@@ -55,6 +55,12 @@ export const LABEL_ATTRIBUTE = "label";
 export const POS_ATTRIBUTE = "pos";
 
 /**
+ * The node position column when the import keeps `pos` as text too (the `keepPositionSource` option).
+ * @category Plugin helpers
+ */
+export const POSITION_COLUMN = "graphty.position";
+
+/**
  * The edge attribute cgraph uses as an edge's identity within its endpoints, mapped to the edge id role.
  * @category Plugin helpers
  */
@@ -71,3 +77,18 @@ export const PIN_ATTRIBUTE = "pin";
  * @category Plugin helpers
  */
 export const DOT_META_KEY = "dot";
+
+/**
+ * The string node column holding the `rank` of the non-cluster subgraph a node is in (`same`,
+ * `min`, `max`, `source` or `sink`): Graphviz's dot puts the subgraph's nodes on one rank, or on
+ * the first or last. Set only on nodes of such a subgraph.
+ * @category Plugin helpers
+ */
+export const RANK_COLUMN = "graphty.rank";
+
+/**
+ * The string node column naming the rank subgraph a node is in (`graphty.rank`): the subgraph's
+ * name, or `%<n>` for the n-th anonymous one, so the nodes of one subgraph share a value.
+ * @category Plugin helpers
+ */
+export const RANK_SET_COLUMN = "graphty.rankSet";

@@ -335,8 +335,14 @@ async function apply(op: Op, model: Model, real: Real): Promise<void> {
     }
 }
 
+/*
+ * 1000 sequences, 250 to a test: one test of 1000 took up to 22 s of its 30 s budget in the
+ * pre-push gate, where it shares the CPU with every other test worker (issue #2412).
+ */
+const PARTS = 4;
+
 describe("status follows a plain model through runs, re-runs and restores", () => {
-    it("matches the model after every step", async () => {
+    it.each(Array.from({ length: PARTS }, (_, i) => i + 1))("matches the model after every step, part %i", async () => {
         await fc.assert(
             guardedAsyncProperty(fc.array(OP, { maxLength: 24 }), async (ops) => {
                 const model = new Model();
@@ -357,7 +363,7 @@ describe("status follows a plain model through runs, re-runs and restores", () =
                     }
                 }
             }),
-            fcParams(1000),
+            fcParams(1000 / PARTS),
         );
     });
 });

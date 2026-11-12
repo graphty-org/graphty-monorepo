@@ -1,0 +1,132 @@
+{
+  "version": 2,
+  "pr": 2089,
+  "subject": {
+    "builtMerge": "db8250dea4f47f149acc25d596262d1c87a3e006",
+    "head": "033d6487b262d604138fe0db4d91789084e7bd98",
+    "runId": 38196480358,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 9V45 96-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "db8250dea4f47f149acc25d596262d1c87a3e006"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--auto.png",
+      "from": "7e12bf0bd1fb294c0965e66816ba7758d5a404aafb870514faf22c612ee776be",
+      "to": "4dca0d03f1b8573f87e01e99edb09f05e521d6eb3eccf8633998135e887968b5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--csv.png",
+      "from": "a5271fa4256e3294c0b557c0954113fd5c686315b4cd7ab628d9e7cad2c6ede7",
+      "to": "5b560b67be77cfa7299a1c04bd006570e030c750a96c5eabc6ee4a254cb82385",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--cx-2.png",
+      "from": "f51525b2c256386b526813abbea12c74f31432576c0e2347f175c7467743c25f",
+      "to": "a8d465d30a8cd4fc4093c2bf8d48631e9300f2dcdfcf85f95c9489f090f82af0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--cx.png",
+      "from": "7e82021f8ab9d76cb52bf7a8ed7765f6e35500f07c0a2a25da040993c45ef525",
+      "to": "5584808f90b86d34febbc704f030cca2306efa9c7f3d5a9074204773d4d6eca2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--cys.png",
+      "from": "7bdef5078ed9d3d8b22b4b1702bda9a4b5abbaa7e0afbafc7d04061f46285dac",
+      "to": "674a35dc040099215ba70effe818e753699bf438fba06cf11fba833a0b936da8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--dot.png",
+      "from": "8327ea5ad82e8202e25e448350dce25aef96b3cd511fe5feccac136f66892490",
+      "to": "319d0603f4bf91c68aecde14613d8f11d19eb2b47e243411bc6097660ecf1b5f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--export.png",
+      "from": "491980d7cc22b67ab37e1744077842a38cbce23c7c014b4ae77f8c91ca8bc255",
+      "to": "8c8373833da5f44894e1ea1738bd5cd926c4b3f843b064e426328b1110358f64",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--gexf.png",
+      "from": "a796e27ae13e889010e6e12fc091e00cf8aba0c21040548e5000b9167c295eb6",
+      "to": "5f3f73f5bd36c2aa5f56d97c5bb3e9c314327f708a011f0afaf305887e691040",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--gml.png",
+      "from": "36daf08e528afccdb6c44a58e61d7e6d4ffa996a540ac9d3ad42c8f4b9ddad0c",
+      "to": "b6f5d675460eed9968884c0d17d24e37b28ef555e61b78342ca3aeaf9da4d1ce",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--graphml.png",
+      "from": "ec1c3b0cf050987378a07f4153b7af0fed3d2116236655e9ff9aa7d5f9d91fcb",
+      "to": "0946e893a9b3c693cddd4b4217c59e443e770181dac2a39a51e8d8bb88de6154",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--json.png",
+      "from": "a1d68ce1a4afd91f2cab38ae158bf047d89689bf19cc6ec1f0d800ef43ba9a4d",
+      "to": "d0d47162695c51265c38d01cf49b8ecd61100009a7a9a9ccea1740bc7f3b615d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--neo-4-j.png",
+      "from": "20cb9fbc84964de12951019c3b37a80357bce436b486c07330e888dec1bef704",
+      "to": "d4a13960a8aa7b49b09c162acb0ca4b89dedbcf474d322c4c8eb345b8016d364",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--obo.png",
+      "from": "e3f366abe0da77a0b101ada7aab2400cc6205fc4ffbe1b8c7f3c471c4afd5a43",
+      "to": "b29c4d1bbfac8d43e3f761df50ca1b5c5dd516af1bf660d97b671b59ca933bd1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--overview.png",
+      "from": "7e9f44277955594d46c8a181a62ca7cc21c4c1ed430540bd2541ff5c45c31b98",
+      "to": "eda09508c070766777020d8e25f3fafe5bdc0c76529aebd6ad196e15c24ba968",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--pajek.png",
+      "from": "9ed7dd92c7aaee3cce8d331b46f3c8644f6aae8cb08c0ff14aa9b2377430bc86",
+      "to": "2d04158cbb27ced462c68bd88923bf662607caebbaa89c5172cc88ea0ebaeb81",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--xgmml.png",
+      "from": "4be2160cc43052818ed6bdcbc317818439662099ba7e040579f6aaf75d862908",
+      "to": "1ed1b1f838291eba63c7cdbdc42b9f5d6c2f79b3322d58d0e348b1c0e999a9b5",
+      "reason": null
+    }
+  ],
+  "rejects": [
+    {
+      "path": "visual-baselines/graphty-element/layout-2d--arf.png",
+      "capture": "8d667a3ab358e7f011782a19c9505b264579948ccfc37b9ca4f646c37cdcb103",
+      "reason": "nodes and edges are too small to see"
+    }
+  ],
+  "reviewedAt": "2026-10-12T05:53:47.873Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiV240YkNXRnA3V004cWd6UEdqX09DNUhuVUhqSlpoRUk4XzVUc0NwZjA1YyIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEQCIBJy0iDqLTAWMN6gvX3cRCm4PWAiMmksRDIT6d2RlMzbAiAwbp2h9YGtpjswLpEpB2asmqrui9eJGeH03sFvmjixGg"
+  }
+}

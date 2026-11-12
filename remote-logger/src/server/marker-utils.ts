@@ -35,7 +35,7 @@ export function extractMarkerFromPath(cwd: string): string {
 
     // Check if in .worktrees directory (supports both Unix and Windows paths)
     // Match: .worktrees/worktree-name or .worktrees\worktree-name
-    const worktreeMatch = normalizedPath.match(/\.worktrees[/\\]([^/\\]+)/);
+    const worktreeMatch = /\.worktrees[/\\]([^/\\]+)/.exec(normalizedPath);
     if (worktreeMatch) {
         return worktreeMatch[1];
     }
@@ -69,7 +69,7 @@ export function extractMarkerFromSessionId(sessionId: string): string {
     // We want to extract everything before the timestamp
 
     // Look for pattern: name-{13 digits}-{suffix}
-    const timestampMatch = sessionId.match(/^(.+?)-(\d{10,13})-[a-zA-Z0-9]+$/);
+    const timestampMatch = /^(.+?)-(\d{10,13})-[a-zA-Z0-9]+$/.exec(sessionId);
     if (timestampMatch) {
         return timestampMatch[1];
     }

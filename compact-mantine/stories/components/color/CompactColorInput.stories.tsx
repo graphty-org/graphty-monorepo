@@ -1,7 +1,7 @@
 import { Box, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
@@ -24,8 +24,8 @@ import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
  *
  * CompactColorInput is ColorPickerPanel inside a pop-out, plus the field that opens it. Its one
  * idea beyond the field: `undefined` means "the reader has chosen nothing here". While nothing is
- * chosen the default is drawn in italics and there is no reset; once something is set the text
- * turns upright and a reset button appears in the trailing slot. The reset reports `undefined`.
+ * chosen the default is drawn as the value and there is no reset; once something is set a reset
+ * button appears in the trailing slot. The reset reports `undefined`.
  *
  * It needs a `PopoutManager` somewhere above it, which owns the floating layer the picker opens
  * into. Without one it throws on first render.
@@ -61,8 +61,11 @@ import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
  * - The opacity box steps 1 with ArrowUp / ArrowDown (Shift for 10). Dragging the "%" sideways
  *   scrubs it, half a percent per pixel.
  * - The three controls sit in a group named by `label`, so a screen reader reads the label once
- *   on entry. Every other name ("Color swatch", "Color hex value", "Opacity", the reset) comes
- *   from `LabelsProvider`; typed opacity is read in the reader's locale.
+ *   on entry, and each control is named from the label too: with `label="Fill"` the chit is
+ *   "Pick fill color", the hex box "Fill color" (its value, the hex, is read after the name) and
+ *   the opacity box "Fill opacity". Every name comes from `LabelsProvider` (`pickColor`,
+ *   `colorValue`, `colorOpacity`; `colorSwatch`, `colorHexValue` and `opacity` when there is no
+ *   label); typed opacity is read in the reader's locale.
  *
  * ## Measurements
  *
@@ -94,7 +97,7 @@ const meta: Meta<typeof CompactColorInput> = {
 export default meta;
 type Story = StoryObj<typeof CompactColorInput>;
 
-/** Nothing has been chosen, so the color and the opacity are drawn in italics and there is no reset. */
+/** Nothing has been chosen, so the default color and opacity are drawn and there is no reset. */
 export const Default: Story = {
     args: {
         defaultColor: "#5B8FF9",
@@ -103,7 +106,7 @@ export const Default: Story = {
 };
 
 /**
- * Every state, light and dark side by side: rest, the default in italics, hover, focus and
+ * Every state, light and dark side by side: rest, the default, hover, focus and
  * picker open (forced, since a story cannot hold the pointer), a translucent color with the
  * checkerboard half, a near-white color with its ring, disabled, and without opacity.
  */
@@ -219,12 +222,39 @@ export const PickerOpen: Story = {
     },
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        await userEvent.click(canvas.getByRole("button", { name: /swatch/i }));
+        await userEvent.click(canvas.getByRole("button", { name: "Pick fill color" }));
         // The row and the picker both have an Opacity box: this story drives the picker's.
-        const opacity = within(await canvas.findByRole("dialog")).getByRole("textbox", { name: /opacity/i });
+        const opacity = within(await canvas.findByRole("dialog", {})).getByRole("textbox", {
+            name: /opacity/i,
+        });
         await userEvent.click(opacity);
         await userEvent.keyboard("{ArrowDown}");
         await expect(opacity).toHaveValue("99");
+    },
+};
+
+/**
+ * The picker offers the swatches you pass -- here three colors already used in a document --
+ * instead of the built-in set. Drag in the picker's field and watch the Actions panel: `onChange`
+ * logs every move, `onChangeEnd` logs once, on release. A swatch pick or a typed hex logs each
+ * once.
+ */
+export const SwatchesAndChangeEnd: Story = {
+    parameters: OPEN_OVERLAY,
+    args: {
+        label: "Fill",
+        defaultColor: "#3373E5",
+        swatches: ["#E8590C", "#2F9E44", "#7048E8CC"],
+        onChange: fn(),
+        onChangeEnd: fn(),
+    },
+    play: async ({ args, canvasElement }) => {
+        const canvas = within(canvasElement);
+        await userEvent.click(canvas.getByRole("button", { name: "Pick fill color" }));
+        const dialog = within(await canvas.findByRole("dialog", {}));
+        await userEvent.click(dialog.getByRole("button", { name: / 2F9E44$/ }));
+        await expect(args.onChangeEnd).toHaveBeenCalledTimes(1);
+        await expect(args.onChangeEnd).toHaveBeenCalledWith("#2F9E44", 100);
     },
 };
 
@@ -241,6 +271,9 @@ export const Translated: Story = {
                     colorSwatch: "Nuancier",
                     colorHexValue: "Valeur hexadecimale",
                     opacity: "Opacite",
+                    pickColor: (label) => `Choisir ${label}`,
+                    colorValue: (label) => label,
+                    colorOpacity: (label) => `Opacite de ${label}`,
                     colorPanelTitle: "Couleur",
                     colorGenericName: "couleur",
                     resetToDefault: (label) => `Retablir ${label}`,

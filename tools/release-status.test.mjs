@@ -7,14 +7,13 @@ import { describe, it } from "node:test";
 
 import {
     announce,
-    dequeueFacts,
-    dequeueKey,
     LABEL,
     push,
     PUSHOVER_URL,
     pushMessage,
     replacedWhilePending,
     reportsFailure,
+    screenshotsReported,
     statusComment,
     TITLE,
 } from "./release-status.mjs";
@@ -57,16 +56,49 @@ describe("statusComment", () => {
         );
     });
 
-    it("names the release pull request a passing train opened", () => {
-        const c = statusComment("opened", {
+    it("announces a red full run and an owner item, and counts both as a reported failure", () => {
+        const red = statusComment("red", { run: RUN, sha: "abcdef123", what: "CI, Hosts", issue: "41" });
+        assert.match(red, /\*\*Full run red\*\*: CI, Hosts failed on abcdef1\. Nothing was published.*Details: #41\./);
+        assert.doesNotMatch(red, /a bisect looks/, "it claims no bisect it was not told of");
+        const noBisect = statusComment("red", {
             run: RUN,
             sha: "abcdef123",
-            pr: "https://github.com/o/r/pull/7",
-            tags: "a@1",
+            what: "security audit",
+            issue: "41",
+            bisect: "No bisect: security audit: no bisect; the pipeline round looks.",
         });
+        assert.match(noBisect, /Nothing was published\. No bisect: security audit/);
+        const owner = statusComment("owner-item", { run: RUN, sha: "abcdef123", what: "LLM regression" });
+        assert.match(owner, /\*\*Owner item\*\*: the full run on abcdef1 failed for a reason no code change fixes/);
+        assert.equal(reportsFailure(red, RUN, "1"), true);
+        assert.equal(reportsFailure(owner, RUN, "1"), true);
+        assert.equal(pushMessage("red", { run: RUN, sha: "abcdef123", what: "CI", issue: "41" }).title, "Full run RED");
+        assert.equal(pushMessage("owner-item", { run: RUN, sha: "abcdef123" }).priority, "0");
+        const what = "10 screenshots differ from master's baselines: graphty 10";
+        const images = statusComment("green-images", { run: RUN, sha: "abcdef123", what, hold: "start" });
         assert.match(
-            c,
-            /Release train passed\*\* on abcdef1: release pull request https:\/\/github\.com\/o\/r\/pull\/7 is open for a@1\./,
+            images,
+            /^\*\*Screenshots changed\*\*: the full run on abcdef1 passed every lane, but 10 screenshots/,
+        );
+        assert.match(images, /\nACTION NEEDED: review the changed screenshots of the held candidate abcdef1\n/);
+        assert.match(images, /serve --candidate next/, "with the review page");
+        assert.match(images, /&change=master/);
+        assert.equal(reportsFailure(images, RUN, "1"), false, "changed screenshots are not a failed run");
+        assert.match(
+            pushMessage("green-images", { run: RUN, sha: "abcdef123", what, hold: "update" }).message,
+            /waits for your review/,
+        );
+        // 2026-10-30, 6ee5bc7 (#5052): a run that held nothing never says nightly waits for a review
+        for (const hold of ["none", "", undefined]) {
+            const idle = statusComment("green-images", { run: RUN, sha: "abcdef123", what, hold });
+            assert.doesNotMatch(idle, /ACTION NEEDED|waits for your review/, String(hold));
+            assert.match(idle, /It is not held/);
+            const m = pushMessage("green-images", { run: RUN, sha: "abcdef123", what, hold }).message;
+            assert.doesNotMatch(m, /waits for your review/);
+        }
+        assert.equal(
+            pushMessage("green-images", { run: RUN, sha: "abcdef123", what }).title,
+            "Full run SCREENSHOTS CHANGED",
         );
     });
 
@@ -76,30 +108,46 @@ describe("statusComment", () => {
         assert.match(c, /Run: https:\/\/github\.com\/o\/r\/actions\/runs\/1$/);
     });
 
-    it("names the dequeued release pull request, why, the failing checks and the queue run", () => {
-        const c = statusComment(
-            "dequeued",
-            {
-                run: RUN,
-                sha: "abcdef123",
-                pr: "https://github.com/o/r/pull/7",
-                left: "2026-10-10T00:17:58Z",
-                what: "Dequeued -- checks failed",
-                checks: "All Checks Pass (u1), Queue Checks Pass (u2)",
-                queue: "https://github.com/o/r/pull/8",
-            },
-            "@x",
+    it("announces a promoted nightly, and a nightly whose site deploy failed as a failure", () => {
+        const promoted = statusComment("nightly", { run: RUN, sha: "abcdef123", tags: "a@1.0.0,b@2.0.0" });
+        assert.match(
+            promoted,
+            /\*\*Nightly promoted\*\*: abcdef1 is on nightly.graphty.app and npm `next` holds a@1.0.0, b@2.0.0\./,
         );
         assert.match(
-            c,
-            /^@x \*\*Release pull request dequeued\*\*: https:\/\/github\.com\/o\/r\/pull\/7 left the merge queue at 2026-10-10T00:17:58Z without merging \(Dequeued -- checks failed\), on abcdef1\. Nothing was published\. Failing checks: All Checks Pass \(u1\), Queue Checks Pass \(u2\)\. Queue run: https:\/\/github\.com\/o\/r\/pull\/8\./,
+            statusComment("nightly", { run: RUN, sha: "abcdef123" }),
+            /no package changed, so npm `next` did not move/,
         );
-        assert.ok(c.includes(dequeueKey("https://github.com/o/r/pull/7", "2026-10-10T00:17:58Z")));
-        assert.ok(!reportsFailure(c, RUN, "1"), "not a release run failure");
+        const failed = statusComment("nightly-failed", { run: RUN, sha: "abcdef123", issue: "77" });
+        assert.match(
+            failed,
+            /\*\*Nightly site deploy failed\*\* on abcdef1: npm `next` and nightly.graphty.app now differ\. Details: #77\./,
+        );
+        assert.equal(reportsFailure(promoted, RUN, "1"), false);
+        assert.equal(reportsFailure(failed, RUN, "1"), true, "the release-watch backstop does not report it twice");
+        assert.equal(pushMessage("nightly", { run: RUN, sha: "abcdef123", tags: "a@1.0.0" }).title, "Nightly PROMOTED");
+        assert.equal(pushMessage("nightly-failed", { run: RUN, sha: "abcdef123", issue: "77" }).priority, "1");
+        const held = statusComment("nightly-held", {
+            run: RUN,
+            sha: "abcdef123",
+            issue: "78",
+            what: "landing on master",
+        });
+        assert.match(
+            held,
+            /\*\*Nightly promotion failed\*\* on abcdef1: landing on master did not finish[^\n]*Details: #78\./,
+        );
+        assert.doesNotMatch(held, /Release held/);
+        assert.equal(reportsFailure(held, RUN, "1"), true, "the backstop does not report it twice");
+        const push = pushMessage("nightly-held", { run: RUN, sha: "abcdef123", issue: "78" });
+        assert.deepEqual([push.title, push.priority], ["Nightly PROMOTION FAILED", "1"]);
     });
 
     it("refuses an unknown outcome", () => {
-        assert.throws(() => statusComment("skipped", { run: RUN }), /unknown outcome/);
+        // no release pull request any more: the train publishes directly (owner decision, 2026-10-11)
+        for (const gone of ["skipped", "opened", "dequeued"]) {
+            assert.throws(() => statusComment(gone, { run: RUN }), /unknown outcome/, gone);
+        }
     });
 });
 
@@ -116,50 +164,7 @@ describe("reportsFailure", () => {
         assert.ok(!reportsFailure(held("1"), RUN, "2"));
         assert.ok(!reportsFailure(held("2"), RUN, "1"));
         assert.ok(!reportsFailure(held("1"), `${RUN}0`, "1"));
-        assert.ok(!reportsFailure(statusComment("opened", { run: RUN, pr: "p" }), RUN, "1"));
         assert.ok(!reportsFailure(statusComment("published", { run: RUN }), RUN, "1"));
-    });
-});
-
-describe("dequeueFacts", () => {
-    // the "Mergify Merge Queue" check run of release pull request #1840 (2026-10-10), shortened
-    const run = {
-        completed_at: "2026-10-10T00:17:58Z",
-        details_url: "https://dashboard.mergify.com/x",
-        output: {
-            title: "Dequeued \u2014 checks failed",
-            summary: [
-                "- \u2705 **Entered queue** \u2014 `2026-10-10 00:05 UTC` \u00b7 Rule: `release`",
-                "- \u274c **Checks failed** \u00b7 on draft #1841",
-                "",
-                "## Reason",
-                "",
-                "- `Queue Checks Pass`",
-                "- `Lint PR Title`",
-                "",
-                "Failing checks:",
-                "- \u274c [`All Checks Pass`](https://github.com/o/r/runs/1) ([job log](https://github.com/o/r/runs/1))",
-                "- \u274c [`Queue Checks Pass`](https://github.com/o/r/runs/2) ([job log](https://github.com/o/r/runs/2))",
-                "",
-                "## Hint",
-                "- [ ] `check-success=Queue Checks Pass`",
-            ].join("\n"),
-        },
-    };
-    it("reads the reason, the failing checks, the queue draft and when it left", () => {
-        assert.deepEqual(dequeueFacts(run, "o/r"), {
-            what: "Dequeued -- checks failed",
-            checks: "All Checks Pass (https://github.com/o/r/runs/1), Queue Checks Pass (https://github.com/o/r/runs/2)",
-            queue: "https://github.com/o/r/pull/1841",
-            left: "2026-10-10T00:17:58Z",
-        });
-    });
-    it("falls back to Mergify's page with no draft, and to nothing with no check run", () => {
-        assert.equal(
-            dequeueFacts({ ...run, output: { title: "Dequeued", summary: "" } }, "o/r").queue,
-            run.details_url,
-        );
-        assert.deepEqual(dequeueFacts(undefined, "o/r"), { what: "", checks: "", queue: "", left: "" });
     });
 });
 
@@ -252,7 +257,7 @@ describe("announce", () => {
     });
 
     it("posts a run-ended comment when only a success of that run was announced", async () => {
-        const { calls, request } = fake([{ number: 8 }], [{ body: statusComment("opened", { run: RUN, pr: "p" }) }]);
+        const { calls, request } = fake([{ number: 8 }], [{ body: statusComment("published", { run: RUN }) }]);
         assert.equal(
             await announce({
                 request,
@@ -264,32 +269,12 @@ describe("announce", () => {
         );
         assert.deepEqual(calls.at(-1), ["POST", "/repos/o/r/issues/8/comments", { body: "hi" }]);
     });
-
-    it("posts one comment per dequeue: the same pull request and time again posts nothing", async () => {
-        const f = { run: RUN, pr: "https://github.com/o/r/pull/7", left: "2026-10-10T00:17:58Z" };
-        const reported = (left) => (b) => b.includes(dequeueKey(f.pr, left));
-        const { request } = fake([{ number: 8 }], [{ body: statusComment("dequeued", f) }]);
-        assert.equal(
-            await announce({ request, repo: "o/r", body: "hi", unlessReported: { reported: reported(f.left) } }),
-            null,
-        );
-        assert.equal(
-            await announce({
-                request,
-                repo: "o/r",
-                body: "hi",
-                unlessReported: { reported: reported("2026-10-11T00:00:00Z") },
-            }),
-            8,
-        );
-    });
 });
 
 describe("pushMessage", () => {
     const f = {
         run: RUN,
         sha: "abcdef123",
-        pr: "https://github.com/o/r/pull/7",
         tags: "a@1.0.0,b@2.0.0",
         issue: "12",
     };
@@ -297,24 +282,23 @@ describe("pushMessage", () => {
     const quiet = { priority: "-1", sound: "none" };
     const pick = ({ title, priority, sound, url, url_title }) => ({ title, priority, sound, url, url_title });
     const run = { url: RUN, url_title: "Open run" };
-    const pr = { url: f.pr, url_title: "Open PR" };
 
     it("titles each kind with its state word, priority, sound and link", () => {
         for (const [outcome, want] of [
             ["started", { title: "Release STARTED", ...quiet, ...run }],
-            ["opened", { title: "Release PR OPENED", ...quiet, ...pr }],
             ["held", { title: "Release HELD", ...loud, ...run }],
             ["published", { title: "Release PUBLISHED", priority: "0", sound: "cashregister", ...run }],
             ["publish-failed", { title: "Release PUBLISH FAILED", ...loud, ...run }],
             ["run-ended", { title: "Release RUN ENDED BADLY", ...loud, ...run }],
-            ["dequeued", { title: "Release DROPPED FROM QUEUE", ...loud, ...pr }],
         ]) {
             const m = pushMessage(outcome, f);
             assert.deepEqual(pick(m), want, outcome);
             assert.match(m.title + m.message, /^[\x20-\x7e\n]+$/, `${outcome} is plain ASCII`);
             assert.ok(m.message.split("\n").length <= 2, `${outcome} is at most two lines`);
         }
-        assert.throws(() => pushMessage("skipped", f), /unknown outcome/);
+        for (const gone of ["skipped", "opened", "dequeued"]) {
+            assert.throws(() => pushMessage(gone, f), /unknown outcome/, gone);
+        }
     });
 
     it("says what: the packages and versions, or the failed lane and check", () => {
@@ -326,14 +310,6 @@ describe("pushMessage", () => {
         assert.match(
             pushMessage("held", { ...f, what: "T4 GPU" }).message,
             /^T4 GPU failed on abcdef1\nNothing published; see #12$/,
-        );
-        assert.equal(
-            pushMessage("dequeued", {
-                ...f,
-                what: "Dequeued -- checks failed",
-                checks: "All Checks Pass (u1), Lint (u2)",
-            }).message,
-            "PR #7: Dequeued -- checks failed\nFailing: All Checks Pass, Lint",
         );
     });
 
@@ -404,5 +380,59 @@ describe("push", () => {
             assert.match(r.logs[0], /^::warning::Pushover notification not sent: .*invalid/);
             assert.doesNotMatch(r.logs.join("\n"), /secret/);
         }
+    });
+});
+
+// Recorded 2026-10-28 (issue #4630): full run 40605944822 announced 271 changed screenshots on c2a8836 without holding
+// it; 1.5 hours later full run 40616061520 found the same 271 on 3ddf13d and held it ("Nightly held on 3ddf13d"), but
+// the weekly deduplication called that "already reported", so the owner got no comment and no push for the candidate
+// actually waiting on his review.
+describe("screenshotsReported", () => {
+    const what =
+        "271 screenshots differ from master's baselines: compact-mantine 4, graph-io-fidelity 16, graphty-element 209, graphty 42";
+    const earlier = {
+        body: statusComment("green-images", {
+            sha: "c2a8836137387f6c69b1e1aa472d107c29e1513d",
+            what,
+            run: "https://github.com/graphty-org/graphty-monorepo/actions/runs/40605944822",
+        }),
+    };
+    const held = {
+        sha: "3ddf13da890926e8fbaaf455b4fa7a14b88541e5",
+        what,
+        hold: "start",
+        run: "https://github.com/graphty-org/graphty-monorepo/actions/runs/40616061520",
+    };
+    const now = Date.parse("2026-10-28T02:32:24Z");
+    const replay = async (f) => {
+        const posted = [];
+        const request = async (method, path, body) => {
+            if (method === "GET") return path.includes("/comments") ? [earlier] : [{ number: 1749 }];
+            posted.push(body.body);
+            return {};
+        };
+        const body = statusComment("green-images", f);
+        const number = await announce({ request, repo: "o/r", body, unlessReported: screenshotsReported(f, now) });
+        return { number, posted };
+    };
+
+    it("announces a run that holds its commit for review, though the same counts were announced before", async () => {
+        const { number, posted } = await replay(held);
+        assert.equal(number, 1749);
+        assert.match(posted[0], /Screenshots changed\*\*: the full run on 3ddf13d/);
+    });
+
+    it("announces a held head's re-test (hold update) too", async () => {
+        assert.equal((await replay({ ...held, hold: "update" })).number, 1749);
+    });
+
+    it("stays quiet about the same changed screenshots on a commit it does not hold", async () => {
+        for (const hold of [undefined, "", "none"]) {
+            assert.equal((await replay({ ...held, hold })).number, null);
+        }
+    });
+
+    it("looks back one week", () => {
+        assert.equal(screenshotsReported({ what }, now).since, "2026-10-21T02:32:24.000Z");
     });
 });

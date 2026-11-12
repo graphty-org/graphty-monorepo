@@ -66,7 +66,7 @@ function generateFlowNetwork(
     let nodeId = 1;
     for (let layer = 0; layer < layers; layer++) {
         const x = 50 + ((layer + 1) * (width - 100)) / (layers + 1);
-        const layerNodes = layer === layers - 1 ? actualNodeCount - 2 - nodeId : nodesPerLayer;
+        const layerNodes = layer === layers - 1 ? actualNodeCount - 1 - nodeId : nodesPerLayer;
 
         for (let i = 0; i < layerNodes && nodeId < actualNodeCount - 1; i++) {
             const y = 50 + ((i + 1) * (height - 100)) / (layerNodes + 1);
@@ -427,22 +427,19 @@ type Story = StoryObj<FordFulkersonArgs>;
 export const FordFulkerson: Story = {
     render: (args) => createFordFulkersonStory(args),
     parameters: {
-        // Disable Chromatic snapshot for this story - the play function has long animations
-        // that exceed Chromatic's 30-second timeout (15s render + 15s interaction)
+        // Disable the visual capture for this story - the play function has long animations
+        // that are too long for one capture (15s render + 15s interaction)
         chromatic: { disableSnapshot: true },
     },
-    play: async ({ canvasElement, args }) => {
+    play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
         const playButton = canvas.getByRole("button", { name: /play/i });
         await userEvent.click(playButton);
 
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("Maximum flow");
-            },
-            { timeout: 10 * args.animationSpeed },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("Maximum flow");
+        });
     },
 };

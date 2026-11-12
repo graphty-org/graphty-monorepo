@@ -342,11 +342,11 @@ type Story = StoryObj<BFSArgs>;
  *
  * This story uses the actual `breadthFirstSearch()` function from @graphty/algorithms.
  *
- * The play function runs the animation to completion for Chromatic visual testing.
+ * The play function runs the animation to completion for the visual capture.
  */
 export const BFS: Story = {
     render: (args) => createBFSStory(args),
-    play: async ({ canvasElement, args }) => {
+    play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
         // Click play button to start animation
@@ -354,12 +354,9 @@ export const BFS: Story = {
         await userEvent.click(playButton);
 
         // Wait for animation to complete (status shows "complete")
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("complete");
-            },
-            { timeout: (args.nodeCount * 3 + 5) * args.animationSpeed },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("complete");
+        });
     },
 };

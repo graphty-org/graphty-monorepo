@@ -79,7 +79,7 @@ function runTypedoc() {
 }
 
 /** The terminal escape sequences TypeDoc wraps its severity labels in. */
-const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
+const ANSI = new RegExp(String.raw`${String.fromCharCode(27)}\[[0-9;]*m`, "g");
 
 /**
  * Strips the ANSI colour codes TypeDoc writes around its severity labels.

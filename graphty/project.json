@@ -12,7 +12,8 @@
                 "production",
                 "^production",
                 { "runtime": "git rev-parse HEAD" },
-                { "runtime": "node --version" }
+                { "runtime": "node --version" },
+                { "env": "SENTRY_RELEASE" }
             ],
             "options": {
                 "command": "npm run build",
@@ -45,13 +46,15 @@
             "executor": "nx:run-commands",
             "inputs": [
                 "default",
+                "^production",
                 "{workspaceRoot}/eslint.config.js",
                 { "dependentTasksOutputFiles": "**/doors.json", "transitive": true }
             ],
             "options": {
-                "command": "eslint && tsc --noEmit && tsc --noEmit -p eslint-rules",
+                "command": "eslint $ESLINT_CACHE && tsc --noEmit && tsc --noEmit -p eslint-rules",
                 "cwd": "graphty"
             },
+            "outputs": ["{projectRoot}/node_modules/.cache/eslint"],
             "dependsOn": ["^build"]
         },
         "dev": {
@@ -74,16 +77,6 @@
                 "command": "npm run build-storybook",
                 "cwd": "graphty"
             }
-        },
-        "test:visual": {
-            "executor": "nx:run-commands",
-            "options": {
-                "command": "npm run test:visual",
-                "cwd": "graphty"
-            }
         }
-    },
-    "release": {
-        "publish": false
     }
 }

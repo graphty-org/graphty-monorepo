@@ -63,7 +63,11 @@
  */
 
 import { EXACT_MAX_NODES, type GpuAccelerator } from "@graphty/webgpu-graph-algorithms";
-import { type AcceleratorDeclined, acquireAccelerator } from "@graphty/webgpu-graph-algorithms/browser";
+import {
+    type AcceleratorDeclined,
+    acquireAccelerator,
+    summarizeAdapter,
+} from "@graphty/webgpu-graph-algorithms/browser";
 
 import { type AcceleratorFactoryOptions, type GraphAccelerator, registerAccelerator } from "./src/acceleration";
 import { GraphtyError } from "./src/errors";
@@ -238,6 +242,7 @@ async function createWebGpuAccelerator(options?: AcceleratorFactoryOptions): Pro
     const gpu = acquireAccelerator({
         acceptSoftware: options?.acceptSoftware ?? false,
         accelerator: exactMaxNodes === undefined ? undefined : { layout: { exactMaxNodes } },
+        ...(options?.device === undefined ? {} : { device: options.device as GPUDevice }),
     });
     const result = await gpu.current();
     if (!result.ok) {
@@ -253,4 +258,6 @@ registerAccelerator({
     name: WEBGPU_ACCELERATOR_NAME,
     backend: "webgpu",
     factory: createWebGpuAccelerator,
+    // A software adapter draws a frame slower with the layout on the same device than beside it.
+    sharesDevice: (adapter) => !summarizeAdapter(adapter as GPUAdapter).software,
 });

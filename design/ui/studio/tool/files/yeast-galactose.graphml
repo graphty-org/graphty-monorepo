@@ -1,0 +1,701 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <key id="name" for="node" attr.name="name" attr.type="string"/>
+  <key id="gal1RGexp" for="node" attr.name="gal1RGexp" attr.type="double"/>
+  <key id="gal4RGexp" for="node" attr.name="gal4RGexp" attr.type="double"/>
+  <key id="gal80Rexp" for="node" attr.name="gal80Rexp" attr.type="double"/>
+  <graph id="galFiltered" edgedefault="undirected">
+    <node id="YKR026C"><data key="name">GCN3</data><data key="gal1RGexp">-0.154</data><data key="gal4RGexp">-0.501</data><data key="gal80Rexp">0.292</data></node>
+    <node id="YGL122C"><data key="name">NAB2</data><data key="gal1RGexp">0.174</data><data key="gal4RGexp">0.02</data><data key="gal80Rexp">0.187</data></node>
+    <node id="YGR218W"><data key="name">CRM1</data><data key="gal1RGexp">-0.018</data><data key="gal4RGexp">-0.001</data><data key="gal80Rexp">-0.018</data></node>
+    <node id="YGL097W"><data key="name">SRM1</data><data key="gal1RGexp">0.16</data><data key="gal4RGexp">-0.23</data><data key="gal80Rexp">0.008</data></node>
+    <node id="YOR204W"><data key="name">DED1</data><data key="gal1RGexp">-0.033</data><data key="gal4RGexp">-0.056</data><data key="gal80Rexp">-0.91</data></node>
+    <node id="YLR249W"><data key="name">YEF3</data><data key="gal1RGexp">-0.39</data><data key="gal4RGexp">-0.394</data><data key="gal80Rexp">-0.769</data></node>
+    <node id="YPR080W"><data key="name">TEF1</data><data key="gal1RGexp">-0.138</data><data key="gal4RGexp">0.009</data><data key="gal80Rexp">-0.278</data></node>
+    <node id="YBR118W"><data key="name">TEF2</data><data key="gal1RGexp">-0.074</data><data key="gal4RGexp">-0.063</data><data key="gal80Rexp">0.044</data></node>
+    <node id="YLR293C"><data key="name">GSP1</data><data key="gal1RGexp">-0.242</data><data key="gal4RGexp">-0.247</data><data key="gal80Rexp">-0.128</data></node>
+    <node id="YMR146C"><data key="name">TIF34</data><data key="gal1RGexp">-0.05</data><data key="gal4RGexp">-0.143</data><data key="gal80Rexp">-0.151</data></node>
+    <node id="YDR429C"><data key="name">TIF35</data><data key="gal1RGexp">0.078</data><data key="gal4RGexp">-0.209</data><data key="gal80Rexp">0.354</data></node>
+    <node id="YFL017C"><data key="name">GNA1</data><data key="gal1RGexp">0.131</data><data key="gal4RGexp">0.122</data><data key="gal80Rexp">0.124</data></node>
+    <node id="YAL003W"><data key="name">EFB1</data><data key="gal1RGexp">-0.157</data><data key="gal4RGexp">-0.2</data><data key="gal80Rexp">-0.146</data></node>
+    <node id="YOL123W"><data key="name">HRP1</data><data key="gal1RGexp">0.245</data><data key="gal4RGexp">0.126</data><data key="gal80Rexp">-0.036</data></node>
+    <node id="YGL044C"><data key="name">RNA15</data><data key="gal1RGexp">0.162</data><data key="gal4RGexp">-0.211</data><data key="gal80Rexp">0.281</data></node>
+    <node id="YPL211W"><data key="name">NIP7</data><data key="gal1RGexp">-0.231</data><data key="gal4RGexp">-0.504</data><data key="gal80Rexp">0.623</data></node>
+    <node id="YGR014W"><data key="name">MSB2</data><data key="gal1RGexp">-0.066</data><data key="gal4RGexp">-0.131</data><data key="gal80Rexp">-0.171</data></node>
+    <node id="YJL030W"><data key="name">MAD2</data><data key="gal1RGexp">0.08</data><data key="gal4RGexp">-0.271</data><data key="gal80Rexp">0.46</data></node>
+    <node id="YGL229C"><data key="name">SAP4</data><data key="gal1RGexp">-0.521</data><data key="gal4RGexp">0.171</data><data key="gal80Rexp">-0.208</data></node>
+    <node id="YJL013C"><data key="name">MAD3</data><data key="gal1RGexp">-0.072</data><data key="gal4RGexp">-0.154</data><data key="gal80Rexp">0.084</data></node>
+    <node id="YGR203W"><data key="name">YGR203W</data><data key="gal1RGexp">-0.141</data><data key="gal4RGexp">-0.085</data><data key="gal80Rexp">-0.34</data></node>
+    <node id="YIL061C"><data key="name">SNP1</data><data key="gal1RGexp">0.165</data><data key="gal4RGexp">-0.635</data><data key="gal80Rexp">0.181</data></node>
+    <node id="YCR084C"><data key="name">TUP1</data><data key="gal1RGexp">0.044</data><data key="gal4RGexp">0.704</data><data key="gal80Rexp">-0.091</data></node>
+    <node id="YBR112C"><data key="name">SSN6</data><data key="gal1RGexp">0.108</data><data key="gal4RGexp">-0.004</data><data key="gal80Rexp">0.077</data></node>
+    <node id="YCL067C"><data key="name">ALPHA2</data><data key="gal1RGexp">0.169</data><data key="gal4RGexp">-0.085</data><data key="gal80Rexp">0.301</data></node>
+    <node id="YER112W"><data key="name">LSM4</data><data key="gal1RGexp">0.193</data><data key="gal4RGexp">-0.181</data><data key="gal80Rexp">0.151</data></node>
+    <node id="YOR167C"><data key="name">RPS28A</data><data key="gal1RGexp">-0.374</data><data key="gal4RGexp">-0.239</data><data key="gal80Rexp">-0.243</data></node>
+    <node id="YJR022W"><data key="name">LSM8</data><data key="gal1RGexp">0.059</data><data key="gal4RGexp">-0.435</data><data key="gal80Rexp">0.294</data></node>
+    <node id="YNR050C"><data key="name">LYS9</data><data key="gal1RGexp">0.223</data><data key="gal4RGexp">-0.131</data><data key="gal80Rexp">0.647</data></node>
+    <node id="YNL050C"><data key="name">YNL050C</data><data key="gal1RGexp">0.301</data><data key="gal4RGexp">-0.448</data><data key="gal80Rexp">0.594</data></node>
+    <node id="YEL015W"><data key="name">YEL015W</data><data key="gal1RGexp">0.222</data><data key="gal4RGexp">-0.171</data><data key="gal80Rexp">0.275</data></node>
+    <node id="YLR264W"><data key="name">RPS28B</data><data key="gal1RGexp">-0.259</data><data key="gal4RGexp">-0.299</data><data key="gal80Rexp">-0.17</data></node>
+    <node id="YNR053C"><data key="name">YNR053C</data><data key="gal1RGexp">0.352</data><data key="gal4RGexp">-0.238</data><data key="gal80Rexp">-0.012</data></node>
+    <node id="YER116C"><data key="name">YER116C</data><data key="gal1RGexp">0.029</data><data key="gal4RGexp">-0.11</data><data key="gal80Rexp">0.182</data></node>
+    <node id="YDL013W"><data key="name">HEX3</data><data key="gal1RGexp">0.214</data><data key="gal4RGexp">0.073</data><data key="gal80Rexp">0.593</data></node>
+    <node id="YNL307C"><data key="name">MCK1</data><data key="gal1RGexp">-0.046</data><data key="gal4RGexp">0.094</data><data key="gal80Rexp">-0.063</data></node>
+    <node id="YAL038W"><data key="name">CDC19</data><data key="gal1RGexp">-0.652</data><data key="gal4RGexp">0.123</data><data key="gal80Rexp">-0.453</data></node>
+    <node id="YNL216W"><data key="name">RAP1</data><data key="gal1RGexp">0.205</data><data key="gal4RGexp">0.015</data><data key="gal80Rexp">0.234</data></node>
+    <node id="YCR012W"><data key="name">PGK1</data><data key="gal1RGexp">-0.668</data><data key="gal4RGexp">0.329</data><data key="gal80Rexp">-0.746</data></node>
+    <node id="YGR254W"><data key="name">ENO1</data><data key="gal1RGexp">-0.737</data><data key="gal4RGexp">0.259</data><data key="gal80Rexp">-0.171</data></node>
+    <node id="YHR174W"><data key="name">ENO2</data><data key="gal1RGexp">-0.816</data><data key="gal4RGexp">0.241</data><data key="gal80Rexp">-0.217</data></node>
+    <node id="YIL133C"><data key="name">RPL16A</data><data key="gal1RGexp">-0.453</data><data key="gal4RGexp">-0.311</data><data key="gal80Rexp">-0.146</data></node>
+    <node id="YLR044C"><data key="name">PDC1</data><data key="gal1RGexp">-0.62</data><data key="gal4RGexp">-0.071</data><data key="gal80Rexp">-0.184</data></node>
+    <node id="YOL120C"><data key="name">RPL18A</data><data key="gal1RGexp">-0.409</data><data key="gal4RGexp">-0.225</data><data key="gal80Rexp">-0.62</data></node>
+    <node id="YNL301C"><data key="name">RPL18B</data><data key="gal1RGexp">-0.379</data><data key="gal4RGexp">-0.245</data><data key="gal80Rexp">-0.271</data></node>
+    <node id="YCL030C"><data key="name">HIS4</data><data key="gal1RGexp">-1.067</data><data key="gal4RGexp">-0.898</data><data key="gal80Rexp">0.29</data></node>
+    <node id="YDR171W"><data key="name">HSP42</data><data key="gal1RGexp">-0.31</data><data key="gal4RGexp">0.3</data><data key="gal80Rexp">-0.723</data></node>
+    <node id="YBR093C"><data key="name">PHO5</data><data key="gal1RGexp">-0.704</data><data key="gal4RGexp">0.075</data><data key="gal80Rexp">-0.543</data></node>
+    <node id="YER074W"><data key="name">RPS24A</data><data key="gal1RGexp">-0.262</data><data key="gal4RGexp">-0.449</data><data key="gal80Rexp">-0.051</data></node>
+    <node id="YIL069C"><data key="name">RPS24B</data><data key="gal1RGexp">-0.313</data><data key="gal4RGexp">-0.467</data><data key="gal80Rexp">-0.018</data></node>
+    <node id="YOL127W"><data key="name">RPL25</data><data key="gal1RGexp">-0.192</data><data key="gal4RGexp">-0.425</data><data key="gal80Rexp">0.076</data></node>
+    <node id="YDR050C"><data key="name">TPI1</data><data key="gal1RGexp">-0.584</data><data key="gal4RGexp">0.053</data><data key="gal80Rexp">-0.728</data></node>
+    <node id="YOL086C"><data key="name">ADH1</data><data key="gal1RGexp">-0.113</data><data key="gal4RGexp">0.245</data><data key="gal80Rexp">-0.322</data></node>
+    <node id="YAL030W"><data key="name">SNC1</data><data key="gal1RGexp">-0.05</data><data key="gal4RGexp">0.027</data><data key="gal80Rexp">0.003</data></node>
+    <node id="YER143W"><data key="name">DDI1</data><data key="gal1RGexp">0.282</data><data key="gal4RGexp">0.255</data><data key="gal80Rexp">0.179</data></node>
+    <node id="YOR327C"><data key="name">SNC2</data><data key="gal1RGexp">0.249</data><data key="gal4RGexp">-0.112</data><data key="gal80Rexp">0.559</data></node>
+    <node id="YER062C"><data key="name">HOR2</data><data key="gal1RGexp">-0.486</data><data key="gal4RGexp">-0.942</data><data key="gal80Rexp">0.359</data></node>
+    <node id="YPL201C"><data key="name">YPL201C</data><data key="gal1RGexp">2.058</data><data key="gal4RGexp">1.18</data><data key="gal80Rexp">0.597</data></node>
+    <node id="YDR412W"><data key="name">YDR412W</data><data key="gal1RGexp">0.067</data><data key="gal4RGexp">-0.641</data><data key="gal80Rexp">0.991</data></node>
+    <node id="YCR086W"><data key="name">YCR086W</data><data key="gal1RGexp">-0.081</data><data key="gal4RGexp">-0.397</data><data key="gal80Rexp">0.381</data></node>
+    <node id="YGL013C"><data key="name">PDR1</data><data key="gal1RGexp">0.185</data><data key="gal4RGexp">-0.152</data><data key="gal80Rexp">0.173</data></node>
+    <node id="YLR117C"><data key="name">SYF3</data><data key="gal1RGexp">0.326</data><data key="gal4RGexp">-0.234</data><data key="gal80Rexp">0.712</data></node>
+    <node id="YPR119W"><data key="name">CLB2</data><data key="gal1RGexp">-0.234</data><data key="gal4RGexp">-0.279</data><data key="gal80Rexp">-0.342</data></node>
+    <node id="YDL014W"><data key="name">NOP1</data><data key="gal1RGexp">-0.039</data><data key="gal4RGexp">-0.176</data><data key="gal80Rexp">-0.038</data></node>
+    <node id="YOR310C"><data key="name">NOP5</data><data key="gal1RGexp">-0.073</data><data key="gal4RGexp">-0.499</data><data key="gal80Rexp">-0.157</data></node>
+    <node id="YER179W"><data key="name">DMC1</data><data key="gal1RGexp">-0.219</data><data key="gal4RGexp">0.059</data><data key="gal80Rexp">-0.167</data></node>
+    <node id="YLR134W"><data key="name">PDC5</data><data key="gal1RGexp">-0.645</data><data key="gal4RGexp">0.027</data><data key="gal80Rexp">-0.351</data></node>
+    <node id="YIL105C"><data key="name">YIL105C</data><data key="gal1RGexp">0.196</data><data key="gal4RGexp">0.023</data><data key="gal80Rexp">0.197</data></node>
+    <node id="YOR361C"><data key="name">PRT1</data><data key="gal1RGexp">-0.02</data><data key="gal4RGexp">-0.085</data><data key="gal80Rexp">-0.237</data></node>
+    <node id="YMR309C"><data key="name">NIP1</data><data key="gal1RGexp">0.009</data><data key="gal4RGexp">-0.248</data><data key="gal80Rexp">-0.123</data></node>
+    <node id="YOR326W"><data key="name">MYO2</data><data key="gal1RGexp">0.51</data><data key="gal4RGexp">0.432</data><data key="gal80Rexp">0.296</data></node>
+    <node id="YGL106W"><data key="name">MLC1</data><data key="gal1RGexp">-0.262</data><data key="gal4RGexp">-0.327</data><data key="gal80Rexp">-0.059</data></node>
+    <node id="YMR186W"><data key="name">HSC82</data><data key="gal1RGexp">-0.032</data><data key="gal4RGexp">-0.032</data><data key="gal80Rexp">-0.608</data></node>
+    <node id="YBR155W"><data key="name">CNS1</data><data key="gal1RGexp">0.082</data><data key="gal4RGexp">-0.479</data><data key="gal80Rexp">0.519</data></node>
+    <node id="YEL009C"><data key="name">GCN4</data><data key="gal1RGexp">0.035</data><data key="gal4RGexp">0.032</data><data key="gal80Rexp">-0.031</data></node>
+    <node id="YMR108W"><data key="name">ILV2</data><data key="gal1RGexp">0.04</data><data key="gal4RGexp">-0.358</data><data key="gal80Rexp">0.095</data></node>
+    <node id="YOR202W"><data key="name">HIS3</data><data key="gal1RGexp">-0.432</data><data key="gal4RGexp">-0.71</data><data key="gal80Rexp">0.239</data></node>
+    <node id="YBR248C"><data key="name">HIS7</data><data key="gal1RGexp">-0.258</data><data key="gal4RGexp">-1.252</data><data key="gal80Rexp">0.898</data></node>
+    <node id="YOL058W"><data key="name">ARG1</data><data key="gal1RGexp">-0.652</data><data key="gal4RGexp">-0.541</data><data key="gal80Rexp">-0.815</data></node>
+    <node id="YMR300C"><data key="name">ADE4</data><data key="gal1RGexp">-0.514</data><data key="gal4RGexp">-1.296</data><data key="gal80Rexp">1.202</data></node>
+    <node id="YMR138W"><data key="name">CIN4</data><data key="gal1RGexp">0.414</data><data key="gal4RGexp">0</data><data key="gal80Rexp">0.221</data></node>
+    <node id="YHR141C"><data key="name">RPL42B</data><data key="gal1RGexp">-0.359</data><data key="gal4RGexp">-0.371</data><data key="gal80Rexp">-0.139</data></node>
+    <node id="YLR109W"><data key="name">AHP1</data><data key="gal1RGexp">-0.603</data><data key="gal4RGexp">0.466</data><data key="gal80Rexp">-0.486</data></node>
+    <node id="YCL032W"><data key="name">STE50</data><data key="gal1RGexp">0.126</data><data key="gal4RGexp">0.02</data><data key="gal80Rexp">0.284</data></node>
+    <node id="YDR032C"><data key="name">YDR032C</data><data key="gal1RGexp">0.113</data><data key="gal4RGexp">0.331</data><data key="gal80Rexp">-0.211</data></node>
+    <node id="YLR362W"><data key="name">STE11</data><data key="gal1RGexp">0.144</data><data key="gal4RGexp">0.037</data><data key="gal80Rexp">0.374</data></node>
+    <node id="YDR103W"><data key="name">STE5</data><data key="gal1RGexp">-0.068</data><data key="gal4RGexp">-0.121</data><data key="gal80Rexp">0.023</data></node>
+    <node id="YJR060W"><data key="name">CBF1</data><data key="gal1RGexp">0.165</data><data key="gal4RGexp">-0.306</data><data key="gal80Rexp">0.103</data></node>
+    <node id="YBR019C"><data key="name">GAL10</data><data key="gal1RGexp">0.061</data><data key="gal4RGexp">-1.993</data><data key="gal80Rexp">2.856</data></node>
+    <node id="YOL051W"><data key="name">GAL11</data><data key="gal1RGexp">0.171</data><data key="gal4RGexp">0.055</data><data key="gal80Rexp">0.111</data></node>
+    <node id="YGL035C"><data key="name">MIG1</data><data key="gal1RGexp">0.345</data><data key="gal4RGexp">0.31</data><data key="gal80Rexp">-0.28</data></node>
+    <node id="YBR020W"><data key="name">GAL1</data><data key="gal1RGexp">-2.426</data><data key="gal4RGexp">-2.406</data><data key="gal80Rexp">2.939</data></node>
+    <node id="YLR081W"><data key="name">GAL2</data><data key="gal1RGexp">0.176</data><data key="gal4RGexp">-0.57</data><data key="gal80Rexp">0.892</data></node>
+    <node id="YPL248C"><data key="name">GAL4</data><data key="gal1RGexp">0.1</data><data key="gal4RGexp">-0.758</data><data key="gal80Rexp">-0.211</data></node>
+    <node id="YBR018C"><data key="name">GAL7</data><data key="gal1RGexp">0.153</data><data key="gal4RGexp">-1.995</data><data key="gal80Rexp">3.126</data></node>
+    <node id="YIR009W"><data key="name">MSL1</data><data key="gal1RGexp">-0.044</data><data key="gal4RGexp">-0.337</data><data key="gal80Rexp">-0.049</data></node>
+    <node id="YKR099W"><data key="name">BAS1</data><data key="gal1RGexp">0.466</data><data key="gal4RGexp">-0.936</data><data key="gal80Rexp">1.101</data></node>
+    <node id="YIL143C"><data key="name">SSL2</data><data key="gal1RGexp">0.124</data><data key="gal4RGexp">0.069</data><data key="gal80Rexp">0.264</data></node>
+    <node id="YDR184C"><data key="name">ATC1</data><data key="gal1RGexp">0.04</data><data key="gal4RGexp">-0.886</data><data key="gal80Rexp">0.404</data></node>
+    <node id="YNL091W"><data key="name">YNL091W</data><data key="gal1RGexp">0.288</data><data key="gal4RGexp">0.154</data><data key="gal80Rexp">0.723</data></node>
+    <node id="YNL236W"><data key="name">SIN4</data><data key="gal1RGexp">-0.146</data><data key="gal4RGexp">-0.218</data><data key="gal80Rexp">-0.141</data></node>
+    <node id="YKL012W"><data key="name">PRP40</data><data key="gal1RGexp">0.21</data><data key="gal4RGexp">-0.277</data><data key="gal80Rexp">0.561</data></node>
+    <node id="YML032C"><data key="name">RAD52</data><data key="gal1RGexp">0.199</data><data key="gal4RGexp">-0.136</data><data key="gal80Rexp">0.363</data></node>
+    <node id="YNL312W"><data key="name">RFA2</data><data key="gal1RGexp">0.028</data><data key="gal4RGexp">-0.111</data><data key="gal80Rexp">-0.121</data></node>
+    <node id="YLR116W"><data key="name">MSL5</data><data key="gal1RGexp">0.015</data><data key="gal4RGexp">-0.03</data><data key="gal80Rexp">0.101</data></node>
+    <node id="YOR264W"><data key="name">YOR264W</data><data key="gal1RGexp">0.493</data><data key="gal4RGexp">0.237</data><data key="gal80Rexp">0.307</data></node>
+    <node id="YDR309C"><data key="name">GIC2</data><data key="gal1RGexp">-0.427</data><data key="gal4RGexp">-0.129</data><data key="gal80Rexp">-0.798</data></node>
+    <node id="YLR229C"><data key="name">CDC42</data><data key="gal1RGexp">-0.074</data><data key="gal4RGexp">0.089</data><data key="gal80Rexp">-0.154</data></node>
+    <node id="YGR058W"><data key="name">YGR058W</data><data key="gal1RGexp">0.045</data><data key="gal4RGexp">-0.16</data><data key="gal80Rexp">-0.065</data></node>
+    <node id="YJR109C"><data key="name">CPA2</data><data key="gal1RGexp">-0.323</data><data key="gal4RGexp">0</data><data key="gal80Rexp">-0.745</data></node>
+    <node id="YOR303W"><data key="name">CPA1</data><data key="gal1RGexp">-0.127</data><data key="gal4RGexp">-0.089</data><data key="gal80Rexp">0.403</data></node>
+    <node id="YLR256W"><data key="name">HAP1</data><data key="gal1RGexp">0.011</data><data key="gal4RGexp">-0.087</data><data key="gal80Rexp">0.104</data></node>
+    <node id="YML054C"><data key="name">CYB2</data><data key="gal1RGexp">0.963</data><data key="gal4RGexp">0.856</data><data key="gal80Rexp">-0.091</data></node>
+    <node id="YJR048W"><data key="name">CYC1</data><data key="gal1RGexp">0.216</data><data key="gal4RGexp">0.14</data><data key="gal80Rexp">-0.643</data></node>
+    <node id="YEL039C"><data key="name">CYC7</data><data key="gal1RGexp">-0.319</data><data key="gal4RGexp">0.377</data><data key="gal80Rexp">-1.373</data></node>
+    <node id="YGL237C"><data key="name">HAP2</data><data key="gal1RGexp">0.127</data><data key="gal4RGexp">0.05</data><data key="gal80Rexp">0.059</data></node>
+    <node id="YBL021C"><data key="name">HAP3</data><data key="gal1RGexp">0.073</data><data key="gal4RGexp">-0.256</data><data key="gal80Rexp">-0.108</data></node>
+    <node id="YDR311W"><data key="name">TFB1</data><data key="gal1RGexp">0.098</data><data key="gal4RGexp">-0.043</data><data key="gal80Rexp">0.332</data></node>
+    <node id="YKL028W"><data key="name">TFA1</data><data key="gal1RGexp">0.214</data><data key="gal4RGexp">-0.146</data><data key="gal80Rexp">0.337</data></node>
+    <node id="YPL149W"><data key="name">APG5</data><data key="gal1RGexp">0.033</data><data key="gal4RGexp">0.116</data><data key="gal80Rexp">0.488</data></node>
+    <node id="YHR171W"><data key="name">APG7</data><data key="gal1RGexp">-0.134</data><data key="gal4RGexp">0.251</data><data key="gal80Rexp">0.034</data></node>
+    <node id="YBR217W"><data key="name">APG12</data><data key="gal1RGexp">0.088</data><data key="gal4RGexp">-0.332</data><data key="gal80Rexp">0.378</data></node>
+    <node id="YKL109W"><data key="name">HAP4</data><data key="gal1RGexp">0.084</data><data key="gal4RGexp">0.295</data><data key="gal80Rexp">-0.117</data></node>
+    <node id="YMR043W"><data key="name">MCM1</data><data key="gal1RGexp">-0.183</data><data key="gal4RGexp">-0.654</data><data key="gal80Rexp">0.457</data></node>
+    <node id="YIL015W"><data key="name">BAR1</data><data key="gal1RGexp">-0.622</data><data key="gal4RGexp">-0.207</data><data key="gal80Rexp">-1.117</data></node>
+    <node id="YJL159W"><data key="name">HSP150</data><data key="gal1RGexp">-0.357</data><data key="gal4RGexp">0.111</data><data key="gal80Rexp">0.001</data></node>
+    <node id="YKR097W"><data key="name">PCK1</data><data key="gal1RGexp">1.289</data><data key="gal4RGexp">1.224</data><data key="gal80Rexp">0.123</data></node>
+    <node id="YGR108W"><data key="name">CLB1</data><data key="gal1RGexp">-0.25</data><data key="gal4RGexp">-0.566</data><data key="gal80Rexp">0.101</data></node>
+    <node id="YDR461W"><data key="name">MFA1</data><data key="gal1RGexp">-0.659</data><data key="gal4RGexp">-0.147</data><data key="gal80Rexp">-0.526</data></node>
+    <node id="YNL145W"><data key="name">MFA2</data><data key="gal1RGexp">-0.764</data><data key="gal4RGexp">-0.098</data><data key="gal80Rexp">-1.237</data></node>
+    <node id="YJL157C"><data key="name">FAR1</data><data key="gal1RGexp">-0.158</data><data key="gal4RGexp">-0.803</data><data key="gal80Rexp">0.972</data></node>
+    <node id="YFL026W"><data key="name">STE2</data><data key="gal1RGexp">-0.653</data><data key="gal4RGexp">-0.396</data><data key="gal80Rexp">-0.74</data></node>
+    <node id="YNR007C"><data key="name">AUT1</data><data key="gal1RGexp">0.078</data><data key="gal4RGexp">0.196</data><data key="gal80Rexp">0.161</data></node>
+    <node id="YJL203W"><data key="name">PRP21</data><data key="gal1RGexp">0.083</data><data key="gal4RGexp">-0.46</data><data key="gal80Rexp">0.401</data></node>
+    <node id="YOL136C"><data key="name">PFK27</data><data key="gal1RGexp">-0.646</data><data key="gal4RGexp">-0.086</data><data key="gal80Rexp">-0.472</data></node>
+    <node id="YLL021W"><data key="name">SPA2</data><data key="gal1RGexp">-0.155</data><data key="gal4RGexp">0.05</data><data key="gal80Rexp">-0.036</data></node>
+    <node id="YJL219W"><data key="name">HXT9</data><data key="gal1RGexp">0.298</data><data key="gal4RGexp">0.592</data><data key="gal80Rexp">-0.162</data></node>
+    <node id="YOL156W"><data key="name">HXT11</data><data key="gal1RGexp">0.298</data><data key="gal4RGexp">0.462</data><data key="gal80Rexp">0.105</data></node>
+    <node id="YKL101W"><data key="name">HSL1</data><data key="gal1RGexp">-0.01</data><data key="gal4RGexp">0.78</data><data key="gal80Rexp">0.439</data></node>
+    <node id="YBR160W"><data key="name">CDC28</data><data key="gal1RGexp">-0.016</data><data key="gal4RGexp">-0.087</data><data key="gal80Rexp">-0.405</data></node>
+    <node id="YBL005W"><data key="name">PDR3</data><data key="gal1RGexp">0</data><data key="gal4RGexp">0</data><data key="gal80Rexp">0</data></node>
+    <node id="YDR323C"><data key="name">PEP7</data><data key="gal1RGexp">0.164</data><data key="gal4RGexp">0</data><data key="gal80Rexp">0.052</data></node>
+    <node id="YOR036W"><data key="name">PEP12</data><data key="gal1RGexp">0.071</data><data key="gal4RGexp">0.037</data><data key="gal80Rexp">0.491</data></node>
+    <node id="YGL008C"><data key="name">PMA1</data><data key="gal1RGexp">-0.352</data><data key="gal4RGexp">-0.282</data><data key="gal80Rexp">-0.573</data></node>
+    <node id="YER040W"><data key="name">GLN3</data><data key="gal1RGexp">0.098</data><data key="gal4RGexp">-0.513</data><data key="gal80Rexp">0.537</data></node>
+    <node id="YPR035W"><data key="name">GLN1</data><data key="gal1RGexp">-0.197</data><data key="gal4RGexp">-1.06</data><data key="gal80Rexp">-0.172</data></node>
+    <node id="YGR019W"><data key="name">UGA1</data><data key="gal1RGexp">-0.163</data><data key="gal4RGexp">0.234</data><data key="gal80Rexp">-0.258</data></node>
+    <node id="YNL098C"><data key="name">RAS2</data><data key="gal1RGexp">0.05</data><data key="gal4RGexp">0.062</data><data key="gal80Rexp">0.293</data></node>
+    <node id="YLR310C"><data key="name">CDC25</data><data key="gal1RGexp">0.015</data><data key="gal4RGexp">-0.037</data><data key="gal80Rexp">-0.071</data></node>
+    <node id="YGL115W"><data key="name">SNF4</data><data key="gal1RGexp">-0.111</data><data key="gal4RGexp">0.112</data><data key="gal80Rexp">-0.221</data></node>
+    <node id="YGL208W"><data key="name">SIP2</data><data key="gal1RGexp">0.354</data><data key="gal4RGexp">0.406</data><data key="gal80Rexp">0.139</data></node>
+    <node id="YPL089C"><data key="name">RLM1</data><data key="gal1RGexp">-0.06</data><data key="gal4RGexp">-0.037</data><data key="gal80Rexp">0.209</data></node>
+    <node id="YHR030C"><data key="name">SLT2</data><data key="gal1RGexp">-0.227</data><data key="gal4RGexp">-0.24</data><data key="gal80Rexp">0.21</data></node>
+    <node id="YJL089W"><data key="name">SIP4</data><data key="gal1RGexp">0.037</data><data key="gal4RGexp">0.169</data><data key="gal80Rexp">0.442</data></node>
+    <node id="YER065C"><data key="name">ICL1</data><data key="gal1RGexp">0.65</data><data key="gal4RGexp">0.591</data><data key="gal80Rexp">1.147</data></node>
+    <node id="YLR377C"><data key="name">FBP1</data><data key="gal1RGexp">0.873</data><data key="gal4RGexp">1.067</data><data key="gal80Rexp">0.371</data></node>
+    <node id="YMR021C"><data key="name">MAC1</data><data key="gal1RGexp">0.022</data><data key="gal4RGexp">-0.032</data><data key="gal80Rexp">0.066</data></node>
+    <node id="YLR214W"><data key="name">FRE1</data><data key="gal1RGexp">0.518</data><data key="gal4RGexp">-0.279</data><data key="gal80Rexp">0.282</data></node>
+    <node id="YDR335W"><data key="name">MSN5</data><data key="gal1RGexp">0.028</data><data key="gal4RGexp">0.189</data><data key="gal80Rexp">0.272</data></node>
+    <node id="YDR174W"><data key="name">HMO1</data><data key="gal1RGexp">-0.314</data><data key="gal4RGexp">-0.083</data><data key="gal80Rexp">-0.356</data></node>
+    <node id="YLL028W"><data key="name">TPO1</data><data key="gal1RGexp">-0.189</data><data key="gal4RGexp">-0.101</data><data key="gal80Rexp">-0.24</data></node>
+    <node id="YGL166W"><data key="name">CUP2</data><data key="gal1RGexp">-0.073</data><data key="gal4RGexp">0.243</data><data key="gal80Rexp">0.147</data></node>
+    <node id="YDL081C"><data key="name">RPP1A</data><data key="gal1RGexp">-0.429</data><data key="gal4RGexp">-0.094</data><data key="gal80Rexp">-0.278</data></node>
+    <node id="YLR340W"><data key="name">RPP0</data><data key="gal1RGexp">-0.259</data><data key="gal4RGexp">-0.148</data><data key="gal80Rexp">-0.361</data></node>
+    <node id="YKL074C"><data key="name">MUD2</data><data key="gal1RGexp">0.002</data><data key="gal4RGexp">-0.294</data><data key="gal80Rexp">0.608</data></node>
+    <node id="YML064C"><data key="name">TEM1</data><data key="gal1RGexp">-0.218</data><data key="gal4RGexp">-0.069</data><data key="gal80Rexp">0</data></node>
+    <node id="YHR135C"><data key="name">YCK1</data><data key="gal1RGexp">0.082</data><data key="gal4RGexp">-0.049</data><data key="gal80Rexp">0.119</data></node>
+    <node id="YNL116W"><data key="name">YNL116W</data><data key="gal1RGexp">0.165</data><data key="gal4RGexp">0.027</data><data key="gal80Rexp">0.358</data></node>
+    <node id="YNL047C"><data key="name">YNL047C</data><data key="gal1RGexp">0.14</data><data key="gal4RGexp">-0.078</data><data key="gal80Rexp">0.029</data></node>
+    <node id="YNL154C"><data key="name">YCK2</data><data key="gal1RGexp">-0.013</data><data key="gal4RGexp">-0.066</data><data key="gal80Rexp">-0.438</data></node>
+    <node id="YKL204W"><data key="name">YKL204W</data><data key="gal1RGexp">0.253</data><data key="gal4RGexp">-0.002</data><data key="gal80Rexp">0.16</data></node>
+    <node id="?"><data key="name"></data><data key="gal1RGexp">null</data><data key="gal4RGexp">null</data><data key="gal80Rexp">null</data></node>
+    <node id="YJR066W"><data key="name">TOR1</data><data key="gal1RGexp">-0.028</data><data key="gal4RGexp">0.326</data><data key="gal80Rexp">0.111</data></node>
+    <node id="YDR382W"><data key="name">RPP2B</data><data key="gal1RGexp">-0.218</data><data key="gal4RGexp">-0.058</data><data key="gal80Rexp">-0.314</data></node>
+    <node id="YDL130W"><data key="name">RPP1B</data><data key="gal1RGexp">-0.3</data><data key="gal4RGexp">-0.123</data><data key="gal80Rexp">-0.24</data></node>
+    <node id="YFL039C"><data key="name">ACT1</data><data key="gal1RGexp">-0.16</data><data key="gal4RGexp">0.192</data><data key="gal80Rexp">-0.527</data></node>
+    <node id="YCL040W"><data key="name">GLK1</data><data key="gal1RGexp">-0.146</data><data key="gal4RGexp">0.542</data><data key="gal80Rexp">-0.221</data></node>
+    <node id="YHR179W"><data key="name">OYE2</data><data key="gal1RGexp">-0.565</data><data key="gal4RGexp">0.078</data><data key="gal80Rexp">-0.671</data></node>
+    <node id="YPL075W"><data key="name">GCR1</data><data key="gal1RGexp">-0.373</data><data key="gal4RGexp">-0.207</data><data key="gal80Rexp">-0.53</data></node>
+    <node id="YNL199C"><data key="name">GCR2</data><data key="gal1RGexp">0.121</data><data key="gal4RGexp">-0.162</data><data key="gal80Rexp">0.433</data></node>
+    <node id="YPR048W"><data key="name">TAH18</data><data key="gal1RGexp">0.113</data><data key="gal4RGexp">-0.191</data><data key="gal80Rexp">0.289</data></node>
+    <node id="YLR321C"><data key="name">SFH1</data><data key="gal1RGexp">0.252</data><data key="gal4RGexp">-0.352</data><data key="gal80Rexp">0.427</data></node>
+    <node id="YBR072W"><data key="name">HSP26</data><data key="gal1RGexp">-1.232</data><data key="gal4RGexp">0.895</data><data key="gal80Rexp">-0.447</data></node>
+    <node id="YGL073W"><data key="name">HSF1</data><data key="gal1RGexp">0.104</data><data key="gal4RGexp">-0.084</data><data key="gal80Rexp">0.543</data></node>
+    <node id="YBL069W"><data key="name">AST1</data><data key="gal1RGexp">-0.272</data><data key="gal4RGexp">-0.487</data><data key="gal80Rexp">-0.026</data></node>
+    <node id="YNL189W"><data key="name">SRP1</data><data key="gal1RGexp">0.082</data><data key="gal4RGexp">0.014</data><data key="gal80Rexp">-0.573</data></node>
+    <node id="YDL236W"><data key="name">PHO13</data><data key="gal1RGexp">-0.223</data><data key="gal4RGexp">-0.311</data><data key="gal80Rexp">-0.258</data></node>
+    <node id="YPL111W"><data key="name">CAR1</data><data key="gal1RGexp">0.186</data><data key="gal4RGexp">-0.26</data><data key="gal80Rexp">0.957</data></node>
+    <node id="YPR062W"><data key="name">FCY1</data><data key="gal1RGexp">-0.07</data><data key="gal4RGexp">-0.145</data><data key="gal80Rexp">-0.071</data></node>
+    <node id="YLR319C"><data key="name">BUD6</data><data key="gal1RGexp">0.071</data><data key="gal4RGexp">-0.201</data><data key="gal80Rexp">0.21</data></node>
+    <node id="YNL311C"><data key="name">YNL311C</data><data key="gal1RGexp">-0.055</data><data key="gal4RGexp">-0.388</data><data key="gal80Rexp">-0.169</data></node>
+    <node id="YKL001C"><data key="name">MET14</data><data key="gal1RGexp">-0.152</data><data key="gal4RGexp">-0.474</data><data key="gal80Rexp">0.683</data></node>
+    <node id="YOL016C"><data key="name">CMK2</data><data key="gal1RGexp">-0.365</data><data key="gal4RGexp">-0.108</data><data key="gal80Rexp">-0.138</data></node>
+    <node id="YBR109C"><data key="name">CMD1</data><data key="gal1RGexp">-0.089</data><data key="gal4RGexp">0.074</data><data key="gal80Rexp">-0.163</data></node>
+    <node id="YJL036W"><data key="name">SNX4</data><data key="gal1RGexp">0.195</data><data key="gal4RGexp">-0.051</data><data key="gal80Rexp">0.376</data></node>
+    <node id="YDL113C"><data key="name">YDL113C</data><data key="gal1RGexp">0.189</data><data key="gal4RGexp">0.011</data><data key="gal80Rexp">0.304</data></node>
+    <node id="YEL041W"><data key="name">YEL041W</data><data key="gal1RGexp">0.211</data><data key="gal4RGexp">0.393</data><data key="gal80Rexp">-0.265</data></node>
+    <node id="YHR115C"><data key="name">YHR115C</data><data key="gal1RGexp">0.056</data><data key="gal4RGexp">0.044</data><data key="gal80Rexp">0.138</data></node>
+    <node id="YNL167C"><data key="name">SKO1</data><data key="gal1RGexp">0.095</data><data key="gal4RGexp">0.1</data><data key="gal80Rexp">-0.18</data></node>
+    <node id="YDL063C"><data key="name">YDL063C</data><data key="gal1RGexp">0.093</data><data key="gal4RGexp">-0.755</data><data key="gal80Rexp">0.971</data></node>
+    <node id="YPL131W"><data key="name">RPL5</data><data key="gal1RGexp">-0.228</data><data key="gal4RGexp">-0.149</data><data key="gal80Rexp">-0.246</data></node>
+    <node id="YGL161C"><data key="name">YGL161C</data><data key="gal1RGexp">-0.07</data><data key="gal4RGexp">0.172</data><data key="gal80Rexp">-0.164</data></node>
+    <node id="YDR100W"><data key="name">YDR100W</data><data key="gal1RGexp">-0.007</data><data key="gal4RGexp">0.275</data><data key="gal80Rexp">-0.415</data></node>
+    <node id="YMR183C"><data key="name">SSO2</data><data key="gal1RGexp">-0.822</data><data key="gal4RGexp">0.256</data><data key="gal80Rexp">-0.825</data></node>
+    <node id="YGR009C"><data key="name">SEC9</data><data key="gal1RGexp">0.236</data><data key="gal4RGexp">-0.185</data><data key="gal80Rexp">0.302</data></node>
+    <node id="YMR291W"><data key="name">YMR291W</data><data key="gal1RGexp">-0.363</data><data key="gal4RGexp">0.256</data><data key="gal80Rexp">-0.397</data></node>
+    <node id="YGR048W"><data key="name">UFD1</data><data key="gal1RGexp">0.017</data><data key="gal4RGexp">-0.155</data><data key="gal80Rexp">0.364</data></node>
+    <node id="YPL222W"><data key="name">YPL222W</data><data key="gal1RGexp">0.344</data><data key="gal4RGexp">0.284</data><data key="gal80Rexp">0.514</data></node>
+    <node id="YAL040C"><data key="name">CLN3</data><data key="gal1RGexp">-0.027</data><data key="gal4RGexp">-0.206</data><data key="gal80Rexp">0.303</data></node>
+    <node id="YFR034C"><data key="name">PHO4</data><data key="gal1RGexp">0.121</data><data key="gal4RGexp">-0.336</data><data key="gal80Rexp">0.348</data></node>
+    <node id="YFR037C"><data key="name">RSC8</data><data key="gal1RGexp">0.297</data><data key="gal4RGexp">-0.226</data><data key="gal80Rexp">0.35</data></node>
+    <node id="YOR290C"><data key="name">SNF2</data><data key="gal1RGexp">-0.119</data><data key="gal4RGexp">-0.101</data><data key="gal80Rexp">-0.577</data></node>
+    <node id="YER133W"><data key="name">GLC7</data><data key="gal1RGexp">0.051</data><data key="gal4RGexp">-0.085</data><data key="gal80Rexp">-0.051</data></node>
+    <node id="YOR178C"><data key="name">GAC1</data><data key="gal1RGexp">-0.137</data><data key="gal4RGexp">0.462</data><data key="gal80Rexp">-0.187</data></node>
+    <node id="YOR315W"><data key="name">YOR315W</data><data key="gal1RGexp">0.066</data><data key="gal4RGexp">-0.462</data><data key="gal80Rexp">-0.063</data></node>
+    <node id="YMR311C"><data key="name">GLC8</data><data key="gal1RGexp">0.214</data><data key="gal4RGexp">0.021</data><data key="gal80Rexp">0.349</data></node>
+    <node id="YBR050C"><data key="name">REG2</data><data key="gal1RGexp">0.432</data><data key="gal4RGexp">0.679</data><data key="gal80Rexp">0.122</data></node>
+    <node id="YIL162W"><data key="name">SUC2</data><data key="gal1RGexp">-0.318</data><data key="gal4RGexp">0.688</data><data key="gal80Rexp">-1.131</data></node>
+    <node id="YFL038C"><data key="name">YPT1</data><data key="gal1RGexp">0.075</data><data key="gal4RGexp">-0.033</data><data key="gal80Rexp">0.12</data></node>
+    <node id="YOR355W"><data key="name">GDS1</data><data key="gal1RGexp">-0.176</data><data key="gal4RGexp">-0.044</data><data key="gal80Rexp">0.43</data></node>
+    <node id="YML074C"><data key="name">NPI46</data><data key="gal1RGexp">0.118</data><data key="gal4RGexp">-0.38</data><data key="gal80Rexp">0.389</data></node>
+    <node id="YJL190C"><data key="name">RPS22A</data><data key="gal1RGexp">-0.444</data><data key="gal4RGexp">-0.443</data><data key="gal80Rexp">-0.184</data></node>
+    <node id="YMR058W"><data key="name">FET3</data><data key="gal1RGexp">0.449</data><data key="gal4RGexp">-0.293</data><data key="gal80Rexp">0.64</data></node>
+    <node id="YER145C"><data key="name">FTR1</data><data key="gal1RGexp">0.647</data><data key="gal4RGexp">-0.78</data><data key="gal80Rexp">0.868</data></node>
+    <node id="YML123C"><data key="name">PHO84</data><data key="gal1RGexp">0.283</data><data key="gal4RGexp">-0.114</data><data key="gal80Rexp">0.692</data></node>
+    <node id="YPL031C"><data key="name">PHO85</data><data key="gal1RGexp">-0.106</data><data key="gal4RGexp">0.125</data><data key="gal80Rexp">-0.139</data></node>
+    <node id="YHR071W"><data key="name">PCL5</data><data key="gal1RGexp">-0.614</data><data key="gal4RGexp">-0.67</data><data key="gal80Rexp">-0.499</data></node>
+    <node id="YML051W"><data key="name">GAL80</data><data key="gal1RGexp">-0.07</data><data key="gal4RGexp">-0.606</data><data key="gal80Rexp">-1.167</data></node>
+    <node id="YDR009W"><data key="name">GAL3</data><data key="gal1RGexp">-0.111</data><data key="gal4RGexp">-1.004</data><data key="gal80Rexp">0.162</data></node>
+    <node id="YLL019C"><data key="name">KNS1</data><data key="gal1RGexp">0.258</data><data key="gal4RGexp">0.215</data><data key="gal80Rexp">0.295</data></node>
+    <node id="YIL113W"><data key="name">YIL113W</data><data key="gal1RGexp">-0.236</data><data key="gal4RGexp">0.211</data><data key="gal80Rexp">-0.137</data></node>
+    <node id="YML024W"><data key="name">RPS17A</data><data key="gal1RGexp">-0.551</data><data key="gal4RGexp">-0.454</data><data key="gal80Rexp">-0.864</data></node>
+    <node id="YOR039W"><data key="name">CKB2</data><data key="gal1RGexp">-0.006</data><data key="gal4RGexp">-0.058</data><data key="gal80Rexp">-0.006</data></node>
+    <node id="YER111C"><data key="name">SWI4</data><data key="gal1RGexp">0.195</data><data key="gal4RGexp">-0.105</data><data key="gal80Rexp">0.16</data></node>
+    <node id="YDR146C"><data key="name">SWI5</data><data key="gal1RGexp">-0.19</data><data key="gal4RGexp">0.102</data><data key="gal80Rexp">-0.027</data></node>
+    <node id="YKL211C"><data key="name">TRP3</data><data key="gal1RGexp">-0.183</data><data key="gal4RGexp">-0.6</data><data key="gal80Rexp">0.358</data></node>
+    <node id="YER090W"><data key="name">TRP2</data><data key="gal1RGexp">-0.067</data><data key="gal4RGexp">-0.38</data><data key="gal80Rexp">0.231</data></node>
+    <node id="YDR354W"><data key="name">TRP4</data><data key="gal1RGexp">-0.122</data><data key="gal4RGexp">-0.202</data><data key="gal80Rexp">-0.253</data></node>
+    <node id="YNL113W"><data key="name">RPC19</data><data key="gal1RGexp">0.304</data><data key="gal4RGexp">-0.979</data><data key="gal80Rexp">0.789</data></node>
+    <node id="YPR110C"><data key="name">RPC40</data><data key="gal1RGexp">-0.12</data><data key="gal4RGexp">-0.339</data><data key="gal80Rexp">-0.026</data></node>
+    <node id="YER103W"><data key="name">SSA4</data><data key="gal1RGexp">-0.405</data><data key="gal4RGexp">0.176</data><data key="gal80Rexp">-0.826</data></node>
+    <node id="YBR190W"><data key="name">YBR190W</data><data key="gal1RGexp">-0.209</data><data key="gal4RGexp">-0.3</data><data key="gal80Rexp">0.07</data></node>
+    <node id="YOL059W"><data key="name">GPD2</data><data key="gal1RGexp">-0.499</data><data key="gal4RGexp">-0.29</data><data key="gal80Rexp">-0.591</data></node>
+    <node id="YER102W"><data key="name">RPS8B</data><data key="gal1RGexp">-0.249</data><data key="gal4RGexp">-0.364</data><data key="gal80Rexp">-0.135</data></node>
+    <node id="YOR362C"><data key="name">PRE10</data><data key="gal1RGexp">0.036</data><data key="gal4RGexp">-0.043</data><data key="gal80Rexp">0.225</data></node>
+    <node id="YMR044W"><data key="name">YMR044W</data><data key="gal1RGexp">0.255</data><data key="gal4RGexp">-0.093</data><data key="gal80Rexp">0.357</data></node>
+    <node id="YOL149W"><data key="name">DCP1</data><data key="gal1RGexp">0.228</data><data key="gal4RGexp">-0.248</data><data key="gal80Rexp">0.254</data></node>
+    <node id="YLR191W"><data key="name">PEX13</data><data key="gal1RGexp">0.178</data><data key="gal4RGexp">-0.056</data><data key="gal80Rexp">0.222</data></node>
+    <node id="YGL153W"><data key="name">PEX14</data><data key="gal1RGexp">0.242</data><data key="gal4RGexp">-0.132</data><data key="gal80Rexp">0.627</data></node>
+    <node id="YER110C"><data key="name">KAP123</data><data key="gal1RGexp">0.05</data><data key="gal4RGexp">-0.233</data><data key="gal80Rexp">0.43</data></node>
+    <node id="YML007W"><data key="name">YAP1</data><data key="gal1RGexp">0.359</data><data key="gal4RGexp">-0.039</data><data key="gal80Rexp">0.331</data></node>
+    <node id="YBR135W"><data key="name">CKS1</data><data key="gal1RGexp">0.108</data><data key="gal4RGexp">-0.018</data><data key="gal80Rexp">0.057</data></node>
+    <node id="YNL214W"><data key="name">PEX17</data><data key="gal1RGexp">0.122</data><data key="gal4RGexp">0.041</data><data key="gal80Rexp">0.199</data></node>
+    <node id="YPR167C"><data key="name">MET16</data><data key="gal1RGexp">-0.066</data><data key="gal4RGexp">-1.034</data><data key="gal80Rexp">0.708</data></node>
+    <node id="YOR089C"><data key="name">VPS21</data><data key="gal1RGexp">0.193</data><data key="gal4RGexp">-0.042</data><data key="gal80Rexp">0.378</data></node>
+    <node id="YNL117W"><data key="name">MLS1</data><data key="gal1RGexp">0.973</data><data key="gal4RGexp">0.452</data><data key="gal80Rexp">0.941</data></node>
+    <node id="YLR175W"><data key="name">CBF5</data><data key="gal1RGexp">0.038</data><data key="gal4RGexp">-0.597</data><data key="gal80Rexp">0.498</data></node>
+    <node id="YDR167W"><data key="name">TAF25</data><data key="gal1RGexp">0.246</data><data key="gal4RGexp">-0.219</data><data key="gal80Rexp">0.355</data></node>
+    <node id="YLR432W"><data key="name">YLR432W</data><data key="gal1RGexp">-0.197</data><data key="gal4RGexp">-0.054</data><data key="gal80Rexp">-0.301</data></node>
+    <node id="YDR244W"><data key="name">PEX5</data><data key="gal1RGexp">0.369</data><data key="gal4RGexp">-0.021</data><data key="gal80Rexp">0.483</data></node>
+    <node id="YDR142C"><data key="name">PEX7</data><data key="gal1RGexp">-0.101</data><data key="gal4RGexp">0.112</data><data key="gal80Rexp">-0.069</data></node>
+    <node id="YDL078C"><data key="name">MDH3</data><data key="gal1RGexp">0.217</data><data key="gal4RGexp">0.102</data><data key="gal80Rexp">-0.08</data></node>
+    <node id="YIL160C"><data key="name">POT1</data><data key="gal1RGexp">1.044</data><data key="gal4RGexp">0.674</data><data key="gal80Rexp">0.92</data></node>
+    <node id="YAR007C"><data key="name">RFA1</data><data key="gal1RGexp">0.2</data><data key="gal4RGexp">-0.007</data><data key="gal80Rexp">-0.302</data></node>
+    <node id="YKL161C"><data key="name">YKL161C</data><data key="gal1RGexp">-0.198</data><data key="gal4RGexp">-0.319</data><data key="gal80Rexp">0.202</data></node>
+    <node id="YLR075W"><data key="name">RPL10</data><data key="gal1RGexp">-0.169</data><data key="gal4RGexp">-0.2</data><data key="gal80Rexp">-0.002</data></node>
+    <node id="YPR102C"><data key="name">RPL11A</data><data key="gal1RGexp">-0.177</data><data key="gal4RGexp">-0.38</data><data key="gal80Rexp">-0.058</data></node>
+    <node id="YPL240C"><data key="name">HSP82</data><data key="gal1RGexp">0.222</data><data key="gal4RGexp">-0.201</data><data key="gal80Rexp">-0.661</data></node>
+    <node id="YHR198C"><data key="name">YHR198C</data><data key="gal1RGexp">-0.053</data><data key="gal4RGexp">0.401</data><data key="gal80Rexp">-0.379</data></node>
+    <node id="YLR284C"><data key="name">ECI1</data><data key="gal1RGexp">0.195</data><data key="gal4RGexp">-0.148</data><data key="gal80Rexp">0.716</data></node>
+    <node id="YER052C"><data key="name">HOM3</data><data key="gal1RGexp">-0.47</data><data key="gal4RGexp">-1.321</data><data key="gal80Rexp">0.579</data></node>
+    <node id="YNL135C"><data key="name">FPR1</data><data key="gal1RGexp">-0.071</data><data key="gal4RGexp">0.08</data><data key="gal80Rexp">-0.169</data></node>
+    <node id="YPR124W"><data key="name">CTR1</data><data key="gal1RGexp">0.76</data><data key="gal4RGexp">0.469</data><data key="gal80Rexp">-0.462</data></node>
+    <node id="YHR053C"><data key="name">CUP1A</data><data key="gal1RGexp">-0.656</data><data key="gal4RGexp">-0.75</data><data key="gal80Rexp">0.795</data></node>
+    <node id="YHR055C"><data key="name">CUP1B</data><data key="gal1RGexp">-0.867</data><data key="gal4RGexp">-0.416</data><data key="gal80Rexp">0.802</data></node>
+    <node id="YGL134W"><data key="name">PCL10</data><data key="gal1RGexp">0.138</data><data key="gal4RGexp">-0.548</data><data key="gal80Rexp">0.839</data></node>
+    <node id="YLR258W"><data key="name">GSY2</data><data key="gal1RGexp">-0.405</data><data key="gal4RGexp">0.4</data><data key="gal80Rexp">-0.487</data></node>
+    <node id="YJL194W"><data key="name">CDC6</data><data key="gal1RGexp">0.018</data><data key="gal4RGexp">-0.661</data><data key="gal80Rexp">0.525</data></node>
+    <node id="YBL026W"><data key="name">LSM2</data><data key="gal1RGexp">-0.032</data><data key="gal4RGexp">-0.158</data><data key="gal80Rexp">-0.064</data></node>
+    <node id="YBL050W"><data key="name">SEC17</data><data key="gal1RGexp">-0.066</data><data key="gal4RGexp">-0.044</data><data key="gal80Rexp">0.106</data></node>
+    <node id="YHR084W"><data key="name">STE12</data><data key="gal1RGexp">-0.109</data><data key="gal4RGexp">-0.541</data><data key="gal80Rexp">0.057</data></node>
+    <node id="YBR274W"><data key="name">CHK1</data><data key="gal1RGexp">-0.045</data><data key="gal4RGexp">0.135</data><data key="gal80Rexp">-0.052</data></node>
+    <node id="YMR255W"><data key="name">GFD1</data><data key="gal1RGexp">0.211</data><data key="gal4RGexp">-0.159</data><data key="gal80Rexp">0.397</data></node>
+    <node id="YLR452C"><data key="name">SST2</data><data key="gal1RGexp">-0.507</data><data key="gal4RGexp">-0.393</data><data key="gal80Rexp">-0.269</data></node>
+    <node id="YHR005C"><data key="name">GPA1</data><data key="gal1RGexp">-0.02</data><data key="gal4RGexp">-0.413</data><data key="gal80Rexp">0.33</data></node>
+    <node id="YDR299W"><data key="name">BFR2</data><data key="gal1RGexp">0.518</data><data key="gal4RGexp">-0.287</data><data key="gal80Rexp">0.883</data></node>
+    <node id="YIL074C"><data key="name">SER33</data><data key="gal1RGexp">-0.444</data><data key="gal4RGexp">-0.565</data><data key="gal80Rexp">0.393</data></node>
+    <node id="YOR120W"><data key="name">GCY1</data><data key="gal1RGexp">0.194</data><data key="gal4RGexp">-0.349</data><data key="gal80Rexp">0.576</data></node>
+    <node id="YPR041W"><data key="name">TIF5</data><data key="gal1RGexp">-0.059</data><data key="gal4RGexp">-0.243</data><data key="gal80Rexp">-0.177</data></node>
+    <node id="YIL045W"><data key="name">PIG2</data><data key="gal1RGexp">-0.078</data><data key="gal4RGexp">0.478</data><data key="gal80Rexp">-0.134</data></node>
+    <node id="YDL215C"><data key="name">GDH2</data><data key="gal1RGexp">0.485</data><data key="gal4RGexp">0.242</data><data key="gal80Rexp">0</data></node>
+    <node id="YER079W"><data key="name">YER079W</data><data key="gal1RGexp">-0.174</data><data key="gal4RGexp">-0.267</data><data key="gal80Rexp">-0.046</data></node>
+    <node id="YDL030W"><data key="name">PRP9</data><data key="gal1RGexp">0.244</data><data key="gal4RGexp">-0.119</data><data key="gal80Rexp">0.339</data></node>
+    <node id="YMR005W"><data key="name">MPT1</data><data key="gal1RGexp">0.218</data><data key="gal4RGexp">-0.419</data><data key="gal80Rexp">0.571</data></node>
+    <node id="YER124C"><data key="name">YER124C</data><data key="gal1RGexp">0.179</data><data key="gal4RGexp">0.126</data><data key="gal80Rexp">-0.022</data></node>
+    <node id="YGR085C"><data key="name">RPL11B</data><data key="gal1RGexp">-0.188</data><data key="gal4RGexp">-0.425</data><data key="gal80Rexp">-0.084</data></node>
+    <node id="YDR395W"><data key="name">SXM1</data><data key="gal1RGexp">-0.119</data><data key="gal4RGexp">0.086</data><data key="gal80Rexp">-0.214</data></node>
+    <node id="YGR088W"><data key="name">CTT1</data><data key="gal1RGexp">-0.91</data><data key="gal4RGexp">0.596</data><data key="gal80Rexp">-0.394</data></node>
+    <node id="YER081W"><data key="name">SER3</data><data key="gal1RGexp">-0.568</data><data key="gal4RGexp">-0.423</data><data key="gal80Rexp">0.109</data></node>
+    <node id="YPR113W"><data key="name">PIS1</data><data key="gal1RGexp">-0.495</data><data key="gal4RGexp">0.025</data><data key="gal80Rexp">-0.89</data></node>
+    <node id="YIL070C"><data key="name">MAM33</data><data key="gal1RGexp">0.033</data><data key="gal4RGexp">0.146</data><data key="gal80Rexp">-0.339</data></node>
+    <node id="YLR153C"><data key="name">ACS2</data><data key="gal1RGexp">-0.042</data><data key="gal4RGexp">-0.014</data><data key="gal80Rexp">-0.172</data></node>
+    <node id="YGR046W"><data key="name">YGR046W</data><data key="gal1RGexp">0.158</data><data key="gal4RGexp">0.177</data><data key="gal80Rexp">0.124</data></node>
+    <node id="YNL164C"><data key="name">YNL164C</data><data key="gal1RGexp">0.272</data><data key="gal4RGexp">-0.949</data><data key="gal80Rexp">1.345</data></node>
+    <node id="YDR070C"><data key="name">YDR070C</data><data key="gal1RGexp">-0.915</data><data key="gal4RGexp">0.671</data><data key="gal80Rexp">-0.089</data></node>
+    <node id="YOR212W"><data key="name">STE4</data><data key="gal1RGexp">-0.189</data><data key="gal4RGexp">-0.256</data><data key="gal80Rexp">-0.158</data></node>
+    <node id="YNL036W"><data key="name">NCE103</data><data key="gal1RGexp">0.998</data><data key="gal4RGexp">0.506</data><data key="gal80Rexp">0.686</data></node>
+    <node id="YML114C"><data key="name">YML114C</data><data key="gal1RGexp">0.226</data><data key="gal4RGexp">-0.145</data><data key="gal80Rexp">0.385</data></node>
+    <node id="YMR117C"><data key="name">SPC24</data><data key="gal1RGexp">0.093</data><data key="gal4RGexp">0.371</data><data key="gal80Rexp">-0.296</data></node>
+    <node id="YPR010C"><data key="name">RPA135</data><data key="gal1RGexp">-0.129</data><data key="gal4RGexp">-0.394</data><data key="gal80Rexp">-0.359</data></node>
+    <node id="YOR215C"><data key="name">YOR215C</data><data key="gal1RGexp">0.151</data><data key="gal4RGexp">0.137</data><data key="gal80Rexp">0.335</data></node>
+    <node id="YDL088C"><data key="name">ASM4</data><data key="gal1RGexp">0.069</data><data key="gal4RGexp">-0.074</data><data key="gal80Rexp">0.124</data></node>
+    <node id="YLR197W"><data key="name">SIK1</data><data key="gal1RGexp">0.02</data><data key="gal4RGexp">-0.521</data><data key="gal80Rexp">0.49</data></node>
+    <node id="YGL202W"><data key="name">ARO8</data><data key="gal1RGexp">-0.305</data><data key="gal4RGexp">-0.286</data><data key="gal80Rexp">-0.536</data></node>
+    <node id="YGR074W"><data key="name">SMD1</data><data key="gal1RGexp">-0.074</data><data key="gal4RGexp">-0.133</data><data key="gal80Rexp">0.029</data></node>
+    <node id="YBR170C"><data key="name">NPL4</data><data key="gal1RGexp">0.128</data><data key="gal4RGexp">-0.134</data><data key="gal80Rexp">0.429</data></node>
+    <node id="YDL023C"><data key="name">YDL023C</data><data key="gal1RGexp">-0.712</data><data key="gal4RGexp">0.497</data><data key="gal80Rexp">-0.406</data></node>
+    <node id="YGR136W"><data key="name">YGR136W</data><data key="gal1RGexp">-0.167</data><data key="gal4RGexp">-0.163</data><data key="gal80Rexp">-0.204</data></node>
+    <node id="YFR014C"><data key="name">CMK1</data><data key="gal1RGexp">0.229</data><data key="gal4RGexp">0.304</data><data key="gal80Rexp">0.047</data></node>
+    <node id="YDL075W"><data key="name">RPL31A</data><data key="gal1RGexp">-0.218</data><data key="gal4RGexp">-0.451</data><data key="gal80Rexp">0.056</data></node>
+    <node id="YNL069C"><data key="name">RPL16B</data><data key="gal1RGexp">-0.346</data><data key="gal4RGexp">-0.284</data><data key="gal80Rexp">-0.124</data></node>
+    <node id="YER056CA"><data key="name"></data><data key="gal1RGexp">null</data><data key="gal4RGexp">null</data><data key="gal80Rexp">null</data></node>
+    <node id="YIL052C"><data key="name">RPL34B</data><data key="gal1RGexp">-0.258</data><data key="gal4RGexp">-0.451</data><data key="gal80Rexp">-0.025</data></node>
+    <node id="YLR345W"><data key="name">YLR345W</data><data key="gal1RGexp">0.108</data><data key="gal4RGexp">0.234</data><data key="gal80Rexp">0.116</data></node>
+    <node id="YBL079W"><data key="name">NUP170</data><data key="gal1RGexp">-0.186</data><data key="gal4RGexp">-0.032</data><data key="gal80Rexp">-0.42</data></node>
+    <node id="YBR045C"><data key="name">GIP1</data><data key="gal1RGexp">0.786</data><data key="gal4RGexp">1.022</data><data key="gal80Rexp">0.94</data></node>
+    <node id="YER054C"><data key="name">GIP2</data><data key="gal1RGexp">0.057</data><data key="gal4RGexp">0.206</data><data key="gal80Rexp">0.247</data></node>
+    <node id="YPR145W"><data key="name">ASN1</data><data key="gal1RGexp">-0.195</data><data key="gal4RGexp">-0.614</data><data key="gal80Rexp">-0.232</data></node>
+    <node id="YBR043C"><data key="name">YBR043C</data><data key="gal1RGexp">0.454</data><data key="gal4RGexp">0.023</data><data key="gal80Rexp">0</data></node>
+    <node id="YDR277C"><data key="name">MTH1</data><data key="gal1RGexp">0.243</data><data key="gal4RGexp">0.192</data><data key="gal80Rexp">0.448</data></node>
+    <node id="YDL194W"><data key="name">SNF3</data><data key="gal1RGexp">0.139</data><data key="gal4RGexp">0.333</data><data key="gal80Rexp">0.449</data></node>
+    <edge source="YKR026C" target="YGL122C"/>
+    <edge source="YGL122C" target="YOL123W"/>
+    <edge source="YGR218W" target="YGL097W"/>
+    <edge source="YGL097W" target="YOR204W"/>
+    <edge source="YLR249W" target="YPR080W"/>
+    <edge source="YLR249W" target="YBR118W"/>
+    <edge source="YPR080W" target="YAL003W"/>
+    <edge source="YBR118W" target="YAL003W"/>
+    <edge source="YLR293C" target="YGL097W"/>
+    <edge source="YMR146C" target="YDR429C"/>
+    <edge source="YDR429C" target="YFL017C"/>
+    <edge source="YFL017C" target="YOL059W"/>
+    <edge source="YFL017C" target="YER102W"/>
+    <edge source="YFL017C" target="YOR362C"/>
+    <edge source="YOL123W" target="YGL044C"/>
+    <edge source="YPL211W" target="YGR014W"/>
+    <edge source="YGR014W" target="YJL030W"/>
+    <edge source="YGR014W" target="YJL013C"/>
+    <edge source="YJL030W" target="YGL229C"/>
+    <edge source="YJL013C" target="YGL229C"/>
+    <edge source="YGR203W" target="YIL061C"/>
+    <edge source="YIL061C" target="YDL013W"/>
+    <edge source="YIL061C" target="YNL199C"/>
+    <edge source="YIL061C" target="YLR153C"/>
+    <edge source="YCR084C" target="YBR112C"/>
+    <edge source="YCR084C" target="YCL067C"/>
+    <edge source="YCL067C" target="YIL015W"/>
+    <edge source="YCL067C" target="YMR043W"/>
+    <edge source="YCL067C" target="YDR461W"/>
+    <edge source="YCL067C" target="YFL026W"/>
+    <edge source="YER112W" target="YOR167C"/>
+    <edge source="YJR022W" target="YNR050C"/>
+    <edge source="YJR022W" target="YNL050C"/>
+    <edge source="YJR022W" target="YEL015W"/>
+    <edge source="YJR022W" target="YOR167C"/>
+    <edge source="YJR022W" target="YLR264W"/>
+    <edge source="YJR022W" target="YNR053C"/>
+    <edge source="YNR050C" target="YMR138W"/>
+    <edge source="YEL015W" target="YML064C"/>
+    <edge source="YLR264W" target="YER112W"/>
+    <edge source="YLR264W" target="YOL149W"/>
+    <edge source="YLR264W" target="YBL026W"/>
+    <edge source="YNR053C" target="YJL203W"/>
+    <edge source="YNR053C" target="YDL030W"/>
+    <edge source="YER116C" target="YDL013W"/>
+    <edge source="YNL307C" target="YAL038W"/>
+    <edge source="YAL038W" target="YPL075W"/>
+    <edge source="YNL216W" target="YCR012W"/>
+    <edge source="YNL216W" target="YGR254W"/>
+    <edge source="YNL216W" target="YHR174W"/>
+    <edge source="YNL216W" target="YIL133C"/>
+    <edge source="YNL216W" target="YLR044C"/>
+    <edge source="YNL216W" target="YOL120C"/>
+    <edge source="YNL216W" target="YNL301C"/>
+    <edge source="YNL216W" target="YCL030C"/>
+    <edge source="YNL216W" target="YDR171W"/>
+    <edge source="YNL216W" target="YBR093C"/>
+    <edge source="YNL216W" target="YER074W"/>
+    <edge source="YNL216W" target="YIL069C"/>
+    <edge source="YNL216W" target="YAL038W"/>
+    <edge source="YNL216W" target="YOL127W"/>
+    <edge source="YNL216W" target="YDR050C"/>
+    <edge source="YNL216W" target="YOL086C"/>
+    <edge source="YCR012W" target="YJR060W"/>
+    <edge source="YCL030C" target="YKR099W"/>
+    <edge source="YAL030W" target="YER143W"/>
+    <edge source="YOR327C" target="YER143W"/>
+    <edge source="YER062C" target="YPL201C"/>
+    <edge source="YDR412W" target="YCR086W"/>
+    <edge source="YDR412W" target="YGL013C"/>
+    <edge source="YDR412W" target="YLR117C"/>
+    <edge source="YDR412W" target="YPR119W"/>
+    <edge source="YCR086W" target="YOR264W"/>
+    <edge source="YGL013C" target="YJL219W"/>
+    <edge source="YGL013C" target="YOL156W"/>
+    <edge source="YLR117C" target="YBR190W"/>
+    <edge source="YPR119W" target="YMR043W"/>
+    <edge source="YDL014W" target="YOR310C"/>
+    <edge source="YER179W" target="YLR044C"/>
+    <edge source="YER179W" target="YLR134W"/>
+    <edge source="YER179W" target="YIL105C"/>
+    <edge source="YOR361C" target="YMR309C"/>
+    <edge source="YOR361C" target="YDR429C"/>
+    <edge source="YMR309C" target="YNL047C"/>
+    <edge source="YOR326W" target="YGL106W"/>
+    <edge source="YMR186W" target="YBR155W"/>
+    <edge source="YEL009C" target="YMR108W"/>
+    <edge source="YEL009C" target="YOR202W"/>
+    <edge source="YEL009C" target="YCL030C"/>
+    <edge source="YEL009C" target="YBR248C"/>
+    <edge source="YEL009C" target="YOL058W"/>
+    <edge source="YEL009C" target="YMR300C"/>
+    <edge source="YOL058W" target="YNL189W"/>
+    <edge source="YMR138W" target="YHR141C"/>
+    <edge source="YMR138W" target="YLR109W"/>
+    <edge source="YCL032W" target="YDR032C"/>
+    <edge source="YCL032W" target="YLR362W"/>
+    <edge source="YCL032W" target="YDR103W"/>
+    <edge source="YLR362W" target="YER124C"/>
+    <edge source="YLR362W" target="YMR186W"/>
+    <edge source="YLR362W" target="YPL240C"/>
+    <edge source="YDR103W" target="YLR362W"/>
+    <edge source="YJR060W" target="YPR167C"/>
+    <edge source="YBR019C" target="YOL051W"/>
+    <edge source="YBR019C" target="YGL035C"/>
+    <edge source="YOL051W" target="YBR020W"/>
+    <edge source="YOL051W" target="YLR081W"/>
+    <edge source="YOL051W" target="YPL248C"/>
+    <edge source="YOL051W" target="YBR018C"/>
+    <edge source="YGL035C" target="YLR044C"/>
+    <edge source="YGL035C" target="YLR377C"/>
+    <edge source="YGL035C" target="YIL162W"/>
+    <edge source="YBR020W" target="YGL035C"/>
+    <edge source="YPL248C" target="YBR019C"/>
+    <edge source="YPL248C" target="?"/>
+    <edge source="YPL248C" target="YJR048W"/>
+    <edge source="YPL248C" target="YGL035C"/>
+    <edge source="YPL248C" target="YML051W"/>
+    <edge source="YPL248C" target="YBR020W"/>
+    <edge source="YPL248C" target="YLR081W"/>
+    <edge source="YPL248C" target="YBR018C"/>
+    <edge source="YIR009W" target="YKR099W"/>
+    <edge source="YIR009W" target="YIL143C"/>
+    <edge source="YIR009W" target="YDR184C"/>
+    <edge source="YIR009W" target="YNL091W"/>
+    <edge source="YIL143C" target="YDR311W"/>
+    <edge source="YDR184C" target="YLR319C"/>
+    <edge source="YNL091W" target="YNL164C"/>
+    <edge source="YNL236W" target="YKL012W"/>
+    <edge source="YKL012W" target="YKL074C"/>
+    <edge source="YML032C" target="YNL312W"/>
+    <edge source="YNL312W" target="YPL111W"/>
+    <edge source="YLR116W" target="YKL012W"/>
+    <edge source="YDR309C" target="YLR229C"/>
+    <edge source="YLR229C" target="YJL157C"/>
+    <edge source="YGR058W" target="YOR264W"/>
+    <edge source="YJR109C" target="YOR303W"/>
+    <edge source="YLR256W" target="YML054C"/>
+    <edge source="YLR256W" target="YJR048W"/>
+    <edge source="YLR256W" target="YEL039C"/>
+    <edge source="YGL237C" target="YJR048W"/>
+    <edge source="YBL021C" target="YJR048W"/>
+    <edge source="YDR311W" target="YKL028W"/>
+    <edge source="YPL149W" target="YHR171W"/>
+    <edge source="YPL149W" target="YBR217W"/>
+    <edge source="YHR171W" target="YDR412W"/>
+    <edge source="YHR171W" target="YNR007C"/>
+    <edge source="YBR217W" target="YNR007C"/>
+    <edge source="YKL109W" target="YGL237C"/>
+    <edge source="YKL109W" target="YBL021C"/>
+    <edge source="YKL109W" target="YJR048W"/>
+    <edge source="YKL109W" target="YGL035C"/>
+    <edge source="YMR043W" target="YIL015W"/>
+    <edge source="YMR043W" target="YJL159W"/>
+    <edge source="YMR043W" target="YKR097W"/>
+    <edge source="YMR043W" target="YGR108W"/>
+    <edge source="YMR043W" target="YDR461W"/>
+    <edge source="YMR043W" target="YNL145W"/>
+    <edge source="YMR043W" target="YJL157C"/>
+    <edge source="YMR043W" target="YFL026W"/>
+    <edge source="YGR108W" target="YBR135W"/>
+    <edge source="YNL145W" target="YCL067C"/>
+    <edge source="YNL145W" target="YHR084W"/>
+    <edge source="YJL157C" target="YAL040C"/>
+    <edge source="YJL157C" target="YOR212W"/>
+    <edge source="YJL203W" target="YOL136C"/>
+    <edge source="YLL021W" target="YLR362W"/>
+    <edge source="YOL156W" target="YBL005W"/>
+    <edge source="YKL101W" target="YBR160W"/>
+    <edge source="YBR160W" target="YMR043W"/>
+    <edge source="YBR160W" target="YGR108W"/>
+    <edge source="YBL005W" target="YJL219W"/>
+    <edge source="YDR323C" target="YOR036W"/>
+    <edge source="YOR036W" target="YDR100W"/>
+    <edge source="YOR036W" target="YGL161C"/>
+    <edge source="YGL008C" target="YMR043W"/>
+    <edge source="YER040W" target="YPR035W"/>
+    <edge source="YER040W" target="YGR019W"/>
+    <edge source="YNL098C" target="YLR310C"/>
+    <edge source="YLR310C" target="YER103W"/>
+    <edge source="YGL115W" target="YGL208W"/>
+    <edge source="YPL089C" target="YHR030C"/>
+    <edge source="YHR030C" target="YLL021W"/>
+    <edge source="YHR030C" target="YER111C"/>
+    <edge source="YJL089W" target="YER065C"/>
+    <edge source="YJL089W" target="YKR097W"/>
+    <edge source="YJL089W" target="YLR377C"/>
+    <edge source="YMR021C" target="YLR214W"/>
+    <edge source="YDR335W" target="YDR174W"/>
+    <edge source="YLL028W" target="YGL166W"/>
+    <edge source="YGL166W" target="YHR053C"/>
+    <edge source="YGL166W" target="YHR055C"/>
+    <edge source="YDL081C" target="YLR340W"/>
+    <edge source="YKL074C" target="YGL035C"/>
+    <edge source="YML064C" target="YHR198C"/>
+    <edge source="YML064C" target="YLR284C"/>
+    <edge source="YML064C" target="YDR174W"/>
+    <edge source="YHR135C" target="YNL116W"/>
+    <edge source="YNL047C" target="YIL105C"/>
+    <edge source="YNL154C" target="YKL204W"/>
+    <edge source="?" target="YKR099W"/>
+    <edge source="?" target="YGL035C"/>
+    <edge source="YJR066W" target="YLR116W"/>
+    <edge source="YDR382W" target="YDL130W"/>
+    <edge source="YDR382W" target="YFL039C"/>
+    <edge source="YFL039C" target="YCL040W"/>
+    <edge source="YFL039C" target="YHR179W"/>
+    <edge source="YPL075W" target="YCR012W"/>
+    <edge source="YPL075W" target="YGR254W"/>
+    <edge source="YPL075W" target="YHR174W"/>
+    <edge source="YPL075W" target="YNL199C"/>
+    <edge source="YPL075W" target="YDR050C"/>
+    <edge source="YPL075W" target="YOL086C"/>
+    <edge source="YNL199C" target="YPR048W"/>
+    <edge source="YPR048W" target="YOR355W"/>
+    <edge source="YPR048W" target="YDL215C"/>
+    <edge source="YLR321C" target="YDR412W"/>
+    <edge source="YBR072W" target="YGL073W"/>
+    <edge source="YGL073W" target="YOR178C"/>
+    <edge source="YGL073W" target="YHR053C"/>
+    <edge source="YGL073W" target="YHR055C"/>
+    <edge source="YGL073W" target="YER103W"/>
+    <edge source="YBL069W" target="YGL008C"/>
+    <edge source="YNL189W" target="YDL236W"/>
+    <edge source="YNL189W" target="YPL111W"/>
+    <edge source="YNL189W" target="YER065C"/>
+    <edge source="YNL189W" target="YPR062W"/>
+    <edge source="YLR319C" target="YLR362W"/>
+    <edge source="YNL311C" target="YKL001C"/>
+    <edge source="YOL016C" target="YBR109C"/>
+    <edge source="YBR109C" target="YOR326W"/>
+    <edge source="YBR109C" target="YFR014C"/>
+    <edge source="YJL036W" target="YDL113C"/>
+    <edge source="YEL041W" target="YHR115C"/>
+    <edge source="YHR115C" target="YOR215C"/>
+    <edge source="YNL167C" target="YOR202W"/>
+    <edge source="YDL063C" target="YPL131W"/>
+    <edge source="YGL161C" target="YDR100W"/>
+    <edge source="YMR183C" target="YGR009C"/>
+    <edge source="YGR009C" target="YAL030W"/>
+    <edge source="YGR009C" target="YOR327C"/>
+    <edge source="YGR009C" target="YDR335W"/>
+    <edge source="YGR009C" target="YBL050W"/>
+    <edge source="YMR291W" target="YGL115W"/>
+    <edge source="YGR048W" target="YPL222W"/>
+    <edge source="YAL040C" target="YMR043W"/>
+    <edge source="YFR034C" target="YBR093C"/>
+    <edge source="YFR037C" target="YOR290C"/>
+    <edge source="YER133W" target="YDR412W"/>
+    <edge source="YER133W" target="YOR178C"/>
+    <edge source="YER133W" target="YOR315W"/>
+    <edge source="YER133W" target="YMR311C"/>
+    <edge source="YER133W" target="YBR050C"/>
+    <edge source="YIL162W" target="YNL167C"/>
+    <edge source="YFL038C" target="YOR036W"/>
+    <edge source="YOR355W" target="YNL091W"/>
+    <edge source="YML074C" target="YJL190C"/>
+    <edge source="YMR058W" target="YER145C"/>
+    <edge source="YML123C" target="YFR034C"/>
+    <edge source="YPL031C" target="YHR071W"/>
+    <edge source="YML051W" target="YBR020W"/>
+    <edge source="YML051W" target="YDR009W"/>
+    <edge source="YDR009W" target="YGL035C"/>
+    <edge source="YLL019C" target="YIL113W"/>
+    <edge source="YIL113W" target="YHR030C"/>
+    <edge source="YML024W" target="YNL216W"/>
+    <edge source="YOR039W" target="YOR303W"/>
+    <edge source="YER111C" target="YMR043W"/>
+    <edge source="YDR146C" target="YMR043W"/>
+    <edge source="YDR146C" target="YGL035C"/>
+    <edge source="YKL211C" target="YER090W"/>
+    <edge source="YDR354W" target="YEL009C"/>
+    <edge source="YNL113W" target="YPR110C"/>
+    <edge source="YMR044W" target="YIL061C"/>
+    <edge source="YOL149W" target="YOR167C"/>
+    <edge source="YLR191W" target="YGL153W"/>
+    <edge source="YER110C" target="YML007W"/>
+    <edge source="YBR135W" target="YER102W"/>
+    <edge source="YNL214W" target="YGL153W"/>
+    <edge source="YOR089C" target="YDR323C"/>
+    <edge source="YNL117W" target="YJL089W"/>
+    <edge source="YLR175W" target="YNL307C"/>
+    <edge source="YDR167W" target="YLR432W"/>
+    <edge source="YDR244W" target="YLR191W"/>
+    <edge source="YDR244W" target="YGL153W"/>
+    <edge source="YDR244W" target="YNL214W"/>
+    <edge source="YDR244W" target="YDR142C"/>
+    <edge source="YDR244W" target="YDL078C"/>
+    <edge source="YDR142C" target="YGL153W"/>
+    <edge source="YDR142C" target="YIL160C"/>
+    <edge source="YAR007C" target="YML032C"/>
+    <edge source="YAR007C" target="YPL111W"/>
+    <edge source="YKL161C" target="YPL089C"/>
+    <edge source="YLR075W" target="YPR102C"/>
+    <edge source="YPL240C" target="YBR155W"/>
+    <edge source="YPL240C" target="YOR036W"/>
+    <edge source="YER052C" target="YNL135C"/>
+    <edge source="YNL135C" target="YDR174W"/>
+    <edge source="YPR124W" target="YMR021C"/>
+    <edge source="YGL134W" target="YPL031C"/>
+    <edge source="YGL134W" target="YLR258W"/>
+    <edge source="YLR258W" target="YIL045W"/>
+    <edge source="YLR258W" target="YBR274W"/>
+    <edge source="YJL194W" target="YMR043W"/>
+    <edge source="YBL026W" target="YOR167C"/>
+    <edge source="YBL050W" target="YOR036W"/>
+    <edge source="YHR084W" target="YMR043W"/>
+    <edge source="YHR084W" target="YDR461W"/>
+    <edge source="YHR084W" target="YFL026W"/>
+    <edge source="YBR274W" target="YMR255W"/>
+    <edge source="YMR255W" target="YGL122C"/>
+    <edge source="YLR452C" target="YHR005C"/>
+    <edge source="YHR005C" target="YLR362W"/>
+    <edge source="YDR299W" target="YJL194W"/>
+    <edge source="YIL074C" target="YNL311C"/>
+    <edge source="YOR120W" target="YPL248C"/>
+    <edge source="YPR041W" target="YOR361C"/>
+    <edge source="YPR041W" target="YMR309C"/>
+    <edge source="YDL215C" target="YER040W"/>
+    <edge source="YDL215C" target="YLR432W"/>
+    <edge source="YER079W" target="YHR135C"/>
+    <edge source="YER079W" target="YNL154C"/>
+    <edge source="YDL030W" target="YDL013W"/>
+    <edge source="YDL030W" target="YMR005W"/>
+    <edge source="YGR085C" target="YLR075W"/>
+    <edge source="YGR085C" target="YDR395W"/>
+    <edge source="YDR395W" target="YDL075W"/>
+    <edge source="YDR395W" target="YIL133C"/>
+    <edge source="YDR395W" target="YNL069C"/>
+    <edge source="YDR395W" target="YER056CA"/>
+    <edge source="YDR395W" target="YIL052C"/>
+    <edge source="YDR395W" target="YOL127W"/>
+    <edge source="YDR395W" target="YPR102C"/>
+    <edge source="YGR088W" target="YLR256W"/>
+    <edge source="YER081W" target="YIL074C"/>
+    <edge source="YPR113W" target="YMR043W"/>
+    <edge source="YIL070C" target="YML054C"/>
+    <edge source="YGR046W" target="YNL236W"/>
+    <edge source="YDR070C" target="YFL017C"/>
+    <edge source="YOR212W" target="YLR362W"/>
+    <edge source="YNL036W" target="YIR009W"/>
+    <edge source="YML114C" target="YDR167W"/>
+    <edge source="YMR117C" target="YCL032W"/>
+    <edge source="YMR117C" target="YPR010C"/>
+    <edge source="YDL088C" target="YER110C"/>
+    <edge source="YLR197W" target="YDL014W"/>
+    <edge source="YLR197W" target="YOR310C"/>
+    <edge source="YGL202W" target="YGR074W"/>
+    <edge source="YGR074W" target="YBR043C"/>
+    <edge source="YBR170C" target="YGR048W"/>
+    <edge source="YDL023C" target="YJL159W"/>
+    <edge source="YGR136W" target="YGR058W"/>
+    <edge source="YLR345W" target="YLR321C"/>
+    <edge source="YBL079W" target="YDL088C"/>
+    <edge source="YBR045C" target="YIL045W"/>
+    <edge source="YBR045C" target="YOR178C"/>
+    <edge source="YER054C" target="YER133W"/>
+    <edge source="YER054C" target="YBR045C"/>
+    <edge source="YPR145W" target="YMR117C"/>
+    <edge source="YDR277C" target="YJR022W"/>
+    <edge source="YDR277C" target="YDL194W"/>
+  </graph>
+</graphml>

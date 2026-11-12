@@ -180,6 +180,8 @@ A layout that runs emits `layoutstart`, `layoutready` and `layoutstop`, in that 
 
 When a simulation fails after `run()` has returned, for example `gpu: "require"` with no usable GPU, or `graphty-spring-electrical` (which has no CPU version) with no GPU for any reason, it emits `layouterror` with the error as the handler's second argument, then `layoutstop`. Your `ready` and `stop` options are not called, so do your cleanup in a `layoutstop` handler. Calling `stop()` before a simulation has started also emits `layoutstop` alone. The [WebGPU guide](./webgpu#requiring-or-refusing-the-gpu) has a `layouterror` handler example.
 
+Destroying the core (`cy.destroy()`, for example when a component unmounts) while a layout runs ends the run at its next step as `stop()` would: it emits `layoutstop` alone, writes no positions and releases its GPU work. Running a layout on a core that is already destroyed does nothing and emits `layouterror` with an error whose `code` is `"E_CORE_DESTROYED"`, then `layoutstop`.
+
 A failure the package can detect before anything starts throws from `run()` instead, and emits no events:
 
 - `graphty-planar` throws `G is not planar.` for K5, K3,3 and a connected graph with more than 3n - 6 distinct edges (n nodes). Other non-planar graphs are drawn with crossing edges.
@@ -195,8 +197,8 @@ Compound parent nodes are not laid out. The layout places their children, and Cy
 
 ## Try it
 
-- [Static layouts demo](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-layouts--static-layouts): switch between the 13 static layouts on one graph.
-- [Force simulations demo](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-layouts--force-simulations): run, stop and restart the simulations and see which backend ran.
+- [Circular layout story](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-layouts--circular): one static layout on its example graph or on a generated network; each of the 13 static layouts has a story like it.
+- [ForceAtlas2 story](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-layouts--force-atlas-2): run a simulation on the backend you pick and see which backend ran, why, and how long it took.
 
 ## Next
 

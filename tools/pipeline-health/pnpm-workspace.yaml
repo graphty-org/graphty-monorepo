@@ -1,0 +1,5 @@
+# Standalone package: not part of the root workspace (so not an nx project or an nx release
+# target). Hold back any version published less than a day ago.
+packages:
+    - "."
+minimumReleaseAge: 1440

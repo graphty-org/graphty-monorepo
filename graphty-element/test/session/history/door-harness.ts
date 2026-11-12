@@ -5,14 +5,11 @@
 
 import { assert } from "vitest";
 
-import type { Door, DoorCall } from "../../../src/session/commands/doors";
+import { type Door, DOOR_LOADED_AT, type DoorCall } from "../../../src/session/commands/doors";
 import type { Dispatcher } from "../../../src/session/project/Dispatcher";
 
-/** How long a door's returned promise is given to settle before its dispatches are read. */
-const SETTLE_MS = 500;
-
 /**
- * Call a door on `target` and collect every command dispatched while it runs and settles.
+ * Call a door on `target` and collect every command dispatched until its returned promise settles.
  * Whatever the call throws or rejects with is ignored: only what it dispatched is asked.
  * @param dispatcher - The dispatcher to spy on.
  * @param target - The object the door is a member of.
@@ -47,19 +44,36 @@ export async function dispatchesOf(
             // A refusal is an answer; what was dispatched before it is what is asked.
         }
 
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        await Promise.race([
-            Promise.resolve(result).catch(() => undefined),
-            new Promise((resolve) => {
-                timer = setTimeout(resolve, SETTLE_MS);
-            }),
-        ]);
-        clearTimeout(timer);
+        // Read once the door's own promise settles, never after a wall-clock bound: a load reads
+        // its file and imports its detector before it dispatches, and a bound read too early.
+        await Promise.resolve(result).catch(() => undefined);
         return seen;
     } finally {
         dispatcher.events.dispatched = previous;
         await restore?.();
     }
+}
+
+/**
+ * What a door dispatched, with every load's wall-clock `loadedAt` written as the rows write it.
+ * @param value - The dispatched commands, or any part of them.
+ * @returns A copy of its arrays and plain objects, each string `loadedAt` replaced by
+ *     {@link DOOR_LOADED_AT}.
+ */
+export function pinLoadedAt(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map(pinLoadedAt);
+    }
+    // Only plain objects are copied: a Map, a Set or a typed array is compared as it was sent.
+    if (value === null || typeof value !== "object" || Object.getPrototypeOf(value) !== Object.prototype) {
+        return value;
+    }
+    return Object.fromEntries(
+        Object.entries(value).map(([key, each]) => [
+            key,
+            key === "loadedAt" && typeof each === "string" ? DOOR_LOADED_AT : pinLoadedAt(each),
+        ]),
+    );
 }
 
 /**
@@ -78,7 +92,7 @@ export function checkDispatches(label: string, door: Door, seen: readonly unknow
     } else if (door.kind === "dispatches" || door.kind === "partial") {
         assert.isNotEmpty(seen, `${label} is ${door.kind} but dispatched nothing`);
         assert.deepEqual(
-            seen,
+            pinLoadedAt(seen),
             door.expect,
             `${label} dispatched something other than its row expects: ${JSON.stringify(seen)}`,
         );

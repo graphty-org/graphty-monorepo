@@ -2,7 +2,17 @@ import type { StorybookConfig } from "@storybook/web-components-vite";
 
 const config: StorybookConfig = {
     stories: ["../stories/**/*.stories.@(js|jsx|mjs|ts|tsx)", "../stories/**/*.mdx"],
-    addons: ["@chromatic-com/storybook", "@storybook/addon-vitest", "@storybook/addon-docs"],
+    addons: ["@storybook/addon-vitest", "@storybook/addon-docs"],
+    staticDirs: [
+        // the brand logo and favicon (manager.ts)
+        { from: "./brand", to: "/" },
+        // graph-samples' small datasets, from its build (the files graphty.app publishes), so the source
+        // chooser story loads them with no network (stories/network-sources/SourceChooser.stories.ts)
+        { from: "../../graph-samples/dist/data/v1", to: "/graph-samples-data/v1" },
+        // model files served at a URL of their own, so a story loads a multi-file glTF (its .bin and
+        // picture beside it) and a picture by URL, as a page does (stories/NodeModels.stories.ts)
+        { from: "../stories/fixtures/models/served", to: "/served-models" },
+    ],
     framework: {
         name: "@storybook/web-components-vite",
         options: {},
@@ -11,7 +21,7 @@ const config: StorybookConfig = {
         disableTelemetry: true,
     },
     async viteFinal(config) {
-        const path = await import("path");
+        const path = await import("node:path");
         const { mergeConfig } = await import("vite");
 
         // Host, port and HTTPS come from the `storybook` npm script's CLI flags (--host, --https,
@@ -30,9 +40,17 @@ const config: StorybookConfig = {
                 include: [
                     "lit/directives/ref.js",
                     // The element's Babylon side-effect imports (test/packaging/babylon-side-effects.test.ts).
-                    "@babylonjs/core/Meshes/instancedMesh",
-                    "@babylonjs/core/Culling/ray",
-                    "@babylonjs/core/Animations/animatable",
+                    "@babylonjs/core/Meshes/instancedMesh.js",
+                    "@babylonjs/core/Culling/ray.js",
+                    "@babylonjs/core/Animations/animatable.js",
+                    // The shaders src/meshes/bundledStandardShaders.ts loads with the element.
+                    "@babylonjs/core/Shaders/default.vertex.js",
+                    "@babylonjs/core/Shaders/default.fragment.js",
+                    "@babylonjs/core/ShadersWGSL/default.vertex.js",
+                    "@babylonjs/core/ShadersWGSL/default.fragment.js",
+                    // Imported only by the Graphviz layouts' Worker, which a Layout/Graphviz story
+                    // starts after the page has loaded.
+                    "@hpcc-js/wasm-graphviz",
                 ],
             },
             resolve: {
@@ -47,6 +65,11 @@ const config: StorybookConfig = {
                 },
             },
         });
+        // The library build leaves the Graphviz package out of the Worker it emits, for the
+        // consumer's bundler to resolve. A Storybook is the application, so its Worker carries
+        // the package; without this the built Storybook's Graphviz layouts report
+        // graphviz.unavailable. Replaced rather than merged, since a merge keeps the external list.
+        merged.worker = { format: "es" };
         return merged;
     },
 };

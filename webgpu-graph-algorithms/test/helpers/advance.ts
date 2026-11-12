@@ -3,8 +3,8 @@
  * test/sabotage/advance.test.ts: an expansion run (a `prepareFrontier` planner and a `prepareAdvance` planner over
  * one `algorithmScope`, the edge queue poisoned, the frontier list written into the input queue with the BFS-style
  * seed `{ nextFrontierCount: count, level: U32_MAX }`, role 0 of `frontier-finalize`, the grid-stride expansion,
- * optionally role 1, and the readback of the counters block, the written span of the edge queue and the word past
- * it by their OWN bindings); the oracle's BFS levels of a fixture; a sub-multiset check; and the report
+ * optionally role 1, and the readback of the counters block and the edge queue by their OWN bindings, in the same
+ * submit, kept to the written span and the word past it); the oracle's BFS levels of a fixture; a sub-multiset check; and the report
  * the sabotage suite measures, bitwise (ratioOf(|a - b|, 0): any mismatch is Infinity) over the sorted queue and the
  * three counters of the reversed karate vertex set (the reversed order is what makes a lower-bound search read the
  * wrong row at every block boundary: on an index-ordered frontier `rowStart[k - 1] + deg[k - 1]` IS `rowStart[k]`),
@@ -31,7 +31,6 @@ import { advanceOracle } from "../oracle/advance.js";
 import { fakeCaps } from "./caps-tables.js";
 import { sortedU32 } from "./compact.js";
 import { withResidency } from "./degree-check.js";
-import { readU32 } from "./device.js";
 import { bitwiseReports, type CounterWord, decodeCounters, POISON } from "./frontier.js";
 import { gridEdges, KARATE_EDGES, snapshotOf, starEdges } from "./graphs.js";
 import { type CheckReport, mergeReports, ratioOf } from "./sabotage.js";
@@ -57,7 +56,7 @@ const FIELDS: FrontierFinalizeFields = Object.freeze({ mode: 1, fusedMax: 0, max
 /**
  * Expands every frontier of `frontiers` over `s`, one submit each, with the two planners prepared once: the edge
  * queue poisoned before each, the list written into the input queue after `reset` (which seeds `nextFrontierCount`
- * with the count so role 0 rotates it in), then the two readbacks.
+ * with the count so role 0 rotates it in), then one batch whose staging copy carries both readbacks.
  * @param ctx - the context
  * @param s - the snapshot (uploaded through the context's residency)
  * @param frontiers - the frontier vertex lists
@@ -98,22 +97,30 @@ export async function runAdvance(
             if (options?.role1 === true) {
                 planner.recordFinalize(pass, 1, 0, FIELDS);
             }
+            // Both readbacks ride this batch's staging copy: one submit and one map per level. Reading each buffer
+            // through ctx.readback cost three submits and two maps (each read records and submits its own copy). On
+            // WARP, a CPU rasterizer sharing the runner's cores with the other forks, that per-level overhead made
+            // the grid case's 597 levels 12-14 s beside light neighbours and over the 30 s budget beside se-inspect
+            // (issue #2158). The whole edge queue is copied, because edgeCount is unknown when the copy is recorded.
+            const countersRequest = batch.readback(
+                frontier.counters.buffer,
+                frontier.counters.offset,
+                FRONTIER_COUNTERS.byteLength,
+            );
+            const queueRequest = batch.readback(
+                frontier.edgeQueue.buffer,
+                frontier.edgeQueue.offset,
+                4 * frontier.edgeCapacity,
+            );
             scope.flush();
             expect(scope.ringOverruns(), "advance-test ring overruns").toBe(0);
-            await batch.submit().readback;
-            const block = await readU32(
-                ctx,
-                frontier.counters.buffer,
-                FRONTIER_COUNTERS.byteLength / 4,
-                frontier.counters.offset,
+            const bytes = await batch.submit().readback;
+            const counters = decodeCounters(
+                new Uint32Array(bytes, countersRequest.offset, FRONTIER_COUNTERS.byteLength / 4),
             );
-            const counters = decodeCounters(block);
             const written = Math.min(counters.edgeCount, frontier.edgeCapacity);
             const span = written < frontier.edgeCapacity ? written + 1 : written;
-            const words =
-                span > 0
-                    ? await readU32(ctx, frontier.edgeQueue.buffer, span, frontier.edgeQueue.offset)
-                    : new Uint32Array(0);
+            const words = new Uint32Array(bytes, queueRequest.offset, span);
             runs.push({
                 queue: words.slice(0, written),
                 tail: span > written ? words[written] : null,

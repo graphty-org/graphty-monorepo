@@ -17,6 +17,23 @@ export interface TriangleCountResult {
 }
 
 /**
+ * Drop the repeats from the sorted run `colIdx[start..end)`, keeping each value once at the front.
+ * @param colIdx - The array holding the run
+ * @param start - The run's first index
+ * @param end - One past the run's last index
+ * @returns One past the last kept value
+ */
+function dropRepeats(colIdx: Uint32Array, start: number, end: number): number {
+    let kept = start;
+    for (let i = start; i < end; i++) {
+        if (i === start || colIdx[i] !== colIdx[i - 1]) {
+            colIdx[kept++] = colIdx[i];
+        }
+    }
+    return kept;
+}
+
+/**
  * The simple undirected graph underlying a snapshot: every row sorted, each neighbour once, no
  * self-loop, and both directions of a directed arc.
  * @param s - Any snapshot
@@ -44,13 +61,7 @@ export function simpleUndirectedRows(s: GraphSnapshot): { rowPtr: U32; colIdx: U
         if (views.length > 1) {
             row.sort();
         }
-        let kept = start;
-        for (let i = start; i < out; i++) {
-            if (i === start || colIdx[i] !== colIdx[i - 1]) {
-                colIdx[kept++] = colIdx[i];
-            }
-        }
-        out = kept;
+        out = dropRepeats(colIdx, start, out);
     }
     rowPtr[n] = out;
     return { rowPtr: rowPtr, colIdx: colIdx.slice(0, out) };
@@ -79,6 +90,39 @@ export function clusteringFrom(
         coefficient[v] = pairs > 0 ? perNode[v] / pairs : 0;
     }
     return { coefficient: coefficient, transitivity: triples > 0 ? (3 * total) / triples : 0 };
+}
+
+/**
+ * The triangles on the oriented edge u -> v: the common members of the two sorted oriented rows,
+ * each one adding a triangle to u, v and itself.
+ * @param up - The oriented rows
+ * @param upPtr - The oriented rows' offsets
+ * @param u - The edge's lower end
+ * @param v - The edge's upper end
+ * @param perNode - Triangles per node, updated in place
+ * @returns The triangles found
+ */
+function countTrianglesOn(up: Uint32Array, upPtr: Uint32Array, u: number, v: number, perNode: Uint32Array): number {
+    let found = 0;
+    let i = upPtr[u];
+    let j = upPtr[v];
+    const uEnd = upPtr[u + 1];
+    const vEnd = upPtr[v + 1];
+    while (i < uEnd && j < vEnd) {
+        if (up[i] < up[j]) {
+            i++;
+        } else if (up[i] > up[j]) {
+            j++;
+        } else {
+            perNode[u]++;
+            perNode[v]++;
+            perNode[up[i]]++;
+            found++;
+            i++;
+            j++;
+        }
+    }
+    return found;
 }
 
 /**
@@ -119,24 +163,7 @@ export function triangleCount(s: GraphSnapshot): TriangleCountResult {
     for (let u = 0; u < n; u++) {
         const uEnd = upPtr[u + 1];
         for (let a = upPtr[u]; a < uEnd; a++) {
-            const v = up[a];
-            let i = upPtr[u];
-            let j = upPtr[v];
-            const vEnd = upPtr[v + 1];
-            while (i < uEnd && j < vEnd) {
-                if (up[i] < up[j]) {
-                    i++;
-                } else if (up[i] > up[j]) {
-                    j++;
-                } else {
-                    perNode[u]++;
-                    perNode[v]++;
-                    perNode[up[i]]++;
-                    total++;
-                    i++;
-                    j++;
-                }
-            }
+            total += countTrianglesOn(up, upPtr, u, up[a], perNode);
         }
     }
     return { perNode: perNode, total, ...clusteringFrom(perNode, total, rowPtr) };

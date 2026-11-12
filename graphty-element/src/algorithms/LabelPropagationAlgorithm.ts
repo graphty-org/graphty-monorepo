@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
@@ -70,14 +70,16 @@ interface LabelPropagationOptions extends Record<string, unknown> {
  *   always runs on the CPU, and under `acceleration="required"` it is refused.
  */
 export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagationOptions> {
-    static namespace = "graphty";
-    static type = "label-propagation";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "label-propagation";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static readonly weightMeaning = "strength" as const;
     /** Groups over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = labelPropagationOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = labelPropagationOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         maxIterations: {
             type: "integer",
             default: 100,
@@ -147,7 +149,7 @@ export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagatio
             caveats: declaredCaveats({
                 method: synchronous ? "label-propagation-synchronous" : "label-propagation",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "strength" },
+                ...this.weightCaveats(),
                 converged,
                 iterations,
                 ...(synchronous ? {} : { seed: randomSeed }),

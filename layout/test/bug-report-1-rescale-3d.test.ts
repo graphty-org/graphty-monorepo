@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { PositionMap } from "../src/types/index.js";
 import { rescaleLayout } from "../src/utils/rescale";
 
 describe("Bug Report #1: rescaleLayout causes NaN for Z coordinates in 3D", () => {
@@ -60,7 +61,7 @@ describe("Bug Report #1: rescaleLayout causes NaN for Z coordinates in 3D", () =
             c: [0.5, 0.5, 0.5],
         };
 
-        const result = rescaleLayout(positions);
+        const result = rescaleLayout(positions) as PositionMap;
 
         // Bug behavior: default center=[0,0] causes center[2] to be undefined
         // When calculating: val * scaleFactor + center[i]

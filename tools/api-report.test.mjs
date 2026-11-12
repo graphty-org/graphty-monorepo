@@ -4,18 +4,30 @@
 //
 //   node --test tools/api-report.test.mjs
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
 import {
     apiReport,
+    checkPlainStrings,
     entryPoints,
+    FRAMEWORK_PACKAGES,
+    frameworkImports,
+    OPEN_OPTION_EXCEPTIONS,
+    openOptionFieldAdditions,
+    openOptionFields,
+    optionReachable,
+    parseReport,
     PLAIN_STRING_ALLOWLIST,
     plainStringAdditions,
     plainStringProperties,
+    specialLayerAdditions,
+    specialLayerMarks,
 } from "./api-report.mjs";
+import { isolatedGitEnv } from "./isolated-git-env.mjs";
 
 describe("entryPoints", () => {
     it("names each typed export, the root as index", () => {
@@ -172,6 +184,19 @@ export interface AlgorithmDescriptor {
         );
     });
 
+    it("passes any plain string on a type of column names, and only there", () => {
+        const head = report({ run: "\n    readonly kind: string;" })
+            .replace("get(id: string): RunRecord;", "get(id: string): RunRecord;\n    mapping(): TableMapping;")
+            .replace(
+                "// @public\nexport type RunState",
+                "// @public\nexport interface TableMapping {\n    readonly kind?: string | null;\n}\n\n// @public\nexport type RunState",
+            );
+        assert.deepEqual(
+            plainStringAdditions([report()], [head]).map((m) => m.split(" ")[0]),
+            ["RunRecord.kind"],
+        );
+    });
+
     it("passes a plain string that is not on a result type, or only in an input", () => {
         const head = report().replace("    text?: string;", "    text?: string;\n    scope?: string;");
         assert.deepEqual(plainStringAdditions([report()], [head]), []);
@@ -191,6 +216,101 @@ export interface AlgorithmDescriptor {
             ["CostEstimate.reason"],
         );
     });
+
+    // master -> feat/parent (adds CostEstimate.reason: string) -> child (adds a code union field), so
+    // only the parent branch adds a plain string (#2588).
+    describe("on a branch stacked on another pull request's branch", () => {
+        const scratch = mkdtempSync(join(tmpdir(), "api-report-stacked-"));
+        after(() => rmSync(scratch, { recursive: true, force: true }));
+        // without the base overrides CI's own environment sets (GITHUB_BASE_REF=master on a pull request)
+        const env = isolatedGitEnv();
+        delete env.GITHUB_BASE_REF;
+        delete env.API_REPORT_BASE;
+        const git = (...args) => execFileSync("git", args, { cwd: scratch, env, encoding: "utf8" }).trim();
+        const commit = (text, branch) => {
+            writeFileSync(join(scratch, "pkg", "api", "index.api.md"), text);
+            git("add", ".");
+            git("commit", "-q", "-m", branch);
+            git("update-ref", `refs/remotes/origin/${branch}`, "HEAD");
+        };
+        mkdirSync(join(scratch, "pkg", "api"), { recursive: true });
+        git("init", "-q", "-b", "master");
+        git("remote", "add", "origin", join(scratch, "no-such-remote"));
+        commit(report(), "master");
+        git("switch", "-q", "-c", "feat/parent");
+        commit(report({ cost: "\n    readonly reason: string;" }), "feat/parent");
+        git("switch", "-q", "-c", "child");
+        commit(report({ cost: "\n    readonly reason: string;", run: "\n    readonly next: RunState;" }), "child");
+        const pkg = join(scratch, "pkg");
+
+        it("is measured from the branch its pull request merges into, not master", () => {
+            git("config", "branch.child.prBase", "feat/parent");
+            try {
+                assert.deepEqual(checkPlainStrings(pkg, env), []);
+            } finally {
+                git("config", "--unset", "branch.child.prBase");
+            }
+        });
+
+        it("is measured from the pull request's base in CI (GITHUB_BASE_REF)", () => {
+            assert.deepEqual(checkPlainStrings(pkg, { ...env, GITHUB_BASE_REF: "feat/parent" }), []);
+        });
+
+        it("still counts the parent's additions with no base recorded, and API_REPORT_BASE overrides", () => {
+            assert.deepEqual(
+                checkPlainStrings(pkg, env).map((m) => m.split(" ")[0]),
+                ["CostEstimate.reason"],
+            );
+            const vsMaster = { ...env, GITHUB_BASE_REF: "feat/parent", API_REPORT_BASE: "origin/master" };
+            assert.deepEqual(
+                checkPlainStrings(pkg, vsMaster).map((m) => m.split(" ")[0]),
+                ["CostEstimate.reason"],
+            );
+        });
+    });
+});
+
+describe("specialLayerAdditions", () => {
+    const report = (extra = "", code = "") =>
+        [
+            "// @public",
+            "export interface Layer {",
+            "    readonly locked: boolean;",
+            `    readonly name: string;${extra}`,
+            "}",
+            "",
+            "// @public",
+            `export type GraphtyErrorCode = "E_LOCKED" | "E_BASEMAP_UNREACHABLE"${code};`,
+            "",
+        ].join("\n");
+    const added = (head) => specialLayerAdditions([report()], [head]).map((m) => m.split(" ")[0]);
+
+    it("allows the reader's own lock, and a code that only looks like one", () => {
+        assert.deepEqual([...specialLayerMarks(report())], []);
+    });
+
+    it("fails a new property that marks a layer as special", () => {
+        for (const property of ["lockedByElement", "protected", "system", "builtIn", "owner", "isBase"]) {
+            assert.deepEqual(added(report(`\n    readonly ${property}?: boolean;`)), [`Layer.${property}`]);
+        }
+    });
+
+    it("fails a new literal that marks one, and a property naming one on any type", () => {
+        const source = report('\n    readonly by: "system" | "user";');
+        assert.deepEqual(added(source), ['Layer."system"']);
+        const config = `${report()}\nexport interface Config {\n    readonly protectedLayers: readonly string[];\n}\n`;
+        assert.deepEqual(added(config), ["Config.protectedLayers"]);
+    });
+
+    it("fails a new error code that protects a layer", () => {
+        assert.deepEqual(added(report("", ' | "E_LAYER_PROTECTED"')), ['"E_LAYER_PROTECTED"']);
+        assert.deepEqual(added(report("", ' | "E_BUILT_IN_LAYER"')), ['"E_BUILT_IN_LAYER"']);
+    });
+
+    it("passes what the base already has", () => {
+        const head = report("\n    readonly owner: string;", ' | "E_PROTECTED"');
+        assert.deepEqual(specialLayerAdditions([head], [head]), []);
+    });
 });
 
 describe("PLAIN_STRING_ALLOWLIST", () => {
@@ -209,5 +329,185 @@ describe("the committed graphty-element reports", () => {
         const texts = readdirSync(dir).map((f) => readFileSync(join(dir, f), "utf8"));
         assert.deepEqual(plainStringAdditions(texts, texts), []);
         assert.ok(plainStringProperties(texts.join("\n"), true).size > 0, "the parser finds the existing fields");
+    });
+});
+
+describe("frameworkImports (no framework or provider type in a public entry point)", () => {
+    const report = (imports) =>
+        `## API Report File for "fixture"\n\n\`\`\`ts\n\n${imports}\nimport { z } from 'zod';\n`;
+
+    it("fails a report that imports a framework or provider package, one message each", () => {
+        const planted = [
+            "import { chat } from '@tanstack/ai';",
+            "import { ModelMessage } from 'ai';",
+            "import { LanguageModel } from '@ai-sdk/openai';",
+            "import OpenAI from 'openai';",
+            "import { GoogleGenAI } from '@google/genai';",
+            "import Anthropic from '@anthropic-ai/sdk';",
+            "import { RunAgentInput } from '@ag-ui/core';",
+            "import { MLCEngine } from '@mlc-ai/web-llm';",
+        ];
+        const messages = frameworkImports("api/ai.api.md", report(planted.join("\n")));
+        assert.equal(messages.length, planted.length);
+        assert.match(messages[0], /^api\/ai\.api\.md imports '@tanstack\/ai', an AI framework or provider package/);
+    });
+
+    it("passes the packages that are not frameworks, a name that only starts like one included", () => {
+        const text = report(
+            "import { LitElement } from 'lit';\nimport { aim } from 'aim';\nimport x from '@tanstackish/ai';",
+        );
+        assert.deepEqual(frameworkImports("api/index.api.md", text), []);
+    });
+
+    it("lists the design's packages: exact ai, openai, @google/genai and the five scopes", () => {
+        for (const name of ["ai", "openai", "@google/genai"]) assert.ok(FRAMEWORK_PACKAGES.exact.includes(name), name);
+        for (const scope of ["@tanstack/", "@ag-ui/", "@ai-sdk/", "@anthropic-ai/", "@mlc-ai/"]) {
+            assert.ok(FRAMEWORK_PACKAGES.prefixes.includes(scope), scope);
+        }
+    });
+});
+
+describe("openOptionFieldAdditions (providers configured in graphty's terms)", () => {
+    const report = (extra = {}) => `## API Report File for "fixture"
+
+\`\`\`ts
+
+// @public
+export interface AiManagerConfig {
+    apiKey?: string;
+    keyPersistence?: KeyPersistenceConfig;
+    providerInstance?: LlmProvider;${extra.config ?? ""}
+}
+
+// @public
+export interface KeyPersistenceConfig {
+    enabled: boolean;${extra.keys ?? ""}
+}
+
+// @public
+export interface LlmProvider {
+    configure(options: ProviderOptions): void;
+}
+
+// @public
+export interface ProviderOptions {
+    model?: string;${extra.provider ?? ""}
+}
+
+// @public
+export interface Unrelated {
+    anything: unknown;${extra.unrelated ?? ""}
+}
+
+\`\`\`
+`;
+    const check = (head) => openOptionFieldAdditions([report()], [report(head)]);
+
+    it("fails each kind of open-ended member added to the configuration", () => {
+        for (const [member, kind] of [
+            ["providerOptions?: unknown;", "unknown"],
+            ["raw: any;", "any"],
+            ["extra?: object;", "object"],
+            ["headers?: Record<string, unknown>;", "Record<string, unknown>"],
+            ["readonly passthrough?: Readonly<Record<string, any>> | undefined;", "Readonly<Record<string, any>>"],
+        ]) {
+            const [message, ...rest] = check({ config: `\n    ${member}` });
+            assert.equal(rest.length, 0, member);
+            assert.match(
+                message,
+                new RegExp(
+                    `^AiManagerConfig\\.\\w+ is a new open-ended member \\(${kind.replaceAll(/[\\^$.*+?()[\]{}|]/g, String.raw`\$&`)}\\)`,
+                ),
+            );
+        }
+    });
+
+    it("fails an open type wrapped, unioned, in a function, behind an alias or as a type parameter default", () => {
+        for (const member of [
+            "extras?: Partial<Record<string, unknown>>;",
+            "extras?: Record<PropertyKey, unknown>;",
+            "extras?: Map<string, unknown>;",
+            "extras?: unknown[];",
+            "extras?: Record<string, unknown> | string;",
+            "extras?: (raw: Record<string, unknown>) => void;",
+            "extras?: () => Readonly<Record<string, any>>;",
+            "extras?: {\n        nested: object;\n    };",
+        ]) {
+            assert.deepEqual(
+                check({ config: `\n    ${member}` }).map((m) => m.split(" ")[0]),
+                ["AiManagerConfig.extras"],
+                member,
+            );
+        }
+
+        const aliased = (alias) =>
+            openOptionFieldAdditions(
+                [report()],
+                [
+                    `${report({ provider: "\n    extras?: ProviderExtras;" })}\n// @public\nexport type ProviderExtras = ${alias};\n`,
+                ],
+            );
+        assert.match(
+            aliased("Readonly<Record<string, unknown>>")[0],
+            /^ProviderExtras\.\[alias\] is a new open-ended member/,
+        );
+        assert.deepEqual(aliased('"low" | "high"'), []);
+
+        const generic = report().replace(
+            "export interface AiManagerConfig {",
+            "export interface AiManagerConfig<T = unknown> {",
+        );
+        assert.match(
+            openOptionFieldAdditions([report()], [generic])[0],
+            /^AiManagerConfig\.\[type parameter\] is a new open-ended member/,
+        );
+    });
+
+    it("passes a string-literal union naming any, and a property named object", () => {
+        assert.deepEqual(check({ config: '\n    mode?: "any" | "all";' }), []);
+        assert.deepEqual(check({ config: "\n    target?: {\n        object: string;\n    };" }), []);
+    });
+
+    it("fails an index signature, and a member of a type the configuration reaches", () => {
+        assert.match(
+            check({ provider: "\n    [key: string]: unknown;" })[0],
+            /^ProviderOptions\.\[index\] is a new open-ended member/,
+        );
+        assert.match(check({ keys: "\n    store?: unknown;" })[0], /^KeyPersistenceConfig\.store /);
+    });
+
+    it("passes a named field, a member the base already had, and a type the configuration does not reach", () => {
+        assert.deepEqual(check({ config: "\n    temperature?: number;" }), []);
+        assert.deepEqual(check({ unrelated: "\n    more: unknown;" }), []);
+        const before = report({ config: "\n    legacy?: unknown;" });
+        assert.deepEqual(openOptionFieldAdditions([before], [before]), []);
+    });
+
+    it("reaches every type named in the configuration, through method parameters too", () => {
+        const reached = optionReachable(parseReport(report()));
+        assert.deepEqual([...reached].sort(), [
+            "AiManagerConfig",
+            "KeyPersistenceConfig",
+            "LlmProvider",
+            "ProviderOptions",
+        ]);
+        for (const [member, reason] of OPEN_OPTION_EXCEPTIONS) {
+            assert.match(member, /^\w+\.\w+$/, "an exception names one member, as Type.member");
+            assert.ok(reason.length >= 20, `${member} gives its reason`);
+        }
+    });
+
+    it("finds no open member the committed graphty-element reports do not already have", () => {
+        const dir = join(import.meta.dirname, "..", "graphty-element", "api");
+        const texts = readdirSync(dir).map((f) => readFileSync(join(dir, f), "utf8"));
+        assert.deepEqual(openOptionFieldAdditions(texts, texts), []);
+        assert.ok(
+            openOptionFields(parseReport(texts.join("\n"))).size > 0,
+            "the parser finds the existing open members",
+        );
+        assert.deepEqual(
+            texts.flatMap((t) => frameworkImports("api", t)),
+            [],
+        );
     });
 });

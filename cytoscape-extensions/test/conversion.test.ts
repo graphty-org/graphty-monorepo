@@ -380,6 +380,27 @@ describe("positions on import", () => {
         },
     );
 
+    it("writes and reads GML with y growing downward, as yEd draws it", async () => {
+        // a above b on screen: a's y is the smaller in a y-down file
+        const gml = await core(placed()).graphtyExport("gml");
+        expect(gml).toMatch(/graphty_originalId "a"[\s\S]*?graphics \[[^\]]*\by 20\b/);
+        expect(gml).toMatch(/graphty_originalId "b"[\s\S]*?graphics \[[^\]]*\by 7\.25\b/);
+        // a yEd GML: its box's top-left at (0, 0), 30 x 30, drawn below a node at y -100
+        const yed =
+            'graph [ node [ id 1 label "low" graphics [ x 15 y 15 w 30 h 30 ] ] node [ id 2 label "high" graphics [ x 15 y -100 w 30 h 30 ] ] ]';
+        const fromYed = core();
+        await fromYed.graphtyImport(yed, "gml");
+        const low = fromYed
+            .nodes()
+            .filter((n) => n.data("label") === "low")[0]
+            .position();
+        const high = fromYed
+            .nodes()
+            .filter((n) => n.data("label") === "high")[0]
+            .position();
+        expect(high.y).toBeLessThan(low.y);
+    });
+
     it("keeps the y of the Cytoscape-family formats and negates the y of the y-up ones", async () => {
         // CX, CX2, XGMML and Cytoscape JSON hold Cytoscape's own screen coordinates (y grows downward)
         const cx = JSON.stringify([

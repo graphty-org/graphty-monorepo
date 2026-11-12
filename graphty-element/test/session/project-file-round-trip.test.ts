@@ -7,6 +7,7 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession, PROJECT_FILE, projectFileName } from "../../session";
 import { DataConfig } from "../../src/config/DataConfig";
+import { DEFAULT_SELECTION_STYLE } from "../../src/config/GraphStyle";
 
 const UNDIRECTED_GML = `graph [
   node [ id 1 label "a" ]
@@ -125,5 +126,36 @@ describe("add-edges with a declared direction", () => {
         assert.isTrue(session.status.directed);
         assert.strictEqual(session.data.store.directionSettledBy.by, "configuration");
         session.dispose();
+    });
+});
+
+describe("settings added after the first project files", () => {
+    const sessionOf = (text: string): { config: { selectionStyle: Record<string, unknown> } } =>
+        (
+            JSON.parse(text) as { members: { kind: string; config: { selectionStyle: Record<string, unknown> } }[] }
+        ).members.find((member) => member.kind === "graphty-session") as {
+            config: { selectionStyle: Record<string, unknown> };
+        };
+
+    it("writes one only when it is not its default, so an older graphty-element still opens the file", async () => {
+        const saved = createGraphSession();
+        await saved.data.addNodes([{ id: "a" }]);
+        assert.notProperty(sessionOf((await saved.project.save()).text).config.selectionStyle, "edgeColor");
+        await saved.config.set({ selectionStyle: { edgeColor: "#112233" } });
+        assert.strictEqual(sessionOf((await saved.project.save()).text).config.selectionStyle.edgeColor, "#112233");
+        saved.dispose();
+    });
+
+    it("reads one a file leaves out as its default", async () => {
+        const saved = createGraphSession();
+        await saved.data.addNodes([{ id: "a" }]);
+        const { text } = await saved.project.save();
+        const opened = createGraphSession();
+        await opened.config.set({ selectionStyle: { edgeColor: "#112233" } });
+        const report = await opened.project.open(text, { discard: true });
+        assert.deepStrictEqual(report.problems, []);
+        assert.strictEqual(opened.config.selectionStyle.edgeColor, DEFAULT_SELECTION_STYLE.edgeColor);
+        saved.dispose();
+        opened.dispose();
     });
 });

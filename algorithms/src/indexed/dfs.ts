@@ -81,6 +81,36 @@ function newWalk(nodeCount: number): Walk {
 }
 
 /**
+ * Follow `u`'s next untried arc: open its head when it is new (recording the tree arc and the
+ * pre-order), and note a back arc when the head is still open.
+ * @param g - The adjacency being walked
+ * @param u - The node whose cursor has an untried arc
+ * @param w - The shared walk state
+ * @param arcOrder - The order to try each row's arcs in; null for row order
+ * @returns The newly opened node, or INVALID_INDEX when the arc led to a node already seen
+ */
+function followNextArc(g: AdjacencyView, u: number, w: Walk, arcOrder: U32 | null): number {
+    const { rowPtr, colIdx } = g;
+    const { state, parent, predArc, depth, cursor, pre } = w;
+    const i = cursor[u]++;
+    const a = arcOrder === null ? i : arcOrder[i];
+    const v = colIdx[a];
+    if (state[v] === NEW) {
+        state[v] = OPEN;
+        parent[v] = u;
+        predArc[v] = a;
+        depth[v] = depth[u] + 1;
+        cursor[v] = rowPtr[v];
+        pre[w.preCount++] = v;
+        return v;
+    }
+    if (state[v] === OPEN) {
+        w.backArc = true;
+    }
+    return INVALID_INDEX;
+}
+
+/**
  * Iterative DFS from `root` with an explicit arc cursor per node, so the walk tries neighbours in
  * row order (or `arcOrder`) exactly as a recursive DFS would and never overflows the call stack.
  * @param g - The adjacency to walk
@@ -90,8 +120,8 @@ function newWalk(nodeCount: number): Walk {
  * @param arcOrder - The order to try each row's arcs in; null for row order
  */
 function walkFrom(g: AdjacencyView, root: number, w: Walk, target: number, arcOrder: U32 | null): void {
-    const { rowPtr, colIdx } = g;
-    const { state, parent, predArc, depth, cursor, stack, pre, post } = w;
+    const { rowPtr } = g;
+    const { state, depth, cursor, stack, pre, post } = w;
     let top = 0;
     state[root] = OPEN;
     depth[root] = 0;
@@ -104,22 +134,12 @@ function walkFrom(g: AdjacencyView, root: number, w: Walk, target: number, arcOr
     while (top > 0) {
         const u = stack[top - 1];
         if (cursor[u] < rowPtr[u + 1]) {
-            const i = cursor[u]++;
-            const a = arcOrder === null ? i : arcOrder[i];
-            const v = colIdx[a];
-            if (state[v] === NEW) {
-                state[v] = OPEN;
-                parent[v] = u;
-                predArc[v] = a;
-                depth[v] = depth[u] + 1;
-                cursor[v] = rowPtr[v];
-                pre[w.preCount++] = v;
+            const v = followNextArc(g, u, w, arcOrder);
+            if (v !== INVALID_INDEX) {
                 stack[top++] = v;
                 if (v === target) {
                     return;
                 }
-            } else if (state[v] === OPEN) {
-                w.backArc = true;
             }
         } else {
             state[u] = DONE;
@@ -166,16 +186,33 @@ export function depthFirstSearch(g: AdjacencyView, startNode: NodeRef, options: 
  * @public
  */
 export function hasCycle(g: AdjacencyView): boolean {
-    const { nodeCount, rowPtr, colIdx } = g;
-    if (g.directed) {
-        const w = newWalk(nodeCount);
-        for (let r = 0; r < nodeCount && !w.backArc; r++) {
-            if (w.state[r] === NEW) {
-                walkFrom(g, r, w, INVALID_INDEX, null);
-            }
+    return g.directed ? hasDirectedCycle(g) : hasUndirectedCycle(g);
+}
+
+/**
+ * Whether a directed graph has a cycle: a DFS back arc from any root.
+ * @param g - A directed adjacency
+ * @returns True when a cycle exists
+ */
+function hasDirectedCycle(g: AdjacencyView): boolean {
+    const { nodeCount } = g;
+    const w = newWalk(nodeCount);
+    for (let r = 0; r < nodeCount && !w.backArc; r++) {
+        if (w.state[r] === NEW) {
+            walkFrom(g, r, w, INVALID_INDEX, null);
         }
-        return w.backArc;
     }
+    return w.backArc;
+}
+
+/**
+ * Whether an undirected graph has a cycle: a self-loop, or an edge closing a loop in a union-find
+ * forest. A parallel pair is not a cycle.
+ * @param g - An undirected adjacency
+ * @returns True when a cycle exists
+ */
+function hasUndirectedCycle(g: AdjacencyView): boolean {
+    const { nodeCount, rowPtr, colIdx } = g;
     const uf = new IntUnionFind(nodeCount);
     for (let u = 0; u < nodeCount; u++) {
         const end = rowPtr[u + 1];

@@ -111,6 +111,17 @@ export function mintedEdgeId(counter: number): string {
     return `graphty:e${counter}`;
 }
 
+/**
+ * One ordered endpoint pair as a set key, for matching a measured load's records against the
+ * graph's edges. Both ids are read as text, as a CSV file gives them.
+ * @param source - the source node id
+ * @param target - the target node id
+ * @returns the key
+ */
+export function pairKey(source: unknown, target: unknown): string {
+    return `${String(source)}\u0000${String(target)}`;
+}
+
 /** What becomes of a record repeating an edge the graph already holds. */
 type RepeatDecision =
     /** `keep`: the repeat is an edge of its own. */
@@ -228,17 +239,7 @@ export function completeLoad(
     write: IdentityWriter,
 ): void {
     const count = rows.length;
-    const lo = new Uint32Array(count);
-    const hi = new Uint32Array(count);
-    let nodeBound = 0;
-    for (let i = 0; i < count; i++) {
-        const [u, v] = graph.endpoints(rows[i]);
-        const swap = !ordered && v < u;
-        lo[i] = swap ? v : u;
-        hi[i] = swap ? u : v;
-        nodeBound = Math.max(nodeBound, lo[i] + 1, hi[i] + 1);
-    }
-
+    const { lo, hi, nodeBound } = pairEnds(rows, graph, ordered);
     const { perm, bytes } = sortPairs(lo, hi, nodeBound);
     identityCounters.lastTransientBytes = rows.byteLength + lo.byteLength + hi.byteLength + bytes;
     identityCounters.lastLoadEdges = count;
@@ -279,6 +280,34 @@ export function completeLoad(
 
         start = end;
     }
+}
+
+/**
+ * Each load edge's ends as its pair: lower end first when pairs are unordered, declared order
+ * otherwise.
+ * @param rows - the load's surviving edge rows
+ * @param graph - where endpoints are read
+ * @param ordered - whether pairs are ordered
+ * @returns each position's lower (or source) and upper (or target) node, and one past the largest
+ */
+function pairEnds(
+    rows: Uint32Array,
+    graph: IdentityGraph,
+    ordered: boolean,
+): { lo: Uint32Array; hi: Uint32Array; nodeBound: number } {
+    const count = rows.length;
+    const lo = new Uint32Array(count);
+    const hi = new Uint32Array(count);
+    let nodeBound = 0;
+    for (let i = 0; i < count; i++) {
+        const [u, v] = graph.endpoints(rows[i]);
+        const swap = !ordered && v < u;
+        lo[i] = swap ? v : u;
+        hi[i] = swap ? u : v;
+        nodeBound = Math.max(nodeBound, lo[i] + 1, hi[i] + 1);
+    }
+
+    return { lo, hi, nodeBound };
 }
 
 /**
@@ -524,7 +553,7 @@ export function stableEdgeMember(snapshot: GraphSnapshot, edge: number, fileId?:
     }
 
     const counter = snapshot.edges.typed(EDGE_ID_COLUMN, "u32");
-    if (counter === null || !counter.isSet(edge)) {
+    if (!counter?.isSet(edge)) {
         throw new Error(`edge ${edge} has neither an ordinal nor a counter to mint an id from`);
     }
 

@@ -7,7 +7,7 @@
     "targets": {
         "build": {
             "executor": "nx:run-commands",
-            "outputs": ["{projectRoot}/dist", "{projectRoot}/build/doors.json"],
+            "outputs": ["{projectRoot}/dist", "{projectRoot}/build/doors.json", "{projectRoot}/build/chunks.json"],
             "options": {
                 "command": "npm run build",
                 "cwd": "graphty-element"
@@ -38,9 +38,10 @@
         "lint": {
             "executor": "nx:run-commands",
             "options": {
-                "command": "eslint && tsc --noEmit",
+                "command": "node ../tools/test-slots.mjs --lint eslint --concurrency 2 $ESLINT_CACHE && node eslint-rules/ai-engine-boundary.test.mjs && tsc --noEmit",
                 "cwd": "graphty-element"
             },
+            "outputs": ["{projectRoot}/node_modules/.cache/eslint"],
             "dependsOn": ["^build"]
         },
         "semantic-release": {
@@ -62,20 +63,6 @@
             "executor": "nx:run-commands",
             "options": {
                 "command": "npm run build-storybook",
-                "cwd": "graphty-element"
-            }
-        },
-        "test:visual": {
-            "executor": "nx:run-commands",
-            "options": {
-                "command": "npm run test:visual",
-                "cwd": "graphty-element"
-            }
-        },
-        "chromatic": {
-            "executor": "nx:run-commands",
-            "options": {
-                "command": "npm run chromatic",
                 "cwd": "graphty-element"
             }
         },

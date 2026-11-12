@@ -126,8 +126,8 @@ export function registerPalette(descriptor: PaletteRegistration, options?: Regis
     }
 
     const claims: unknown = descriptor.colorblindSafe ?? [];
-    const deficiencies = ["deuteranopia", "protanopia", "tritanopia"];
-    if (!Array.isArray(claims) || claims.some((claim) => !deficiencies.includes(claim as string))) {
+    const deficiencies = new Set(["deuteranopia", "protanopia", "tritanopia"]);
+    if (!Array.isArray(claims) || claims.some((claim) => !deficiencies.has(claim as string))) {
         refuse(
             descriptor.id,
             "colorblindSafe",

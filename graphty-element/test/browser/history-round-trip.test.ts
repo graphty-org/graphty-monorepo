@@ -17,14 +17,21 @@
 import "../helpers/legacyPlugins";
 
 import { PhotoDome } from "@babylonjs/core";
-import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
-import { afterEach, assert, describe, it } from "vitest";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { afterEach, assert, beforeAll, describe, it } from "vitest";
 
 import type { Edge } from "../../src/Edge";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { drawnFrames } from "../helpers/drawn-frames";
 import { nextFrame } from "../helpers/real-input";
 import { FIXTURES } from "../session/history/fixtures";
 import { roundTrip } from "../session/history/round-trip-harness";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 const cleanups: (() => void)[] = [];
 
@@ -46,9 +53,7 @@ async function atRest(graph: Graph): Promise<void> {
     }
 
     assert.isFalse(graph.getLayoutManager().running, "the layout came to rest");
-    for (let frame = 0; frame < 2; frame++) {
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
+    await drawnFrames(graph.getScene(), 2);
 }
 
 /**

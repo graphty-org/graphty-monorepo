@@ -178,6 +178,12 @@ export interface PopoutPanelProps {
      */
     label?: string;
     /**
+     * The header's close button's accessible name. Name the panel it closes ("Close Label
+     * settings"), so a reader of several panels knows which one it closes.
+     * @default "Close panel" (the `closePanel` label)
+     */
+    closeLabel?: string;
+    /**
      * What the panel holds. Wrap it in `Popout.Content` for the panel's own
      * padding, or pass your own layout to fill the panel edge to edge.
      */
@@ -236,6 +242,19 @@ export interface PopoutPanelProps {
      * @default true
      */
     manageFocus?: boolean;
+    /**
+     * The highest the panel's top may sit, in viewport pixels: pass the bottom of an app header
+     * the panel must never cover. The panel is then never taller than the window below it.
+     * @default 0
+     */
+    boundaryTop?: number;
+    /**
+     * Keep the panel across the `Popout.Anchor` around it (a side panel), not only across the
+     * window: a bubble opened from a row near the panel's edge then shifts back over the panel
+     * instead of running past it. Without an anchor around it, the window bounds it as before.
+     * @default false
+     */
+    contained?: boolean;
     /** Called when the person starts dragging the panel by its header. */
     onDragStart?: GestureStartHandler;
     /**
@@ -311,6 +330,11 @@ export interface PopoutHeaderProps {
     dragTriggerProps?: Record<string, unknown>;
     /** The panel's own buttons, drawn before the close button. */
     actions?: PopoutHeaderAction[];
+    /**
+     * The close button's accessible name.
+     * @default "Close panel" (the `closePanel` label)
+     */
+    closeLabel?: string;
     /**
      * Which tab is selected, by `id`. The panel holds the selection, so the
      * header is always driven rather than remembering it.

@@ -23,6 +23,8 @@ export interface BenchmarkTestData {
     graphGenerationAlgorithm?: string;
     graphSize?: number;
     edges?: number;
+    /** A fingerprint of the input graph, so a trend never compares timings of two different graphs */
+    input?: string;
     additionalMetrics?: Record<string, number>;
 }
 
@@ -59,6 +61,36 @@ export class CrossPlatformBenchmark {
         }
     }
 
+    /**
+     * Keep running the test until the warmup has lasted at least `minTimeMs`.
+     * @param elapsedTime - How long the warmup iterations took, in milliseconds
+     * @param minTimeMs - The minimum warmup time, in milliseconds
+     * @param testFn - The test to run
+     */
+    private async extendWarmup(
+        elapsedTime: number,
+        minTimeMs: number,
+        testFn: () => void | Promise<void>,
+    ): Promise<void> {
+        if (elapsedTime < minTimeMs) {
+            const remainingTime = minTimeMs - elapsedTime;
+            console.log(`  Extending warmup for ${remainingTime}ms...`);
+
+            const additionalStart = Date.now();
+            while (Date.now() - additionalStart < remainingTime) {
+                try {
+                    if (this.config.async) {
+                        await testFn();
+                    } else {
+                        testFn();
+                    }
+                } catch {
+                    // Continue warmup despite errors
+                }
+            }
+        }
+    }
+
     private async performWarmup(name: string, testFn: () => void | Promise<void>): Promise<void> {
         if (!this.config.warmup?.enabled) {
             return;
@@ -82,24 +114,7 @@ export class CrossPlatformBenchmark {
         }
 
         // Ensure minimum warmup time
-        const elapsedTime = Date.now() - startTime;
-        if (elapsedTime < minTimeMs) {
-            const remainingTime = minTimeMs - elapsedTime;
-            console.log(`  Extending warmup for ${remainingTime}ms...`);
-
-            const additionalStart = Date.now();
-            while (Date.now() - additionalStart < remainingTime) {
-                try {
-                    if (this.config.async) {
-                        await testFn();
-                    } else {
-                        testFn();
-                    }
-                } catch {
-                    // Continue warmup despite errors
-                }
-            }
-        }
+        await this.extendWarmup(Date.now() - startTime, minTimeMs, testFn);
 
         // Force garbage collection after warmup
         this.setupFunction();
@@ -135,15 +150,13 @@ export class CrossPlatformBenchmark {
         // Force garbage collection if available
         if (this.config.platform === "node") {
             (globalThis as { gc?: () => void }).gc?.();
-        } else {
+        } else if (globalThis.window !== undefined && globalThis.performance && "memory" in globalThis.performance) {
             // Browser memory pressure hint
-            if (typeof window !== "undefined" && window.performance && "memory" in window.performance) {
-                // Some browsers support gc() in development
-                try {
-                    (globalThis as { gc?: () => void }).gc?.();
-                } catch {
-                    // Ignore if not available
-                }
+            // Some browsers support gc() in development
+            try {
+                (globalThis as { gc?: () => void }).gc?.();
+            } catch {
+                // Ignore if not available
             }
         }
     }
@@ -160,20 +173,18 @@ export class CrossPlatformBenchmark {
                     rss: mem.rss,
                 };
             }
-        } else {
+        } else if (globalThis.window !== undefined && globalThis.performance && "memory" in globalThis.performance) {
             // Browser memory information
-            if (typeof window !== "undefined" && window.performance && "memory" in window.performance) {
-                const mem = (
-                    window.performance as Performance & {
-                        memory: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number };
-                    }
-                ).memory;
-                return {
-                    usedJSHeapSize: mem.usedJSHeapSize,
-                    totalJSHeapSize: mem.totalJSHeapSize,
-                    jsHeapSizeLimit: mem.jsHeapSizeLimit,
-                };
-            }
+            const mem = (
+                window.performance as Performance & {
+                    memory: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number };
+                }
+            ).memory;
+            return {
+                usedJSHeapSize: mem.usedJSHeapSize,
+                totalJSHeapSize: mem.totalJSHeapSize,
+                jsHeapSizeLimit: mem.jsHeapSizeLimit,
+            };
         }
         return {};
     }
@@ -193,6 +204,7 @@ export class CrossPlatformBenchmark {
             graphGenerationAlgorithm: testData.graphGenerationAlgorithm,
             graphSize: testData.graphSize || 0,
             edges: testData.edges || 0,
+            ...(testData.input === undefined ? {} : { input: testData.input }),
             executionTime: benchmark.stats ? benchmark.stats.mean * 1000 : 0, // Convert to milliseconds
             memoryUsage: memoryUsed,
             memoryPerVertex: testData.graphSize ? memoryUsed / testData.graphSize : 0,

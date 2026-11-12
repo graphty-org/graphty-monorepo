@@ -50,6 +50,7 @@ import {
     WEIGHT_KEY_CLASH_CODE,
     WIDENED_CODE,
     XML_ILLEGAL_CHAR_CODE,
+    XML_NESTING_CODE,
     XML_SYNTAX_CODE,
 } from "../../common/codes.js";
 
@@ -190,6 +191,8 @@ export const XGMML_ISSUE = Object.freeze({
     ...ELEMENT_ISSUE,
     /** The input is not well-formed XML. The import stops. */
     XML_SYNTAX: XML_SYNTAX_CODE,
+    /** Elements are nested more than 100,000 deep. The import stops. */
+    XML_NESTING: XML_NESTING_CODE,
     /** The input is empty or whitespace only. The import stops. */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
     /** The input is not valid UTF-8. The import stops. */

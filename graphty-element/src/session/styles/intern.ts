@@ -77,13 +77,165 @@ export type StyleRole = "mesh" | "instance" | "content";
 const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // Geometry and material: a different value is a different source mesh.
     "node.size": "mesh",
+    "node.sizeMode": "mesh",
     "node.shape": "mesh",
     "node.wireframe": "mesh",
+    // A different tessellation is a different source mesh, so low- and full-detail nodes never share one.
+    "node.meshDetail": "mesh",
     "node.flat": "mesh",
+    "node.unlit": "mesh",
+    // Width, height, depth and flatness are baked into the source mesh like the size. A border is
+    // its own source mesh keyed under the node's, its colour in its material: like an outline's,
+    // a colour per style rather than per instance.
+    "node.width": "mesh",
+    "node.height": "mesh",
+    "node.depth": "mesh",
+    "node.relativeExtents": "mesh",
+    "node.planar": "mesh",
+    // Baked into the source mesh's vertices in 2D, like its depth (NodeMesh.placeByZIndex).
+    "node.zIndex": "mesh",
+    // Baked into the source mesh's vertices in 2D the same way (NodeMesh.placeByZIndex).
+    "node.drawOrder": "mesh",
+    "node.borderColor": "mesh",
+    "node.borderWidth": "mesh",
+    "node.borderScreenWidth": "mesh",
+    "node.borderOpacity": "mesh",
+    "node.borderStyle": "mesh",
+    "node.outerBorderColor": "mesh",
+    "node.outerBorderWidth": "mesh",
+    "node.outerBorderOpacity": "mesh",
+    "node.outerBorderStyle": "mesh",
+    "node.outerBorderOffset": "mesh",
+    "node.outerBorderCount": "mesh",
+    "node.raisedBorderWidth": "mesh",
+    "node.raisedBorderLightColor": "mesh",
+    "node.raisedBorderDarkColor": "mesh",
+    "node.shadowColor": "mesh",
+    "node.shadowOpacity": "mesh",
+    "node.shadowBlur": "mesh",
+    "node.shadowOffsetX": "mesh",
+    "node.shadowOffsetY": "mesh",
+    "node.underlayColor": "mesh",
+    "node.underlayOpacity": "mesh",
+    "node.underlayPadding": "mesh",
+    "node.underlayShape": "mesh",
+    "node.underlayCornerRadius": "mesh",
+    "node.overlayColor": "mesh",
+    "node.overlayOpacity": "mesh",
+    "node.overlayPadding": "mesh",
+    "node.overlayShape": "mesh",
+    "node.overlayCornerRadius": "mesh",
+    "node.image": "mesh",
+    "node.imageFallback": "mesh",
+    "node.imageFit": "mesh",
+    "node.imageWidth": "mesh",
+    "node.imageHeight": "mesh",
+    "node.imagePixelSize": "mesh",
+    "node.imagePositionX": "mesh",
+    "node.imagePositionY": "mesh",
+    "node.imageOffsetX": "mesh",
+    "node.imageOffsetY": "mesh",
+    "node.imageRepeat": "mesh",
+    "node.imageClip": "mesh",
+    "node.imageSmoothing": "mesh",
+    "node.imageAutoSize": "mesh",
+    "node.imageOpacity": "mesh",
+    "node.glyph": "mesh",
+    "node.glyphFont": "mesh",
+    "node.glyphSize": "mesh",
+    "node.glyphWeight": "mesh",
+    "node.glyphColor": "mesh",
+    "node.pieColors": "mesh",
+    "node.pieSizes": "mesh",
+    "node.pieOpacities": "mesh",
+    "node.pieRadius": "mesh",
+    "node.pieHole": "mesh",
+    "node.pieRotation": "mesh",
+    "node.pieFitBox": "mesh",
+    "node.pieOffsetX": "mesh",
+    "node.pieOffsetY": "mesh",
+    "node.stripeColors": "mesh",
+    "node.stripeSizes": "mesh",
+    "node.stripeOpacities": "mesh",
+    "node.stripeDirection": "mesh",
+    "node.stripeSize": "mesh",
+    "node.stripeFrame": "mesh",
+    "node.chartKind": "mesh",
+    "node.chartValues": "mesh",
+    "node.chartColors": "mesh",
+    "node.chartMin": "mesh",
+    "node.chartMax": "mesh",
+    "node.chartHorizontal": "mesh",
+    "node.chartSize": "mesh",
+    "node.chartWidth": "mesh",
+    "node.chartHeight": "mesh",
+    "node.chartOffsetX": "mesh",
+    "node.chartOffsetY": "mesh",
+    "node.chartMargin": "mesh",
+    "node.chartGap": "mesh",
+    "node.chartLineWidth": "mesh",
+    "node.chartBorderColor": "mesh",
+    "node.chartBorderWidth": "mesh",
+    // How a group is sized round its members: read by the layout each frame, no mesh's identity.
+    "node.groupPadding": "content",
+    "node.groupPaddingRatio": "content",
+    "node.groupPaddingOf": "content",
+    "node.groupMinWidth": "content",
+    "node.groupMinHeight": "content",
+    "node.groupMinWidthBiasLeft": "content",
+    "node.groupMinHeightBiasTop": "content",
+    "node.groupIncludeLabels": "content",
+    "node.borderPosition": "mesh",
+    "node.borderWaveAmplitude": "mesh",
+    "node.borderWavePeriod": "mesh",
+    "node.cornerRadius": "mesh",
+    "node.exactCornerRadius": "mesh",
+    "node.cornerFraction": "mesh",
+    "node.shapePoints": "mesh",
+    "node.shapeStretchPoints": "mesh",
+    "node.shapeRotation": "mesh",
+    "node.shapeParts": "mesh",
+    "node.shapeLines": "mesh",
+    // words, like a label: per node, drawn by `Node.syncLabel`
+    "node.shapeTexts": "content",
+    // a table label sizes the node it is drawn on, as `node.labelFit` does: the fitted extents and the cells'
+    // outlines are baked into the source mesh
+    "node.labelTable": "mesh",
+    "node.shapeLineWidth": "mesh",
+    "node.shapeLineHaloColor": "mesh",
+    "node.shapeLineHaloWidth": "mesh",
+    // How a node grows to hold its label: the fitted extents are baked into the source mesh, and
+    // Node keys the mesh by them as well, since nodes of one style differ by their label's box.
+    "node.labelFit": "mesh",
+    "node.labelPaddingX": "mesh",
+    "node.labelPaddingY": "mesh",
+    "node.labelFitSquare": "mesh",
+    "node.labelFitQuantum": "mesh",
+    "node.labelFitImage": "mesh",
+    "node.labelFitImagePadding": "mesh",
+    // A gradient fill is a ramp texture in the source mesh's material, not per-instance state:
+    // each distinct gradient is its own source mesh (NodeMesh interns the ramps).
+    "node.gradientColor": "mesh",
+    "node.gradientDirection": "mesh",
+    "node.gradientColors": "mesh",
+    "node.gradientStops": "mesh",
+    "node.gradientKind": "mesh",
+    "node.gradientCenterX": "mesh",
+    "node.gradientCenterY": "mesh",
+    "node.gradientRadius": "mesh",
+    // A model and the options that change its geometry pick the template a node is drawn from.
+    // Tint is keyed too: "replace" swaps the materials, and on or off decides whether the node's
+    // colour is written into the model's instances (Node.applyInstanceColor).
+    "node.model": "mesh",
+    "node.modelSourceUp": "mesh",
+    "node.modelTurn": "mesh",
+    "node.modelTint": "mesh",
+    "node.modelFit": "mesh",
+    "node.modelCenter": "mesh",
+    "node.texture": "mesh",
     // An effect's COLOUR is geometry here, and the renderer is why. Babylon draws an instanced
     // node through its SOURCE mesh: a glow layer's `customEmissiveColorSelector` is handed the
-    // source, and a highlight layer keys its per-mesh colour by the source's uniqueId. So two
-    // nodes that share a source mesh cannot be given two outline colours or two glow colours --
+    // source. So two nodes that share a source mesh cannot be given two glow colours --
     // whichever was applied last is what both are drawn in. A source mesh per distinct effect
     // colour is therefore not a cost this table is choosing to pay, it is the only granularity
     // the renderer can express, and it is exactly the one `NodeEffects.resolveRenderedMesh`
@@ -99,9 +251,25 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // ponytail: quantize the strength in the key (or evict source meshes left with no instances)
     // if a continuous glow encoding ever shows up in a profile.
     "node.glowStrength": "mesh",
+    // The highlight is the selection halo: an overlay beside the node's mesh, keyed by the node's
+    // shape and the halo's own look, so it never mints a node source mesh. `Node.syncHalo` reads
+    // it on every paint, which is what lets a hover layer turn it on and off without a rebuild.
+    "node.halo": "content",
+    "node.haloColor": "content",
+    "node.haloScale": "content",
+    "node.haloOpacity": "content",
     "edge.width": "mesh",
+    "edge.minScreenWidth": "mesh",
+    "edge.fadeStart": "mesh",
+    "edge.fadeEnd": "mesh",
+    "edge.fadeOpacity": "mesh",
+    "edge.blending": "mesh",
     "edge.style": "mesh",
     "edge.patternCount": "mesh",
+    "edge.waveAmplitude": "mesh",
+    "edge.wavePeriod": "mesh",
+    "edge.dashLength": "mesh",
+    "edge.dashGap": "mesh",
     "edge.curvature": "mesh",
     "edge.animationSpeed": "mesh",
 
@@ -112,20 +280,71 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // the screen.
     "edge.arrowHead": "mesh",
     "edge.arrowHeadSize": "mesh",
+    "edge.arrowHeadWidth": "mesh",
+    "edge.arrowHeadSide": "mesh",
+    "edge.arrowHeadOutlineWidth": "mesh",
+    "edge.arrowHeadPosition": "mesh",
+    "edge.arrowHeadGap": "mesh",
+    "edge.arrowHeadStack": "mesh",
     "edge.arrowHeadColor": "mesh",
     "edge.arrowHeadOpacity": "mesh",
+    "edge.arrowHeadImage": "mesh",
     "edge.arrowTail": "mesh",
     "edge.arrowTailSize": "mesh",
+    "edge.arrowTailWidth": "mesh",
+    "edge.arrowTailSide": "mesh",
+    "edge.arrowTailOutlineWidth": "mesh",
+    "edge.arrowTailPosition": "mesh",
+    "edge.arrowTailGap": "mesh",
+    "edge.arrowTailStack": "mesh",
     "edge.arrowTailColor": "mesh",
     "edge.arrowTailOpacity": "mesh",
+    "edge.arrowTailImage": "mesh",
+    "edge.arrowMiddleHead": "mesh",
+    "edge.arrowMiddleHeadSize": "mesh",
+    "edge.arrowMiddleHeadWidth": "mesh",
+    "edge.arrowMiddleHeadSide": "mesh",
+    "edge.arrowMiddleHeadOutlineWidth": "mesh",
+    "edge.arrowMiddleHeadPosition": "mesh",
+    "edge.arrowMiddleHeadColor": "mesh",
+    "edge.arrowMiddleHeadOpacity": "mesh",
+    "edge.arrowMiddleHeadImage": "mesh",
+    "edge.arrowMiddleTail": "mesh",
+    "edge.arrowMiddleTailSize": "mesh",
+    "edge.arrowMiddleTailWidth": "mesh",
+    "edge.arrowMiddleTailSide": "mesh",
+    "edge.arrowMiddleTailOutlineWidth": "mesh",
+    "edge.arrowMiddleTailPosition": "mesh",
+    "edge.arrowMiddleTailColor": "mesh",
+    "edge.arrowMiddleTailOpacity": "mesh",
+    "edge.arrowMiddleTailImage": "mesh",
 
     // Per-instance state: one buffer write, and never a reason to build a second mesh.
     "node.color": "instance",
     "node.opacity": "instance",
     "edge.color": "instance",
     "edge.opacity": "instance",
+    // The outline is a batch of its own, keyed by its color, width and opacity.
+    "edge.outlineColor": "mesh",
+    "edge.outlineWidth": "mesh",
+    "edge.outlineOpacity": "mesh",
+    "edge.outlineStyle": "mesh",
+    "edge.underlayColor": "mesh",
+    "edge.underlayOpacity": "mesh",
+    "edge.underlayPadding": "mesh",
+    "edge.overlayColor": "mesh",
+    "edge.overlayOpacity": "mesh",
+    "edge.overlayPadding": "mesh",
+    // A gradient's pieces are batches of their own colors, built with the line.
+    "edge.gradientColors": "mesh",
+    "edge.gradientStops": "mesh",
+    "edge.gradientKind": "mesh",
 
-    // Drawn beside the mesh, and per element by nature.
+    // Drawn beside the mesh, and per element by nature: the halo is an overlay instance, the band
+    // its own line batch, each rebuilt by the paint that carries it.
+    "edge.bandColor": "content",
+    "edge.bandWidth": "content",
+    "edge.bandOpacity": "content",
     "node.label": "content",
     "node.labelStyle": "content",
     "node.tooltip": "content",
@@ -133,6 +352,104 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.marker": "content",
     "edge.label": "content",
     "edge.labelStyle": "content",
+    // A label field lands in its label style's column and is drawn with it.
+    "node.labelColor": "content",
+    "node.labelSize": "content",
+    "node.labelLetterSize": "content",
+    "node.labelFont": "content",
+    "node.labelWeight": "content",
+    "node.labelItalic": "content",
+    "node.labelWrapWidth": "content",
+    "node.labelWrapTrailingSpace": "content",
+    "node.labelWrapEllipsis": "content",
+    "node.labelWrapAnywhere": "content",
+    "node.labelWrapSpaceCount": "content",
+    "node.labelRunAlign": "content",
+    "node.labelMinScreenSize": "content",
+    "node.labelOnTop": "content",
+    "node.labelDeclutter": "content",
+    "node.labelMinNodeScreenSize": "content",
+    "node.labelTextAlign": "content",
+    "node.labelLocation": "content",
+    "node.labelRotation": "content",
+    "node.labelBackground": "content",
+    "node.labelOutline": "content",
+    "node.labelOutlineWidth": "content",
+    "node.labelBorder": "content",
+    "node.labelBorderWidth": "content",
+    "node.labelOpacity": "content",
+    "node.labelBackgroundOpacity": "content",
+    "node.labelOutlineOpacity": "content",
+    "node.labelBorderOpacity": "content",
+    "node.labelPadding": "content",
+    "node.labelCornerRadius": "content",
+    "node.labelLineHeight": "content",
+    "node.labelOffsetX": "content",
+    "node.labelOffsetY": "content",
+    "node.labelShiftX": "content",
+    "node.labelShiftY": "content",
+    "node.labelShiftOf": "content",
+    "node.labelGapOf": "content",
+    "node.labelBox": "content",
+    "edge.labelColor": "content",
+    "edge.labelSize": "content",
+    "edge.labelLetterSize": "content",
+    "edge.labelFont": "content",
+    "edge.labelWeight": "content",
+    "edge.labelItalic": "content",
+    "edge.labelTextAlign": "content",
+    "edge.labelLocation": "content",
+    "edge.labelWrapWidth": "content",
+    "edge.labelWrapTrailingSpace": "content",
+    "edge.labelWrapEllipsis": "content",
+    "edge.labelWrapAnywhere": "content",
+    "edge.labelWrapSpaceCount": "content",
+    "edge.labelRunAlign": "content",
+    "edge.labelMinScreenSize": "content",
+    "edge.labelOnTop": "content",
+    "edge.labelRotation": "content",
+    "edge.labelBackground": "content",
+    "edge.labelOutline": "content",
+    "edge.labelOutlineWidth": "content",
+    "edge.labelBorder": "content",
+    "edge.labelBorderWidth": "content",
+    "edge.labelOpacity": "content",
+    "edge.labelBackgroundOpacity": "content",
+    "edge.labelOutlineOpacity": "content",
+    "edge.labelBorderOpacity": "content",
+    "edge.labelPadding": "content",
+    "edge.labelTable": "content",
+    "edge.labelCornerRadius": "content",
+    "edge.labelLineHeight": "content",
+    "edge.labelOffsetX": "content",
+    "edge.labelOffsetY": "content",
+    "edge.labelShiftX": "content",
+    "edge.labelShiftY": "content",
+    "edge.labelShiftOf": "content",
+    "edge.labelGapOf": "content",
+    "edge.labelBox": "content",
+    // A route is per edge by nature, like a label: keyed into the mesh it would mint one line batch
+    // per edge. `Edge.syncContent` reads it on every paint instead.
+    "edge.bends": "content",
+    // Per edge like a route, and read by the same placement.
+    "edge.fanSpacing": "content",
+    "edge.fanned": "content",
+    "edge.bendCurve": "content",
+    "edge.arcRadius": "content",
+    "edge.supportModel": "content",
+    "edge.supportSpringLength": "content",
+    "edge.supportSpringConstant": "content",
+    "edge.supportRepulsion": "content",
+    "edge.supportCentralGravity": "content",
+    "edge.supportUnit": "content",
+    "edge.supportScale": "content",
+    "edge.route": "content",
+    "edge.arcHeight": "content",
+    "edge.nodeGap": "content",
+    "edge.sourceNodeGap": "content",
+    "edge.targetNodeGap": "content",
+    "edge.sourcePort": "content",
+    "edge.targetPort": "content",
 
     // A caption at the end of an arrow is drawn beside the cap, not by it: it is a
     // `RichTextLabel` on its own plane, and `Edge.syncContent` compares and rebuilds it on every
@@ -142,8 +459,63 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // about the line or the cap.
     "edge.arrowHeadText": "content",
     "edge.arrowHeadTextStyle": "content",
+    "edge.arrowHeadTextSize": "content",
+    "edge.arrowHeadTextLetterSize": "content",
+    "edge.arrowHeadTextFont": "content",
+    "edge.arrowHeadTextColor": "content",
+    "edge.arrowHeadTextWeight": "content",
+    "edge.arrowHeadTextOpacity": "content",
+    "edge.arrowHeadTextDistance": "content",
+    "edge.arrowHeadTextRotation": "content",
+    "edge.arrowHeadTextOffsetX": "content",
+    "edge.arrowHeadTextOffsetY": "content",
     "edge.arrowTailText": "content",
     "edge.arrowTailTextStyle": "content",
+    "edge.arrowTailTextSize": "content",
+    "edge.arrowTailTextLetterSize": "content",
+    "edge.arrowTailTextFont": "content",
+    "edge.arrowTailTextColor": "content",
+    "edge.arrowTailTextWeight": "content",
+    "edge.arrowTailTextOpacity": "content",
+    "edge.arrowTailTextDistance": "content",
+    "edge.arrowTailTextRotation": "content",
+    "edge.arrowTailTextOffsetX": "content",
+    "edge.arrowTailTextOffsetY": "content",
+    // A text's size, colour and background are fields of the same rich-text block its style
+    // writes, rebuilt by the same content sync.
+    "node.tooltipSize": "content",
+    "node.tooltipColor": "content",
+    "node.tooltipBackground": "content",
+    "edge.arrowHeadTextBackground": "content",
+    "edge.arrowTailTextBackground": "content",
+
+    // Whether the element is drawn at all: switched on the meshes it already has, never a
+    // different mesh (`Node.applyInstancePaint`, `Edge.paintMarked`).
+    "node.visible": "instance",
+    "edge.visible": "instance",
+
+    // Drawn beside the node's own mesh by the shader batches (design/rendering/shader-styles.md
+    // section 5), which read them on every paint, so none of them mints a source mesh: a shader
+    // written to a node already on screen rebuilds nothing, and binding a varying parameter on
+    // 10,000 nodes keeps one source mesh. A mesh-path surface that needs its own program is the
+    // drawing package's to key when it lands.
+    "node.shaders": "content",
+    "edge.shaders": "content",
+    // Per edge by nature, like the bends: a taper is drawn from the line batch's per-slot static
+    // attributes and a lift is the route, so neither keys a line batch (Edge.syncShading).
+    "edge.taper": "content",
+    "edge.lift": "content",
+    // A second label, drawn beside the node by the label renderer like the first.
+    "node.xlabel": "content",
+    "node.xlabelStyle": "content",
+    "node.xlabelLocation": "content",
+    "node.xlabelOffsetX": "content",
+    "node.xlabelOffsetY": "content",
+    "edge.xlabel": "content",
+    "edge.xlabelStyle": "content",
+    "edge.xlabelLocation": "content",
+    "edge.xlabelOffsetX": "content",
+    "edge.xlabelOffsetY": "content",
 });
 
 /**
@@ -193,10 +565,10 @@ export function meshChannelsFor(target: "node" | "edge"): readonly Channel[] {
 // ---------------------------------------------------------------------------------------------
 
 /** The 32-bit FNV-1a offset basis, which is where every sequence's fold starts. */
-const HASH_SEED = 0x811c_9dc5;
+const HASH_SEED = 0x81_1c_9d_c5;
 
 /** The 32-bit FNV-1a prime, which is what each pushed value is folded in with. */
-const HASH_PRIME = 0x0100_0193;
+const HASH_PRIME = 0x01_00_01_93;
 
 /** The value an absent channel contributes. */
 const ABSENT_TOKEN = 0;
@@ -256,7 +628,7 @@ const INT_VIEW = new Int32Array(FLOAT_BITS);
  */
 function finish(hash: number): number {
     let mixed = hash ^ (hash >>> 16);
-    mixed = Math.imul(mixed, 0x85eb_ca6b);
+    mixed = Math.imul(mixed, 0x85_eb_ca_6b);
     mixed ^= mixed >>> 13;
 
     return mixed | 0;
@@ -332,6 +704,14 @@ export interface StyleInterner<T> {
      */
     get(key: number): T | undefined;
 }
+
+/**
+ * Invocation counts the counted-work tests read: `comparisons` is held sequences compared with the
+ * one being looked up. A hash compares a new style with the few filed under its hash, so the count
+ * per lookup stays flat however many styles are held; a scan would compare it with every one.
+ * Internal; never reset here.
+ */
+export const internCounters = { comparisons: 0 };
 
 /**
  * Build an interner.
@@ -445,6 +825,8 @@ export function createStyleInterner<T>(): StyleInterner<T> {
      * @returns True when they hold the same values in the same order.
      */
     const matches = (slot: number): boolean => {
+        internCounters.comparisons++;
+
         if (lengths[slot] !== length) {
             return false;
         }

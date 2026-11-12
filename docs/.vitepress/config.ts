@@ -1,6 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { defineConfig } from "vitepress";
+import { fileURLToPath } from "node:url";
+import { type DefaultTheme, defineConfig, type HeadConfig } from "vitepress";
 import { loadEnv } from "vite";
+import { FAVICON_PACKAGES, packageOf } from "./theme/package-brand";
 
 // Load environment variables from .env
 const env = loadEnv("development", process.cwd(), "");
@@ -9,7 +11,11 @@ const env = loadEnv("development", process.cwd(), "");
 function loadTypedocSidebar(path: string): Array<{ text: string; link: string }> {
     // a file that is missing, or empty because a TypeDoc run was interrupted, gives no sidebar
     const text = existsSync(path) ? readFileSync(path, "utf-8").trim() : "";
-    return text === "" ? [] : JSON.parse(text);
+    const sidebar = text === "" ? [] : JSON.parse(text);
+    // DOCS_API_SIDEBARS=off (a pull request's Docs check, whose site nobody publishes) still parses the file
+    // and renders every page, but without the API sidebars: each holds up to ~1,500 entries that VitePress
+    // renders again on every one of ~2,500 pages, which is most of the "rendering pages" time.
+    return process.env.DOCS_API_SIDEBARS === "off" ? [] : sidebar;
 }
 
 const graphtyTypedoc = loadTypedocSidebar("./docs/graphty-element/api/generated/typedoc-sidebar.json");
@@ -34,8 +40,67 @@ function graphIoFormatPages(): Array<{ text: string; link: string }> {
         }));
 }
 
-export default defineConfig({
+// Every page carries its sidebar in its own HTML, and a package's API sidebar lists up to ~1,500 pages. Rendered on
+// each of ~2,500 pages, that made the published site 2.8 GB, which GitHub Pages took over 10 minutes to sync (#6498).
+// So a page under one API module gets a sidebar where only that module lists its members, and every other page gets
+// one that lists the modules alone; each module's own page lists all of its members.
+type Sidebar = Record<string, DefaultTheme.SidebarItem[]>;
+
+function apiLinks(item: DefaultTheme.SidebarItem): string[] {
+    const own = item.link === undefined ? [] : [item.link.replace(/^(\/\.\.)*\/docs\//, "/")];
+    return [...own, ...(item.items ?? []).flatMap(apiLinks)];
+}
+
+// the directory every link of a module shares, as a sidebar key: /graphty-element/api/generated/ai/
+function moduleKey(module: DefaultTheme.SidebarItem): string {
+    const dirs = apiLinks(module).map((link) => link.slice(0, link.lastIndexOf("/") + 1));
+    return dirs.reduce((common, dir) => {
+        while (!dir.startsWith(common)) {
+            common = common.slice(0, common.lastIndexOf("/", common.length - 2) + 1);
+        }
+        return common;
+    });
+}
+
+function splitApiSidebars(sidebar: Sidebar, apis: DefaultTheme.SidebarItem[][]): Sidebar {
+    const split: Sidebar = {};
+    const withApi = (
+        sections: DefaultTheme.SidebarItem[],
+        open?: DefaultTheme.SidebarItem,
+    ): DefaultTheme.SidebarItem[] =>
+        sections.map((section) =>
+            section.items !== undefined && apis.includes(section.items)
+                ? {
+                      ...section,
+                      items: section.items.map((module) =>
+                          module === open ? module : { ...module, items: undefined },
+                      ),
+                  }
+                : section,
+        );
+    for (const [key, sections] of Object.entries(sidebar)) {
+        split[key] = withApi(sections);
+        const api = sections.find((section) => section.items !== undefined && apis.includes(section.items));
+        for (const module of api?.items ?? []) {
+            if (module.items !== undefined && module.items.length > 0) {
+                split[moduleKey(module)] = withApi(sections, module);
+            }
+        }
+    }
+    return split;
+}
+
+const config = defineConfig({
     vite: {
+        resolve: {
+            // the nav bar shows the lockup of the package a page documents (theme/NavBarTitle.vue)
+            alias: [
+                {
+                    find: /^.*\/VPNavBarTitle\.vue$/,
+                    replacement: fileURLToPath(new URL("./theme/NavBarTitle.vue", import.meta.url)),
+                },
+            ],
+        },
         server: {
             host: env.HOST || true,
             https:
@@ -48,9 +113,42 @@ export default defineConfig({
         },
     },
 
-    title: "Graphty",
+    title: "graphty",
     description: "Modular graph visualization ecosystem",
     base: "/docs/",
+    // the site data (with every sidebar) and the page hash map load once as a script, not inline in every page
+    metaChunk: true,
+
+    // head hrefs are not rewritten by `base`, so they carry /docs/ themselves
+    head: [
+        ["meta", { name: "theme-color", media: "(prefers-color-scheme: light)", content: "#ffffff" }],
+        ["meta", { name: "theme-color", media: "(prefers-color-scheme: dark)", content: "#14161f" }],
+        ["meta", { property: "og:type", content: "website" }],
+        ["meta", { property: "og:site_name", content: "graphty" }],
+        ["meta", { property: "og:title", content: "graphty documentation" }],
+        ["meta", { property: "og:description", content: "Modular graph visualization ecosystem" }],
+        ["meta", { name: "twitter:card", content: "summary_large_image" }],
+    ],
+
+    // Each page gets the favicon of the package it documents (the graphty favicon while the package has none of its
+    // own), and pages about graphty as a whole get the graphty link-preview image. A package page has no
+    // link-preview image until the package has one of its own.
+    transformPageData(pageData) {
+        const pkg = packageOf(pageData.relativePath);
+        const dir = pkg !== undefined && FAVICON_PACKAGES.includes(pkg) ? `/docs/brand/${pkg}` : "/docs";
+        const head: HeadConfig[] = [
+            ["link", { rel: "icon", href: `${dir}/favicon.ico`, sizes: "48x48" }],
+            ["link", { rel: "icon", href: `${dir}/favicon.svg`, type: "image/svg+xml" }],
+        ];
+        if (pkg === undefined) {
+            const image = "https://graphty.app/docs/open-graph-1200x630.png";
+            head.push(
+                ["meta", { property: "og:image", content: image }],
+                ["meta", { name: "twitter:image", content: image }],
+            );
+        }
+        pageData.frontmatter.head = [...(pageData.frontmatter.head ?? []), ...head];
+    },
 
     vue: {
         template: {
@@ -61,6 +159,13 @@ export default defineConfig({
     },
 
     themeConfig: {
+        // the lockup already spells the name, so the typed site title is hidden
+        logo: {
+            light: "/brand/graphty-lockup-color-on-light.svg",
+            dark: "/brand/graphty-lockup-color-on-dark.svg",
+            alt: "graphty",
+        },
+        siteTitle: false,
         nav: [
             { text: "Home", link: "/" },
             {
@@ -68,7 +173,7 @@ export default defineConfig({
                 items: [
                     { text: "graphty-element", link: "/graphty-element/" },
                     { text: "algorithms", link: "/algorithms/" },
-                    { text: "layout", link: "/layout/api/generated/" },
+                    { text: "layout", link: "/layout/" },
                     { text: "cytoscape-extensions", link: "/cytoscape-extensions/" },
                     { text: "graph-io", link: "/graph-io/" },
                     { text: "visual-review", link: "/visual-review/" },
@@ -83,7 +188,7 @@ export default defineConfig({
                     items: [
                         { text: "graphty-element", link: "/graphty-element/" },
                         { text: "algorithms", link: "/algorithms/" },
-                        { text: "layout", link: "/layout/api/generated/" },
+                        { text: "layout", link: "/layout/" },
                         { text: "cytoscape-extensions", link: "/cytoscape-extensions/" },
                         { text: "graph-io", link: "/graph-io/" },
                         { text: "visual-review", link: "/visual-review/" },
@@ -120,17 +225,25 @@ export default defineConfig({
                         { text: "JavaScript API", link: "/graphty-element/guide/javascript-api" },
                         { text: "Styling", link: "/graphty-element/guide/styling" },
                         { text: "Coloring by a Column", link: "/graphty-element/guide/column-encoding" },
+                        { text: "Styles from Files", link: "/graphty-element/guide/file-styles" },
                         { text: "Style Helpers & Palettes", link: "/graphty-element/guide/style-helpers" },
                         { text: "Layouts", link: "/graphty-element/guide/layouts" },
+                        { text: "Graphviz Layouts", link: "/graphty-element/guide/graphviz-layouts" },
                         { text: "Acceleration", link: "/graphty-element/guide/acceleration" },
                         { text: "Algorithms", link: "/graphty-element/guide/algorithms" },
                         { text: "Data Sources", link: "/graphty-element/guide/data-sources" },
+                        { text: "Network Sources", link: "/graphty-element/guide/network-sources" },
                         { text: "Events", link: "/graphty-element/guide/events" },
                         { text: "Columns, Runs & Progress", link: "/graphty-element/guide/vocabulary" },
                         { text: "Undo & History", link: "/graphty-element/guide/undo" },
                         { text: "Camera", link: "/graphty-element/guide/camera" },
                         { text: "Screenshots & Video", link: "/graphty-element/guide/screenshots" },
                         { text: "VR/AR", link: "/graphty-element/guide/vr-ar" },
+                        { text: "AI Assistant", link: "/graphty-element/guide/ai-assistant" },
+                        {
+                            text: "The Conversation Format",
+                            link: "/graphty-element/guide/ai-conversation-format",
+                        },
                     ],
                 },
                 {
@@ -139,6 +252,7 @@ export default defineConfig({
                         { text: "Custom Layouts", link: "/graphty-element/guide/extending/custom-layouts" },
                         { text: "Custom Algorithms", link: "/graphty-element/guide/extending/custom-algorithms" },
                         { text: "Custom Data Sources", link: "/graphty-element/guide/extending/custom-data-sources" },
+                        { text: "Writing Shaders", link: "/graphty-element/guide/shaders" },
                     ],
                 },
                 {
@@ -206,10 +320,14 @@ export default defineConfig({
                     text: "Using graph-io",
                     items: [
                         { text: "Loading graphs", link: "/graph-io/guide/loading" },
+                        { text: "Loading from a service", link: "/graph-io/guide/loading-from-a-service" },
+                        { text: "Cypher: Neo4j and Neptune", link: "/graph-io/guide/sources/cypher" },
                         { text: "Reading the graph", link: "/graph-io/guide/reading" },
                         { text: "Saving graphs", link: "/graph-io/guide/saving" },
+                        { text: "Styles", link: "/graph-io/guide/styles" },
                         { text: "The import report and errors", link: "/graph-io/guide/report" },
                         { text: "Format detection", link: "/graph-io/guide/detection" },
+                        { text: "Reading stored positions", link: "/graph-io/guide/positions" },
                         { text: "Options reference", link: "/graph-io/guide/options" },
                     ],
                 },
@@ -222,6 +340,7 @@ export default defineConfig({
                     items: [
                         { text: "Writing a format plugin", link: "/graph-io/guide/extending/new-format" },
                         { text: "Extending an existing format", link: "/graph-io/guide/extending/existing-format" },
+                        { text: "Writing a source", link: "/graph-io/guide/writing-a-source" },
                     ],
                 },
                 {
@@ -234,12 +353,40 @@ export default defineConfig({
                     items: graphIoTypedoc,
                 },
             ],
-            // layout has no guide pages yet (there is no layout/docs/): its section is the
-            // generated TypeDoc reference alone.
             "/layout/": [
                 {
+                    text: "Introduction",
+                    items: [
+                        { text: "Overview", link: "/layout/" },
+                        { text: "Getting Started", link: "/layout/guide/getting-started" },
+                        { text: "Installation", link: "/layout/guide/installation" },
+                    ],
+                },
+                {
+                    text: "Core Concepts",
+                    items: [
+                        { text: "Results and Options", link: "/layout/guide/results" },
+                        { text: "2D and 3D", link: "/layout/guide/dimensions" },
+                    ],
+                },
+                {
+                    text: "Layouts",
+                    items: [
+                        { text: "Geometric", link: "/layout/guide/geometric" },
+                        { text: "Structural", link: "/layout/guide/structural" },
+                        { text: "Force-Directed and Spectral", link: "/layout/guide/force-directed" },
+                        { text: "Steppable Simulations", link: "/layout/guide/simulations" },
+                        { text: "Performance", link: "/layout/guide/performance" },
+                    ],
+                },
+                {
                     text: "API",
-                    items: [{ text: "Overview", link: "/layout/api/generated/" }, ...layoutTypedoc],
+                    items: [{ text: "Overview", link: "/layout/api/" }],
+                },
+                {
+                    text: "Generated TypeDoc",
+                    collapsed: true,
+                    items: layoutTypedoc,
                 },
             ],
             "/cytoscape-extensions/": [
@@ -310,3 +457,13 @@ export default defineConfig({
         },
     },
 });
+
+config.themeConfig!.sidebar = splitApiSidebars(config.themeConfig!.sidebar as Sidebar, [
+    graphtyTypedoc,
+    algorithmsTypedoc,
+    layoutTypedoc,
+    cytoscapeTypedoc,
+    graphIoTypedoc,
+]);
+
+export default config;

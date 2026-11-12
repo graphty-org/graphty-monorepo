@@ -1,0 +1,682 @@
+{
+    "madeBy": "@graphty/graphty-element 3.31.0 (source at dff9b04575)",
+    "commands": [
+        {
+            "op": "visibility.steps",
+            "steps": [
+                {
+                    "id": "keep-hosts",
+                    "on": false,
+                    "rule": {
+                        "kind": "categories",
+                        "attribute": "data.type",
+                        "values": ["host"]
+                    }
+                }
+            ]
+        },
+        {
+            "op": "visibility.steps",
+            "steps": [
+                {
+                    "id": "keep-hosts",
+                    "on": false,
+                    "rule": {
+                        "kind": "categories",
+                        "attribute": "data.type",
+                        "values": ["host"]
+                    }
+                },
+                {
+                    "id": "keep-two",
+                    "on": true,
+                    "rule": {
+                        "kind": "all",
+                        "of": [
+                            {
+                                "kind": "range",
+                                "attribute": "data.score",
+                                "min": 0.1
+                            },
+                            {
+                                "kind": "text",
+                                "reads": "data.type",
+                                "mode": "substring",
+                                "text": "s"
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+        {
+            "op": "visibility.steps",
+            "steps": [
+                {
+                    "id": "keep-hosts",
+                    "on": false,
+                    "rule": {
+                        "kind": "categories",
+                        "attribute": "data.type",
+                        "values": ["host"]
+                    }
+                },
+                {
+                    "id": "keep-two",
+                    "on": true,
+                    "rule": {
+                        "kind": "all",
+                        "of": [
+                            {
+                                "kind": "range",
+                                "attribute": "data.score",
+                                "min": 0.1
+                            },
+                            {
+                                "kind": "text",
+                                "reads": "data.type",
+                                "mode": "substring",
+                                "text": "s"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "hide-two",
+                    "on": true,
+                    "rule": {
+                        "kind": "not",
+                        "of": {
+                            "kind": "all",
+                            "of": [
+                                {
+                                    "kind": "categories",
+                                    "attribute": "data.type",
+                                    "values": ["service"]
+                                },
+                                {
+                                    "kind": "range",
+                                    "attribute": "data.score",
+                                    "max": 0.15
+                                }
+                            ]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "op": "visibility.steps",
+            "steps": [
+                {
+                    "id": "keep-hosts",
+                    "on": false,
+                    "rule": {
+                        "kind": "categories",
+                        "attribute": "data.type",
+                        "values": ["host"]
+                    }
+                },
+                {
+                    "id": "keep-two",
+                    "on": true,
+                    "rule": {
+                        "kind": "all",
+                        "of": [
+                            {
+                                "kind": "range",
+                                "attribute": "data.score",
+                                "min": 0.1
+                            },
+                            {
+                                "kind": "text",
+                                "reads": "data.type",
+                                "mode": "substring",
+                                "text": "s"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "hide-two",
+                    "on": true,
+                    "rule": {
+                        "kind": "not",
+                        "of": {
+                            "kind": "all",
+                            "of": [
+                                {
+                                    "kind": "categories",
+                                    "attribute": "data.type",
+                                    "values": ["service"]
+                                },
+                                {
+                                    "kind": "range",
+                                    "attribute": "data.score",
+                                    "max": 0.15
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "hide-heavy",
+                    "on": false,
+                    "rule": {
+                        "kind": "not",
+                        "of": {
+                            "kind": "range",
+                            "attribute": "data.weight",
+                            "min": 6,
+                            "nodes": "ends"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "op": "visibility.steps",
+            "steps": [
+                {
+                    "id": "keep-hosts",
+                    "on": false,
+                    "rule": {
+                        "kind": "categories",
+                        "attribute": "data.type",
+                        "values": ["host"]
+                    }
+                },
+                {
+                    "id": "keep-two",
+                    "on": true,
+                    "rule": {
+                        "kind": "all",
+                        "of": [
+                            {
+                                "kind": "range",
+                                "attribute": "data.score",
+                                "min": 0.1
+                            },
+                            {
+                                "kind": "text",
+                                "reads": "data.type",
+                                "mode": "substring",
+                                "text": "s"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "hide-two",
+                    "on": true,
+                    "rule": {
+                        "kind": "not",
+                        "of": {
+                            "kind": "all",
+                            "of": [
+                                {
+                                    "kind": "categories",
+                                    "attribute": "data.type",
+                                    "values": ["service"]
+                                },
+                                {
+                                    "kind": "range",
+                                    "attribute": "data.score",
+                                    "max": 0.15
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "hide-heavy",
+                    "on": false,
+                    "rule": {
+                        "kind": "not",
+                        "of": {
+                            "kind": "range",
+                            "attribute": "data.weight",
+                            "min": 6,
+                            "nodes": "ends"
+                        }
+                    }
+                },
+                {
+                    "id": "keep-edges",
+                    "on": true,
+                    "rule": {
+                        "kind": "range",
+                        "attribute": "data.weight",
+                        "min": 2,
+                        "nodes": "ends"
+                    }
+                }
+            ]
+        },
+        {
+            "op": "visibility.steps",
+            "steps": [
+                {
+                    "id": "keep-hosts",
+                    "on": false,
+                    "rule": {
+                        "kind": "categories",
+                        "attribute": "data.type",
+                        "values": ["host"]
+                    }
+                },
+                {
+                    "id": "keep-two",
+                    "on": true,
+                    "rule": {
+                        "kind": "all",
+                        "of": [
+                            {
+                                "kind": "range",
+                                "attribute": "data.score",
+                                "min": 0.1
+                            },
+                            {
+                                "kind": "text",
+                                "reads": "data.type",
+                                "mode": "substring",
+                                "text": "s"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "hide-two",
+                    "on": true,
+                    "rule": {
+                        "kind": "not",
+                        "of": {
+                            "kind": "all",
+                            "of": [
+                                {
+                                    "kind": "categories",
+                                    "attribute": "data.type",
+                                    "values": ["service"]
+                                },
+                                {
+                                    "kind": "range",
+                                    "attribute": "data.score",
+                                    "max": 0.15
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "hide-heavy",
+                    "on": false,
+                    "rule": {
+                        "kind": "not",
+                        "of": {
+                            "kind": "range",
+                            "attribute": "data.weight",
+                            "min": 6,
+                            "nodes": "ends"
+                        }
+                    }
+                },
+                {
+                    "id": "keep-edges",
+                    "on": true,
+                    "rule": {
+                        "kind": "range",
+                        "attribute": "data.weight",
+                        "min": 2,
+                        "nodes": "ends"
+                    }
+                },
+                {
+                    "id": "no-email",
+                    "on": false,
+                    "rule": {
+                        "kind": "not",
+                        "of": {
+                            "kind": "text",
+                            "reads": "data.email",
+                            "mode": "regex",
+                            "text": ""
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "op": "visibility.steps",
+            "steps": [
+                {
+                    "id": "keep-hosts",
+                    "on": false,
+                    "rule": {
+                        "kind": "categories",
+                        "attribute": "data.type",
+                        "values": ["host"]
+                    }
+                },
+                {
+                    "id": "keep-two",
+                    "on": true,
+                    "rule": {
+                        "kind": "all",
+                        "of": [
+                            {
+                                "kind": "range",
+                                "attribute": "data.score",
+                                "min": 0.1
+                            },
+                            {
+                                "kind": "text",
+                                "reads": "data.type",
+                                "mode": "substring",
+                                "text": "s"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "hide-two",
+                    "on": true,
+                    "rule": {
+                        "kind": "not",
+                        "of": {
+                            "kind": "all",
+                            "of": [
+                                {
+                                    "kind": "categories",
+                                    "attribute": "data.type",
+                                    "values": ["service"]
+                                },
+                                {
+                                    "kind": "range",
+                                    "attribute": "data.score",
+                                    "max": 0.15
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "hide-heavy",
+                    "on": false,
+                    "rule": {
+                        "kind": "not",
+                        "of": {
+                            "kind": "range",
+                            "attribute": "data.weight",
+                            "min": 6,
+                            "nodes": "ends"
+                        }
+                    }
+                },
+                {
+                    "id": "keep-edges",
+                    "on": true,
+                    "rule": {
+                        "kind": "range",
+                        "attribute": "data.weight",
+                        "min": 2,
+                        "nodes": "ends"
+                    }
+                },
+                {
+                    "id": "no-email",
+                    "on": false,
+                    "rule": {
+                        "kind": "not",
+                        "of": {
+                            "kind": "text",
+                            "reads": "data.email",
+                            "mode": "regex",
+                            "text": ""
+                        }
+                    }
+                },
+                {
+                    "id": "largest",
+                    "on": true,
+                    "rule": {
+                        "kind": "member",
+                        "of": "largest-component"
+                    }
+                }
+            ]
+        },
+        {
+            "op": "visibility.steps",
+            "steps": [
+                {
+                    "id": "keep-hosts",
+                    "on": false,
+                    "rule": {
+                        "kind": "categories",
+                        "attribute": "data.type",
+                        "values": ["host"]
+                    }
+                },
+                {
+                    "id": "keep-two",
+                    "on": true,
+                    "rule": {
+                        "kind": "all",
+                        "of": [
+                            {
+                                "kind": "range",
+                                "attribute": "data.score",
+                                "min": 0.1
+                            },
+                            {
+                                "kind": "text",
+                                "reads": "data.type",
+                                "mode": "substring",
+                                "text": "s"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "hide-two",
+                    "on": true,
+                    "rule": {
+                        "kind": "not",
+                        "of": {
+                            "kind": "all",
+                            "of": [
+                                {
+                                    "kind": "categories",
+                                    "attribute": "data.type",
+                                    "values": ["service"]
+                                },
+                                {
+                                    "kind": "range",
+                                    "attribute": "data.score",
+                                    "max": 0.15
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "hide-heavy",
+                    "on": false,
+                    "rule": {
+                        "kind": "not",
+                        "of": {
+                            "kind": "range",
+                            "attribute": "data.weight",
+                            "min": 6,
+                            "nodes": "ends"
+                        }
+                    }
+                },
+                {
+                    "id": "keep-edges",
+                    "on": true,
+                    "rule": {
+                        "kind": "range",
+                        "attribute": "data.weight",
+                        "min": 2,
+                        "nodes": "ends"
+                    }
+                },
+                {
+                    "id": "no-email",
+                    "on": false,
+                    "rule": {
+                        "kind": "not",
+                        "of": {
+                            "kind": "text",
+                            "reads": "data.email",
+                            "mode": "regex",
+                            "text": ""
+                        }
+                    }
+                },
+                {
+                    "id": "largest",
+                    "on": true,
+                    "rule": {
+                        "kind": "member",
+                        "of": "largest-component"
+                    }
+                },
+                {
+                    "id": "near-a",
+                    "on": true,
+                    "rule": {
+                        "kind": "neighborhood",
+                        "seeds": ["a"],
+                        "depth": 3
+                    }
+                }
+            ]
+        },
+        {
+            "op": "visibility.steps",
+            "steps": [
+                {
+                    "id": "keep-hosts",
+                    "on": false,
+                    "rule": {
+                        "kind": "categories",
+                        "attribute": "data.type",
+                        "values": ["host"]
+                    }
+                },
+                {
+                    "id": "keep-two",
+                    "on": true,
+                    "rule": {
+                        "kind": "all",
+                        "of": [
+                            {
+                                "kind": "range",
+                                "attribute": "data.score",
+                                "min": 0.1
+                            },
+                            {
+                                "kind": "text",
+                                "reads": "data.type",
+                                "mode": "substring",
+                                "text": "s"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "id": "hide-two",
+                    "on": true,
+                    "rule": {
+                        "kind": "not",
+                        "of": {
+                            "kind": "all",
+                            "of": [
+                                {
+                                    "kind": "categories",
+                                    "attribute": "data.type",
+                                    "values": ["service"]
+                                },
+                                {
+                                    "kind": "range",
+                                    "attribute": "data.score",
+                                    "max": 0.15
+                                }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "hide-heavy",
+                    "on": false,
+                    "rule": {
+                        "kind": "not",
+                        "of": {
+                            "kind": "range",
+                            "attribute": "data.weight",
+                            "min": 6,
+                            "nodes": "ends"
+                        }
+                    }
+                },
+                {
+                    "id": "keep-edges",
+                    "on": true,
+                    "rule": {
+                        "kind": "range",
+                        "attribute": "data.weight",
+                        "min": 2,
+                        "nodes": "ends"
+                    }
+                },
+                {
+                    "id": "no-email",
+                    "on": false,
+                    "rule": {
+                        "kind": "not",
+                        "of": {
+                            "kind": "text",
+                            "reads": "data.email",
+                            "mode": "regex",
+                            "text": ""
+                        }
+                    }
+                },
+                {
+                    "id": "largest",
+                    "on": true,
+                    "rule": {
+                        "kind": "member",
+                        "of": "largest-component"
+                    }
+                },
+                {
+                    "id": "near-a",
+                    "on": true,
+                    "rule": {
+                        "kind": "neighborhood",
+                        "seeds": ["a"],
+                        "depth": 3
+                    }
+                },
+                {
+                    "id": "missing",
+                    "on": false,
+                    "rule": {
+                        "kind": "range",
+                        "attribute": "data.nothing",
+                        "min": 1
+                    }
+                }
+            ]
+        },
+        {
+            "op": "visibility.playback",
+            "playback": {
+                "mode": "cumulative"
+            }
+        }
+    ]
+}

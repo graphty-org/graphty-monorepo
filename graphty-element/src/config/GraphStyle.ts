@@ -1,24 +1,56 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { ColorStyle, ImageData } from "./common";
 import { DEFAULT_VIEW_MODE } from "./ViewMode";
 
+/** A shader parameter name: a GLSL identifier with no `__`, so no key reaches a prototype. */
+const SHADER_PARAM_NAME = /^(?!.*__)[A-Za-z]\w{0,63}$/;
+
+/**
+ * The colour the element clears its canvas to when no background is set: whitesmoke. What a
+ * background field shows when the project names none, and what clearing it returns to.
+ * @since 3.26.0
+ */
+export const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
+
+/** A background shader drawn over the colour and the image: its id and its parameters. */
+const GraphBackgroundShaderLook = z.strictObject({
+    /** A background shader id: a preset (`"nebula"`), a registered or a pasted shader. */
+    id: z.string().min(1).max(81),
+    /** Its parameters, by the names its catalog entry declares. */
+    params: z
+        .record(z.string().regex(SHADER_PARAM_NAME), z.union([z.number(), z.string().max(64), z.boolean()]))
+        .optional(),
+});
+
 const GraphBackgroundColor = z.strictObject({
     backgroundType: z.literal("color"),
-    color: ColorStyle,
+    /** Absent, the element draws {@link DEFAULT_BACKGROUND_COLOR}. */
+    color: ColorStyle.optional(),
+    /** A shader drawn over the colour; where its alpha is low, the colour shows. @since 3.36.0 */
+    shader: GraphBackgroundShaderLook.optional(),
 });
 
 const GraphBackgroundSkybox = z.strictObject({
     backgroundType: z.literal("skybox"),
     data: ImageData,
+    /** Drawn while the image loads, and wherever it is transparent. @since 3.36.0 */
+    color: ColorStyle.optional(),
+    /** A shader drawn over the image; where its alpha is low, the image shows. @since 3.36.0 */
+    shader: GraphBackgroundShaderLook.optional(),
 });
 
 /**
- * What the graph is drawn against: a flat colour, or a photo-dome skybox built from an image.
+ * What the graph is drawn against, bottom to top: a flat colour, a photo-dome skybox built from an
+ * image, and a background shader.
  *
  * The colour accepts any CSS colour the element understands and is normalised to hex on parse;
- * the skybox's `data` is an image URL or a base64 PNG. It is the shape `element.background` and
- * `graph.setBackground()` take.
+ * absent, the element draws {@link DEFAULT_BACKGROUND_COLOR} (`session.config.backgroundColor`
+ * reports the colour drawn). The skybox's `data` is an image URL or a base64 PNG. Either member
+ * may carry a `shader`, drawn over the colour or the image behind every node and label at 30
+ * frames a second or fewer: `{ backgroundType: "color", color: "#000", shader: { id: "nebula" } }`.
+ * Where the shader's alpha is low, what is beneath it shows. It is the shape
+ * `element.background` and `graph.setBackground()` take.
  */
 export const GraphBackground = z.discriminatedUnion("backgroundType", [GraphBackgroundColor, GraphBackgroundSkybox]);
 
@@ -51,6 +83,28 @@ const GraphSelectionStyle = z.strictObject({
     scale: z.number().positive().default(1.45),
     /** How solid the halo is, in `[0, 1]`. Low enough to read as a highlight rather than a node. */
     opacity: z.number().min(0).max(1).default(0.4),
+    /**
+     * The colour of the band a selected EDGE is drawn with. Any colour the element understands;
+     * normalised to hex on parse.
+     *
+     * An edge has its own three settings because the node halo's do not carry over: a pale,
+     * see-through ring reads around a ball, but the same band beside a one-pixel line vanished
+     * on a dense drawing, and gold sat inside the default measurement palette's oranges. The
+     * default, Paul Tol's vibrant blue, stands 4.4:1 off the default background and is apart from
+     * the default edge grey, every colour of the default measurement palette and the element's
+     * own highlight for every kind of colour vision (`test/catalog/default-palette-quality.test.ts`).
+     */
+    edgeColor: ColorStyle.default("#0077BB"),
+    /**
+     * How wide a selected edge's band is, as a multiple of twice the line's own width: the
+     * default 2.5 draws a band five lines wide, so two line widths of it show on each side.
+     */
+    edgeScale: z.number().positive().default(2.5),
+    /**
+     * How solid a selected edge's band is, in `[0, 1]`. The band is drawn BEHIND the line, so the
+     * line keeps its own paint down the middle whatever this is; solid by default.
+     */
+    edgeOpacity: z.number().min(0).max(1).default(1),
 });
 
 /** What a selected node looks like, as it parses. See {@link GraphSelectionStyleOpts}. */
@@ -77,6 +131,42 @@ export const DEFAULT_SELECTION_STYLE: GraphSelectionStyleConfig = GraphSelection
  */
 const ViewModeSchema = z.enum(["2d", "3d", "ar", "vr"]);
 
+/**
+ * The colour a background draws: its own, else {@link DEFAULT_BACKGROUND_COLOR}.
+ * @param background - The background.
+ * @returns The colour, hex.
+ * @internal
+ */
+export function backgroundColorOf(background: GraphBackgroundConfig): string {
+    return background.color ?? DEFAULT_BACKGROUND_COLOR;
+}
+
+/**
+ * How nodes travel to a new layout: a transition from `catalog.transitions()`, how long it takes,
+ * and its parameters. Absent, a new layout's positions are drawn in one frame.
+ * @since 3.36.0
+ */
+export const LayoutTransition = z.strictObject({
+    /** A transition id: a preset (`"glide"`) or a registered one (`"my/drop"`). */
+    transition: z.string().min(1).max(81),
+    /** How long the move takes, in seconds. Default 0.8. */
+    seconds: z.number().min(0).max(30).optional(),
+    /**
+     * Hold the move at this point of the way, 0 (where the nodes were) to 1 (where the layout puts
+     * them), instead of running it: the nodes stay drawn there and the picture is final, so
+     * `waitForStableFrame()` resolves on it. Clear it and the move runs on from there. Unset by
+     * default.
+     */
+    hold: z.number().min(0).max(1).optional(),
+    /** Its parameters, by the names its catalog entry declares. */
+    params: z
+        .record(z.string().regex(SHADER_PARAM_NAME), z.union([z.number(), z.string().max(64), z.boolean()]))
+        .optional(),
+});
+
+/** How nodes travel to a new layout. See `LayoutTransition`. @since 3.36.0 */
+export type LayoutTransitionConfig = z.infer<typeof LayoutTransition>;
+
 export const GraphStyle = z.strictObject({
     /**
      * ACCEPTED AND IGNORED. It used to decide whether the element unshifted a default layer onto
@@ -88,12 +178,19 @@ export const GraphStyle = z.strictObject({
     background: GraphBackground.prefault({ backgroundType: "color", color: "whitesmoke" }),
     selection: GraphSelectionStyle.optional(),
     /**
+     * Whether the starting rows draw the selection look: the project setting `startingRows`,
+     * copied here for the renderer. True, the selection settings above draw nothing themselves.
+     */
+    startingRows: z.boolean().optional(),
+    /**
      * How far the camera starts from the graph, in scene units. Set, it places the camera and
      * turns off the element's automatic zoom-to-fit; unset, the graph is framed to fit.
      */
     startingCameraDistance: z.number().optional(),
     layout: z.string().optional(), // No default - let Graph constructor set the default
     layoutOptions: z.looseObject({}).optional(),
+    /** How nodes travel to a new layout: the project setting `layoutTransition`. */
+    layoutTransition: LayoutTransition.optional(),
     /**
      * View mode controls how the graph is rendered and displayed.
      * - "2d": Orthographic camera, fixed top-down view

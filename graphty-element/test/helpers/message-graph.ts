@@ -16,6 +16,7 @@ export function createMessageGraph(): CommandContext["graph"] {
         transaction: <T>(_label: string, fn: (tx: unknown, signal: AbortSignal) => T | Promise<T>): Promise<T> =>
             Promise.resolve().then(() => fn(session, new AbortController().signal)),
         history: { steps: [], position: 0, nextUndo: null },
+        selection: { nodes: [], edges: [], origin: null, apply: () => Promise.resolve() },
         on: () => () => undefined,
     };
     return { getSession: () => session } as unknown as CommandContext["graph"];

@@ -23,7 +23,7 @@ const EYE_OFF =
  * @param props.reveal - whether the password is currently showing
  * @returns the glyph and its visually hidden name
  */
-export function PasswordToggleIcon({ reveal }: { reveal: boolean }): React.JSX.Element {
+export function PasswordToggleIcon({ reveal }: Readonly<{ reveal: boolean }>): React.JSX.Element {
     const labels = useLabels();
 
     return (

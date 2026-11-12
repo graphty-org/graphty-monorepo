@@ -56,7 +56,7 @@
  */
 
 import { maskTest } from "@graphty/graph-format";
-import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
+import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 
 import { LAYOUT_CATALOG, LAYOUT_DESCRIPTORS, layoutDescriptor, layoutIdForEngine } from "../../../catalog";
 import {
@@ -81,6 +81,7 @@ import { Graph } from "../../../index.js";
 import { operationQueueOf } from "../../../src/Graph";
 // Not plugin code: the element's own deterministic stand-in for a device.
 import { createFakeAccelerator } from "../../../src/testing/fakeAccelerator";
+import { drawnFrames } from "../../helpers/drawn-frames";
 import { nextFrame } from "../../helpers/real-input";
 
 /** Five nodes, so a ring has five distinct angles and no two nodes sit opposite each other. */
@@ -93,9 +94,6 @@ const EDGES = [
     { src: "c", dst: "d" },
     { src: "d", dst: "e" },
 ];
-
-/** How long any single wait below is allowed to take before it is called a failure. */
-const PATIENCE_MS = 5000;
 
 /** The ring radius `RingLayout` uses when the consumer asks for nothing in particular. */
 const DEFAULT_RADIUS = 120;
@@ -762,32 +760,15 @@ function distanceFromSegment(point: Coords, from: Coords, to: Coords): number {
 }
 
 /**
- * Let the page draw some frames.
- * @param count - how many frames to wait
- */
-async function frames(count: number): Promise<void> {
-    for (let frame = 0; frame < count; frame++) {
-        await nextFrame();
-    }
-}
-
-/**
- * Poll until something becomes true, or give up loudly.
- * @param condition - what is being waited for
- * @param what - how to describe it if the wait fails
+ * Poll until something becomes true. No deadline of its own: the one hang guard
+ * (tools/test-wait-guard.mjs) ends a wait that never comes true, naming what it waited for.
+ * @param condition - What is being waited for.
+ * @param what - How to describe it if the wait fails.
  */
 async function waitFor(condition: () => boolean, what: string): Promise<void> {
-    const deadline = Date.now() + PATIENCE_MS;
-
-    while (Date.now() < deadline) {
-        if (condition()) {
-            return;
-        }
-
-        await nextFrame();
-    }
-
-    throw new Error(`timed out waiting for ${what}`);
+    await vi.waitFor(() => {
+        assert.isTrue(condition(), `waiting for ${what}`);
+    });
 }
 
 describe("a third party's layout engine", () => {
@@ -1035,7 +1016,8 @@ describe("a third party's layout engine", () => {
             assert.isAbove(settlements, 0, "the element told its consumer the graph had settled");
 
             const stepsWhenSettled = engine.stepCount;
-            await frames(6);
+            // Six more updates of the element, each of which would have stepped an unsettled engine.
+            await drawnFrames(graph.getScene(), 6);
 
             assert.strictEqual(engine.stepCount, stepsWhenSettled, "and the element stopped stepping it");
         });
@@ -1143,7 +1125,8 @@ describe("a third party's layout engine", () => {
             assert.closeTo(stored.x, grabbed.x + 60, 0.5, "and the array holds where the reader left it");
             assert.closeTo(stored.y, grabbed.y + 20, 0.5);
 
-            await frames(6);
+            // Six more updates, any of which would have pulled the node back if something did.
+            await drawnFrames(graph.getScene(), 6);
 
             assert.closeTo(dragged.getPosition().x, grabbed.x + 60, 0.01, "and nothing pulled it back afterwards");
             assert.closeTo(dragged.getPosition().y, grabbed.y + 20, 0.01);
@@ -1255,7 +1238,7 @@ describe("a third party's layout engine", () => {
             // string. The element's own nineteen engines sit behind fourteen arrangement names, which
             // is why this question exists at all.
             assert.strictEqual(layoutIdForEngine("test-ring"), "test-ring");
-            assert.strictEqual(layoutIdForEngine("arf"), "force-2d", "the element's own answer is unchanged");
+            assert.strictEqual(layoutIdForEngine("arf"), "force", "the element's own answer is unchanged");
             assert.isUndefined(layoutIdForEngine("no-such-engine"));
         });
 
@@ -1267,7 +1250,7 @@ describe("a third party's layout engine", () => {
             assert.isFalse(offeredLayout("test-ring").honoursWeights);
             assert.isFalse(offeredLayout("test-grid").honoursWeights);
             assert.strictEqual(
-                layoutDescriptor("force-2d")?.honoursWeights,
+                layoutDescriptor("circular")?.honoursWeights,
                 false,
                 "the element's own arrangements answer the same question the same way",
             );
@@ -1624,7 +1607,8 @@ describe("a single-pass layout registered on the snapshot contract", () => {
             compute: async (input) => {
                 snapshotInputs.push(input);
                 input.report({ fraction: 0.5, message: "half way" });
-                await frames(3);
+                // Answer on a later frame than the one that asked, as a layout doing real work would.
+                await nextFrame();
                 return line(input);
             },
         });
@@ -1787,7 +1771,8 @@ describe("a single-pass layout registered on the snapshot contract", () => {
         assert.isTrue(input.signal.aborted, "replacing the layout aborted the answer");
 
         late(new Float32Array(2 * NODES.length).fill(999));
-        await frames(5);
+        // Five more updates, any of which would have drawn the stale answer had it been published.
+        await drawnFrames(graph.getScene(), 5);
         for (const { id } of NODES) {
             assert.deepStrictEqual(at(id), circle[id], `node ${id} is still on the circle`);
         }

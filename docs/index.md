@@ -2,7 +2,10 @@
 layout: home
 
 hero:
-    name: Graphty
+    image:
+        light: /brand/graphty-lockup-stacked-color-on-light.svg
+        dark: /brand/graphty-lockup-stacked-color-on-dark.svg
+        alt: graphty
     text: Modular Graph Visualization Ecosystem
     tagline: A suite of TypeScript libraries for graph algorithms, layouts, and interactive visualization
     actions:
@@ -24,8 +27,8 @@ features:
       linkText: Documentation
     - title: layout
       details: Graph layout algorithms. Force-directed, geometric, hierarchical, and spectral layouts in 2D/3D.
-      link: /layout/api/generated/
-      linkText: API Reference
+      link: /layout/
+      linkText: Documentation
     - title: cytoscape-extensions
       details: Every graphty layout and algorithm, graph generators, sample datasets and file import and export as Cytoscape.js extensions, with WebGPU acceleration.
       link: /cytoscape-extensions/

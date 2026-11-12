@@ -27,6 +27,7 @@
 import { type GpuContext } from "../../src/context.js";
 import { type KernelEntry, type KernelId, KERNELS, setKernelBodyOverride } from "../../src/kernels.js";
 import { acquire } from "../setup/gpu.js";
+import { type CheckReport } from "./check-report.js";
 
 /** One named mutation of a kernel body: a unique `find` string replaced by `replace`, and the minimum factor by which it must break the named test's tolerance. */
 export interface Mutation {
@@ -55,6 +56,8 @@ const GRID_TEST = "test/primitives/grid.test.ts";
 const PYRAMID_TEST = "test/primitives/grid-pyramid.test.ts";
 const GRID_INSPECT_TEST = "test/layouts/grid-inspect.test.ts";
 const COMPACT_TEST = "test/primitives/compact.test.ts";
+const CLUSTER_TEST = "test/layouts/clusters.test.ts";
+const COLLIDE_TEST = "test/layouts/collision.test.ts";
 const FRONTIER_TEST = "test/primitives/frontier.test.ts";
 const ADVANCE_TEST = "test/primitives/advance.test.ts";
 const BFS_TEST = "test/algorithms/bfs.test.ts";
@@ -285,8 +288,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             // attraction pushes away from the neighbour instead of towards it (row_force_dense: karate reaches no
             // degree of 32, so every check in this suite folds through TIER 0)
             name: "attraction-sign-flipped",
-            find: "total = total + d * mag;",
-            replace: "total = total - d * mag;",
+            find: "total = total + d * select(",
+            replace: "total = total - d * select(",
             minFactor: 10,
             test: INSPECT_TEST,
         },
@@ -328,8 +331,8 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // oldForce never stored: iteration 2's swing becomes m |F| instead of m |F - F_old| (paper mode)
             name: "store-old-skipped",
-            find: "if (SWING_MODE == 0u) { store_old(i, f); }",
-            replace: "if (SWING_MODE == 2u) { store_old(i, f); }",
+            find: "if (SWING_MODE == 0u) { store_old(i, select(f, vec3f(0.0), fixed)); }",
+            replace: "if (SWING_MODE == 2u) { store_old(i, select(f, vec3f(0.0), fixed)); }",
             minFactor: 10,
             test: TRACE_TEST,
         },
@@ -694,6 +697,145 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             replace: "let dst = offsets[d * P.groups] + rank[lid.x];",
             minFactor: 10,
             test: RADIX_TEST,
+        },
+    ]),
+    "cluster-centroid": Object.freeze([
+        {
+            // the last members of every community are left out of its centroid
+            name: "last-member-skipped",
+            find: "k < end;",
+            replace: "k + 1u < end;",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            // a centroid by count, not by mass
+            name: "mass-ignored",
+            find: "acc = acc + vec4f(p.xyz * p.w, p.w);",
+            replace: "acc = acc + vec4f(p.xyz, 1.0);",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            // every community reads the first one's members
+            name: "first-community-only",
+            find: "start = clusterStart[c];",
+            replace: "start = clusterStart[0];",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+    ]),
+    "cluster-pull": Object.freeze([
+        {
+            name: "pull-sign-flipped",
+            find: "let d = total.xyz / total.w - p.xyz;",
+            replace: "let d = p.xyz - total.xyz / total.w;",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            // the pull replaces what K2 wrote instead of adding to it
+            name: "attraction-overwritten",
+            find: "force[3u * i + 1u] = force[3u * i + 1u] + pull * d.y;",
+            replace: "force[3u * i + 1u] = pull * d.y;",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            name: "unclustered-row-pulled",
+            find: "if (c == 0xffffffffu) { return; }",
+            replace: "if (c == 0xffffffffu) { force[3u * i] = force[3u * i] + 1.0; return; }",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            name: "fr-law-linear",
+            find: "pull = P.clusterStrength * length(d) / P.frK;",
+            replace: "pull = P.clusterStrength;",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+        {
+            name: "spring-coefficient-dropped",
+            find: "pull = pull * P.springCoefficient;",
+            replace: "pull = pull * 1.0;",
+            minFactor: 10,
+            test: CLUSTER_TEST,
+        },
+    ]),
+    "collide-cell-key": Object.freeze([
+        {
+            // every node in one bucket: gather reads only the first cellMax entries, so far pairs are missed
+            name: "one-bucket",
+            find: "cellKey[i] = collide_key(collide_cell(pos[i].xyz));",
+            replace: "cellKey[i] = 0u;",
+            minFactor: 10,
+            test: COLLIDE_TEST,
+        },
+        {
+            // the cell a node is keyed by is not the cell gather looks in
+            name: "key-off-by-one-cell",
+            find: "lowbias32(((u.x * 73856093u)",
+            replace: "lowbias32((((u.x + 1u) * 73856093u)",
+            minFactor: 10,
+            test: COLLIDE_TEST,
+        },
+        {
+            // the sort's values no longer name the rows
+            name: "values-shifted",
+            find: "cellVal[i] = i;",
+            replace: "cellVal[i] = (i + 1u) % P.n;",
+            minFactor: 10,
+            test: COLLIDE_TEST,
+        },
+    ]),
+    "collide-gather": Object.freeze([
+        {
+            // a pair pulls together instead of pushing apart
+            name: "push-sign-flipped",
+            find: "return d * ((reach - dist) / dist * share);",
+            replace: "return d * ((dist - reach) / dist * share);",
+            minFactor: 10,
+            test: COLLIDE_TEST,
+        },
+        {
+            // a free node leaves half the push to a partner that cannot take it
+            name: "fixed-partner-ignored",
+            find: "let share = select(0.5, 1.0, mask_bit(fixedMask[j >> 5u], j));",
+            replace: "let share = 0.5;",
+            minFactor: 10,
+            test: COLLIDE_TEST,
+        },
+        {
+            // an inert row pushes like a live one
+            name: "inert-row-pushes",
+            find: "if (pj.w <= 0.0) { return vec3f(0.0); }",
+            replace: "",
+            minFactor: 10,
+            test: COLLIDE_TEST,
+        },
+    ]),
+    "collide-apply": Object.freeze([
+        {
+            name: "moves-dropped",
+            find: "pos[i] = vec4f(p.xyz + moves[i].xyz, p.w);",
+            replace: "pos[i] = vec4f(p.xyz, p.w);",
+            minFactor: 10,
+            test: COLLIDE_TEST,
+        },
+        {
+            name: "moves-reversed",
+            find: "pos[i] = vec4f(p.xyz + moves[i].xyz, p.w);",
+            replace: "pos[i] = vec4f(p.xyz - moves[i].xyz, p.w);",
+            minFactor: 10,
+            test: COLLIDE_TEST,
+        },
+        {
+            name: "mass-lost",
+            find: "pos[i] = vec4f(p.xyz + moves[i].xyz, p.w);",
+            replace: "pos[i] = vec4f(p.xyz + moves[i].xyz, 1.0);",
+            minFactor: 10,
+            test: COLLIDE_TEST,
         },
     ]),
     "grid-cell-key": Object.freeze([
@@ -2624,12 +2766,12 @@ export const SABOTAGE_PHASES: readonly KernelEntry["phase"][] = Object.freeze([
 ]);
 
 /**
- * Kernels with no oracle-sensitive arithmetic to mutate: a wrong fill / toScene fails the exact-equality tests
+ * Kernels with no oracle-sensitive arithmetic to mutate: a wrong fill / toScene / toDrawn fails the exact-equality tests
  * directly, and `wcc-sample` (M8b plan PD-6) only selects WHICH component is called the giant -- Afforest is correct
  * for any choice, so a mutated sampler makes the last rounds slower and changes no label, and no mutation of it can
  * break a tolerance by the `minFactor >= 10` the table demands.
  */
-export const SABOTAGE_EXEMPT: readonly KernelId[] = Object.freeze(["fill", "fa2-to-scene", "wcc-sample"]);
+export const SABOTAGE_EXEMPT: readonly KernelId[] = Object.freeze(["fill", "fa2-to-scene", "to-drawn", "wcc-sample"]);
 
 /**
  * The mutated body (throws when `find` is absent or not unique in the normative body).
@@ -2674,29 +2816,7 @@ export async function withSabotage<T>(
     }
 }
 
-/** The outcome of one measured check: the largest error / tolerance ratio over its samples (Infinity for a mismatch under a tolerance of 0). */
-export interface CheckReport {
-    readonly worst: number;
-    readonly worstLabel: string;
-    readonly samples: number;
-}
-
-/**
- * The error / tolerance ratio of one sample: 0 for an exact match, Infinity for any mismatch under a tolerance of 0
- * (a bitwise test), NaN counts as Infinity.
- * @param error - the measured error (absolute or relative, the caller's choice, the same as the tolerance's)
- * @param tolerance - the test's tolerance in the same units
- * @returns the ratio the sabotage tests compare with `minFactor`
- */
-export function ratioOf(error: number, tolerance: number): number {
-    if (Number.isNaN(error)) {
-        return Infinity;
-    }
-    if (tolerance <= 0) {
-        return error === 0 ? 0 : Infinity;
-    }
-    return error / tolerance;
-}
+export { type CheckReport, ratioOf } from "./check-report.js";
 
 /**
  * The report of several checks: the largest ratio and the label it came from.

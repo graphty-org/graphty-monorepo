@@ -1,3 +1,313 @@
+## 0.2.42 (2026-11-10)
+
+### 🩹 Fixes
+
+- **visual-review:** record which CPU each story-test shard drew on ([#6351](https://github.com/graphty-org/graphty-monorepo/issues/6351))
+- **visual-review:** fail a story test when its two shots disagree and the second matches ([#3389](https://github.com/graphty-org/graphty-monorepo/issues/3389))
+- **visual-review:** let a story's own globals win over the capture mode in story tests ([#5836](https://github.com/graphty-org/graphty-monorepo/issues/5836))
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
+## 0.2.41 (2026-11-09)
+
+### 🩹 Fixes
+
+- **visual-review:** let a story's own globals win over a mode in story tests ([#5692](https://github.com/graphty-org/graphty-monorepo/issues/5692))
+
+## 0.2.40 (2026-11-02)
+
+This was a version bump only for visual-review to align it with other projects, there were no code changes.
+
+## 0.2.39 (2026-11-01)
+
+### 🩹 Fixes
+
+- **visual-review:** record a story whose play function threw as failed in capture ([#4369](https://github.com/graphty-org/graphty-monorepo/issues/4369))
+- **visual-review:** keep flakyLine private to story-outcomes ([#5156](https://github.com/graphty-org/graphty-monorepo/issues/5156), [#3366](https://github.com/graphty-org/graphty-monorepo/issues/3366))
+- **visual-review:** show state read failures and never fail a saved decision ([#3548](https://github.com/graphty-org/graphty-monorepo/issues/3548))
+- **visual-review:** keep a flaky story's differing first shot and name it ([#3366](https://github.com/graphty-org/graphty-monorepo/issues/3366))
+- **ci:** bound a failed Actions cache restore to one minute, not 10 ([#5098](https://github.com/graphty-org/graphty-monorepo/issues/5098))
+
+## 0.2.38 (2026-10-31)
+
+### 🚀 Features
+
+- **tools:** one approval in flight, rolling notices and the unsigned-tree alarm ([#4540](https://github.com/graphty-org/graphty-monorepo/issues/4540))
+- **visual-review:** master rolling target on the review page ([#4540](https://github.com/graphty-org/graphty-monorepo/issues/4540))
+
+### 🩹 Fixes
+
+- **visual-review:** render the capture browser at 2x all the time, not only during each shot ([#4534](https://github.com/graphty-org/graphty-monorepo/issues/4534), [#4374](https://github.com/graphty-org/graphty-monorepo/issues/4374), [#4388](https://github.com/graphty-org/graphty-monorepo/issues/4388))
+- **ci:** keep onceEach private so knip passes ([#4318](https://github.com/graphty-org/graphty-monorepo/issues/4318))
+- **ci:** find master's story reference once per run, not once per Stories job ([#4318](https://github.com/graphty-org/graphty-monorepo/issues/4318))
+- **visual-review:** list the held candidate above the coupled groups ([#4389](https://github.com/graphty-org/graphty-monorepo/issues/4389))
+- **visual-review:** offer the held candidate in Ready for you and name it by its commit ([#4221](https://github.com/graphty-org/graphty-monorepo/issues/4221), [#4389](https://github.com/graphty-org/graphty-monorepo/issues/4389))
+
+### 🔥 Performance
+
+- **visual-review:** capture a whole story id alone, not every id it prefixes ([#3448](https://github.com/graphty-org/graphty-monorepo/issues/3448))
+- **visual-review:** shoot a changed story once when it is master's capture ([#3448](https://github.com/graphty-org/graphty-monorepo/issues/3448))
+- **visual-review:** read only the reference images a Stories bin compares ([#4205](https://github.com/graphty-org/graphty-monorepo/issues/4205))
+
+## 0.2.37 (2026-10-29)
+
+### 🩹 Fixes
+
+- **visual-review:** compare each capture once, so a confirming shot fits its hook ([#4126](https://github.com/graphty-org/graphty-monorepo/issues/4126))
+- **visual-review:** keep a split leg's shard in its retried partial capture ([#4109](https://github.com/graphty-org/graphty-monorepo/issues/4109))
+- **visual-review:** draw the cached list before a stale one asks for a refresh ([#4111](https://github.com/graphty-org/graphty-monorepo/issues/4111))
+- **visual-review:** keep a split capture leg's shard when its failed stories are retried ([#4006](https://github.com/graphty-org/graphty-monorepo/issues/4006))
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
+## 0.2.36 (2026-10-28)
+
+### 🚀 Features
+
+- **tools:** offer only the held nightly head on the review page, from its final capture ([#3741](https://github.com/graphty-org/graphty-monorepo/issues/3741))
+- **ci:** finish the features-on configuration: capture query, ordering, on-demand runs ([#3476](https://github.com/graphty-org/graphty-monorepo/issues/3476))
+- **visual-review:** flaky story detection and a blocking switch for story outcomes ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** offer nightly screenshot candidates and open the accept pull request on Finish ([#3463](https://github.com/graphty-org/graphty-monorepo/issues/3463), [#3418](https://github.com/graphty-org/graphty-monorepo/issues/3418))
+- **visual-review:** merge-results combines the story tests' partial captures ([#3471](https://github.com/graphty-org/graphty-monorepo/issues/3471))
+- **visual-review:** take each story's screenshot inside its story test ([#3389](https://github.com/graphty-org/graphty-monorepo/issues/3389), [#3471](https://github.com/graphty-org/graphty-monorepo/issues/3471))
+- **visual-review:** add a parity command that compares two captures byte for byte ([#3389](https://github.com/graphty-org/graphty-monorepo/issues/3389))
+- **visual-review:** offer a capture of a commit not yet pushed as pending push ([#3369](https://github.com/graphty-org/graphty-monorepo/issues/3369))
+- **workspace:** publish graphty and githerd, and fold the fidelity tools into graph-io ([#3322](https://github.com/graphty-org/graphty-monorepo/issues/3322))
+- **visual-review:** add ignoreBranches to leave pull requests out of the review page ([#3303](https://github.com/graphty-org/graphty-monorepo/issues/3303))
+- **visual-review:** sign the review record of every Finish that commits decisions ([#3238](https://github.com/graphty-org/graphty-monorepo/issues/3238))
+
+### 🩹 Fixes
+
+- **visual-review:** keep merged heads' captures as master's reference ([#4043](https://github.com/graphty-org/graphty-monorepo/issues/4043))
+- **visual-review:** pick master's reference capture from its first-parent line ([#4043](https://github.com/graphty-org/graphty-monorepo/issues/4043))
+- **visual-review:** stop exporting the capture helpers only capture.mjs uses ([#3969](https://github.com/graphty-org/graphty-monorepo/issues/3969))
+- **visual-review:** give both captures' story iframes the same compositor scroll ([#3969](https://github.com/graphty-org/graphty-monorepo/issues/3969))
+- **visual-review:** parity agrees when the story-test capture is exactly the baseline ([#3473](https://github.com/graphty-org/graphty-monorepo/issues/3473), [#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** stitch tall screenshots in Chromium, not on the capture's one Node thread ([#3700](https://github.com/graphty-org/graphty-monorepo/issues/3700), [#3980](https://github.com/graphty-org/graphty-monorepo/issues/3980))
+- **visual-review:** keep the story tests' Shift press from reaching the story ([#3969](https://github.com/graphty-org/graphty-monorepo/issues/3969))
+- **visual-review:** give a transparent story document the top frame's white in story tests ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **ci:** preset FC_FONTATIONS for every Chromium launch; one shared vitest base ([#3787](https://github.com/graphty-org/graphty-monorepo/issues/3787))
+- **visual-review:** pin actions/checkout@v7 in the workflow templates ([#3895](https://github.com/graphty-org/graphty-monorepo/issues/3895))
+- **visual-review:** focus the capture's story frame before the story loads ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** focus the capture's story iframe, as the story tests do ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** shoot each story inside a same-origin iframe in the capture ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** reset the input modality before each story test ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** stop a timed-out story hook from shooting the next story ([#3743](https://github.com/graphty-org/graphty-monorepo/issues/3743), [#3740](https://github.com/graphty-org/graphty-monorepo/issues/3740))
+- **visual-review:** a Dependabot action bump is not workflow drift ([#3769](https://github.com/graphty-org/graphty-monorepo/issues/3769))
+- **visual-review:** read the frame height from the document element ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** story tests draw fixed elements in layers as the top frame does ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** write setup-node@v7, the version the workflows use ([#3758](https://github.com/graphty-org/graphty-monorepo/issues/3758))
+- **visual-review:** end an approval pull request's description with a No issue line ([#3748](https://github.com/graphty-org/graphty-monorepo/issues/3748), [#3749](https://github.com/graphty-org/graphty-monorepo/issues/3749))
+- **visual-review:** confirm a changed story picture in an afterEach hook of its own ([#3740](https://github.com/graphty-org/graphty-monorepo/issues/3740))
+- **visual-review:** type scrollFrame and twoFrames for a page as well as a frame ([51fd98b766](https://github.com/graphty-org/graphty-monorepo/commit/51fd98b766))
+- **visual-review:** keep pixelDifference module-private so knip passes ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** use Number.parseFloat when moving a pinned element ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** story parity compares decoded pixels, not PNG bytes ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** scroll tiles in quirks mode and test the pinned monospace font ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** shoot oversize stories in tiles, not a beyond-viewport capture ([#1976](https://github.com/graphty-org/graphty-monorepo/issues/1976), [#1982](https://github.com/graphty-org/graphty-monorepo/issues/1982), [#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** draw sticky elements once in story-test tile shots ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** copy only what a scrolled tile holds, instead of compositing the story frame ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** restore fixed styles when compositing a story frame fails ([43202792cf](https://github.com/graphty-org/graphty-monorepo/commit/43202792cf))
+- **visual-review:** rewrite a reused accept pull request description so later notes are published ([cb510fbdc6](https://github.com/graphty-org/graphty-monorepo/commit/cb510fbdc6))
+- **visual-review:** keep candidateBranch private so knip passes ([4261e7afc4](https://github.com/graphty-org/graphty-monorepo/commit/4261e7afc4))
+- **visual-review:** type the optional complete flag of promotion's results ([d8a5973717](https://github.com/graphty-org/graphty-monorepo/commit/d8a5973717))
+- **visual-review:** let an uncaptured story's wait decide nothing, and follow bare story imports ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **ci:** make the story capture's quarantine and promotion robust ([#3648](https://github.com/graphty-org/graphty-monorepo/issues/3648), [#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **ci:** keep screenshot runs in their own quarantine family ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** scroll a tile no further than the measured picture's end ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** scroll the body by what the window could not, and move pinned elements with it ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** type the parked iframe element as HTMLElement for the type-check ([50b8065690](https://github.com/graphty-org/graphty-monorepo/commit/50b8065690))
+- **visual-review:** a broken story waits for promotion too; a bad quarantine file is a TypeError ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** judge unstable stories and promotion as the test quarantine does ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** let an excluded story finish before the next story test starts ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** type the tester iframe element before setting its style ([#3589](https://github.com/graphty-org/graphty-monorepo/issues/3589), [#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** composite only viewport-fixed elements, and on tall stories too ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** composite the story test's fixed elements as the top-level page does ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** scroll the body only on an axis the window cannot scroll ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** scroll the body when a story's window cannot scroll ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** composite the story-test iframe in its own layer, as a top-level page ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** declare vitest as an optional peer for the vitest entry point ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** templates name the action versions the workflows now use ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** shoot a slice below the viewport by scrolling, not with a full-page shot ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** read a full run's capture and jobs as a called workflow names them ([#3463](https://github.com/graphty-org/graphty-monorepo/issues/3463))
+- **visual-review:** close a rejected candidate's accept pull request on a later refresh ([#3463](https://github.com/graphty-org/graphty-monorepo/issues/3463))
+- **visual-review:** keep a rejected candidate until its accept pull request is closed ([#3463](https://github.com/graphty-org/graphty-monorepo/issues/3463))
+- **visual-review:** story-test shots match graphty-element's built-Storybook capture ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** write the action versions the workflows use ([#3443](https://github.com/graphty-org/graphty-monorepo/issues/3443))
+- **visual-review:** keep the story tests' page within the GPU's limits and draw grown frames whole ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- **visual-review:** name the approve branch on the sheet and survive its pull request's updates ([#3463](https://github.com/graphty-org/graphty-monorepo/issues/3463))
+- **visual-review:** close a rejected candidate's accept pull request ([#3463](https://github.com/graphty-org/graphty-monorepo/issues/3463))
+- **visual-review:** rebuild a candidate's accept commit from every decision on it ([#3463](https://github.com/graphty-org/graphty-monorepo/issues/3463))
+- **visual-review:** publish decisions per candidate and let a candidate Finish run again ([#3463](https://github.com/graphty-org/graphty-monorepo/issues/3463))
+- **visual-review:** end a candidate when its approval merges and never orphan an accept pull request ([#3463](https://github.com/graphty-org/graphty-monorepo/issues/3463))
+- **visual-review:** merge-results is complete only when every story file ran ([#3471](https://github.com/graphty-org/graphty-monorepo/issues/3471))
+- **visual-review:** keep merge-results under the complexity limit ([#3471](https://github.com/graphty-org/graphty-monorepo/issues/3471))
+- **visual-review:** keep merge-results under the complexity limit ([#3471](https://github.com/graphty-org/graphty-monorepo/issues/3471))
+- **visual-review:** clear the SonarQube findings on the story-test harness ([#3471](https://github.com/graphty-org/graphty-monorepo/issues/3471))
+- **visual-review:** clear the SonarQube findings on the parity command and the spike ([#3389](https://github.com/graphty-org/graphty-monorepo/issues/3389))
+- **visual-review:** type the pending-push capture's updatedAt in pendingPreview's return ([#3394](https://github.com/graphty-org/graphty-monorepo/issues/3394))
+- **visual-review:** report flaky screenshot items instead of passing them silently ([#3364](https://github.com/graphty-org/graphty-monorepo/issues/3364))
+- **visual-review:** ask for the passkey once per Finish ([b2e464affe](https://github.com/graphty-org/graphty-monorepo/commit/b2e464affe))
+- **visual-review:** keep a preview current across a Finish, and never hide what is open ([fac9aef880](https://github.com/graphty-org/graphty-monorepo/commit/fac9aef880))
+- **visual-review:** show a running Finish on the cards after a reload, whichever answer comes first ([2786823e67](https://github.com/graphty-org/graphty-monorepo/commit/2786823e67))
+- **visual-review:** stop offering Finish after a reload while one runs ([#123](https://github.com/graphty-org/graphty-monorepo/issues/123))
+- **visual-review:** list pull requests and their CI runs in one GraphQL query ([#2682](https://github.com/graphty-org/graphty-monorepo/issues/2682))
+- **workspace:** build with CI's 8 GB heap in the visual-review update check ([51506bbd94](https://github.com/graphty-org/graphty-monorepo/commit/51506bbd94))
+- **visual-review:** ask for the session token when the page has none ([0941a4b244](https://github.com/graphty-org/graphty-monorepo/commit/0941a4b244))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+- graphty-agent @graphty-agent
+
+## 0.2.35 (2026-10-21)
+
+### 🚀 Features
+
+- **visual-review:** approve baselines by a signed tree, not per pull request ([a19570386](https://github.com/graphty-org/graphty-monorepo/commit/a19570386))
+
+### 🩹 Fixes
+
+- **visual-review:** show the branch's baseline for an item changed only against master ([3ca52fcd5](https://github.com/graphty-org/graphty-monorepo/commit/3ca52fcd5))
+- **visual-review:** keep an image unchanged within tolerance when master holds its baseline ([80e413c2c](https://github.com/graphty-org/graphty-monorepo/commit/80e413c2c))
+- **visual-review:** check the prepared approval exists before comparing it ([80da7b8b2](https://github.com/graphty-org/graphty-monorepo/commit/80da7b8b2))
+- **visual-review:** type the finish approval lookup so a missing entry is handled ([c6dcb5fec](https://github.com/graphty-org/graphty-monorepo/commit/c6dcb5fec))
+- **visual-review:** make undecided images obvious and keep them after a partial Finish ([#3235](https://github.com/graphty-org/graphty-monorepo/issues/3235))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.34 (2026-10-20)
+
+### 🚀 Features
+
+- **visual-review:** approve screenshots by a signed baselines tree ([d0bdc047c](https://github.com/graphty-org/graphty-monorepo/commit/d0bdc047c))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.33 (2026-10-18)
+
+This was a version bump only for visual-review to align it with other projects, there were no code changes.
+
+## 0.2.32 (2026-10-17)
+
+### 🚀 Features
+
+- **visual-review:** record review page usage events locally, opt-in ([7218df139](https://github.com/graphty-org/graphty-monorepo/commit/7218df139))
+
+### 🩹 Fixes
+
+- **visual-review:** report a repeated Finish as already finished ([#3040](https://github.com/graphty-org/graphty-monorepo/issues/3040))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.31 (2026-10-15)
+
+This was a version bump only for visual-review to align it with other projects, there were no code changes.
+
+## 0.2.30 (2026-10-15)
+
+### 🩹 Fixes
+
+- **visual-review:** never offer a draft pull request for review ([#2727](https://github.com/graphty-org/graphty-monorepo/issues/2727))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.29 (2026-10-15)
+
+### 🩹 Fixes
+
+- **visual-review:** list pull requests and their CI runs in one GraphQL query ([#2682](https://github.com/graphty-org/graphty-monorepo/issues/2682))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.28 (2026-10-14)
+
+### 🩹 Fixes
+
+- **workspace:** keep core files off in the update check and heap the root builds ([#2562](https://github.com/graphty-org/graphty-monorepo/issues/2562))
+- **workspace:** build with CI's 8 GB heap in the visual-review update check ([#2475](https://github.com/graphty-org/graphty-monorepo/issues/2475))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.27 (2026-10-13)
+
+### 🩹 Fixes
+
+- **visual-review:** check an update's merge before pushing it ([#2296](https://github.com/graphty-org/graphty-monorepo/issues/2296))
+- **visual-review:** an accept counts as published only while the branch's baseline holds it ([bab1e4cfc](https://github.com/graphty-org/graphty-monorepo/commit/bab1e4cfc))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.26 (2026-10-13)
+
+### 🩹 Fixes
+
+- **visual-review:** ask for the session token when the page has none ([affee9300](https://github.com/graphty-org/graphty-monorepo/commit/affee9300))
+- **visual-review:** keep a screenshot approval across a merge of master ([#2272](https://github.com/graphty-org/graphty-monorepo/issues/2272))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.25 (2026-10-13)
+
+### 🩹 Fixes
+
+- **visual-review:** drop a double click's second click by item, and time the guard from the paint ([#2175](https://github.com/graphty-org/graphty-monorepo/issues/2175))
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.24 (2026-10-12)
+
+This was a version bump only for visual-review to align it with other projects, there were no code changes.
+
+## 0.2.23 (2026-10-11)
+
+### 🩹 Fixes
+
+- **visual-review:** wait for the redraw the settling capture starts before measuring ([#1982](https://github.com/graphty-org/graphty-monorepo/issues/1982))
+- **visual-review:** size every capture to the settled page, not the page before the first capture ([#1982](https://github.com/graphty-org/graphty-monorepo/issues/1982))
+- **visual-review:** stitch tall captures whose page shrinks after the first slice ([#1976](https://github.com/graphty-org/graphty-monorepo/issues/1976))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.22 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🩹 Fixes
+
+- **visual-review:** capture stories taller than 8,192 device px in stitched slices ([#1958](https://github.com/graphty-org/graphty-monorepo/issues/1958))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.2.21 (2026-10-10)
 
 ### 🩹 Fixes

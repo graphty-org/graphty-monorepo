@@ -19,9 +19,6 @@ const EDGES = [
     { src: "c", dst: "d" },
 ];
 
-/** How long the element may take to connect and finish `Graph.init()`: the test's own budget. */
-const INIT_BUDGET_MS = 10_000;
-
 /** The orbit camera's vertical field of view (Babylon's default for a UniversalCamera). */
 const ORBIT_FOV = 0.8;
 
@@ -54,12 +51,9 @@ describe("startingCameraDistance", () => {
         container.appendChild(element);
         element.nodeData = NODES;
         element.edgeData = EDGES;
-        await vi.waitFor(
-            () => {
-                assert.isTrue(element.graph.initialized, "the element finished initialising");
-            },
-            { timeout: INIT_BUDGET_MS },
-        );
+        await vi.waitFor(() => {
+            assert.isTrue(element.graph.initialized, "the element finished initialising");
+        });
         // The first settlement's re-frame lands on the frame after it, which this waits for too.
         await element.waitForStableFrame();
 

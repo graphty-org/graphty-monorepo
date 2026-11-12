@@ -25,7 +25,7 @@
  * published from the Node-safe `./session` entry point.
  */
 
-import type { NodeId } from "../../catalog/types";
+import type { NodeId, TopTies } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type {
     Histogram,
@@ -550,9 +550,33 @@ export function rankedPrefix(
  * The top `n` of a ranking, cut only between tie groups. See {@link TopRanking} for the policy.
  * @param ranking - The ranking, best first, with tied entries sharing a rank.
  * @param n - The most entries the top may hold, a whole number.
+ * @param ties - `"all"` takes the tie group the cut falls in whole, past `n`; `"fewer"` (the
+ *     default) leaves it out.
  * @returns The entries taken, and the group that did not fit when one did not.
  */
-export function topOfRanking(ranking: readonly RankingEntry[], n: number): TopRanking {
+export function topOfRanking(ranking: readonly RankingEntry[], n: number, ties: TopTies = "fewer"): TopRanking {
+    const fewer = topWithinLimit(ranking, n);
+    if (ties === "fewer" || fewer.leftOut === null) {
+        return fewer;
+    }
+
+    // Take the group the cut fell in, whole.
+    const end = fewer.entries.length + fewer.leftOut.count;
+    return Object.freeze({
+        entries: ranking.slice(0, end),
+        leftOut: null,
+        reason: null,
+        threshold: end < ranking.length ? ranking[end].value : null,
+    });
+}
+
+/**
+ * The top `n` of a ranking under the `"fewer"` tie policy.
+ * @param ranking - The ranking, best first, with tied entries sharing a rank.
+ * @param n - The most entries the top may hold.
+ * @returns The top.
+ */
+function topWithinLimit(ranking: readonly RankingEntry[], n: number): TopRanking {
     let taken = Math.min(n, ranking.length);
 
     // Walk the cut back while it falls inside a tie group: taking one of the group means taking
@@ -577,9 +601,10 @@ export function topOfRanking(ranking: readonly RankingEntry[], n: number): TopRa
     }
 
     const count = end - taken;
+    const kept = taken === 0 ? "none are" : `only the top ${String(taken)} are`;
     const reason =
         `${String(count)} tie at ${String(value)}, and taking them would make ${String(taken + count)}, ` +
-        `more than the ${String(n)} asked for, so ${taken === 0 ? "none are" : `only the top ${String(taken)} are`} taken.`;
+        `more than the ${String(n)} asked for, so ${kept} taken.`;
 
     return Object.freeze({
         entries: ranking.slice(0, taken),
@@ -842,14 +867,61 @@ function countDistinct(column: NumericColumnSource, limit: number): Map<number, 
 }
 
 /**
+ * Whether a column that fits one bar per value should be drawn that way.
+ *
+ * A count, a whole-number field, a single value, or values that repeat (each one carried by two
+ * or more elements on average) read as values. A continuous measure on a small graph -- PageRank
+ * over 12 nodes -- has as many values as elements, and one bar of height 1 per value shows no
+ * shape at all, so it is banded instead.
+ * @param distinct - The counts by value.
+ * @param integerValued - Whether the field counts things.
+ * @returns True to draw one bar per value.
+ */
+function readsAsValues(distinct: Map<number, number>, integerValued: boolean): boolean {
+    if (integerValued || distinct.size === 1) {
+        return true;
+    }
+
+    let measured = 0;
+    let whole = true;
+    for (const [value, count] of distinct) {
+        measured += count;
+        whole &&= Number.isInteger(value);
+    }
+
+    return whole || distinct.size * 2 <= measured;
+}
+
+/**
+ * Whether every finite value in a column is a whole number, and at least one is there.
+ * @param column - The column.
+ * @returns True when the column holds only whole numbers.
+ */
+function everyValueWhole(column: NumericColumnSource): boolean {
+    let any = false;
+    for (let index = 0; index < column.length; index++) {
+        const value = column.get(index);
+        if (Number.isFinite(value)) {
+            if (!Number.isInteger(value)) {
+                return false;
+            }
+            any = true;
+        }
+    }
+
+    return any;
+}
+
+/**
  * Cut a column into bins.
  *
  * Three layouts, chosen in this order:
  *
  * 1. **Nothing measured** produces no bins at all. A chart with no data must not claim a range.
- * 2. **Few enough distinct values** produces one bin per value, ascending, with `from` equal to
- *    `to`. That is the readable shape for a count metric and it is exact -- no banding runs, so
- *    the bins are on no scale but their own.
+ * 2. **Few enough distinct values that read as values** (a count, whole numbers, or values that
+ *    repeat) produces one bin per value, ascending, with `from` equal to `to`. That is the
+ *    readable shape for a count metric and it is exact -- no banding runs, so the bins are on no
+ *    scale but their own. A continuous measure with one element per value is banded instead.
  * 3. **Otherwise, bands**, linear or logarithmic as `scale` says.
  *
  * What the two edges mean: `from` is the lowest value the bin holds and is always inclusive. `to`
@@ -865,7 +937,10 @@ function countDistinct(column: NumericColumnSource, limit: number): Map<number, 
  */
 export function buildHistogram(column: NumericColumnSource, options?: HistogramRequest): Histogram {
     const binCount = resolveBinCount(options?.bins);
-    const integerValued = options?.integerValued ?? false;
+    // A column every value of which is a whole number counts things whatever its declared type
+    // (a degree a run publishes as a number): its bands start and end on whole numbers, never
+    // "1 to 1.8".
+    const integerValued = options?.integerValued === true || everyValueWhole(column);
     const statistics = computeColumnStatistics(column);
     const suggestedScale = suggestHistogramScale(statistics);
     const distinct = countDistinct(column, binCount);
@@ -882,7 +957,9 @@ export function buildHistogram(column: NumericColumnSource, options?: HistogramR
                 binning: "empty",
             });
         }
+    }
 
+    if (distinct !== null && readsAsValues(distinct, integerValued)) {
         const bins = [...distinct.entries()]
             .sort((left, right) => left[0] - right[0])
             .map(([value, count]) => Object.freeze({ from: value, to: value, count }));
@@ -895,6 +972,9 @@ export function buildHistogram(column: NumericColumnSource, options?: HistogramR
             scale: "linear",
             suggestedScale,
             binning: "per-value",
+            min: statistics.min,
+            median: statistics.median,
+            max: statistics.max,
         });
     }
 
@@ -925,5 +1005,8 @@ export function buildHistogram(column: NumericColumnSource, options?: HistogramR
         scale: plan === null ? "linear" : "log",
         suggestedScale,
         binning: "banded",
+        min: statistics.min,
+        median: statistics.median,
+        max: statistics.max,
     });
 }

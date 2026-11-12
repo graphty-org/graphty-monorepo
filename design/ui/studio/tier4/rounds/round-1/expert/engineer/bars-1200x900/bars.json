@@ -1,0 +1,377 @@
+{
+ "build": "79ed77029204 graphty@0.8.92",
+ "scheme": "dark",
+ "measured": "2026-10-30T11:41:30.357Z",
+ "tier": "4",
+ "tags": [
+  "wcag2a",
+  "wcag2aa",
+  "wcag21aa",
+  "wcag22aa"
+ ],
+ "screens": {},
+ "wordsAtRest": {
+  "words": [
+   "(tier 1 not measured)"
+  ],
+  "left": []
+ },
+ "tier2": {
+  "screens": {
+   "the start screen": [],
+   "the web address box, from the start screen": [],
+   "Sources +": [
+    {
+     "id": "aria-valid-attr-value",
+     "impact": "critical",
+     "help": "ARIA attributes must conform to valid values",
+     "nodes": [
+      {
+       "target": "#mantine-5k7rtwbqb-tab-nodes",
+       "html": "<button class=\"mantine-focus-never ...\" data-variant=\"pills\" data-active=\"true\" data-orientation=\"horizontal\" type=\"button\" role=\"tab\" id=\"mantine-5k7rtwbqb-ta...\" aria-selected=\"true\" tabindex=\"0\" ar",
+       "why": "Fix all of the following:\n  Invalid ARIA attribute value: aria-controls=\"mantine-5k7rtwbqb-panel-nodes\""
+      }
+     ]
+    }
+   ],
+   "the web address box, from Sources +": [
+    {
+     "id": "aria-valid-attr-value",
+     "impact": "critical",
+     "help": "ARIA attributes must conform to valid values",
+     "nodes": [
+      {
+       "target": "#mantine-5k7rtwbqb-tab-nodes",
+       "html": "<button class=\"mantine-focus-never ...\" data-variant=\"pills\" data-active=\"true\" data-orientation=\"horizontal\" type=\"button\" role=\"tab\" id=\"mantine-5k7rtwbqb-ta...\" aria-selected=\"true\" tabindex=\"0\" ar",
+       "why": "Fix all of the following:\n  Invalid ARIA attribute value: aria-controls=\"mantine-5k7rtwbqb-panel-nodes\""
+      }
+     ]
+    }
+   ],
+   "the join screen": [
+    {
+     "id": "aria-valid-attr-value",
+     "impact": "critical",
+     "help": "ARIA attributes must conform to valid values",
+     "nodes": [
+      {
+       "target": "#mantine-5k7rtwbqb-tab-nodes",
+       "html": "<button class=\"mantine-focus-never ...\" data-variant=\"pills\" data-active=\"true\" data-orientation=\"horizontal\" type=\"button\" role=\"tab\" id=\"mantine-5k7rtwbqb-ta...\" aria-selected=\"true\" tabindex=\"0\" ar",
+       "why": "Fix all of the following:\n  Invalid ARIA attribute value: aria-controls=\"mantine-5k7rtwbqb-panel-nodes\""
+      }
+     ]
+    }
+   ],
+   "the issue list": [
+    {
+     "id": "aria-valid-attr-value",
+     "impact": "critical",
+     "help": "ARIA attributes must conform to valid values",
+     "nodes": [
+      {
+       "target": "#mantine-5k7rtwbqb-tab-nodes",
+       "html": "<button class=\"mantine-focus-never ...\" data-variant=\"pills\" data-active=\"true\" data-orientation=\"horizontal\" type=\"button\" role=\"tab\" id=\"mantine-5k7rtwbqb-ta...\" aria-selected=\"true\" tabindex=\"0\" ar",
+       "why": "Fix all of the following:\n  Invalid ARIA attribute value: aria-controls=\"mantine-5k7rtwbqb-panel-nodes\""
+      }
+     ]
+    }
+   ],
+   "Fields +": [
+    {
+     "id": "aria-valid-attr-value",
+     "impact": "critical",
+     "help": "ARIA attributes must conform to valid values",
+     "nodes": [
+      {
+       "target": "#mantine-5k7rtwbqb-tab-nodes",
+       "html": "<button class=\"mantine-focus-never ...\" data-variant=\"pills\" data-active=\"true\" data-orientation=\"horizontal\" type=\"button\" role=\"tab\" id=\"mantine-5k7rtwbqb-ta...\" aria-selected=\"true\" tabindex=\"0\" ar",
+       "why": "Fix all of the following:\n  Invalid ARIA attribute value: aria-controls=\"mantine-5k7rtwbqb-panel-nodes\""
+      }
+     ]
+    }
+   ],
+   "the Filters picker": [
+    {
+     "id": "aria-valid-attr-value",
+     "impact": "critical",
+     "help": "ARIA attributes must conform to valid values",
+     "nodes": [
+      {
+       "target": "#mantine-5k7rtwbqb-tab-nodes",
+       "html": "<button class=\"mantine-focus-never ...\" data-variant=\"pills\" data-active=\"true\" data-orientation=\"horizontal\" type=\"button\" role=\"tab\" id=\"mantine-5k7rtwbqb-ta...\" aria-selected=\"true\" tabindex=\"0\" ar",
+       "why": "Fix all of the following:\n  Invalid ARIA attribute value: aria-controls=\"mantine-5k7rtwbqb-panel-nodes\""
+      }
+     ]
+    }
+   ],
+   "Export on Data": [
+    {
+     "id": "aria-valid-attr-value",
+     "impact": "critical",
+     "help": "ARIA attributes must conform to valid values",
+     "nodes": [
+      {
+       "target": "#mantine-5k7rtwbqb-tab-nodes",
+       "html": "<button class=\"mantine-focus-never ...\" data-variant=\"pills\" data-active=\"true\" data-orientation=\"horizontal\" type=\"button\" role=\"tab\" id=\"mantine-5k7rtwbqb-ta...\" aria-selected=\"true\" tabindex=\"0\" ar",
+       "why": "Fix all of the following:\n  Invalid ARIA attribute value: aria-controls=\"mantine-5k7rtwbqb-panel-nodes\""
+      }
+     ]
+    }
+   ]
+  },
+  "sharedNames": {
+   "the start screen": [
+    [
+     "link \"Samples\"",
+     "button \"Samples\""
+    ],
+    [
+     "link \"Docs\"",
+     "link \"Docs\"",
+     "link \"Docs\""
+    ],
+    [
+     "link \"GitHub\"",
+     "link \"GitHub\""
+    ]
+   ],
+   "the web address box, from the start screen": [
+    [
+     "link \"Samples\"",
+     "button \"Samples\""
+    ],
+    [
+     "link \"Docs\"",
+     "link \"Docs\"",
+     "link \"Docs\""
+    ],
+    [
+     "link \"GitHub\"",
+     "link \"GitHub\""
+    ]
+   ],
+   "Sources +": [],
+   "the web address box, from Sources +": [],
+   "the join screen": [
+    [
+     "combobox \"Rows are\"",
+     "combobox \"Rows are\""
+    ],
+    [
+     "button \"Key id\"",
+     "button \"Key id\""
+    ],
+    [
+     "button \"Options for id\"",
+     "button \"Options for id\""
+    ],
+    [
+     "button \"number lat\"",
+     "button \"number lat\""
+    ],
+    [
+     "button \"Options for lat\"",
+     "button \"Options for lat\""
+    ],
+    [
+     "button \"number lon\"",
+     "button \"number lon\""
+    ],
+    [
+     "button \"Options for lon\"",
+     "button \"Options for lon\""
+    ],
+    [
+     "button \"mixed families\"",
+     "button \"mixed families\""
+    ],
+    [
+     "button \"Options for families\"",
+     "button \"Options for families\""
+    ],
+    [
+     "button \"text site\"",
+     "button \"text site\""
+    ],
+    [
+     "button \"Options for site\"",
+     "button \"Options for site\""
+    ],
+    [
+     "button \"text zip\"",
+     "button \"text zip\""
+    ],
+    [
+     "button \"Options for zip\"",
+     "button \"Options for zip\""
+    ],
+    [
+     "button \"text opened\"",
+     "button \"text opened\""
+    ],
+    [
+     "button \"Options for opened\"",
+     "button \"Options for opened\""
+    ],
+    [
+     "button \"category volunteer_run\"",
+     "button \"category volunteer_run\""
+    ],
+    [
+     "button \"Options for volunteer_run\"",
+     "button \"Options for volunteer_run\""
+    ]
+   ],
+   "the issue list": [],
+   "Fields +": [],
+   "the Filters picker": [],
+   "Export on Data": [
+    [
+     "combobox \"Table\"",
+     "button \"Table\""
+    ]
+   ]
+  },
+  "focusOnPage": {},
+  "typedWithNoClick": {},
+  "activeOptionInView": {},
+  "words": {}
+ },
+ "exceptions": [],
+ "walked": {
+  "screens": {
+   "1200x900": [
+    "the start screen",
+    "the web address box, from the start screen",
+    "Sources +",
+    "the web address box, from Sources +",
+    "the join screen",
+    "the issue list",
+    "Fields +",
+    "the Filters picker",
+    "Export on Data"
+   ]
+  },
+  "focus": {
+   "1200x900": []
+  },
+  "typed": {
+   "1200x900": []
+  },
+  "planted": {
+   "1200x900": [
+    "axe",
+    "shared names",
+    "focus"
+   ]
+  }
+ },
+ "bar10": {
+  "cut": {
+   "the start screen at 1200x900": [],
+   "the web address box, from the start screen at 1200x900": [],
+   "Sources + at 1200x900": [
+    {
+     "element": "span.dp-source-name in listitem \"pantries.csv\"",
+     "text": "pantries.csv",
+     "readable": "name"
+    },
+    {
+     "element": "span.cm-data-row-name in group",
+     "text": "12 nodes joined to no other node",
+     "readable": "tooltip"
+    }
+   ],
+   "the web address box, from Sources + at 1200x900": [
+    {
+     "element": "span.dp-source-name in listitem \"pantries.csv\"",
+     "text": "pantries.csv",
+     "readable": "name"
+    },
+    {
+     "element": "span.cm-data-row-name in group",
+     "text": "12 nodes joined to no other node",
+     "readable": null
+    }
+   ],
+   "the join screen at 1200x900": [
+    {
+     "element": "span.dp-source-name in listitem \"pantries.csv\"",
+     "text": "pantries.csv",
+     "readable": "name"
+    },
+    {
+     "element": "span.cm-data-row-name in group",
+     "text": "12 nodes joined to no other node",
+     "readable": "tooltip"
+    }
+   ],
+   "the issue list at 1200x900": [
+    {
+     "element": "span.dp-source-name in listitem \"deliveries.csv\"",
+     "text": "deliveries.csv",
+     "readable": "name"
+    }
+   ],
+   "Fields + at 1200x900": [
+    {
+     "element": "span.dp-source-name in listitem \"deliveries.csv\"",
+     "text": "deliveries.csv",
+     "readable": "name"
+    }
+   ],
+   "the Filters picker at 1200x900": [
+    {
+     "element": "span.dp-source-name in listitem \"deliveries.csv\"",
+     "text": "deliveries.csv",
+     "readable": "name"
+    }
+   ],
+   "Export on Data at 1200x900": [
+    {
+     "element": "span.dp-source-name in listitem \"deliveries.csv\"",
+     "text": "deliveries.csv",
+     "readable": "name"
+    }
+   ]
+  },
+  "raw": {
+   "the start screen at 1200x900": [],
+   "the web address box, from the start screen at 1200x900": [],
+   "Sources + at 1200x900": [],
+   "the web address box, from Sources + at 1200x900": [],
+   "the join screen at 1200x900": [],
+   "the issue list at 1200x900": [],
+   "Fields + at 1200x900": [],
+   "the Filters picker at 1200x900": [],
+   "Export on Data at 1200x900": []
+  }
+ },
+ "planted": {
+  "caught": [
+   "a clipped name: caught on \"the start screen at 1200x900\", span: \"Planted cut Northern Regional Distribution Center 01\"",
+   "an E_BAD_SELECTOR string: caught on \"the start screen at 1200x900\", p: code E_BAD_SELECTOR",
+   "an image with no text alternative: caught by axe on \"the start screen at 1200x900\"",
+   "two buttons called Planted twin: caught on \"the start screen at 1200x900\"",
+   "focus dropped to the page: caught on \"the start screen at 1200x900\""
+  ],
+  "missed": []
+ },
+ "weights": {
+  "problems": [],
+  "notFinished": [],
+  "runs": []
+ },
+ "untrusted": [],
+ "log": [
+  "ok   the start screen at 1200x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier4/design/ui/studio/tier4/rounds/round-1/expert/engineer/bars-1200x900/sessions/data-screens-1200x900/02.png)",
+  "ok   the web address box, from the start screen at 1200x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier4/design/ui/studio/tier4/rounds/round-1/expert/engineer/bars-1200x900/sessions/data-screens-1200x900/03.png)",
+  "ok   Sources + at 1200x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier4/design/ui/studio/tier4/rounds/round-1/expert/engineer/bars-1200x900/sessions/data-screens-1200x900/05.png)",
+  "ok   the web address box, from Sources + at 1200x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier4/design/ui/studio/tier4/rounds/round-1/expert/engineer/bars-1200x900/sessions/data-screens-1200x900/06.png)",
+  "ok   the join screen at 1200x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier4/design/ui/studio/tier4/rounds/round-1/expert/engineer/bars-1200x900/sessions/data-screens-1200x900/07.png)",
+  "ok   the issue list at 1200x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier4/design/ui/studio/tier4/rounds/round-1/expert/engineer/bars-1200x900/sessions/data-screens-1200x900/09.png)",
+  "ok   Fields + at 1200x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier4/design/ui/studio/tier4/rounds/round-1/expert/engineer/bars-1200x900/sessions/data-screens-1200x900/10.png)",
+  "ok   the Filters picker at 1200x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier4/design/ui/studio/tier4/rounds/round-1/expert/engineer/bars-1200x900/sessions/data-screens-1200x900/11.png)",
+  "ok   Export on Data at 1200x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier4/design/ui/studio/tier4/rounds/round-1/expert/engineer/bars-1200x900/sessions/data-screens-1200x900/12.png)"
+ ]
+}

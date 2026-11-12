@@ -277,6 +277,23 @@ export function checkDegreeOrder(
 }
 
 /**
+ * reverse: within a row, entry k (forward arc `a` from `source`) sorts after entry k - 1 by source,
+ * then by forward arc.
+ * @param fwdArc - the carried forward arcs
+ * @param arcRow - the source of each forward arc
+ * @param k - the entry, not the first of its row
+ * @param a - fwdArc[k]
+ * @param source - arcRow[a]
+ */
+function checkReverseTieOrder(fwdArc: U32, arcRow: U32, k: number, a: number, source: number): void {
+    const previous = fwdArc[k - 1];
+    const previousSource = arcRow[previous];
+    if (source < previousSource || (source === previousSource && a <= previous)) {
+        throw viewError("reverse", "fwdArc", k, "I2");
+    }
+}
+
+/**
  * reverse (directed): the in-adjacency with rows sorted by source and ties by forward arc, `fwdArc`
  * a permutation of the arcs, `colIdx` the sources, `weights` the forward weights gathered.
  * @param snapshot - the snapshot
@@ -303,11 +320,7 @@ export function checkReverse(snapshot: GraphSnapshot, facts: CoreFacts, reverse:
                 throw viewError("reverse", "colIdx", k, "I2");
             }
             if (k > rowPtr[v]) {
-                const previous = fwdArc[k - 1];
-                const previousSource = facts.arcRow[previous];
-                if (source < previousSource || (source === previousSource && a <= previous)) {
-                    throw viewError("reverse", "fwdArc", k, "I2");
-                }
+                checkReverseTieOrder(fwdArc, facts.arcRow, k, a, source);
             }
             if (revWeights !== null && forward !== null && !Object.is(revWeights[k], forward[a])) {
                 throw viewError("reverse", "weights", k, "I17");

@@ -1,23 +1,26 @@
 #!/usr/bin/env node
 // Announces each release OUTCOME (release.yml) as a comment on one long-lived issue, "Release status"
 // (label `release-status`), that @-mentions the people in the repository variable RELEASE_NOTIFY (e.g.
-// "@apowers313"). Release runs are started by a GitHub App, a dispatch or a merge, never by the owner, so
+// "@apowers313"). Release runs are started by a GitHub App, a dispatch or a master push, never by the owner, so
 // GitHub's own Actions notifications never reach them; an @-mention notifies whatever the watch settings.
 //
 // Outcomes, one comment each:
-//   opened          the train passed and opened the release pull request (publishes when it merges)
 //   held            a train attempt failed and the release is held (a restart that fails again too)
-//   published       the publish job tagged every package and every version is on npm
+//   published       the train landed the release on master and every version is on npm
 //   publish-failed  the publish job failed (a re-run of it reports again, success or failure)
+//   red             a full run's verdict is red: --what names the lanes, --issue the "Full run red" issue
+//   owner-item      a full run failed for a reason no code change fixes (--what says which)
+//   nightly         a full run's candidate was promoted: npm `next` holds --tags and nightly.graphty.app serves it
+//   nightly-failed  the nightly site job failed after npm `next` moved: --issue names the "Nightly site deploy
+//                   failed" issue
+//   nightly-held    a full run promoted but versioning or landing failed (--what): nothing moved; --issue names
+//                   the "Nightly promotion failed" issue
 //   run-ended       a backstop (release-watch.yml): a release run ended badly (--what is its conclusion) and no
 //                   failure comment here names that run and attempt -- it never reached its own announce step
-//   dequeued        the release pull request (--pr URL, head --sha) left the merge queue without merging
-//                   (release-dequeued.yml): the reason, the failing checks and the queue run come from the
-//                   "Mergify Merge Queue" check run on its head, once per dequeue
 // Attempts that do nothing (nothing releasable, a release pending, a hold open) are not outcomes and
 // never call this.
 //
-// Each outcome the issue gets (and only when it gets it, so a run-ended or dequeued already reported is not sent
+// Each outcome the issue gets (and only when it gets it, so a run-ended already reported is not sent
 // twice) is also pushed to the owner's phone through Pushover, as is one notice the issue does not get:
 //   started         a train attempt began testing a releasable candidate; "Release RETRYING" when it is a restart
 //                   after a fix (--restart), or a re-run (--attempt > 1, --what says which and why)
@@ -25,22 +28,35 @@
 // sends nothing. A Pushover failure is logged, never fatal.
 //
 // Usage: node tools/release-status.mjs <outcome> [--sha S] [--run URL] [--attempt N] [--issue N|URL]
-//            [--pr URL] [--what TEXT] [--tags a@1,b@2] [--restart] [--fix TEXT] [--since ISO-TIME]
-// Needs GITHUB_TOKEN (issues: write; run-ended also actions: read, dequeued also checks: read) and
+//            [--what TEXT] [--tags a@1,b@2] [--restart] [--fix TEXT] [--since ISO-TIME] [--hold ACTION]
+// Needs GITHUB_TOKEN (issues: write; run-ended also actions: read) and
 // GITHUB_REPOSITORY (started needs neither); RELEASE_NOTIFY is optional. run-ended reads only the comments made
 // since --since (the attempt's start).
 import { parseArgs } from "node:util";
 
 export const LABEL = "release-status";
 export const TITLE = "Release status";
+/**
+ * Where the owner reviews a held candidate's changed screenshots (CLAUDE.md, "Visual review"). Here, not in
+ * channel/nightly.mjs: release.yml's held job checks out this file alone.
+ */
+export const REVIEW_PAGE =
+    "the proofroom review page (servherd `proofroom-review`, `node /home/apowers/Projects/proofroom/trusted/cli.mjs serve --candidate next`): the tokenized URL its log prints, plus `&change=master`";
+
+/**
+ * Whether a green-images run held its commit for the owner's review (the hold step's action, #5052).
+ * @param f the outcome's fields; hold is the hold step's action
+ * @returns true when it holds a candidate he can review now
+ */
+const heldForReview = (f) => f.hold === "start" || f.hold === "update";
 
 const ref = (issue) => (/^\d+$/.test(issue ?? "") ? `#${issue}` : issue || 'the "Release held" issue');
 const list = (tags) => (tags ?? "").split(",").filter(Boolean).join(", ");
 
 /**
  * The comment for one release outcome.
- * @param outcome - opened, held, published, publish-failed or run-ended
- * @param f - sha, run (URL), attempt, issue, pr, what, tags (comma separated name@version), restart
+ * @param outcome - held, published, publish-failed or run-ended
+ * @param f - sha, run (URL), attempt, issue, what, tags (comma separated name@version), restart
  * @param notify - who to mention, e.g. "@apowers313" (empty: no mention)
  * @returns the comment's Markdown
  */
@@ -50,9 +66,6 @@ export function statusComment(outcome, f, notify = "") {
     const restart = f.restart ? " after a restart following a fix" : "";
     let text;
     switch (outcome) {
-        case "opened":
-            text = `**Release train passed** on ${sha}${restart}${rerun}: release pull request ${f.pr} is open for ${list(f.tags) || "the versioned packages"}. It publishes when Mergify merges it; a second comment here says whether that worked.`;
-            break;
         case "held":
             text = `**Release held**: ${f.what || "the release train"} failed on ${sha}${restart}${rerun}. Nothing was published. Details: ${ref(f.issue)}.`;
             break;
@@ -62,15 +75,35 @@ export function statusComment(outcome, f, notify = "") {
         case "publish-failed":
             text = `**Publish failed**${rerun} on ${sha}: not every version is tagged and on npm. Details: ${ref(f.issue)}. Re-running the failed jobs of the run publishes what is missing.`;
             break;
+        case "red":
+            // the bisect's own sentence: a lane with no bisect, no green run before, or a failed dispatch says so
+            text = `**Full run red**${rerun}: ${f.what || "a lane"} failed on ${sha}. Nothing was published. ${f.bisect || "See the issue for the bisect."} Details: ${ref(f.issue)}.`;
+            break;
+        case "owner-item":
+            text = `**Owner item**${rerun}: the full run on ${sha} failed for a reason no code change fixes: ${f.what || "see the run"}.`;
+            break;
+        case "green-images":
+            // a held green-images candidate waits for the owner's review, and the run ends green: he must hear of it.
+            // One that held nothing (another candidate is held) has nothing to review, so it never asks (#5052)
+            text = heldForReview(f)
+                ? `**Screenshots changed**${rerun}: the full run on ${sha} passed every lane, but ${f.what || "screenshots differ from master's baselines"}, so nightly.graphty.app waits for your review of ${sha}, which is now the held candidate. Review it on ${REVIEW_PAGE}; its Finish opens the pull request that approves them. Or fix forward.\n\nACTION NEEDED: review the changed screenshots of the held candidate ${sha}`
+                : `**Screenshots changed**${rerun}: the full run on ${sha} passed every lane, but ${f.what || "screenshots differ from master's baselines"}. It is not held (another candidate is), so there is nothing new to review; nightly.graphty.app does not move.`;
+            break;
+        case "nightly":
+            text = `**Nightly promoted**${rerun}: ${sha} is on nightly.graphty.app${list(f.tags) ? " and npm `next` holds " + list(f.tags) : " (no package changed, so npm `next` did not move)"}.`;
+            break;
+        case "nightly-failed":
+            text = `**Nightly site deploy failed**${rerun} on ${sha}: npm \`next\` and nightly.graphty.app now differ. Details: ${ref(f.issue)}. Re-running the failed jobs of the run retries the deploy.`;
+            break;
+        case "nightly-held":
+            text = `**Nightly promotion failed**${rerun} on ${sha}: ${f.what || "versioning or landing"} did not finish, so nothing reached master, npm \`next\` or nightly.graphty.app. Details: ${ref(f.issue)}. Re-running the failed jobs of the run retries it.`;
+            break;
         case "run-ended":
             text = `**Release run ended ${f.what || "badly"}**${rerun} on ${sha}, and no comment here reported a failure for it: it stopped before announcing its outcome. Read the run; re-running its failed jobs retries it.`;
             break;
-        case "dequeued":
-            text = `**Release pull request dequeued**: ${dequeueKey(f.pr, f.left)} without merging (${f.what || "no reason given"}), on ${sha}. Nothing was published. Failing checks: ${f.checks || "none named"}. Queue run: ${f.queue || "see the pull request's Mergify Merge Queue check"}. The next train attempt closes it and cuts a new one from master's newest commit.`;
-            break;
         default:
             throw new Error(
-                `unknown outcome "${outcome}" (opened, held, published, publish-failed, run-ended, dequeued)`,
+                `unknown outcome "${outcome}" (held, published, publish-failed, red, owner-item, green-images, nightly, nightly-failed, nightly-held, run-ended)`,
             );
     }
     const mention = notify.trim() ? notify.trim() + " " : "";
@@ -78,8 +111,8 @@ export function statusComment(outcome, f, notify = "") {
 }
 
 /**
- * Does this comment report a failure of that run attempt? A held, publish-failed or run-ended comment does; an
- * opened or published one does not, as the run can still fail after it (the advisory Coverage job, a later step).
+ * Does this comment report a failure of that run attempt? A held, publish-failed or run-ended comment does; a
+ * published one does not, as the run can still fail after it (the advisory Coverage job, a later step).
  * @param body - a comment on the Release status issue
  * @param run - the run's URL
  * @param attempt - the run attempt
@@ -90,39 +123,10 @@ export function reportsFailure(body, run, attempt) {
     return (
         body.trimEnd().endsWith(`Run: ${run}`) &&
         n === String(attempt || 1) &&
-        /\*\*(Release held|Publish failed|Release run ended)\b/.test(body)
+        /\*\*(Release held|Publish failed|Release run ended|Full run red|Owner item|Nightly site deploy failed|Nightly promotion failed)\b/.test(
+            body,
+        )
     );
-}
-
-/**
- * The words that identify one dequeue of one pull request in its comment, so a re-run never posts it twice.
- * @param pr - the pull request's URL
- * @param left - when it left the queue (the check run's completed_at)
- * @returns the key
- */
-export const dequeueKey = (pr, left) => `${pr} left the merge queue at ${left || "an unknown time"}`;
-
-/**
- * The facts of a dequeue, from the "Mergify Merge Queue" check run on the pull request's head. Its title is the
- * reason ("Dequeued -- checks failed"); its summary lists the failing checks (`- X [`Name`](url)`) and the draft
- * the queue checked the batch on ("on draft #1841"). Mergify posts no pull request comments here.
- * @param run - the check run (REST shape: title or output.title, output.summary, completed_at, details_url)
- * @param repo - owner/name
- * @returns what (the reason), checks, queue (a link) and left (a time)
- */
-export function dequeueFacts(run, repo) {
-    const summary = run?.output?.summary ?? "";
-    const failing = summary.split(/\nFailing checks:\n/)[1] ?? "";
-    const checks = [...failing.matchAll(/^- \S+ \[`([^`]+)`\]\(([^)]+)\)/gm)].map(
-        ([, name, url]) => `${name} (${url})`,
-    );
-    const draft = /on draft #(\d+)/.exec(summary)?.[1];
-    return {
-        what: (run?.output?.title ?? "").replaceAll("\u2014", "--"),
-        checks: checks.join(", "),
-        queue: draft ? `https://github.com/${repo}/pull/${draft}` : (run?.details_url ?? ""),
-        left: run?.completed_at ?? "",
-    };
 }
 
 /**
@@ -180,12 +184,31 @@ export async function announce({ request, repo, body, unlessReported }) {
     return number;
 }
 
+/**
+ * When a green-images outcome is old news. The same changed screenshots stay changed on every full run until master's
+ * baselines move, so a run that only re-finds them says it once a week. A run that holds its commit for the owner's
+ * review (--hold start or update) always says it: that held candidate is what he reviews, and an earlier comment on
+ * another commit with the same counts did not tell him it is waiting (#4630).
+ * @param f - the outcome's fields: what, hold (the hold step's action: start, update or none)
+ * @param now - the time in ms
+ * @returns announce's unlessReported, or undefined to always announce
+ */
+export function screenshotsReported(f, now = Date.now()) {
+    if (f.hold === "start" || f.hold === "update") {
+        return undefined;
+    }
+    return {
+        since: new Date(now - 7 * 24 * 3_600_000).toISOString(),
+        reported: (b) => b.includes("**Screenshots changed**") && b.includes(f.what ?? ""),
+    };
+}
+
 export const PUSHOVER_URL = "https://api.pushover.net/1/messages.json";
 
 /**
  * The phone notification for one release outcome: a lock-screen title that starts with the state word, one or two
  * short lines, a link, and a priority and sound by kind (failures loud, a release cheerful, progress silent).
- * @param outcome - started, opened, held, published, publish-failed, run-ended or dequeued
+ * @param outcome - started, held, published, publish-failed or run-ended
  * @param f - the same fields as statusComment, plus fix (the subject of the commit a restart tests)
  * @returns Pushover's title, message, url, url_title, priority and sound
  */
@@ -201,22 +224,12 @@ export function pushMessage(outcome, f) {
         retry = `Re-run ${attempt}`;
     }
     const tags = list(f.tags);
-    const pr = `PR #${(f.pr ?? "").split("/").pop()}`;
     const fail = { priority: 1, sound: "siren" };
     const quiet = { priority: -1, sound: "none" };
     const kinds = {
         started: {
             title: retry ? "Release RETRYING" : "Release STARTED",
             lines: [`${tags || "Release"} on ${sha}`, f.what || retry || "Full suite, T4, Hosts and audit running"],
-            ...quiet,
-        },
-        opened: {
-            title: "Release PR OPENED",
-            lines: [
-                `${pr}: ${tags || "versioned packages"}`,
-                ["Publishes when it merges", retry].filter(Boolean).join("; "),
-            ],
-            link: "pr",
             ...quiet,
         },
         held: {
@@ -238,18 +251,61 @@ export function pushMessage(outcome, f) {
             ],
             ...fail,
         },
+        red: {
+            title: "Full run RED",
+            lines: [`${f.what || "A lane"} failed on ${sha}`, retry || `Bisecting; see ${ref(f.issue)}`],
+            ...fail,
+        },
+        "owner-item": {
+            title: "Full run OWNER ITEM",
+            lines: [`${f.what || "A lane"} on ${sha}`, "No code change fixes it"],
+            priority: 0,
+            sound: "pushover",
+        },
+        "green-images": {
+            title: "Full run SCREENSHOTS CHANGED",
+            lines: [
+                `${f.what || "Screenshots differ"} (${sha})`,
+                heldForReview(f) ? "Nightly waits for your review on the review page" : "Not held: nothing to review",
+            ],
+            priority: 0,
+            sound: "pushover",
+        },
+        nightly: {
+            title: "Nightly PROMOTED",
+            lines: [`${sha} on nightly.graphty.app`, tags ? `npm next: ${tags}` : "No package changed", retry],
+            priority: 0,
+            sound: "cashregister",
+        },
+        "nightly-failed": {
+            title: "Nightly DEPLOY FAILED",
+            lines: [`Site deploy failed on ${sha}; see ${ref(f.issue)}`, retry || "Re-run its failed jobs to retry"],
+            ...fail,
+        },
+        "nightly-held": {
+            title: "Nightly PROMOTION FAILED",
+            lines: [
+                `${f.what || "Landing"} failed on ${sha}; see ${ref(f.issue)}`,
+                retry || "Re-run its failed jobs to retry",
+            ],
+            ...fail,
+        },
+        // the rolling screenshot slices (design/visual-testing/early-capture.md, 4d): told by story-slices.yml's bins
+        "rolling-queue": {
+            title: "Screenshots CHANGED on master",
+            lines: [f.what || "Pictures changed on master", "Review them on the master rolling target"],
+            priority: 0,
+            sound: "pushover",
+        },
+        "rolling-slot": {
+            title: "Screenshots WAITING for review",
+            lines: [f.what || "Pictures wait for review", "Approve them before the slot so nightly can promote"],
+            priority: 0,
+            sound: "pushover",
+        },
         "run-ended": {
             title: "Release RUN ENDED BADLY",
             lines: [`Run ${f.what || "failed"} on ${sha} before announcing`, retry],
-            ...fail,
-        },
-        dequeued: {
-            title: "Release DROPPED FROM QUEUE",
-            lines: [
-                `${pr}: ${f.what || "no reason given"}`,
-                f.checks ? `Failing: ${f.checks.replaceAll(/ \([^)]*\)/g, "")}` : "",
-            ],
-            link: "pr",
             ...fail,
         },
     };
@@ -260,8 +316,8 @@ export function pushMessage(outcome, f) {
     return {
         title: k.title,
         message: k.lines.filter(Boolean).join("\n").slice(0, 1024),
-        url: k.link === "pr" ? f.pr : f.run,
-        url_title: k.link === "pr" ? "Open PR" : "Open run",
+        url: f.run,
+        url_title: f.urlTitle ?? "Open run",
         priority: String(k.priority),
         sound: k.sound,
     };
@@ -301,7 +357,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const { values, positionals } = parseArgs({
         allowPositionals: true,
         options: Object.fromEntries(
-            ["sha", "run", "attempt", "issue", "pr", "what", "tags", "since", "fix"]
+            ["sha", "run", "attempt", "issue", "what", "tags", "since", "fix", "bisect", "hold"]
                 .map((k) => [k, { type: "string" }])
                 .concat([["restart", { type: "boolean" }]]),
         ),
@@ -346,20 +402,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
             reported: (b) => reportsFailure(b, values.run, values.attempt),
         };
     }
-    if (positionals[0] === "dequeued") {
-        // Mergify labels the pull request as it finishes the check run; wait up to 2 minutes for the final state
-        const path = `/repos/${repo}/commits/${values.sha}/check-runs?check_name=${encodeURIComponent("Mergify Merge Queue")}&filter=latest`;
-        let run;
-        for (let i = 0; i < 12; i++) {
-            [run] = (await request("GET", path)).check_runs;
-            if (run?.status === "completed" && /^Dequeued/.test(run.output?.title ?? "")) {
-                break;
-            }
-            await new Promise((r) => setTimeout(r, 10_000));
-        }
-        Object.assign(values, dequeueFacts(run, repo));
-        const key = dequeueKey(values.pr, values.left);
-        unlessReported = { since: run?.started_at, reported: (b) => b.includes(key) };
+    if (positionals[0] === "green-images") {
+        unlessReported = screenshotsReported(values);
     }
     const body = statusComment(positionals[0], values, process.env.RELEASE_NOTIFY ?? "");
     const number = await announce({ request, repo, body, unlessReported });

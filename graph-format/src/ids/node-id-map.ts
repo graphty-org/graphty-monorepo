@@ -198,7 +198,7 @@ function storageDetached(storage: NodeIdMapStorage): boolean {
         (storage.denseValues !== null && storage.denseValues.length === 0) ||
         (storage.decoded === null && storage.numbers !== null && storage.numbers.length === 0) ||
         (storage.decoded === null && storage.tags !== null && storage.tags.length === 0) ||
-        (storage.decoded === null && storage.strings !== null && storage.strings.detached)
+        (storage.decoded === null && storage.strings?.detached === true)
     );
 }
 
@@ -330,6 +330,21 @@ interface IdScan {
 }
 
 /**
+ * The offset an identity map would have: 0 for no ids, the first id when it is a safe integer, else
+ * null (the ids cannot be an identity).
+ * @param ids - the ids in index order
+ * @param size - how many there are
+ * @returns the candidate offset, or null
+ */
+function identityOffsetOf(ids: ArrayLike<NodeId>, size: number): number | null {
+    if (size === 0) {
+        return 0;
+    }
+    const first = ids[0];
+    return typeof first === "number" && Number.isSafeInteger(first) ? first : null;
+}
+
+/**
  * One pass over the first `size` ids that decides the storage kind. The ids are assumed valid
  * (finite numbers or strings).
  * @param ids - the ids in index order
@@ -341,36 +356,28 @@ function scanIds(ids: ArrayLike<NodeId>, size: number): IdScan {
     let allStrings = true;
     let allDenseIntegers = true;
     let maxId = -1;
-    let offset = 0;
-    let identity = true;
-    if (size > 0) {
-        const first = ids[0];
-        if (typeof first === "number" && Number.isSafeInteger(first)) {
-            offset = first;
-        } else {
-            identity = false;
-        }
-    }
+    const start = identityOffsetOf(ids, size);
+    const offset = start ?? 0;
+    let identity = start !== null;
     for (let i = 0; i < size; i++) {
         const id = ids[i];
-        if (typeof id === "number") {
-            allStrings = false;
-            if (identity && id !== i + offset) {
-                identity = false;
-            }
-            if (allDenseIntegers) {
-                if (Number.isInteger(id) && id >= 0 && id < MAX_COUNT) {
-                    if (id > maxId) {
-                        maxId = id;
-                    }
-                } else {
-                    allDenseIntegers = false;
-                }
-            }
-        } else {
+        if (typeof id !== "number") {
             allNumbers = false;
             identity = false;
             allDenseIntegers = false;
+            continue;
+        }
+        allStrings = false;
+        if (identity && id !== i + offset) {
+            identity = false;
+        }
+        if (!allDenseIntegers) {
+            continue;
+        }
+        if (!Number.isInteger(id) || id < 0 || id >= MAX_COUNT) {
+            allDenseIntegers = false;
+        } else if (id > maxId) {
+            maxId = id;
         }
     }
     if (!allNumbers) {
@@ -904,6 +911,43 @@ interface FromF64Options {
 }
 
 /**
+ * Check that every id is finite (E_INVALID_ID) and rewrite -0 entries to 0 in a copy.
+ * @param values - one id per index
+ * @param size - how many there are
+ * @returns the values, or a copy without -0 when any entry was -0
+ */
+function finiteIdsOf(values: F64, size: number): F64 {
+    let negativeZero = false;
+    for (let i = 0; i < size; i++) {
+        const v = values[i];
+        if (!Number.isFinite(v)) {
+            throw new GraphFormatError(
+                "E_INVALID_ID",
+                `invalid node id ${String(v)} at index ${i}: not a finite number`,
+                {
+                    id: v,
+                    index: i,
+                    reason: "non-finite",
+                },
+            );
+        }
+        if (Object.is(v, -0)) {
+            negativeZero = true;
+        }
+    }
+    if (!negativeZero) {
+        return values;
+    }
+    const numbers = values.slice();
+    for (let i = 0; i < size; i++) {
+        if (numbers[i] === 0) {
+            numbers[i] = 0;
+        }
+    }
+    return numbers;
+}
+
+/**
  * Build a map from numeric ids in a Float64Array (the `ids: F64` form of `fromEdgeArrays` /
  * `fromCsr`), choosing identity, dense or numeric in one pass. A numeric map adopts the array as its
  * typed representation.
@@ -920,35 +964,7 @@ export function nodeIdMapFromF64(values: F64, options: FromF64Options = {}): Nod
         });
     }
     const validate = options.validate !== false;
-    let numbers = values;
-    if (validate) {
-        let negativeZero = false;
-        for (let i = 0; i < size; i++) {
-            const v = values[i];
-            if (!Number.isFinite(v)) {
-                throw new GraphFormatError(
-                    "E_INVALID_ID",
-                    `invalid node id ${String(v)} at index ${i}: not a finite number`,
-                    {
-                        id: v,
-                        index: i,
-                        reason: "non-finite",
-                    },
-                );
-            }
-            if (Object.is(v, -0)) {
-                negativeZero = true;
-            }
-        }
-        if (negativeZero) {
-            numbers = values.slice();
-            for (let i = 0; i < size; i++) {
-                if (numbers[i] === 0) {
-                    numbers[i] = 0;
-                }
-            }
-        }
-    }
+    const numbers = validate ? finiteIdsOf(values, size) : values;
     const scan = scanIds(numbers, size);
     const kind = kindOf(scan, size);
     switch (kind) {
@@ -986,7 +1002,7 @@ export function idMapBuffers(map: NodeIdMap): ArrayBuffer[] {
             out.add(view.buffer);
         }
     }
-    if (storage.strings !== null && storage.strings.encoded) {
+    if (storage.strings?.encoded) {
         out.add(storage.strings.offsets.buffer);
         out.add(storage.strings.utf8.buffer);
     }
@@ -1006,159 +1022,298 @@ export function idMapBuffers(map: NodeIdMap): ArrayBuffer[] {
  */
 export function nodeIdMapFromTyped(parts: NodeIdMapTypedParts, validate: ValidationLevel = "structure"): NodeIdMap {
     const { kind, size } = parts;
-    const structure = validate !== "none";
-    const full = validate === "full";
-    if (structure && (!Number.isInteger(size) || size < 0 || size > MAX_COUNT)) {
+    if (validate !== "none" && (!Number.isInteger(size) || size < 0 || size > MAX_COUNT)) {
         throw layoutError("ids.size", `size ${size} is not an integer in [0, MAX_COUNT]`, { found: size });
     }
     switch (kind) {
-        case "identity": {
-            // O(1) at every level: every id index + offset (the largest is offset + size - 1) must be a
-            // safe integer (I11)
-            if (!Number.isSafeInteger(parts.offset) || (size > 0 && !Number.isSafeInteger(parts.offset + size - 1))) {
-                const reason = `offset ${parts.offset} with ${size} ids leaves the safe-integer range`;
-                throw full
-                    ? bijectionError(reason, { found: parts.offset, size })
-                    : layoutError("ids.offset", reason, { found: parts.offset, size });
-            }
-            return new NodeIdMap(makeStorage("identity", size, { offset: normaliseZero(parts.offset) }));
-        }
-        case "dense": {
-            const { values } = parts;
-            if (!(values instanceof Uint32Array)) {
-                throw layoutError("ids.values", "a dense id map needs u32 values");
-            }
-            if (structure && values.length !== size) {
-                throw layoutError("ids.values", `expected ${size} values, found ${values.length}`, {
-                    expected: size,
-                    found: values.length,
-                });
-            }
-            let maxId = -1;
-            for (let i = 0; i < values.length; i++) {
-                if (values[i] > maxId) {
-                    maxId = values[i];
-                }
-            }
-            // the dense bounds are checked at every level: the scan is already paid, and the inverse
-            // array below is allocated over [0, maxId], which an unchecked id could make enormous
-            if (maxId >= MAX_COUNT) {
-                throw layoutError("ids.values", `dense id ${maxId} is not below MAX_COUNT`, { found: maxId });
-            }
-            if (maxId + 1 > 2 * Math.max(size, values.length)) {
-                throw layoutError("ids.values", `dense bound violated: max id ${maxId} with ${size} nodes`, {
-                    maxId,
-                    size,
-                });
-            }
-            const denseInverse = buildDenseInverse(values, maxId, (id, first, second) =>
-                bijectionError(`duplicate id ${id}`, { id, indices: [first, second] }),
-            );
-            return new NodeIdMap(makeStorage("dense", size, { denseValues: values, denseInverse }));
-        }
-        case "numeric": {
-            const numbers = parts.values;
-            if (!(numbers instanceof Float64Array)) {
-                throw layoutError("ids.values", "a numeric id map needs f64 values");
-            }
-            if (structure && numbers.length !== size) {
-                throw layoutError("ids.values", `expected ${size} values, found ${numbers.length}`, {
-                    expected: size,
-                    found: numbers.length,
-                });
-            }
-            let map: Map<NodeId, number> | null = null;
-            if (full) {
-                for (let i = 0; i < size; i++) {
-                    if (!Number.isFinite(numbers[i])) {
-                        throw bijectionError(`non-finite id at index ${i}`, { index: i, id: numbers[i] });
-                    }
-                }
-                map = buildReverseMap(numbers, size, (id, first, second) =>
-                    bijectionError(`duplicate id ${describeId(id)}`, { id, indices: [first, second] }),
-                );
-            }
-            return new NodeIdMap(makeStorage("numeric", size, { numbers, map }));
-        }
-        case "string": {
-            const { offsets, utf8 } = parts;
-            if (offsets === null || utf8 === null) {
-                throw layoutError("ids.offsets", "a string id map needs offsets and utf8");
-            }
-            if (structure) {
-                checkUtf8Layout(offsets, utf8, size, "ids.offsets");
-            }
-            const strings = Utf8Store.fromEncoded(offsets, utf8);
-            let map: Map<NodeId, number> | null = null;
-            if (full) {
-                const bad = strings.firstMalformedRow();
-                if (bad !== -1) {
-                    throw bijectionError(`malformed UTF-8 in id at index ${bad}`, { index: bad });
-                }
-                map = buildReverseMap(strings.decodeAll(), size, (id, first, second) =>
-                    bijectionError(`duplicate id ${describeId(id)}`, { id, indices: [first, second] }),
-                );
-            }
-            return new NodeIdMap(makeStorage("string", size, { strings, map }));
-        }
-        case "mixed": {
-            const { tags, numbers, offsets, utf8 } = parts;
-            if (tags === null || numbers === null || offsets === null || utf8 === null) {
-                throw layoutError("ids.tags", "a mixed id map needs tags, numbers, offsets and utf8");
-            }
-            if (structure) {
-                if (tags.length !== size) {
-                    throw layoutError("ids.tags", `expected ${size} tags, found ${tags.length}`, {
-                        expected: size,
-                        found: tags.length,
-                    });
-                }
-                if (numbers.length !== size) {
-                    throw layoutError("ids.numbers", `expected ${size} numbers, found ${numbers.length}`, {
-                        expected: size,
-                        found: numbers.length,
-                    });
-                }
-                for (let i = 0; i < size; i++) {
-                    if (tags[i] > 1) {
-                        throw layoutError("ids.tags", `tag ${tags[i]} at index ${i} is not 0 or 1`, {
-                            index: i,
-                            found: tags[i],
-                        });
-                    }
-                }
-                checkUtf8Layout(offsets, utf8, size, "ids.offsets");
-            }
-            const strings = Utf8Store.fromEncoded(offsets, utf8);
-            let map: Map<NodeId, number> | null = null;
-            if (full) {
-                const bad = strings.firstMalformedRow();
-                if (bad !== -1) {
-                    throw bijectionError(`malformed UTF-8 in id at index ${bad}`, { index: bad });
-                }
-                const decoded = new Array<NodeId>(size);
-                for (let i = 0; i < size; i++) {
-                    if (tags[i] === 0) {
-                        if (!Number.isFinite(numbers[i])) {
-                            throw bijectionError(`non-finite id at index ${i}`, { index: i, id: numbers[i] });
-                        }
-                        decoded[i] = numbers[i];
-                    } else {
-                        decoded[i] = strings.at(i);
-                    }
-                }
-                map = buildReverseMap(decoded, size, (id, first, second) =>
-                    bijectionError(`duplicate id ${describeId(id)}`, { id, indices: [first, second] }),
-                );
-            }
-            return new NodeIdMap(makeStorage("mixed", size, { tags, numbers, strings, map }));
-        }
+        case "identity":
+            return identityFromTyped(parts, validate);
+        case "dense":
+            return denseFromTyped(parts, validate);
+        case "numeric":
+            return numericFromTyped(parts, validate);
+        case "string":
+            return stringFromTyped(parts, validate);
+        case "mixed":
+            return mixedFromTyped(parts, validate);
         default:
             throw new GraphFormatError("E_UNSUPPORTED", `unknown id map kind ${String(kind)}`, { kind });
     }
 }
 
+/**
+ * The I11 error for two indices holding the same id, as nodeIdMapFromTyped reports it.
+ * @param id - the repeated id
+ * @param first - the first index holding it
+ * @param second - the second index holding it
+ * @returns the error
+ */
+function typedDuplicateIdError(id: NodeId, first: number, second: number): GraphFormatError {
+    return bijectionError(`duplicate id ${describeId(id)}`, { id, indices: [first, second] });
+}
+
+/**
+ * Check that a typed values array holds one entry per id (E_BAD_SERIALIZATION at ref).
+ * @param ref - the details.ref of the error
+ * @param noun - what the array holds, for the message
+ * @param length - the array's length
+ * @param size - the number of ids
+ */
+function checkTypedLength(ref: string, noun: string, length: number, size: number): void {
+    if (length !== size) {
+        throw layoutError(ref, `expected ${size} ${noun}, found ${length}`, { expected: size, found: length });
+    }
+}
+
+/**
+ * Throw I11 when a decoded Utf8 store holds a malformed row (validation "full").
+ * @param strings - the store
+ */
+function checkWellFormedUtf8(strings: Utf8Store): void {
+    const bad = strings.firstMalformedRow();
+    if (bad !== -1) {
+        throw bijectionError(`malformed UTF-8 in id at index ${bad}`, { index: bad });
+    }
+}
+
+/**
+ * nodeIdMapFromTyped for kind "identity".
+ * @param parts - the typed representation
+ * @param validate - the validation level
+ * @returns the map
+ */
+function identityFromTyped(parts: NodeIdMapTypedParts, validate: ValidationLevel): NodeIdMap {
+    const { offset, size } = parts;
+    // O(1) at every level: every id index + offset (the largest is offset + size - 1) must be a
+    // safe integer (I11)
+    if (!Number.isSafeInteger(offset) || (size > 0 && !Number.isSafeInteger(offset + size - 1))) {
+        const reason = `offset ${offset} with ${size} ids leaves the safe-integer range`;
+        throw validate === "full"
+            ? bijectionError(reason, { found: offset, size })
+            : layoutError("ids.offset", reason, { found: offset, size });
+    }
+    return new NodeIdMap(makeStorage("identity", size, { offset: normaliseZero(offset) }));
+}
+
+/**
+ * nodeIdMapFromTyped for kind "dense". The bounds are checked at every level, and a duplicate is
+ * always detected because the inverse array is rebuilt.
+ * @param parts - the typed representation
+ * @param validate - the validation level
+ * @returns the map
+ */
+function denseFromTyped(parts: NodeIdMapTypedParts, validate: ValidationLevel): NodeIdMap {
+    const { values, size } = parts;
+    if (!(values instanceof Uint32Array)) {
+        throw layoutError("ids.values", "a dense id map needs u32 values");
+    }
+    if (validate !== "none") {
+        checkTypedLength("ids.values", "values", values.length, size);
+    }
+    let maxId = -1;
+    for (let i = 0; i < values.length; i++) {
+        if (values[i] > maxId) {
+            maxId = values[i];
+        }
+    }
+    // the dense bounds are checked at every level: the scan is already paid, and the inverse
+    // array below is allocated over [0, maxId], which an unchecked id could make enormous
+    if (maxId >= MAX_COUNT) {
+        throw layoutError("ids.values", `dense id ${maxId} is not below MAX_COUNT`, { found: maxId });
+    }
+    if (maxId + 1 > 2 * Math.max(size, values.length)) {
+        throw layoutError("ids.values", `dense bound violated: max id ${maxId} with ${size} nodes`, {
+            maxId,
+            size,
+        });
+    }
+    const denseInverse = buildDenseInverse(values, maxId, (id, first, second) =>
+        bijectionError(`duplicate id ${id}`, { id, indices: [first, second] }),
+    );
+    return new NodeIdMap(makeStorage("dense", size, { denseValues: values, denseInverse }));
+}
+
+/**
+ * nodeIdMapFromTyped for kind "numeric"; "full" checks every id is finite and distinct.
+ * @param parts - the typed representation
+ * @param validate - the validation level
+ * @returns the map
+ */
+function numericFromTyped(parts: NodeIdMapTypedParts, validate: ValidationLevel): NodeIdMap {
+    const { values: numbers, size } = parts;
+    if (!(numbers instanceof Float64Array)) {
+        throw layoutError("ids.values", "a numeric id map needs f64 values");
+    }
+    if (validate !== "none") {
+        checkTypedLength("ids.values", "values", numbers.length, size);
+    }
+    let map: Map<NodeId, number> | null = null;
+    if (validate === "full") {
+        for (let i = 0; i < size; i++) {
+            if (!Number.isFinite(numbers[i])) {
+                throw bijectionError(`non-finite id at index ${i}`, { index: i, id: numbers[i] });
+            }
+        }
+        map = buildReverseMap(numbers, size, typedDuplicateIdError);
+    }
+    return new NodeIdMap(makeStorage("numeric", size, { numbers, map }));
+}
+
+/**
+ * nodeIdMapFromTyped for kind "string"; "full" checks well-formed UTF-8 and distinct ids.
+ * @param parts - the typed representation
+ * @param validate - the validation level
+ * @returns the map
+ */
+function stringFromTyped(parts: NodeIdMapTypedParts, validate: ValidationLevel): NodeIdMap {
+    const { offsets, utf8, size } = parts;
+    if (offsets === null || utf8 === null) {
+        throw layoutError("ids.offsets", "a string id map needs offsets and utf8");
+    }
+    if (validate !== "none") {
+        checkUtf8Layout(offsets, utf8, size, "ids.offsets");
+    }
+    const strings = Utf8Store.fromEncoded(offsets, utf8);
+    let map: Map<NodeId, number> | null = null;
+    if (validate === "full") {
+        checkWellFormedUtf8(strings);
+        map = buildReverseMap(strings.decodeAll(), size, typedDuplicateIdError);
+    }
+    return new NodeIdMap(makeStorage("string", size, { strings, map }));
+}
+
+/**
+ * The structure checks of a mixed id map: one tag and one number per id, every tag 0 or 1, and a
+ * valid Utf8 layout.
+ * @param tags - the tags
+ * @param numbers - the numbers
+ * @param offsets - the Utf8 offsets
+ * @param utf8 - the Utf8 bytes
+ * @param size - the number of ids
+ */
+function checkMixedStructure(tags: U8, numbers: F64, offsets: U32, utf8: U8, size: number): void {
+    checkTypedLength("ids.tags", "tags", tags.length, size);
+    checkTypedLength("ids.numbers", "numbers", numbers.length, size);
+    for (let i = 0; i < size; i++) {
+        if (tags[i] > 1) {
+            throw layoutError("ids.tags", `tag ${tags[i]} at index ${i} is not 0 or 1`, {
+                index: i,
+                found: tags[i],
+            });
+        }
+    }
+    checkUtf8Layout(offsets, utf8, size, "ids.offsets");
+}
+
+/**
+ * Decode every id of a mixed id map, throwing I11 on a non-finite number.
+ * @param tags - the tags (0 number, 1 string)
+ * @param numbers - the numbers
+ * @param strings - the strings
+ * @param size - the number of ids
+ * @returns the ids by index
+ */
+function decodeMixedIds(tags: U8, numbers: F64, strings: Utf8Store, size: number): NodeId[] {
+    const decoded = new Array<NodeId>(size);
+    for (let i = 0; i < size; i++) {
+        if (tags[i] === 0) {
+            if (!Number.isFinite(numbers[i])) {
+                throw bijectionError(`non-finite id at index ${i}`, { index: i, id: numbers[i] });
+            }
+            decoded[i] = numbers[i];
+        } else {
+            decoded[i] = strings.at(i);
+        }
+    }
+    return decoded;
+}
+
+/**
+ * nodeIdMapFromTyped for kind "mixed"; "full" checks well-formed UTF-8, finite numbers and
+ * distinct ids.
+ * @param parts - the typed representation
+ * @param validate - the validation level
+ * @returns the map
+ */
+function mixedFromTyped(parts: NodeIdMapTypedParts, validate: ValidationLevel): NodeIdMap {
+    const { tags, numbers, offsets, utf8, size } = parts;
+    if (tags === null || numbers === null || offsets === null || utf8 === null) {
+        throw layoutError("ids.tags", "a mixed id map needs tags, numbers, offsets and utf8");
+    }
+    if (validate !== "none") {
+        checkMixedStructure(tags, numbers, offsets, utf8, size);
+    }
+    const strings = Utf8Store.fromEncoded(offsets, utf8);
+    let map: Map<NodeId, number> | null = null;
+    if (validate === "full") {
+        checkWellFormedUtf8(strings);
+        map = buildReverseMap(decodeMixedIds(tags, numbers, strings, size), size, typedDuplicateIdError);
+    }
+    return new NodeIdMap(makeStorage("mixed", size, { tags, numbers, strings, map }));
+}
+
 // ============================================================ typed form, gather, remap
+
+/**
+ * The F64 of a numeric map, materialised from the decoded ids (and cached) on first use.
+ * @param storage - the storage of a numeric map
+ * @param size - the id count
+ * @returns the numbers
+ */
+function numericTypedOf(storage: NodeIdMapStorage, size: number): F64 {
+    if (storage.numbers !== null) {
+        return storage.numbers;
+    }
+    const decoded = storage.decoded as readonly NodeId[];
+    const numbers = new Float64Array(size);
+    for (let i = 0; i < size; i++) {
+        const id = decoded[i];
+        if (typeof id !== "number") {
+            throw new GraphFormatError("E_INVALID_ID", `numeric id map holds a ${typeof id} at index ${i}`, {
+                index: i,
+                found: typeof id,
+            });
+        }
+        numbers[i] = id;
+    }
+    storage.numbers = numbers;
+    claimHolder(numbers.buffer);
+    return numbers;
+}
+
+/**
+ * The tags, numbers and Utf8 store of a mixed map, materialised from the decoded ids (and cached)
+ * on first use.
+ * @param storage - the storage of a mixed map
+ * @param size - the id count
+ * @returns the three typed slots
+ */
+function mixedTypedOf(storage: NodeIdMapStorage, size: number): { tags: U8; numbers: F64; strings: Utf8Store } {
+    if (storage.tags !== null && storage.numbers !== null && storage.strings !== null) {
+        return { tags: storage.tags, numbers: storage.numbers, strings: storage.strings };
+    }
+    const decoded = storage.decoded as readonly NodeId[];
+    const tags = new Uint8Array(size);
+    const numbers = new Float64Array(size);
+    for (let i = 0; i < size; i++) {
+        const id = decoded[i];
+        if (typeof id === "number") {
+            numbers[i] = id;
+        } else {
+            tags[i] = 1;
+        }
+    }
+    const { offsets, utf8 } = encodeUtf8Rows(decoded, size);
+    storage.tags = tags;
+    storage.numbers = numbers;
+    const strings = Utf8Store.fromEncoded(offsets, utf8);
+    storage.strings = strings;
+    // the map is the first holder of the buffers it materialises (design section 9.1)
+    for (const buffer of [tags.buffer, numbers.buffer, offsets.buffer, utf8.buffer]) {
+        claimHolder(buffer);
+    }
+    return { tags, numbers, strings };
+}
 
 /**
  * The typed (wire) representation of a map (design section 4.5), materialising and caching whatever
@@ -1195,31 +1350,11 @@ export function nodeIdMapToTyped(map: NodeIdMap): NodeIdMapTypedParts {
                 utf8: null,
             };
         case "numeric": {
-            if (storage.numbers === null) {
-                const decoded = storage.decoded as readonly NodeId[];
-                const numbers = new Float64Array(size);
-                for (let i = 0; i < size; i++) {
-                    const id = decoded[i];
-                    if (typeof id !== "number") {
-                        throw new GraphFormatError(
-                            "E_INVALID_ID",
-                            `numeric id map holds a ${typeof id} at index ${i}`,
-                            {
-                                index: i,
-                                found: typeof id,
-                            },
-                        );
-                    }
-                    numbers[i] = id;
-                }
-                storage.numbers = numbers;
-                claimHolder(numbers.buffer);
-            }
             return {
                 kind,
                 size,
                 offset: 0,
-                values: storage.numbers,
+                values: numericTypedOf(storage, size),
                 tags: null,
                 numbers: null,
                 offsets: null,
@@ -1240,36 +1375,16 @@ export function nodeIdMapToTyped(map: NodeIdMap): NodeIdMapTypedParts {
             };
         }
         case "mixed": {
-            if (storage.tags === null || storage.numbers === null || storage.strings === null) {
-                const decoded = storage.decoded as readonly NodeId[];
-                const tags = new Uint8Array(size);
-                const numbers = new Float64Array(size);
-                for (let i = 0; i < size; i++) {
-                    const id = decoded[i];
-                    if (typeof id === "number") {
-                        numbers[i] = id;
-                    } else {
-                        tags[i] = 1;
-                    }
-                }
-                const { offsets, utf8 } = encodeUtf8Rows(decoded, size);
-                storage.tags = tags;
-                storage.numbers = numbers;
-                storage.strings = Utf8Store.fromEncoded(offsets, utf8);
-                // the map is the first holder of the buffers it materialises (design section 9.1)
-                for (const buffer of [tags.buffer, numbers.buffer, offsets.buffer, utf8.buffer]) {
-                    claimHolder(buffer);
-                }
-            }
+            const { tags, numbers, strings } = mixedTypedOf(storage, size);
             return {
                 kind,
                 size,
                 offset: 0,
                 values: null,
-                tags: storage.tags,
-                numbers: storage.numbers,
-                offsets: storage.strings.offsets,
-                utf8: storage.strings.utf8,
+                tags,
+                numbers,
+                offsets: strings.offsets,
+                utf8: strings.utf8,
             };
         }
         default:

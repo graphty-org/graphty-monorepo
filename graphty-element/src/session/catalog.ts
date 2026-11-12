@@ -33,6 +33,8 @@
  * node choices against a scope of this graph.
  */
 
+import { DATASETS, GENERATOR_CATALOG } from "@graphty/graph-samples";
+
 import { BUILT_IN_ALGORITHMS } from "../catalog/algorithms";
 import { registeredCameraDescriptors } from "../catalog/cameraRegistry";
 import { CAMERA_DESCRIPTORS } from "../catalog/cameras";
@@ -41,14 +43,20 @@ import { registeredLayoutDescriptors } from "../catalog/layoutRegistry";
 import { LAYOUT_DESCRIPTORS } from "../catalog/layouts";
 import { registeredLogSinkDescriptors } from "../catalog/logSinkRegistry";
 import { LOG_SINK_DESCRIPTORS } from "../catalog/logSinks";
+import { MODEL_DESCRIPTORS } from "../catalog/models";
 import { registeredPaletteDescriptors } from "../catalog/paletteRegistry";
 import { PALETTE_DESCRIPTORS } from "../catalog/palettes";
 import { registeredAlgorithmDescriptors } from "../catalog/registry";
 import { SCALE_DESCRIPTORS } from "../catalog/scales";
-import type { AlgorithmDescriptor } from "../catalog/types";
+import { SCREENSHOT_PRESET_DESCRIPTORS } from "../catalog/screenshotPresets";
+import { shaderDescriptors } from "../catalog/shaderRegistry";
+import type { ShaderDescriptor } from "../catalog/shaders";
+import type { AlgorithmDescriptor, FormatDescriptor, LayoutDescriptor } from "../catalog/types";
 import { catalogFormatDescriptors } from "../catalog/writerRegistry";
+import { transitionDescriptors } from "../transitions/registry";
 import { describeMetrics, type MetricsSource } from "./metrics";
 import { optionsFor, type OptionsForSource } from "./optionsFor";
+import { sessionChannels } from "./styles/channels";
 import type { SessionCatalogApi } from "./types";
 
 /**
@@ -132,7 +140,92 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
      * @returns the scale descriptors
      */
     scales: () => SCALE_DESCRIPTORS,
+    /**
+     * Every screenshot preset `captureScreenshot({ preset })` takes, with the settings it sets.
+     * Static.
+     * @returns the preset descriptors
+     */
+    screenshotPresets: () => SCREENSHOT_PRESET_DESCRIPTORS,
+    /**
+     * Every shader a layer can name: the element's presets, then the registered ones.
+     * @returns the shader descriptors, the element's own first
+     */
+    shaders: () => shaderDescriptors(),
+    /**
+     * Every layout transition `layoutTransition` can name: the element's presets, then the
+     * registered ones.
+     * @returns the transition descriptors, the element's own first
+     */
+    transitions: () => transitionDescriptors(),
+    /**
+     * Every graph generator `data.generate` runs: graph-samples' catalogue. Static.
+     * @returns the generator descriptors
+     */
+    generators: () => GENERATOR_CATALOG,
+    /**
+     * Every sample dataset `data.loadDataset` downloads: graph-samples' catalogue. Static.
+     * @returns the dataset descriptors
+     */
+    datasets: () => DATASETS,
+    /**
+     * Every sample 3D model the element ships. Static: samples are resolved from the package.
+     * @returns the model descriptors
+     */
+    models: () => MODEL_DESCRIPTORS,
 });
+
+/**
+ * Derive a table from a composed one, cached on the composed table's identity, so the derived
+ * array is the same object until something registers.
+ * @param derive - Builds the derived list.
+ * @returns A function from the composed table to the derived one.
+ */
+function deriver<T>(derive: (list: readonly T[]) => readonly T[]): (list: readonly T[]) => readonly T[] {
+    let cached: { readonly from: readonly T[]; readonly list: readonly T[] } | null = null;
+    return (list) => {
+        if (cached?.from !== list) {
+            cached = { from: list, list: Object.freeze(derive(list)) };
+        }
+
+        return cached.list;
+    };
+}
+
+/**
+ * The formats with the file styles experiment off: no `styles` field and no `styles` writer option.
+ */
+const formatsWithoutStyles = deriver<FormatDescriptor>((list) =>
+    list.map((descriptor) => {
+        const { styles: _styles, writerOptions, ...rest } = descriptor;
+        return Object.freeze({
+            ...rest,
+            ...(writerOptions === undefined
+                ? {}
+                : { writerOptions: Object.freeze(writerOptions.filter((option) => option.name !== "styles")) }),
+        });
+    }),
+);
+
+/**
+ * The fixed layout's options the file styles experiment adds: Graphviz routing the edges of a
+ * placed file, as Graphviz draws it.
+ */
+const FILE_STYLE_LAYOUT_OPTIONS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+    fixed: Object.freeze(["edgeRoutes", "graphvizAttributes"]),
+});
+
+/** The layouts with the file styles experiment off: without the options it adds. */
+const layoutsWithoutStyles = deriver<LayoutDescriptor>((list) =>
+    list.map((descriptor) => {
+        const gated = FILE_STYLE_LAYOUT_OPTIONS[descriptor.id];
+        return gated === undefined
+            ? descriptor
+            : Object.freeze({
+                  ...descriptor,
+                  options: Object.freeze(descriptor.options.filter((option) => !gated.includes(option.name))),
+              });
+    }),
+);
 
 /**
  * One session's catalogue: the shared tables, plus the metric listing and the option resolver for
@@ -141,9 +234,46 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
  *   `optionsFor` resolves a scope.
  * @returns The catalogue.
  */
-export function createSessionCatalog(source: MetricsSource & Pick<OptionsForSource, "resolve">): SessionCatalogApi {
+export function createSessionCatalog(
+    source: MetricsSource &
+        Pick<OptionsForSource, "resolve" | "attributes" | "results" | "nodeValues"> & {
+            /** The project's own shaders, listed after the presets and registered ones. */
+            readonly projectShaders?: () => readonly ShaderDescriptor[];
+            /** Whether the file styles experiment is on; absent reads on. */
+            readonly fileStyles?: () => boolean;
+        },
+): SessionCatalogApi {
+    const fileStyles = (): boolean => source.fileStyles?.() !== false;
+    const layouts = (): readonly LayoutDescriptor[] =>
+        fileStyles() ? SESSION_CATALOG_TABLES.layouts() : layoutsWithoutStyles(SESSION_CATALOG_TABLES.layouts());
     return Object.freeze({
         ...SESSION_CATALOG_TABLES,
+        /**
+         * Every file format, without what the file styles experiment adds while it is off.
+         * @returns the format descriptors, the element's own first
+         */
+        formats: () =>
+            fileStyles() ? SESSION_CATALOG_TABLES.formats() : formatsWithoutStyles(SESSION_CATALOG_TABLES.formats()),
+        /**
+         * Every layout, without the options the file styles experiment adds while it is off.
+         * @returns the layout descriptors, the element's own first
+         */
+        layouts,
+        /**
+         * The style channels this session offers for a target.
+         * @param target - Nodes or edges.
+         * @returns The channels, in table order.
+         */
+        channels: (target) => sessionChannels(target, fileStyles()),
+        /**
+         * Every shader a layer can name: the element's presets, the registered ones, then the
+         * project's own (pasted, or carried in by a file).
+         * @returns the shader descriptors, the element's own first
+         */
+        shaders: () => {
+            const pasted = source.projectShaders?.() ?? [];
+            return pasted.length === 0 ? shaderDescriptors() : Object.freeze([...shaderDescriptors(), ...pasted]);
+        },
         /**
          * Every metric the element could compute on this graph, with what it would cost and
          * whether it has been run.
@@ -162,8 +292,11 @@ export function createSessionCatalog(source: MetricsSource & Pick<OptionsForSour
                 optionsFor(
                     {
                         algorithms: SESSION_CATALOG_TABLES.algorithms,
-                        layouts: SESSION_CATALOG_TABLES.layouts,
+                        layouts,
                         resolve: source.resolve,
+                        attributes: source.attributes,
+                        results: source.results,
+                        nodeValues: source.nodeValues,
                     },
                     key,
                     scope,

@@ -860,7 +860,7 @@ export function CompactComponentsDemo(): React.JSX.Element {
 
 // Helper Components
 
-function Section({ title, children }: { title: string; children: React.ReactNode }): React.JSX.Element {
+function Section({ title, children }: Readonly<{ title: string; children: React.ReactNode }>): React.JSX.Element {
     return (
         <Box mb="xl">
             <Title order={3} size="h4" mb="md">
@@ -871,7 +871,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     );
 }
 
-function Grid({ children }: { children: React.ReactNode }): React.JSX.Element {
+function Grid({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
     return (
         <Box
             style={{
@@ -889,11 +889,11 @@ function GridItem({
     label,
     children,
     fullWidth = false,
-}: {
+}: Readonly<{
     label: string;
     children: React.ReactNode;
     fullWidth?: boolean;
-}): React.JSX.Element {
+}>): React.JSX.Element {
     return (
         <Box style={fullWidth ? { gridColumn: "1 / -1" } : undefined}>
             <Text size="xs" c="dimmed" mb={4}>

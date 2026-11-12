@@ -10,11 +10,20 @@ import { useShellStyles } from "./roving";
  * @param props.shortcut - The keyboard shortcut, if any
  * @returns The tooltip label
  */
-export function TipLabel({ label, shortcut }: { label: React.ReactNode; shortcut?: string }): React.JSX.Element {
+export function TipLabel({
+    label,
+    shortcut,
+}: Readonly<{ label: React.ReactNode; shortcut?: string }>): React.JSX.Element {
     return (
         <>
             {label}
-            {shortcut ? <span className="cm-tip-shortcut">{shortcut}</span> : null}
+            {/* A real space before the key, so the tooltip's text reads "Table Shift+T", not "TableShift+T". */}
+            {shortcut ? (
+                <>
+                    {" "}
+                    <span className="cm-tip-shortcut">{shortcut}</span>
+                </>
+            ) : null}
         </>
     );
 }

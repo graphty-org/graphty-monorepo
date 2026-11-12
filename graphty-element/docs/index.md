@@ -1,8 +1,8 @@
 ---
+title: graphty-element
 layout: home
 
 hero:
-    name: graphty-element
     text: 3D/2D Graph Visualization
     tagline: Web Component built with Lit and Babylon.js
     actions:

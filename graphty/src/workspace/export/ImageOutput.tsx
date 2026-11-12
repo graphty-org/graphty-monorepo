@@ -1,20 +1,24 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
-import type { ScreenshotErrorCode } from "@graphty/graphty-element";
+import type { ScreenshotErrorCode, ScreenshotLegendSection } from "@graphty/graphty-element";
+import { SCREENSHOT_PRESET_DESCRIPTORS } from "@graphty/graphty-element/catalog";
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { Alert, Button, Input, Loader, Select, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
+import { dataBlocks, imageLegend, keyNames } from "../canvas/legendWords";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     backgroundRefusal,
     CUSTOM,
+    failureWords,
     fileName,
     IMAGE_EXTENSIONS,
-    IMAGE_PRESETS,
     type ImageChoices,
     type ImageFormat,
     type ImageSize,
+    PRESET_LABELS,
+    presetChoices,
     presetOf,
-    SAVED_LOCALLY,
     screenshotOptions,
 } from "./choices";
 
@@ -33,13 +37,32 @@ const VIEW_LABELS: Readonly<Record<string, string>> = {
 
 const SIZES: readonly ImageSize[] = ["1x", "2x", "4x", "400x300"];
 
+/** The preview is captured this wide (height by the canvas's aspect), not at the canvas's size. */
+const PREVIEW_WIDTH = 480;
+
+/**
+ * Why a size cannot be captured. `canCaptureScreenshot` gives a sentence but no code, so the app
+ * cannot say which limit it hit; the gap is recorded with the Export dialog package.
+ */
+const SIZE_REFUSED = "this browser cannot make an image this size";
+
+/**
+ * The key an image carries when the canvas shows the legend card: the card's sections, in the
+ * same words.
+ * @param session - the session, or null.
+ * @returns the sections; none without a session.
+ */
+function imageKey(session: GraphSession | null): ScreenshotLegendSection[] {
+    return session === null ? [] : imageLegend(dataBlocks(session), keyNames(session));
+}
+
 /** Props for ImageOutput. */
 interface ImageOutputProps {
     choices: ImageChoices;
     onChange: (choices: ImageChoices) => void;
     onCancel: () => void;
-    /** Closes the dialog with a notice. */
-    onDone: (message: string) => void;
+    /** Closes the dialog with a notice, and lists the file under Recent. */
+    onDone: (message: string, file?: string) => void;
 }
 
 /** What the footer is doing. */
@@ -48,7 +71,7 @@ type Status =
     | { kind: "capturing" }
     | { kind: "settle-timeout"; destination: "download" | "clipboard" }
     | { kind: "clipboard-refused" }
-    | { kind: "failed"; message: string };
+    | { kind: "failed"; words: string };
 
 /**
  * The Image output: preset, size, format, view and background, a preview the element draws, and
@@ -65,7 +88,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
     const { element, session } = useWorkspace();
     const project = useWorkspaceState((state) => state.project?.name ?? "untitled");
     const legendShown = useWorkspaceState((state) => state.legendShown);
-    const [preview, setPreview] = useState<{ url: string; width: number; height: number } | null>(null);
+    const [preview, setPreview] = useState<string | null>(null);
     const [previewError, setPreviewError] = useState<string | null>(null);
     const [refused, setRefused] = useState<Partial<Record<ImageSize, string>>>({});
     const [status, setStatus] = useState<Status>({ kind: "idle" });
@@ -74,27 +97,34 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
     const preset = presetOf(choices);
     const backgroundReason = backgroundRefusal(choices.format, "transparent");
 
-    // The preview: one capture at the canvas's own size, drawn as the file will be drawn.
+    // The preview: one small capture in the chosen format, drawn as the file will be drawn. The
+    // object URL only shows it in an <img>; it is revoked when the preview changes or closes.
     useEffect(() => {
         if (element === null) {
             return undefined;
         }
         let live = true;
         let url: string | null = null;
+        // An explicit width wins over the options' 1x multiplier.
         const options = screenshotOptions({ ...choices, size: "1x" }, { blob: true });
         element
-            .captureScreenshot({ ...options, timing: { waitForSettle: false } })
+            .captureScreenshot({
+                ...options,
+                width: PREVIEW_WIDTH,
+                legend: legendShown ? imageKey(session) : [],
+                timing: { waitForSettle: false },
+            })
             .then((result) => {
                 if (!live) {
                     return;
                 }
                 url = URL.createObjectURL(result.blob);
-                setPreview({ url, width: result.metadata.width, height: result.metadata.height });
+                setPreview(url);
                 setPreviewError(null);
             })
             .catch((error: unknown) => {
                 if (live) {
-                    setPreviewError(error instanceof Error ? error.message : String(error));
+                    setPreviewError(failureWords(error));
                 }
             });
         return () => {
@@ -103,7 +133,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                 URL.revokeObjectURL(url);
             }
         };
-    }, [element, choices]);
+    }, [element, choices, session, legendShown]);
 
     // The sizes the element refuses for this format, each with its reason.
     useEffect(() => {
@@ -116,7 +146,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                 const check = await element.canCaptureScreenshot(
                     screenshotOptions({ ...choices, size }, { blob: true }),
                 );
-                return [size, check.supported ? undefined : check.reason] as const;
+                return [size, check.supported ? undefined : SIZE_REFUSED] as const;
             }),
         ).then((entries) => {
             if (live) {
@@ -144,60 +174,45 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
         try {
             const result = await element.captureScreenshot({
                 ...screenshotOptions(choices, { [destination]: true }, name),
+                legend: legendShown ? imageKey(session) : [],
                 timing: { waitForSettle },
             });
             if (destination === "clipboard" && result.clipboardStatus !== "success") {
                 setStatus({ kind: "clipboard-refused" });
                 return;
             }
-            onDone(destination === "clipboard" ? "Copied the image" : `Exported ${name}`);
+            if (destination === "clipboard") {
+                onDone("Copied the image");
+            } else {
+                onDone(`Exported ${name}`, name);
+            }
         } catch (error) {
             if (error instanceof Error && "code" in error && error.code === SETTLE_TIMEOUT) {
                 setStatus({ kind: "settle-timeout", destination });
             } else {
-                setStatus({ kind: "failed", message: error instanceof Error ? error.message : String(error) });
+                setStatus({ kind: "failed", words: failureWords(error) });
             }
         }
     };
 
-    const pixels = (size: ImageSize): string => {
-        if (size === "400x300") {
-            return "400 x 300";
-        }
-        if (preview === null) {
-            return size;
-        }
-        const times = Number.parseInt(size);
-        return `${size} (${String(preview.width * times)} x ${String(preview.height * times)})`;
-    };
+    // ponytail: multiples only; the element tells no caller the canvas's pixel size without a
+    // full-size capture (gap recorded with the Export dialog package).
+    const pixels = (size: ImageSize): string => (size === "400x300" ? "400 x 300" : size);
 
     const callout = (() => {
         switch (status.kind) {
             case "settle-timeout":
-                return (
-                    <Alert color="yellow" title="The layout is still moving">
-                        It did not settle in time. Capture it as it is now, or try again.
-                    </Alert>
-                );
+                return <Alert color="yellow" title="Layout still moving" />;
             case "clipboard-refused":
-                return (
-                    <Alert color="yellow" title="The browser did not allow copying">
-                        Use Export to save the image as a file instead.
-                    </Alert>
-                );
+                return <Alert color="yellow" title="Copy refused by the browser" />;
             case "failed":
                 return (
                     <Alert color="red" title="The image was not saved" role="alert">
-                        {status.message}
+                        {status.words}
                     </Alert>
                 );
             default:
-                // graphty-element does not draw the legend into a capture yet (issue #133).
-                return legendShown ? (
-                    <Alert color="gray" title="The legend is not in the image" role="note">
-                        The legend card on the canvas is not drawn into exported images yet.
-                    </Alert>
-                ) : null;
+                return null;
         }
     })();
 
@@ -205,26 +220,25 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
 
     return (
         <>
-            <div className="ws-export-main">
+            <section className="ws-export-main" aria-label="Image">
                 <div>
                     <Text fw={550} size="md" role="heading" aria-level={3}>
                         Image
-                    </Text>
-                    <Text size="sm" c="dimmed">
-                        A picture of the drawing, {pixels(choices.size)}, {choices.format.toUpperCase()}
-                        {choices.view === "current" ? "" : "; your own camera does not move"}
                     </Text>
                 </div>
                 <div className="ws-export-fields">
                     <Select
                         label="Preset"
-                        data={[...IMAGE_PRESETS.map(({ id, label }) => ({ value: id, label })), CUSTOM]}
+                        data={[
+                            ...SCREENSHOT_PRESET_DESCRIPTORS.map(({ id }) => ({ value: id, label: PRESET_LABELS[id] })),
+                            CUSTOM,
+                        ]}
                         value={preset?.id ?? CUSTOM}
                         allowDeselect={false}
                         onChange={(id) => {
-                            const chosen = IMAGE_PRESETS.find((entry) => entry.id === id);
+                            const chosen = SCREENSHOT_PRESET_DESCRIPTORS.find((entry) => entry.id === id);
                             if (chosen !== undefined) {
-                                set(chosen.choices);
+                                set(presetChoices(chosen));
                             }
                         }}
                     />
@@ -294,22 +308,22 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                 <div className="ws-export-preview" data-transparent={choices.background === "transparent"}>
                     {preview === null ? (
                         <Text size="sm" c="dimmed">
-                            {previewError === null ? "Drawing the preview..." : `No preview: ${previewError}`}
+                            {previewError === null
+                                ? "Drawing the preview..."
+                                : `The preview could not be made. ${previewError}`}
                         </Text>
                     ) : (
-                        <img src={preview.url} alt={`Preview of ${name}`} />
+                        <img src={preview} alt={`Preview of ${name}`} />
                     )}
                 </div>
-            </div>
+            </section>
             <ModalFooter className="ws-export-footer">
                 <Text size="sm" c="dimmed" className="ws-export-note">
                     {busy ? (
                         <>
-                            <Loader size="xs" /> Waiting for the layout to settle, then capturing
+                            <Loader size="xs" /> Capturing
                         </>
-                    ) : (
-                        SAVED_LOCALLY
-                    )}
+                    ) : null}
                 </Text>
                 <Button variant="default" onClick={onCancel}>
                     Cancel

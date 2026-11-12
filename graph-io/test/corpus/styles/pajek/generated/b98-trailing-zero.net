@@ -1,0 +1,33 @@
+*Vertices    12
+     1 "1"                                  0.3564    0.8312    0.5241 box lc Black  ic Yellow  bc Black x_fact 19.0 y_fact 19.0 0
+     2 "2"                                  0.0587    0.4733    0.5241 ellipse lc Black  ic Cyan  bc Black x_fact 25.0 y_fact 25.0 0
+     3 "3"                                  0.5562    0.7882    0.5241
+     4 "4"                                  0.9101    0.3976    0.5241 ellipse lc Black  ic Cyan  bc Black x_fact 25.0 y_fact 25.0 0
+     5 "5"                                  0.7601    0.0040    0.5241 box lc Black  ic Yellow  bc Black x_fact 10.0 y_fact 10.0 0
+     6 "6"                                  0.7733    0.3342    0.5241
+     7 "7"                                  0.6420    0.6960    0.5241 box lc Black  ic Gray  bc Black x_fact 19.0 y_fact 19.0 0
+     8 "8"                                  0.8311    0.5407    0.5241 ellipse lc Black  ic Gray  bc Black x_fact 19.0 y_fact 19.0 0
+     9 "9"                                  0.5696    0.8131    0.5241
+    10 "10"                                  0.2686    0.5132    0.5241 ellipse lc Black  ic Gray  bc Black x_fact 10.0 y_fact 10.0 0
+    11 "11"                                  0.5408    0.6911    0.5241 box lc Black  ic Cyan  bc Black x_fact 19.0 y_fact 19.0 0
+    12 "12"                                  0.1030    0.8811    0.5241
+*Arcs
+      3      7       1 c Black
+      3      6       1 c Black
+      8      3       1 c Black
+     12      5       1 c Black
+      9      2       1 c Black
+      3      1       1 c Black
+      8     12       1 c Black
+      9      6       1 c Black
+     11     12       1 c Black
+      9      1       1 c Black
+*Edges
+      9      1       1 c Black
+      6      5       1 c Black
+     12      5       1 c Black
+      2     10       1 c Black
+      8      7       1 c Blue
+      6      7       1 c Black
+      7     11       1 c Blue
+      6      5       1 c Black

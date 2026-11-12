@@ -462,6 +462,10 @@ every death on record happened on the OTHER lane: lavapipe on a GitHub `ubuntu-2
 adapter, different driver, different machine. The experiment above still has to be run where the deaths
 actually occur.
 
+**Section 4.2 answers the first half of this.** The experiment was run, the count was redone with the
+G4-F18 fix as the dividing line, and the residual reproduces on the dev container at 2 in 30. What is
+still UNKNOWN is whether the `webgpu` bump changes it: every measurement there is at 0.4.0.
+
 **Do not close this on a quiet week.** A 15% per-run failure has a 1-in-16 chance of sitting out four
 consecutive runs, so "we ran it a few times and it was fine" is not evidence of anything. The shard's existing
 missing-file and hang reporting (`scripts/run-node-shard.js`) is what keeps each recurrence visible as a lost
@@ -512,6 +516,130 @@ exist, but no test or assertion ever checked that they still deliver. The only t
 was a benchmark row that fails. That is the argument for keeping performance rows in the gate rather than
 trusting a comment -- and for not re-recording a baseline to make a red row go away.
 
+### 4.2 The count above spans a fix that has already landed, and the death that survives it reproduces here
+
+Recorded 2026-09-24 on branch `test/vanishing-workers`, cut from master `d84169a8`. The local runs were made
+on this record's dev container -- Ubuntu 22.04.5, glibc 2.35, Mesa lavapipe 23.2.1 (LLVM 15.0.7), `webgpu`
+0.4.0, Node v22.22.1 -- on a 32-core box shared with other work. Every iteration's one-minute load average
+is in `tmp/vanishing/*/summary.csv`; across the thirty whole-suite runs it ranged from 1.5 to 35.0 with a
+mean of 14.3, so the box was busy but never wedged, and the two reproductions below happened at loads of
+29.4 and 13.9 -- the failure does not need a saturated machine.
+
+**Four of the five deaths in section 4's table ran code that does not contain G4-F18's fix.** That fix is
+commit `cbeaa3e9`, "walk a shorter seed ladder on a software rasteriser" (2026-09-22 15:39:57 -0700), which
+stops `test/layouts/grid-unbiased.test.ts` submitting 2 x 4096 grid iterations on a software rasteriser --
+iterations Dawn keeps about 0.67 MB of each and never returns (G4-F13). Two of those four, runs 35783732328
+and 35788215777, are the runs whose hang report caught `node (vitest 2)` in `vfs_coredump` with two
+gigabytes resident, and G4-F18 names them by number. So the 15% above is one diagnosed and fixed mechanism
+averaged together with whatever is left.
+
+**Re-counted with that commit as the dividing line.** Every ATTEMPT of the `webgpu-graph-algorithms-node`
+job across the last 60 `ci.yml` runs -- 65 attempts between 2026-09-21T23:35Z and 2026-09-24T05:31Z --
+sorted by `git merge-base --is-ancestor cbeaa3e9 <head sha>`, with every failing attempt's log read rather
+than its conclusion trusted. Attempts that never reached the test step are excluded from both rows and
+accounted for underneath:
+
+| The code the attempt ran | Attempts that ran the tests | Lost workers  |
+| ------------------------ | --------------------------- | ------------- |
+| WITHOUT `cbeaa3e9`       | 27                          | **10 -- 37%** |
+| WITH `cbeaa3e9`          | 28                          | **1 -- 3.6%** |
+
+All ten of the first row are on `feat/gpu-p4`, the branch the P4 investigation itself ran on. The one in the
+second row is job 107393562579 of run 35923105007, the futex abort section 4 quotes. Ten further attempts
+never reached the test step and are in neither row: four failed on `Artifact not found for name: build-*`,
+and six are this investigation's own dispatches, for the reason at the end of this section.
+
+Counting ATTEMPTS rather than runs is what makes the losses visible at all: every one of the eleven is an
+attempt 1 that a re-run turned green, so a count of final run conclusions sees none of them.
+
+**The two rows are two different failures, and the logs say so without inference.** Time the silence between
+the last line a test wrote and the abort:
+
+| Death                                                       | Silence before the abort                                                                                                              | What that is                                                                                                                                                               |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 7 of the 10 pre-fix losses                                  | 91, 94, 126, 170, 173, 176, 179 s                                                                                                     | the kernel writing a two-gigabyte core, which the `vfs_coredump` snapshot caught: G4-F18, `test/layouts/grid-unbiased.test.ts`                                             |
+| the other 3 (jobs 106567630119, 106569909448, 106575321192) | 8, 1 and 0 s                                                                                                                          | a kill that leaves nothing to write, which is what the out-of-memory killer does: these are exactly the three runs of G4-F13, `test/layouts/grid-exact.test.ts` at 6.32 GB |
+| the post-fix loss (job 107393562579)                        | none -- `test/kernel/compile.test.ts` prints its `[gpu] adapter` line at 21:46:14.15 and the abort lands at 21:46:15.10, 0.95 s later | neither of the above: nothing hung and nothing dumped                                                                                                                      |
+
+Both pre-fix shapes are the memory of the `grid-*` files, both are named in a finding of G4 that has a fix
+in the tree, and both stop at that fix. The post-fix death has neither shape.
+
+#### The residual reproduces on the dev container: 2 in 30
+
+Runs pinned to four cores with `taskset -c 0-3`, which is what `availableParallelism()` reads, so the
+package's own config picks the same two forks the runner uses under `--coverage`:
+
+```bash
+taskset -c 0-3 env GRAPHTY_GPU_ADAPTER=llvmpipe GRAPHTY_GPU_REQUIRE=any \
+  VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json XDG_RUNTIME_DIR=/tmp CI=true \
+  node scripts/run-node-shard.js --project=node --coverage
+```
+
+A run counts as a lost worker when the wrapper's own `[missing-files] started N, reported M, missing K`
+block names a missing file or the log carries `ERR_IPC_CHANNEL_CLOSED` -- never on the abort message,
+because eight of the eleven losses on record printed no message at all. Thirty is the number section 4 asks
+for and the number that discriminates its rate: at 15% the chance of thirty clean runs is 0.8%. It cannot
+discriminate 3.6%, which needs about eighty; the targeted loops below are how that was bought cheaply
+instead.
+
+| What was run                                                           | Runs | Lost workers  |
+| ---------------------------------------------------------------------- | ---- | ------------- |
+| the whole `node` project, as above                                     | 30   | **2 -- 6.7%** |
+| `test/node/entry.test.ts` alone                                        | 500  | 0             |
+| `test/kernel/compile.test.ts` + `test/kernel/wgsl-compile.test.ts`     | 216  | 0             |
+| `entry` + `compile` + `sabotage/tiers` + `sabotage/fa2`, three workers | 250  | 0             |
+
+Four of the thirty whole-suite runs exited non-zero with all 115 files green and the global teardown failing
+on `override-matrix coverage: no pipeline keys were logged`. That is this investigation's own doing, not a
+defect: `test/setup/global.ts` clears one fixed directory, `tmp/pipeline-keys/`, and a second vitest run of
+the same package clears it underneath the first. Those four still ran all 115 files, so they count as
+trials for a lost worker; they are named here so nobody reads them as a new failure.
+
+**The reproduction is the same failure, not a lookalike.** The first (iteration 7) printed `The futex
+facility returned an unexpected error code.` and closed the channel from the same tinypool
+`ProcessWorker.send`; the second (iteration 25) printed no message at all, which is the majority shape on
+the runner. Neither hung -- the abort follows the last test line within a second, as the post-fix death on
+the runner does and as neither pre-fix shape does. Neither dumped: `/proc/sys/kernel/core_pattern` here is
+`|/usr/share/apport/apport ...`, a pipe, and `core(5)` says `RLIMIT_CORE` is not enforced for a piped
+handler, so the wrapper's `ulimit -c 0` does not bind on this box -- yet `/var/crash` was empty before the
+runs and empty after them. Memory is ruled out by the same runs: the whole project peaks at 3.2 GB of the
+runner's 16 at the runner's fork count, and the process table at the moment of the runner's own death shows
+two workers, the live one at 512 MB.
+
+**All three deaths land on the same instruction.** Each one happened while a worker process was standing up
+a Dawn instance:
+
+| Where              | The file that was lost          | What it was doing                                                                                                                                                                                                               |
+| ------------------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| job 107393562579   | `test/kernel/compile.test.ts`   | 0.95 s after its setup printed `[gpu] adapter`; the file is one of three in the suite that open a SECOND Dawn instance in the same worker (`acquireNullBackend` -> `createNodeGpu({ backend: "null" })`)                        |
+| local iteration 7  | `test/node/entry.test.ts`       | the file's whole job is the `./node` entry: `createNodeGpu(...)` then `handle.dispose()`, over and over. A clean run brings up four instances after the setup's own; this one aborted during the THIRD, before reporting a test |
+| local iteration 25 | `test/layouts/skeleton.test.ts` | its `[gpu] adapter` line is the last thing in the log before the closed channel, and `test/primitives/histogram.test.ts` had printed its own one line earlier -- two workers standing up Dawn at the same moment                |
+
+That is the hazard `test/setup/gpu.ts` already carries a measured comment about from P1: releasing the Dawn
+instance while device teardown callbacks are in flight "segfaults, aborts or deadlocks the worker (the futex
+hang after afterAll)". The new evidence is that it is not confined to teardown -- it fires on the way UP as
+well, and on three different files.
+
+**What the negatives rule out, and what stays open.** No single file reproduces it: 500 runs of the file
+that creates and destroys the most Dawn instances, 216 of the two that open a second one, and 250 of a
+four-file mix with three workers, all clean. Only the whole 115-file project does. Two candidates are
+therefore still open and this record does not choose between them: the per-instance risk may simply be small
+enough that the loops' roughly six thousand instance creations were too few (they would have expected about
+two deaths at the suite's own per-instance rate, and saw none, which is not a significant shortfall), or the
+race may need something the suite has and the loops do not -- long-lived workers, heavier memory traffic, or
+more than one worker in Dawn's start-up path at once. The discriminating experiment is a loop that holds the
+worker count and the memory traffic of the full run while cutting the file list down; it was not run here.
+
+**A separate defect found on the way, which blocks the obvious next step.** `gh workflow run ci.yml --ref
+<branch>` cannot exercise this shard at all. `ci.yml`'s build steps are gated on `github.event_name ==
+'pull_request'` or `github.ref == 'refs/heads/master'`, so a `workflow_dispatch` against any other ref runs
+no `nx build` -- only the five Storybook builds -- and `graph-io` and `webgpu-graph-algorithms` are never
+built, never uploaded, and every one of the twenty test shards then fails on `Artifact not found`. All six
+dispatches made for this investigation (runs 35960216787, 35960226478, 35960236304, 35960288017,
+35960295954, 35960304252) died that way without running a single test, which is why they appear in neither
+row of the count above. Until that gate admits a branch dispatch, the only way to sample this lane is a pull
+request or a push to master.
+
 ## 5. What this branch changed
 
 | File                                                                                                     | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -542,4 +670,4 @@ trusting a comment -- and for not re-recording a baseline to make a red row go a
 | ENV-F6  | The branch cannot pass `tools/prepush.sh` on a 22.04 box: the gate requires an adapter and 0.6.1 gives none. Build, bundle, lint and knip pass; the package's node projects fail up front.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Expected and correct -- the gate is behaving as designed, and it is the cheapest independent confirmation that the bump needs the container move first. No change to the gate is proposed: weakening it to let this branch through would remove the check that caught it. Push after section 3 item 1, or with `--no-verify` if the red state is understood.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ENV-F9  | **The bump coarsens Dawn's timestamp resolution 64-fold, and one test reads it as zero.** Under `webgpu@0.4.0` every raw timestamp is a multiple of 1,024 ns; under 0.6.1 every one is a multiple of 65,536 ns. `test/kernel/profiler.test.ts` asserts `ns > 0` on two passes that fill 16 MiB and 8 MiB; on the RTX 4070 SUPER those are 19-31 us, under half a tick, so `end - begin` is exactly 0 and it failed 10 runs in 10. lavapipe is on the same grid and passed only because its fills take 2.6-5.5 ms, so the default lane could not have seen it and the T4 lane is where it would have landed. Measured on the same card by pointing `node_modules/webgpu` at each store copy in turn, with and without the 24.04 loader of section 3.2, which ruled out the adapter, the driver and the loader.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | **Answered, and neither remedy was needed.** It is a Dawn toggle, not a hardware property: `timestamp_quantization` ("Enable timestamp queries quantization to reduce the precision of timers that can be created with timestamp queries"), a Spectre-style mitigation that 0.6.x turns on by default. `disable-dawn-features=timestamp_quantization` restores the 1,024 ns grid exactly, and the passes then measure 16-31 us -- the same magnitudes 0.4.0 reported. Both binaries carry the quantisation shader; only 0.6.1 carries the `DeviceBase::AreTimestampsQuantized` gate that applies it, so the code existed and the DEFAULT changed. `dawnFlags()` only ever emitted `enable-dawn-features`, so the toggle was not expressible: `NodeGpuOptions` gains `dawnDisableFeatures`, and `test/setup/gpu.ts` passes it for the node projects -- in the setup rather than per lane, so a new lane cannot forget it, and nothing this test process profiles is anyone else's secret. The profiler now passes 20 runs in 20 on the card, and the full node project is 2,249 passed on both lanes. Nothing about the profiler, its assertions or its pass sizes changed; enlarging the passes would have tuned around a measurement and cost the software lane about 40 ms a pass for no information. A consumer that leaves quantisation on must read any duration under 65,536 ns as a quantum rather than a measurement, which is why `README.md` and the verified-facts row now say so. `ns >= 0` remains wrong either way: a pass that never ran and a pass that ran inside one tick must not read the same. |
 | ENV-F10 | **A test that measures the machine's speed once and then asserts on a moment derived from that measurement is wrong the instant the speed changes between the measuring and the using, and it fails naming neither.** `test/layouts/frame-loop.test.ts`'s pause case sized `iterationsPerStep` against a sampled tick rate so that some tick would start with the flight saturated; on the Windows host lane it was the only failure in 2,259 tests, reported as `expected [ ...(1) ] to deeply equal []` -- an assertion about an array, with nothing pointing at a clock. The general form matters more than the case: this package times things in many places, and two more cases routed through the same helper with the same defect (`test/layouts/fr-frame-loop.test.ts`, `test/browser/forceatlas2.test.ts`). **The negative result is half the finding.** Steady load does NOT reproduce it, because the calibration inflates along with everything else and the race stays winnable: the shipped case passed 20 of 20 on the dev box under steady saturation and 20 of 20 under bursty saturation while carrying the defect. Anyone who loads their local box, sees green and concludes the flake is gone has learned nothing. What demonstrated it was the OLD code at a batch size its calibration would not have chosen -- four iterations per step, about a tenth of a tick on the card -- which failed 18 of 20 runs, 16 printing the Windows lane's exact line and 2 failing the other way (the pause started at tick 556 and its 100-tick window ran off the end of a 600-tick run). | Fixed at the root rather than tuned: the pause now reaches the saturated state BY CONSTRUCTION, filling the flight with synchronous `step()` calls because `inFlight` rises with the call, and closes its window on the `flush()` it watched resolve rather than on a tick count, so a stalled box gets a longer pause instead of a failed assertion. Nothing was widened, retried or skipped, and the case asserts exactly what it did. After: 20 of 20 on lavapipe quiet, 20 of 20 loaded, 20 of 20 on the card quiet, 20 of 20 loaded, 10 of 10 in Chromium on SwiftShader loaded. The rule and the negative result are in `CLAUDE.md` under Testing, because the next instance of this will not be in the frame loop.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| ENV-F5  | The node shard loses a vitest worker in about 15% of its CI runs (five of the last 33, two branches). One of the five printed a glibc futex abort; four printed nothing. The cause is unexplained and the bump's effect on it is unknown.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Section 4 states the experiment, which counts lost workers rather than abort messages -- grepping for the abort would have scored four of the five as clean. Do not close G-ENV green because a handful of runs happened not to fail: at 15% a quiet stretch of four runs is a 1-in-16 coincidence.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ENV-F5  | The node shard loses a vitest worker in about 15% of its CI runs (five of the last 33, two branches). One of the five printed a glibc futex abort; four printed nothing. Section 4.2 splits the count at the seed-ladder fix `cbeaa3e9`: 10 lost workers in 27 attempts without it, 1 in 28 with it, and the survivor reproduces on the dev container at 2 in 30. The bump's effect on it is unknown.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Section 4 states the experiment, which counts lost workers rather than abort messages -- grepping for the abort would have scored four of the five as clean. Do not close G-ENV green because a handful of runs happened not to fail: at 15% a quiet stretch of four runs is a 1-in-16 coincidence.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |

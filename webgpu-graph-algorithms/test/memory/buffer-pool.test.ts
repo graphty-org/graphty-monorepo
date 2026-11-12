@@ -2,7 +2,8 @@
  * BufferPool (spec 4.4; contract 3.8, 5.5): the size-class table, acquire / release reuse per (class, usage), the
  * maxIdlePerClass eviction, trim, liveBytes / idleBytes accounting, the class cap at maxBufferSize (PLAN DECISION
  * 14), E_TOO_LARGE above it, E_INVALID_ARGUMENT for a foreign or double release, E_DISPOSED after destroyAll.
- * The pool allocates through the context's AllocationTracker, so every test but the table needs a device.
+ * The pool allocates through the context's AllocationTracker, so every test but the table needs a device; none reads a
+ * buffer back, so that device is Dawn's null backend (withNullBackendContext, issue #275).
  */
 
 import { type TestContext } from "vitest";
@@ -11,7 +12,7 @@ import { POOL_MAX_IDLE_PER_CLASS } from "../../src/constants.js";
 import { BufferUsage } from "../../src/device/webgpu-constants.js";
 import { isWebGpuGraphError } from "../../src/errors.js";
 import { BufferPool } from "../../src/memory/buffer-pool.js";
-import { withContext } from "../helpers/device.js";
+import { withNullBackendContext } from "../helpers/device.js";
 import { requireGpu } from "../setup/gpu.js";
 
 const MIB = 1024 * 1024;
@@ -64,7 +65,7 @@ describe("BufferPool.sizeClass", () => {
 describe("BufferPool on a device", () => {
     it("acquire rounds up to the class, relabels a reused buffer and keeps usage classes apart", async (t: TestContext) => {
         requireGpu(t);
-        await withContext(undefined, async (ctx) => {
+        await withNullBackendContext(async (ctx) => {
             const { pool } = ctx;
             const a = pool.acquire(1000, STORAGE, "a");
             expect(a.size).toBe(4096);
@@ -96,7 +97,7 @@ describe("BufferPool on a device", () => {
 
     it("keeps at most maxIdlePerClass idle buffers per (class, usage) and destroys the rest; trim destroys all idle", async (t: TestContext) => {
         requireGpu(t);
-        await withContext(undefined, async (ctx) => {
+        await withNullBackendContext(async (ctx) => {
             const pool = new BufferPool(ctx.device, ctx.allocator, ctx.caps.limits.maxBufferSize, {
                 maxIdlePerClass: 2,
             });
@@ -136,7 +137,7 @@ describe("BufferPool on a device", () => {
 
     it("throws E_TOO_LARGE above maxBufferSize and caps the class at maxBufferSize otherwise", async (t: TestContext) => {
         requireGpu(t);
-        await withContext(undefined, async (ctx) => {
+        await withNullBackendContext(async (ctx) => {
             const small = new BufferPool(ctx.device, ctx.allocator, 1 * MIB);
             const err = caught(() => small.acquire(2 * MIB, STORAGE, "big"));
             expect(err.code).toBe("E_TOO_LARGE");
@@ -164,7 +165,7 @@ describe("BufferPool on a device", () => {
 
     it("rejects a release of a foreign buffer or a second release with E_INVALID_ARGUMENT", async (t: TestContext) => {
         requireGpu(t);
-        await withContext(undefined, async (ctx) => {
+        await withNullBackendContext(async (ctx) => {
             const raw = ctx.device.createBuffer({ label: "raw", size: 16, usage: STORAGE });
             const foreign = caught(() => ctx.pool.release(raw));
             expect(foreign.code).toBe("E_INVALID_ARGUMENT");
@@ -180,7 +181,7 @@ describe("BufferPool on a device", () => {
 
     it("accounts liveBytes / idleBytes over a mixed sequence and is inert after destroyAll", async (t: TestContext) => {
         requireGpu(t);
-        await withContext(undefined, async (ctx) => {
+        await withNullBackendContext(async (ctx) => {
             const pool = new BufferPool(ctx.device, ctx.allocator, ctx.caps.limits.maxBufferSize);
             const a = pool.acquire(1000, STORAGE, "a");
             const b = pool.acquire(5000, STORAGE, "b");

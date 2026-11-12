@@ -1,0 +1,121 @@
+bait	prey	confidence	evidence
+TP53	MDM2	0.44	co-crystal structure
+TP53	MDM4	0.44	co-crystal structure
+TP53	CDKN1A	0.45	affinity capture-western
+TP53	BAX	0.44	reconstituted complex
+TP53	BBC3	0.72	co-crystal structure
+TP53	PMAIP1	0.78	co-crystal structure
+TP53	ATM	0.83	co-crystal structure
+TP53	ATR	0.98	affinity capture-western
+TP53	CHEK1	0.49	co-crystal structure
+TP53	CHEK2	0.45	affinity capture-western
+TP53	EP300	0.69	co-crystal structure
+TP53	CREBBP	0.87	reconstituted complex
+TP53	KAT5	0.53	reconstituted complex
+TP53	SIRT1	0.66	two-hybrid
+TP53	USP7	0.44	reconstituted complex
+TP53	HIPK2	0.50	two-hybrid
+TP53	TP53BP1	0.88	affinity capture-MS
+TP53	TP53BP2	0.87	co-crystal structure
+TP53	PPP1R13L	0.46	co-crystal structure
+TP53	BRCA1	0.95	affinity capture-western
+MDM2	MDM4	0.46	affinity capture-MS
+MDM4	CDKN1A	0.55	co-crystal structure
+CDKN1A	BAX	0.44	co-crystal structure
+BAX	BBC3	0.72	co-crystal structure
+BBC3	PMAIP1	0.86	two-hybrid
+PMAIP1	ATM	0.96	co-crystal structure
+ATM	ATR	0.90	co-crystal structure
+ATR	CHEK1	0.59	reconstituted complex
+CHEK1	CHEK2	0.87	affinity capture-western
+CHEK2	EP300	0.69	two-hybrid
+EP300	CREBBP	0.77	two-hybrid
+CREBBP	KAT5	0.93	affinity capture-western
+KAT5	SIRT1	0.92	two-hybrid
+SIRT1	USP7	0.52	affinity capture-western
+USP7	HIPK2	0.80	two-hybrid
+HIPK2	TP53BP1	0.57	affinity capture-MS
+TP53BP1	TP53BP2	0.69	two-hybrid
+TP53BP2	PPP1R13L	0.81	two-hybrid
+PPP1R13L	BRCA1	0.54	reconstituted complex
+BRCA1	BRCA2	0.64	affinity capture-western
+BRCA2	RB1	0.57	affinity capture-western
+RB1	E2F1	0.99	affinity capture-western
+E2F1	CDK2	0.51	co-crystal structure
+CDK2	CCNA2	0.99	co-crystal structure
+CCNA2	CCNE1	0.46	reconstituted complex
+CCNE1	GADD45A	0.69	reconstituted complex
+GADD45A	SFN	0.43	two-hybrid
+SFN	PCNA	0.47	co-crystal structure
+PCNA	FAS	0.69	affinity capture-MS
+FAS	TNFRSF10B	0.62	affinity capture-MS
+TNFRSF10B	APAF1	0.52	affinity capture-MS
+APAF1	CASP3	0.58	two-hybrid
+CASP3	CASP9	0.45	co-crystal structure
+CASP9	BCL2	0.74	reconstituted complex
+BCL2	BCL2L1	0.61	affinity capture-MS
+BCL2L1	MCL1	0.75	affinity capture-western
+MCL1	PIDD1	0.48	affinity capture-MS
+PIDD1	ZMAT3	0.65	affinity capture-western
+ZMAT3	SESN1	0.62	affinity capture-western
+SESN1	SESN2	0.56	co-crystal structure
+SESN2	TIGAR	0.67	affinity capture-MS
+TIGAR	DRAM1	0.45	two-hybrid
+DRAM1	RRM2B	0.88	affinity capture-MS
+RRM2B	XPC	0.62	two-hybrid
+XPC	DDB2	0.65	reconstituted complex
+DDB2	PLK1	0.60	reconstituted complex
+PLK1	AURKA	0.60	co-crystal structure
+AURKA	HDAC1	0.75	reconstituted complex
+HDAC1	PRKDC	0.47	two-hybrid
+PRKDC	XRCC6	0.56	affinity capture-western
+XRCC6	UBE2D1	0.52	affinity capture-western
+UBE2D1	COP1	0.51	affinity capture-western
+COP1	PIRH2	0.58	affinity capture-MS
+PIRH2	TRIM24	0.57	two-hybrid
+TRIM24	WWOX	0.87	co-crystal structure
+WWOX	YAP1	0.49	co-crystal structure
+YAP1	PTEN	0.99	reconstituted complex
+PTEN	AKT1	0.48	reconstituted complex
+AKT1	MDM2	0.93	affinity capture-MS
+MDM2	ATR	0.51	co-crystal structure
+MDM4	CHEK1	0.91	affinity capture-MS
+CDKN1A	CHEK2	0.66	two-hybrid
+BAX	EP300	0.76	two-hybrid
+BBC3	CREBBP	0.98	reconstituted complex
+PMAIP1	KAT5	0.59	affinity capture-western
+ATM	SIRT1	0.50	two-hybrid
+ATR	USP7	0.91	co-crystal structure
+CHEK1	HIPK2	0.59	two-hybrid
+CHEK2	TP53BP1	0.54	reconstituted complex
+EP300	TP53BP2	0.41	affinity capture-western
+CREBBP	PPP1R13L	0.70	reconstituted complex
+KAT5	BRCA1	0.93	affinity capture-western
+SIRT1	BRCA2	0.70	two-hybrid
+USP7	RB1	0.51	co-crystal structure
+HIPK2	E2F1	0.93	two-hybrid
+TP53BP1	CDK2	0.56	two-hybrid
+TP53BP2	CCNA2	0.87	co-crystal structure
+PPP1R13L	CCNE1	0.59	two-hybrid
+BRCA1	GADD45A	0.91	two-hybrid
+BRCA2	SFN	0.74	affinity capture-western
+RB1	PCNA	0.52	two-hybrid
+E2F1	FAS	0.43	two-hybrid
+CDK2	TNFRSF10B	0.96	co-crystal structure
+CCNA2	APAF1	0.83	affinity capture-MS
+CCNE1	CASP3	0.43	two-hybrid
+GADD45A	CASP9	0.53	affinity capture-western
+SFN	BCL2	0.87	reconstituted complex
+PCNA	BCL2L1	0.58	affinity capture-MS
+FAS	MCL1	0.84	two-hybrid
+TNFRSF10B	PIDD1	0.66	two-hybrid
+APAF1	ZMAT3	0.84	affinity capture-western
+CASP3	SESN1	0.85	co-crystal structure
+CASP9	SESN2	0.60	affinity capture-MS
+BCL2	TIGAR	0.96	co-crystal structure
+BCL2L1	DRAM1	0.49	two-hybrid
+MCL1	RRM2B	0.47	affinity capture-MS
+PIDD1	XPC	0.60	reconstituted complex
+ZMAT3	DDB2	0.43	affinity capture-MS
+SESN1	PLK1	0.94	affinity capture-MS
+SESN2	AURKA	0.53	affinity capture-western

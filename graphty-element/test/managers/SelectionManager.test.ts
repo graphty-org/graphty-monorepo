@@ -1,10 +1,13 @@
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
+import { createGraphSession } from "../../session";
 import type { AdHocData } from "../../src/config";
 import { Graph } from "../../src/Graph";
 import { EventManager } from "../../src/managers/EventManager";
 import { SelectionManager } from "../../src/managers/SelectionManager";
 import type { Node } from "../../src/Node";
+import type { SelectionOwner } from "../../src/session/selection";
+import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 /**
@@ -291,6 +294,137 @@ describe("SelectionManager", () => {
             const result = selectionManager.selectById("non-existent");
             assert.isFalse(result);
             assert.isNull(selectionManager.getSelectedNode());
+        });
+    });
+
+    // A shift-click on a node: it joins the selection, or leaves it if it was in.
+    describe("toggle", () => {
+        it("adds a node that is not selected and takes out one that is", () => {
+            const [a, b] = [createMockNode("a"), createMockNode("b")];
+
+            selectionManager.toggle(a);
+            selectionManager.toggle(b);
+            assert.deepStrictEqual(
+                selectionManager.getSelectedNodes().map((node) => node.id),
+                ["a", "b"],
+            );
+
+            selectionManager.toggle(a);
+            assert.deepStrictEqual(
+                selectionManager.getSelectedNodes().map((node) => node.id),
+                ["b"],
+            );
+            assert.isFalse(a.isSelected(), "the node taken out is no longer highlighted");
+        });
+
+        it("costs work in proportion to the selection, no more", async () => {
+            await assertScalesLinearly(
+                async (size) => {
+                    const manager = new SelectionManager(eventManager);
+                    for (let i = 0; i < size; i++) {
+                        manager.toggle(createMockNode(String(i)));
+                    }
+
+                    const extra = createMockNode("extra");
+                    const visits = await visitsDuring(() => {
+                        manager.toggle(extra);
+                    });
+                    manager.dispose();
+                    return visits;
+                },
+                { sizes: [250, 1000], counter: "elements visited by one toggle" },
+            );
+        });
+    });
+
+    // A Shift-click on a node: it joins the session's selection, whatever else is selected.
+    describe("add", () => {
+        it("costs about the same work however large the graph and the selection", async () => {
+            const scope = globalThis as { __GRAPHTY_STRICT_STATE__?: boolean };
+            const strict = scope.__GRAPHTY_STRICT_STATE__;
+            scope.__GRAPHTY_STRICT_STATE__ = false;
+            try {
+                await assertScalesLinearly(
+                    async (size) => {
+                        const session = createGraphSession();
+                        const ids = Array.from({ length: size }, (_, i) => `n${String(i)}`);
+                        await session.data.addNodes(ids.map((id) => ({ id })));
+                        // Every node but the last is selected already.
+                        await session.selection.apply({ nodes: ids.slice(0, -1) }, "replace");
+                        const manager = new SelectionManager(eventManager);
+                        manager.bindSelection(session.selection as SelectionOwner);
+                        const last = createMockNode(ids[size - 1]);
+
+                        const visits = await visitsDuring(() => {
+                            manager.add(last);
+                        });
+                        assert.strictEqual(session.selection.size, size, "the node joined the selection");
+                        manager.dispose();
+                        session.dispose();
+                        return visits;
+                    },
+                    { sizes: [250, 1000], growth: "constant", counter: "elements visited by one add" },
+                );
+            } finally {
+                scope.__GRAPHTY_STRICT_STATE__ = strict;
+            }
+        });
+    });
+
+    describe("hover", () => {
+        /**
+         * A selection holding only the pointer's node, as the session's does.
+         * @returns The selection, and the nodes it was told about in order.
+         */
+        function pointerSelection(): { selection: SelectionOwner; told: (string | number | null)[] } {
+            const told: (string | number | null)[] = [];
+            const selection = {
+                hovered: null as string | number | null,
+                hover(id: string | number | null): void {
+                    this.hovered = id;
+                    told.push(id);
+                },
+                clear(): void {
+                    this.hovered = null;
+                },
+            };
+            return { selection: selection as unknown as SelectionOwner, told };
+        }
+
+        it("tells the selection which node the pointer is over, and clears it on leaving that node", () => {
+            const { selection, told } = pointerSelection();
+            selectionManager.bindSelection(selection);
+
+            selectionManager.hover("a");
+            selectionManager.hover("b");
+            // The pointer arrived on b before a heard it leave: a's leaving changes nothing.
+            selectionManager.leave("a");
+            assert.strictEqual(selection.hovered, "b");
+            selectionManager.leave("b");
+
+            assert.isNull(selection.hovered);
+            assert.deepStrictEqual(told, ["a", "b", null]);
+        });
+
+        it("costs the same work however many nodes are selected", async () => {
+            await assertScalesLinearly(
+                async (size) => {
+                    const manager = new SelectionManager(eventManager);
+                    for (let i = 0; i < size; i++) {
+                        manager.toggle(createMockNode(String(i)));
+                    }
+                    const { selection } = pointerSelection();
+                    manager.bindSelection(selection);
+
+                    const visits = await visitsDuring(() => {
+                        manager.hover("3");
+                        manager.leave("3");
+                    });
+                    manager.dispose();
+                    return visits;
+                },
+                { sizes: [250, 1000], growth: "constant", counter: "elements visited by one hover and leave" },
+            );
         });
     });
 });

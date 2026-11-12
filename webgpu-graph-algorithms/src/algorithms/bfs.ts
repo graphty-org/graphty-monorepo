@@ -245,25 +245,13 @@ function wordOf(block: UniformValues, name: string): number {
 }
 
 /**
- * Breadth-first search with the test knobs of PD-26; `breadthFirstSearch` is this with an empty tuning.
- * @internal
- * @param ctx - the context whose device runs the kernels
- * @param s - the snapshot (uploaded through ctx.residency, or found there)
+ * Checks the source and the levels-per-submit knob.
  * @param source - the source node index
- * @param options - `maxDepth`, plus dest / signal / onProgress
+ * @param n - the node count
  * @param tuning - the knobs
- * @returns the depths, parents, order, visited count, level count and switches
+ * @returns the levels recorded per submit
  */
-export async function bfsWithTuning(
-    ctx: GpuContext,
-    s: GraphSnapshot,
-    source: number,
-    options: (BfsOptions & GpuRunOptions) | undefined,
-    tuning: BfsTuning,
-): Promise<GpuBfsResult> {
-    ctx.assertReady();
-    await assertDeviceComputes(ctx);
-    const n = s.nodeCount;
+function checkBfsArgs(source: number, n: number, tuning: BfsTuning): number {
     if (!Number.isInteger(source) || source < 0 || source >= n) {
         throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${ALGORITHM}: source ${source} is outside [0, ${n})`, {
             argument: "source",
@@ -283,21 +271,16 @@ export async function bfsWithTuning(
             },
         );
     }
-    const dest = checkDest(options?.dest, n);
-    const maxDepth = normaliseMaxDepth(options?.maxDepth);
-    const predKind = tuning.predKind ?? 1;
-    if (options?.signal?.aborted) {
-        throw aborted();
-    }
-    const core = ctx.residency.core(s);
-    // a windowed core (colIdx above the binding limit) is executed, not refused (P8-T12 lifts DEP-P8-E): every
-    // frontier-walking kernel is dispatched once per arc window with the window's owned range in its record
-    const forward = coreWindows(core);
-    // the bottom-up sweep walks in-neighbours over the reverse core: on an undirected snapshot the forward arrays
-    // themselves (graph-format invariant I7; P7's residency aliases them, so a windowed core's windows ARE the
-    // reverse's), on a directed one the reverse VIEW, which spec 4.3 never windows -- so a directed snapshot whose
-    // reverse adjacency exceeds one binding is refused here, as the residency refuses the undirected view, instead
-    // of failing at the device's bind-group validation
+    return levelsPerSubmit;
+}
+
+/**
+ * Refuses a directed snapshot whose reverse adjacency exceeds one binding: the bottom-up sweep binds the reverse
+ * VIEW whole, which spec 4.3 never windows.
+ * @param ctx - the context
+ * @param s - the snapshot
+ */
+function assertReverseFits(ctx: GpuContext, s: GraphSnapshot): void {
     if (s.directed && 4 * s.arcCount > ctx.caps.limits.maxStorageBufferBindingSize) {
         throw new WebGpuGraphError(
             "E_TOO_LARGE",
@@ -310,6 +293,151 @@ export async function bfsWithTuning(
             },
         );
     }
+}
+
+/** The readbacks `onLevel` reads after a submit. */
+interface LevelInspection {
+    readonly block: ReturnType<CommandBatch["readback"]>;
+    readonly frontier: ReturnType<CommandBatch["readback"]>;
+    readonly count: ReturnType<CommandBatch["readback"]>;
+}
+
+/**
+ * Requests the readbacks `onLevel` reads: the counters block, the claimed frontier and the rebuilt unvisited count.
+ * @param batch - the level batch
+ * @param frontier - the frontier (its counters and input queue)
+ * @param frontier.counters - the counters block
+ * @param frontier.input - the input queue
+ * @param compactCount - the compact's count word
+ * @returns the requests
+ */
+function levelInspection(
+    batch: CommandBatch,
+    frontier: { readonly counters: Binding; readonly input: Binding },
+    compactCount: Binding,
+): LevelInspection {
+    const { counters } = frontier;
+    return {
+        block: batch.readback(counters.buffer, counters.offset, FRONTIER_COUNTERS.byteLength),
+        frontier: batch.readback(frontier.input.buffer, frontier.input.offset, frontier.input.size),
+        count: batch.readback(compactCount.buffer, compactCount.offset, 4),
+    };
+}
+
+/**
+ * Hands `onLevel` the block, the claimed frontier and the rebuilt count of the submit just read.
+ * @param tuning - the knobs
+ * @param back - the readback bytes
+ * @param inspect - the requests, or null when nothing listens
+ * @param level - the last level recorded
+ */
+function reportLevel(tuning: BfsTuning, back: ArrayBuffer, inspect: LevelInspection | null, level: number): void {
+    if (inspect === null || tuning.onLevel === undefined) {
+        return;
+    }
+    const block = FRONTIER_COUNTERS.read(new DataView(back), inspect.block.offset);
+    const claimed = new Uint32Array(back, inspect.frontier.offset, wordOf(block, "nextFrontierCount"));
+    const rebuilt = new Uint32Array(back, inspect.count.offset, 1)[0];
+    tuning.onLevel(level, block, claimed.slice(), rebuilt);
+}
+
+/**
+ * Whether the traversal is done; a done flag that never rises within n + 1 submits is a kernel bug.
+ * @param done - the done word read back
+ * @param submits - the submits so far
+ * @param n - the node count
+ * @returns true when the done word is set
+ */
+function levelsDone(done: number, submits: number, n: number): boolean {
+    if (done !== 0) {
+        return true;
+    }
+    if (submits > n + 1) {
+        throw new WebGpuGraphError(
+            "E_VALIDATION",
+            `${ALGORITHM}: the done flag never rose in ${submits} submits (a traversal has at most ${n} levels)`,
+            { label: ALGORITHM, message: `the done flag never rose in ${submits} submits` },
+        );
+    }
+    return false;
+}
+
+/**
+ * Every vertex is claimed at most once, so a count above n is a kernel bug (a claim that lets two same-level
+ * claimants append), never a result to return.
+ * @param visitedCount - the device's count
+ * @param n - the node count
+ */
+function assertVisitedCount(visitedCount: number, n: number): void {
+    if (visitedCount > n) {
+        throw new WebGpuGraphError(
+            "E_VALIDATION",
+            `${ALGORITHM}: visitedCount ${visitedCount} exceeds the ${n} vertices (a duplicate claim)`,
+            {
+                label: `${ALGORITHM}/visitedCount`,
+                message: `the device counted ${visitedCount} visits of ${n} vertices`,
+            },
+        );
+    }
+}
+
+/**
+ * Throws E_ABORTED when the caller's signal was aborted.
+ * @param options - the run options
+ * @param batchId - the last submitted batch, when one exists
+ */
+function throwIfAborted(options: GpuRunOptions | undefined, batchId?: number): void {
+    if (options?.signal?.aborted) {
+        throw aborted(batchId);
+    }
+}
+
+/**
+ * The level count: done by an empty frontier (the level word already counts the boundary that found it), or by
+ * maxDepth with a reached-but-unexpanded level.
+ * @param block - the decoded counters block
+ * @returns the levels
+ */
+function levelCount(block: UniformValues): number {
+    const level = wordOf(block, "level");
+    return wordOf(block, "frontierCount") === 0 ? level : level + 1;
+}
+
+/**
+ * Breadth-first search with the test knobs of PD-26; `breadthFirstSearch` is this with an empty tuning.
+ * @internal
+ * @param ctx - the context whose device runs the kernels
+ * @param s - the snapshot (uploaded through ctx.residency, or found there)
+ * @param source - the source node index
+ * @param options - `maxDepth`, plus dest / signal / onProgress
+ * @param tuning - the knobs
+ * @returns the depths, parents, order, visited count, level count and switches
+ */
+export async function bfsWithTuning(
+    ctx: GpuContext,
+    s: GraphSnapshot,
+    source: number,
+    options: (BfsOptions & GpuRunOptions) | undefined,
+    tuning: BfsTuning,
+): Promise<GpuBfsResult> {
+    ctx.assertReady();
+    await assertDeviceComputes(ctx);
+    const n = s.nodeCount;
+    const levelsPerSubmit = checkBfsArgs(source, n, tuning);
+    const dest = checkDest(options?.dest, n);
+    const maxDepth = normaliseMaxDepth(options?.maxDepth);
+    const predKind = tuning.predKind ?? 1;
+    throwIfAborted(options);
+    const core = ctx.residency.core(s);
+    // a windowed core (colIdx above the binding limit) is executed, not refused (P8-T12 lifts DEP-P8-E): every
+    // frontier-walking kernel is dispatched once per arc window with the window's owned range in its record
+    const forward = coreWindows(core);
+    // the bottom-up sweep walks in-neighbours over the reverse core: on an undirected snapshot the forward arrays
+    // themselves (graph-format invariant I7; P7's residency aliases them, so a windowed core's windows ARE the
+    // reverse's), on a directed one the reverse VIEW, which spec 4.3 never windows -- so a directed snapshot whose
+    // reverse adjacency exceeds one binding is refused here, as the residency refuses the undirected view, instead
+    // of failing at the device's bind-group validation
+    assertReverseFits(ctx, s);
     const reverse = s.directed ? coreOfView(ctx.residency.view(s, "reverse"), s.arcCount) : core;
     const backward = coreWindows(reverse);
     // the two degree views: in-degrees for the unvisited rebuild and both for bfs-next-degree (P8-T8, issue #1358)
@@ -518,38 +646,17 @@ export async function bfsWithTuning(
             }
             batch.endPass();
             const doneRequest = batch.readback(counters.buffer, counters.offset + 4 * W.done, 4);
-            const inspect =
-                tuning.onLevel === undefined
-                    ? null
-                    : {
-                          block: batch.readback(counters.buffer, counters.offset, FRONTIER_COUNTERS.byteLength),
-                          frontier: batch.readback(frontier.input.buffer, frontier.input.offset, frontier.input.size),
-                          count: batch.readback(compactCount.buffer, compactCount.offset, 4),
-                      };
+            const inspect = tuning.onLevel === undefined ? null : levelInspection(batch, frontier, compactCount);
             const submitted = submit(batch);
             const back = await submitted.readback;
             levelsRecorded += levelsPerSubmit;
             submits += 1;
             ctx.assertReady();
-            if (options?.signal?.aborted) {
-                throw aborted(submitted.id);
-            }
+            throwIfAborted(options, submitted.id);
             options?.onProgress?.(Math.min(levelsRecorded, n), n);
-            if (inspect !== null && tuning.onLevel !== undefined) {
-                const block = FRONTIER_COUNTERS.read(new DataView(back), inspect.block.offset);
-                const claimed = new Uint32Array(back, inspect.frontier.offset, wordOf(block, "nextFrontierCount"));
-                const rebuilt = new Uint32Array(back, inspect.count.offset, 1)[0];
-                tuning.onLevel(levelsRecorded - 1, block, claimed.slice(), rebuilt);
-            }
-            if (new Uint32Array(back, doneRequest.offset, 1)[0] !== 0) {
+            reportLevel(tuning, back, inspect, levelsRecorded - 1);
+            if (levelsDone(new Uint32Array(back, doneRequest.offset, 1)[0], submits, n)) {
                 break;
-            }
-            if (submits > n + 1) {
-                throw new WebGpuGraphError(
-                    "E_VALIDATION",
-                    `${ALGORITHM}: the done flag never rose in ${submits} submits (a traversal has at most ${n} levels)`,
-                    { label: ALGORITHM, message: `the done flag never rose in ${submits} submits` },
-                );
             }
         }
 
@@ -600,22 +707,8 @@ export async function bfsWithTuning(
         ctx.assertReady();
         const block = FRONTIER_COUNTERS.read(new DataView(back), blockRequest.offset);
         const visitedCount = wordOf(block, "visitedCount");
-        if (visitedCount > n) {
-            // every vertex is claimed at most once, so a count above n is a kernel bug (a claim that lets two
-            // same-level claimants append), never a result to return
-            throw new WebGpuGraphError(
-                "E_VALIDATION",
-                `${ALGORITHM}: visitedCount ${visitedCount} exceeds the ${n} vertices (a duplicate claim)`,
-                {
-                    label: `${ALGORITHM}/visitedCount`,
-                    message: `the device counted ${visitedCount} visits of ${n} vertices`,
-                },
-            );
-        }
-        const level = wordOf(block, "level");
-        // done by an empty frontier (the level word already counts the boundary that found it), or by maxDepth with
-        // a reached-but-unexpanded level
-        const levels = wordOf(block, "frontierCount") === 0 ? level : level + 1;
+        assertVisitedCount(visitedCount, n);
+        const levels = levelCount(block);
         const depthOut = dest ?? new Uint32Array(n);
         depthOut.set(new Uint32Array(back, depthRequest.offset, n));
         return {

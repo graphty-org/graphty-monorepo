@@ -1,6 +1,6 @@
 import type { F32 } from "@graphty/graph-format";
 import { planar } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
@@ -15,6 +15,7 @@ const planarLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     scale: {
@@ -57,9 +58,9 @@ type PlanarLayoutOpts = Partial<PlanarLayoutConfigType>;
  * Planar layout engine for planar graphs (no edge crossings)
  */
 export class PlanarLayout extends SnapshotLayoutEngine {
-    static type = "planar";
-    static maxDimensions = 2;
-    static zodOptionsSchema: OptionsSchema = planarLayoutOptionsSchema;
+    static readonly type: string = "planar";
+    static readonly maxDimensions: number = 2;
+    static readonly zodOptionsSchema: OptionsSchema = planarLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: PlanarLayoutConfigType;
 

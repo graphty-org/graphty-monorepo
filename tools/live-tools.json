@@ -1,0 +1,42 @@
+{
+    "githerd": {
+        "worktree": ".worktrees/githerd",
+        "servers": ["githerd-dev"],
+        "test": "cd githerd && npm run lint && npx vitest run"
+    },
+    "visual-review": {
+        "worktree": ".worktrees/visual-review-server-v3",
+        "servers": ["visual-review-v3"],
+        "test": "cd visual-review && npm run lint && npx vitest run"
+    },
+    "gate": {
+        "worktree": ".worktrees/gate-live",
+        "servers": [],
+        "test": "pnpm run test:ci-workflows && pnpm run test:sonar-gate"
+    },
+    "land": {
+        "worktree": ".worktrees/land-live",
+        "servers": [],
+        "test": "node tools/branch-tracking.test.mjs"
+    },
+    "sonar-baseline": {
+        "worktree": ".worktrees/sonar-baseline-runner",
+        "servers": ["sonar-baseline"],
+        "test": "node tools/sonar/sonar-baseline.test.mjs"
+    },
+    "worktree-cleanup": {
+        "worktree": ".worktrees/worktree-cleanup-live",
+        "servers": ["worktree-cleanup"],
+        "test": "node tools/worktree-cleanup.test.mjs"
+    },
+    "pipeline-health-local": {
+        "worktree": ".worktrees/pipeline-health-local-live",
+        "servers": ["pipeline-health-local"],
+        "test": "cd tools/pipeline-health && node --test local/collector.test.mjs"
+    },
+    "workspace": {
+        "worktree": ".",
+        "servers": ["pr-status-broker"],
+        "test": "npx prettier --check CLAUDE.md \".claude/**/*.{md,json}\" && node -e \"JSON.parse(require(\\\"fs\\\").readFileSync(\\\".claude/settings.json\\\"))\""
+    }
+}

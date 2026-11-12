@@ -1,27 +1,37 @@
-import type { TooltipProps } from "@mantine/core";
-import { render, RenderOptions } from "@testing-library/react";
+import { render, RenderOptions, screen, type waitForOptions } from "@testing-library/react";
 import { ReactElement } from "react";
 
-import { theme } from "../theme";
 import { AllProviders } from "./test-providers";
 
 function customRender(ui: ReactElement, options?: Omit<RenderOptions, "wrapper">): ReturnType<typeof render> {
     return render(ui, { wrapper: AllProviders, ...options });
 }
 
-/** Testing Library's default wait for a `findBy` query, in ms. */
-const DEFAULT_FIND_TIMEOUT = 1000;
+// Re-export everything
+/**
+ * The value picker open now (the vary list, a label's source): the group its "Find an attribute"
+ * search sits in, named by the title of the pop-out it opened in.
+ * @param options - how long to wait for it.
+ * @returns the picker.
+ */
+export async function findValuePicker(options?: waitForOptions): Promise<HTMLElement> {
+    const search = await screen.findByRole("combobox", { name: "Find an attribute" }, options);
+    const picker = search.closest<HTMLElement>(".cm-quick-actions");
+    if (picker === null) {
+        throw new Error("the search is not in a value picker");
+    }
+    return picker;
+}
 
 /**
- * The `findBy` options for a tooltip opened by hover. The theme holds a hovered tooltip back
- * for its open delay (1000 ms), as long as the default find window, so a default `findBy`
- * gives up just before the tooltip mounts. This waits for the delay, then the usual window.
+ * The value picker, if one is open.
+ * @returns the picker, or null.
  */
-export const TOOLTIP_FIND_OPTIONS = {
-    timeout:
-        ((theme.components?.Tooltip?.defaultProps as TooltipProps | undefined)?.openDelay ?? 0) + DEFAULT_FIND_TIMEOUT,
-};
+export function queryValuePicker(): HTMLElement | null {
+    return (
+        screen.queryByRole("combobox", { name: "Find an attribute" })?.closest<HTMLElement>(".cm-quick-actions") ?? null
+    );
+}
 
-// Re-export everything
 export * from "@testing-library/react";
 export { customRender as render };

@@ -467,3 +467,93 @@ describe("what the scope resolver reads", () => {
         harness.session.dispose();
     });
 });
+
+describe("a filter on an edge attribute", () => {
+    /** The friends sample: 20 people, 41 friendships, each with a weight from 1 to 5. */
+    const FRIENDS = `Ava,Ben,3 Ava,Chloe,5 Ava,Dev,2 Ben,Chloe,4 Ben,Eli,1 Chloe,Dev,3 Chloe,Farah,2 Dev,Eli,4
+        Dev,Gus,1 Eli,Farah,3 Farah,Gus,5 Farah,Hana,2 Gus,Hana,4 Gus,Ivan,1 Hana,Ivan,3 Hana,Jada,2
+        Ivan,Jada,5 Ivan,Kofi,2 Jada,Kofi,4 Jada,Lena,1 Kofi,Lena,3 Kofi,Milo,2 Lena,Milo,5 Lena,Nora,1
+        Milo,Nora,4 Milo,Omar,2 Nora,Omar,3 Nora,Pia,1 Omar,Pia,4 Omar,Quinn,2 Pia,Quinn,5 Pia,Ravi,3
+        Quinn,Ravi,2 Quinn,Sana,1 Ravi,Sana,4 Ravi,Theo,2 Sana,Theo,3 Sana,Ava,1 Theo,Ben,2 Theo,Ava,1
+        Ivan,Ava,1`
+        .split(/\s+/)
+        .map((row) => row.split(","))
+        .map(([src, dst, weight]) => ({ src, dst, weight: Number(weight) }));
+
+    /** The friendships of weight 4 or 5, and the people at their ends. */
+    const STRONG = FRIENDS.filter((edge) => edge.weight >= 4);
+    const STRONG_ENDS = new Set(STRONG.flatMap((edge) => [edge.src, edge.dst]));
+
+    function friends(): Harness {
+        const people = [...new Set(FRIENDS.flatMap((edge) => [edge.src, edge.dst]))];
+
+        return harnessOf(
+            people.map((id) => ({ id })),
+            FRIENDS,
+        );
+    }
+
+    it("keeps every node and only the passing edges by default", async () => {
+        const harness = friends();
+        const visibility = modelOf(harness);
+
+        const result = await visibility.set({ kind: "range", attribute: "data.weight", min: 4 });
+
+        assert.deepStrictEqual(result.visible, { nodes: 20, edges: STRONG.length });
+        assert.deepStrictEqual(result.unresolvedPaths, []);
+        assert.isTrue(visibility.isVisible(edgeBetween(harness, "Ava", "Chloe")));
+        assert.isFalse(visibility.isVisible(edgeBetween(harness, "Ava", "Ben")));
+        harness.session.dispose();
+    });
+
+    it("keeps only the passing edges and their ends when asked for the ends", async () => {
+        const harness = friends();
+        const visibility = modelOf(harness);
+
+        const result = await visibility.set({ kind: "range", attribute: "data.weight", min: 4, nodes: "ends" });
+
+        assert.deepStrictEqual(result.visible, { nodes: STRONG_ENDS.size, edges: STRONG.length });
+        for (const person of ["Ava", "Kofi", "Theo", "Sana"]) {
+            assert.strictEqual(visibility.isVisible(person), STRONG_ENDS.has(person), person);
+        }
+
+        harness.session.dispose();
+    });
+
+    it("speaks edges for a categories leaf too", async () => {
+        const harness = friends();
+        const visibility = modelOf(harness);
+
+        const result = await visibility.set({
+            kind: "categories",
+            attribute: "data.weight",
+            values: ["5"],
+            nodes: "ends",
+        });
+
+        const five = FRIENDS.filter((edge) => edge.weight === 5);
+        assert.deepStrictEqual(result.visible, {
+            nodes: new Set(five.flatMap((edge) => [edge.src, edge.dst])).size,
+            edges: five.length,
+        });
+        harness.session.dispose();
+    });
+
+    it("refuses an unknown choice of nodes", () => {
+        const harness = friends();
+        const visibility = modelOf(harness);
+
+        assert.strictEqual(
+            codeOf(() =>
+                visibility.set({
+                    kind: "range",
+                    attribute: "data.weight",
+                    min: 4,
+                    nodes: "some",
+                } as unknown as RuleTree),
+            ),
+            "E_BAD_COMMAND",
+        );
+        harness.session.dispose();
+    });
+});

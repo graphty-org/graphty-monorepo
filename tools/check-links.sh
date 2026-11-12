@@ -8,7 +8,8 @@
 #                                         graphty-monorepo/(blob|tree)/master/<path> resolved
 #                                         against this checkout. No network. About a second.
 #   tools/check-links.sh                  the above, plus every other github.com/graphty-org link
-#                                         over the network (set GITHUB_TOKEN to avoid rate limits)
+#                                         over the network (set GITHUB_TOKEN to avoid rate limits),
+#                                         and every https://graphty.app link against canary.graphty.app
 #   tools/check-links.sh --site <dir>     the above, plus links to https://graphty.app checked
 #                                         against <dir>, the site tools/assemble-pages-site.sh
 #                                         builds -- so a link is judged against what the next
@@ -16,9 +17,14 @@
 #                                         every link inside that site's HTML (VitePress sidebars
 #                                         and nav, which VitePress itself does not check), and
 #                                         every Storybook deep link's story id
+#   tools/check-links.sh --install        only make sure lychee is ready (below) and exit. CI runs
+#                                         it inside .github/actions/lychee, which caches the release
+#                                         tarball across runs, so a GitHub release-download outage does
+#                                         not fail the link check (#6308)
 #   tools/check-links.sh --external <report.md>
 #                                         every link in those files, external ones included, over
 #                                         the network; writes a Markdown report of the dead ones.
+#                                         graphty.app links are checked against canary.graphty.app.
 #                                         For the weekly workflow, not for a gate: another site's
 #                                         outage is not a reason to fail anyone's pull request
 #
@@ -27,17 +33,23 @@
 # which files an issue instead of failing anyone's pull request.
 #
 # Configuration: lychee.toml and .lycheeignore at the repository root.
+#
+# The AI provider pages the graphty app links to live in TypeScript, where lychee does not look:
+# tools/check-provider-links.mjs checks them. Every form runs its offline half (each link has a
+# recorded landing); --external also requests them and fails when one moved.
 set -u
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 OFFLINE=0
+INSTALL_ONLY=0
 SITE=""
 REPORT=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --offline) OFFLINE=1 ;;
+        --install) INSTALL_ONLY=1 ;;
         --site) SITE="$(cd "${2:?--site needs a directory}" && pwd)" || exit 2; shift ;;
         --external) REPORT="${2:?--external needs a report path}"; shift ;;
         *) echo "unknown argument: $1" >&2; exit 2 ;;
@@ -45,7 +57,10 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-# lychee: the one on PATH, else a pinned static release cached under node_modules/.cache
+# lychee: the one on PATH, else a pinned static release cached under node_modules/.cache. The
+# tarball is kept beside the binary and its sha256 is checked before every extraction, so a tarball
+# restored from CI's cache (.github/actions/lychee, keyed on this version and sha256) is verified
+# exactly like a fresh download, and a run downloads only when nothing is cached.
 LYCHEE_VERSION=0.24.2
 LYCHEE_SHA256=73657a111819a30c47c08352896796f23d64e4eb2b3ed39b6d32149241566fc5
 LYCHEE="$(command -v lychee || true)"
@@ -59,12 +74,18 @@ if [ -z "$LYCHEE" ]; then
         fi
         mkdir -p "$CACHE"
         TARBALL="$CACHE/lychee.tar.gz"
-        curl -sSfL -o "$TARBALL" \
-            "https://github.com/lycheeverse/lychee/releases/download/lychee-v$LYCHEE_VERSION/lychee-x86_64-unknown-linux-musl.tar.gz" || exit 2
+        if [ ! -f "$TARBALL" ]; then
+            curl -sSfL --retry 4 --retry-delay 5 --retry-all-errors --connect-timeout 20 -o "$TARBALL" \
+                "https://github.com/lycheeverse/lychee/releases/download/lychee-v$LYCHEE_VERSION/lychee-x86_64-unknown-linux-musl.tar.gz" \
+                || { rm -f "$TARBALL"; exit 2; }
+        fi
         echo "$LYCHEE_SHA256  $TARBALL" | sha256sum -c --quiet - || { rm -f "$TARBALL"; exit 2; }
         tar -xzf "$TARBALL" -C "$CACHE" --strip-components=1 lychee-x86_64-unknown-linux-musl/lychee || exit 2
-        rm -f "$TARBALL"
     fi
+fi
+if [ "$INSTALL_ONLY" = 1 ]; then
+    "$LYCHEE" --version || exit 2
+    exit 0
 fi
 
 # Inputs: every tracked Markdown, MDX and HTML file and package.json (homepage, repository, bugs),
@@ -72,19 +93,30 @@ fi
 # CHANGELOGs are release history written by the release tooling (a commit message's "#505050"
 # became an issue link), and the gh-pages / Vite HTML templates only resolve once the build has
 # copied them into place (the --site pass checks the built copies).
-INPUTS="$(mktemp)"
+# In the checkout's own tmp/, not /tmp, which other processes on this machine clear.
+mkdir -p "$ROOT_DIR/tmp/check-links" || exit 2
+INPUTS="$(mktemp "$ROOT_DIR/tmp/check-links/inputs.XXXXXX")" || exit 2
 trap 'rm -f "$INPUTS"' EXIT
 git ls-files \
     | grep -E '\.(md|mdx|html)$|(^|/)package\.json$' \
     | grep -vE '(^|/)CHANGELOG\.md$' \
-    | grep -vE '^algorithms/(gh-pages-src/|benchmark-results/)' \
+    | grep -vE '^algorithms/benchmark-results/' \
     | grep -vE '^[^/]+/index\.html$' \
     > "$INPUTS"
 
+# graphty.app is production, which moves only on promotion; canary serves master's newest build,
+# so a link to a page master already publishes is judged against canary.
+CANARY_REMAP='^https://graphty\.app(.*)$ https://canary.graphty.app$1'
+
 if [ -n "$REPORT" ]; then
-    echo "Checking every link in $(wc -l < "$INPUTS") files"
-    "$LYCHEE" --format markdown --output "$REPORT" --files-from "$INPUTS"
-    exit $?
+    echo "Checking every link in $(wc -l < "$INPUTS") files (graphty.app against canary)"
+    "$LYCHEE" --format markdown --output "$REPORT" --remap "$CANARY_REMAP" --files-from "$INPUTS"
+    STATUS=$?
+    echo "Checking the AI provider pages the graphty app links to"
+    node tools/check-provider-links.mjs > "$INPUTS.providers" || { STATUS=1; { echo; cat "$INPUTS.providers"; } >> "$REPORT"; }
+    cat "$INPUTS.providers"
+    rm -f "$INPUTS.providers"
+    exit $STATUS
 fi
 
 REPO_REMAP="^https://github\.com/graphty-org/graphty-monorepo/(?:blob|tree)/master/([^?#]*)(?:[?#].*)?$ file://$ROOT_DIR/\$1"
@@ -101,17 +133,30 @@ if [ -n "$SITE" ]; then
 else
     ARGS+=(--exclude '^https://graphty\.app')
 fi
+echo "Checking that every AI provider page the graphty app links to has a recorded landing"
+node tools/check-provider-links.mjs --offline || FAILED=1
+
 echo "Checking relative links, anchors and repository links in $(wc -l < "$INPUTS") files"
 "$LYCHEE" "${ARGS[@]}" --files-from "$INPUTS" || FAILED=1
 
 # 2. Everything else under github.com/graphty-org (issues, workflows, the other repositories)
 #    A 5xx means GitHub could not render the page (an Actions run URL answers 502 intermittently),
 #    not that the link is dead: a dead link answers 404 or 410. So 500..=599 is accepted here.
+#    Actions run and job pages are skipped: GitHub expires run logs after 90 days, so they are
+#    evidence pointers, not links the docs depend on. An --exclude cannot do it (--include wins
+#    over every exclude), so they are remapped to a URL the include does not match.
 if [ $OFFLINE -eq 0 ]; then
     echo "Checking github.com/graphty-org links"
     "$LYCHEE" --accept '100..=103,200..=299,500..=599' \
         --include '^https://github\.com/graphty-org/' --exclude '.*' \
+        --remap '^https://github\.com/graphty-org/[^/]+/actions/runs/.* https://actions-run.invalid/' \
         --remap "$REPO_REMAP" --files-from "$INPUTS" || FAILED=1
+    if [ -z "$SITE" ]; then
+        # The include sees the remapped URL, so it names canary.
+        echo "Checking graphty.app links against canary.graphty.app"
+        "$LYCHEE" --remap "$CANARY_REMAP" --include '^https://canary\.graphty\.app' --exclude '.*' \
+            --files-from "$INPUTS" || FAILED=1
+    fi
 fi
 
 if [ -n "$SITE" ]; then

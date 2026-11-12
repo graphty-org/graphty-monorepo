@@ -95,6 +95,20 @@ export function usePopoutManager(): Pick<PopoutManagerContextValue, "closeAll" |
 }
 
 /**
+ * The pop-out the calling component sits inside, for content that closes its own panel -- an
+ * "Apply" or "Done" button, a list row that picks a value. Closing this way behaves like any other
+ * close: everything opened from the pop-out closes with it and focus returns to its trigger.
+ *
+ * Call it from inside `Popout.Panel`'s content; outside a `Popout` it throws.
+ * @returns `close`, which closes the pop-out, and `isOpen`. `close` is stable across renders.
+ */
+export function usePopout(): Pick<PopoutContextValue, "close" | "isOpen"> {
+    const { close, isOpen } = usePopoutContext();
+
+    return useMemo(() => ({ close, isOpen }), [close, isOpen]);
+}
+
+/**
  * Props for PopoutProvider.
  */
 interface PopoutProviderProps {
@@ -137,7 +151,7 @@ export function PopoutProvider({
     defaultOpened,
     onOpenChange,
     exclusive = true,
-}: PopoutProviderProps): JSX.Element {
+}: Readonly<PopoutProviderProps>): JSX.Element {
     const id = useId();
     const triggerRef = useRef<HTMLElement | null>(null);
     // The region this pop-out was OPENED in, which is where its trigger sits and
@@ -180,11 +194,19 @@ export function PopoutProvider({
         [setOpenState],
     );
 
+    // Focus goes back to the trigger BEFORE the state changes. A trigger that is shown only while
+    // hovered, focused or open (a field's "vary" button) is hidden by the same render that closes
+    // the panel, and focusing a hidden button after that render does nothing: focus fell to the
+    // page. Only when focus is inside this panel, so a click elsewhere keeps its own focus.
     const close = useCallback(
         (event?: SyntheticEvent) => {
+            const panel = document.getElementById(`popout-panel-${id}`);
+            if (panel?.contains(document.activeElement)) {
+                triggerRef.current?.focus();
+            }
             setOpenState(false, event);
         },
-        [setOpenState],
+        [id, setOpenState],
     );
 
     const toggle = useCallback(
@@ -229,7 +251,7 @@ interface PopoutManagerProviderProps {
  * @param props.children - Child components wrapped by the provider
  * @returns The PopoutManagerProvider component
  */
-export function PopoutManagerProvider({ children }: PopoutManagerProviderProps): JSX.Element {
+export function PopoutManagerProvider({ children }: Readonly<PopoutManagerProviderProps>): JSX.Element {
     const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
     // Track z-index stack order. Array index represents stack order (last = top).
@@ -357,8 +379,7 @@ export function PopoutManagerProvider({ children }: PopoutManagerProviderProps):
             // Collect all IDs to close (siblings and their descendants)
             const idsToClose: string[] = [];
             for (const siblingId of siblings) {
-                idsToClose.push(siblingId);
-                idsToClose.push(...findDescendantsInRegister(siblingId));
+                idsToClose.push(siblingId, ...findDescendantsInRegister(siblingId));
             }
 
             // Close siblings and descendants in depth-first order

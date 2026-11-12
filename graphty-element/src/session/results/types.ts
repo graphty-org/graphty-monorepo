@@ -29,8 +29,10 @@ import type {
     ResultShape,
     RunId,
 } from "../../catalog/types";
+import { quoteEach } from "../../utils/quote-each";
 import type { Caveats, Run, RunDistinction } from "../runs/types";
 import type { CodedFact } from "../shared";
+import type { CompareSide, ResultComparison } from "./compare";
 
 // ---------------------------------------------------------------------------------------------
 // The published path
@@ -586,7 +588,7 @@ export function checkShapeContract(
                 violations.push({
                     field: name,
                     kind,
-                    reason: `${kind} field "${name}" is typed "${declared.type}", not ${allowed.map((type) => `"${type}"`).join(" or ")}`,
+                    reason: `${kind} field "${name}" is typed "${declared.type}", not ${quoteEach(allowed, " or ")}`,
                 });
             }
         }
@@ -610,9 +612,9 @@ export function checkShapeContract(
  * @returns True when at least one graph field is the algorithm's own rather than the shape's.
  */
 function hasHeadlineScalar(contract: ResultShapeContract, fields: readonly FieldDescriptor[]): boolean {
-    const fixed: readonly string[] = [...contract.graphFields, ...contract.optionalGraphFields];
+    const fixed: ReadonlySet<string> = new Set([...contract.graphFields, ...contract.optionalGraphFields]);
 
-    return fields.some((field) => field.kind === "graph" && !fixed.includes(field.name));
+    return fields.some((field) => field.kind === "graph" && !fixed.has(field.name));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -732,6 +734,15 @@ export interface Histogram {
      * measured. A per-value histogram ignores the scale, because it has no bands to space.
      */
     readonly binning: HistogramBinning;
+    /** The lowest value measured. Absent when nothing was measured. @since 3.26.0 */
+    readonly min?: number;
+    /**
+     * The middle value measured: the lower median, a value the data holds. Absent when nothing
+     * was measured. @since 3.26.0
+     */
+    readonly median?: number;
+    /** The highest value measured. Absent when nothing was measured. @since 3.26.0 */
+    readonly max?: number;
 }
 
 /** How a histogram is cut. */
@@ -823,8 +834,9 @@ export interface SummaryGroup {
     /**
      * Its place by size, from 1 for the largest, ties ordered by group id, for a result that
      * partitions into groups. The legend of a colour encoding over the same groups carries the
-     * same `rank` on each swatch, and a page column of the group field carries it per cell, so
-     * every surface names a group the same way: word it from the rank ("Group 3").
+     * same `rank` on each swatch, a page column of the group field carries it per cell, and an
+     * export writes it as the group column's value, so every surface and every exported file names
+     * a group the same way: word it from the rank ("Group 3").
      */
     readonly rank?: number;
     /**
@@ -862,8 +874,10 @@ export interface ResultSummary {
     readonly normalization: Normalization;
     /** The highest-ranked elements, best first. Bounded however large the graph is. */
     readonly top: readonly SummaryEntry[];
-    /** The groups, largest first, for a result that partitions. */
+    /** The largest groups, largest first, for a result that partitions. Stops at ten. */
     readonly groups?: readonly SummaryGroup[];
+    /** How many groups there are, however few of them `groups` lists. Set whenever `groups` is. */
+    readonly groupCount?: number;
     /** What qualifies these numbers. */
     readonly caveats: Caveats;
     /** How long the run took, in milliseconds. */
@@ -952,6 +966,18 @@ export interface RunResult {
      * @returns The summary.
      */
     summary(): ResultSummary;
+    /**
+     * Every group's rank by its group id written as text: 1 for the largest, the same rank the
+     * summary's groups, the legend's swatches and a page's group column carry, for every group and
+     * not only the ones a summary lists. An application names a group by it ("Community 12").
+     *
+     * ```ts
+     * const rank = result.groupRanks()?.get(String(value)); // 12
+     * ```
+     * @returns The ranks, or undefined for a result that is not a partition into groups.
+     * @beta
+     */
+    groupRanks(): ReadonlyMap<string, number> | undefined;
     /**
      * What this result means, as a code and the figures it is about: one fact per result shape.
      *
@@ -1064,6 +1090,25 @@ export interface ResultsApi {
      * @returns True when the path would resolve.
      */
     has(run: RunRef, field?: string): boolean;
+    /**
+     * Compare two runs' results element by element: two rankings (who kept their place, who moved
+     * and by how much, who is tied) or two groupings (which groups map onto which, and who left the
+     * rest of their group). A grouping field (a community's `group`) gives a partition comparison;
+     * a measurement (a centrality's `value`) gives a ranking comparison.
+     *
+     * ```ts
+     * const c = session.results.compare(pagerank, degree);
+     * if (c.kind === "ranking") console.log(c.correlation, c.changes[0]);
+     * ```
+     * @param a - The first run, or `{ run, field }` for a field other than its primary one.
+     * @param b - The second run, or `{ run, field }`.
+     * @returns The comparison.
+     * @throws A GraphtyError coded E_UNKNOWN_RUN when the session holds no finished run by that
+     *   name, or E_BAD_COMMAND when a field is not published per element, the two fields are on
+     *   different elements, or one is a grouping and the other a measurement.
+     * @since 3.38.0
+     */
+    compare(a: RunRef | CompareSide, b: RunRef | CompareSide): ResultComparison;
     /** Every run that has published a result, as an expression editor reads them. */
     readonly roots: readonly ResultRoot[];
 }

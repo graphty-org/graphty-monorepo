@@ -30,6 +30,142 @@ export interface KargerOptions {
 }
 
 /**
+ * Incident (neighbour, edge weight) pairs per node, both directions of every edge.
+ * @param s - The snapshot
+ * @param capacity - The capacity of every edge
+ * @returns The row offsets, neighbours and weights
+ */
+function incidentLists(
+    s: GraphSnapshot,
+    capacity: Float64Array,
+): { offset: Uint32Array; neighbour: Uint32Array; weight: Float64Array } {
+    const n = s.nodeCount;
+    const { src, dst } = s.edgeList();
+    const offset = new Uint32Array(n + 1);
+    for (let e = 0; e < s.edgeCount; e++) {
+        offset[src[e] + 1]++;
+        offset[dst[e] + 1]++;
+    }
+    for (let i = 0; i < n; i++) {
+        offset[i + 1] += offset[i];
+    }
+    const fill = offset.slice(0, n);
+    const neighbour = new Uint32Array(offset[n]);
+    const weight = new Float64Array(offset[n]);
+    for (let e = 0; e < s.edgeCount; e++) {
+        neighbour[fill[src[e]]] = dst[e];
+        weight[fill[src[e]]++] = capacity[e];
+        neighbour[fill[dst[e]]] = src[e];
+        weight[fill[dst[e]]++] = capacity[e];
+    }
+    return { offset, neighbour, weight };
+}
+
+/** The state of one Stoer-Wagner run, built once per call. */
+interface StoerWagnerState {
+    n: number;
+    offset: Uint32Array;
+    neighbour: Uint32Array;
+    weight: Float64Array;
+    rep: Uint32Array;
+    /** Member lists, one per representative. */
+    next: Uint32Array;
+    tail: Uint32Array;
+    connection: Float64Array;
+    added: Uint8Array;
+    heap: IndexedMaxHeap;
+    /** The second-to-last and last node of the current phase. */
+    prev: number;
+    last: number;
+}
+
+/**
+ * Resets every remaining representative and queues all but the lowest-index one.
+ * @returns The lowest-index representative, where the phase starts
+ * @param st - The run state, updated in place
+ */
+function startPhase(st: StoerWagnerState): number {
+    const { n, rep, added, connection, heap } = st;
+    let start = INVALID_INDEX;
+    for (let i = 0; i < n; i++) {
+        if (rep[i] !== i) {
+            continue;
+        }
+        added[i] = 0;
+        connection[i] = 0;
+        if (start === INVALID_INDEX) {
+            start = i;
+        } else {
+            heap.push(i, 0);
+        }
+    }
+    return start;
+}
+
+/**
+ * Adds `v` to the phase and raises the connection of its unadded neighbours.
+ * @param st - The run state, updated in place
+ * @param v - The node added
+ */
+function addToPhase(st: StoerWagnerState, v: number): void {
+    const { offset, neighbour, weight, rep, next, added, connection, heap } = st;
+    added[v] = 1;
+    for (let m = v; m !== INVALID_INDEX; m = next[m]) {
+        for (let k = offset[m]; k < offset[m + 1]; k++) {
+            const x = rep[neighbour[k]];
+            if (added[x] === 0) {
+                connection[x] += weight[k];
+                heap.pushOrIncrease(x, connection[x]);
+            }
+        }
+    }
+}
+
+/**
+ * One maximum-adjacency phase; leaves its last two nodes in `prev` and `last`.
+ * @param st - The run state, updated in place
+ */
+function runPhase(st: StoerWagnerState): void {
+    st.prev = INVALID_INDEX;
+    st.last = startPhase(st);
+    for (;;) {
+        addToPhase(st, st.last);
+        if (st.heap.isEmpty()) {
+            return;
+        }
+        st.prev = st.last;
+        st.last = st.heap.pop();
+    }
+}
+
+/**
+ * The mask of the members of representative `r`.
+ * @param st - The run state, updated in place
+ * @param r - The representative
+ * @returns The mask
+ */
+function membersMask(st: StoerWagnerState, r: number): NodeMask {
+    const mask = makeMask(st.n);
+    for (let m = r; m !== INVALID_INDEX; m = st.next[m]) {
+        maskSet(mask, m, true);
+    }
+    return mask;
+}
+
+/**
+ * Merges the last node of the phase into the one before it.
+ * @param st - The run state, updated in place
+ */
+function mergeLastPhasePair(st: StoerWagnerState): void {
+    const { rep, next, tail, prev, last } = st;
+    for (let m = last; m !== INVALID_INDEX; m = next[m]) {
+        rep[m] = prev;
+    }
+    next[tail[prev]] = last;
+    tail[prev] = tail[last];
+}
+
+/**
  * Global minimum cut by Stoer-Wagner, reading every edge as undirected (a directed snapshot's arcs
  * count in both directions, so two opposite arcs between one pair add up).
  *
@@ -52,85 +188,34 @@ export function stoerWagner(s: GraphSnapshot, options: StoerWagnerOptions = {}):
         const side = makeMask(n, true);
         return { ...sidesPartition(side, n), cutValue: 0, side, cutEdges: new Uint32Array(0) };
     }
-    // Incident (neighbour, edge) pairs per node, both directions of every edge.
-    const { src, dst } = s.edgeList();
-    const offset = new Uint32Array(n + 1);
-    for (let e = 0; e < s.edgeCount; e++) {
-        offset[src[e] + 1]++;
-        offset[dst[e] + 1]++;
-    }
+    const { offset, neighbour, weight } = incidentLists(s, capacity);
+    const st: StoerWagnerState = {
+        n,
+        offset,
+        neighbour,
+        weight,
+        rep: new Uint32Array(n),
+        next: new Uint32Array(n).fill(INVALID_INDEX),
+        tail: new Uint32Array(n),
+        connection: new Float64Array(n),
+        added: new Uint8Array(n),
+        heap: new IndexedMaxHeap(n),
+        prev: INVALID_INDEX,
+        last: INVALID_INDEX,
+    };
     for (let i = 0; i < n; i++) {
-        offset[i + 1] += offset[i];
+        st.rep[i] = i;
+        st.tail[i] = i;
     }
-    const fill = offset.slice(0, n);
-    const neighbour = new Uint32Array(offset[n]);
-    const weight = new Float64Array(offset[n]);
-    for (let e = 0; e < s.edgeCount; e++) {
-        neighbour[fill[src[e]]] = dst[e];
-        weight[fill[src[e]]++] = capacity[e];
-        neighbour[fill[dst[e]]] = src[e];
-        weight[fill[dst[e]]++] = capacity[e];
-    }
-
-    const rep = new Uint32Array(n);
-    const next = new Uint32Array(n).fill(INVALID_INDEX); // member lists, one per representative
-    const tail = new Uint32Array(n);
-    for (let i = 0; i < n; i++) {
-        rep[i] = i;
-        tail[i] = i;
-    }
-    const connection = new Float64Array(n);
-    const added = new Uint8Array(n);
-    const heap = new IndexedMaxHeap(n);
     let best = Infinity;
     let bestSide: NodeMask = makeMask(n);
-
     for (let active = n; active > 1; active--) {
-        let start = INVALID_INDEX;
-        for (let i = 0; i < n; i++) {
-            if (rep[i] !== i) {
-                continue;
-            }
-            added[i] = 0;
-            connection[i] = 0;
-            if (start === INVALID_INDEX) {
-                start = i;
-            } else {
-                heap.push(i, 0);
-            }
+        runPhase(st);
+        if (st.connection[st.last] < best) {
+            best = st.connection[st.last];
+            bestSide = membersMask(st, st.last);
         }
-        let prev = INVALID_INDEX;
-        let last = start;
-        for (;;) {
-            added[last] = 1;
-            for (let m = last; m !== INVALID_INDEX; m = next[m]) {
-                for (let k = offset[m]; k < offset[m + 1]; k++) {
-                    const x = rep[neighbour[k]];
-                    if (added[x] === 0) {
-                        connection[x] += weight[k];
-                        heap.pushOrIncrease(x, connection[x]);
-                    }
-                }
-            }
-            if (heap.isEmpty()) {
-                break;
-            }
-            prev = last;
-            last = heap.pop();
-        }
-        if (connection[last] < best) {
-            best = connection[last];
-            bestSide = makeMask(n);
-            for (let m = last; m !== INVALID_INDEX; m = next[m]) {
-                maskSet(bestSide, m, true);
-            }
-        }
-        // Merge the last node of the phase into the one before it.
-        for (let m = last; m !== INVALID_INDEX; m = next[m]) {
-            rep[m] = prev;
-        }
-        next[tail[prev]] = last;
-        tail[prev] = tail[last];
+        mergeLastPhasePair(st);
     }
     return {
         ...sidesPartition(bestSide, n),
@@ -138,6 +223,76 @@ export function stoerWagner(s: GraphSnapshot, options: StoerWagnerOptions = {}):
         side: bestSide,
         cutEdges: crossingEdges(s, bestSide, false, capacity, false),
     };
+}
+
+/**
+ * Fills `order` with 0..m-1 and Fisher-Yates shuffles it, drawing from the last slot down.
+ * @param order - The edge order, one slot per edge
+ * @param rand - The seeded generator
+ */
+function shuffledEdgeOrder(order: Uint32Array, rand: () => number): void {
+    for (let e = 0; e < order.length; e++) {
+        order[e] = e;
+    }
+    for (let i = order.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        const t = order[i];
+        order[i] = order[j];
+        order[j] = t;
+    }
+}
+
+/**
+ * Unions edge endpoints in `order` until two groups remain.
+ * @param n - The node count
+ * @param order - The edge order, one slot per edge
+ * @param src - The tail of every edge
+ * @param dst - The head of every edge
+ * @returns The groups
+ */
+function contractToTwo(n: number, order: Uint32Array, src: Uint32Array, dst: Uint32Array): IntUnionFind {
+    const uf = new IntUnionFind(n);
+    let groups = n;
+    for (let i = 0; i < order.length && groups > 2; i++) {
+        if (uf.union(src[order[i]], dst[order[i]])) {
+            groups--;
+        }
+    }
+    return uf;
+}
+
+/**
+ * The weight of the edges with exactly one endpoint in `root`'s group.
+ * @param uf - The groups after contraction
+ * @param root - The group's root
+ * @param src - The tail of every edge
+ * @param dst - The head of every edge
+ * @param capacity - The capacity of every edge
+ * @returns The cut weight
+ */
+function groupCut(uf: IntUnionFind, root: number, src: Uint32Array, dst: Uint32Array, capacity: Float64Array): number {
+    let cut = 0;
+    for (let e = 0; e < capacity.length; e++) {
+        if ((uf.find(src[e]) === root) !== (uf.find(dst[e]) === root)) {
+            cut += capacity[e];
+        }
+    }
+    return cut;
+}
+
+/**
+ * The mask of the nodes in `root`'s group.
+ * @param uf - The groups after contraction
+ * @param root - The group's root
+ * @param n - The node count
+ * @returns The mask
+ */
+function groupMask(uf: IntUnionFind, root: number, n: number): NodeMask {
+    const mask = makeMask(n);
+    for (let v = 0; v < n; v++) {
+        maskSet(mask, v, uf.find(v) === root);
+    }
+    return mask;
 }
 
 /**
@@ -174,35 +329,13 @@ export function kargerMinCut(s: GraphSnapshot, options: KargerOptions = {}): Min
     let best = Infinity;
     let bestSide: NodeMask = makeMask(n);
     for (let trial = 0; trial < iterations; trial++) {
-        for (let e = 0; e < order.length; e++) {
-            order[e] = e;
-        }
-        for (let i = order.length - 1; i > 0; i--) {
-            const j = Math.floor(rand() * (i + 1));
-            const t = order[i];
-            order[i] = order[j];
-            order[j] = t;
-        }
-        const uf = new IntUnionFind(n);
-        let groups = n;
-        for (let i = 0; i < order.length && groups > 2; i++) {
-            if (uf.union(src[order[i]], dst[order[i]])) {
-                groups--;
-            }
-        }
+        shuffledEdgeOrder(order, rand);
+        const uf = contractToTwo(n, order, src, dst);
         const root = uf.find(0);
-        let cut = 0;
-        for (let e = 0; e < s.edgeCount; e++) {
-            if ((uf.find(src[e]) === root) !== (uf.find(dst[e]) === root)) {
-                cut += capacity[e];
-            }
-        }
+        const cut = groupCut(uf, root, src, dst, capacity);
         if (cut < best) {
             best = cut;
-            bestSide = makeMask(n);
-            for (let v = 0; v < n; v++) {
-                maskSet(bestSide, v, uf.find(v) === root);
-            }
+            bestSide = groupMask(uf, root, n);
         }
     }
     return {

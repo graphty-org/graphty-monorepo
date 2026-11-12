@@ -9,7 +9,8 @@ import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../../src/Graph";
-import { nextFrame } from "../../helpers/real-input";
+import { drawnFrames } from "../../helpers/drawn-frames";
+import { assertPlaced } from "../../helpers/placed-position";
 import { configureGraph } from "../../helpers/testSetup";
 
 const TEST_NODES = [
@@ -58,11 +59,10 @@ describe("XR Input Switching", () => {
             }
 
             const initialPos = node1.mesh.position.clone();
+            assertPlaced(initialPos, "node1");
 
-            // Verify node position is stable
-            for (let frame = 0; frame < 3; frame++) {
-                await nextFrame();
-            }
+            // Three more updates, any of which would have moved an unstable node
+            await drawnFrames(graph.getScene(), 3);
 
             const finalPos = node1.mesh.position;
             const positionStable =
@@ -116,7 +116,8 @@ describe("XR Input Switching", () => {
             // Change view mode (should reset any ongoing interactions)
             await graph.setViewMode("2d");
             await operationQueueOf(graph).waitForCompletion();
-            await graph.waitForSettled();
+            // The 2D switch rebuilds the meshes; only a drawn frame moves them off the template
+            await graph.waitForStableFrame();
 
             // Node should still exist and have valid position
             const nodeAfter = graph.getNode("node1");
@@ -130,6 +131,7 @@ describe("XR Input Switching", () => {
                 isFinite(nodeAfter.mesh.position.z);
 
             assert.isTrue(hasValidPosition, "Node should have valid position");
+            assertPlaced(nodeAfter.mesh.position, "node1 after the switch");
         });
 
         test("camera controller remains functional after transitions", async () => {

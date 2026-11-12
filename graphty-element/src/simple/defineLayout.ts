@@ -29,10 +29,13 @@
 // session's graph view by attribute name and draws its seed once per engine, and the snapshot
 // input carries neither.
 
+import { mulberry32 } from "@graphty/algorithms";
+import { type EdgeMask, makeMask, type NodeMask } from "@graphty/graph-format";
+
 import type { RegisterOptions } from "../catalog/pluginRegistry";
 import type { AuthoredLayoutDescriptor, LayoutDescriptor, OptionDescriptor } from "../catalog/types";
 import { GraphtyError } from "../errors";
-import { LayoutEngine, type SimpleLayoutOpts, StaticLayoutEngine } from "../layout/LayoutEngine";
+import { LayoutEngine, simpleLayoutInternals, type SimpleLayoutOpts, StaticLayoutEngine } from "../layout/LayoutEngine";
 import { GraphtyLogger } from "../logging/GraphtyLogger.js";
 import type { Node } from "../Node";
 import {
@@ -44,7 +47,7 @@ import {
     requireFunction,
 } from "./definition";
 import { checkViewOptions, expandOptions } from "./options";
-import { viewSourceOf } from "./source";
+import { type ViewSource, viewSourceOf } from "./source";
 import type { GraphView, LayoutContext, LayoutDefinition, NodeId, OptionsShorthand, Point } from "./types";
 import { createGraphView, quoteId, viewWarnings } from "./view";
 
@@ -104,22 +107,6 @@ type DefinedEngine = new (opts: object) => LayoutEngine;
 
 /** A computed layout, keyed as the engine's `positions` record is, in scene units. */
 type Positions = Record<string, number[]>;
-
-/**
- * Seeded random numbers in [0, 1) (mulberry32).
- * @param seed - The seed.
- * @returns The generator.
- */
-function seededRandom(seed: number): () => number {
-    let state = seed >>> 0;
-    return () => {
-        state = (state + 0x6d2b79f5) >>> 0;
-        let t = state;
-        t = Math.imul(t ^ (t >>> 15), t | 1);
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-}
 
 /**
  * Let the page draw a frame.
@@ -196,35 +183,68 @@ function positionsOf(id: string, returned: unknown, graph: GraphView, twoD: bool
         }
 
         matched++;
-        if (point === null || point === undefined) {
-            continue;
-        }
-
-        if (
-            !Array.isArray(point) ||
-            (point.length !== 2 && point.length !== 3) ||
-            !point.every((coordinate) => typeof coordinate === "number")
-        ) {
-            const shown = Array.isArray(point) ? `[${point.map(String).join(", ")}]` : describeValue(point);
-            throw placeRefused(
-                id,
-                `${id}: place() returned ${shown} for node ${quoteId(node.id)}. A position is two or three ` +
-                    "numbers; leave the node out to leave it unplaced.",
-            );
-        }
-
-        const [x, y] = point;
-        // In 2D the z is dropped before it is judged: a position the view never uses cannot unplace a node.
-        const z = point.length === 3 && !twoD ? point[2] : 0;
-        if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
-            positions[String(node.id)] = [x, y, z];
+        const placed = placedPoint(id, node, point, twoD);
+        if (placed !== undefined) {
+            positions[String(node.id)] = placed;
         }
     }
 
-    if (matched === 0 && returned.size > 0) {
+    refuseUnmatched(id, returned.size, matched, unknown, graph);
+
+    return positions;
+}
+
+/**
+ * The position `place` gave one node, refusing a malformed one.
+ * @param id - The layout's id.
+ * @param node - The node.
+ * @param point - What `place` returned for it.
+ * @param twoD - Whether the view is 2D, which drops z.
+ * @returns The position, or undefined when the node is left unplaced (no point, or a coordinate
+ *     that is not finite).
+ */
+function placedPoint(
+    id: string,
+    node: NonNullable<ReturnType<GraphView["node"]>>,
+    point: unknown,
+    twoD: boolean,
+): number[] | undefined {
+    if (point === null || point === undefined) {
+        return undefined;
+    }
+
+    if (
+        !Array.isArray(point) ||
+        (point.length !== 2 && point.length !== 3) ||
+        !point.every((coordinate) => typeof coordinate === "number")
+    ) {
+        const shown = Array.isArray(point) ? `[${point.map(String).join(", ")}]` : describeValue(point);
         throw placeRefused(
             id,
-            `${id}: place() returned ${returned.size} positions but no key matches a node id ` +
+            `${id}: place() returned ${shown} for node ${quoteId(node.id)}. A position is two or three ` +
+                "numbers; leave the node out to leave it unplaced.",
+        );
+    }
+
+    const [x, y] = point;
+    // In 2D the z is dropped before it is judged: a position the view never uses cannot unplace a node.
+    const z = point.length === 3 && !twoD ? point[2] : 0;
+    return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z) ? [x, y, z] : undefined;
+}
+
+/**
+ * Refuse a result none of whose keys is a node, and warn of the keys that are not nodes.
+ * @param id - The layout's id.
+ * @param size - How many positions `place` returned.
+ * @param matched - How many of its keys are nodes.
+ * @param unknown - Its keys that are not nodes.
+ * @param graph - The view it read.
+ */
+function refuseUnmatched(id: string, size: number, matched: number, unknown: unknown[], graph: GraphView): void {
+    if (matched === 0 && size > 0) {
+        throw placeRefused(
+            id,
+            `${id}: place() returned ${size} positions but no key matches a node id ` +
                 `(got ${quoteKey(unknown[0])}; node ids here are ${idKinds(graph)}). Key the map by node.id.`,
         );
     }
@@ -238,8 +258,20 @@ function positionsOf(id: string, returned: unknown, graph: GraphView, twoD: bool
             { count: unknown.length, keys },
         );
     }
+}
 
-    return positions;
+/** The engine classes `defineLayout` built: each arranges the rows of the element's snapshot. */
+const definedEngines = new WeakSet();
+
+/**
+ * Whether an engine is one `defineLayout` built, which arranges every row of the element's snapshot,
+ * a row drawn with no `Node` included, rather than only the `Node`s it was handed.
+ * @param engine - The engine.
+ * @returns True for a defined layout.
+ * @internal
+ */
+export function isDefinedLayout(engine: object): boolean {
+    return definedEngines.has(engine.constructor);
 }
 
 /**
@@ -252,11 +284,11 @@ function positionsOf(id: string, returned: unknown, graph: GraphView, twoD: bool
 function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensions: 2 | 3): DefinedEngine {
     const { id } = plan;
 
-    return class DefinedLayout extends StaticLayoutEngine {
-        static override type = id;
-        static override maxDimensions = maxDimensions;
-        static override scoped = true;
-        static override descriptor = descriptor;
+    const DefinedLayout = class DefinedLayout extends StaticLayoutEngine {
+        static override readonly type = id;
+        static override readonly maxDimensions = maxDimensions;
+        static override readonly scoped: boolean = true;
+        static override readonly descriptor = descriptor;
 
         /** The resolved option values `place` receives. */
         readonly #values: Record<string, unknown>;
@@ -328,6 +360,18 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             this.#changes++;
         }
 
+        /**
+         * A freeze: laying out by row, it is how a node or an edge stored with no `Node` or `Edge`
+         * arrives, so it counts as a change; otherwise the add that froze counted already.
+         * @param args - The freeze, and whether a load is still streaming.
+         */
+        override reload(...args: Parameters<StaticLayoutEngine["reload"]>): void {
+            super.reload(...args);
+            if (simpleLayoutInternals.byRow(this)) {
+                this.#changes++;
+            }
+        }
+
         override removeEdge(...args: Parameters<StaticLayoutEngine["removeEdge"]>): void {
             super.removeEdge(...args);
             this.#changes++;
@@ -367,7 +411,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
                     this.stale = true;
                     // The element's own restart, so the next frame draws it; a reader's pause still
                     // refuses it.
-                    const graph = this._nodes[0]?.parentGraph;
+                    const graph = simpleLayoutInternals.hostGraph(this);
                     if (graph) {
                         graph.getLayoutManager().running = true;
                     }
@@ -380,7 +424,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
                     this.#pending = null;
                     const thrown = error instanceof Error ? error : new Error(String(error));
                     logger.error(`${id}: the layout could not be recomputed`, thrown, { layout: id });
-                    const graph = this._nodes[0]?.parentGraph;
+                    const graph = simpleLayoutInternals.hostGraph(this);
                     graph?.getEventManager?.()?.emitGraphError(graph, thrown, "layout", { layoutType: id });
                 },
             );
@@ -395,7 +439,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             const run = new AbortController();
             this.#run = run;
 
-            const graph = this._nodes[0]?.parentGraph;
+            const graph = simpleLayoutInternals.hostGraph(this);
             // Only the element's own Graph has a session; a bare GraphContext (a test harness) does not.
             const session = graph?.getSession?.();
             if (graph === undefined || session === undefined) {
@@ -404,7 +448,19 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             }
 
             const twoD = graph.getStyles().config.graph.viewMode === "2d";
-            const view = createGraphView(viewSourceOf(session), { id, directed: false, source: "layout" });
+            const source = viewSourceOf(session);
+            // A node the layout leaves out (see `LayoutEngine.setLeftOut`) is not in the view `place` reads.
+            const kept = this.keptRows(source.snapshot.nodeCount);
+            const keptEdges = this.keptEdges(source.snapshot);
+            const narrowed =
+                kept === null && keptEdges === null
+                    ? source
+                    : keptSource(source, kept ?? makeMask(source.snapshot.nodeCount, true), keptEdges);
+            const view = createGraphView(narrowed, {
+                id,
+                directed: false,
+                source: "layout",
+            });
             checkViewOptions(view, id, plan.options, this.#values, "layout");
 
             const byId = new Map<NodeId, Node>(this._nodes.map((node) => [node.id, node]));
@@ -414,7 +470,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
                 options: this.#values,
                 dimensions: twoD ? 2 : 3,
                 fixed: (nodeId) => this.#fixed(byId.get(nodeId), twoD),
-                random: seededRandom(plan.random ? (this.#values.seed as number) : FIXED_SEED),
+                random: mulberry32(plan.random ? (this.#values.seed as number) : FIXED_SEED),
                 signal: run.signal,
                 progress: async () => {
                     longest = Math.max(longest, performance.now() - resumed);
@@ -465,6 +521,35 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
 
             return twoD ? [at.x, at.y] : [at.x, at.y, at.z];
         }
+    };
+    definedEngines.add(DefinedLayout);
+
+    return DefinedLayout;
+}
+
+/**
+ * A view source over only the kept rows and edges of another: their induced subgraph, each value
+ * read from the row it came from.
+ * @param source - The source over every row.
+ * @param kept - The rows to keep.
+ * @param keptEdges - The edges to keep, or null for every edge between kept rows.
+ * @returns The source over the kept rows.
+ */
+function keptSource(source: ViewSource, kept: NodeMask, keptEdges: EdgeMask | null): ViewSource {
+    const filtered = keptEdges === null ? null : source.snapshot.filterEdges(keptEdges);
+    const derived = (filtered?.snapshot ?? source.snapshot).inducedSubgraph({ mask: kept });
+    const { nodeOrigin } = derived;
+    const edgeOrigin = (row: number): number => {
+        const inFiltered = derived.edgeOrigin === null ? row : derived.edgeOrigin[row];
+        return filtered?.edgeOrigin?.[inFiltered] ?? inFiltered;
+    };
+    return {
+        snapshot: derived.snapshot,
+        nodeValue: (row, path) => source.nodeValue(nodeOrigin === null ? row : nodeOrigin[row], path),
+        edgeValue: (row, path) => source.edgeValue(edgeOrigin(row), path),
+        ...(source.attributeNames === undefined
+            ? {}
+            : { attributeNames: (target) => source.attributeNames?.(target) ?? [] }),
     };
 }
 

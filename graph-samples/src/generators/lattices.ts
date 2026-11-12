@@ -58,20 +58,162 @@ function forwardOffsets(diagonals: boolean): number[][] {
         [0, 1, 0],
         [0, 0, 1],
     ];
-    if (diagonals) {
-        for (let dl = 0; dl <= 1; dl++) {
-            for (let dr = -1; dr <= 1; dr++) {
-                for (let dc = -1; dc <= 1; dc++) {
-                    const positive = dl > 0 || (dl === 0 && (dr > 0 || (dr === 0 && dc > 0)));
-                    const axis = Math.abs(dc) + Math.abs(dr) + Math.abs(dl) === 1;
-                    if (positive && !axis) {
-                        offsets.push([dc, dr, dl]);
-                    }
+    if (!diagonals) {
+        return offsets;
+    }
+    for (let dl = 0; dl <= 1; dl++) {
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                const axis = Math.abs(dc) + Math.abs(dr) + Math.abs(dl) === 1;
+                if (lexPositive(dl, dr, dc) && !axis) {
+                    offsets.push([dc, dr, dl]);
                 }
             }
         }
     }
     return offsets;
+}
+
+/**
+ * Whether the offset (dl, dr, dc) is lexicographically positive.
+ * @param dl - the layer offset
+ * @param dr - the row offset
+ * @param dc - the column offset
+ * @returns true when the first nonzero of dl, dr, dc is positive
+ */
+function lexPositive(dl: number, dr: number, dc: number): boolean {
+    if (dl !== 0) {
+        return dl > 0;
+    }
+    return dr === 0 ? dc > 0 : dr > 0;
+}
+
+/** The shape of a grid that the edge walk needs. */
+interface GridShape {
+    /** The sizes along (column, row, layer). */
+    sizes: number[];
+    /** Whether each axis wraps around. */
+    wraps: boolean[];
+    /** The nodes in one layer, rows * cols. */
+    plane: number;
+    /** The forward neighbour offsets, from {@link forwardOffsets}. */
+    offsets: number[][];
+    /** The blocked nodes, or null without obstacles. */
+    blocked: Uint8Array<ArrayBuffer> | null;
+}
+
+/**
+ * Block each node independently with probability `obstacles`, from stream (seed, "grid-obstacles",
+ * node).
+ * @param options - the grid options
+ * @param n - the node count
+ * @returns 1 for each blocked node, or null without obstacles
+ */
+function gridObstacles(options: Grid3dOptions, n: number): Uint8Array<ArrayBuffer> | null {
+    if (options.obstacles === undefined) {
+        return null;
+    }
+    const p = options.obstacles;
+    checkProbability("obstacles", p);
+    if (p >= 1) {
+        throw new RangeError("obstacles must be below 1");
+    }
+    const blocked = new Uint8Array(n);
+    const stream = new RandomStream(resolveSeed(options.seed), "grid-obstacles", 0);
+    for (let i = 0; i < n; i++) {
+        stream.reset(i);
+        blocked[i] = stream.nextFloat() < p ? 1 : 0;
+    }
+    return blocked;
+}
+
+/**
+ * The index of the node at `here + offset`, wrapping each axis that wraps.
+ * @param shape - the grid shape
+ * @param here - the node's (column, row, layer)
+ * @param offset - the offset (dc, dr, dl)
+ * @param at - scratch for the neighbour's coordinates
+ * @returns the neighbour's index, or -1 when it is off the grid
+ */
+function gridNeighbour(shape: GridShape, here: number[], offset: number[], at: number[]): number {
+    const { sizes, wraps } = shape;
+    for (let axis = 0; axis < 3; axis++) {
+        let x = here[axis] + offset[axis];
+        if (x < 0 || x >= sizes[axis]) {
+            if (!wraps[axis]) {
+                return -1;
+            }
+            x = (x + sizes[axis]) % sizes[axis];
+        }
+        at[axis] = x;
+    }
+    return at[2] * shape.plane + at[1] * sizes[0] + at[0];
+}
+
+/**
+ * Push node i's edge to each forward neighbour that is on the grid and not blocked, in offset
+ * order. The edge is always (i, j): with `directed` the grid does not wrap, so every forward
+ * neighbour has the higher index and the arc already runs from the lower index to the higher.
+ * @param out - the edge buffer
+ * @param shape - the grid shape
+ * @param i - the node index
+ * @param here - the node's (column, row, layer)
+ * @param at - scratch for the neighbour's coordinates
+ */
+function pushGridNodeEdges(out: EdgeBuffer, shape: GridShape, i: number, here: number[], at: number[]): void {
+    const { blocked } = shape;
+    for (const offset of shape.offsets) {
+        const j = gridNeighbour(shape, here, offset, at);
+        if (j >= 0 && blocked?.[j] !== 1) {
+            out.push(i, j);
+        }
+    }
+}
+
+/**
+ * Every grid edge: for each unblocked node in index order, its forward edges.
+ * @param shape - the grid shape
+ * @returns the edges
+ */
+function gridEdges(shape: GridShape): EdgeBuffer {
+    const [cols, rows, layers] = shape.sizes;
+    const { plane, blocked } = shape;
+    const out = new EdgeBuffer(plane * layers * Math.min(shape.offsets.length, 3));
+    const at = [0, 0, 0];
+    for (let l = 0; l < layers; l++) {
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const i = l * plane + r * cols + c;
+                if (blocked?.[i] !== 1) {
+                    pushGridNodeEdges(out, shape, i, [c, r, l], at);
+                }
+            }
+        }
+    }
+    return out;
+}
+
+/**
+ * The position columns x (column), y (row) and, when layers > 1, z (layer).
+ * @param rows - the number of rows
+ * @param cols - the number of columns
+ * @param layers - the number of layers
+ * @returns the columns
+ */
+function gridPositions(rows: number, cols: number, layers: number): Record<string, Float64Array<ArrayBuffer>> {
+    const n = rows * cols * layers;
+    const plane = rows * cols;
+    const x = new Float64Array(n);
+    const y = new Float64Array(n);
+    const z = layers > 1 ? new Float64Array(n) : null;
+    for (let i = 0; i < n; i++) {
+        x[i] = i % cols;
+        y[i] = Math.floor(i / cols) % rows;
+        if (z !== null) {
+            z[i] = Math.floor(i / plane);
+        }
+    }
+    return z === null ? { x, y } : { x, y, z };
 }
 
 /**
@@ -97,78 +239,16 @@ export function grid3dGraph(options: Grid3dOptions): SampleGraph {
     }
     const offsets = forwardOffsets(options.diagonals === true);
     checkEdgeCount(n * offsets.length);
-    let blocked: Uint8Array<ArrayBuffer> | null = null;
-    if (options.obstacles !== undefined) {
-        const p = options.obstacles;
-        checkProbability("obstacles", p);
-        if (p >= 1) {
-            throw new RangeError("obstacles must be below 1");
-        }
-        blocked = new Uint8Array(n);
-        const stream = new RandomStream(resolveSeed(options.seed), "grid-obstacles", 0);
-        for (let i = 0; i < n; i++) {
-            stream.reset(i);
-            blocked[i] = stream.nextFloat() < p ? 1 : 0;
-        }
-    }
+    const blocked = gridObstacles(options, n);
     const sizes = [cols, rows, layers];
     const wraps = sizes.map((size) => periodic && size >= 3);
-    const plane = rows * cols;
-    const out = new EdgeBuffer(n * Math.min(offsets.length, 3));
-    const at = [0, 0, 0];
-    for (let l = 0; l < layers; l++) {
-        for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-                const i = l * plane + r * cols + c;
-                if (blocked?.[i] === 1) {
-                    continue;
-                }
-                const here = [c, r, l];
-                for (const offset of offsets) {
-                    let inside = true;
-                    for (let axis = 0; axis < 3; axis++) {
-                        let x = here[axis] + offset[axis];
-                        if (x < 0 || x >= sizes[axis]) {
-                            if (!wraps[axis]) {
-                                inside = false;
-                                break;
-                            }
-                            x = (x + sizes[axis]) % sizes[axis];
-                        }
-                        at[axis] = x;
-                    }
-                    if (!inside) {
-                        continue;
-                    }
-                    const j = at[2] * plane + at[1] * cols + at[0];
-                    if (blocked?.[j] === 1) {
-                        continue;
-                    }
-                    out.push(directed && j < i ? j : i, directed && j < i ? i : j);
-                }
-            }
-        }
-    }
+    const out = gridEdges({ sizes, wraps, plane: rows * cols, offsets, blocked });
     const columns: Record<string, Uint8Array<ArrayBuffer> | Float64Array<ArrayBuffer>> = {};
     if (blocked !== null) {
         columns.blocked = blocked;
     }
     if (options.positions === true) {
-        const x = new Float64Array(n);
-        const y = new Float64Array(n);
-        const z = layers > 1 ? new Float64Array(n) : null;
-        for (let i = 0; i < n; i++) {
-            x[i] = i % cols;
-            y[i] = Math.floor(i / cols) % rows;
-            if (z !== null) {
-                z[i] = Math.floor(i / plane);
-            }
-        }
-        columns.x = x;
-        columns.y = y;
-        if (z !== null) {
-            columns.z = z;
-        }
+        Object.assign(columns, gridPositions(rows, cols, layers));
     }
     const graph = toGraph(n, out, directed, Object.keys(columns).length > 0 ? columns : undefined);
     return applyWeights(graph, options);
@@ -212,6 +292,41 @@ function planarSize(options: PlanarLatticeOptions): number {
 }
 
 /**
+ * The triangular lattice's positions: x = c + r / 2, y = r sqrt(3) / 2.
+ * @param n - the node count
+ * @param cols - the number of columns
+ * @returns the columns x and y
+ */
+function triangularPositions(n: number, cols: number): Record<string, Float64Array<ArrayBuffer>> {
+    const x = new Float64Array(n);
+    const y = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+        const r = Math.floor(i / cols);
+        x[i] = (i % cols) + r / 2;
+        y[i] = r * HALF_SQRT3;
+    }
+    return { x, y };
+}
+
+/**
+ * The hexagonal lattice's positions: x = c sqrt(3) / 2, y = 1.5 r + (r + c even ? 0.5 : 0).
+ * @param n - the node count
+ * @param cols - the number of columns
+ * @returns the columns x and y
+ */
+function hexagonalPositions(n: number, cols: number): Record<string, Float64Array<ArrayBuffer>> {
+    const x = new Float64Array(n);
+    const y = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+        const r = Math.floor(i / cols);
+        const c = i % cols;
+        x[i] = c * HALF_SQRT3;
+        y[i] = 1.5 * r + ((r + c) % 2 === 0 ? 0.5 : 0);
+    }
+    return { x, y };
+}
+
+/**
  * The triangular lattice as a triangulated rows x cols grid: node (r, c) is index r * cols + c and
  * links to (r, c + 1), (r + 1, c) and (r + 1, c - 1), in that order, for each node in index order.
  * Interior nodes have degree 6. Positions shear the grid into a parallelogram of equilateral
@@ -237,17 +352,7 @@ export function triangularLatticeGraph(options: PlanarLatticeOptions): SampleGra
             }
         }
     }
-    let columns: SampleGraph["nodeColumns"];
-    if (options.positions === true) {
-        const x = new Float64Array(n);
-        const y = new Float64Array(n);
-        for (let i = 0; i < n; i++) {
-            const r = Math.floor(i / cols);
-            x[i] = (i % cols) + r / 2;
-            y[i] = r * HALF_SQRT3;
-        }
-        columns = { x, y };
-    }
+    const columns = options.positions === true ? triangularPositions(n, cols) : undefined;
     return applyWeights(toGraph(n, out, false, columns), options);
 }
 
@@ -274,17 +379,6 @@ export function hexagonalLatticeGraph(options: PlanarLatticeOptions): SampleGrap
             }
         }
     }
-    let columns: SampleGraph["nodeColumns"];
-    if (options.positions === true) {
-        const x = new Float64Array(n);
-        const y = new Float64Array(n);
-        for (let i = 0; i < n; i++) {
-            const r = Math.floor(i / cols);
-            const c = i % cols;
-            x[i] = c * HALF_SQRT3;
-            y[i] = 1.5 * r + ((r + c) % 2 === 0 ? 0.5 : 0);
-        }
-        columns = { x, y };
-    }
+    const columns = options.positions === true ? hexagonalPositions(n, cols) : undefined;
     return applyWeights(toGraph(n, out, false, columns), options);
 }

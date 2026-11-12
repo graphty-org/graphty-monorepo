@@ -14,9 +14,9 @@
  * override the caller's environment sets, is kept.
  */
 
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 // No automatic maintenance or gc: after every fetch and push they spawn more git processes, which
 // only cost a short-lived test repository time.
@@ -31,6 +31,8 @@ const HOOK_VARS = [
     "GIT_COMMON_DIR",
     "GIT_OBJECT_DIRECTORY",
     "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    // The pre-push hook's base ref (tools/push-base.mjs): a test's repository has its own branches.
+    "PUSH_BASE_REF",
 ];
 
 let globalConfig;
@@ -42,8 +44,17 @@ let globalConfig;
  */
 export function isolatedGitEnv(env = process.env) {
     if (!globalConfig) {
-        globalConfig = join(mkdtempSync(join(tmpdir(), "test-git-")), "gitconfig");
-        writeFileSync(globalConfig, CONFIG);
+        // One made by a parent process (vitest's main process, before its workers start) is used
+        // as it is: a worker that made its own per test file left one directory behind per file.
+        const inherited = process.env.GIT_CONFIG_GLOBAL;
+        if (inherited && basename(dirname(inherited)).startsWith("test-git-") && existsSync(inherited)) {
+            globalConfig = inherited;
+        } else {
+            const dir = mkdtempSync(join(tmpdir(), "test-git-"));
+            globalConfig = join(dir, "gitconfig");
+            writeFileSync(globalConfig, CONFIG);
+            process.on("exit", () => rmSync(dir, { recursive: true, force: true }));
+        }
     }
     const kept = Object.entries(env).filter(([k]) => !HOOK_VARS.includes(k));
     return { ...Object.fromEntries(kept), GIT_CONFIG_GLOBAL: globalConfig, GIT_CONFIG_NOSYSTEM: "1" };

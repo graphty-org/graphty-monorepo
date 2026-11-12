@@ -11,10 +11,11 @@ import { assert, beforeEach, describe, it } from "vitest";
 import { BUILTIN_COMMANDS } from "../../../src/ai/commands/builtin";
 import { zoomToNodes } from "../../../src/ai/commands/CameraCommands";
 import { findNodes } from "../../../src/ai/commands/QueryCommands";
-import { SELECTOR_SYNTAX } from "../../../src/ai/commands/selectors";
+import { CONNECTED_BY_SYNTAX, nodeScopeOf, SELECTOR_SYNTAX } from "../../../src/ai/commands/selectors";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
 import { createMockContext, createTestGraph } from "../../helpers/test-graph";
+import { makeSession } from "../../session/helpers";
 
 describe("AI command selectors", () => {
     let graph: Graph;
@@ -43,6 +44,44 @@ describe("AI command selectors", () => {
 
         assert.deepStrictEqual((older.data as { nodeIds: string[] }).nodeIds, ["node-4", "node-5"]);
         assert.deepStrictEqual((quoted.data as { nodeIds: string[] }).nodeIds, ["node-1", "node-3", "node-5"]);
+    });
+
+    it("connectedBy picks the nodes at an end of a matching edge, and the selector narrows them", async () => {
+        // The mock's edges run node-i to node-(i+1) with weight i / 10: only edge-2 is above 0.15.
+        const ends = await findNodes.execute(graph, { selector: "", connectedBy: "data.weight > `0.15`" }, context);
+        const servers = await findNodes.execute(
+            graph,
+            { selector: "data.type == 'server'", connectedBy: "data.weight > `0.15`" },
+            context,
+        );
+        const zoomed = await zoomToNodes.execute(graph, { connectedBy: "data.weight > `0.15`" }, context);
+        const none = await findNodes.execute(graph, { selector: "", connectedBy: "data.weight > `5`" }, context);
+
+        assert.deepStrictEqual((ends.data as { nodeIds: string[] }).nodeIds, ["node-2", "node-3"]);
+        assert.deepStrictEqual((servers.data as { nodeIds: string[] }).nodeIds, ["node-2"]);
+        assert.deepStrictEqual(zoomed.affectedNodes, ["node-2", "node-3"]);
+        assert.include(none.message, "No nodes matched");
+    });
+
+    it("a real session resolves the connectedBy scope to the same nodes", async () => {
+        const h = makeSession();
+        h.add(
+            [
+                { id: "a", type: "server" },
+                { id: "b", type: "database" },
+                { id: "c", type: "server" },
+            ],
+            [
+                { src: "a", dst: "b", weight: 0.9 },
+                { src: "b", dst: "c", weight: 0.1 },
+            ],
+        );
+
+        const ends = await h.session.scope.resolve(nodeScopeOf("", "data.weight > `0.5`"));
+        const servers = await h.session.scope.resolve(nodeScopeOf("data.type == 'server'", "data.weight > `0.5`"));
+
+        assert.deepStrictEqual([...ends.nodes].sort(), ["a", "b"]);
+        assert.deepStrictEqual([...servers.nodes], ["a"]);
     });
 
     it("a bare field matches nothing and the answer says to write data.", async () => {
@@ -77,6 +116,22 @@ describe("AI command selectors", () => {
             const { selector } = (command.parameters as unknown as { shape: { selector: { description?: string } } })
                 .shape;
             assert.include(selector.description, SELECTOR_SYNTAX, command.name);
+        }
+
+        const withConnectedBy = BUILTIN_COMMANDS.filter((command) =>
+            Object.keys((command.parameters as unknown as { shape: Record<string, unknown> }).shape).includes(
+                "connectedBy",
+            ),
+        );
+        assert.deepStrictEqual(
+            withConnectedBy.map((command) => command.name),
+            ["findNodes", "findAndStyleNodes", "zoomToNodes"],
+        );
+        for (const command of withConnectedBy) {
+            const { connectedBy } = (
+                command.parameters as unknown as { shape: { connectedBy: { description?: string } } }
+            ).shape;
+            assert.strictEqual(connectedBy.description, CONNECTED_BY_SYNTAX, command.name);
         }
     });
 });

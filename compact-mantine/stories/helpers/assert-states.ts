@@ -15,7 +15,7 @@
  * kind on the control, its descendants and its ancestors together, and a checked box's `checked`
  * property with them. Real keyboard focus is taken away by blurring.
  */
-import { expect } from "@storybook/test";
+import { expect } from "storybook/test";
 
 type Marker = readonly [attribute: string, values: readonly string[] | null];
 

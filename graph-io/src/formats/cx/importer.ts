@@ -17,8 +17,11 @@
  * one `graphIndex` / `graphName` picks, `listGraphs()` lists them. Positions come from the
  * subnetwork's view, y flipped to y-up, `z` into the `z` column; `cyGroups` give `parent` (or
  * `parents`); per-element visual properties are one column per property (origin namespace
- * "cx.bypass") and style rules are kept verbatim in `meta.extra.cx` and not applied
- * (W_STYLES_NOT_IMPORTED, issue #706); provenance aspects become extension tables and list columns.
+ * "cx.bypass") and style rules are kept verbatim in `meta.extra.cx`; asked for styles
+ * (`importGraph(..., { styles: true })`), the importer reads the view's style rules and bypasses
+ * (styles.ts), kept for it through the report, otherwise W_STYLES_NOT_IMPORTED; the `graphty.styles`
+ * aspect of a file graphty wrote becomes the graph attribute of that name; provenance aspects become
+ * extension tables and list columns.
  */
 
 import {
@@ -82,6 +85,7 @@ import { DirectionResolver } from "../../common/direction.js";
 import { IdCoercer } from "../../common/ids.js";
 import { textChunks, throwIfAborted } from "../../common/input.js";
 import {
+    type AspectEvent,
     cxId,
     CxStructure,
     declareFresh,
@@ -110,7 +114,9 @@ import {
 } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
+import { jsonText } from "../../common/text.js";
 import { weightFromValue } from "../../common/weights.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import {
     type CommonImportOptions,
     type GraphChoiceOptions,
@@ -120,6 +126,7 @@ import {
     type ImportReport,
 } from "../../types.js";
 import { ORIGINAL_ID_ATTRIBUTE, zAsOption } from "../cx2/importer.js";
+import { blockOfAspect, type CxStyleSource, readCxStyles } from "./styles.js";
 
 /** The format name. */
 const CX_FORMAT = "cx";
@@ -366,8 +373,8 @@ const TABLE_STYLE_ASPECTS: readonly string[] = ["tableVisualProperties", "cyTabl
 const OWN_EXTRA_KEYS: readonly string[] = ["groups", "subnetwork"];
 
 /** The first keys that make a head CX for sure, and the other aspect names a CX document may start with. */
-const CX_FIRST_KEYS: readonly string[] = ["numberVerification", "metaData"];
-const CX_ASPECT_KEYS: readonly string[] = [
+const CX_FIRST_KEYS: ReadonlySet<string> = new Set(["numberVerification", "metaData"]);
+const CX_ASPECT_KEYS: ReadonlySet<string> = new Set([
     "nodes",
     "edges",
     "nodeAttributes",
@@ -391,7 +398,7 @@ const CX_ASPECT_KEYS: readonly string[] = [
     "citations",
     "supports",
     "functionTerms",
-];
+]);
 
 // ============================================================ values
 
@@ -500,16 +507,7 @@ function parseScalar(
     onPrecision: (digits: string) => void,
 ): unknown {
     if (value instanceof ExactInteger) {
-        if (scalar === "string" || (scalar === "long" && long === "string")) {
-            return value.digits;
-        }
-        if (scalar === "long" || scalar === "double") {
-            if (scalar === "long") {
-                onPrecision(value.digits);
-            }
-            return Number(value.digits);
-        }
-        return BAD;
+        return parseExact(value, scalar, long, onPrecision);
     }
     if (typeof value === "number" || typeof value === "boolean") {
         return parseNative(value, scalar, long);
@@ -524,51 +522,110 @@ function parseScalar(
         return UNSET;
     }
     switch (scalar) {
-        case "boolean": {
-            const lower = value.toLowerCase();
-            if (lower === "true" || lower === "false") {
-                return lower === "true";
-            }
-            return BAD;
-        }
+        case "boolean":
+            return parseBooleanText(value);
         case "integer":
-        case "long": {
-            if (value === "NaN") {
-                return UNSET;
-            }
-            if (!INTEGER_TEXT.test(value)) {
-                return BAD;
-            }
-            const n = Number(value);
-            if (scalar === "integer") {
-                return n >= I32_MIN && n <= I32_MAX ? n : BAD;
-            }
-            if (long === "string") {
-                return value;
-            }
-            if (!Number.isSafeInteger(n)) {
-                onPrecision(value);
-            }
-            return n;
-        }
-        default: {
-            if (value === "NaN" || value === "nan") {
-                return Number.NaN;
-            }
-            if (value === "Infinity" || value === "-Infinity") {
-                return Number(value);
-            }
-            if (!DECIMAL_TEXT.test(value)) {
-                return BAD;
-            }
-            const n = Number(value);
-            if (!Number.isFinite(n)) {
-                // beyond the range of a double: Java's parseDouble gives Infinity too, but say so
-                onPrecision(value);
-            }
-            return n;
-        }
+        case "long":
+            return parseIntegerText(value, scalar, long, onPrecision);
+        default:
+            return parseDoubleText(value, onPrecision);
     }
+}
+
+/**
+ * Parse an integer the JSON reader kept exact (beyond 2^53) by a type.
+ * @param value - the exact integer
+ * @param scalar - the type
+ * @param long - the importer's `long` option
+ * @param onPrecision - called for a long beyond 2^53
+ * @returns the value or BAD
+ */
+function parseExact(
+    value: ExactInteger,
+    scalar: CxScalar,
+    long: "f64" | "string",
+    onPrecision: (digits: string) => void,
+): unknown {
+    if (scalar === "string" || (scalar === "long" && long === "string")) {
+        return value.digits;
+    }
+    if (scalar === "long" || scalar === "double") {
+        if (scalar === "long") {
+            onPrecision(value.digits);
+        }
+        return Number(value.digits);
+    }
+    return BAD;
+}
+
+/**
+ * Parse a boolean text ("true" / "false" in any case).
+ * @param value - the text (not a null text)
+ * @returns the boolean or BAD
+ */
+function parseBooleanText(value: string): unknown {
+    const lower = value.toLowerCase();
+    if (lower === "true" || lower === "false") {
+        return lower === "true";
+    }
+    return BAD;
+}
+
+/**
+ * Parse an integer or long text.
+ * @param value - the text (not a null text)
+ * @param scalar - integer or long
+ * @param long - the importer's `long` option
+ * @param onPrecision - called for a long beyond 2^53
+ * @returns the value, UNSET or BAD
+ */
+function parseIntegerText(
+    value: string,
+    scalar: "integer" | "long",
+    long: "f64" | "string",
+    onPrecision: (digits: string) => void,
+): unknown {
+    if (value === "NaN") {
+        return UNSET;
+    }
+    if (!INTEGER_TEXT.test(value)) {
+        return BAD;
+    }
+    const n = Number(value);
+    if (scalar === "integer") {
+        return n >= I32_MIN && n <= I32_MAX ? n : BAD;
+    }
+    if (long === "string") {
+        return value;
+    }
+    if (!Number.isSafeInteger(n)) {
+        onPrecision(value);
+    }
+    return n;
+}
+
+/**
+ * Parse a double text.
+ * @param value - the text (not a null text)
+ * @param onPrecision - called for a value beyond the range of a double
+ * @returns the number or BAD
+ */
+function parseDoubleText(value: string, onPrecision: (digits: string) => void): unknown {
+    if (value === "NaN" || value === "nan") {
+        return Number.NaN;
+    }
+    if (value === "Infinity" || value === "-Infinity") {
+        return Number(value);
+    }
+    if (!DECIMAL_TEXT.test(value)) {
+        return BAD;
+    }
+    const n = Number(value);
+    if (!Number.isFinite(n)) {
+        // beyond the range of a double: Java's parseDouble gives Infinity too, but say so
+        onPrecision(value);
+    }
+    return n;
 }
 
 /**
@@ -681,7 +738,7 @@ function shown(value: unknown): string {
     }
     let text: string;
     try {
-        text = JSON.stringify(value) ?? String(value);
+        text = jsonText(value) ?? String(value);
     } catch {
         text = String(value);
     }
@@ -773,12 +830,13 @@ function checkNumberVerification(value: unknown, count: number, report: ImportRe
     const raw = isRecord(value) ? value.longNumber : undefined;
     const digits = raw instanceof ExactInteger ? raw.digits : String(raw);
     if (count > 1 || !NUMBER_VERIFICATION_VALUES.has(digits)) {
+        const held = raw === undefined ? null : digits;
         report.warning(
             "validation-error",
             CX_ISSUE.NUMBER_VERIFICATION,
             count > 1
                 ? "a second numberVerification element; ignored"
-                : `numberVerification holds ${shown(raw === undefined ? null : digits)}, not 281474976710655`,
+                : `numberVerification holds ${shown(held)}, not 281474976710655`,
             { line, element: "numberVerification" },
         );
     }
@@ -793,7 +851,7 @@ function isCxAspect(name: string): boolean {
     return (
         READ_ASPECTS.has(name) ||
         OLD_ASPECT_NAMES.has(name) ||
-        CX_ASPECT_KEYS.includes(name) ||
+        CX_ASPECT_KEYS.has(name) ||
         TABLE_STYLE_ASPECTS.includes(name)
     );
 }
@@ -895,6 +953,185 @@ function collectElement(state: CollectState, element: CollectedElement): void {
     doc.aspects.get(name)?.push(held);
 }
 
+/** What readDocument() tracks while it scans: the collect state and the top-level member counts. */
+interface DocumentScan {
+    readonly state: CollectState;
+    readonly structure: CxStructure;
+    /** Top-level members seen (a block counted once). */
+    members: number;
+    /** Members whose aspect name is a CX aspect. */
+    known: number;
+    readonly unknownNames: Set<string>;
+    /** The block index of the last member counted. */
+    lastBlock: number;
+}
+
+/**
+ * Count one top-level member, once per block, and whether its aspect is a CX aspect.
+ * @param scan - the scan
+ * @param block - the member's block index
+ * @param name - the member's aspect name, or null for a member that is no aspect fragment
+ */
+function countMember(scan: DocumentScan, block: number, name: string | null): void {
+    if (block !== scan.lastBlock) {
+        scan.lastBlock = block;
+        scan.members++;
+    }
+    if (name !== null && isCxAspect(name)) {
+        scan.known++;
+    } else if (name !== null) {
+        scan.unknownNames.add(name);
+    }
+}
+
+/**
+ * The current name of an aspect, warning once for an old name.
+ * @param report - the report
+ * @param name - the aspect name as written
+ * @param line - the line
+ * @returns the current name
+ */
+function canonicalAspect(report: ImportReportBuilder, name: string, line: number): string {
+    const renamed = OLD_ASPECT_NAMES.get(name);
+    if (renamed === undefined) {
+        return name;
+    }
+    report.warnOnce(
+        "coercion",
+        CX_ISSUE.OLD_ASPECT_NAME,
+        `the old aspect name "${name}" is read as "${renamed}"`,
+        { line, element: name },
+        `${CX_ISSUE.OLD_ASPECT_NAME}:${name}`,
+    );
+    return renamed;
+}
+
+/**
+ * Read one parsed top-level member: a one-key aspect fragment is read as one element; anything
+ * else is skipped with an error; a CX2 descriptor fails.
+ * @param scan - the scan
+ * @param event - the member
+ */
+function readMember(scan: DocumentScan, event: Extract<AspectEvent, { kind: "member" }>): void {
+    const { report } = scan.state;
+    const { value } = event;
+    if (isRecord(value) && "CXVersion" in value) {
+        report.fail(
+            CX_ISSUE.NOT_CX,
+            `the document is CX2 (CXVersion ${shown(value.CXVersion)}), not CX version 1; read it with the cx2 importer`,
+            { line: event.line },
+        );
+    }
+    const keys = isRecord(value) ? Object.keys(value) : [];
+    if (isRecord(value) && keys.length === 1 && isRecord(value[keys[0]])) {
+        countMember(scan, event.block, keys[0]);
+        const name = canonicalAspect(report, keys[0], event.line);
+        if (isCxAspect(name)) {
+            report.warning(
+                "validation-error",
+                CX_ISSUE.SINGLE_OBJECT_ASPECT,
+                `the "${keys[0]}" aspect is one object, not an array of elements; read as one element`,
+                { line: event.line, element: keys[0] },
+            );
+        }
+        scan.structure.block(name, event.line);
+        collectElement(scan.state, {
+            name,
+            value: value[keys[0]],
+            text: event.text,
+            line: event.line,
+            exact: event.exact,
+            depth: 2,
+        });
+        return;
+    }
+    countMember(scan, event.block, null);
+    const what = keys.length > 1 ? `an object with ${keys.length} keys (${keys.join(", ")})` : shown(value);
+    report.error(
+        "parse-error",
+        BAD_ASPECT_BLOCK_CODE,
+        `a member of the document is ${what}, not a one-key aspect fragment; skipped`,
+        { line: event.line, element: keys[0] ?? null },
+    );
+}
+
+/**
+ * Read one event of the streaming scanner.
+ * @param scan - the scan
+ * @param event - the event
+ */
+function readAspectEvent(scan: DocumentScan, event: AspectEvent): void {
+    const { report } = scan.state;
+    switch (event.kind) {
+        case "root":
+            report.fail(
+                CX_ISSUE.NOT_CX,
+                `a CX document is a JSON array of aspects; found ${event.object ? "an object" : shown(event.value)}`,
+                { line: event.line },
+            );
+            break;
+        case "member":
+            readMember(scan, event);
+            break;
+        case "block":
+            countMember(scan, event.block, event.aspect);
+            reportSharedBlock(report, event);
+            scan.structure.block(canonicalAspect(report, event.aspect, event.line), event.line);
+            break;
+        case "element": {
+            const name = OLD_ASPECT_NAMES.get(event.aspect) ?? event.aspect;
+            collectElement(scan.state, {
+                name,
+                value: event.value,
+                text: event.text,
+                line: event.line,
+                exact: event.exact,
+                depth: 1,
+            });
+            break;
+        }
+        case "deep":
+            countMember(scan, event.block, event.aspect);
+            reportTooDeep(report, event);
+            break;
+        case "extraKeys":
+            report.error(
+                "parse-error",
+                BAD_ASPECT_BLOCK_CODE,
+                `the "${event.aspect}" fragment holds more keys (${event.keys.join(", ")}) whose values are not arrays; a fragment has one key, the others are skipped`,
+                { line: event.line, element: event.aspect },
+            );
+            break;
+        default:
+            break;
+    }
+}
+
+/**
+ * The checks after the last event: a document with no CX aspect fails, a malformed status is an
+ * error, and the declared element counts are compared.
+ * @param scan - the scan
+ */
+function finishDocument(scan: DocumentScan): void {
+    const { report } = scan.state;
+    const { structure, unknownNames } = scan;
+    if (scan.members > 0 && scan.known === 0) {
+        const found = [...unknownNames].slice(0, 5).map((n) => JSON.stringify(n));
+        const hint = unknownNames.has("data") ? ": Cytoscape.js elements?" : "";
+        const seen = found.length > 0 ? ` (found ${found.join(", ")}${hint})` : "";
+        report.fail(CX_ISSUE.NOT_CX, `no member of the array is a CX aspect${seen}; the input is not CX`);
+    }
+    if (structure.hasStatus && !structure.statusWellFormed()) {
+        report.error(
+            "validation-error",
+            BAD_VALUE_CODE,
+            `the status element is ${shown(structure.status ?? null)}, not an object with a boolean success; ignored`,
+            { element: "status" },
+        );
+    }
+    structure.checkCounts();
+}
+
 /**
  * Read the whole document through the streaming scanner, checking its structure.
  * @param input - the input
@@ -914,118 +1151,22 @@ async function readDocument(
         kept: new Map(),
         structure,
     };
-    const state: CollectState = {
-        doc,
-        report,
-        verifications: 0,
-        onKeptPrecision: keptPrecision(report, "meta.extra.cx"),
+    const scan: DocumentScan = {
+        state: { doc, report, verifications: 0, onKeptPrecision: keptPrecision(report, "meta.extra.cx") },
+        structure,
+        members: 0,
+        known: 0,
+        unknownNames: new Set<string>(),
+        lastBlock: -1,
     };
     let sinceCheck = 0;
-    let members = 0;
-    let known = 0;
-    const unknownNames = new Set<string>();
-    const lastMember = { block: -1 };
-    const countMember = (block: number, name: string | null): void => {
-        if (block !== lastMember.block) {
-            lastMember.block = block;
-            members++;
-        }
-        if (name !== null && isCxAspect(name)) {
-            known++;
-        } else if (name !== null) {
-            unknownNames.add(name);
-        }
-    };
-    const canonical = (name: string, line: number): string => {
-        const renamed = OLD_ASPECT_NAMES.get(name);
-        if (renamed === undefined) {
-            return name;
-        }
-        report.warnOnce(
-            "coercion",
-            CX_ISSUE.OLD_ASPECT_NAME,
-            `the old aspect name "${name}" is read as "${renamed}"`,
-            { line, element: name },
-            `${CX_ISSUE.OLD_ASPECT_NAME}:${name}`,
-        );
-        return renamed;
-    };
-    const collect = (name: string, value: unknown, text: string, line: number, exact: boolean, depth = 1): void => {
-        collectElement(state, { name, value, text, line, exact, depth });
-    };
     try {
         for await (const event of scanAspects(textChunks(input, report, options), report)) {
             if (++sinceCheck >= ABORT_CHECK_INTERVAL) {
                 sinceCheck = 0;
                 throwIfAborted(options.signal);
             }
-            switch (event.kind) {
-                case "root":
-                    report.fail(
-                        CX_ISSUE.NOT_CX,
-                        `a CX document is a JSON array of aspects; found ${event.object ? "an object" : shown(event.value)}`,
-                        { line: event.line },
-                    );
-                    break;
-                case "member": {
-                    const { value } = event;
-                    if (isRecord(value) && "CXVersion" in value) {
-                        report.fail(
-                            CX_ISSUE.NOT_CX,
-                            `the document is CX2 (CXVersion ${shown(value.CXVersion)}), not CX version 1; read it with the cx2 importer`,
-                            { line: event.line },
-                        );
-                    }
-                    const keys = isRecord(value) ? Object.keys(value) : [];
-                    if (isRecord(value) && keys.length === 1 && isRecord(value[keys[0]])) {
-                        countMember(event.block, keys[0]);
-                        const name = canonical(keys[0], event.line);
-                        if (isCxAspect(name)) {
-                            report.warning(
-                                "validation-error",
-                                CX_ISSUE.SINGLE_OBJECT_ASPECT,
-                                `the "${keys[0]}" aspect is one object, not an array of elements; read as one element`,
-                                { line: event.line, element: keys[0] },
-                            );
-                        }
-                        structure.block(name, event.line);
-                        collect(name, value[keys[0]], event.text, event.line, event.exact, 2);
-                        break;
-                    }
-                    countMember(event.block, null);
-                    report.error(
-                        "parse-error",
-                        BAD_ASPECT_BLOCK_CODE,
-                        `a member of the document is ${keys.length > 1 ? `an object with ${keys.length} keys (${keys.join(", ")})` : shown(value)}, not a one-key aspect fragment; skipped`,
-                        { line: event.line, element: keys[0] ?? null },
-                    );
-                    break;
-                }
-                case "block":
-                    countMember(event.block, event.aspect);
-                    reportSharedBlock(report, event);
-                    structure.block(canonical(event.aspect, event.line), event.line);
-                    break;
-                case "element": {
-                    const name = OLD_ASPECT_NAMES.get(event.aspect) ?? event.aspect;
-                    collect(name, event.value, event.text, event.line, event.exact);
-                    break;
-                }
-                case "deep":
-                    countMember(event.block, event.aspect);
-                    reportTooDeep(report, event);
-                    break;
-                case "extraKeys":
-                    report.error(
-                        "parse-error",
-                        BAD_ASPECT_BLOCK_CODE,
-                        `the "${event.aspect}" fragment holds more keys (${event.keys.join(", ")}) whose values are not arrays; a fragment has one key, the others are skipped`,
-                        { line: event.line, element: event.aspect },
-                    );
-                    break;
-                default:
-                    break;
-            }
+            readAspectEvent(scan, event);
         }
     } catch (err) {
         if (err instanceof JsonScanError) {
@@ -1033,21 +1174,7 @@ async function readDocument(
         }
         throw err;
     }
-    if (members > 0 && known === 0) {
-        const found = [...unknownNames].slice(0, 5).map((n) => JSON.stringify(n));
-        const hint = unknownNames.has("data") ? ": Cytoscape.js elements?" : "";
-        const seen = found.length > 0 ? ` (found ${found.join(", ")}${hint})` : "";
-        report.fail(CX_ISSUE.NOT_CX, `no member of the array is a CX aspect${seen}; the input is not CX`);
-    }
-    if (structure.hasStatus && !structure.statusWellFormed()) {
-        report.error(
-            "validation-error",
-            BAD_VALUE_CODE,
-            `the status element is ${shown(structure.status ?? null)}, not an object with a boolean success; ignored`,
-            { element: "status" },
-        );
-    }
-    structure.checkCounts();
+    finishDocument(scan);
     return doc;
 }
 
@@ -1078,6 +1205,41 @@ function refId(raw: unknown): NodeId | null {
     } catch {
         return null;
     }
+}
+
+/**
+ * The view a cyVisualProperties entry names.
+ * @param entry - the entry
+ * @returns the view's id, or null when it names none
+ */
+function entryView(entry: Record<string, unknown>): NodeId | null {
+    return entry.view === undefined || entry.view === null ? null : refId(entry.view);
+}
+
+/**
+ * A visual property value as the text of a bypass cell.
+ * @param raw - the value
+ * @returns the string itself, else its JSON
+ */
+function cellText(raw: unknown): string {
+    return typeof raw === "string" ? raw : JSON.stringify(raw);
+}
+
+/** What readVisualProperties() collects from the entries of this graph's view. */
+interface VisualPropertiesRead {
+    /** The per-element values, by property: [row, text] pairs. */
+    readonly columns: {
+        readonly node: Map<string, [number, string][]>;
+        readonly edge: Map<string, [number, string][]>;
+    };
+    /** The network values, by property. */
+    readonly network: Map<string, string>;
+    /** How many default values the entries hold. */
+    defaults: number;
+    /** How many mappings. */
+    mappings: number;
+    /** How many dependencies. */
+    dependencies: number;
 }
 
 /**
@@ -1369,6 +1531,43 @@ interface AttributeColumn {
     handle: ColumnHandle;
 }
 
+/** What readLayout() keeps across the cartesianLayout elements. */
+interface LayoutState {
+    readonly views: readonly NodeId[];
+    readonly knownViews: ReadonlySet<NodeId>;
+    /** View slot -> position column. */
+    readonly columns: Map<number, ColumnHandle>;
+    zHandle: ColumnHandle;
+    /** `<slot>:<row>` of the entries written. */
+    readonly seen: Set<string>;
+    /** The point written (reused). */
+    readonly point: [number, number, number];
+}
+
+/** A cartesianLayout element whose x and y are checked numbers. */
+type LayoutElement = Record<string, unknown> & { readonly x: number; readonly y: number };
+
+/** A checked edges element. */
+interface CxEdgeElement {
+    readonly value: Record<string, unknown>;
+    readonly id: NodeId;
+    readonly s: NodeId;
+    readonly t: NodeId;
+    /** The edge's name in reports. */
+    readonly element: string;
+}
+
+/** An attribute value offered to a row, with the scope it comes from (1 unscoped, 2 this subnetwork). */
+interface ChosenValue {
+    readonly scope: 1 | 2;
+    readonly value: unknown;
+    readonly d: unknown;
+    readonly line: number;
+}
+
+/** The attribute value chosen per row. */
+type ChosenValues = Map<number, ChosenValue>;
+
 /** Reads one graph of a collected document into a sink. */
 class CxReader {
     private readonly sink: GraphSink;
@@ -1486,6 +1685,7 @@ class CxReader {
         this.writeAttributes("edge", edgeColumns);
         this.readNetworkAttributes();
         this.readVisualProperties();
+        this.readStyleBlock();
         this.readProvenance();
         for (const [kind, count] of this.dangling) {
             report.warning(
@@ -1760,48 +1960,7 @@ class CxReader {
             ) {
                 continue;
             }
-            const types: CxType[] = [];
-            let unknown = false;
-            const tableType = declared.get(name);
-            if (tableType !== undefined) {
-                types.push(tableType);
-            }
-            for (const { value } of this.doc.attributes[domain].get(name) ?? []) {
-                if (!isRecord(value) || this.scopePeek(value.s) === 0) {
-                    continue;
-                }
-                const type = cxType(value.d);
-                if (type === null) {
-                    unknown = true;
-                    continue;
-                }
-                if (!types.some((t) => t.scalar === type.scalar && t.list === type.list)) {
-                    types.push(type);
-                }
-            }
-            if (unknown) {
-                this.report.warnOnce(
-                    "unsupported",
-                    UNKNOWN_ATTR_TYPE_CODE,
-                    `a ${domain} attribute "${name}" declares a data type CX does not define; its values are kept as text`,
-                    { element: name },
-                    `${UNKNOWN_ATTR_TYPE_CODE}:${domain}:${name}`,
-                );
-                types.push({ scalar: "string", list: false });
-            }
-            let type: CxType | null = types[0] ?? { scalar: "string", list: false };
-            for (const other of types.slice(1)) {
-                type = type === null ? null : widenType(type, other);
-            }
-            if (types.length > 1) {
-                this.report.warnOnce(
-                    "coercion",
-                    WIDENED_CODE,
-                    `the ${domain} attribute "${name}" has the data types ${types.map(typeText).join(", ")}; the column holds ${type === null ? "their values as JSON" : typeText(type)}`,
-                    { element: name },
-                    `${WIDENED_CODE}:${domain}:${name}`,
-                );
-            }
+            const type = this.widenAttributeTypes(domain, name, this.attributeTypes(domain, name, declared.get(name)));
             if (this.isStructural(domain, name)) {
                 columns.set(name, {
                     name,
@@ -1813,6 +1972,68 @@ class CxReader {
             columns.set(name, { name, type, handle: this.declareColumn(domain, name, type) });
         }
         return columns;
+    }
+
+    /**
+     * The distinct types one attribute is given for this graph: its cyTableColumn type first, then
+     * those of its applicable elements; a type CX does not define is text (W_UNKNOWN_ATTRIBUTE_TYPE).
+     * @param domain - node or edge
+     * @param name - the attribute name
+     * @param tableType - its cyTableColumn type, if any
+     * @returns the types, in order of first appearance
+     */
+    private attributeTypes(domain: "node" | "edge", name: string, tableType: CxType | undefined): CxType[] {
+        const types: CxType[] = [];
+        let unknown = false;
+        if (tableType !== undefined) {
+            types.push(tableType);
+        }
+        for (const { value } of this.doc.attributes[domain].get(name) ?? []) {
+            if (!isRecord(value) || this.scopePeek(value.s) === 0) {
+                continue;
+            }
+            const type = cxType(value.d);
+            if (type === null) {
+                unknown = true;
+            } else if (!types.some((t) => t.scalar === type.scalar && t.list === type.list)) {
+                types.push(type);
+            }
+        }
+        if (unknown) {
+            this.report.warnOnce(
+                "unsupported",
+                UNKNOWN_ATTR_TYPE_CODE,
+                `a ${domain} attribute "${name}" declares a data type CX does not define; its values are kept as text`,
+                { element: name },
+                `${UNKNOWN_ATTR_TYPE_CODE}:${domain}:${name}`,
+            );
+            types.push({ scalar: "string", list: false });
+        }
+        return types;
+    }
+
+    /**
+     * Widen the types of one attribute to its column's type (W_WIDENED when there are several).
+     * @param domain - node or edge
+     * @param name - the attribute name
+     * @param types - the types from attributeTypes()
+     * @returns the column type, or null for a json column
+     */
+    private widenAttributeTypes(domain: "node" | "edge", name: string, types: readonly CxType[]): CxType | null {
+        let type: CxType | null = types[0] ?? { scalar: "string", list: false };
+        for (const other of types.slice(1)) {
+            type = type === null ? null : widenType(type, other);
+        }
+        if (types.length > 1) {
+            this.report.warnOnce(
+                "coercion",
+                WIDENED_CODE,
+                `the ${domain} attribute "${name}" has the data types ${types.map(typeText).join(", ")}; the column holds ${type === null ? "their values as JSON" : typeText(type)}`,
+                { element: name },
+                `${WIDENED_CODE}:${domain}:${name}`,
+            );
+        }
+        return type;
     }
 
     /**
@@ -1898,77 +2119,102 @@ class CxReader {
      * @param columns - the columns from declareAttributes()
      */
     private writeAttributes(domain: "node" | "edge", columns: ReadonlyMap<string, AttributeColumn>): void {
-        const rows = domain === "node" ? this.nodeRows : this.edgeRows;
-        const root = domain === "node" ? this.rootNodes : this.rootEdges;
         for (const column of columns.values()) {
-            const chosen = new Map<number, { scope: 1 | 2; value: unknown; d: unknown; line: number }>();
+            const chosen: ChosenValues = new Map();
             for (const held of this.doc.attributes[domain].get(column.name) ?? []) {
                 this.checkAbort();
-                const { value, line } = held;
-                if (!isRecord(value)) {
-                    this.report.error(
-                        "parse-error",
-                        BAD_ASPECT_BLOCK_CODE,
-                        `a ${domain}Attributes element is not an object`,
-                        {
-                            line,
-                            element: `${domain}Attributes`,
-                        },
-                    );
-                    continue;
-                }
-                const scope = this.scopeOf(value.s);
-                if (scope === 0) {
-                    continue;
-                }
-                if (value.v === undefined) {
-                    this.report.error(
-                        "missing-value",
-                        BAD_VALUE_CODE,
-                        `a ${domain}Attributes element for "${column.name}" has no v; skipped`,
-                        {
-                            line,
-                            element: column.name,
-                        },
-                    );
-                    continue;
-                }
-                // po names one element, or (cxio's shared values) a list of them
-                for (const raw of Array.isArray(value.po) ? (value.po as unknown[]) : [value.po]) {
-                    const target = refId(raw);
-                    const row = target === null ? undefined : rows.get(target);
-                    if (row === undefined) {
-                        if (target === null || !root.has(target)) {
-                            this.dangle(`${domain} attribute target`);
-                        }
-                        continue;
-                    }
-                    if (value.v === null) {
-                        continue;
-                    }
-                    const previous = chosen.get(row);
-                    if (previous !== undefined && previous.scope > scope) {
-                        continue;
-                    }
-                    if (
-                        previous?.scope === scope &&
-                        JSON.stringify(previous.value) !== JSON.stringify(plainJson(value.v))
-                    ) {
-                        this.report.warnOnce(
-                            "validation-error",
-                            DUPLICATE_ATTRIBUTE_CODE,
-                            `${domain} ${shown(raw)} has the attribute "${column.name}" twice; the later value wins`,
-                            { line, element: column.name },
-                            `${DUPLICATE_ATTRIBUTE_CODE}:${domain}:${column.name}`,
-                        );
-                    }
-                    chosen.set(row, { scope, value: value.v, d: value.d, line });
-                }
+                this.chooseAttributeValue(domain, column.name, held, chosen);
             }
             for (const [row, { value, d, line }] of chosen) {
                 this.writeCell(domain, column, row, value, d, line);
             }
         }
+    }
+
+    /**
+     * Check one attribute element and offer its value to every row it targets.
+     * @param domain - node or edge
+     * @param name - the attribute name
+     * @param held - the element
+     * @param chosen - the value chosen per row so far
+     */
+    private chooseAttributeValue(domain: "node" | "edge", name: string, held: Held, chosen: ChosenValues): void {
+        const { value, line } = held;
+        if (!isRecord(value)) {
+            this.report.error("parse-error", BAD_ASPECT_BLOCK_CODE, `a ${domain}Attributes element is not an object`, {
+                line,
+                element: `${domain}Attributes`,
+            });
+            return;
+        }
+        const scope = this.scopeOf(value.s);
+        if (scope === 0) {
+            return;
+        }
+        if (value.v === undefined) {
+            this.report.error(
+                "missing-value",
+                BAD_VALUE_CODE,
+                `a ${domain}Attributes element for "${name}" has no v; skipped`,
+                {
+                    line,
+                    element: name,
+                },
+            );
+            return;
+        }
+        // po names one element, or (cxio's shared values) a list of them
+        for (const raw of Array.isArray(value.po) ? (value.po as unknown[]) : [value.po]) {
+            this.chooseTarget(domain, name, raw, { scope, value: value.v, d: value.d, line }, chosen);
+        }
+    }
+
+    /**
+     * Offer a value to one target row: its own subnetwork's value beats the unscoped one; a
+     * repeated value of the same scope is the later one (W_DUPLICATE_ATTRIBUTE when they differ).
+     * @param domain - node or edge
+     * @param name - the attribute name
+     * @param raw - the target as written (po)
+     * @param offer - the value, its scope, d and line
+     * @param chosen - the value chosen per row so far
+     */
+    private chooseTarget(
+        domain: "node" | "edge",
+        name: string,
+        raw: unknown,
+        offer: ChosenValue,
+        chosen: ChosenValues,
+    ): void {
+        const rows = domain === "node" ? this.nodeRows : this.edgeRows;
+        const target = refId(raw);
+        const row = target === null ? undefined : rows.get(target);
+        if (row === undefined) {
+            const root = domain === "node" ? this.rootNodes : this.rootEdges;
+            if (target === null || !root.has(target)) {
+                this.dangle(`${domain} attribute target`);
+            }
+            return;
+        }
+        if (offer.value === null) {
+            return;
+        }
+        const previous = chosen.get(row);
+        if (previous !== undefined && previous.scope > offer.scope) {
+            return;
+        }
+        if (
+            previous?.scope === offer.scope &&
+            JSON.stringify(previous.value) !== JSON.stringify(plainJson(offer.value))
+        ) {
+            this.report.warnOnce(
+                "validation-error",
+                DUPLICATE_ATTRIBUTE_CODE,
+                `${domain} ${shown(raw)} has the attribute "${name}" twice; the later value wins`,
+                { line: offer.line, element: name },
+                `${DUPLICATE_ATTRIBUTE_CODE}:${domain}:${name}`,
+            );
+        }
+        chosen.set(row, offer);
     }
 
     /**
@@ -2135,22 +2381,11 @@ class CxReader {
             if (!this.inGraph(id)) {
                 continue;
             }
-            let row = this.nodeRows.get(id);
-            let added = false;
-            if (row === undefined) {
-                const original = originals.get(refId(value["@id"]) ?? id);
-                if (original !== undefined) {
-                    this.idType = "mixed";
-                    this.sinkIds.set(id, original);
-                }
-                try {
-                    ({ row, added } = this.addNode(id));
-                } catch (err) {
-                    report.recordError(err, { line, element });
-                    report.counts.skippedNodes++;
-                    continue;
-                }
+            const found = this.nodeRowFor(id, value["@id"], originals, line, element);
+            if (found === null) {
+                continue;
             }
+            const { row, added } = found;
             if (added) {
                 report.counts.nodes++;
             } else {
@@ -2163,6 +2398,40 @@ class CxReader {
             }
             this.writeCore("node", row, "name", value.n, element, line);
             this.writeCore("node", row, "represents", value.r, element, line);
+        }
+    }
+
+    /**
+     * The row of a node element: the row it already has, else a new one (restoring its original id).
+     * @param id - the node id
+     * @param rawId - the element's `@id` as written
+     * @param originals - the original ids to restore
+     * @param line - the element's line
+     * @param element - the element label
+     * @returns the row and whether it was added; null when it could not be added (reported, counted skipped)
+     */
+    private nodeRowFor(
+        id: NodeId,
+        rawId: unknown,
+        originals: ReadonlyMap<NodeId, string>,
+        line: number,
+        element: string,
+    ): { readonly row: number; readonly added: boolean } | null {
+        const row = this.nodeRows.get(id);
+        if (row !== undefined) {
+            return { row, added: false };
+        }
+        const original = originals.get(refId(rawId) ?? id);
+        if (original !== undefined) {
+            this.idType = "mixed";
+            this.sinkIds.set(id, original);
+        }
+        try {
+            return this.addNode(id);
+        } catch (err) {
+            this.report.recordError(err, { line, element });
+            this.report.counts.skippedNodes++;
+            return null;
         }
     }
 
@@ -2246,98 +2515,158 @@ class CxReader {
         const collapsed: [number, boolean][] = [];
         for (const held of groups) {
             const group = structuralId(held, "cyGroups", "@id", this.report);
-            if (group === null) {
-                continue;
-            }
-            const { value, id } = group;
-            const { line } = held;
-            if (value.nodes !== undefined && value.nodes !== null && !Array.isArray(value.nodes)) {
-                this.report.error(
-                    "validation-error",
-                    BAD_VALUE_CODE,
-                    `group ${String(id)}: nodes is ${shown(value.nodes)}, not a list of node ids; no member is read`,
-                    { line, element: String(id) },
-                );
-            }
-            if (value.collapsed !== undefined && value.collapsed !== null && typeof value.collapsed !== "boolean") {
-                this.report.error(
-                    "validation-error",
-                    BAD_VALUE_CODE,
-                    `group ${String(id)}: collapsed is ${shown(value.collapsed)}, not a boolean; unset`,
-                    { line, element: String(id) },
-                );
-            }
-            let groupRow = this.nodeRows.get(id);
-            if (groupRow === undefined) {
-                if (this.rootNodes.has(id) || !this.hasMemberIn(value.nodes)) {
-                    continue;
-                }
-                try {
-                    groupRow = this.addNode(id).row;
-                } catch (err) {
-                    this.report.recordError(err, { line, element: String(id) });
-                    continue;
-                }
-                this.report.counts.nodes++;
-                this.report.warning(
-                    "coercion",
-                    CX_ISSUE.GROUP_NODE_ADDED,
-                    `group ${String(id)} is not a node; its group node is added`,
-                    { line, element: String(id) },
-                );
-            }
-            if (typeof value.n === "string" && this.coreValue("node", groupRow, "name") === undefined) {
-                this.writeCore("node", groupRow, "name", value.n, `group ${String(id)}`, line);
-            }
-            if (typeof value.collapsed === "boolean") {
-                collapsed.push([groupRow, value.collapsed]);
-            }
-            for (const raw of Array.isArray(value.nodes) ? (value.nodes as unknown[]) : []) {
-                const member = refId(raw);
-                const row = member === null ? undefined : this.nodeRows.get(member);
-                if (row === undefined) {
-                    if (member === null || !this.rootNodes.has(member)) {
-                        this.report.error(
-                            "missing-value",
-                            UNKNOWN_PARENT_CODE,
-                            `group ${String(id)}: the member ${shown(raw)} is not a node`,
-                            { line, element: String(id) },
-                        );
-                    }
-                    continue;
-                }
-                if (this.closesCycle(parents, row, groupRow)) {
-                    this.report.error(
-                        "validation-error",
-                        PARENT_CYCLE_CODE,
-                        `group ${String(id)}: making ${shown(raw)} a member would close a parent cycle; that membership is dropped`,
-                        { line, element: String(id) },
-                    );
-                    continue;
-                }
-                const list = parents.get(row) ?? [];
-                if (!list.includes(groupRow)) {
-                    list.push(groupRow);
-                }
-                parents.set(row, list);
+            if (group !== null) {
+                this.readGroup(group.value, group.id, held.line, parents, collapsed);
             }
         }
         this.writeParents(parents);
-        if (collapsed.length > 0) {
-            const { handle } = declareResolved(
-                this.sink,
-                "node",
-                {
-                    name: "collapsed",
-                    dtype: "bool",
-                    nullable: true,
-                    origin: { format: CX_FORMAT, namespace: "cyGroups" },
-                },
-                this.report,
+        this.writeCollapsed(collapsed);
+    }
+
+    /**
+     * Read one cyGroups element.
+     * @param value - the element
+     * @param id - the group's id
+     * @param line - its line
+     * @param parents - member row -> group rows, so far
+     * @param collapsed - the group rows with a collapsed flag, so far
+     */
+    private readGroup(
+        value: Record<string, unknown>,
+        id: NodeId,
+        line: number,
+        parents: Map<number, number[]>,
+        collapsed: [number, boolean][],
+    ): void {
+        if (value.nodes !== undefined && value.nodes !== null && !Array.isArray(value.nodes)) {
+            this.report.error(
+                "validation-error",
+                BAD_VALUE_CODE,
+                `group ${String(id)}: nodes is ${shown(value.nodes)}, not a list of node ids; no member is read`,
+                { line, element: String(id) },
             );
-            for (const [row, flag] of collapsed) {
-                this.sink.setNodeValue(handle, row, flag);
+        }
+        if (value.collapsed !== undefined && value.collapsed !== null && typeof value.collapsed !== "boolean") {
+            this.report.error(
+                "validation-error",
+                BAD_VALUE_CODE,
+                `group ${String(id)}: collapsed is ${shown(value.collapsed)}, not a boolean; unset`,
+                { line, element: String(id) },
+            );
+        }
+        const groupRow = this.groupNodeRow(value, id, line);
+        if (groupRow === undefined) {
+            return;
+        }
+        if (typeof value.n === "string" && this.coreValue("node", groupRow, "name") === undefined) {
+            this.writeCore("node", groupRow, "name", value.n, `group ${String(id)}`, line);
+        }
+        if (typeof value.collapsed === "boolean") {
+            collapsed.push([groupRow, value.collapsed]);
+        }
+        for (const raw of Array.isArray(value.nodes) ? (value.nodes as unknown[]) : []) {
+            this.addGroupMember(id, raw, groupRow, line, parents);
+        }
+    }
+
+    /**
+     * The row of a group's node: its own node, else a node added for it when one of its members is
+     * in this graph (W_CX_GROUP_NODE_ADDED).
+     * @param value - the group element
+     * @param id - the group's id
+     * @param line - its line
+     * @returns the row, or undefined when the group is not read in this graph
+     */
+    private groupNodeRow(value: Record<string, unknown>, id: NodeId, line: number): number | undefined {
+        const existing = this.nodeRows.get(id);
+        if (existing !== undefined) {
+            return existing;
+        }
+        if (this.rootNodes.has(id) || !this.hasMemberIn(value.nodes)) {
+            return undefined;
+        }
+        let row: number;
+        try {
+            ({ row } = this.addNode(id));
+        } catch (err) {
+            this.report.recordError(err, { line, element: String(id) });
+            return undefined;
+        }
+        this.report.counts.nodes++;
+        this.report.warning(
+            "coercion",
+            CX_ISSUE.GROUP_NODE_ADDED,
+            `group ${String(id)} is not a node; its group node is added`,
+            { line, element: String(id) },
+        );
+        return row;
+    }
+
+    /**
+     * Make one member of a group its child, unless it is not a node or would close a parent cycle.
+     * @param id - the group's id
+     * @param raw - the member as written
+     * @param groupRow - the group node's row
+     * @param line - the group's line
+     * @param parents - member row -> group rows, so far
+     */
+    private addGroupMember(
+        id: NodeId,
+        raw: unknown,
+        groupRow: number,
+        line: number,
+        parents: Map<number, number[]>,
+    ): void {
+        const member = refId(raw);
+        const row = member === null ? undefined : this.nodeRows.get(member);
+        if (row === undefined) {
+            if (member === null || !this.rootNodes.has(member)) {
+                this.report.error(
+                    "missing-value",
+                    UNKNOWN_PARENT_CODE,
+                    `group ${String(id)}: the member ${shown(raw)} is not a node`,
+                    { line, element: String(id) },
+                );
             }
+            return;
+        }
+        if (this.closesCycle(parents, row, groupRow)) {
+            this.report.error(
+                "validation-error",
+                PARENT_CYCLE_CODE,
+                `group ${String(id)}: making ${shown(raw)} a member would close a parent cycle; that membership is dropped`,
+                { line, element: String(id) },
+            );
+            return;
+        }
+        const list = parents.get(row) ?? [];
+        if (!list.includes(groupRow)) {
+            list.push(groupRow);
+        }
+        parents.set(row, list);
+    }
+
+    /**
+     * Write the groups' collapsed flags into a bool column on the group nodes.
+     * @param collapsed - group row and flag
+     */
+    private writeCollapsed(collapsed: readonly (readonly [number, boolean])[]): void {
+        if (collapsed.length === 0) {
+            return;
+        }
+        const { handle } = declareResolved(
+            this.sink,
+            "node",
+            {
+                name: "collapsed",
+                dtype: "bool",
+                nullable: true,
+                origin: { format: CX_FORMAT, namespace: "cyGroups" },
+            },
+            this.report,
+        );
+        for (const [row, flag] of collapsed) {
+            this.sink.setNodeValue(handle, row, flag);
         }
     }
 
@@ -2410,85 +2739,121 @@ class CxReader {
             return;
         }
         const { views } = this.plan;
-        const knownViews = this.allViews();
-        const columns = new Map<number, ColumnHandle>();
-        const zHandle = { current: INVALID_INDEX as ColumnHandle };
-        const seen = new Set<string>();
-        const point: [number, number, number] = [0, 0, 0];
+        const layout: LayoutState = {
+            views,
+            knownViews: this.allViews(),
+            columns: new Map<number, ColumnHandle>(),
+            zHandle: INVALID_INDEX as ColumnHandle,
+            seen: new Set<string>(),
+            point: [0, 0, 0],
+        };
         for (const { value, line } of entries) {
             this.checkAbort();
-            if (!isRecord(value)) {
-                this.report.error(
-                    "parse-error",
-                    BAD_ASPECT_BLOCK_CODE,
-                    `a cartesianLayout element is ${shown(value)}, not an object; skipped`,
-                    { line, element: "cartesianLayout" },
-                );
-                continue;
+            this.readLayoutEntry(layout, value, line);
+        }
+    }
+
+    /**
+     * Read one cartesianLayout element.
+     * @param layout - the layout state
+     * @param value - the element
+     * @param line - its line
+     */
+    private readLayoutEntry(layout: LayoutState, value: unknown, line: number): void {
+        if (!isRecord(value)) {
+            this.report.error(
+                "parse-error",
+                BAD_ASPECT_BLOCK_CODE,
+                `a cartesianLayout element is ${shown(value)}, not an object; skipped`,
+                { line, element: "cartesianLayout" },
+            );
+            return;
+        }
+        const view = value.view === undefined || value.view === null ? null : refId(value.view);
+        if (view !== null && layout.knownViews.size > 0 && !layout.knownViews.has(view)) {
+            this.dangle("layout view reference");
+            return;
+        }
+        const slot = view === null ? 0 : layout.views.indexOf(view);
+        if (slot < 0 || !this.layoutCoordinatesValid(value, line)) {
+            return;
+        }
+        const node = refId(value.node);
+        const row = node === null ? undefined : this.nodeRows.get(node);
+        if (row === undefined) {
+            if (node === null || !this.rootNodes.has(node)) {
+                this.dangle("layout entry");
             }
-            const view = value.view === undefined || value.view === null ? null : refId(value.view);
-            if (view !== null && knownViews.size > 0 && !knownViews.has(view)) {
-                this.dangle("layout view reference");
-                continue;
-            }
-            const slot = view === null ? 0 : views.indexOf(view);
-            if (slot < 0) {
-                continue;
-            }
-            if (typeof value.x !== "number" || typeof value.y !== "number") {
-                this.report.error(
-                    "validation-error",
-                    BAD_VALUE_CODE,
-                    `a cartesianLayout element for node ${shown(value.node)} has no numeric x and y; skipped`,
-                    { line, element: "cartesianLayout" },
-                );
-                continue;
-            }
-            if (!Number.isFinite(value.x) || !Number.isFinite(value.y)) {
-                this.report.error(
-                    "validation-error",
-                    BAD_VALUE_CODE,
-                    `a cartesianLayout element for node ${shown(value.node)} has the coordinates ${String(value.x)}, ${String(value.y)}, which are not both finite; skipped`,
-                    { line, element: "cartesianLayout" },
-                );
-                continue;
-            }
-            const node = refId(value.node);
-            const row = node === null ? undefined : this.nodeRows.get(node);
-            if (row === undefined) {
-                if (node === null || !this.rootNodes.has(node)) {
-                    this.dangle("layout entry");
-                }
-                continue;
-            }
-            if (value.z !== undefined && value.z !== null && typeof value.z !== "number") {
-                this.report.error(
-                    "validation-error",
-                    BAD_VALUE_CODE,
-                    `a cartesianLayout element for node ${shown(value.node)} has the z ${shown(value.z)}, not a number; z is unset`,
-                    { line, element: "cartesianLayout" },
-                );
-            }
-            const key = `${slot}:${row}`;
-            if (seen.has(key)) {
-                this.report.warnOnce(
-                    "validation-error",
-                    DUPLICATE_ATTRIBUTE_CODE,
-                    `node ${shown(value.node)} has two layout entries for one view; the later wins`,
-                    { line, element: "cartesianLayout" },
-                    `${DUPLICATE_ATTRIBUTE_CODE}:layout`,
-                );
-            }
-            seen.add(key);
-            const z = typeof value.z === "number" ? value.z : null;
-            point[0] = value.x;
-            point[1] = flipY(value.y);
-            point[2] = slot === 0 && this.zAs === "position" && z !== null ? z : 0;
-            this.sink.setNodeValue(this.layoutColumn(columns, slot, views), row, point);
-            if (slot === 0 && z !== null && this.zAs === "column") {
-                zHandle.current = this.structural("node", zHandle.current, zDecl(CX_FORMAT));
-                this.sink.setNodeValue(zHandle.current, row, z);
-            }
+            return;
+        }
+        this.writeLayoutEntry(layout, value as LayoutElement, line, slot, row);
+    }
+
+    /**
+     * Whether a cartesianLayout element has finite numeric x and y (reported when not).
+     * @param value - the element
+     * @param line - its line
+     * @returns true when x and y are finite numbers
+     */
+    private layoutCoordinatesValid(value: Record<string, unknown>, line: number): boolean {
+        if (typeof value.x !== "number" || typeof value.y !== "number") {
+            this.report.error(
+                "validation-error",
+                BAD_VALUE_CODE,
+                `a cartesianLayout element for node ${shown(value.node)} has no numeric x and y; skipped`,
+                { line, element: "cartesianLayout" },
+            );
+            return false;
+        }
+        if (!Number.isFinite(value.x) || !Number.isFinite(value.y)) {
+            this.report.error(
+                "validation-error",
+                BAD_VALUE_CODE,
+                `a cartesianLayout element for node ${shown(value.node)} has the coordinates ${String(value.x)}, ${String(value.y)}, which are not both finite; skipped`,
+                { line, element: "cartesianLayout" },
+            );
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Write one checked cartesianLayout element: the position of its view slot, and z.
+     * @param layout - the layout state
+     * @param value - the element (x and y finite)
+     * @param line - its line
+     * @param slot - its view slot
+     * @param row - its node's row
+     */
+    private writeLayoutEntry(layout: LayoutState, value: LayoutElement, line: number, slot: number, row: number): void {
+        if (value.z !== undefined && value.z !== null && typeof value.z !== "number") {
+            this.report.error(
+                "validation-error",
+                BAD_VALUE_CODE,
+                `a cartesianLayout element for node ${shown(value.node)} has the z ${shown(value.z)}, not a number; z is unset`,
+                { line, element: "cartesianLayout" },
+            );
+        }
+        const key = `${slot}:${row}`;
+        if (layout.seen.has(key)) {
+            this.report.warnOnce(
+                "validation-error",
+                DUPLICATE_ATTRIBUTE_CODE,
+                `node ${shown(value.node)} has two layout entries for one view; the later wins`,
+                { line, element: "cartesianLayout" },
+                `${DUPLICATE_ATTRIBUTE_CODE}:layout`,
+            );
+        }
+        layout.seen.add(key);
+        const z = typeof value.z === "number" ? value.z : null;
+        const { point } = layout;
+        point[0] = value.x;
+        point[1] = flipY(value.y);
+        point[2] = slot === 0 && this.zAs === "position" && z !== null ? z : 0;
+        this.sink.setNodeValue(this.layoutColumn(layout.columns, slot, layout.views), row, point);
+        if (slot === 0 && z !== null && this.zAs === "column") {
+            layout.zHandle = this.structural("node", layout.zHandle, zDecl(CX_FORMAT));
+            this.sink.setNodeValue(layout.zHandle, row, z);
         }
     }
 
@@ -2545,104 +2910,115 @@ class CxReader {
 
     /** Read the edges of this graph. */
     private readEdges(): void {
-        const { report, sink } = this;
-        const members = this.plan.edges;
         this.weights = this.edgeWeights();
         for (const held of aspect(this.doc, "edges")) {
             this.checkAbort();
-            const { value, line } = held;
-            if (!isRecord(value)) {
-                report.error(
-                    "parse-error",
-                    BAD_ASPECT_BLOCK_CODE,
-                    `an edges element is ${shown(value)}, not an object`,
-                    {
-                        line,
-                        element: "edges",
-                    },
-                );
-                report.counts.skippedEdges++;
-                continue;
+            const edge = this.edgeElement(held);
+            if (edge === "skipped" || (edge !== null && !this.addCxEdge(edge, held.line))) {
+                this.report.counts.skippedEdges++;
             }
-            if (value["@id"] === undefined || value["@id"] === null) {
-                report.error("missing-value", MISSING_ID_CODE, "an edge has no @id", { line, element: "edges" });
-                report.counts.skippedEdges++;
-                continue;
-            }
-            this.unknownKeys(value, EDGE_KEYS, "edge", line);
-            const element = `edge ${shown(value["@id"])}`;
-            const id = this.idOf(value["@id"], (held.inexact & 1) !== 0, element, line, true);
-            if (id === null) {
-                report.counts.skippedEdges++;
-                continue;
-            }
-            if (members !== null && !members.has(id)) {
-                continue;
-            }
-            if (value.s === undefined || value.s === null || value.t === undefined || value.t === null) {
-                report.error(
-                    "missing-value",
-                    MISSING_ENDPOINT_CODE,
-                    `${element} has no ${value.s === undefined || value.s === null ? "s" : "t"}`,
-                    {
-                        line,
-                        element,
-                    },
-                );
-                report.counts.skippedEdges++;
-                continue;
-            }
-            const s = this.idOf(value.s, (held.inexact & 2) !== 0, element, line);
-            const t = s === null ? null : this.idOf(value.t, (held.inexact & 4) !== 0, element, line);
-            if (s === null || t === null) {
-                report.counts.skippedEdges++;
-                continue;
-            }
-            if (this.edgeRows.has(id)) {
-                report.error(
-                    "validation-error",
-                    DUPLICATE_EDGE_ID_CODE,
-                    `${element} is declared more than once; the later edge is skipped`,
-                    { line, element },
-                );
-                report.counts.skippedEdges++;
-                continue;
-            }
-            if (!this.endpoint(s, element, line) || !this.endpoint(t, element, line)) {
-                report.counts.skippedEdges++;
-                continue;
-            }
-            let weight: number | undefined;
-            try {
-                weight = this.weightOf(id);
-            } catch (err) {
-                report.recordError(err, { line, element });
-                report.counts.skippedEdges++;
-                continue;
-            }
-            const before = sink.edgeCount;
-            let edge: number;
-            try {
-                edge = this.direction.addEdge(this.sinkId(s), this.sinkId(t), "directed", weight, { line, element });
-            } catch (err) {
-                report.recordError(err, { line, element });
-                report.counts.skippedEdges++;
-                continue;
-            }
-            if (weight !== undefined) {
-                this.weighted = true;
-            }
-            report.counts.edges += sink.edgeCount - before;
-            this.edgeRows.set(id, edge);
-            this.edgeIdHandle = this.structural("edge", this.edgeIdHandle, {
-                name: uniqueColumnName("id", "cx", (n) => sink.edgeColumn(n) !== INVALID_INDEX),
-                dtype: "f64",
-                role: "id",
-                nullable: true,
-            });
-            sink.setEdgeValue(this.edgeIdHandle, edge, typeof id === "number" ? id : Number(id));
-            this.writeCore("edge", edge, "interaction", value.i, element, line);
         }
+    }
+
+    /**
+     * Check one edges element and resolve its id and endpoints.
+     * @param held - the element
+     * @returns the edge; null for an edge of another subnetwork; "skipped" for one skipped (reported)
+     */
+    private edgeElement(held: Held): CxEdgeElement | "skipped" | null {
+        const { report } = this;
+        const { value, line } = held;
+        if (!isRecord(value)) {
+            report.error("parse-error", BAD_ASPECT_BLOCK_CODE, `an edges element is ${shown(value)}, not an object`, {
+                line,
+                element: "edges",
+            });
+            return "skipped";
+        }
+        if (value["@id"] === undefined || value["@id"] === null) {
+            report.error("missing-value", MISSING_ID_CODE, "an edge has no @id", { line, element: "edges" });
+            return "skipped";
+        }
+        this.unknownKeys(value, EDGE_KEYS, "edge", line);
+        const element = `edge ${shown(value["@id"])}`;
+        const id = this.idOf(value["@id"], (held.inexact & 1) !== 0, element, line, true);
+        if (id === null) {
+            return "skipped";
+        }
+        const members = this.plan.edges;
+        if (members !== null && !members.has(id)) {
+            return null;
+        }
+        if (value.s === undefined || value.s === null || value.t === undefined || value.t === null) {
+            report.error(
+                "missing-value",
+                MISSING_ENDPOINT_CODE,
+                `${element} has no ${value.s === undefined || value.s === null ? "s" : "t"}`,
+                {
+                    line,
+                    element,
+                },
+            );
+            return "skipped";
+        }
+        const s = this.idOf(value.s, (held.inexact & 2) !== 0, element, line);
+        const t = s === null ? null : this.idOf(value.t, (held.inexact & 4) !== 0, element, line);
+        if (s === null || t === null) {
+            return "skipped";
+        }
+        return { value, id, s, t, element };
+    }
+
+    /**
+     * Add one checked edge: refused when its id repeats, an endpoint is missing or its weight is bad.
+     * @param edge - the edge
+     * @param line - its line
+     * @returns false when the edge is skipped (reported)
+     */
+    private addCxEdge(edge: CxEdgeElement, line: number): boolean {
+        const { report, sink } = this;
+        const { value, id, s, t, element } = edge;
+        if (this.edgeRows.has(id)) {
+            report.error(
+                "validation-error",
+                DUPLICATE_EDGE_ID_CODE,
+                `${element} is declared more than once; the later edge is skipped`,
+                { line, element },
+            );
+            return false;
+        }
+        if (!this.endpoint(s, element, line) || !this.endpoint(t, element, line)) {
+            return false;
+        }
+        let weight: number | undefined;
+        try {
+            weight = this.weightOf(id);
+        } catch (err) {
+            report.recordError(err, { line, element });
+            return false;
+        }
+        const before = sink.edgeCount;
+        let row: number;
+        try {
+            row = this.direction.addEdge(this.sinkId(s), this.sinkId(t), "directed", weight, { line, element });
+        } catch (err) {
+            report.recordError(err, { line, element });
+            return false;
+        }
+        if (weight !== undefined) {
+            this.weighted = true;
+        }
+        report.counts.edges += sink.edgeCount - before;
+        this.edgeRows.set(id, row);
+        this.edgeIdHandle = this.structural("edge", this.edgeIdHandle, {
+            name: uniqueColumnName("id", "cx", (n) => sink.edgeColumn(n) !== INVALID_INDEX),
+            dtype: "f64",
+            role: "id",
+            nullable: true,
+        });
+        sink.setEdgeValue(this.edgeIdHandle, row, typeof id === "number" ? id : Number(id));
+        this.writeCore("edge", row, "interaction", value.i, element, line);
+        return true;
     }
 
     /**
@@ -2761,85 +3137,108 @@ class CxReader {
     /** Write the network attributes (unscoped and this subnetwork's, its own winning) as graph columns. */
     private readNetworkAttributes(): void {
         for (const [name, elements] of this.doc.attributes.network) {
-            let chosen: Record<string, unknown> | null = null;
-            let chosenScope = 0;
-            for (const { value, line } of elements) {
-                if (!isRecord(value)) {
-                    continue;
-                }
-                const scope = this.scopeOf(value.s);
-                if (scope === 0) {
-                    continue;
-                }
-                if (value.v === undefined) {
-                    this.report.error(
-                        "missing-value",
-                        BAD_VALUE_CODE,
-                        `a networkAttributes element for "${name}" has no v; skipped`,
-                        { line, element: name },
-                    );
-                    continue;
-                }
-                if (
-                    chosen !== null &&
-                    scope === chosenScope &&
-                    JSON.stringify(plainJson(chosen.v)) !== JSON.stringify(plainJson(value.v))
-                ) {
-                    this.report.warnOnce(
-                        "validation-error",
-                        DUPLICATE_ATTRIBUTE_CODE,
-                        `the network attribute "${name}" is given twice; the later value wins`,
-                        { line, element: name },
-                        `${DUPLICATE_ATTRIBUTE_CODE}:network:${name}`,
-                    );
-                }
-                if (scope >= chosenScope) {
-                    chosen = value;
-                    chosenScope = scope;
-                }
-            }
+            const chosen = this.chooseNetworkAttribute(name, elements);
             if (chosen?.v === undefined || chosen.v === null) {
                 continue;
             }
-            const type = cxType(chosen.d);
-            if (type === null) {
-                this.report.warnOnce(
-                    "unsupported",
-                    UNKNOWN_ATTR_TYPE_CODE,
-                    `the network attribute "${name}" declares a data type CX does not define; kept as text`,
-                    { element: name },
-                    `${UNKNOWN_ATTR_TYPE_CODE}:network:${name}`,
-                );
-            }
-            const effective = type ?? { scalar: "string", list: false };
-            const parsed = parseValue(chosen.v, effective, this.options.long, (digits) => {
-                this.precision(name, digits);
-            });
-            if (parsed === UNSET) {
+            this.writeNetworkAttribute(name, chosen);
+        }
+    }
+
+    /**
+     * The networkAttributes element of one name that applies to this graph: its own subnetwork's
+     * beats the unscoped one, and of two in one scope the later wins (W_DUPLICATE_ATTRIBUTE when
+     * they differ).
+     * @param name - the attribute name
+     * @param elements - its elements
+     * @returns the element, or null when none applies
+     */
+    private chooseNetworkAttribute(name: string, elements: readonly Held[]): Record<string, unknown> | null {
+        let chosen: Record<string, unknown> | null = null;
+        let chosenScope = 0;
+        for (const { value, line } of elements) {
+            if (!isRecord(value)) {
                 continue;
             }
-            if (parsed === BAD) {
+            const scope = this.scopeOf(value.s);
+            if (scope === 0) {
+                continue;
+            }
+            if (value.v === undefined) {
                 this.report.error(
-                    "validation-error",
+                    "missing-value",
                     BAD_VALUE_CODE,
-                    `the network attribute "${name}" is ${shown(chosen.v)}, not a ${typeText(effective)}; unset`,
-                    { element: name },
+                    `a networkAttributes element for "${name}" has no v; skipped`,
+                    { line, element: name },
                 );
                 continue;
             }
-            if ((name === "name" || name === "description") && typeof parsed === "string") {
-                continue;
+            if (
+                chosen !== null &&
+                scope === chosenScope &&
+                JSON.stringify(plainJson(chosen.v)) !== JSON.stringify(plainJson(value.v))
+            ) {
+                this.report.warnOnce(
+                    "validation-error",
+                    DUPLICATE_ATTRIBUTE_CODE,
+                    `the network attribute "${name}" is given twice; the later value wins`,
+                    { line, element: name },
+                    `${DUPLICATE_ATTRIBUTE_CODE}:network:${name}`,
+                );
             }
-            const scalar = scalarDtype(effective.scalar, this.options.long);
-            try {
-                this.sink.setGraphValue(name, parsed, {
-                    dtype: effective.list ? "list" : scalar,
-                    ...(effective.list ? { itemDtype: scalar } : {}),
-                    origin: { format: CX_FORMAT, id: null, type: typeText(effective) },
-                });
-            } catch (err) {
-                this.report.recordError(err, { element: name });
+            if (scope >= chosenScope) {
+                chosen = value;
+                chosenScope = scope;
             }
+        }
+        return chosen;
+    }
+
+    /**
+     * Parse one network attribute by its type and write it as a graph column (a string name or
+     * description is the graph's own field, not a column).
+     * @param name - the attribute name
+     * @param chosen - its element (v set)
+     */
+    private writeNetworkAttribute(name: string, chosen: Record<string, unknown>): void {
+        const type = cxType(chosen.d);
+        if (type === null) {
+            this.report.warnOnce(
+                "unsupported",
+                UNKNOWN_ATTR_TYPE_CODE,
+                `the network attribute "${name}" declares a data type CX does not define; kept as text`,
+                { element: name },
+                `${UNKNOWN_ATTR_TYPE_CODE}:network:${name}`,
+            );
+        }
+        const effective = type ?? { scalar: "string", list: false };
+        const parsed = parseValue(chosen.v, effective, this.options.long, (digits) => {
+            this.precision(name, digits);
+        });
+        if (parsed === UNSET) {
+            return;
+        }
+        if (parsed === BAD) {
+            this.report.error(
+                "validation-error",
+                BAD_VALUE_CODE,
+                `the network attribute "${name}" is ${shown(chosen.v)}, not a ${typeText(effective)}; unset`,
+                { element: name },
+            );
+            return;
+        }
+        if ((name === "name" || name === "description") && typeof parsed === "string") {
+            return;
+        }
+        const scalar = scalarDtype(effective.scalar, this.options.long);
+        try {
+            this.sink.setGraphValue(name, parsed, {
+                dtype: effective.list ? "list" : scalar,
+                ...(effective.list ? { itemDtype: scalar } : {}),
+                origin: { format: CX_FORMAT, id: null, type: typeText(effective) },
+            });
+        } catch (err) {
+            this.report.recordError(err, { element: name });
         }
     }
 
@@ -2854,54 +3253,108 @@ class CxReader {
         const tableStyles = TABLE_STYLE_ASPECTS.reduce((n, name) => n + (this.doc.kept.get(name)?.length ?? 0), 0);
         // the graph's own view (its first): the one its positions come from; the others stay in meta.extra.cx
         const views = new Set(this.plan.views.slice(0, 1));
-        const columns = { node: new Map<string, [number, string][]>(), edge: new Map<string, [number, string][]>() };
-        const network = new Map<string, string>();
-        let defaults = 0;
-        let mappings = 0;
-        let dependencies = 0;
+        const ofThisView = (view: NodeId | null): boolean => view === null || views.size === 0 || views.has(view);
+        this.keepVisualPropertiesForStyles(entries, ofThisView);
+        const read: VisualPropertiesRead = {
+            columns: { node: new Map(), edge: new Map() },
+            network: new Map(),
+            defaults: 0,
+            mappings: 0,
+            dependencies: 0,
+        };
         for (const { value } of entries) {
-            if (!isRecord(value)) {
-                continue;
-            }
-            const view = value.view === undefined || value.view === null ? null : refId(value.view);
-            if (view !== null && views.size > 0 && !views.has(view)) {
-                continue;
-            }
-            const properties = isRecord(value.properties) ? value.properties : {};
-            mappings += isRecord(value.mappings) ? Object.keys(value.mappings).length : 0;
-            dependencies += isRecord(value.dependencies) ? Object.keys(value.dependencies).length : 0;
-            switch (value.properties_of) {
-                case "nodes":
-                case "edges": {
-                    const domain = value.properties_of === "nodes" ? "node" : "edge";
-                    const target = refId(value.applies_to);
-                    const rows = domain === "node" ? this.nodeRows : this.edgeRows;
-                    const row = target === null ? undefined : rows.get(target);
-                    if (row === undefined) {
-                        if (target === null || !(domain === "node" ? this.rootNodes : this.rootEdges).has(target)) {
-                            this.dangle(`${domain} visual property entry`);
-                        }
-                        continue;
-                    }
-                    for (const [property, raw] of Object.entries(properties)) {
-                        const list = columns[domain].get(property) ?? [];
-                        list.push([row, typeof raw === "string" ? raw : JSON.stringify(raw)]);
-                        columns[domain].set(property, list);
-                    }
-                    break;
-                }
-                case "network":
-                    for (const [property, raw] of Object.entries(properties)) {
-                        network.set(property, typeof raw === "string" ? raw : JSON.stringify(raw));
-                    }
-                    break;
-                default:
-                    defaults += Object.keys(properties).length;
-                    break;
+            if (isRecord(value) && ofThisView(entryView(value))) {
+                this.collectVisualProperties(value, read);
             }
         }
+        this.writeBypassColumns(read);
+        this.warnStylesNotImported(read, tableStyles);
+    }
+
+    /**
+     * Hand the style reader the entries of this graph's view (and those naming no view).
+     * @param entries - every cyVisualProperties entry
+     * @param ofThisView - whether a view is this graph's
+     */
+    private keepVisualPropertiesForStyles(
+        entries: readonly { value: unknown }[],
+        ofThisView: (view: NodeId | null) => boolean,
+    ): void {
+        const others = new Set<unknown>();
+        const kept = entries
+            .map((h) => h.value)
+            .filter((v) => {
+                const view = isRecord(v) ? entryView(v) : null;
+                if (!ofThisView(view)) {
+                    others.add(view);
+                    return false;
+                }
+                return true;
+            });
+        const { weightFrom } = this.options;
+        const collection = aspect(this.doc, "cySubNetworks").length > 0;
+        const source: CxStyleSource =
+            others.size > 0
+                ? { entries: kept, otherViews: others.size, weightFrom, collection }
+                : { entries: kept, weightFrom, collection };
+        this.report.keepForStyles(source);
+    }
+
+    /**
+     * Collect one cyVisualProperties entry of this graph's view.
+     * @param value - the entry
+     * @param read - what is collected so far
+     */
+    private collectVisualProperties(value: Record<string, unknown>, read: VisualPropertiesRead): void {
+        const properties = isRecord(value.properties) ? value.properties : {};
+        read.mappings += isRecord(value.mappings) ? Object.keys(value.mappings).length : 0;
+        read.dependencies += isRecord(value.dependencies) ? Object.keys(value.dependencies).length : 0;
+        if (value.properties_of === "nodes" || value.properties_of === "edges") {
+            this.collectElementProperties(value, properties, read);
+        } else if (value.properties_of === "network") {
+            for (const [property, raw] of Object.entries(properties)) {
+                read.network.set(property, cellText(raw));
+            }
+        } else {
+            read.defaults += Object.keys(properties).length;
+        }
+    }
+
+    /**
+     * Collect the per-element values of a nodes or edges entry.
+     * @param value - the entry
+     * @param properties - its properties
+     * @param read - what is collected so far
+     */
+    private collectElementProperties(
+        value: Record<string, unknown>,
+        properties: Record<string, unknown>,
+        read: VisualPropertiesRead,
+    ): void {
+        const domain = value.properties_of === "nodes" ? "node" : "edge";
+        const target = refId(value.applies_to);
+        const rows = domain === "node" ? this.nodeRows : this.edgeRows;
+        const row = target === null ? undefined : rows.get(target);
+        if (row === undefined) {
+            if (target === null || !(domain === "node" ? this.rootNodes : this.rootEdges).has(target)) {
+                this.dangle(`${domain} visual property entry`);
+            }
+            return;
+        }
+        for (const [property, raw] of Object.entries(properties)) {
+            const list = read.columns[domain].get(property) ?? [];
+            list.push([row, cellText(raw)]);
+            read.columns[domain].set(property, list);
+        }
+    }
+
+    /**
+     * Write the per-element and network values as string columns in the cx.bypass namespace.
+     * @param read - what was collected
+     */
+    private writeBypassColumns(read: VisualPropertiesRead): void {
         for (const domain of ["node", "edge"] as const) {
-            for (const [property, cells] of columns[domain]) {
+            for (const [property, cells] of read.columns[domain]) {
                 const handle = declareFresh(
                     this.sink,
                     domain,
@@ -2922,7 +3375,7 @@ class CxReader {
                 }
             }
         }
-        for (const [property, text] of network) {
+        for (const [property, text] of read.network) {
             try {
                 this.sink.setGraphValue(property, text, {
                     dtype: "string",
@@ -2932,19 +3385,40 @@ class CxReader {
                 this.report.recordError(err, { element: property });
             }
         }
-        if (defaults + mappings + dependencies + tableStyles > 0) {
-            const parts = [
-                `cyVisualProperties: ${defaults} default${plural(defaults)}, ${mappings} mapping${plural(mappings)}, ${dependencies} dependenc(ies)`,
-            ];
-            if (tableStyles > 0) {
-                parts.push(`${tableStyles} table style element${plural(tableStyles)}`);
-            }
-            this.report.warning(
-                "unsupported",
-                STYLES_NOT_IMPORTED_CODE,
-                `the file's style rules are not applied (${parts.join("; ")}); they are kept in meta.extra.cx`,
-                { element: "cyVisualProperties" },
-            );
+    }
+
+    /**
+     * The warning that the file's style rules are kept and not applied, when it has any.
+     * @param read - what was collected
+     * @param tableStyles - how many table style elements the file holds
+     */
+    private warnStylesNotImported(read: VisualPropertiesRead, tableStyles: number): void {
+        const { defaults, mappings, dependencies } = read;
+        if (defaults + mappings + dependencies + tableStyles === 0) {
+            return;
+        }
+        const parts = [
+            `cyVisualProperties: ${defaults} default${plural(defaults)}, ${mappings} mapping${plural(mappings)}, ${dependencies} dependenc(ies)`,
+        ];
+        if (tableStyles > 0) {
+            parts.push(`${tableStyles} table style element${plural(tableStyles)}`);
+        }
+        this.report.warning(
+            "unsupported",
+            STYLES_NOT_IMPORTED_CODE,
+            `the file's style rules are not applied (${parts.join("; ")}); they are kept in meta.extra.cx`,
+            { element: "cyVisualProperties" },
+        );
+    }
+
+    /** The `graphty.styles` aspect of a file graphty wrote, as the graph attribute of that name. */
+    private readStyleBlock(): void {
+        const block = blockOfAspect(this.doc.kept.get(STYLE_BLOCK_NAME));
+        if (block !== null) {
+            this.sink.setGraphValue(STYLE_BLOCK_NAME, block, {
+                dtype: "string",
+                origin: { format: CX_FORMAT, id: null },
+            });
         }
     }
 
@@ -2965,23 +3439,29 @@ class CxReader {
         ] as const) {
             this.linkColumn(aspectName, domain, column);
         }
+        this.readFunctionTerms();
+        this.readReifiedEdges();
+    }
+
+    /** Read functionTerms as a json column on the nodes they name. */
+    private readFunctionTerms(): void {
         const terms: [number, unknown][] = [];
         for (const { value } of aspect(this.doc, "functionTerms")) {
             if (!isRecord(value)) {
                 continue;
             }
-            const po = refId(value.po);
-            const row = po === null ? undefined : this.nodeRows.get(po);
+            const row = this.targetRow("node", value.po, "functionTerms entry");
             if (row === undefined) {
-                if (po === null || !this.rootNodes.has(po)) {
-                    this.dangle("functionTerms entry");
-                }
                 continue;
             }
             const { po: _po, ...term } = value;
             terms.push([row, plainJson(term)]);
         }
         this.writeColumn("node", "functionTerm", "json", null, terms);
+    }
+
+    /** Read reifiedEdges as a u32 node column referring to edges. */
+    private readReifiedEdges(): void {
         const reified: [number, number][] = [];
         for (const { value } of aspect(this.doc, "reifiedEdges")) {
             if (!isRecord(value)) {
@@ -2999,23 +3479,43 @@ class CxReader {
             }
             reified.push([row, edgeRow]);
         }
-        if (reified.length > 0) {
-            const { handle } = declareResolved(
-                this.sink,
-                "node",
-                {
-                    name: "reifiedEdge",
-                    dtype: "u32",
-                    refersTo: "edge",
-                    nullable: true,
-                    origin: { format: CX_FORMAT, namespace: "reifiedEdges" },
-                },
-                this.report,
-            );
-            for (const [row, edge] of reified) {
-                this.sink.setNodeValue(handle, row, edge);
-            }
+        if (reified.length === 0) {
+            return;
         }
+        const { handle } = declareResolved(
+            this.sink,
+            "node",
+            {
+                name: "reifiedEdge",
+                dtype: "u32",
+                refersTo: "edge",
+                nullable: true,
+                origin: { format: CX_FORMAT, namespace: "reifiedEdges" },
+            },
+            this.report,
+        );
+        for (const [row, edge] of reified) {
+            this.sink.setNodeValue(handle, row, edge);
+        }
+    }
+
+    /**
+     * The row of the node or edge an element names in this graph; a name that is not in the root
+     * network either is dangling (counted).
+     * @param domain - node or edge
+     * @param raw - the reference as written
+     * @param what - what the reference is, for the dangling count
+     * @returns the row, or undefined when it is not in this graph
+     */
+    private targetRow(domain: "node" | "edge", raw: unknown, what: string): number | undefined {
+        const rows = domain === "node" ? this.nodeRows : this.edgeRows;
+        const root = domain === "node" ? this.rootNodes : this.rootEdges;
+        const target = refId(raw);
+        const row = target === null ? undefined : rows.get(target);
+        if (row === undefined && (target === null || !root.has(target))) {
+            this.dangle(what);
+        }
+        return row;
     }
 
     /**
@@ -3069,8 +3569,6 @@ class CxReader {
      * @param column - citations or supports
      */
     private linkColumn(aspectName: string, domain: "node" | "edge", column: "citations" | "supports"): void {
-        const rows = domain === "node" ? this.nodeRows : this.edgeRows;
-        const root = domain === "node" ? this.rootNodes : this.rootEdges;
         const links = new Map<number, number[]>();
         for (const { value } of aspect(this.doc, aspectName)) {
             if (!isRecord(value)) {
@@ -3082,15 +3580,10 @@ class CxReader {
                 .filter((id): id is NodeId => id !== null)
                 .map(Number);
             for (const raw of targets) {
-                const target = refId(raw);
-                const row = target === null ? undefined : rows.get(target);
-                if (row === undefined) {
-                    if (target === null || !root.has(target)) {
-                        this.dangle(`${aspectName} entry`);
-                    }
-                    continue;
+                const row = this.targetRow(domain, raw, `${aspectName} entry`);
+                if (row !== undefined) {
+                    links.set(row, [...(links.get(row) ?? []), ...ids]);
                 }
-                links.set(row, [...(links.get(row) ?? []), ...ids]);
             }
         }
         this.writeColumn(domain, column, "list", "f64", [...links]);
@@ -3148,7 +3641,10 @@ class CxReader {
             }
             return found;
         };
-        const extra: Record<string, unknown> = Object.fromEntries(this.doc.kept);
+        // the graphty.styles aspect is read as a graph attribute (readStyleBlock), not kept
+        const extra: Record<string, unknown> = Object.fromEntries(
+            [...this.doc.kept].filter(([name]) => name !== STYLE_BLOCK_NAME),
+        );
         const groups = aspect(this.doc, "cyGroups").map((h) => plainJson(h.value));
         const own: Record<string, unknown> = {};
         if (groups.length > 0) {
@@ -3230,6 +3726,7 @@ export const cxImporter: GraphImporter<CxImportOptions> = Object.freeze({
     options: Object.freeze(["zAs"]),
     extensions: Object.freeze([".cx"]),
     mimeTypes: Object.freeze(["application/json"]),
+    styles: readCxStyles,
 
     /**
      * Confidence that the head is CX version 1: 0.95 when a top-level array starts with an object
@@ -3243,10 +3740,10 @@ export const cxImporter: GraphImporter<CxImportOptions> = Object.freeze({
         if (match === null) {
             return 0;
         }
-        if (CX_FIRST_KEYS.includes(match[1])) {
+        if (CX_FIRST_KEYS.has(match[1])) {
             return 0.95;
         }
-        return CX_ASPECT_KEYS.includes(match[1]) ? 0.7 : 0;
+        return CX_ASPECT_KEYS.has(match[1]) ? 0.7 : 0;
     },
 
     /**

@@ -17,8 +17,8 @@ import {
     Tooltip,
 } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useEffect, useRef, useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import {
     CompactColorInput,
@@ -26,15 +26,16 @@ import {
     GradientEditor,
     InfoCircle,
     PANEL_GRID,
+    PanelField,
+    PanelLabelsProvider,
     Popout,
     POPOUT_NESTED_GAP,
     PopoutButton,
     PopoutManager,
     PopoutRegion,
-    StyleNumberInput,
-    StyleSelect,
     ToggleWithContent,
     UiGlyph,
+    usePopout,
     usePopoutManager,
     usePopoutRegion,
 } from "../../../src";
@@ -54,7 +55,7 @@ import { waitForSettledLayout } from "../../helpers/settled";
 // Demo stories carry no play function: Storybook runs one as soon as a story loads, so a demo
 // that drove itself opened and closed its own panel on every visit. The assertions live on the
 // `*Interactions` twins, tagged INTERACTION_TEST_TAGS: hidden from the sidebar and the docs page,
-// still run by the test runner and Chromatic.
+// still run by the test runner and the visual capture.
 const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
 
 // On the docs page every story renders in its own iframe (docs.story.inline false). Inline, a
@@ -97,6 +98,9 @@ const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
  * panel (a width, a title or tab header, its content); `Popout.Content` pads what goes inside;
  * `Popout.Anchor` wraps a sidebar so every panel inside it meets the sidebar's edge. Pass
  * `opened` and `onOpenChange` to drive a pop-out from your own state.
+ *
+ * Content inside a panel closes its own pop-out with `usePopout().close()` -- an "Apply" button,
+ * a row that picks a value (see `CloseFromInside`).
  *
  * Two more pieces sit beside `PopoutManager` (see `RegionsAndCloseAll`):
  *
@@ -452,7 +456,7 @@ export const DefaultInteractions: Story = {
 
         await userEvent.click(trigger);
 
-        const panel = await canvas.findByRole("dialog");
+        const panel = await canvas.findByRole("dialog", {});
         await expect(panel).toBeVisible();
         await expect(canvas.getByText("Settings")).toBeVisible();
         await expect(canvas.getByText("Panel content goes here")).toBeVisible();
@@ -476,7 +480,7 @@ export const DefaultInteractions: Story = {
 
         // Reopen: the panel comes back where it started
         await userEvent.click(canvas.getByLabelText("Open settings"));
-        const reopenedPanel = await canvas.findByRole("dialog");
+        const reopenedPanel = await canvas.findByRole("dialog", {});
         await expect(reopenedPanel.style.left).toBe(initialLeft);
         await expect(reopenedPanel.style.top).toBe(initialTop);
 
@@ -647,7 +651,7 @@ export const AnchorAxesInteractions: Story = {
         // top meets its own trigger's top.
         const panelTrigger = canvas.getByLabelText("Open panel-anchored settings");
         await userEvent.click(panelTrigger);
-        const anchoredPanel = await canvas.findByRole("dialog");
+        const anchoredPanel = await canvas.findByRole("dialog", {});
         const anchoredRect = anchoredPanel.getBoundingClientRect();
         await expect(Math.round(anchoredRect.right)).toBe(Math.round(sidebarRect.left) + 1);
         await expect(Math.round(anchoredRect.top)).toBe(Math.round(panelTrigger.getBoundingClientRect().top));
@@ -655,7 +659,7 @@ export const AnchorAxesInteractions: Story = {
         // Anchored to its own trigger: the panel sits beside the button.
         const triggerAnchored = canvas.getByLabelText("Open trigger-anchored settings");
         await userEvent.click(triggerAnchored);
-        const besidePanel = await canvas.findByRole("dialog");
+        const besidePanel = await canvas.findByRole("dialog", {});
         const besideRect = besidePanel.getBoundingClientRect();
         const buttonRect = triggerAnchored.getBoundingClientRect();
         await expect(Math.round(besideRect.right)).toBe(Math.round(buttonRect.left) - 8);
@@ -664,7 +668,7 @@ export const AnchorAxesInteractions: Story = {
         // Nested: each level docks flush to the start of the panel it opened from
         // (POPOUT_NESTED_GAP, design/figma-spec.md 8.4).
         await userEvent.click(canvas.getByLabelText("Open nested stack"));
-        const levelOne = await canvas.findByRole("dialog");
+        const levelOne = await canvas.findByRole("dialog", {});
         const levelOneRect = levelOne.getBoundingClientRect();
 
         await userEvent.click(canvas.getByLabelText("Open level two"));
@@ -937,14 +941,18 @@ export const Tabbed: Story = {
                                         content: (
                                             <Popout.Content>
                                                 <ToggleWithContent label="Show labels" defaultChecked>
-                                                    <StyleNumberInput
-                                                        label="Font size"
-                                                        defaultValue={12}
-                                                        min={8}
-                                                        max={24}
-                                                        step={1}
-                                                        suffix="px"
-                                                    />
+                                                    <PanelLabelsProvider showLabels>
+                                                        <PanelField
+                                                            kind="number"
+                                                            width="fill"
+                                                            label="Font size"
+                                                            defaultValue={12}
+                                                            min={8}
+                                                            max={24}
+                                                            step={1}
+                                                            unit="px"
+                                                        />
+                                                    </PanelLabelsProvider>
                                                     <Checkbox label="Bold text" />
                                                 </ToggleWithContent>
                                             </Popout.Content>
@@ -1008,7 +1016,7 @@ export const TabbedInteractions: Story = {
 
         await userEvent.click(trigger);
 
-        const panel = await canvas.findByRole("dialog");
+        const panel = await canvas.findByRole("dialog", {});
         await expect(panel).toBeVisible();
 
         await expect(panel).toHaveAttribute("aria-modal", "false");
@@ -1108,6 +1116,7 @@ export const OneAtATimeInteractions: Story = {
         await waitFor(() => expect(body.queryByRole("dialog", { name: "Fill settings" })).toBeNull());
         await userEvent.click(body.getByRole("button", { name: "Create style" }));
         await waitFor(() => expect(body.getAllByRole("dialog")).toHaveLength(2));
+        await waitForSettledLayout(canvasElement, "[data-testid='popout-panel']");
     },
 };
 
@@ -1189,6 +1198,56 @@ export const RegionsAndCloseAllInteractions: Story = {
         await expect(within(dialog).getByText('Opened from the "inspector" region.')).toBeVisible();
         await userEvent.keyboard("{Control>}.{/Control}");
         await waitFor(() => expect(body.queryByRole("dialog")).toBeNull());
+    },
+};
+
+/**
+ * An "Apply" button that closes the pop-out it sits in.
+ * @returns the button
+ */
+function ApplyButton(): React.JSX.Element {
+    const { close } = usePopout();
+    return (
+        <Button size="xs" onClick={() => close()}>
+            Apply
+        </Button>
+    );
+}
+
+/**
+ * Content that closes its own pop-out: the panel's "Apply" button calls `usePopout().close()`.
+ * Closing this way is the same as any other close: focus returns to the trigger.
+ */
+export const CloseFromInside: Story = {
+    render: () => (
+        <Box p={16} ml={300}>
+            <Popout>
+                <Popout.Trigger>
+                    <PopoutButton icon={<UiGlyph name="settings" size={12} />} aria-label="Label settings" />
+                </Popout.Trigger>
+                <Popout.Panel width={240} header={{ variant: "title", title: "Label settings" }}>
+                    <Popout.Content>
+                        <ApplyButton />
+                    </Popout.Content>
+                </Popout.Panel>
+            </Popout>
+        </Box>
+    ),
+};
+
+/** The assertions for closing from inside: Apply closes the panel and focus goes back to the trigger. */
+export const CloseFromInsideInteractions: Story = {
+    ...CloseFromInside,
+    tags: INTERACTION_TEST_TAGS,
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        const body = within(canvasElement.ownerDocument.body);
+        const trigger = canvas.getByRole("button", { name: "Label settings" });
+        await userEvent.click(trigger);
+        const dialog = await body.findByRole("dialog", { name: "Label settings" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
+        await waitFor(() => expect(body.queryByRole("dialog")).toBeNull());
+        await expect(trigger).toHaveFocus();
     },
 };
 
@@ -1289,14 +1348,18 @@ export const MultiplePopouts: Story = {
                                     This is Panel B.
                                 </Text>
                                 <Box mt="md">
-                                    <StyleNumberInput
-                                        label="Font size"
-                                        defaultValue={14}
-                                        min={10}
-                                        max={24}
-                                        step={1}
-                                        suffix="px"
-                                    />
+                                    <PanelLabelsProvider showLabels>
+                                        <PanelField
+                                            kind="number"
+                                            width="fill"
+                                            label="Font size"
+                                            defaultValue={14}
+                                            min={10}
+                                            max={24}
+                                            step={1}
+                                            unit="px"
+                                        />
+                                    </PanelLabelsProvider>
                                 </Box>
                             </Popout.Content>
                         </Popout.Panel>
@@ -1405,11 +1468,11 @@ export const MultiplePopoutsInteractions: Story = {
 
         // Exclusive siblings
         await userEvent.click(canvas.getByLabelText("Open Panel A"));
-        await expect(await canvas.findByText("Panel A - Settings")).toBeVisible();
+        await expect(await canvas.findByText("Panel A - Settings", {})).toBeVisible();
         await expect(canvas.getAllByRole("dialog")).toHaveLength(1);
 
         await userEvent.click(canvas.getByLabelText("Open Panel B"));
-        await expect(await canvas.findByText("Panel B - Appearance")).toBeVisible();
+        await expect(await canvas.findByText("Panel B - Appearance", {})).toBeVisible();
         await expect(canvas.getAllByRole("dialog")).toHaveLength(1);
         await expect(canvas.queryByTestId("panel-a-content")).not.toBeInTheDocument();
         await expect(canvas.getByTestId("panel-b-content")).toBeInTheDocument();
@@ -1420,7 +1483,7 @@ export const MultiplePopoutsInteractions: Story = {
 
         // Click outside
         await userEvent.click(canvas.getByLabelText("Open Panel A"));
-        await expect(await canvas.findByText("Panel A - Settings")).toBeVisible();
+        await expect(await canvas.findByText("Panel A - Settings", {})).toBeVisible();
         await expect(canvas.getAllByRole("dialog")).toHaveLength(1);
 
         const mainContentArea = canvas.getByText("Open both panels, then click to bring one to front");
@@ -1429,11 +1492,11 @@ export const MultiplePopoutsInteractions: Story = {
 
         // Nesting
         await userEvent.click(canvas.getByLabelText("Open Nested Demo"));
-        await expect(await canvas.findByText("Panel D - Parent")).toBeVisible();
+        await expect(await canvas.findByText("Panel D - Parent", {})).toBeVisible();
         await expect(canvas.getByTestId("panel-d-content")).toBeInTheDocument();
 
         await userEvent.click(canvas.getByLabelText("Open Child Panel"));
-        await expect(await canvas.findByText("Child Panel")).toBeVisible();
+        await expect(await canvas.findByText("Child Panel", {})).toBeVisible();
         await expect(canvas.getByTestId("child-panel-content")).toBeInTheDocument();
 
         // Parent and child are both open: they are not siblings
@@ -1451,7 +1514,7 @@ export const MultiplePopoutsInteractions: Story = {
         await expect(canvas.queryByTestId("child-panel-content")).not.toBeInTheDocument();
 
         await userEvent.click(canvas.getByLabelText("Open Child Panel"));
-        await expect(await canvas.findByText("Child Panel")).toBeVisible();
+        await expect(await canvas.findByText("Child Panel", {})).toBeVisible();
         await expect(canvas.getAllByRole("dialog")).toHaveLength(2);
 
         // Closing the parent closes the child with it
@@ -1537,7 +1600,7 @@ export const ControlledInteractions: Story = {
         await expect(canvas.getByText("The panel is closed.")).toBeInTheDocument();
 
         await userEvent.click(canvas.getByRole("button", { name: "Open from here" }));
-        await expect(await canvas.findByRole("dialog")).toBeVisible();
+        await expect(await canvas.findByRole("dialog", {})).toBeVisible();
         await expect(canvas.getByText("The panel is open.")).toBeInTheDocument();
 
         await userEvent.click(canvas.getByRole("button", { name: "Close from here" }));
@@ -1545,7 +1608,7 @@ export const ControlledInteractions: Story = {
 
         // The trigger reports through the same handler
         await userEvent.click(canvas.getByLabelText("Toggle controlled panel"));
-        await expect(await canvas.findByRole("dialog")).toBeVisible();
+        await expect(await canvas.findByRole("dialog", {})).toBeVisible();
         await expect(canvas.getByText("The panel is open.")).toBeInTheDocument();
 
         // Escape reports too
@@ -1612,7 +1675,7 @@ export const WorkedExampleInteractions: Story = {
 
         await userEvent.click(canvas.getByLabelText("Open label settings"));
 
-        const panel = await canvas.findByRole("dialog");
+        const panel = await canvas.findByRole("dialog", {});
         await expect(panel).toBeVisible();
 
         await expect(panel).toHaveAttribute("role", "dialog");
@@ -1641,7 +1704,7 @@ export const WorkedExampleInteractions: Story = {
         await expect(trigger).toHaveAttribute("aria-expanded", "false");
 
         await userEvent.click(trigger);
-        const reopenedPanel = await canvas.findByRole("dialog");
+        const reopenedPanel = await canvas.findByRole("dialog", {});
         await expect(reopenedPanel).toBeVisible();
 
         await expect(canvas.getByLabelText("Close panel")).toBeInTheDocument();
@@ -1656,7 +1719,7 @@ export const WorkedExampleInteractions: Story = {
  * here appears above the panel and can be used without dismissing it:
  * - Form Inputs: Select, Autocomplete, MultiSelect, TagsInput
  * - Overlays: Menu, Tooltip
- * - Custom: CompactColorInput, StyleSelect, GradientEditor
+ * - Custom: CompactColorInput, PanelField (select), GradientEditor
  *
  * Kept for inspection by hand; the automated checks are in tests/popout/PopoutRegression.test.tsx.
  */
@@ -1668,7 +1731,7 @@ export const ComponentCompatibility: Story = {
         const [tagsValue, setTagsValue] = useState<string[]>(["tag1"]);
         const [compactColor, setCompactColor] = useState<string | undefined>(undefined);
         const [compactOpacity, setCompactOpacity] = useState<number | undefined>(undefined);
-        const [styleSelectValue, setStyleSelectValue] = useState<string | undefined>(undefined);
+        const [styleSelectValue, setStyleSelectValue] = useState<string>("option1");
 
         return (
             <Box style={{ display: "flex", width: "100%", height: "100vh" }}>
@@ -1846,16 +1909,19 @@ export const ComponentCompatibility: Story = {
                                                     <Text size="xs" c="dimmed">
                                                         The swatch opens a picker in a child pop-out.
                                                     </Text>
-                                                    <StyleSelect
-                                                        label="StyleSelect"
+                                                    <PanelField
+                                                        label="PanelField select"
+                                                        kind="select"
+                                                        width="fill"
                                                         value={styleSelectValue}
-                                                        defaultValue="option1"
-                                                        options={[
+                                                        data={[
                                                             { value: "option1", label: "Option 1" },
                                                             { value: "option2", label: "Option 2" },
                                                             { value: "option3", label: "Option 3" },
                                                         ]}
-                                                        onChange={setStyleSelectValue}
+                                                        onChange={(next) => {
+                                                            setStyleSelectValue(String(next));
+                                                        }}
                                                     />
                                                     <Box>
                                                         <Text size="xs" fw={500} mb={4}>

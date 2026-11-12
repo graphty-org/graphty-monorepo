@@ -20,7 +20,7 @@ interface ChitProps {
  * @param props.variant - `field` for the in-field form
  * @returns the chit
  */
-export function Chit({ color, variant }: ChitProps): React.JSX.Element {
+export function Chit({ color, variant }: Readonly<ChitProps>): React.JSX.Element {
     const hexa = normalizeHexa(color) ?? "#000000FF";
     const opaque = hexa.slice(0, 7);
     const translucent = !hexa.endsWith("FF");

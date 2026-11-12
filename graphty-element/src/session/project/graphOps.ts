@@ -52,6 +52,8 @@ interface GraphHome {
     readonly strict: boolean;
     /** Whether a history lives here: false for a data manager built without a session. */
     readonly session: boolean;
+    /** Whether anything reads {@link GraphOps.rewrites}: the timeline's experiment is on. */
+    readonly countsRewrites?: () => boolean;
 }
 
 /**
@@ -242,7 +244,7 @@ function writeCapacity(store: GraphStore, edgeId: number, record: GraphRecord | 
     const row = store.edgeIndexOf(edgeId);
     if (row !== INVALID_INDEX) {
         store.builder.setEdgeValue(store.capacityColumn, row, resolveEdgeCapacity(record ?? {}));
-        store.touch();
+        store.account();
     }
 }
 
@@ -306,6 +308,18 @@ export interface GraphWriter {
      */
     setGraphValues(values: Readonly<Record<string, unknown>>): void;
     /**
+     * Read one node's record as this command's writes have left it.
+     * @param id - The node id.
+     * @returns The record, or undefined when the graph holds none.
+     */
+    nodeRecord(id: NodeId): GraphRecord | undefined;
+    /**
+     * Read one graph-level value as this command's writes have left it.
+     * @param name - The value's name.
+     * @returns The value, or undefined when none is set.
+     */
+    graphValue(name: string): unknown;
+    /**
      * Give the builder the direction a file declared, without overruling the consumer.
      * @param directed - The declared direction.
      * @param statedBy - The text that declared it.
@@ -334,6 +348,8 @@ export class GraphOps {
     private readonly tokens = createCounter();
     private readonly epochs = createCounter();
     private warned = false;
+    /** How many changes were more than rows added at the end. */
+    private rewritten = 0;
     /** The store the last writer wrote, which strict state checks for writes made around it. */
     private store: GraphStore | null = null;
 
@@ -414,10 +430,46 @@ export class GraphOps {
     }
 
     /**
-     * Take a token never issued before and make it the slice's.
+     * A mark that moves on every change other than rows added at the end: a record edit, a removal,
+     * a merge into an existing row, an undo or a redo, any token not taken by a writer, and rows
+     * renumbered by a freeze, so read it after the freeze. Two reads alike mean the rows of the first
+     * still hold what they held. It reads the two counts apart: the store's restarts with a new store.
+     * @returns The mark.
+     */
+    get rewrites(): string {
+        return `${String(this.rewritten)}:${String(this.store?.renumberCount ?? 0)}`;
+    }
+
+    /**
+     * Whether anything reads {@link GraphOps.rewrites}.
+     * @returns True with the timeline on.
+     */
+    get countsRewrites(): boolean {
+        return this.home.countsRewrites?.() === true;
+    }
+
+    /** Count a change that is more than rows added at the end. */
+    noteRewrite(): void {
+        if (this.countsRewrites) {
+            this.rewritten++;
+        }
+    }
+
+    /**
+     * Take a token never issued before and make it the slice's, for a write {@link GraphOps.noteRewrite}
+     * does not see: anyone but a writer may have changed anything.
      * @returns The token.
      */
     retoken(): number {
+        this.noteRewrite();
+        return this.nextToken();
+    }
+
+    /**
+     * Take a token never issued before and make it the slice's.
+     * @returns The token.
+     */
+    nextToken(): number {
         const token = this.tokens.next();
         const slice = this.home.read();
         if (this.home.strict && token <= slice.token) {
@@ -433,6 +485,7 @@ export class GraphOps {
      * @param token - The token.
      */
     restoreToken(token: number): void {
+        this.noteRewrite();
         this.home.write(Object.freeze({ ...this.home.read(), token }));
     }
 
@@ -507,10 +560,13 @@ export class GraphOps {
     }
 }
 
+/** The graph values a dataset-wide step writes: `SOURCES_VALUE` and `COLUMNS_VALUE` of `commands/data.ts`. */
+const DATASET_VALUES: ReadonlySet<string> = new Set(["sources", "columns"]);
+
 /**
  * The node and edge ids the steps an undo, a redo or a restore passed touched, which the session
  * then selects (design/undo/undo-design.md section 8). Collection stops, and nothing is selected,
- * once a replace or a clear passes or more ids than the limit are touched: selecting everything
+ * once a replace, a clear or another dataset-wide step passes or more ids than the limit are touched: selecting everything
  * says nothing, and a selection built only to be truncated says less.
  */
 export class TouchedIds {
@@ -659,6 +715,73 @@ export function reshapes(log: readonly OpLogEntry[]): boolean {
     );
 }
 
+/**
+ * Names the elements one graph step touched.
+ * @param op - The step.
+ * @param into - Collects the ids.
+ * @returns True when the step touched the whole dataset, so the walk stops.
+ */
+function touchOp(op: GraphOp, into: TouchedIds): boolean {
+    switch (op.kind) {
+        case "node":
+            into.node(op.id);
+            break;
+        case "edge":
+            into.edge(edgeIdOf(op.edgeId));
+            for (const id of op.created) {
+                into.node(id);
+            }
+
+            break;
+        case "weight":
+            into.edge(edgeIdOf(op.edgeId));
+            break;
+        case "record":
+            if (op.target === "node") {
+                into.node(op.id);
+            } else {
+                into.edge(String(op.id));
+            }
+
+            break;
+        case "remove":
+            for (const node of op.rows.nodes) {
+                into.node(node.id);
+            }
+
+            for (const edge of op.rows.edges) {
+                into.edge(edgeIdOf(edge.edgeId));
+            }
+
+            break;
+        case "replace":
+            into.all();
+            return true;
+        case "value":
+            // A step that rewrites the sources list or the column settings -- a load, a
+            // join, a replace with a newer copy, a type change -- is about the dataset,
+            // not elements: selecting the rows it rewrote would select a column's worth.
+            if (DATASET_VALUES.has(op.name)) {
+                into.all();
+                return true;
+            }
+
+            break;
+        default:
+            // "direction" names no element.
+            break;
+    }
+
+    return false;
+}
+
+/** The graph slice's maps, writable. */
+interface SliceMaps {
+    nodes: Map<NodeId, GraphRecord>;
+    edges: Map<EdgeId, GraphRecord>;
+    values: Map<string, unknown>;
+}
+
 /** The entry one recorded writer logs, growing as it writes. */
 class GraphEntry implements OpLogEntry {
     readonly slice = "graph";
@@ -704,44 +827,8 @@ class GraphEntry implements OpLogEntry {
 
     touched(into: TouchedIds): void {
         for (const op of this.ops) {
-            switch (op.kind) {
-                case "node":
-                    into.node(op.id);
-                    break;
-                case "edge":
-                    into.edge(edgeIdOf(op.edgeId));
-                    for (const id of op.created) {
-                        into.node(id);
-                    }
-
-                    break;
-                case "weight":
-                    into.edge(edgeIdOf(op.edgeId));
-                    break;
-                case "record":
-                    if (op.target === "node") {
-                        into.node(op.id);
-                    } else {
-                        into.edge(String(op.id));
-                    }
-
-                    break;
-                case "remove":
-                    for (const node of op.rows.nodes) {
-                        into.node(node.id);
-                    }
-
-                    for (const edge of op.rows.edges) {
-                        into.edge(edgeIdOf(edge.edgeId));
-                    }
-
-                    break;
-                case "replace":
-                    into.all();
-                    return;
-                default:
-                    // "value" and "direction" name no element.
-                    break;
+            if (touchOp(op, into)) {
+                return;
             }
         }
     }
@@ -750,7 +837,7 @@ class GraphEntry implements OpLogEntry {
      * The slice's maps now, writable.
      * @returns The maps.
      */
-    private maps(): { nodes: Map<NodeId, GraphRecord>; edges: Map<EdgeId, GraphRecord>; values: Map<string, unknown> } {
+    private maps(): SliceMaps {
         const { slice } = this.graph;
         return {
             nodes: slice.nodes as Map<NodeId, GraphRecord>,
@@ -764,116 +851,160 @@ class GraphEntry implements OpLogEntry {
         const seen = bumped();
         store.audit();
         // Re-read after a replace, which swaps the maps.
-        let { nodes, edges, values } = this.maps();
+        let maps = this.maps();
         for (let index = this.ops.length - 1; index >= 0; index--) {
-            const op = this.ops[index];
-            switch (op.kind) {
-                case "node":
-                    bumpFields(store, "node", op.record, op.prior, seen);
-                    restore(nodes, op.id, op.prior);
-                    if (!op.existed && isStorableId(op.id)) {
-                        // Behind a structural change still waiting, the row goes with it, at
-                        // the next read: reading the builder now would rebuild the graph.
-                        if (store.deferring) {
-                            store.dropAdded([op.id], []);
-                        } else if (store.builder.hasNode(op.id)) {
-                            store.builder.removeNode(op.id);
-                        }
-                    }
-
-                    this.graph.touch(nodeKey(op.id));
-                    break;
-                case "edge": {
-                    op.identity ??= store.frozenEdgeIdentity(op.edgeId);
-                    bumpFields(store, "edge", op.record, undefined, seen);
-                    edges.delete(edgeIdOf(op.edgeId));
-                    const created = op.created.filter((id) => !nodes.has(id));
-                    if (store.deferring) {
-                        store.dropAdded(created, [op.edgeId]);
-                    } else {
-                        const row = store.edgeIndexOf(op.edgeId);
-                        if (row !== INVALID_INDEX) {
-                            store.builder.removeEdge(row);
-                        }
-
-                        for (const id of created) {
-                            if (store.builder.hasNode(id)) {
-                                store.builder.removeNode(id);
-                            }
-                        }
-                    }
-
-                    this.graph.touch(edgeKey(edgeIdOf(op.edgeId)));
-                    break;
-                }
-
-                case "weight": {
-                    const row = store.edgeIndexOf(op.edgeId);
-                    if (row !== INVALID_INDEX) {
-                        store.builder.setEdgeWeight(row, op.prior);
-                    }
-
-                    this.graph.touch(edgeKey(edgeIdOf(op.edgeId)));
-                    break;
-                }
-
-                case "record":
-                    bumpFields(store, op.target, op.next, op.prior, seen, true);
-                    restore(
-                        op.target === "node" ? nodes : edges,
-                        op.target === "node" ? op.id : String(op.id),
-                        op.prior,
-                    );
-                    if (op.target === "edge") {
-                        writeCapacity(store, edgeCounterOf(String(op.id)), op.prior);
-                    }
-
-                    this.graph.touch(op.target === "node" ? nodeKey(op.id) : edgeKey(String(op.id)));
-                    break;
-                case "value":
-                    restore(values, op.name, op.prior);
-                    this.graph.touch(`v:${op.name}`);
-                    break;
-                case "remove":
-                    op.rows.nodes.forEach((node, at) => {
-                        restore(nodes, node.id, op.nodeRecords[at]);
-                        this.graph.touch(nodeKey(node.id));
-                    });
-                    op.rows.edges.forEach((edge, at) => {
-                        restore(edges, edgeIdOf(edge.edgeId), op.edgeRecords[at]);
-                        this.graph.touch(edgeKey(edgeIdOf(edge.edgeId)));
-                    });
-                    store.insertRows(op.rows);
-                    break;
-                case "replace":
-                    this.graph.swapMaps(op.prior);
-                    this.graph.restoreEpoch(op.epochs.prior);
-                    ({ nodes, edges, values } = this.maps());
-                    touchAll(this.graph, op.prior);
-                    store.replace(op.kept, true);
-                    break;
-                default:
-                    // "direction"
-                    if (store.builder.directed !== op.prior.directed && !store.builder.directedLocked) {
-                        store.builder.setDirected(op.prior.directed);
-                    }
-
-                    store.restoreDirection(op.prior.provenance);
-                    this.graph.touch("directed");
-                    break;
-            }
+            maps = this.undoOp(this.ops[index], maps, seen);
         }
 
         if (this.ops.some(movesRows)) {
             this.graph.touch(ROWS_MOVED);
         }
 
-        store.touch();
+        store.recordsChanged();
         if (rollback) {
             this.graph.retoken();
         } else {
             this.graph.restoreToken(this.tokenBefore);
         }
+    }
+
+    /**
+     * Undo one op.
+     * @param op - The op.
+     * @param maps - The slice's maps now.
+     * @param seen - The fields this batch bumped already.
+     * @returns The slice's maps after: new ones after a replace.
+     */
+    private undoOp(op: GraphOp, maps: SliceMaps, seen: Bumped): SliceMaps {
+        const { store } = this;
+        switch (op.kind) {
+            case "node":
+                this.undoNode(op, maps.nodes, seen);
+                break;
+            case "edge":
+                this.undoEdge(op, maps, seen);
+                break;
+            case "weight": {
+                const row = store.edgeIndexOf(op.edgeId);
+                if (row !== INVALID_INDEX) {
+                    store.builder.setEdgeWeight(row, op.prior);
+                }
+
+                this.graph.touch(edgeKey(edgeIdOf(op.edgeId)));
+                break;
+            }
+
+            case "record":
+                bumpFields(store, op.target, op.next, op.prior, seen, true);
+                restore(
+                    op.target === "node" ? maps.nodes : maps.edges,
+                    op.target === "node" ? op.id : String(op.id),
+                    op.prior,
+                );
+                if (op.target === "edge") {
+                    writeCapacity(store, edgeCounterOf(String(op.id)), op.prior);
+                }
+
+                this.graph.touch(op.target === "node" ? nodeKey(op.id) : edgeKey(String(op.id)));
+                break;
+            case "value":
+                restore(maps.values, op.name, op.prior);
+                this.graph.touch(`v:${op.name}`);
+                break;
+            case "remove":
+                this.undoRemove(op, maps);
+                break;
+            case "replace": {
+                this.graph.swapMaps(op.prior);
+                this.graph.restoreEpoch(op.epochs.prior);
+                const swapped = this.maps();
+                touchAll(this.graph, op.prior);
+                store.replace(op.kept, true);
+                return swapped;
+            }
+
+            default:
+                // "direction"
+                if (store.builder.directed !== op.prior.directed && !store.builder.directedLocked) {
+                    store.builder.setDirected(op.prior.directed);
+                }
+
+                store.restoreDirection(op.prior.provenance);
+                this.graph.touch("directed");
+                break;
+        }
+
+        return maps;
+    }
+
+    /**
+     * Undo a node added: its record, and its row unless the builder held it before.
+     * @param op - The op.
+     * @param nodes - The node records.
+     * @param seen - The fields this batch bumped already.
+     */
+    private undoNode(op: Extract<GraphOp, { kind: "node" }>, nodes: Map<NodeId, GraphRecord>, seen: Bumped): void {
+        const { store } = this;
+        bumpFields(store, "node", op.record, op.prior, seen);
+        restore(nodes, op.id, op.prior);
+        if (!op.existed && isStorableId(op.id)) {
+            // Behind a structural change still waiting, the row goes with it, at
+            // the next read: reading the builder now would rebuild the graph.
+            if (store.deferring) {
+                store.dropAdded([op.id], []);
+            } else if (store.builder.hasNode(op.id)) {
+                store.builder.removeNode(op.id);
+            }
+        }
+
+        this.graph.touch(nodeKey(op.id));
+    }
+
+    /**
+     * Undo an edge added: its record, its row, and the endpoints it created that no node record holds.
+     * @param op - The op.
+     * @param maps - The slice's maps.
+     * @param seen - The fields this batch bumped already.
+     */
+    private undoEdge(op: Extract<GraphOp, { kind: "edge" }>, maps: SliceMaps, seen: Bumped): void {
+        const { store } = this;
+        op.identity ??= store.frozenEdgeIdentity(op.edgeId);
+        bumpFields(store, "edge", op.record, undefined, seen);
+        maps.edges.delete(edgeIdOf(op.edgeId));
+        const created = op.created.filter((id) => !maps.nodes.has(id));
+        if (store.deferring) {
+            store.dropAdded(created, [op.edgeId]);
+        } else {
+            const row = store.edgeIndexOf(op.edgeId);
+            if (row !== INVALID_INDEX) {
+                store.builder.removeEdge(row);
+            }
+
+            for (const id of created) {
+                if (store.builder.hasNode(id)) {
+                    store.builder.removeNode(id);
+                }
+            }
+        }
+
+        this.graph.touch(edgeKey(edgeIdOf(op.edgeId)));
+    }
+
+    /**
+     * Undo rows removed: their records, then their rows.
+     * @param op - The op.
+     * @param maps - The slice's maps.
+     */
+    private undoRemove(op: Extract<GraphOp, { kind: "remove" }>, maps: SliceMaps): void {
+        op.rows.nodes.forEach((node, at) => {
+            restore(maps.nodes, node.id, op.nodeRecords[at]);
+            this.graph.touch(nodeKey(node.id));
+        });
+        op.rows.edges.forEach((edge, at) => {
+            restore(maps.edges, edgeIdOf(edge.edgeId), op.edgeRecords[at]);
+            this.graph.touch(edgeKey(edgeIdOf(edge.edgeId)));
+        });
+        this.store.insertRows(op.rows);
     }
 
     redo(): void {
@@ -886,37 +1017,13 @@ class GraphEntry implements OpLogEntry {
         for (const op of this.ops) {
             switch (op.kind) {
                 case "node":
-                    if (isStorableId(op.id)) {
-                        const row = store.builder.addNode(op.id);
-                        if (op.seed !== null) {
-                            store.builder.setNodeValue(store.seedColumn, row, op.seed);
-                        }
-                    }
-
-                    nodes.set(op.id, op.record);
-                    bumpFields(store, "node", op.prior, op.record, seen);
-                    this.graph.touch(nodeKey(op.id));
+                    this.redoNode(op, nodes, seen);
                     added.add(NODES_ADDED);
                     break;
-                case "edge": {
-                    const row = store.builder.addEdge(op.source, op.target, op.weight);
-                    store.stampEdgeId(row, op.edgeId);
-                    if (op.identity === undefined) {
-                        store.recordIngestedEdge(row, op.edgeId, op.fileId);
-                    } else {
-                        store.restoreEdgeIdentity(row, op.identity);
-                    }
-
-                    edges.set(edgeIdOf(op.edgeId), op.record);
-                    if (resolveEdgeCapacity(op.record) !== 1) {
-                        writeCapacity(store, op.edgeId, op.record);
-                    }
-                    bumpFields(store, "edge", undefined, op.record, seen);
-                    this.graph.touch(edgeKey(edgeIdOf(op.edgeId)));
+                case "edge":
+                    this.redoEdge(op, edges, seen);
                     added.add(EDGES_ADDED);
                     break;
-                }
-
                 case "weight": {
                     const row = store.edgeIndexOf(op.edgeId);
                     if (row !== INVALID_INDEX) {
@@ -928,34 +1035,14 @@ class GraphEntry implements OpLogEntry {
                 }
 
                 case "record":
-                    bumpFields(store, op.target, op.prior, op.next, seen, true);
-                    restore(
-                        op.target === "node" ? nodes : edges,
-                        op.target === "node" ? op.id : String(op.id),
-                        op.next,
-                    );
-                    if (op.target === "edge") {
-                        writeCapacity(store, edgeCounterOf(String(op.id)), op.next);
-                    }
-
-                    this.graph.touch(op.target === "node" ? nodeKey(op.id) : edgeKey(String(op.id)));
+                    this.redoRecord(op, nodes, edges, seen);
                     break;
                 case "value":
                     restore(values, op.name, op.next);
                     this.graph.touch(`v:${op.name}`);
                     break;
                 case "remove":
-                    for (const node of op.rows.nodes) {
-                        nodes.delete(node.id);
-                        this.graph.touch(nodeKey(node.id));
-                    }
-
-                    for (const edge of op.rows.edges) {
-                        edges.delete(edgeIdOf(edge.edgeId));
-                        this.graph.touch(edgeKey(edgeIdOf(edge.edgeId)));
-                    }
-
-                    store.dropRows(op.rows);
+                    this.redoRemove(op, nodes, edges);
                     break;
                 case "replace":
                     this.graph.swapMaps(emptyMaps());
@@ -984,8 +1071,99 @@ class GraphEntry implements OpLogEntry {
             this.graph.touch(ROWS_MOVED);
         }
 
-        store.touch();
+        store.recordsChanged();
         this.graph.restoreToken(this.tokenAfter);
+    }
+
+    /**
+     * Redo a node added: its row, its seed, its record.
+     * @param op - The op.
+     * @param nodes - The node records.
+     * @param seen - The fields this batch bumped already.
+     */
+    private redoNode(op: Extract<GraphOp, { kind: "node" }>, nodes: Map<NodeId, GraphRecord>, seen: Bumped): void {
+        const { store } = this;
+        if (isStorableId(op.id)) {
+            const row = store.builder.addNode(op.id);
+            if (op.seed !== null) {
+                store.builder.setNodeValue(store.seedColumn, row, op.seed);
+            }
+        }
+
+        nodes.set(op.id, op.record);
+        bumpFields(store, "node", op.prior, op.record, seen);
+        this.graph.touch(nodeKey(op.id));
+    }
+
+    /**
+     * Redo an edge added: its row, its identity, its record and its capacity.
+     * @param op - The op.
+     * @param edges - The edge records.
+     * @param seen - The fields this batch bumped already.
+     */
+    private redoEdge(op: Extract<GraphOp, { kind: "edge" }>, edges: Map<EdgeId, GraphRecord>, seen: Bumped): void {
+        const { store } = this;
+        const row = store.builder.addEdge(op.source, op.target, op.weight);
+        store.stampEdgeId(row, op.edgeId);
+        if (op.identity === undefined) {
+            store.recordIngestedEdge(row, op.edgeId, op.fileId);
+        } else {
+            store.restoreEdgeIdentity(row, op.identity);
+        }
+
+        edges.set(edgeIdOf(op.edgeId), op.record);
+        if (resolveEdgeCapacity(op.record) !== 1) {
+            writeCapacity(store, op.edgeId, op.record);
+        }
+        bumpFields(store, "edge", undefined, op.record, seen);
+        this.graph.touch(edgeKey(edgeIdOf(op.edgeId)));
+    }
+
+    /**
+     * Redo a record written.
+     * @param op - The op.
+     * @param nodes - The node records.
+     * @param edges - The edge records.
+     * @param seen - The fields this batch bumped already.
+     */
+    private redoRecord(
+        op: Extract<GraphOp, { kind: "record" }>,
+        nodes: Map<NodeId, GraphRecord>,
+        edges: Map<EdgeId, GraphRecord>,
+        seen: Bumped,
+    ): void {
+        const { store } = this;
+        bumpFields(store, op.target, op.prior, op.next, seen, true);
+        restore(op.target === "node" ? nodes : edges, op.target === "node" ? op.id : String(op.id), op.next);
+        if (op.target === "edge") {
+            writeCapacity(store, edgeCounterOf(String(op.id)), op.next);
+        }
+
+        this.graph.touch(op.target === "node" ? nodeKey(op.id) : edgeKey(String(op.id)));
+    }
+
+    /**
+     * Redo rows removed.
+     * @param op - The op.
+     * @param nodes - The node records.
+     * @param edges - The edge records.
+     */
+    private redoRemove(
+        op: Extract<GraphOp, { kind: "remove" }>,
+        nodes: Map<NodeId, GraphRecord>,
+        edges: Map<EdgeId, GraphRecord>,
+    ): void {
+        for (const node of op.rows.nodes) {
+            nodes.delete(node.id);
+            this.graph.touch(nodeKey(node.id));
+        }
+
+        for (const edge of op.rows.edges) {
+            edges.delete(edgeIdOf(edge.edgeId));
+            this.graph.touch(edgeKey(edgeIdOf(edge.edgeId)));
+        }
+
+        this.store.dropRows(op.rows);
     }
 }
 
@@ -1119,9 +1297,13 @@ class Writer implements GraphWriter {
                 this.store.builder.setNodeValue(this.store.seedColumn, index, seed);
             }
 
-            // EVERY mutating path touches, including a merge: `builder.mutationCount` counts
-            // neither a merge nor a column write (DEP-M6-A).
-            this.store.touch();
+            // A merge may change only the record, which the builder does not hold.
+            this.store.recordsChanged();
+        }
+
+        // A record holding only the id, as a node an edge made is given, puts nothing in the row.
+        if (this.graph.countsRewrites && (prior !== undefined || (merged && Object.keys(record).length > 1))) {
+            this.graph.noteRewrite();
         }
 
         nodes.set(id, record);
@@ -1149,7 +1331,7 @@ class Writer implements GraphWriter {
         const edgeId = this.store.nextEdgeId();
         this.store.stampEdgeId(index, edgeId);
         this.store.recordIngestedEdge(index, edgeId, fileId);
-        this.store.touch();
+        this.store.recordsChanged();
         (this.graph.slice.edges as Map<EdgeId, GraphRecord>).set(edgeIdOf(edgeId), record);
         // A new row already reads the column default, 1: only another capacity costs a write.
         if (resolveEdgeCapacity(record) !== 1) {
@@ -1167,11 +1349,12 @@ class Writer implements GraphWriter {
 
     mergeEdge(edgeIndex: number, weight: number, given: GraphRecord | null): void {
         this.begin();
+        this.graph.noteRewrite();
         const record = given === null ? null : frozenRecord(given);
         const edgeId = this.store.edgeIdAt(edgeIndex);
         const prior = this.store.builder.edgeWeight(edgeIndex);
         this.store.builder.setEdgeWeight(edgeIndex, weight);
-        this.store.touch();
+        this.store.recordsChanged();
         this.record({ kind: "weight", edgeId, prior, next: weight }, edgeKey(edgeIdOf(edgeId)), null);
         if (record !== null) {
             const edges = this.graph.slice.edges as Map<EdgeId, GraphRecord>;
@@ -1184,11 +1367,16 @@ class Writer implements GraphWriter {
         }
     }
 
+    nodeRecord(id: NodeId): GraphRecord | undefined {
+        return this.graph.slice.nodes.get(id);
+    }
+
     setAttributes(target: RecordTarget, id: NodeId, values: GraphRecord, replace = false): boolean {
         const map = (target === "node" ? this.graph.slice.nodes : this.graph.slice.edges) as Map<NodeId, GraphRecord>;
         const key = target === "node" ? id : String(id);
         const prior = map.get(key);
-        if (prior === undefined) {
+        // A node an edge made has a row and no record yet: the write gives it one.
+        if (prior === undefined && !(target === "node" && this.store.builder.hasNode(key))) {
             return false;
         }
 
@@ -1197,6 +1385,7 @@ class Writer implements GraphWriter {
         // revisions, as every attribute write does (design/sets 6.2): comparing values to spare a
         // bump would cost a deep equality per field for no correctness gain.
         if (
+            prior !== undefined &&
             (!replace || Object.keys(prior).length === Object.keys(values).length) &&
             Object.entries(values).every(
                 ([name, value]) => Object.hasOwn(prior, name) && deepEquals(prior[name], value),
@@ -1208,6 +1397,7 @@ class Writer implements GraphWriter {
         }
 
         this.begin();
+        this.graph.noteRewrite();
         const next = frozenRecord(replace ? values : { ...prior, ...values });
         map.set(key, next);
         if (target === "edge") {
@@ -1215,15 +1405,18 @@ class Writer implements GraphWriter {
         }
 
         bumpFields(this.store, target, prior, next, this.bumped, true);
-        // A layer or a filter may read any value just written, so every reader keyed on the
-        // snapshot asks again.
-        this.store.touch();
+        // A layer or a filter may read any value just written, and the builder holds no record.
+        this.store.recordsChanged();
         this.record(
             { kind: "record", target, id: key, prior, next },
             target === "node" ? nodeKey(key) : edgeKey(String(key)),
             null,
         );
         return true;
+    }
+
+    graphValue(name: string): unknown {
+        return this.graph.slice.values.get(name);
     }
 
     setGraphValues(values: Readonly<Record<string, unknown>>): void {
@@ -1255,9 +1448,7 @@ class Writer implements GraphWriter {
             return "edges-present";
         } else {
             builder.setDirected(directed);
-            // The direction is frozen into the snapshot, and the store does not key its cache on
-            // `builder.mutationCount`, so a snapshot taken before the declaration would be served.
-            store.touch();
+            store.account();
             outcome = "applied";
         }
 
@@ -1280,6 +1471,7 @@ class Writer implements GraphWriter {
         }
 
         this.begin();
+        this.graph.noteRewrite();
         // A record whose id graph-format would not store has no row: only the record goes.
         for (const id of new Set(rowless)) {
             const prior = nodes.get(id);
@@ -1306,11 +1498,13 @@ class Writer implements GraphWriter {
         }
 
         this.begin();
+        this.graph.noteRewrite();
         return this.removeRows([], counters);
     }
 
     clear(): void {
         this.begin();
+        this.graph.noteRewrite();
         const { slice } = this.graph;
         const prior: GraphMaps = { nodes: slice.nodes, edges: slice.edges, values: slice.values };
         // The pins go with the graph, in this draft, so undoing the clear pins them again.
@@ -1378,7 +1572,7 @@ class Writer implements GraphWriter {
         // Anything that wrote the builder since the last primitive is kept, not absorbed.
         this.store.audit();
         const before = this.graph.slice.token;
-        const after = this.graph.retoken();
+        const after = this.graph.nextToken();
         if (this.draft !== null) {
             this.entry = new GraphEntry(this.graph, this.store, before, after);
             this.draft.log(this.entry);

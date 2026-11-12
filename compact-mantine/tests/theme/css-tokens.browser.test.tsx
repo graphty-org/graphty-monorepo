@@ -17,7 +17,7 @@ import { render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createCompactTheme } from "../../src/theme";
-import { CM_COLORS, CM_HIGH_CONTRAST, type CmColorToken } from "../../src/theme/tokens";
+import { CM_COLORS, CM_GRAPHTY_ACCENT, CM_HIGH_CONTRAST, type CmColorName } from "../../src/theme/tokens";
 import { hex, part, renderThemed, resetHarness } from "../harness/measure";
 
 afterEach(resetHarness);
@@ -40,7 +40,21 @@ function expected(value: string): string {
     return value === "transparent" ? "#00000000" : hex(value);
 }
 
-const COLORS = Object.entries(CM_COLORS) as [string, CmColorToken][];
+/**
+ * A token's value in a scheme and contrast mode, following a token that is written as another
+ * token (`var(--cm-text-brand)`) to that token's value.
+ * @param name - the token
+ * @param scheme - the color scheme
+ * @param high - the AA mode
+ * @returns the color
+ */
+function valueOf(name: CmColorName, scheme: "light" | "dark", high = false): string {
+    const value = ((high ? CM_HIGH_CONTRAST[name] : undefined) ?? CM_COLORS[name])[scheme];
+    const ref = /^var\(--cm-([a-z-]+)\)$/.exec(value);
+    return ref ? valueOf(ref[1] as CmColorName, scheme, high) : value;
+}
+
+const NAMES = Object.keys(CM_COLORS) as CmColorName[];
 
 describe("Mantine scales on :root", () => {
     it("font sizes", async () => {
@@ -77,23 +91,23 @@ describe("Mantine scales on :root", () => {
 });
 
 describe.each(["light", "dark"] as const)("--cm-* colors resolve (%s)", (scheme) => {
-    it.each(COLORS)("--cm-%s", async (name, token) => {
+    it.each(NAMES)("--cm-%s", async (name) => {
         const { container } = await renderThemed(<Box />, { scheme });
-        expect(paint(name, container)).toBe(expected(token[scheme]));
+        expect(paint(name, container)).toBe(expected(valueOf(name, scheme)));
     });
 });
 
 describe.each(["light", "dark"] as const)("the AA option (%s)", (scheme) => {
-    it.each(Object.entries(CM_HIGH_CONTRAST))("--cm-%s", async (name, token) => {
+    it.each(Object.keys(CM_HIGH_CONTRAST) as CmColorName[])("--cm-%s", async (name) => {
         const { container } = await renderThemed(<Box />, { scheme, highContrast: true });
         expect(document.documentElement.getAttribute("data-cm-contrast")).toBe("high");
-        expect(paint(name, container)).toBe(expected(token?.[scheme] ?? ""));
+        expect(paint(name, container)).toBe(expected(valueOf(name, scheme, true)));
     });
 
     it("leaves every other token at Figma", async () => {
         const { container } = await renderThemed(<Box />, { scheme, highContrast: true });
-        for (const [name, token] of COLORS.filter(([n]) => !(n in CM_HIGH_CONTRAST))) {
-            expect(paint(name, container), name).toBe(expected(token[scheme]));
+        for (const name of NAMES.filter((n) => !(n in CM_HIGH_CONTRAST))) {
+            expect(paint(name, container), name).toBe(expected(valueOf(name, scheme, true)));
         }
     });
 });
@@ -159,5 +173,54 @@ describe("the accent follows the theme's primaryColor", () => {
         expect(paint("border-selected", container)).toBe(teal[8]);
         expect(paint("text-brand", container)).toBe(teal[4]);
         expect(hex(getComputedStyle(part(container, "button")).backgroundColor)).toBe(teal[8]);
+    });
+});
+
+describe.each(["light", "dark"] as const)("the graphty accent (%s)", (scheme) => {
+    /**
+     * Render a filled button, a danger button and an inverse (always dark) menu with one highlighted row under the
+     * graphty accent in the AA mode, as the graphty app does.
+     * @returns the container
+     */
+    function renderGraphty(): HTMLElement {
+        return render(
+            <MantineProvider
+                theme={createCompactTheme({ highContrast: true, accent: "graphty" })}
+                forceColorScheme={scheme}
+            >
+                <Button>Go</Button>
+                <Button color="red">Delete</Button>
+                <div className="cm-menu-surface cm-menu-inverse">
+                    <div className="cm-menu-row" aria-selected="true" data-testid="lit">
+                        Lit
+                    </div>
+                    <div className="cm-menu-row" data-testid="unlit">
+                        Unlit
+                    </div>
+                </div>
+            </MantineProvider>,
+        ).container;
+    }
+
+    it("sets every accent token to its brand value", () => {
+        const container = renderGraphty();
+        expect(document.documentElement.getAttribute("data-cm-accent")).toBe("graphty");
+        for (const [name, token] of Object.entries(CM_GRAPHTY_ACCENT)) {
+            expect(paint(name, container), name).toBe(expected(token[scheme]));
+        }
+    });
+
+    it("draws a filled button lime with a dark label and keeps the danger label white", () => {
+        const container = renderGraphty();
+        const [go, del] = Array.from(container.querySelectorAll("button"));
+        expect(hex(getComputedStyle(go).backgroundColor)).toBe(CM_GRAPHTY_ACCENT["bg-brand"]?.[scheme]);
+        expect(hex(getComputedStyle(go).color)).toBe(CM_GRAPHTY_ACCENT["text-onbrand"]?.[scheme]);
+        expect(hex(getComputedStyle(del).color)).toBe("#ffffff");
+    });
+
+    it("gives the highlighted menu row the dark label and leaves the others white", () => {
+        const container = renderGraphty();
+        expect(hex(getComputedStyle(part(container, "[data-testid=lit]")).color)).toBe("#111111");
+        expect(hex(getComputedStyle(part(container, "[data-testid=unlit]")).color)).toBe("#ffffff");
     });
 });

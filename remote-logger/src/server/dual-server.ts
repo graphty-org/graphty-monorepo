@@ -35,8 +35,8 @@ const colors = {
 /** Maximum number of ports to try when scanning for available port */
 const MAX_PORT_SCAN_ATTEMPTS = 100;
 
-/** Maximum port number allowed (ports 9000-9099 per project guidelines) */
-const MAX_PORT_NUMBER = 9099;
+/** Highest port a scan may reach by default: the whole valid range */
+const MAX_PORT_NUMBER = 65535;
 
 /** Maximum retries for binding after EADDRINUSE during listen */
 const MAX_BIND_RETRIES = 10;
@@ -49,7 +49,7 @@ const MAX_BIND_RETRIES = 10;
  * @param startPort - Starting port to try
  * @param host - Host to bind to
  * @param quiet - Suppress output messages
- * @param maxPort - Maximum port number to scan up to (default: 9099)
+ * @param maxPort - Maximum port number to scan up to (default: 65535; the start port binds that port only)
  * @returns Promise resolving to bound server and actual port
  */
 async function tryBindWithRetry(
@@ -116,14 +116,26 @@ async function tryBindWithRetry(
 
     // Exhausted retries
     const errorMsg =
-        `Could not bind to any port after ${attempts} attempts. ` +
-        `Ports ${startPort}-${port - 1} are all in use or were claimed during bind.`;
+        startPort === maxPort
+            ? portInUseMessage(startPort, host)
+            : `Could not bind to any port after ${attempts} attempts. ` +
+              `Ports ${startPort}-${port - 1} are all in use or were claimed during bind.`;
 
     if (!quiet) {
         console.error(`${colors.red}${errorMsg}${colors.reset}`);
     }
 
     throw new Error(errorMsg);
+}
+
+/**
+ * The error for a port that must be bound exactly but is taken.
+ * @param port - The port that was asked for
+ * @param host - The host it was asked for on
+ * @returns The error message
+ */
+function portInUseMessage(port: number, host: string): string {
+    return `Port ${port} on ${host} is already in use. Stop whatever holds it or start the server on another port.`;
 }
 
 /**
@@ -158,7 +170,7 @@ async function isPortAvailable(port: number, host: string): Promise<boolean> {
  * @param basePort - Starting port number
  * @param host - Host to bind to
  * @param quiet - Suppress output messages
- * @param maxPort - Maximum port number to scan up to (default: 9099)
+ * @param maxPort - Maximum port number to scan up to (default: 65535; the start port binds that port only)
  * @returns Promise resolving to available port number
  * @throws Error if no available port found within MAX_PORT_SCAN_ATTEMPTS
  */
@@ -185,7 +197,7 @@ export async function findAvailablePort(
             return port;
         }
 
-        if (!quiet && attempts === 0) {
+        if (!quiet && attempts === 0 && maxPort > basePort) {
             // eslint-disable-next-line no-console
             console.log(
                 `${colors.yellow}Port ${port} is already in use, scanning for available port...${colors.reset}`,
@@ -198,9 +210,11 @@ export async function findAvailablePort(
 
     // No available port found
     const errorMsg =
-        `Could not find available port after ${attempts} attempts starting from ${basePort}. ` +
-        `Ports ${basePort}-${Math.min(port - 1, maxPort)} are all in use. ` +
-        `Try killing existing processes: pkill -f "remote-log-server"`;
+        basePort === maxPort
+            ? portInUseMessage(basePort, host)
+            : `Could not find available port after ${attempts} attempts starting from ${basePort}. ` +
+              `Ports ${basePort}-${Math.min(port - 1, maxPort)} are all in use. ` +
+              `Try killing existing processes: pkill -f "remote-log-server"`;
 
     if (!quiet) {
         console.error(`${colors.red}${errorMsg}${colors.reset}`);
@@ -235,7 +249,10 @@ export interface DualServerOptions {
     jsonlWriter?: JsonlWriter;
     /** Only serve /log POST and /health GET endpoints (default: false) */
     logReceiveOnly?: boolean;
-    /** Maximum port number to scan up to (default: 9099) */
+    /**
+     * Highest port to try when httpPort is in use (default: 65535). Set it to httpPort to bind
+     * that port only and fail when it is taken, as the CLI does for an explicit --port or PORT.
+     */
     maxPortNumber?: number;
 }
 
@@ -255,6 +272,41 @@ export interface DualServerResult {
     httpPort?: number;
     /** Graceful shutdown function */
     shutdown: () => Promise<void>;
+}
+
+/**
+ * The mode the server reports, from its configuration.
+ * @param logReceiveOnly - Whether the HTTP server only receives logs
+ * @param mcpEnabled - Whether the MCP interface is enabled
+ * @returns The server mode
+ */
+function serverMode(logReceiveOnly: boolean, mcpEnabled: boolean): ServerMode {
+    if (logReceiveOnly && mcpEnabled) {
+        return "mcp-only";
+    }
+    return mcpEnabled ? "dual" : "http-only";
+}
+
+/**
+ * The host to put in endpoint URLs. When bound to all interfaces (0.0.0.0), detect
+ * the machine's IP address, since 0.0.0.0 is not a routable address for clients.
+ * @param httpHost - The host the HTTP server is bound to
+ * @param quiet - Whether to suppress the warning when no LAN IP is found
+ * @returns The endpoint host
+ */
+function endpointHostFor(httpHost: string, quiet: boolean): string {
+    if (httpHost !== "0.0.0.0") {
+        return httpHost;
+    }
+    const internalIp = internalIpV4Sync();
+    if (internalIp) {
+        return internalIp;
+    }
+    // Fallback for local-only use - don't use hostname as it may not resolve
+    if (!quiet) {
+        console.warn(`${colors.yellow}Could not detect LAN IP. Endpoint URL will only work locally.${colors.reset}`);
+    }
+    return "127.0.0.1";
 }
 
 /**
@@ -333,32 +385,8 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
         // Determine protocol based on whether valid cert files were provided
         const useHttps = certPath && keyPath && certFilesExist(certPath, keyPath);
         const protocol = useHttps ? "https" : "http";
-        // Determine mode based on configuration
-        let mode: ServerMode;
-        if (logReceiveOnly && mcpEnabled) {
-            mode = "mcp-only";
-        } else if (!mcpEnabled) {
-            mode = "http-only";
-        } else {
-            mode = "dual";
-        }
-        // When bound to all interfaces (0.0.0.0), detect the machine's IP address
-        // for the endpoint URL since 0.0.0.0 is not a routable address for clients
-        let endpointHost = httpHost;
-        if (httpHost === "0.0.0.0") {
-            const internalIp = internalIpV4Sync();
-            if (internalIp) {
-                endpointHost = internalIp;
-            } else {
-                // Fallback for local-only use - don't use hostname as it may not resolve
-                endpointHost = "127.0.0.1";
-                if (!quiet) {
-                    console.warn(
-                        `${colors.yellow}Could not detect LAN IP. Endpoint URL will only work locally.${colors.reset}`,
-                    );
-                }
-            }
-        }
+        const mode = serverMode(logReceiveOnly, mcpEnabled);
+        const endpointHost = endpointHostFor(httpHost, quiet);
         const scriptUrl = `${protocol}://${endpointHost}:${actualHttpPort}/remote-logger.js`;
         const proxyBaseUrl = `/proxy/`;
 

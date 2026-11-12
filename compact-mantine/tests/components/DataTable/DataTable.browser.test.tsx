@@ -9,9 +9,9 @@
  */
 import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { render, screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { compactTheme } from "../../../src";
 import { DataTable, type DataTableColumn } from "../../../src/components/DataTable";
@@ -34,8 +34,8 @@ const COLUMNS: DataTableColumn<Node>[] = [
     { id: "degree", header: "Links", value: (node) => node.degree, align: "end", width: 80 },
 ];
 
-/** The default row (Figma's 32px list pitch, design/figma-spec.md 10.6), and its pitch: a 1px grid gap between rows. */
-const ROW = 32;
+/** The default row (Figma's 40px spreadsheet row, ls/vars-04, design/figma-spec.md 10.6), and its pitch: a 1px grid gap between rows. */
+const ROW = 40;
 const PITCH = ROW + 1;
 
 /** The height of the scrolling area these tests measure against. */

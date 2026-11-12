@@ -27,6 +27,7 @@
 import { BLUE_HIGHLIGHT, GREEN_SUCCESS, ORANGE_WARNING } from "../config/palettes/binary";
 import {
     CARBON_COLORS,
+    KELLY_COLORS,
     OKABE_ITO_COLORS,
     PASTEL_COLORS,
     TOL_MUTED_COLORS,
@@ -118,7 +119,7 @@ export const PALETTE_DESCRIPTORS: readonly PaletteDescriptor[] = Object.freeze([
     },
     {
         id: "okabe-ito",
-        plainName: "Eight Distinct Colours",
+        plainName: "Eight Distinct Colors",
         kind: "categorical",
         colors: OKABE_ITO_COLORS,
         capacity: OKABE_ITO_COLORS.length,
@@ -126,7 +127,7 @@ export const PALETTE_DESCRIPTORS: readonly PaletteDescriptor[] = Object.freeze([
     },
     {
         id: "tol-vibrant",
-        plainName: "Seven Bright Colours",
+        plainName: "Seven Bright Colors",
         kind: "categorical",
         colors: TOL_VIBRANT_COLORS,
         capacity: TOL_VIBRANT_COLORS.length,
@@ -134,7 +135,7 @@ export const PALETTE_DESCRIPTORS: readonly PaletteDescriptor[] = Object.freeze([
     },
     {
         id: "tol-muted",
-        plainName: "Nine Soft Colours",
+        plainName: "Nine Soft Colors",
         kind: "categorical",
         colors: TOL_MUTED_COLORS,
         capacity: TOL_MUTED_COLORS.length,
@@ -142,7 +143,7 @@ export const PALETTE_DESCRIPTORS: readonly PaletteDescriptor[] = Object.freeze([
     },
     {
         id: "pastel",
-        plainName: "Eight Pale Colours",
+        plainName: "Eight Pale Colors",
         kind: "categorical",
         colors: PASTEL_COLORS,
         capacity: PASTEL_COLORS.length,
@@ -150,10 +151,18 @@ export const PALETTE_DESCRIPTORS: readonly PaletteDescriptor[] = Object.freeze([
     },
     {
         id: "carbon",
-        plainName: "Five Enterprise Colours",
+        plainName: "Five Enterprise Colors",
         kind: "categorical",
         colors: CARBON_COLORS,
         capacity: CARBON_COLORS.length,
+        colorblindSafe: [],
+    },
+    {
+        id: "kelly",
+        plainName: "Nineteen Contrasting Colors",
+        kind: "categorical",
+        colors: KELLY_COLORS,
+        capacity: KELLY_COLORS.length,
         colorblindSafe: [],
     },
     {

@@ -228,13 +228,14 @@ export const FieldRow = forwardRef<HTMLDivElement, FieldRowProps>(function Field
     const showLabels = usePanelLabels();
     const fields = fieldsOf(children);
     const count = fields.length;
+    const noun = count === 1 ? "field" : "fields";
 
     // A development-only diagnostic, printed in a consumer's own devtools by
     // people who have never seen this project. Plain English, no in-house
     // shorthand, and it says what to do rather than only what is wrong.
     useDevWarning(
         count === 0 || count > MAX_FIELDS
-            ? `FieldRow was given ${String(count)} ${count === 1 ? "field" : "fields"}, and it holds one field, ` +
+            ? `FieldRow was given ${String(count)} ${noun}, and it holds one field, ` +
                   "or two side by side. A row with none is an empty 32px gap, and a third field has nowhere to " +
                   "go in the 240px panel the row is measured for. Put the extra fields on rows of their own."
             : undefined,
@@ -397,7 +398,9 @@ export const FieldRow = forwardRef<HTMLDivElement, FieldRowProps>(function Field
                         flexDirection: captions ? "column" : undefined,
                         alignItems: captions ? "stretch" : "center",
                         gap: captions ? CAPTION_PAD : undefined,
-                        flex: `0 0 ${String(fieldWidth)}px`,
+                        // The grid's width, given way in a row narrower than the panel grid (an
+                        // inspector that keeps room for its scrollbar) so the trailing slot stays inside.
+                        flex: `0 1 ${String(fieldWidth)}px`,
                         minWidth: 0,
                         // Logical, not marginLeft/marginRight. See the note at
                         // the top of this file: a physical gutter escapes the

@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -46,14 +46,14 @@ const BETWEENNESS_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
  * `n / k` for an estimate of the exact count.
  */
 export class BetweennessCentralityAlgorithm extends MetricAlgorithm<BetweennessOptions> {
-    static namespace = "graphty";
-    static type = "betweenness";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "betweenness";
     /** Computes over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = betweennessOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = betweennessOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         k: {
             type: "integer",
             default: null,

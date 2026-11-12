@@ -1,0 +1,512 @@
+{
+    "about": "Which reference judges each property of each setting of the plain GML specimen sheets (the GML draft's keys, no Creator), read by graphty-element/test/fidelity/oracle/judges.ts. No one program draws all of the draft's keys, so each property of each setting is judged by the first that draws it as the draft means: the sheet's oracle (OGDF 2025.10, oracles/<sample>.svg), else a stand-in (oracles/stand-ins/<sample>.<route>.svg), else the draft itself (a 'specification' rule: the expected drawing written over the oracle's, with the section it comes from), else no one ('none', with why). A property of a setting no rule names is the oracle's; common rules come before each sheet's, and a later rule overrides an earlier one. Settings are the specimens' ids (an edge's, its arrows' and its label's are the edge specimen's); '*' is every element. Chosen by what each program drew of each setting (the report's references), never by what graphty draws.",
+    "references": {
+        "oracle": "OGDF 2025.10, GraphIO::readGML and GraphIO::drawSVG of the sheet (route ogdf-draw): reads x, y, w, h, #RGB and #RRGGBB colors, type rectangle, Line, arrow and label",
+        "cytoscape-gml": "Cytoscape desktop 3.10.5's GML reader (a stand-in): reads Tk's color names, width as a border or line width, and its own shape names only; names a node with no label by its id",
+        "gml2gv": "Graphviz 14.1.2's gml2gv | neato -n2 (a stand-in): reads type as a Graphviz shape (oval an ellipse), width as the pen width, decodes GML's entities; draws fill as the outline color and every Line as a spline",
+        "specification": "Himsolt, 'GML: Graph Modelling Language', draft of 19 Dec 1996 (Graphlet manual), appendix A, and the Tk 8.6 manuals its graphics follow (A.4): not a program, each rule cites its section",
+        "none": "nothing the file sets and nothing the draft defines: judged by no one, so no program's own default is scored as GML's"
+    },
+    "common": [
+        {
+            "judge": "none",
+            "settings": ["*"],
+            "properties": ["background"],
+            "why": "the file sets no background and the draft names none: each program's canvas color is its own"
+        },
+        {
+            "judge": "none",
+            "settings": ["*"],
+            "properties": ["label.size", "label.weight", "label.style", "label.family"],
+            "why": "the draft names no font for a label (A.1 label is its text alone) and the sheets set none: each program draws its own default font"
+        },
+        {
+            "judge": "gml2gv",
+            "settings": ["*"],
+            "properties": ["node.shape"],
+            "why": "OGDF draws rectangle alone of the draft's types and Cytoscape's GML reader reads only its own shape names (an oval is its default round rectangle); gml2gv passes oval to Graphviz, which draws it as an ellipse"
+        },
+        {
+            "judge": "oracle",
+            "settings": ["anchor-*", "type-rectangle", "rect-*"],
+            "properties": ["node.shape"],
+            "why": "type rectangle, which OGDF draws"
+        },
+        {
+            "judge": "cytoscape-gml",
+            "settings": ["*"],
+            "properties": ["node.strokeWidth", "edge.width"],
+            "why": "OGDF does not read the draft's width (every outline and line is 1 px); Cytoscape's GML reader draws it"
+        },
+        {
+            "judge": "none",
+            "settings": ["default"],
+            "properties": [
+                "node.width",
+                "node.height",
+                "node.sizeToSpacing",
+                "node.sizeToExtent",
+                "node.shape",
+                "node.fill",
+                "node.fillOpacity",
+                "node.gradient",
+                "node.stroke",
+                "node.strokeWidth",
+                "node.strokeDash",
+                "node.ring",
+                "edge.color",
+                "edge.width",
+                "edge.opacity",
+                "edge.dash",
+                "edge.gradient",
+                "edge.outline",
+                "edge.arrowShape",
+                "edge.arrowFill",
+                "edge.arrowColor",
+                "edge.arrowLength",
+                "edge.arrowWidth",
+                "edge.arrowToSpacing"
+            ],
+            "why": "nothing is set: no program draws the draft's own defaults (A.4: w and h 0, an edge width of 0.0), so each draws its own and none is GML's"
+        }
+    ],
+    "sheets": {
+        "gml-specimen-node-shapes": {
+            "standIns": ["cytoscape-gml", "gml2gv"],
+            "rules": [
+                {
+                    "judge": "none",
+                    "settings": ["type-arc", "type-line", "type-polygon", "type-text"],
+                    "properties": ["node.shape"],
+                    "why": "the draft lists these types (A.4 type) but a node holds only its box: an arc needs Tk's start and extent, a line and a polygon their points, and a text item has no body; no program here draws them as Tk would, and the draft gives no drawing to expect"
+                },
+                {
+                    "judge": "specification",
+                    "settings": ["type-image", "type-bitmap"],
+                    "properties": ["node.shape"],
+                    "expect": {
+                        "node": {
+                            "shape": "rect"
+                        }
+                    },
+                    "source": "Himsolt, 'GML: Graph Modelling Language', draft of 19 Dec 1996 (Graphlet manual), A.4 image ('the image is scaled to fit into the given dimensions') and bitmap ('used to draw an object'): the picture, a rectangle, draws the node",
+                    "why": "no program here reads image or bitmap: OGDF and gml2gv draw a box with an outline, Cytoscape its round rectangle"
+                },
+                {
+                    "judge": "specification",
+                    "settings": ["type-image", "type-bitmap"],
+                    "properties": ["node.stroke", "node.strokeWidth", "node.strokeDash"],
+                    "expect": {
+                        "node": {
+                            "stroke": null
+                        }
+                    },
+                    "source": "Himsolt, 'GML: Graph Modelling Language', draft of 19 Dec 1996 (Graphlet manual), A.4 image and bitmap (the picture draws the object), and the Tk 8.6 canvas manual (https://www.tcl.tk/man/tcl8.6/TkCmd/canvas.htm), whose graphics the draft's are 'modelled after' (A.4) (an image or bitmap item has no outline)",
+                    "why": "no program here reads image or bitmap: each draws the node's outline around a plain box"
+                },
+                {
+                    "judge": "none",
+                    "settings": ["type-image", "type-bitmap"],
+                    "properties": ["node.fill", "node.fillOpacity", "node.gradient"],
+                    "why": "the picture covers the node, and the comparator measures no picture's content (a picture graphty draws is only excused as a stray where the program draws one)"
+                }
+            ]
+        },
+        "gml-specimen-node-fills-borders": {
+            "standIns": ["cytoscape-gml", "gml2gv"],
+            "rules": [
+                {
+                    "judge": "cytoscape-gml",
+                    "settings": ["fill-name", "fill-name-upper"],
+                    "properties": ["node.fill"],
+                    "why": "OGDF reads a color only as #RGB or #RRGGBB and draws a name black; Cytoscape's GML reader reads Tk's color names"
+                },
+                {
+                    "judge": "specification",
+                    "settings": ["fill-hex9", "fill-hex12"],
+                    "properties": ["node.fill"],
+                    "expect": {
+                        "node": {
+                            "fill": {
+                                "color": "#ff8800",
+                                "opacity": 1,
+                                "gradient": null
+                            }
+                        }
+                    },
+                    "source": "Tk_GetColor (https://www.tcl.tk/man/tcl8.6/TkLib/GetColor.htm): #RRRGGGBBB and #RRRRGGGGBBBB give each component in 3 or 4 hex digits, so #FFF888000 and #FFFF88880000 are #FF8800; the draft's colors are Tk's (A.4)",
+                    "why": "no program here reads Tk's 9- and 12-digit colors: OGDF draws black, Cytoscape its default, gml2gv #ffff88 or no node"
+                },
+                {
+                    "judge": "specification",
+                    "settings": ["fill-name-space"],
+                    "properties": ["node.fill"],
+                    "expect": {
+                        "node": {
+                            "fill": {
+                                "color": "#add8e6",
+                                "opacity": 1,
+                                "gradient": null
+                            }
+                        }
+                    },
+                    "source": "Tk_GetColor: a color may be any name in Tk's color table, where 'light blue' is LightBlue, 173 216 230 (#ADD8E6); the draft's colors are Tk's (A.4)",
+                    "why": "no program here reads a color name with a space: OGDF and gml2gv draw black, Cytoscape its default"
+                },
+                {
+                    "judge": "cytoscape-gml",
+                    "settings": ["outline-name"],
+                    "properties": ["node.stroke"],
+                    "why": "OGDF draws a color name black; Cytoscape's GML reader reads it"
+                },
+                {
+                    "judge": "gml2gv",
+                    "settings": ["width-2", "width-4", "width-6", "outline-*"],
+                    "properties": ["node.width", "node.height", "node.sizeToSpacing", "node.sizeToExtent"],
+                    "why": "a node's outer size depends on its outline: OGDF draws every outline 1 px wide and Cytoscape draws its border inside the box; gml2gv draws the outline as wide as width, centered on the box, as Tk does"
+                },
+                {
+                    "judge": "specification",
+                    "settings": ["width-0"],
+                    "properties": ["node.stroke", "node.strokeWidth"],
+                    "expect": {
+                        "node": {
+                            "stroke": {
+                                "color": "#505050",
+                                "opacity": 1,
+                                "width": 1,
+                                "dash": null,
+                                "dashClass": "solid"
+                            }
+                        }
+                    },
+                    "source": "the Tk 8.6 canvas manual (https://www.tcl.tk/man/tcl8.6/TkCmd/canvas.htm), whose graphics the draft's are 'modelled after' (A.4): an item's outline is at least one pixel wide (an X11 line of width 0 is a thin line one pixel wide); the draft's width is Tk's (A.4)",
+                    "why": "OGDF draws every outline 1 px wide whatever width says, Cytoscape draws none, and gml2gv's node is lost"
+                },
+                {
+                    "judge": "cytoscape-gml",
+                    "settings": ["stipple-*"],
+                    "properties": ["node.stroke", "node.strokeDash"],
+                    "why": "OGDF reads a Tk stipple as one of its stroke types, which no Tk name is, and draws no outline; Cytoscape's GML reader ignores stipple and draws the outline"
+                },
+                {
+                    "judge": "specification",
+                    "settings": ["stipple-gray75"],
+                    "properties": ["node.fillOpacity"],
+                    "expect": {
+                        "node": {
+                            "fill": {
+                                "color": "#c8c8c8",
+                                "opacity": 0.75,
+                                "gradient": null
+                            }
+                        }
+                    },
+                    "source": "Himsolt, 'GML: Graph Modelling Language', draft of 19 Dec 1996 (Graphlet manual), A.4 stipple, and the Tk 8.6 canvas manual (https://www.tcl.tk/man/tcl8.6/TkCmd/canvas.htm), whose graphics the draft's are 'modelled after' (A.4) -stipple (the fill is drawn through the bitmap: where a bit is off nothing is drawn); Tk_GetBitmap (https://www.tcl.tk/man/tcl8.6/TkLib/GetBitmap.htm): gray75, gray50, gray25 and gray12 are 75, 50, 25 and 12.5 percent gray",
+                    "why": "no program here draws a stipple: OGDF, Cytoscape and gml2gv draw the fill whole"
+                },
+                {
+                    "judge": "specification",
+                    "settings": ["stipple-gray50"],
+                    "properties": ["node.fillOpacity"],
+                    "expect": {
+                        "node": {
+                            "fill": {
+                                "color": "#c8c8c8",
+                                "opacity": 0.5,
+                                "gradient": null
+                            }
+                        }
+                    },
+                    "source": "Himsolt, 'GML: Graph Modelling Language', draft of 19 Dec 1996 (Graphlet manual), A.4 stipple, and the Tk 8.6 canvas manual (https://www.tcl.tk/man/tcl8.6/TkCmd/canvas.htm), whose graphics the draft's are 'modelled after' (A.4) -stipple (the fill is drawn through the bitmap: where a bit is off nothing is drawn); Tk_GetBitmap (https://www.tcl.tk/man/tcl8.6/TkLib/GetBitmap.htm): gray75, gray50, gray25 and gray12 are 75, 50, 25 and 12.5 percent gray",
+                    "why": "no program here draws a stipple: OGDF, Cytoscape and gml2gv draw the fill whole"
+                },
+                {
+                    "judge": "specification",
+                    "settings": ["stipple-gray25"],
+                    "properties": ["node.fillOpacity"],
+                    "expect": {
+                        "node": {
+                            "fill": {
+                                "color": "#c8c8c8",
+                                "opacity": 0.25,
+                                "gradient": null
+                            }
+                        }
+                    },
+                    "source": "Himsolt, 'GML: Graph Modelling Language', draft of 19 Dec 1996 (Graphlet manual), A.4 stipple, and the Tk 8.6 canvas manual (https://www.tcl.tk/man/tcl8.6/TkCmd/canvas.htm), whose graphics the draft's are 'modelled after' (A.4) -stipple (the fill is drawn through the bitmap: where a bit is off nothing is drawn); Tk_GetBitmap (https://www.tcl.tk/man/tcl8.6/TkLib/GetBitmap.htm): gray75, gray50, gray25 and gray12 are 75, 50, 25 and 12.5 percent gray",
+                    "why": "no program here draws a stipple: OGDF, Cytoscape and gml2gv draw the fill whole"
+                },
+                {
+                    "judge": "specification",
+                    "settings": ["stipple-gray12"],
+                    "properties": ["node.fillOpacity"],
+                    "expect": {
+                        "node": {
+                            "fill": {
+                                "color": "#c8c8c8",
+                                "opacity": 0.125,
+                                "gradient": null
+                            }
+                        }
+                    },
+                    "source": "Himsolt, 'GML: Graph Modelling Language', draft of 19 Dec 1996 (Graphlet manual), A.4 stipple, and the Tk 8.6 canvas manual (https://www.tcl.tk/man/tcl8.6/TkCmd/canvas.htm), whose graphics the draft's are 'modelled after' (A.4) -stipple (the fill is drawn through the bitmap: where a bit is off nothing is drawn); Tk_GetBitmap (https://www.tcl.tk/man/tcl8.6/TkLib/GetBitmap.htm): gray75, gray50, gray25 and gray12 are 75, 50, 25 and 12.5 percent gray",
+                    "why": "no program here draws a stipple: OGDF, Cytoscape and gml2gv draw the fill whole"
+                },
+                {
+                    "judge": "none",
+                    "settings": [
+                        "stipple-error",
+                        "stipple-hourglass",
+                        "stipple-info",
+                        "stipple-questhead",
+                        "stipple-question",
+                        "stipple-warning"
+                    ],
+                    "properties": ["node.fillOpacity"],
+                    "why": "an icon bitmap's pattern: neither the draft nor Tk's manual says how much of it is set, and the comparator measures no fill pattern"
+                }
+            ]
+        },
+        "gml-specimen-node-sizes-opacity": {
+            "standIns": ["cytoscape-gml", "gml2gv"],
+            "rules": []
+        },
+        "gml-specimen-labels": {
+            "standIns": ["cytoscape-gml", "gml2gv"],
+            "rules": [
+                {
+                    "judge": "gml2gv",
+                    "settings": ["label-entity", "label-char-ref"],
+                    "properties": ["label.text"],
+                    "why": "the draft writes & and every character outside ASCII as an ISO 8859 entity (3.x, appendix B), so the text is the characters; OGDF and Cytoscape draw the entities undecoded, gml2gv decodes them"
+                }
+            ]
+        },
+        "gml-specimen-arrows": {
+            "standIns": ["cytoscape-gml", "gml2gv"],
+            "rules": [
+                {
+                    "judge": "specification",
+                    "settings": ["arrow-first"],
+                    "properties": ["edge.arrowLength", "edge.arrowWidth", "edge.arrowToSpacing"],
+                    "expect": {
+                        "edge": {
+                            "arrows": [
+                                {
+                                    "end": "source",
+                                    "length": 10,
+                                    "width": 7.5,
+                                    "filled": true,
+                                    "shape": "triangle",
+                                    "color": "#505050"
+                                }
+                            ]
+                        }
+                    },
+                    "source": "the Tk 8.6 canvas manual (https://www.tcl.tk/man/tcl8.6/TkCmd/canvas.htm), whose graphics the draft's are 'modelled after' (A.4) -arrowshape (default {8 10 3}: the trailing points 10 back from the tip and 3 out from the line's edges, so 7.5 across a line 1.5 wide); the draft's arrow is Tk's (A.4)",
+                    "why": "the file sets no arrowshape, so the arrowhead is Tk's default; OGDF draws its own, three times its 1 px line long"
+                },
+                {
+                    "judge": "specification",
+                    "settings": ["arrow-last"],
+                    "properties": ["edge.arrowLength", "edge.arrowWidth", "edge.arrowToSpacing"],
+                    "expect": {
+                        "edge": {
+                            "arrows": [
+                                {
+                                    "end": "target",
+                                    "length": 10,
+                                    "width": 7.5,
+                                    "filled": true,
+                                    "shape": "triangle",
+                                    "color": "#505050"
+                                }
+                            ]
+                        }
+                    },
+                    "source": "the Tk 8.6 canvas manual (https://www.tcl.tk/man/tcl8.6/TkCmd/canvas.htm), whose graphics the draft's are 'modelled after' (A.4) -arrowshape (default {8 10 3}: the trailing points 10 back from the tip and 3 out from the line's edges, so 7.5 across a line 1.5 wide); the draft's arrow is Tk's (A.4)",
+                    "why": "the file sets no arrowshape, so the arrowhead is Tk's default; OGDF draws its own, three times its 1 px line long"
+                },
+                {
+                    "judge": "specification",
+                    "settings": ["arrow-both"],
+                    "properties": ["edge.arrowLength", "edge.arrowWidth", "edge.arrowToSpacing"],
+                    "expect": {
+                        "edge": {
+                            "arrows": [
+                                {
+                                    "end": "source",
+                                    "length": 10,
+                                    "width": 7.5,
+                                    "filled": true,
+                                    "shape": "triangle",
+                                    "color": "#505050"
+                                },
+                                {
+                                    "end": "target",
+                                    "length": 10,
+                                    "width": 7.5,
+                                    "filled": true,
+                                    "shape": "triangle",
+                                    "color": "#505050"
+                                }
+                            ]
+                        }
+                    },
+                    "source": "the Tk 8.6 canvas manual (https://www.tcl.tk/man/tcl8.6/TkCmd/canvas.htm), whose graphics the draft's are 'modelled after' (A.4) -arrowshape (default {8 10 3}: the trailing points 10 back from the tip and 3 out from the line's edges, so 7.5 across a line 1.5 wide); the draft's arrow is Tk's (A.4)",
+                    "why": "the file sets no arrowshape, so the arrowhead is Tk's default; OGDF draws its own, three times its 1 px line long"
+                }
+            ]
+        },
+        "gml-specimen-edge-labels": {
+            "standIns": ["cytoscape-gml", "gml2gv"],
+            "rules": [
+                {
+                    "judge": "specification",
+                    "settings": ["default"],
+                    "properties": ["edge.arrow"],
+                    "expect": {
+                        "edge": {
+                            "arrows": []
+                        }
+                    },
+                    "source": "Himsolt, 'GML: Graph Modelling Language', draft of 19 Dec 1996 (Graphlet manual), A.3.1 directed (default undirected) and example 1.2 ('In a directed graph, edges have arrows that indicate the direction'): an edge of an undirected graph has none",
+                    "why": "OGDF gives an edge with no arrow key an arrow at its target even in an undirected graph"
+                },
+                {
+                    "judge": "none",
+                    "settings": ["label-bend"],
+                    "properties": ["label.alongLine", "label.offLine"],
+                    "why": "the draft names no place for an edge label: OGDF puts it on the route's first segment, Graphviz at its middle"
+                }
+            ]
+        },
+        "gml-specimen-images-charts": {
+            "standIns": ["cytoscape-gml", "gml2gv"],
+            "rules": [
+                {
+                    "judge": "specification",
+                    "settings": ["image-png", "image-png-wide", "bitmap-xbm", "bitmap-fill"],
+                    "properties": ["node.shape"],
+                    "expect": {
+                        "node": {
+                            "shape": "rect"
+                        }
+                    },
+                    "source": "Himsolt, 'GML: Graph Modelling Language', draft of 19 Dec 1996 (Graphlet manual), A.4 image ('the image is scaled to fit into the given dimensions') and bitmap ('used to draw an object'): the picture, a rectangle, draws the node",
+                    "why": "no program here reads image or bitmap: OGDF and gml2gv draw a box with an outline, Cytoscape its round rectangle"
+                },
+                {
+                    "judge": "specification",
+                    "settings": ["image-png", "image-png-wide", "bitmap-xbm", "bitmap-fill"],
+                    "properties": ["node.stroke", "node.strokeWidth", "node.strokeDash"],
+                    "expect": {
+                        "node": {
+                            "stroke": null
+                        }
+                    },
+                    "source": "Himsolt, 'GML: Graph Modelling Language', draft of 19 Dec 1996 (Graphlet manual), A.4 image and bitmap (the picture draws the object), and the Tk 8.6 canvas manual (https://www.tcl.tk/man/tcl8.6/TkCmd/canvas.htm), whose graphics the draft's are 'modelled after' (A.4) (an image or bitmap item has no outline)",
+                    "why": "no program here reads image or bitmap: each draws the node's outline around a plain box"
+                },
+                {
+                    "judge": "none",
+                    "settings": ["image-png", "image-png-wide", "bitmap-xbm", "bitmap-fill"],
+                    "properties": ["node.fill", "node.fillOpacity", "node.gradient"],
+                    "why": "the picture covers the node, and the comparator measures no picture's content (a picture graphty draws is only excused as a stray where the program draws one)"
+                },
+                {
+                    "judge": "none",
+                    "settings": ["image-on-oval"],
+                    "properties": [
+                        "node.shape",
+                        "node.stroke",
+                        "node.strokeWidth",
+                        "node.strokeDash",
+                        "node.fill",
+                        "node.fillOpacity",
+                        "node.gradient"
+                    ],
+                    "why": "the draft does not say how an image draws a node of type oval (A.4: the image 'is used to draw an object'): inside the oval or in its place"
+                }
+            ]
+        },
+        "gml-specimen-edges-lines": {
+            "standIns": ["cytoscape-gml", "gml2gv"],
+            "rules": [
+                {
+                    "judge": "specification",
+                    "settings": ["default"],
+                    "properties": ["edge.arrow"],
+                    "expect": {
+                        "edge": {
+                            "arrows": []
+                        }
+                    },
+                    "source": "Himsolt, 'GML: Graph Modelling Language', draft of 19 Dec 1996 (Graphlet manual), A.3.1 directed (default undirected) and example 1.2 ('In a directed graph, edges have arrows that indicate the direction'): an edge of an undirected graph has none",
+                    "why": "OGDF gives an edge with no arrow key an arrow at its target even in an undirected graph"
+                },
+                {
+                    "judge": "cytoscape-gml",
+                    "settings": ["fill-blue"],
+                    "properties": ["edge.color"],
+                    "why": "OGDF draws a color name black; Cytoscape's GML reader reads it"
+                },
+                {
+                    "judge": "cytoscape-gml",
+                    "settings": ["stipple-*"],
+                    "properties": ["edge.present", "edge.extra", "edge.route", "edge.curve", "edge.color", "edge.dash"],
+                    "why": "OGDF reads a Tk stipple as one of its stroke types, which no Tk name is, and draws no line; Cytoscape's GML reader ignores stipple and draws the line"
+                },
+                {
+                    "judge": "specification",
+                    "settings": ["stipple-gray50"],
+                    "properties": ["edge.opacity"],
+                    "expect": {
+                        "edge": {
+                            "stroke": {
+                                "color": "#505050",
+                                "opacity": 0.5,
+                                "width": 4,
+                                "dash": null,
+                                "dashClass": "solid"
+                            }
+                        }
+                    },
+                    "source": "Himsolt, 'GML: Graph Modelling Language', draft of 19 Dec 1996 (Graphlet manual), A.4 stipple ('a stipple pattern to draw the line'), and the Tk 8.6 canvas manual (https://www.tcl.tk/man/tcl8.6/TkCmd/canvas.htm), whose graphics the draft's are 'modelled after' (A.4) line -stipple; Tk_GetBitmap (https://www.tcl.tk/man/tcl8.6/TkLib/GetBitmap.htm): gray75, gray50, gray25 and gray12 are 75, 50, 25 and 12.5 percent gray",
+                    "why": "no program here draws a stipple: Cytoscape and gml2gv draw the line whole, OGDF none"
+                },
+                {
+                    "judge": "specification",
+                    "settings": ["stipple-gray25"],
+                    "properties": ["edge.opacity"],
+                    "expect": {
+                        "edge": {
+                            "stroke": {
+                                "color": "#505050",
+                                "opacity": 0.25,
+                                "width": 4,
+                                "dash": null,
+                                "dashClass": "solid"
+                            }
+                        }
+                    },
+                    "source": "Himsolt, 'GML: Graph Modelling Language', draft of 19 Dec 1996 (Graphlet manual), A.4 stipple ('a stipple pattern to draw the line'), and the Tk 8.6 canvas manual (https://www.tcl.tk/man/tcl8.6/TkCmd/canvas.htm), whose graphics the draft's are 'modelled after' (A.4) line -stipple; Tk_GetBitmap (https://www.tcl.tk/man/tcl8.6/TkLib/GetBitmap.htm): gray75, gray50, gray25 and gray12 are 75, 50, 25 and 12.5 percent gray",
+                    "why": "no program here draws a stipple: Cytoscape and gml2gv draw the line whole, OGDF none"
+                },
+                {
+                    "judge": "specification",
+                    "settings": ["smooth-1"],
+                    "properties": ["edge.route", "edge.curve"],
+                    "expect": {
+                        "edge": {
+                            "route": "tk-smooth"
+                        }
+                    },
+                    "source": "the Tk 8.6 canvas manual (https://www.tcl.tk/man/tcl8.6/TkCmd/canvas.htm), whose graphics the draft's are 'modelled after' (A.4) line -smooth 1: the line is drawn as parabolic splines, one for each two segments, from the first point to the last (tkTrig.c TkMakeBezierCurve)",
+                    "why": "OGDF ignores smooth and draws the Line straight, Cytoscape ignores the Line, gml2gv draws every Line as a spline"
+                }
+            ]
+        }
+    }
+}

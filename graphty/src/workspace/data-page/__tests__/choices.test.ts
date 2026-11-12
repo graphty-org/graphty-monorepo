@@ -10,7 +10,15 @@ import {
 } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it } from "vitest";
 
-import { INITIAL_CHOICES, loadChoices, roleOf, setRole, setRowsAre } from "../choices";
+import {
+    INITIAL_CHOICES,
+    initialChoices,
+    loadChoices,
+    roleOf,
+    setRole,
+    setRowsAre,
+    setWeightMeaning,
+} from "../choices";
 
 const PEOPLE = "id,name,team\na,Ann,red\nb,Bo,blue\nc,Cy,red\n";
 const TIES = "source,target,weight\na,b,2\nb,c,5\nc,z,1\n";
@@ -55,10 +63,31 @@ describe("the Data page's choices", () => {
             edgeFile: new File([TIES], "ties.csv"),
         });
 
-        const choices = loadChoices(draft, INITIAL_CHOICES, "replace");
-        assert.deepEqual(choices, { mode: "replace", unmatched: "leave-out", directed: "auto" });
+        const choices = loadChoices(draft, INITIAL_CHOICES, "replace", true);
+        assert.deepEqual(choices, {
+            mode: "replace",
+            unmatched: "leave-out",
+            directed: "auto",
+            styles: "file",
+            styleOptions: { lengths: "spacing", framing: "file" },
+        });
         const report = await draft.report(choices);
         assert.deepEqual(report.unmatched, { rows: 1, values: 1 });
+    });
+
+    it("asks for no styles, and starts with none, while the element's file styles experiment is off", async () => {
+        const draft = await prepare({
+            nodeFile: new File([PEOPLE], "people.csv"),
+            edgeFile: new File([TIES], "ties.csv"),
+        });
+
+        assert.deepEqual(loadChoices(draft, INITIAL_CHOICES, "replace", false), {
+            mode: "replace",
+            unmatched: "leave-out",
+            directed: "auto",
+        });
+        assert.strictEqual(initialChoices(false).styles, "none");
+        assert.strictEqual(initialChoices(true).styles, "file");
     });
 
     it("moves a role to the chosen column and gives the old holder no role", async () => {
@@ -119,5 +148,34 @@ describe("the Data page's choices", () => {
         const report = await draft.report(loadChoices(draft, choices, "replace"));
         assert.equal(report.counts.edges, 0);
         assert.deepEqual(setRowsAre(draft, rows, "edges", choices).tables.rows, { roles: {} });
+    });
+
+    it("loads the weight with the meaning the reader chose under Higher means", async () => {
+        const draft = await prepare({ file: new File(["from,to,emails\np01,p02,14\np02,p03,9\n"], "messages.csv") });
+        const [table] = draft.tables;
+        const named = setRole(draft, table, "emails", "weight", INITIAL_CHOICES);
+        const choices = loadChoices(draft, setWeightMeaning(table, "strength", named), "replace");
+        const { mapping } = choices;
+        assert.ok(mapping !== undefined && "tables" in mapping);
+        assert.equal(mapping.tables[table.id]?.weightMeaning, "strength");
+
+        await draft.load(choices);
+        assert.deepEqual(session?.data.loadedWeight(), { attribute: "emails", meaning: "strength" });
+    });
+
+    it("sends no meaning for a table with no weight", async () => {
+        const draft = await prepare({ file: new File(["source,target\na,b\n"], "plain.csv") });
+        const [table] = draft.tables;
+        const choices = loadChoices(draft, setWeightMeaning(table, "distance", INITIAL_CHOICES), "replace");
+        assert.isUndefined(choices.mapping);
+    });
+
+    it("Not set takes a chosen meaning back off and keeps the role", async () => {
+        const draft = await prepare({ file: new File(["from,to,emails\np01,p02,14\n"], "messages.csv") });
+        const [table] = draft.tables;
+        const named = setRole(draft, table, "emails", "weight", INITIAL_CHOICES);
+        const unset = setWeightMeaning(table, undefined, setWeightMeaning(table, "distance", named));
+        assert.deepEqual(unset.tables[table.id], named.tables[table.id]);
+        assert.notProperty(unset.tables[table.id], "weightMeaning");
     });
 });

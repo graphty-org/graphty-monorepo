@@ -61,10 +61,10 @@ function isMirror(source: NodeId, target: NodeId): boolean {
  * Uses adjacency lists for optimal performance with sparse graphs.
  */
 export class Graph {
-    private nodeMap: Map<NodeId, Node>;
-    private adjacencyList: Map<NodeId, Map<NodeId, Edge>>;
-    private incomingEdges: Map<NodeId, Map<NodeId, Edge>>; // For directed graphs
-    private config: GraphConfig;
+    private readonly nodeMap: Map<NodeId, Node>;
+    private readonly adjacencyList: Map<NodeId, Map<NodeId, Edge>>;
+    private readonly incomingEdges: Map<NodeId, Map<NodeId, Edge>>; // For directed graphs
+    private readonly config: GraphConfig;
     private edgeCount: number;
     private mutations: number;
 
@@ -114,6 +114,25 @@ export class Graph {
             return false;
         }
 
+        this.removeIncidentEdges(id);
+
+        // Remove the node itself
+        this.nodeMap.delete(id);
+        this.adjacencyList.delete(id);
+
+        if (this.config.directed) {
+            this.incomingEdges.delete(id);
+        }
+
+        this.mutations++;
+        return true;
+    }
+
+    /**
+     * Remove every edge that touches a node, outgoing first, then incoming.
+     * @param id - The node whose edges are removed
+     */
+    private removeIncidentEdges(id: NodeId): void {
         // Remove all edges connected to this node
         const outgoingEdges = this.adjacencyList.get(id);
         if (outgoingEdges) {
@@ -137,17 +156,6 @@ export class Graph {
                 }
             }
         }
-
-        // Remove the node itself
-        this.nodeMap.delete(id);
-        this.adjacencyList.delete(id);
-
-        if (this.config.directed) {
-            this.incomingEdges.delete(id);
-        }
-
-        this.mutations++;
-        return true;
     }
 
     /**
@@ -190,15 +198,13 @@ export class Graph {
             if (targetIncoming) {
                 targetIncoming.set(source, edge);
             }
-        } else {
+        } else if (source !== target) {
             // For undirected graphs, add the reverse edge
-            if (source !== target) {
-                const reverseEdge: Edge = { source: target, target: source, weight, data };
-                const targetAdjacency = this.adjacencyList.get(target);
+            const reverseEdge: Edge = { source: target, target: source, weight, data };
+            const targetAdjacency = this.adjacencyList.get(target);
 
-                if (targetAdjacency) {
-                    targetAdjacency.set(source, reverseEdge);
-                }
+            if (targetAdjacency) {
+                targetAdjacency.set(source, reverseEdge);
             }
         }
 

@@ -50,6 +50,7 @@ import {
 } from "../../common/ontology-export.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
+import { itemAt, jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
@@ -920,7 +921,7 @@ function unrecognizedCarried(column: Column, rows: readonly number[], kinds: rea
  * @param header - the kept header (tag to raw values)
  * @returns the scopes by type
  */
-function synonymTypeScopes(header: Readonly<Record<string, readonly string[]>>): Map<string, string | null> {
+function synonymTypeScopes(header: Readonly<Partial<Record<string, readonly string[]>>>): Map<string, string | null> {
     const out = new Map<string, string | null>();
     for (const raw of header.synonymtypedef ?? []) {
         const tokens = tokenize(raw);
@@ -973,6 +974,39 @@ function keptObo(snapshot: GraphSnapshot): {
 }
 
 /**
+ * Note the frame kinds the written nodes read back as: the type column gained, and the nodes
+ * written as [Typedef] frames.
+ * @param snapshot - the snapshot
+ * @param rows - the node indices written as frames
+ * @param kinds - the frame kind of each node
+ * @param note - receives the notes
+ */
+function noteFrameKinds(
+    snapshot: GraphSnapshot,
+    rows: readonly number[],
+    kinds: readonly string[],
+    note: NoteFn,
+): void {
+    if (rows.length > 0 && !snapshot.nodes.has("type")) {
+        note(
+            OBO_LOSS.TYPE_GAINED,
+            `${rows.length} node${plural(rows.length)} ${agree(rows.length, "is", "are")} written as [Term] frames and ${agree(rows.length, "reads", "read")} back with the type Term in a new node column "type"`,
+            null,
+            rows.length,
+        );
+    }
+    const typedefNodes = rows.filter((i) => kinds[i] === "Typedef").length;
+    if (typedefNodes > 0) {
+        note(
+            OBO_LOSS.TYPEDEF_NODES,
+            `${typedefNodes} node${plural(typedefNodes)} ${agree(typedefNodes, "is", "are")} written as [Typedef] frames; they read back as nodes only when imported with typedefs: "nodes", and then after the other nodes, with the [Typedef] frames that declare the relations`,
+            "type",
+            typedefNodes,
+        );
+    }
+}
+
+/**
  * Plan an export: the notes, the fatal condition and what is written.
  * @param snapshot - the snapshot
  * @param options - the caller's options
@@ -1014,23 +1048,7 @@ function plan(snapshot: GraphSnapshot, options: (OboExportOptions & CommonExport
         }
     }
     const { kinds, type } = planKinds(snapshot, frameless);
-    if (rows.length > 0 && !snapshot.nodes.has("type")) {
-        note(
-            OBO_LOSS.TYPE_GAINED,
-            `${rows.length} node${plural(rows.length)} ${agree(rows.length, "is", "are")} written as [Term] frames and ${agree(rows.length, "reads", "read")} back with the type Term in a new node column "type"`,
-            null,
-            rows.length,
-        );
-    }
-    const typedefNodes = rows.filter((i) => kinds[i] === "Typedef").length;
-    if (typedefNodes > 0) {
-        note(
-            OBO_LOSS.TYPEDEF_NODES,
-            `${typedefNodes} node${plural(typedefNodes)} ${agree(typedefNodes, "is", "are")} written as [Typedef] frames; they read back as nodes only when imported with typedefs: "nodes", and then after the other nodes, with the [Typedef] frames that declare the relations`,
-            "type",
-            typedefNodes,
-        );
-    }
+    noteFrameKinds(snapshot, rows, kinds, note);
 
     const kept = keptObo(snapshot);
     const scopes = synonymTypeScopes(kept.header);
@@ -1575,7 +1593,7 @@ function oboDate(iso: string | null): string | null {
     if (m === null) {
         return null;
     }
-    return `${m[3]}:${m[2]}:${m[1]} ${m[4] ?? "00"}:${m[5] ?? "00"}`;
+    return `${m[3]}:${m[2]}:${m[1]} ${itemAt(m, 4) ?? "00"}:${itemAt(m, 5) ?? "00"}`;
 }
 
 /** What the frames after the nodes are planned from. */
@@ -1678,7 +1696,8 @@ function keptTypedefLines(
         }
         declared.add(id);
         lines.push("", "[Typedef]", `id: ${escapeOboWord(id)}`, ...clauseLines(clauses, "id"));
-        for (const xref of clauses.xref ?? []) {
+        const kept: Partial<Record<string, string[]>> = clauses;
+        for (const xref of kept.xref ?? []) {
             declared.add(xref.trim());
         }
     }
@@ -1818,7 +1837,7 @@ function propertyLines(prop: PropertyColumn, row: number, stats: FrameStats): st
         } else if (typeof v === "string" || typeof v === "boolean" || typeof v === "number") {
             text = textOf(v, dtype);
         } else {
-            text = JSON.stringify(v) ?? "null";
+            text = jsonText(v) ?? "null";
             xsd = "xsd:string";
         }
         return `${head} "${escapeOboQuoted(counted(stats, text))}" ${xsd}`;
@@ -1890,7 +1909,7 @@ function qualifierTexts(column: Column, e: number): string[] {
     if (column.dtype === "list") {
         return (value as readonly unknown[]).map((item) => textOf(item, column.child.dtype));
     }
-    return [column.dtype === "json" ? (JSON.stringify(value) ?? "null") : textOf(value, column.dtype)];
+    return [column.dtype === "json" ? (jsonText(value) ?? "null") : textOf(value, column.dtype)];
 }
 
 /**

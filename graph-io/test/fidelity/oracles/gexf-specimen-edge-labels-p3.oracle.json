@@ -1,0 +1,39 @@
+{
+    "sample": "gexf-specimen-edge-labels-p3",
+    "file": "graph-io/test/fidelity/specimens/gexf/specimen-edge-labels.gexf",
+    "sha256": "6b61cd13e7281ce04d6781b2380840d17327156ac0e8e722e75d9ad41605694a",
+    "program": "Gephi Toolkit",
+    "version": "0.11.3 (gephi-toolkit-0.11.3-all.jar) on Temurin JDK 17",
+    "command": "java -Djava.awt.headless=true -cp gephi-toolkit-0.11.3-all.jar graph-io/test/fidelity/references/GephiExport.java <file> <out> labels noscale \"set:node.label.show=true\" \"set:node.label.avoidOverlap=false\" \"set:edge.label.show=true\" \"set:edge.label.color=#ff0000\"",
+    "apiCalls": [
+        "ImportController.importFile(file)",
+        "container.getLoader().setAutoScale(false)  (noscale: keep the file's coordinates)",
+        "ImportController.process(container, new DefaultProcessor(), workspace)",
+        "PreviewModel.getProperties().putValue(PreviewProperty.SHOW_NODE_LABELS, true)  (every other preview property: Gephi's default, unless previewProperties sets it)",
+        "PreviewController.refreshPreview()",
+        "ExportController.exportFile(new File(out + \".svg\"))  (SVGExporter, default settings)"
+    ],
+    "input": "the stored file as is",
+    "previewProperties": {
+        "node.label.show": "true",
+        "node.label.avoidOverlap": "false",
+        "edge.label.show": "true",
+        "edge.label.color": "#ff0000"
+    },
+    "varies": "edge.label.show=true edge.label.color=#ff0000",
+    "previewItems": {
+        "nodes": 27,
+        "edges": 8
+    },
+    "canvas": {
+        "requested": "1200 x 900 px is not available: Gephi's SVG render target sizes the canvas to the drawing's own bounds, and SVGExporter has no canvas setting (only margin and scaleStrokes)",
+        "width": 1183,
+        "height": 883,
+        "viewBox": "0.000000 -883.000000 1183.000000 883.000000"
+    },
+    "fonts": "Gephi writes font-family=\"Dialog\" (Java's logical font); rasterize.mjs draws it with the repository's pinned fonts",
+    "svgPostprocessing": "1 label text(s) put back to the label Gephi draws (restoreLabelText): Gephi's SVG writer drops the space before an entity reference (\"a & b <c>\" is written \"a&amp; b&lt;c&gt;\") and a line break, where its Preview, its PNG export and its preview items keep the space and draw the break as nothing; nothing else changed",
+    "date": "2026-10-20",
+    "standIn": false,
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/gephi.mjs gexf-specimen-edge-labels-p3 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gexf-specimen-edge-labels-p3.svg"
+}

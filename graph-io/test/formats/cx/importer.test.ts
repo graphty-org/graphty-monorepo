@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { GraphBuilder, type GraphBuilderOptions, type GraphSnapshot } from "@graphty/graph-format";
+import { GraphBuilder, type GraphBuilderOptions, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { CX_ISSUE, cxImporter, type CxImportOptions } from "../../../src/formats/cx/index.js";
@@ -806,6 +806,93 @@ describe("cxImporter: groups, visual properties and provenance (research-cx.md 3
         expect(report.issues[0].message).toMatch(/1 table style element/);
         const tableOnly = await load(cx([{ nodes: [{ "@id": 1 }] }, { tableVisualProperties: [{ n: "x" }] }]));
         expect(codes(tableOnly.report)).toEqual([CX_ISSUE.STYLES_NOT_IMPORTED]);
+    });
+
+    it("skips malformed visual property entries, stringifies non-text values and skips other subnetworks' elements", async () => {
+        const { snapshot: s, report } = await load(
+            cx([
+                { nodes: [{ "@id": 1 }, { "@id": 2 }] },
+                {
+                    edges: [
+                        { "@id": 7, s: 1, t: 1 },
+                        { "@id": 8, s: 2, t: 2 },
+                    ],
+                },
+                { cySubNetworks: [{ "@id": 50, nodes: [1], edges: [7] }] },
+                { networkAttributes: [{ n: "NETWORK_TITLE", v: 3, d: "integer" }] },
+                {
+                    cyVisualProperties: [
+                        "not an object",
+                        { properties_of: "nodes", properties: { NODE_SIZE: "5.0" } },
+                        { properties_of: "nodes", applies_to: 2, properties: { NODE_SIZE: "6.0" } },
+                        { properties_of: "edges", applies_to: 8, properties: { EDGE_WIDTH: "3.0" } },
+                        { properties_of: "edges", applies_to: 99, properties: { EDGE_WIDTH: "4.0" } },
+                        { properties_of: "nodes", applies_to: 1, properties: { NODE_SIZE: 7, NODE_LIST: [1, 2] } },
+                        { properties_of: "edges", applies_to: 7, properties: { EDGE_WIDTH: 2 } },
+                        {
+                            properties_of: "network",
+                            properties: { NETWORK_SCALE: 1.5, NETWORK_TITLE: "title", NETWORK_FLAG: true },
+                        },
+                    ],
+                },
+            ]),
+        );
+        expect({
+            nodes: s.nodeCount,
+            edges: s.edgeCount,
+            nodeSize: value(s, "NODE_SIZE", 1),
+            nodeList: value(s, "NODE_LIST", 1),
+            edgeWidth: edgeValue(s, "EDGE_WIDTH", 0),
+            scale: s.graph.get("NETWORK_SCALE")?.value(0),
+            flag: s.graph.get("NETWORK_FLAG")?.value(0),
+            title: s.graph.get("NETWORK_TITLE")?.value(0),
+            issues: report.issues.map((i) => `${i.code}: ${i.message}`),
+        }).toMatchInlineSnapshot(`
+          {
+            "edgeWidth": "2",
+            "edges": 1,
+            "flag": "true",
+            "issues": [
+              "W_CX_ROOT_ONLY: 1 node and 1 edge of the root network belong to no subnetwork (cySubNetworks); they are not read",
+              "W_DANGLING_REFERENCE: 1 node visual property entry names nothing; ignored",
+              "W_DANGLING_REFERENCE: 1 edge visual property entry names nothing; ignored",
+            ],
+            "nodeList": "[1,2]",
+            "nodeSize": "7",
+            "nodes": 1,
+            "scale": "1.5",
+            "title": "title",
+          }
+        `);
+        // a network value the sink refuses is an issue on that property; the others are still written
+        const sink = new GraphBuilder({ directed: true });
+        const setGraphValue = sink.setGraphValue.bind(sink);
+        sink.setGraphValue = (name, v, decl): void => {
+            if (name === "NETWORK_BAD") {
+                throw new GraphFormatError("E_COLUMN_TYPE", "refused");
+            }
+            setGraphValue(name, v, decl);
+        };
+        const refused = await cxImporter.import(
+            cx([
+                { nodes: [{ "@id": 1 }] },
+                {
+                    cyVisualProperties: [
+                        { properties_of: "network", properties: { NETWORK_BAD: "x", NETWORK_GOOD: "y" } },
+                    ],
+                },
+            ]),
+            sink,
+        );
+        expect(refused.issues.map((i) => [i.code, i.element])).toMatchInlineSnapshot(`
+          [
+            [
+              "E_COLUMN_TYPE",
+              "NETWORK_BAD",
+            ],
+          ]
+        `);
+        expect(sink.freeze().graph.get("NETWORK_GOOD")?.value(0)).toBe("y");
     });
 
     it("reports an attribute element without v, nodes and edges in no subnetwork, and a too-deep element", async () => {

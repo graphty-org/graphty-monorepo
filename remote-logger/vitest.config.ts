@@ -1,16 +1,13 @@
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { ciReporters } from "../vitest.ci-junit.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
+import { baseTest } from "../vitest.base.mjs";
 
-export default defineConfig({
+const config = defineConfig({
     test: {
-        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
-        globalSetup: ["../tools/test-slots.mjs"],
+        ...baseTest({ reporters: ["verbose"] }),
         globals: true,
-        testTimeout: 30000,
-        hookTimeout: 30000,
-        reporters: ["verbose", ...ciReporters()],
         coverage: {
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],
@@ -61,6 +58,8 @@ export default defineConfig({
                     include: ["test/ui/**/*.browser.test.ts"],
                     exclude: ["**/node_modules/**", "**/dist/**"],
                     fileParallelism: false,
+                    // Frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
+                    setupFiles: ["../vitest.browser-coverage-setup.ts"],
                     browser: {
                         enabled: true,
                         headless: true,
@@ -72,3 +71,6 @@ export default defineConfig({
         ],
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

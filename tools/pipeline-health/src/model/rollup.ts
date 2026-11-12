@@ -1,0 +1,530 @@
+// Rollups, recomputed and never incremented (10.3): a dirty 5-minute bucket is rebuilt from the raw items copied
+// into it, then its 15-minute, hourly and daily parents from their children. A parent whose children have expired
+// (a backfill of an old day) is rebuilt from below, down to the raw items.
+
+import { addValue, emptyHistogram, mergeInto, quantile } from "./histogram.js";
+import {
+    type Agg,
+    type Bucket,
+    BUMP_BRANCH,
+    CHILD,
+    DIRTY_PK,
+    dirtyKey,
+    floorTo,
+    HOUR,
+    idxKey,
+    isOffMaster,
+    KEEP_MS,
+    loadOf,
+    PARENT,
+    type RawKind,
+    rollKey,
+    type RollupItem,
+    type RunItem,
+    skTime,
+    type Step,
+    STEP_MS,
+    ttlAt,
+} from "./items.js";
+import { type Contribution, METRICS, type MetricSource } from "./metrics.js";
+import { type BatchOp, isLive, type Item, type Store } from "./store.js";
+
+export type Buckets = Map<string, Bucket>; // metric -> bucket
+
+export const emptyAgg = (): Agg => ({ n: 0, sum: 0 });
+
+/**
+ * The q-quantile of an aggregate's values: from the events themselves when it kept every one (Agg.vals; nearest
+ * rank, as the histogram ranks), else from its histogram, whose bins are about 44 % wide (a shard's median read as
+ * a bin's middle, 932 s, put it over a 900 s budget it was under).
+ * @param a - the aggregate
+ * @param q - the quantile, 0 to 1
+ * @returns the quantile value, or undefined when the aggregate holds no values
+ */
+export function aggQuantile(a: Agg, q: number): number | undefined {
+    if (a.vals?.length && a.vals.length === a.n) {
+        const v = a.vals.toSorted((x, y) => x - y);
+        return v[Math.max(1, Math.ceil(q * v.length)) - 1];
+    }
+    return a.hist && quantile(a.hist, q);
+}
+
+function addTo(agg: Agg, c: Contribution, at: number): void {
+    agg.n += c.n ?? 1;
+    agg.sum += c.sum ?? 0;
+    if (c.value === undefined) {
+        return;
+    }
+    agg.hist ??= emptyHistogram();
+    addValue(agg.hist, c.value);
+    if (c.exact) {
+        agg.vals ??= [];
+        agg.vals.push(c.value);
+    }
+    agg.max = Math.max(agg.max ?? -Infinity, c.value);
+    if (agg.lastAt === undefined || at >= agg.lastAt) {
+        agg.last = c.value;
+        agg.lastAt = at;
+    }
+}
+
+/**
+ * Adds one aggregate into another, in place.
+ * @param into - the aggregate that receives
+ * @param from - the aggregate added
+ */
+export function mergeAgg(into: Agg, from: Agg): void {
+    into.n += from.n;
+    into.sum += from.sum;
+    if (from.hist) {
+        into.hist ??= emptyHistogram();
+        mergeInto(into.hist, from.hist);
+    }
+    if (from.vals) {
+        into.vals ??= [];
+        into.vals.push(...from.vals);
+    }
+    if (from.max !== undefined) {
+        into.max = Math.max(into.max ?? -Infinity, from.max);
+    }
+    if (from.lastAt !== undefined && (into.lastAt === undefined || from.lastAt >= into.lastAt)) {
+        into.last = from.last;
+        into.lastAt = from.lastAt;
+    }
+}
+
+function dimOf(b: Bucket, d: string): Agg {
+    b.dims ??= {};
+    b.dims[d] ??= emptyAgg();
+    return b.dims[d];
+}
+
+/**
+ * Adds one bucket, and each of its dimensions, into another, in place.
+ * @param into - the bucket that receives
+ * @param from - the bucket added
+ */
+export function mergeBucket(into: Bucket, from: Bucket): void {
+    mergeAgg(into, from);
+    for (const [d, a] of Object.entries(from.dims ?? {})) {
+        mergeAgg(dimOf(into, d), a);
+    }
+}
+
+const pick = ({ n, sum, hist, vals, max, last, lastAt, dims }: Bucket): Bucket => ({
+    n,
+    sum,
+    ...(hist ? { hist } : {}),
+    ...(vals ? { vals } : {}),
+    ...(max === undefined ? {} : { max }),
+    ...(last === undefined ? {} : { last, lastAt }),
+    ...(dims ? { dims } : {}),
+});
+
+const SOURCES = new Map<string, { metric: string; source: MetricSource }[]>();
+for (const m of METRICS) {
+    for (const s of m.from) {
+        const k = `${s.kind}#${s.field}`;
+        SOURCES.set(k, [...(SOURCES.get(k) ?? []), { metric: m.id, source: s }]);
+    }
+}
+
+function contribute(out: Buckets, metric: string, c: Contribution | Contribution[] | null, at: number): void {
+    if (Array.isArray(c)) {
+        for (const one of c) {
+            contribute(out, metric, one, at);
+        }
+        return;
+    }
+    if (!c) {
+        return;
+    }
+    const b: Bucket = out.get(metric) ?? emptyAgg();
+    out.set(metric, b);
+    addTo(b, c, at);
+    if (c.dim !== undefined) {
+        addTo(dimOf(b, c.dim), c, at);
+    }
+}
+
+/**
+ * A run's stored record (its RUN#<id> index copies, any attempt: they share a branch and event), read once.
+ * @param store - the table
+ * @param runId - GitHub run id
+ * @param nowMs - current time, to skip expired items
+ * @param runs - per-recompute cache of run reads
+ * @returns the run's record, or undefined when none is live
+ */
+function runOf(
+    store: Store,
+    runId: number,
+    nowMs: number,
+    runs: Map<number, Promise<RunItem | undefined>>,
+): Promise<RunItem | undefined> {
+    let got = runs.get(runId);
+    if (!got) {
+        got = store
+            .query(`RUN#${runId}`, { from: "run#", to: "run#~" })
+            .then((rows) => rows.find((r) => isLive(r, nowMs)) as RunItem | undefined);
+        runs.set(runId, got);
+    }
+    return got;
+}
+
+/**
+ * An item with what its stored run says filled in where the item itself is silent (#5053), so a filter the collector
+ * added later holds for items stored before it, not only for new ones: a job's load (e07383582a) and offMaster
+ * (3796ced414), and a flaky CI test's bump (a4a249fc67). The run's branch and event decide, as they did when the
+ * collector stamped them.
+ * ponytail: a master job has no offMaster flag, so its run is read on every recompute of its bucket (one query per
+ * run per bucket); store offMaster: false on new jobs if those reads ever show.
+ * @param store - the table
+ * @param item - a raw item
+ * @param nowMs - current time, to skip expired items
+ * @param runs - per-recompute cache of run reads
+ * @returns the item, with load, offMaster or bump filled in from its run when known
+ */
+async function withRun(
+    store: Store,
+    item: Item,
+    nowMs: number,
+    runs: Map<number, Promise<RunItem | undefined>>,
+): Promise<Item> {
+    if (item.kind === "job" && (item.offMaster === undefined || item.load === undefined)) {
+        const run = await runOf(store, item.runId as number, nowMs, runs);
+        if (!run) {
+            return item;
+        }
+        return {
+            ...item,
+            load: item.load ?? loadOf(run.workflow, run.event, run.branch),
+            ...(item.offMaster === undefined && isOffMaster(run.branch) ? { offMaster: true } : {}),
+        };
+    }
+    if (item.kind === "test" && item.source === "ci" && item.outcome === "flaky" && item.bump === undefined) {
+        // A CI invocation id starts with its run id and run attempt (ingest.ts ownId).
+        const id = /^(\d+)\.\d+\./.exec(String(item.invocation))?.[1];
+        const run = id === undefined ? undefined : await runOf(store, Number(id), nowMs, runs);
+        return run && BUMP_BRANCH.test(run.branch) ? { ...item, bump: true } : item;
+    }
+    return item;
+}
+
+/** Slice cost readings, counted only in a saturated cycle (slice-metrics.ts contention). */
+const SLICE_COST = new Set(["slices.contended_min", "slices.queue_wait_min"]);
+
+/**
+ * One 5-minute bucket of every metric, from the raw items copied into it.
+ * @param store - the table
+ * @param start - bucket start, epoch ms
+ * @param nowMs - current time, to skip expired items
+ * @returns the bucket of each metric with data
+ */
+export async function fromRaw(store: Store, start: number, nowMs: number): Promise<Buckets> {
+    const out: Buckets = new Map();
+    const runs = new Map<number, Promise<RunItem | undefined>>();
+    const live = (await store.query(`T#${skTime(start)}`)).filter((i) => isLive(i, nowMs));
+    const unsaturated = new Set(
+        live.filter((i) => i.kind === "obs" && i.metric === "ci.saturated_ms" && i.value === 0).map((i) => i.at),
+    );
+    for (const item of await Promise.all(live.map((i) => withRun(store, i, nowMs, runs)))) {
+        const kind = item.kind as RawKind;
+        const field = item.field as string;
+        const at = item[field] as number;
+        if (kind === "obs") {
+            // #5681: slice cost readings stored before #5398 counted unsaturated cycles; the rule now counts none.
+            const v = SLICE_COST.has(item.metric as string) && unsaturated.has(at) ? 0 : (item.value as number);
+            contribute(out, item.metric as string, { sum: v, value: v }, at);
+            continue;
+        }
+        for (const { metric, source } of SOURCES.get(`${kind}#${field}`) ?? []) {
+            contribute(out, metric, source.fold(item as never), at);
+        }
+    }
+    return out;
+}
+
+/**
+ * Stored buckets of `step` in [from, to], every metric the IDX items name: one query per metric.
+ * @param store - the table
+ * @param step - bucket size
+ * @param from - first bucket start, epoch ms
+ * @param to - last bucket start, epoch ms
+ * @param nowMs - current time, to skip expired items
+ * @returns buckets of every metric, by bucket start
+ */
+export async function readStored(
+    store: Store,
+    step: Step,
+    from: number,
+    to: number,
+    nowMs: number,
+): Promise<Map<number, Buckets>> {
+    const range = { from: skTime(from), to: skTime(to) };
+    const metrics = new Set<string>();
+    for (const i of await store.query(idxKey(step, 0).pk, range)) {
+        if (isLive(i, nowMs)) {
+            for (const m of i.metrics as string[]) {
+                metrics.add(m);
+            }
+        }
+    }
+    const out = new Map<number, Buckets>();
+    for (const m of metrics) {
+        for (const r of (await store.query(rollKey(m, step, 0).pk, range)) as RollupItem[]) {
+            if (!isLive(r, nowMs)) {
+                continue;
+            }
+            const b = out.get(r.start) ?? new Map();
+            out.set(r.start, b);
+            b.set(m, pick(r));
+        }
+    }
+    return out;
+}
+
+/**
+ * A bucket still kept for at least an hour, so it can be read instead of recomputed.
+ * @param step - bucket size
+ * @param start - bucket start, epoch ms
+ * @param nowMs - current time
+ * @returns true when the bucket outlives the next hour
+ */
+const kept = (step: Step, start: number, nowMs: number): boolean => start + KEEP_MS[step] > nowMs + HOUR;
+
+/**
+ * Every metric of one bucket of `step`, recomputed: from raw for 5 minutes, else from its children.
+ * @param store - the table
+ * @param step - bucket size
+ * @param start - bucket start, epoch ms
+ * @param nowMs - current time, to skip expired items
+ * @param cache - buckets already computed in this pass, by step and start
+ * @returns the bucket of each metric with data
+ */
+export async function computePeriod(
+    store: Store,
+    step: Step,
+    start: number,
+    nowMs: number,
+    cache = new Map<string, Buckets>(),
+): Promise<Buckets> {
+    const key = `${step}:${start}`;
+    const hit = cache.get(key);
+    if (hit) {
+        return hit;
+    }
+    let out: Buckets;
+    const child = CHILD[step];
+    if (!child) {
+        out = await fromRaw(store, start, nowMs);
+    } else {
+        out = new Map();
+        const starts: number[] = [];
+        for (let s = start; s < start + STEP_MS[step]; s += STEP_MS[child]) {
+            starts.push(s);
+        }
+        const needRead = starts.some((s) => !cache.has(`${child}:${s}`) && kept(child, s, nowMs));
+        const stored = needRead ? await readStored(store, child, start, start + STEP_MS[step] - 1, nowMs) : new Map();
+        for (const s of starts) {
+            const c =
+                cache.get(`${child}:${s}`) ??
+                (kept(child, s, nowMs)
+                    ? (stored.get(s) ?? new Map())
+                    : await computePeriod(store, child, s, nowMs, cache));
+            for (const [m, b] of c as Buckets) {
+                const into = out.get(m) ?? emptyAgg();
+                out.set(m, into);
+                mergeBucket(into, b);
+            }
+        }
+    }
+    cache.set(key, out);
+    return out;
+}
+
+/**
+ * Writes one recomputed bucket of every metric, and empties the metrics it no longer holds.
+ * @param store - the table
+ * @param step - bucket size
+ * @param start - bucket start, epoch ms
+ * @param buckets - the recomputed bucket of each metric
+ * @param nowMs - current time
+ * @returns how many metric buckets were written (0 when the bucket expires within the hour)
+ */
+async function writePeriod(store: Store, step: Step, start: number, buckets: Buckets, nowMs: number): Promise<number> {
+    if (!kept(step, start, nowMs)) {
+        return 0;
+    }
+    const ttl = ttlAt(start + KEEP_MS[step]);
+    const prev = ((await store.get(idxKey(step, start)))?.metrics as string[] | undefined) ?? [];
+    const ops: BatchOp[] = [];
+    for (const m of prev) {
+        if (!buckets.has(m)) {
+            ops.push({ delete: rollKey(m, step, start) });
+        }
+    }
+    for (const [m, b] of buckets) {
+        ops.push({ put: { ...rollKey(m, step, start), metric: m, step, start, ttl, ...pick(b) } });
+    }
+    ops.push({ put: { ...idxKey(step, start), metrics: [...buckets.keys()].sort(), ttl } }); // NOSONAR(S2871): code-unit order, the same in every locale, keeps the index stable
+    await store.batch(ops);
+    return buckets.size;
+}
+
+/** Most dirty marks one recompute consumes. */
+export const MAX_MARKS = 200;
+export const LEASE_KEY = { pk: "LEASE", sk: "recompute" };
+export const LEASE_MS = 5 * 60_000;
+
+/**
+ * Recomputes every dirty 5-minute bucket and its parents, then clears the marks it consumed. The collector and the
+ * backfill both run it, so it first takes a lease item under a condition: while another holds it, it does nothing
+ * and answers `busy`. A holder that died leaves the lease to expire after `leaseMs`: LEASE_MS (the scheduled
+ * collector's 240 s timeout plus a margin) unless the caller, such as the 15-minute backfill, passes its own.
+ * @param store - the table
+ * @param nowMs - current time
+ * @param leaseMs - how long the lease lasts if this holder dies
+ * @returns buckets recomputed and items written, or busy when another holder has the lease
+ */
+export async function recompute(
+    store: Store,
+    nowMs: number,
+    leaseMs = LEASE_MS,
+): Promise<{ buckets: number; items: number; busy?: true }> {
+    const token = `${nowMs}-${Math.random()}`;
+    const taken = await store.put(
+        { ...LEASE_KEY, token, until: nowMs + leaseMs, ttl: Math.ceil((nowMs + leaseMs) / 1000) + 3600 },
+        { field: "until", op: "<", value: nowMs, orNotExists: true },
+    );
+    if (!taken) {
+        return { buckets: 0, items: 0, busy: true };
+    }
+    try {
+        return await recomputeHeld(store, nowMs);
+    } finally {
+        await store.update(LEASE_KEY, { set: { until: 0 } }, { field: "token", op: "=", value: token });
+    }
+}
+
+async function recomputeHeld(store: Store, nowMs: number): Promise<{ buckets: number; items: number }> {
+    // ponytail: newest MAX_MARKS buckets per cycle, so the live hour is right first and a backlog (a backfill, a
+    // local collector's first pass) drains over later cycles instead of outliving the 60 s collector.
+    const marks = (await store.query(DIRTY_PK))
+        .sort((a, b) => (b.start as number) - (a.start as number))
+        .slice(0, MAX_MARKS);
+    const cache = new Map<string, Buckets>();
+    let level = new Set(marks.map((m) => m.start as number));
+    let step: Step | undefined = "5m";
+    let buckets = 0;
+    let items = 0;
+    while (step && level.size) {
+        for (const start of [...level].sort((a, b) => a - b)) {
+            items += await writePeriod(
+                store,
+                step,
+                start,
+                await computePeriod(store, step, start, nowMs, cache),
+                nowMs,
+            );
+            buckets++;
+        }
+        const parent: Step | undefined = PARENT[step];
+        if (parent) {
+            level = new Set([...level].map((s) => floorTo(s, parent)));
+        }
+        step = parent;
+    }
+    // A mark re-set while we worked (a newer markedAt) stays for the next cycle.
+    // ponytail: a write landing between this get and the delete loses its mark until the bucket is next touched;
+    // a conditional delete in the adapter closes it if that ever shows.
+    const clear: BatchOp[] = [];
+    for (const m of marks) {
+        const cur = await store.get(dirtyKey(m.start as number));
+        if (cur && cur.markedAt === m.markedAt) {
+            clear.push({ delete: dirtyKey(m.start as number) });
+        }
+    }
+    await store.batch(clear);
+    return { buckets, items };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Window values (section 8).
+
+export type WindowName = "1h" | "6h" | "24h" | "7d" | "28d";
+export const WINDOWS: Record<WindowName, { step: Step; count: number }> = {
+    "1h": { step: "5m", count: 12 },
+    "6h": { step: "15m", count: 24 },
+    "24h": { step: "1h", count: 24 },
+    "7d": { step: "1d", count: 7 },
+    "28d": { step: "1d", count: 28 },
+};
+
+export interface MetricWindow {
+    metric: string;
+    window: WindowName;
+    step: Step;
+    /** Start of the oldest bucket; the newest is the current, partial one. */
+    from: number;
+    to: number;
+    total: Bucket;
+    series: { start: number; bucket: Bucket }[];
+}
+
+/**
+ * One metric's buckets of `step` in [from, to], by start.
+ * @param store - the table
+ * @param metric - metric id
+ * @param step - bucket size
+ * @param from - first bucket start, epoch ms
+ * @param to - last bucket start, epoch ms
+ * @param nowMs - current time, to skip expired items
+ * @returns the stored buckets, by start
+ */
+export async function loadSeries(
+    store: Store,
+    metric: string,
+    step: Step,
+    from: number,
+    to: number,
+    nowMs: number,
+): Promise<Map<number, Bucket>> {
+    const out = new Map<number, Bucket>();
+    for (const r of (await store.query(rollKey(metric, step, 0).pk, {
+        from: skTime(from),
+        to: skTime(to),
+    })) as RollupItem[]) {
+        if (isLive(r, nowMs)) {
+            out.set(r.start, pick(r));
+        }
+    }
+    return out;
+}
+
+/**
+ * A metric over one window, from its stored rollups: one single-partition query.
+ * @param store - the table
+ * @param metric - metric id
+ * @param window - window name
+ * @param nowMs - current time
+ * @returns the window's total and its series of buckets, empty buckets included
+ */
+export async function windowValue(
+    store: Store,
+    metric: string,
+    window: WindowName,
+    nowMs: number,
+): Promise<MetricWindow> {
+    const { step, count } = WINDOWS[window];
+    const end = floorTo(nowMs, step);
+    const from = end - (count - 1) * STEP_MS[step];
+    const got = await loadSeries(store, metric, step, from, end, nowMs);
+    const total: Bucket = emptyAgg();
+    const series: MetricWindow["series"] = [];
+    for (let s = from; s <= end; s += STEP_MS[step]) {
+        const b = got.get(s) ?? emptyAgg();
+        mergeBucket(total, b);
+        series.push({ start: s, bucket: b });
+    }
+    return { metric, window, step, from, to: nowMs, total, series };
+}

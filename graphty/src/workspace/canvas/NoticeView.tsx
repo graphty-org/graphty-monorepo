@@ -23,7 +23,9 @@ export function NoticeView({ notice, onClose }: Readonly<NoticeViewProps>): Reac
     const { action } = notice;
     return (
         <Toast
-            message={notice.message}
+            message={notice.content ?? notice.message}
+            // A failure is its own alert; any other notice is spoken by the status line.
+            alert={notice.error === true}
             withCloseButton
             onClose={onClose}
             action={

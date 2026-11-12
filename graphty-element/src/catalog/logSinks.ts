@@ -29,11 +29,11 @@ export const LOG_SINK_DESCRIPTORS: readonly LogSinkDescriptor[] = Object.freeze(
         options: [
             {
                 name: "colors",
-                plainName: "Coloured output",
+                plainName: "Colored output",
                 type: "boolean",
                 // TRUE BECAUSE THAT IS WHAT THE ELEMENT ACTUALLY DOES. The console the element
                 // attaches reads `format.colors ?? true`, so a descriptor saying false made a
-                // settings panel built from this table show "Coloured output: off" while the
+                // settings panel built from this table show "Colored output: off" while the
                 // element was colouring, and `configure({ sinks: [{ use: "console" }] })`
                 // silently turned colour off by filling in a default nobody chose.
                 default: true,

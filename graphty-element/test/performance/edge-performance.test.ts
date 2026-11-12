@@ -76,7 +76,11 @@ describe("Edge Performance Tests", () => {
         // Capture memory before
         const heapUsedBefore = getHeapUsed();
 
-        // Create graph
+        // Create graph, after disposing the one an earlier measurement in this test made
+        if (graph) {
+            cleanupTestGraph(graph);
+        }
+
         graph = await createTestGraph();
 
         // Generate test data
@@ -151,7 +155,7 @@ describe("Edge Performance Tests", () => {
 
         // Wait for layout to settle (physics only)
         if (layoutType === "ngraph") {
-            await waitForLayoutSettle(graph, TEST_CONFIG.PHYSICS_SETTLE_TIMEOUT_MS);
+            await waitForLayoutSettle(graph);
         }
 
         // End layout session

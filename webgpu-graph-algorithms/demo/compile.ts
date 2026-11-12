@@ -7,7 +7,7 @@
 import { installRemoteLog } from "./remote-log.js";
 import { requestGpuContext } from "../src/browser/index.js";
 import { composeWgsl, type WgslModuleSpec } from "../src/kernel/wgsl.js";
-import { type KernelId, KERNELS, kernelSpec } from "../src/kernels.js";
+import { kernelSpec } from "../src/kernels.js";
 import { OVERRIDE_MATRIX } from "../test/helpers/override-matrix.js";
 
 const out = document.getElementById("out") as HTMLDivElement;
@@ -48,6 +48,52 @@ function withBody(spec: WgslModuleSpec, edit: (body: string) => string, id: stri
     return { ...spec, id, body: edit(spec.body) };
 }
 
+async function runMatrix(ctx: Awaited<ReturnType<typeof requestGpuContext>>): Promise<void> {
+    const table = document.createElement("table");
+    table.innerHTML = "<tr><th>kernel | overrides</th><th>result</th></tr>";
+    out.appendChild(table);
+    let failures = 0;
+    for (const c of OVERRIDE_MATRIX) {
+        const spec = kernelSpec(c.id, c.overrides, c.snippets);
+        const error = await tryPipeline(ctx, spec);
+        const label = `${c.id} | ${JSON.stringify(c.overrides)}${c.snippets ? " | snippets" : ""}`;
+        row(table, [label, error ?? "ok"], error === null);
+        const detail = error === null ? "" : ` -- ${error}`;
+        log(`${error === null ? "OK  " : "FAIL"} ${label}${detail}`);
+        if (error !== null) {
+            failures++;
+        }
+    }
+    log(`matrix: ${OVERRIDE_MATRIX.length} cases, ${failures} failures`);
+}
+
+async function variantError(
+    ctx: Awaited<ReturnType<typeof requestGpuContext>>,
+    v: WgslModuleSpec,
+): Promise<string | null> {
+    try {
+        composeWgsl(v, ctx.caps);
+        return await tryPipeline(ctx, v);
+    } catch (e) {
+        return `compose: ${e instanceof Error ? e.message : String(e)}`;
+    }
+}
+
+async function runVariants(
+    ctx: Awaited<ReturnType<typeof requestGpuContext>>,
+    variants: WgslModuleSpec[],
+): Promise<void> {
+    const table2 = document.createElement("table");
+    table2.innerHTML = "<tr><th>fa2-attraction variant</th><th>result</th></tr>";
+    out.appendChild(table2);
+    for (const v of variants) {
+        const error = await variantError(ctx, v);
+        row(table2, [v.id, error ?? "ok"], error === null);
+        const detail = error === null ? "" : ` -- ${error}`;
+        log(`${error === null ? "OK  " : "FAIL"} ${v.id}${detail}`);
+    }
+}
+
 async function main(): Promise<void> {
     installRemoteLog();
     let ctx: Awaited<ReturnType<typeof requestGpuContext>>;
@@ -63,21 +109,7 @@ async function main(): Promise<void> {
     log(head);
 
     // 1. The bounded matrix (the same table the node and browser compile tests use).
-    const table = document.createElement("table");
-    table.innerHTML = "<tr><th>kernel | overrides</th><th>result</th></tr>";
-    out.appendChild(table);
-    let failures = 0;
-    for (const c of OVERRIDE_MATRIX) {
-        const spec = kernelSpec(c.id, c.overrides, c.snippets);
-        const error = await tryPipeline(ctx, spec);
-        const label = `${c.id} | ${JSON.stringify(c.overrides)}${c.snippets ? " | snippets" : ""}`;
-        row(table, [label, error ?? "ok"], error === null);
-        log(`${error === null ? "OK  " : "FAIL"} ${label}${error === null ? "" : ` -- ${error}`}`);
-        if (error !== null) {
-            failures++;
-        }
-    }
-    log(`matrix: ${OVERRIDE_MATRIX.length} cases, ${failures} failures`);
+    await runMatrix(ctx);
 
     // 2. Bisecting variants of fa2-attraction (each changes ONE thing; a variant that compiles names the culprit).
     const base = kernelSpec("fa2-attraction", { TIER: 0, LINLOG: false, DISTRIBUTED: false });
@@ -146,20 +178,7 @@ fn attraction(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_i
             "bisect:minimal-body",
         ),
     ];
-    const table2 = document.createElement("table");
-    table2.innerHTML = "<tr><th>fa2-attraction variant</th><th>result</th></tr>";
-    out.appendChild(table2);
-    for (const v of variants) {
-        let error: string | null;
-        try {
-            composeWgsl(v, caps);
-            error = await tryPipeline(ctx, v);
-        } catch (e) {
-            error = `compose: ${e instanceof Error ? e.message : String(e)}`;
-        }
-        row(table2, [v.id, error ?? "ok"], error === null);
-        log(`${error === null ? "OK  " : "FAIL"} ${v.id}${error === null ? "" : ` -- ${error}`}`);
-    }
+    await runVariants(ctx, variants);
 
     // 3. The composed source of the failing kernel, for the report.
     const composed = composeWgsl(base, caps);

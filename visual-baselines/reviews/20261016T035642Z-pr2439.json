@@ -1,0 +1,72 @@
+{
+  "version": 2,
+  "pr": 2439,
+  "subject": {
+    "builtMerge": "e7f33b1a40e4adee955bc6a367ce227f7211eeb3",
+    "head": "0818b79a356e90c0c12860cdfc72f3772e784f48",
+    "runId": 38628927492,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "e7f33b1a40e4adee955bc6a367ce227f7211eeb3"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty-element/layout-2d--planar.png",
+      "from": "264c37658ca2d8c7cac09ccc8376a57230cd345420db7821408b7f15401e4976",
+      "to": "98d6ae486674f50c8a57e723e0b349a946972649ad76778e1ae316642e291964",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-data.dark.png",
+      "from": "21adeccd42faa1c9a3a02aa61755aa6f1100a59c666c22abcab73bd3029720c9",
+      "to": "d03bb5ad8e4677e2a8c4302bcb031318e4949106b44c3e33707ce7d4f756e63b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--node-data.light.png",
+      "from": "b835e23bd9c509c38022d8e2f66fb2cb4dc21ecebe0041bf97d29559d362c604",
+      "to": "963c4f6781b845581602f01d330b5b6451797720e8d76c47b054272d99ffa818",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-summary.dark.png",
+      "from": "6bf5ec54cd7bd24181686a619e025e65c412fbc77eed0f5edbc923aa87bfb419",
+      "to": "066ed8544a0f7f30c960e36231368bd7bcdd92e04813180ca763f6ca774ca862",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-inspector--several-elements-summary.light.png",
+      "from": "3e1534e1ed08d3ccc503fee898fd0f64ec292850f17d924c7867756aaaa9350d",
+      "to": "98f38bac0b118972461e75b7034eacf4bafaaf292671c0ca2b13d163ded83c23",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--selection-bar.dark.png",
+      "from": "ea01b064116bb074ffd00449e176d3d4eebe61b70310b1ed54c57b505b182cd0",
+      "to": "1cda148356c52d58b9545d2294687bb6376453c6cef50e7c809c6f30e772dacf",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-toolbar--selection-bar.light.png",
+      "from": "5ab32b6aef4141d50e28d761c855da75d55abbee3e5bbe32a358dc37cfd58e4a",
+      "to": "a95ef1a64b3b3945932e95824b3d6ee1ca5512f70ffb058176e951b8cbed4a0d",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-16T03:56:42.667Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiUzlrODRXVmh3bVJjdjJRMEU1bnV2RmoyLUphOVNsQ0ZNVzd3cmVtZnJURSIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEUCIQCIzkBcMx8vYuIXneG3mtO6jMOOXx1ypq-77e2XxQFXmwIgbAbOLIkpgb8m4ilor3z2HIl8wg58TjBzgED4-saiy9I"
+  }
+}

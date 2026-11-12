@@ -7,23 +7,18 @@
  */
 
 import type { F32, NodeId, NodeMask } from "@graphty/graph-format";
-import type {
+
+// The five layout-owned option records are @graphty/layout's declarations, re-exported so src/index.ts's barrel
+// and the option type tests keep resolving them from here (W1b, Task M5b-T2).
+export type {
+    ClusterOptions,
+    CollisionOptions,
     CommonLayoutOptions,
     ForceAtlas2Options,
     FruchtermanReingoldOptions,
     SimulationOptions,
     SpringElectricalOptions,
 } from "@graphty/layout";
-
-// The five layout-owned option records are @graphty/layout's declarations, re-exported so src/index.ts's barrel
-// and the option type tests keep resolving them from here (W1b, Task M5b-T2).
-export type {
-    CommonLayoutOptions,
-    ForceAtlas2Options,
-    FruchtermanReingoldOptions,
-    SimulationOptions,
-    SpringElectricalOptions,
-};
 
 /**
  * The resolved (defaults applied) ForceAtlas2 option record the simulation keeps; every field present.

@@ -36,6 +36,7 @@ import type {
 import { EDGE_ID_COLUMN, identityColumnsOf, pairsOrdered } from "../../data/edgeIdentity";
 import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError, isGraphtyError } from "../../errors";
+import { quoteEach } from "../../utils/quote-each";
 import type { AttributeRevisions, InputTick } from "../attributes";
 import { canonicalize } from "../runs/runId";
 import type { ElementMask } from "../scope/ElementMask";
@@ -139,6 +140,16 @@ export interface ResolveContext {
     readonly matchEdges?: (where: Query) => Iterable<EdgeId>;
     /** Attribute values. Absent refuses a rule's `range` and `categories` leaves. */
     readonly values?: FilterValueSource;
+    /** What each load supplied. Absent refuses a rule's `source` leaf. */
+    readonly supplied?: FilterSources["supplied"];
+    /** The hovered node, else a lone selected node. Absent refuses a step's `"hovered-or-selected"`. */
+    readonly focus?: FilterSources["focus"];
+    /** Whether an element is in a state. Absent refuses a `state` leaf. */
+    readonly inState?: FilterSources["inState"];
+    /** Moves whenever an element's state does, which a `state` leaf's signature reads. */
+    readonly stateRevision?: () => number;
+    /** The runs a union step's `measure` leaf reads. Absent refuses `measure`. */
+    readonly steps?: FilterSources["steps"];
     /** A run's current result. Absent refuses a rule's `item` leaf and a `threshold` over `results.*`. */
     readonly result?: FilterSources["result"];
     /** What a held item's re-run captured (`./captures`). Absent: nothing was captured. */
@@ -231,7 +242,7 @@ const packed = new WeakMap<ElementMask<unknown>, { version: number; length: numb
  */
 function packMask(mask: ElementMask<unknown>, length: number): U32 {
     const cached = packed.get(mask);
-    if (cached !== undefined && cached.version === mask.version && cached.length === length) {
+    if (cached?.version === mask.version && cached.length === length) {
         return cached.bits;
     }
 
@@ -297,6 +308,81 @@ function largestComponent(labels: ComponentLabels, nodeCount: number): U32 {
 }
 
 /**
+ * The node half of the `"visible"` scope: every node when the context has no visibility.
+ * @param context - What the resolution reads.
+ * @returns The node half.
+ */
+function visibleHalf(context: ResolveContext): NodeHalf {
+    const n = context.snapshot.nodeCount;
+    const { visibility } = context;
+    if (visibility === undefined) {
+        return { nodes: makeMask(n, true), constraint: null, all: true, missingNodes: 0 };
+    }
+
+    return {
+        // A copy: a resolution owns its bitmaps, so the cache can count and drop them.
+        nodes: packMask(visibility.nodes(), n).slice(),
+        constraint: packMask(visibility.edges(), context.snapshot.edgeCount),
+        all: false,
+        missingNodes: 0,
+    };
+}
+
+/**
+ * The node half of a saved scope `{set}`: a kept definition, else the saved record followed.
+ * @param scope - The specification.
+ * @param scope.set - The saved scope's id.
+ * @param context - What the resolution reads.
+ * @param seen - The saved ids already followed, which is how a cycle is caught.
+ * @returns The node half.
+ * @throws A `GraphtyError` for a removed set whose record was dropped, an unknown id, or a ring.
+ */
+function savedSetHalf(scope: { set: ScopeId }, context: ResolveContext, seen: Set<ScopeId>): NodeHalf {
+    const record = context.saved?.get(scope.set);
+    const kept = record === undefined ? keptDefinition(scope.set, context) : undefined;
+    if (kept !== undefined) {
+        return halfOf(resolveKept(scope.set, kept, context, [...seen]));
+    }
+
+    const removed = record === undefined ? context.sets?.tombstone?.(scope.set) : undefined;
+    if (removed !== undefined) {
+        // Detached, and its record dropped because nothing named it: a pass resolves it to
+        // nothing; a caller that needs members is refused.
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `The set "${removed.name}" was removed and its record was not kept, so it holds nothing. Choose another set.`,
+            source: "run",
+            target: { kind: "scope", id: scope.set },
+            details: { scope, reason: "missing-set", id: scope.set, name: removed.name },
+        });
+    }
+
+    if (record === undefined) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `No set has the id "${scope.set}". A set id is the one session.sets.create returned.`,
+            source: "run",
+            target: { kind: "scope", id: scope.set },
+            details: { scope, available: [...(context.saved?.keys() ?? [])] },
+        });
+    }
+
+    if (seen.has(scope.set)) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `The saved scope "${scope.set}" contains itself, so it names no elements.`,
+            source: "run",
+            target: { kind: "scope", id: scope.set },
+            details: { scope, chain: [...seen, scope.set] },
+        });
+    }
+
+    seen.add(scope.set);
+
+    return resolveNodeHalf(record.spec, context, seen);
+}
+
+/**
  * The node half of one `Scope`, following saved scopes to what they hold.
  * @param scope - The specification.
  * @param context - What the resolution reads.
@@ -313,18 +399,7 @@ export function resolveNodeHalf(scope: Scope, context: ResolveContext, seen: Set
     }
 
     if (scope === "visible") {
-        const { visibility } = context;
-        if (visibility === undefined) {
-            return { nodes: makeMask(n, true), constraint: null, all: true, missingNodes: 0 };
-        }
-
-        return {
-            // A copy: a resolution owns its bitmaps, so the cache can count and drop them.
-            nodes: packMask(visibility.nodes(), n).slice(),
-            constraint: packMask(visibility.edges(), context.snapshot.edgeCount),
-            all: false,
-            missingNodes: 0,
-        };
+        return visibleHalf(context);
     }
 
     if (scope === "selection") {
@@ -348,48 +423,7 @@ export function resolveNodeHalf(scope: Scope, context: ResolveContext, seen: Set
     }
 
     if ("set" in scope) {
-        const record = context.saved?.get(scope.set);
-        const kept = record === undefined ? keptDefinition(scope.set, context) : undefined;
-        if (kept !== undefined) {
-            return halfOf(resolveKept(scope.set, kept, context, [...seen]));
-        }
-
-        const removed = record === undefined ? context.sets?.tombstone?.(scope.set) : undefined;
-        if (removed !== undefined) {
-            // Detached, and its record dropped because nothing named it: a pass resolves it to
-            // nothing; a caller that needs members is refused.
-            throw new GraphtyError({
-                code: "E_BAD_COMMAND",
-                message: `The set "${removed.name}" was removed and its record was not kept, so it holds nothing. Choose another set.`,
-                source: "run",
-                target: { kind: "scope", id: scope.set },
-                details: { scope, reason: "missing-set", id: scope.set, name: removed.name },
-            });
-        }
-
-        if (record === undefined) {
-            throw new GraphtyError({
-                code: "E_BAD_COMMAND",
-                message: `No set has the id "${scope.set}". A set id is the one session.sets.create returned.`,
-                source: "run",
-                target: { kind: "scope", id: scope.set },
-                details: { scope, available: [...(context.saved?.keys() ?? [])] },
-            });
-        }
-
-        if (seen.has(scope.set)) {
-            throw new GraphtyError({
-                code: "E_BAD_COMMAND",
-                message: `The saved scope "${scope.set}" contains itself, so it names no elements.`,
-                source: "run",
-                target: { kind: "scope", id: scope.set },
-                details: { scope, chain: [...seen, scope.set] },
-            });
-        }
-
-        seen.add(scope.set);
-
-        return resolveNodeHalf(record.spec, context, seen);
+        return savedSetHalf(scope, context, seen);
     }
 
     const nodes = makeMask(n);
@@ -428,7 +462,7 @@ function cycleAt(id: SetId, seen: readonly SetId[]): GraphtyError {
 
     return new GraphtyError({
         code: "E_BAD_COMMAND",
-        message: `The set "${id}" reaches itself through ${through.map((step) => `"${step}"`).join(", ")}, so it names no elements.`,
+        message: `The set "${id}" reaches itself through ${quoteEach(through, ", ")}, so it names no elements.`,
         source: "run",
         target: { kind: "scope", id },
         details: { reason: "cycle", through },
@@ -570,21 +604,37 @@ export function ruleHalves(
     const tree: RuleTree =
         typeof definition.where === "string" ? { kind: "expression", where: definition.where } : definition.where;
 
-    return compileFilter(context.snapshot, tree, {
+    return compileFilter(context.snapshot, tree, filterSourcesIn(context, seen));
+}
+
+/**
+ * What the rule compiler reads, over a resolution context: its sources, with `member` leaves
+ * resolved through the context.
+ * @param context - What the resolution reads.
+ * @param seen - The sets followed so far.
+ * @returns The sources.
+ */
+export function filterSourcesIn(context: ResolveContext, seen: readonly SetId[] = []): FilterSources {
+    return {
         ...(context.match === undefined ? {} : { match: context.match }),
         ...(context.matchEdges === undefined ? {} : { matchEdges: context.matchEdges }),
         ...(context.values === undefined ? {} : { values: context.values }),
+        ...(context.supplied === undefined ? {} : { supplied: context.supplied }),
+        ...(context.focus === undefined ? {} : { focus: context.focus }),
+        ...(context.inState === undefined ? {} : { inState: context.inState }),
+        ...(context.steps === undefined ? {} : { steps: context.steps }),
         ...(context.result === undefined ? {} : { result: context.result }),
         ...(context.captured === undefined ? {} : { captured: context.captured }),
         ...(context.components === undefined ? {} : { components: context.components }),
         scope: (scope: Scope) => scopeLeafIn(scope, context, seen),
-    });
+    };
 }
 
 /**
  * A rule's two halves, with the reading applied at the root (design 4.3): a silent node half is
  * every node except under `listed`; `induced` derives the edges; `listed` takes the edge half and
- * its endpoints; `clipped` takes the edge half (every edge when silent) between member nodes.
+ * its endpoints; `clipped` takes the edge half (every edge when silent) between member nodes;
+ * `incident` takes it touching a member node.
  * @param definition - A canonical rule.
  * @param context - What the resolution reads.
  * @param seen - The sets followed so far.
@@ -606,44 +656,110 @@ function resolveRule(
 
     const halves = ruleHalves(definition, context, seen);
 
-    const n = snapshot.nodeCount;
-    const nodes = makeMask(n, halves.node === null && reading !== "listed");
-    if (halves.node !== null) {
-        for (let index = 0; index < n; index++) {
-            if (halves.node(index)) {
-                nodes[index >>> 5] |= 1 << (index & 31);
-            }
-        }
-    }
+    const nodes = ruleNodeMask(halves.node, snapshot.nodeCount, reading !== "listed");
 
     const half: NodeHalf = { nodes, constraint: null, all: false, missingNodes: 0 };
+    // A rule that holds no nodes by its own say (`nodes: "none"`), or reads a state, whose edges are
+    // in it on their own, keeps its passing edges unclipped.
+    const noNodes = typeof definition.where !== "string" && holdsNoNodes(definition.where);
     if (reading === "induced" || (reading === "clipped" && halves.edge === null)) {
         return resolutionOf(half, deriveEdges(half, snapshot), context, 0);
     }
 
     const edges = makeMask(snapshot.edgeCount);
-    const test = halves.edge;
+    // `incident` with a silent edge half takes every edge touching a member node.
+    const test = reading === "incident" && halves.edge === null ? (): boolean => true : halves.edge;
     if (test !== null) {
-        const { src, dst } = snapshot.edgeList();
-        resolveCounters.edgePasses++;
-        resolveCounters.edgeRowVisits += snapshot.edgeCount;
-        for (let edge = 0; edge < snapshot.edgeCount; edge++) {
-            if (!test(edge)) {
-                continue;
-            }
-
-            if (reading === "listed") {
-                addEdgeRow(edge, snapshot, nodes, edges);
-            } else if (
-                (nodes[src[edge] >>> 5] & (1 << (src[edge] & 31))) !== 0 &&
-                (nodes[dst[edge] >>> 5] & (1 << (dst[edge] & 31))) !== 0
-            ) {
-                edges[edge >>> 5] |= 1 << (edge & 31);
-            }
-        }
+        fillRuleEdges(test, reading, noNodes, snapshot, nodes, edges);
     }
 
     return resolutionOf(half, edges, context, 0);
+}
+
+/**
+ * A rule's node mask: every node passing the node half, or every node (when `fillSilent`) for a
+ * silent one.
+ * @param test - The node half, or null when the rule says nothing about nodes.
+ * @param n - The node count.
+ * @param fillSilent - Whether a silent node half holds every node.
+ * @returns The node mask.
+ */
+function ruleNodeMask(test: CompiledHalves["node"], n: number, fillSilent: boolean): U32 {
+    const nodes = makeMask(n, test === null && fillSilent);
+    if (test === null) {
+        return nodes;
+    }
+
+    for (let index = 0; index < n; index++) {
+        if (test(index)) {
+            nodes[index >>> 5] |= 1 << (index & 31);
+        }
+    }
+
+    return nodes;
+}
+
+/**
+ * Set every edge a rule's edge half passes, read the way the rule's reading says, in `edges`.
+ * @param test - The edge half.
+ * @param reading - The rule's reading.
+ * @param noNodes - Whether the rule holds no nodes by its own say, so passing edges are not clipped.
+ * @param snapshot - The context snapshot.
+ * @param nodes - The rule's node mask (grown by `listed`).
+ * @param edges - The edge mask to fill.
+ */
+function fillRuleEdges(
+    test: (edge: number) => boolean,
+    reading: Extract<SetDefinition, { kind: "rule" }>["reading"],
+    noNodes: boolean,
+    snapshot: GraphSnapshot,
+    nodes: U32,
+    edges: U32,
+): void {
+    const { src, dst } = snapshot.edgeList();
+    resolveCounters.edgePasses++;
+    resolveCounters.edgeRowVisits += snapshot.edgeCount;
+    const incident = reading === "incident";
+    for (let edge = 0; edge < snapshot.edgeCount; edge++) {
+        if (!test(edge)) {
+            continue;
+        }
+
+        if (reading === "listed") {
+            addEdgeRow(edge, snapshot, nodes, edges);
+            continue;
+        }
+
+        const srcIn = (nodes[src[edge] >>> 5] & (1 << (src[edge] & 31))) !== 0;
+        const dstIn = (nodes[dst[edge] >>> 5] & (1 << (dst[edge] & 31))) !== 0;
+        const touches = incident ? srcIn || dstIn : srcIn && dstIn;
+        if (noNodes || touches) {
+            edges[edge >>> 5] |= 1 << (edge & 31);
+        }
+    }
+}
+
+/**
+ * Whether a rule's edges pass with no regard to its nodes: a value leaf with `nodes: "none"`, a
+ * `state` leaf, an `all` holding one, or an `any` whose every member is one.
+ * @param tree - The rule.
+ * @returns True when its edges are not clipped to its nodes.
+ */
+function holdsNoNodes(tree: RuleTree): boolean {
+    switch (tree.kind) {
+        case "range":
+        case "categories":
+        case "text":
+            return tree.nodes === "none";
+        case "state":
+            return true;
+        case "all":
+            return tree.of.some(holdsNoNodes);
+        case "any":
+            return tree.of.length > 0 && tree.of.every(holdsNoNodes);
+        default:
+            return false;
+    }
 }
 
 /**
@@ -902,21 +1018,56 @@ function bindSeeded(plan: BindingPlan, snapshot: GraphSnapshot, rowOf: Int32Arra
     resolveCounters.edgeRowVisits += count;
     if (isMonotonic(snapshot, ids)) {
         resolveCounters.bindMerges++;
-        let at = 0;
-        for (let e = 0; e < count && at < counters.length; e++) {
-            while (at < counters.length && counters[at] < ids[e]) {
-                at++;
-            }
-
-            for (; at < counters.length && counters[at] === ids[e]; at++) {
-                rowOf[seeded[at]] = e;
-            }
-        }
-
+        bindByMerge(counters, seeded, ids, count, rowOf);
         return;
     }
 
     resolveCounters.bindSearches++;
+    bindBySearch(counters, seeded, ids, count, rowOf);
+}
+
+/**
+ * Bind seeded members against an ascending edge-id column: a linear merge.
+ * @param counters - Seeded counters, ascending.
+ * @param seeded - The member each counter belongs to.
+ * @param ids - The edge-id column.
+ * @param count - The edge rows.
+ * @param rowOf - Written: the row of each member found.
+ */
+function bindByMerge(
+    counters: Float64Array,
+    seeded: Uint32Array,
+    ids: ArrayLike<number>,
+    count: number,
+    rowOf: Int32Array,
+): void {
+    let at = 0;
+    for (let e = 0; e < count && at < counters.length; e++) {
+        while (at < counters.length && counters[at] < ids[e]) {
+            at++;
+        }
+
+        for (; at < counters.length && counters[at] === ids[e]; at++) {
+            rowOf[seeded[at]] = e;
+        }
+    }
+}
+
+/**
+ * Bind seeded members against an unordered edge-id column: a binary search per row.
+ * @param counters - Seeded counters, ascending.
+ * @param seeded - The member each counter belongs to.
+ * @param ids - The edge-id column.
+ * @param count - The edge rows.
+ * @param rowOf - Written: the row of each member found.
+ */
+function bindBySearch(
+    counters: Float64Array,
+    seeded: Uint32Array,
+    ids: ArrayLike<number>,
+    count: number,
+    rowOf: Int32Array,
+): void {
     for (let e = 0; e < count; e++) {
         let low = 0;
         let high = counters.length;
@@ -949,10 +1100,72 @@ function bindByIdentity(
     rowOf: Int32Array,
 ): void {
     const { snapshot } = context;
-    const ids = context.ids ?? snapshot.ids;
     const ordered = pairsOrdered(snapshot);
     const n = snapshot.nodeCount;
     const pairKey = (s: number, t: number): number => (ordered || s <= t ? s * n + t : t * n + s);
+    const { byPair, hashes } = membersByPair(members, which, context, ordered, pairKey);
+    if (byPair.size === 0) {
+        return;
+    }
+
+    resolveCounters.identityPasses++;
+    resolveCounters.edgeRowVisits += snapshot.edgeCount;
+    const columns = identityColumnsOf(snapshot);
+    const { src, dst } = snapshot.edgeList();
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        const candidates = byPair.get(pairKey(src[e], dst[e]));
+        if (candidates === undefined) {
+            continue;
+        }
+
+        for (const i of candidates) {
+            if (identityMatches(members.at(i) as EdgeMember, hashes.get(i), columns, e)) {
+                rowOf[i] = rowOf[i] === EDGE_MISSING ? e : EDGE_AMBIGUOUS;
+            }
+        }
+    }
+}
+
+/**
+ * Whether an edge row is the edge a member names: by its identity hash when the member names an
+ * id, else by its ordinal among the edges of its endpoint pair.
+ * @param member - The member.
+ * @param hash - Its identity hash, when it names an id.
+ * @param columns - The snapshot's identity columns.
+ * @param e - The edge row.
+ * @returns Whether the row matches.
+ */
+function identityMatches(
+    member: EdgeMember,
+    hash: LanePair | undefined,
+    columns: ReturnType<typeof identityColumnsOf>,
+    e: number,
+): boolean {
+    const { edgeHash, edgeOrdinal, edgeAmong } = columns;
+    return hash === undefined
+        ? member.ordinal !== undefined && edgeOrdinal[e] === member.ordinal && edgeAmong[e] === member.among
+        : edgeHash[2 * e] === hash.a && edgeHash[2 * e + 1] === hash.b;
+}
+
+/**
+ * The members to bind, grouped by their endpoint pair, with the identity hash of each that names
+ * an id. A member whose end the graph does not hold is left out.
+ * @param members - Every member.
+ * @param which - The members to bind.
+ * @param context - What the resolution reads.
+ * @param ordered - Whether endpoint pairs are ordered (a directed graph).
+ * @param pairKey - The key of an endpoint pair.
+ * @returns Pair key to members, and member to identity hash.
+ */
+function membersByPair(
+    members: EdgeMemberList,
+    which: readonly number[],
+    context: ResolveContext,
+    ordered: boolean,
+    pairKey: (s: number, t: number) => number,
+): { byPair: Map<number, number[]>; hashes: Map<number, LanePair> } {
+    const { snapshot } = context;
+    const ids = context.ids ?? snapshot.ids;
     const byPair = new Map<number, number[]>();
     const hashes = new Map<number, LanePair>();
     for (const i of which) {
@@ -980,32 +1193,7 @@ function bindByIdentity(
         }
     }
 
-    if (byPair.size === 0) {
-        return;
-    }
-
-    resolveCounters.identityPasses++;
-    resolveCounters.edgeRowVisits += snapshot.edgeCount;
-    const { edgeHash, edgeOrdinal, edgeAmong } = identityColumnsOf(snapshot);
-    const { src, dst } = snapshot.edgeList();
-    for (let e = 0; e < snapshot.edgeCount; e++) {
-        const candidates = byPair.get(pairKey(src[e], dst[e]));
-        if (candidates === undefined) {
-            continue;
-        }
-
-        for (const i of candidates) {
-            const member = members.at(i) as EdgeMember;
-            const hash = hashes.get(i);
-            const match =
-                hash === undefined
-                    ? member.ordinal !== undefined && edgeOrdinal[e] === member.ordinal && edgeAmong[e] === member.among
-                    : edgeHash[2 * e] === hash.a && edgeHash[2 * e + 1] === hash.b;
-            if (match) {
-                rowOf[i] = rowOf[i] === EDGE_MISSING ? e : EDGE_AMBIGUOUS;
-            }
-        }
-    }
+    return { byPair, hashes };
 }
 
 /**

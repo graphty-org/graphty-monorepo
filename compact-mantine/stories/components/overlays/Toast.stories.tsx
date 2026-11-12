@@ -1,12 +1,12 @@
 import { Box, Button, Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { Toast, ToastProvider, UiGlyph, useToast } from "../../../src";
 import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
 
 // Demo stories carry no play function; the assertions live on the `*Interactions` twin, hidden
-// from the sidebar and the docs page and still run by the test runner and Chromatic.
+// from the sidebar and the docs page and still run by the test runner and the visual capture.
 const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
 
 /**

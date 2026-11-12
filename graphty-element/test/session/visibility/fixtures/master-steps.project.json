@@ -1,0 +1,355 @@
+{
+    "kind": "graphty-document",
+    "version": 1,
+    "generator": {
+        "name": "graphty-element",
+        "version": "0.0.0"
+    },
+    "requires": ["graphty-data", "graphty-session", "graphty-results"],
+    "members": [
+        {
+            "kind": "graphty-data",
+            "version": 1,
+            "format": "json",
+            "dialect": "node-link",
+            "graph": {
+                "nodes": [
+                    {
+                        "id": "a",
+                        "type": "host",
+                        "score": 0.9,
+                        "email": "a@x",
+                        "_source.loads": ["s1"]
+                    },
+                    {
+                        "id": "b",
+                        "type": "host",
+                        "score": 0.2,
+                        "_source.loads": ["s1"]
+                    },
+                    {
+                        "id": "c",
+                        "type": "service",
+                        "score": 0.8,
+                        "email": "c@x",
+                        "_source.loads": ["s1"]
+                    },
+                    {
+                        "id": "d",
+                        "type": "service",
+                        "score": 0.1,
+                        "_source.loads": ["s1"]
+                    },
+                    {
+                        "id": "e",
+                        "type": "host",
+                        "score": 0.75,
+                        "_source.loads": ["s1"]
+                    },
+                    {
+                        "id": "f",
+                        "type": "service",
+                        "score": 0.5,
+                        "_source.loads": ["s1"]
+                    },
+                    {
+                        "id": "z",
+                        "type": "host",
+                        "score": 0.3,
+                        "_source.loads": ["s1"]
+                    }
+                ],
+                "links": [
+                    {
+                        "weight": 5,
+                        "source": "a",
+                        "target": "b",
+                        "_source.loads": ["s1"]
+                    },
+                    {
+                        "weight": 1,
+                        "source": "b",
+                        "target": "c",
+                        "_source.loads": ["s1"]
+                    },
+                    {
+                        "weight": 2,
+                        "source": "c",
+                        "target": "d",
+                        "_source.loads": ["s1"]
+                    },
+                    {
+                        "weight": 6,
+                        "source": "d",
+                        "target": "e",
+                        "_source.loads": ["s1"]
+                    },
+                    {
+                        "weight": 3,
+                        "source": "a",
+                        "target": "e",
+                        "_source.loads": ["s1"]
+                    },
+                    {
+                        "weight": 4,
+                        "source": "e",
+                        "target": "f",
+                        "_source.loads": ["s1"]
+                    }
+                ]
+            },
+            "source": {
+                "type": "json",
+                "config": {}
+            },
+            "sources": [
+                {
+                    "type": "json",
+                    "config": {},
+                    "key": "s1",
+                    "kind": "file",
+                    "tables": [],
+                    "added": {
+                        "nodes": 7,
+                        "edges": 6
+                    },
+                    "counts": {
+                        "nodes": 7,
+                        "edges": 6
+                    },
+                    "reloadable": true
+                }
+            ],
+            "provenance": {
+                "s1": {
+                    "nodes": ["a", "b", "c", "d", "e", "f", "z"],
+                    "edges": [0, 1, 2, 3, 4, 5]
+                }
+            }
+        },
+        {
+            "kind": "graphty-session",
+            "version": 1,
+            "id": "a69db7ce139791dd39284192f02155c8",
+            "config": {
+                "data": {
+                    "directed": "auto",
+                    "knownFields": {
+                        "nodeIdPath": "id",
+                        "nodeLabelPath": "label",
+                        "nodeWeightPath": null,
+                        "nodeTimePath": null,
+                        "edgeSrcIdPath": null,
+                        "edgeDstIdPath": null,
+                        "edgeIdPath": null,
+                        "repeatedEdges": "keep",
+                        "edgeWeightPath": "weight",
+                        "edgeTimePath": null,
+                        "positionScale": 1,
+                        "idCoercion": "canonical"
+                    }
+                },
+                "runAlgorithmsOnLoad": false,
+                "background": {
+                    "backgroundType": "color",
+                    "color": "#F5F5F5"
+                },
+                "selectionStyle": {
+                    "color": "#FFD700",
+                    "scale": 1.45,
+                    "opacity": 0.4
+                },
+                "layoutBehavior": {
+                    "preSteps": 0,
+                    "stepMultiplier": 1,
+                    "minDelta": 0
+                }
+            },
+            "layout": {
+                "id": "force",
+                "engine": "ngraph",
+                "options": {},
+                "dimension": "3d"
+            },
+            "visibility": {
+                "filter": null,
+                "window": null,
+                "showContext": false,
+                "steps": [
+                    {
+                        "id": "keep-hosts",
+                        "on": false,
+                        "rule": {
+                            "kind": "categories",
+                            "attribute": "data.type",
+                            "values": ["host"]
+                        }
+                    },
+                    {
+                        "id": "keep-two",
+                        "on": true,
+                        "rule": {
+                            "kind": "all",
+                            "of": [
+                                {
+                                    "kind": "range",
+                                    "attribute": "data.score",
+                                    "min": 0.1
+                                },
+                                {
+                                    "kind": "text",
+                                    "reads": "data.type",
+                                    "mode": "substring",
+                                    "text": "s"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "id": "hide-two",
+                        "on": true,
+                        "rule": {
+                            "kind": "not",
+                            "of": {
+                                "kind": "all",
+                                "of": [
+                                    {
+                                        "kind": "categories",
+                                        "attribute": "data.type",
+                                        "values": ["service"]
+                                    },
+                                    {
+                                        "kind": "range",
+                                        "attribute": "data.score",
+                                        "max": 0.15
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "id": "hide-heavy",
+                        "on": false,
+                        "rule": {
+                            "kind": "not",
+                            "of": {
+                                "kind": "range",
+                                "attribute": "data.weight",
+                                "min": 6,
+                                "nodes": "ends"
+                            }
+                        }
+                    },
+                    {
+                        "id": "keep-edges",
+                        "on": true,
+                        "rule": {
+                            "kind": "range",
+                            "attribute": "data.weight",
+                            "min": 2,
+                            "nodes": "ends"
+                        }
+                    },
+                    {
+                        "id": "no-email",
+                        "on": false,
+                        "rule": {
+                            "kind": "not",
+                            "of": {
+                                "kind": "text",
+                                "reads": "data.email",
+                                "mode": "regex",
+                                "text": ""
+                            }
+                        }
+                    },
+                    {
+                        "id": "largest",
+                        "on": true,
+                        "rule": {
+                            "kind": "member",
+                            "of": "largest-component"
+                        }
+                    },
+                    {
+                        "id": "near-a",
+                        "on": true,
+                        "rule": {
+                            "kind": "neighborhood",
+                            "seeds": ["a"],
+                            "depth": 3
+                        }
+                    },
+                    {
+                        "id": "missing",
+                        "on": false,
+                        "rule": {
+                            "kind": "range",
+                            "attribute": "data.nothing",
+                            "min": 1
+                        }
+                    }
+                ],
+                "playback": {
+                    "mode": "cumulative"
+                }
+            },
+            "sets": [],
+            "views": []
+        },
+        {
+            "kind": "graphty-arrangement",
+            "version": 1,
+            "ids": [],
+            "x": [],
+            "y": [],
+            "z": [],
+            "pins": []
+        },
+        {
+            "kind": "graphty-results",
+            "version": 1,
+            "fingerprint": "81ecddd5fd06e847",
+            "runs": []
+        },
+        {
+            "kind": "graphty-style",
+            "version": 1,
+            "layers": []
+        },
+        {
+            "kind": "graphty-notes",
+            "version": 1,
+            "notes": []
+        },
+        {
+            "kind": "graphty-view-state",
+            "version": 1,
+            "selection": {
+                "nodes": ["b", "c"],
+                "edges": []
+            }
+        },
+        {
+            "kind": "graphty-sources",
+            "version": 2,
+            "loads": [
+                {
+                    "id": "s1",
+                    "kind": "file",
+                    "loadedAt": "2026-10-29T09:48:30.925Z",
+                    "mode": "replace",
+                    "format": "json",
+                    "file": {
+                        "size": 516,
+                        "sha256": "debf2461e5c852ac4cd52d3a2725a948e970f4e431bd772fb93ac5142a67a42c"
+                    },
+                    "added": {
+                        "nodes": 7,
+                        "edges": 6
+                    }
+                }
+            ]
+        }
+    ]
+}

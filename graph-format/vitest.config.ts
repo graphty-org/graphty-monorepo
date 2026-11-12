@@ -1,18 +1,16 @@
 import { defineConfig } from "vitest/config";
 
-import { ciReporters } from "../vitest.ci-junit.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
+import { baseTest, localVerbose } from "../vitest.base.mjs";
 
-export default defineConfig({
+const config = defineConfig({
     test: {
-        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
-        globalSetup: ["../tools/test-slots.mjs"],
+        ...baseTest({ reporters: [localVerbose()] }),
         globals: true,
         environment: "node",
         pool: "forks",
-        testTimeout: 30000,
         include: ["test/**/*.test.ts"],
         // verbose prints a line per test: useful locally, needless noise in CI.
-        reporters: [...(process.env.CI ? ["default"] : ["verbose"]), ...ciReporters()],
         // see test/setup/yield-to-event-loop.ts -- without it one audit file holds the worker
         // past birpc's hardcoded 60 s RPC timeout on a CI runner and fails a green run
         setupFiles: ["./test/setup/yield-to-event-loop.ts"],
@@ -31,3 +29,6 @@ export default defineConfig({
         },
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

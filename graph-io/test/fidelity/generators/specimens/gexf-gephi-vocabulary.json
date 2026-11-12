@@ -1,0 +1,716 @@
+{
+    "about": "The GEXF style vocabulary the gexf-gephi specimen sheets cover: the GEXF 1.3 schema's values and Gephi 0.11.3's Preview properties, each with the specimens or pages that draw it. Written by gexf-gephi.mjs from viz.xsd, gexf.xsd and gexf-gephi-preview-properties.json.",
+    "schema": {
+        "viz:shape (node)": {
+            "disc": ["specimen-node-shapes#shape-disc"],
+            "square": [
+                "specimen-node-shapes#shape-square",
+                "specimen-node-fills-borders-gexf12#shape-square",
+                "specimen-node-fills-borders-gexf11#shape-square"
+            ],
+            "triangle": ["specimen-node-shapes#shape-triangle"],
+            "diamond": ["specimen-node-shapes#shape-diamond"],
+            "image": [
+                "specimen-images-charts#image-data-uri",
+                "specimen-images-charts#image-url",
+                "specimen-images-charts#image-no-uri"
+            ]
+        },
+        "viz:shape (edge)": {
+            "solid": ["specimen-edges-lines#shape-solid", "specimen-edges-lines-gexf12#shape-solid"],
+            "dotted": ["specimen-edges-lines#shape-dotted", "specimen-edges-lines-gexf12#shape-dotted"],
+            "dashed": ["specimen-edges-lines#shape-dashed", "specimen-edges-lines-gexf12#shape-dashed"],
+            "double": ["specimen-edges-lines#shape-double", "specimen-edges-lines-gexf12#shape-double"]
+        },
+        "edge type": {
+            "directed": [
+                "specimen-arrows#type-directed",
+                "specimen-arrows-undirected#type-directed",
+                "specimen-arrows-mutual#type-directed"
+            ],
+            "undirected": [
+                "specimen-arrows#type-undirected",
+                "specimen-arrows-undirected#type-undirected",
+                "specimen-arrows-mutual#type-undirected"
+            ],
+            "mutual": [
+                "specimen-arrows#type-mutual",
+                "specimen-arrows-undirected#type-mutual",
+                "specimen-arrows-mutual#type-mutual"
+            ]
+        },
+        "defaultedgetype": {
+            "directed": ["specimen-arrows"],
+            "undirected": ["specimen-arrows-undirected"],
+            "mutual": ["specimen-arrows-mutual"]
+        },
+        "viz:color": [
+            "specimen-node-fills-borders#fill-red",
+            "specimen-node-fills-borders#fill-green",
+            "specimen-node-fills-borders#fill-blue",
+            "specimen-node-fills-borders#fill-yellow",
+            "specimen-node-fills-borders#fill-cyan",
+            "specimen-node-fills-borders#fill-magenta",
+            "specimen-node-fills-borders#fill-orange",
+            "specimen-node-fills-borders#fill-purple",
+            "specimen-node-fills-borders#fill-white",
+            "specimen-node-fills-borders#fill-black",
+            "specimen-node-fills-borders#fill-gray",
+            "specimen-node-fills-borders#fill-brown",
+            "specimen-node-fills-borders#color-hex-lower",
+            "specimen-node-fills-borders#color-hex-upper",
+            "specimen-node-fills-borders#color-hex-short",
+            "specimen-node-fills-borders#color-hex-alpha",
+            "specimen-node-fills-borders#color-hex-nohash",
+            "specimen-node-fills-borders#color-rgb-a-1",
+            "specimen-node-fills-borders#color-hex-and-rgb",
+            "specimen-node-sizes-opacity#alpha-0",
+            "specimen-node-sizes-opacity#alpha-0-25",
+            "specimen-node-sizes-opacity#alpha-0-5",
+            "specimen-node-sizes-opacity#alpha-0-75",
+            "specimen-node-sizes-opacity#alpha-1",
+            "specimen-edges-lines#color-red-s",
+            "specimen-edges-lines#color-red-t",
+            "specimen-edges-lines#color-blue-s",
+            "specimen-edges-lines#color-blue-t",
+            "specimen-edges-lines#color-hex-s",
+            "specimen-edges-lines#color-hex-t",
+            "specimen-edges-lines#color-alpha-0-5-s",
+            "specimen-edges-lines#color-alpha-0-5-t",
+            "specimen-edges-lines#color-red",
+            "specimen-edges-lines#color-blue",
+            "specimen-edges-lines#color-hex",
+            "specimen-edges-lines#color-alpha-0-5",
+            "specimen-arrows#color-red-s",
+            "specimen-arrows#color-red-t",
+            "specimen-arrows#color-red",
+            "specimen-arrows-undirected#color-red-s",
+            "specimen-arrows-undirected#color-red-t",
+            "specimen-arrows-undirected#color-red",
+            "specimen-arrows-mutual#color-red-s",
+            "specimen-arrows-mutual#color-red-t",
+            "specimen-arrows-mutual#color-red",
+            "specimen-node-fills-borders-gexf12#fill-red",
+            "specimen-node-fills-borders-gexf12#fill-green",
+            "specimen-node-fills-borders-gexf12#fill-blue",
+            "specimen-node-fills-borders-gexf12#fill-yellow",
+            "specimen-node-fills-borders-gexf12#fill-cyan",
+            "specimen-node-fills-borders-gexf12#fill-magenta",
+            "specimen-node-fills-borders-gexf12#fill-orange",
+            "specimen-node-fills-borders-gexf12#fill-purple",
+            "specimen-node-fills-borders-gexf12#fill-white",
+            "specimen-node-fills-borders-gexf12#fill-black",
+            "specimen-node-fills-borders-gexf12#fill-gray",
+            "specimen-node-fills-borders-gexf12#fill-brown",
+            "specimen-node-fills-borders-gexf12#color-rgb-a-1",
+            "specimen-node-fills-borders-gexf11#fill-red",
+            "specimen-node-fills-borders-gexf11#fill-green",
+            "specimen-node-fills-borders-gexf11#fill-blue",
+            "specimen-node-fills-borders-gexf11#fill-yellow",
+            "specimen-node-fills-borders-gexf11#fill-cyan",
+            "specimen-node-fills-borders-gexf11#fill-magenta",
+            "specimen-node-fills-borders-gexf11#fill-orange",
+            "specimen-node-fills-borders-gexf11#fill-purple",
+            "specimen-node-fills-borders-gexf11#fill-white",
+            "specimen-node-fills-borders-gexf11#fill-black",
+            "specimen-node-fills-borders-gexf11#fill-gray",
+            "specimen-node-fills-borders-gexf11#fill-brown",
+            "specimen-node-fills-borders-gexf11#color-rgb-a-1",
+            "specimen-node-sizes-opacity-dynamic#color-timed-in-order",
+            "specimen-node-sizes-opacity-dynamic#color-timed-last-earlier",
+            "specimen-edges-lines-gexf12#color-red-s",
+            "specimen-edges-lines-gexf12#color-red-t",
+            "specimen-edges-lines-gexf12#color-blue-s",
+            "specimen-edges-lines-gexf12#color-blue-t",
+            "specimen-edges-lines-gexf12#color-alpha-0-5-s",
+            "specimen-edges-lines-gexf12#color-alpha-0-5-t",
+            "specimen-edges-lines-gexf12#color-red",
+            "specimen-edges-lines-gexf12#color-blue",
+            "specimen-edges-lines-gexf12#color-alpha-0-5",
+            "specimen-node-sizes-opacity-timestamps#color-timestamped",
+            "specimen-node-sizes-opacity-timestamps#color-timestamped-last-earlier"
+        ],
+        "viz:size": [
+            "specimen-node-sizes-opacity#size-0",
+            "specimen-node-sizes-opacity#size-1",
+            "specimen-node-sizes-opacity#size-2",
+            "specimen-node-sizes-opacity#size-4",
+            "specimen-node-sizes-opacity#size-8",
+            "specimen-node-sizes-opacity#size-12-5",
+            "specimen-node-sizes-opacity#size-18",
+            "specimen-node-sizes-opacity#size-25",
+            "specimen-node-sizes-opacity#size-35",
+            "specimen-labels#label-node-size-5",
+            "specimen-labels#label-node-size-10",
+            "specimen-labels#label-node-size-25",
+            "specimen-node-fills-borders-gexf12#size-25",
+            "specimen-node-fills-borders-gexf11#size-25",
+            "specimen-node-sizes-opacity-dynamic#size-timed",
+            "specimen-node-sizes-opacity-timestamps#size-timestamped"
+        ],
+        "viz:position": [
+            "specimen-node-sizes-opacity#position-z",
+            "specimen-node-sizes-opacity#position-none",
+            "specimen-node-sizes-opacity-dynamic#position-timed"
+        ],
+        "viz:thickness": [
+            "specimen-edges-lines#thickness-1-s",
+            "specimen-edges-lines#thickness-1-t",
+            "specimen-edges-lines#thickness-4-s",
+            "specimen-edges-lines#thickness-4-t",
+            "specimen-edges-lines#thickness-8-s",
+            "specimen-edges-lines#thickness-8-t",
+            "specimen-edges-lines#thickness-1",
+            "specimen-edges-lines#thickness-4",
+            "specimen-edges-lines#thickness-8",
+            "specimen-edges-lines-gexf12#thickness-1-s",
+            "specimen-edges-lines-gexf12#thickness-1-t",
+            "specimen-edges-lines-gexf12#thickness-4-s",
+            "specimen-edges-lines-gexf12#thickness-4-t",
+            "specimen-edges-lines-gexf12#thickness-8-s",
+            "specimen-edges-lines-gexf12#thickness-8-t",
+            "specimen-edges-lines-gexf12#thickness-1",
+            "specimen-edges-lines-gexf12#thickness-4",
+            "specimen-edges-lines-gexf12#thickness-8"
+        ],
+        "edge weight": [
+            "specimen-edges-lines#weight-0-5-s",
+            "specimen-edges-lines#weight-0-5-t",
+            "specimen-edges-lines#weight-1-s",
+            "specimen-edges-lines#weight-1-t",
+            "specimen-edges-lines#weight-2-s",
+            "specimen-edges-lines#weight-2-t",
+            "specimen-edges-lines#weight-4-s",
+            "specimen-edges-lines#weight-4-t",
+            "specimen-edges-lines#weight-8-s",
+            "specimen-edges-lines#weight-8-t",
+            "specimen-edges-lines#weight-0-5",
+            "specimen-edges-lines#weight-1",
+            "specimen-edges-lines#weight-2",
+            "specimen-edges-lines#weight-4",
+            "specimen-edges-lines#weight-8",
+            "specimen-edges-lines-nonpositive#weight-1-s",
+            "specimen-edges-lines-nonpositive#weight-1-t",
+            "specimen-edges-lines-nonpositive#weight-4-s",
+            "specimen-edges-lines-nonpositive#weight-4-t",
+            "specimen-edges-lines-nonpositive#weight-0-s",
+            "specimen-edges-lines-nonpositive#weight-0-t",
+            "specimen-edges-lines-nonpositive#weight-minus-2-s",
+            "specimen-edges-lines-nonpositive#weight-minus-2-t",
+            "specimen-edges-lines-nonpositive#weight-1",
+            "specimen-edges-lines-nonpositive#weight-4",
+            "specimen-edges-lines-nonpositive#weight-0",
+            "specimen-edges-lines-nonpositive#weight-minus-2",
+            "specimen-arrows#weight-0-5-s",
+            "specimen-arrows#weight-0-5-t",
+            "specimen-arrows#weight-4-s",
+            "specimen-arrows#weight-4-t",
+            "specimen-arrows#weight-0-5",
+            "specimen-arrows#weight-4",
+            "specimen-arrows-undirected#weight-0-5-s",
+            "specimen-arrows-undirected#weight-0-5-t",
+            "specimen-arrows-undirected#weight-4-s",
+            "specimen-arrows-undirected#weight-4-t",
+            "specimen-arrows-undirected#weight-0-5",
+            "specimen-arrows-undirected#weight-4",
+            "specimen-arrows-mutual#weight-0-5-s",
+            "specimen-arrows-mutual#weight-0-5-t",
+            "specimen-arrows-mutual#weight-4-s",
+            "specimen-arrows-mutual#weight-4-t",
+            "specimen-arrows-mutual#weight-0-5",
+            "specimen-arrows-mutual#weight-4",
+            "specimen-edges-lines-gexf12#weight-0-5-s",
+            "specimen-edges-lines-gexf12#weight-0-5-t",
+            "specimen-edges-lines-gexf12#weight-1-s",
+            "specimen-edges-lines-gexf12#weight-1-t",
+            "specimen-edges-lines-gexf12#weight-2-s",
+            "specimen-edges-lines-gexf12#weight-2-t",
+            "specimen-edges-lines-gexf12#weight-4-s",
+            "specimen-edges-lines-gexf12#weight-4-t",
+            "specimen-edges-lines-gexf12#weight-8-s",
+            "specimen-edges-lines-gexf12#weight-8-t",
+            "specimen-edges-lines-gexf12#weight-0-5",
+            "specimen-edges-lines-gexf12#weight-1",
+            "specimen-edges-lines-gexf12#weight-2",
+            "specimen-edges-lines-gexf12#weight-4",
+            "specimen-edges-lines-gexf12#weight-8",
+            "specimen-edges-lines-dynamic-weight#weight-static-4-s",
+            "specimen-edges-lines-dynamic-weight#weight-static-4-t",
+            "specimen-edges-lines-dynamic-weight#weight-timed-s",
+            "specimen-edges-lines-dynamic-weight#weight-timed-t",
+            "specimen-edges-lines-dynamic-weight#weight-timed-last-earlier-s",
+            "specimen-edges-lines-dynamic-weight#weight-timed-last-earlier-t",
+            "specimen-edges-lines-dynamic-weight#weight-timed-one-s",
+            "specimen-edges-lines-dynamic-weight#weight-timed-one-t",
+            "specimen-edges-lines-dynamic-weight#weight-static-4",
+            "specimen-edges-lines-dynamic-weight#weight-timed",
+            "specimen-edges-lines-dynamic-weight#weight-timed-last-earlier",
+            "specimen-edges-lines-dynamic-weight#weight-timed-one"
+        ],
+        "node label": [
+            "specimen-labels#label-text",
+            "specimen-labels#label-empty",
+            "specimen-labels#label-words",
+            "specimen-labels#label-entity",
+            "specimen-labels#label-digits",
+            "specimen-labels#label-newline",
+            "specimen-labels#label-long",
+            "specimen-labels#label-node-size-5",
+            "specimen-labels#label-node-size-10",
+            "specimen-labels#label-node-size-25",
+            "specimen-labels#label-on-red",
+            "specimen-labels#label-overlap",
+            "specimen-labels#label-overlap-small"
+        ],
+        "edge label": [
+            "specimen-edge-labels#label-text-s",
+            "specimen-edge-labels#label-text-t",
+            "specimen-edge-labels#label-empty-s",
+            "specimen-edge-labels#label-empty-t",
+            "specimen-edge-labels#label-entity-s",
+            "specimen-edge-labels#label-entity-t",
+            "specimen-edge-labels#label-long-s",
+            "specimen-edge-labels#label-long-t",
+            "specimen-edge-labels#label-on-red-s",
+            "specimen-edge-labels#label-on-red-t",
+            "specimen-edge-labels#label-on-weight-4-s",
+            "specimen-edge-labels#label-on-weight-4-t",
+            "specimen-edge-labels#label-on-loop-s",
+            "specimen-edge-labels#label-text",
+            "specimen-edge-labels#label-empty",
+            "specimen-edge-labels#label-entity",
+            "specimen-edge-labels#label-long",
+            "specimen-edge-labels#label-on-red",
+            "specimen-edge-labels#label-on-weight-4",
+            "specimen-edge-labels#label-on-loop"
+        ],
+        "edge kind": [
+            "specimen-edges-lines#parallel-kind-s",
+            "specimen-edges-lines#parallel-kind-t",
+            "specimen-edges-lines#parallel-kind",
+            "specimen-edges-lines#parallel-kind-2",
+            "specimen-edges-lines-gexf12#parallel-kind-s",
+            "specimen-edges-lines-gexf12#parallel-kind-t",
+            "specimen-edges-lines-gexf12#parallel-kind",
+            "specimen-edges-lines-gexf12#parallel-kind-2"
+        ],
+        "node pid / nested nodes": [
+            "specimen-groups#group-nested",
+            "specimen-groups#group-pid",
+            "specimen-groups#group-pid-a",
+            "specimen-groups#group-pid-b",
+            "specimen-groups#group-deep",
+            "specimen-groups#group-empty",
+            "specimen-groups#group-edge-in",
+            "specimen-groups#group-parents",
+            "specimen-groups#group-parents-q",
+            "specimen-groups#group-parents-a",
+            "specimen-groups#group-edge-in-e"
+        ],
+        "dynamics (mode=dynamic, start/end, spells, timed viz values)": [
+            "specimen-node-sizes-opacity-dynamic#default",
+            "specimen-node-sizes-opacity-dynamic#color-timed-in-order",
+            "specimen-node-sizes-opacity-dynamic#color-timed-last-earlier",
+            "specimen-node-sizes-opacity-dynamic#size-timed",
+            "specimen-node-sizes-opacity-dynamic#position-timed",
+            "specimen-node-sizes-opacity-dynamic#node-interval",
+            "specimen-node-sizes-opacity-dynamic#node-spells",
+            "specimen-node-sizes-opacity-dynamic#edge-interval-s",
+            "specimen-node-sizes-opacity-dynamic#edge-interval-t",
+            "specimen-node-sizes-opacity-dynamic#edge-interval",
+            "specimen-edges-lines-dynamic-weight#default-s",
+            "specimen-edges-lines-dynamic-weight#default-t",
+            "specimen-edges-lines-dynamic-weight#weight-static-4-s",
+            "specimen-edges-lines-dynamic-weight#weight-static-4-t",
+            "specimen-edges-lines-dynamic-weight#weight-timed-s",
+            "specimen-edges-lines-dynamic-weight#weight-timed-t",
+            "specimen-edges-lines-dynamic-weight#weight-timed-last-earlier-s",
+            "specimen-edges-lines-dynamic-weight#weight-timed-last-earlier-t",
+            "specimen-edges-lines-dynamic-weight#weight-timed-one-s",
+            "specimen-edges-lines-dynamic-weight#weight-timed-one-t",
+            "specimen-edges-lines-dynamic-weight#default",
+            "specimen-edges-lines-dynamic-weight#weight-static-4",
+            "specimen-edges-lines-dynamic-weight#weight-timed",
+            "specimen-edges-lines-dynamic-weight#weight-timed-last-earlier",
+            "specimen-edges-lines-dynamic-weight#weight-timed-one",
+            "specimen-node-sizes-opacity-timestamps#default",
+            "specimen-node-sizes-opacity-timestamps#node-timestamp",
+            "specimen-node-sizes-opacity-timestamps#node-timestamps",
+            "specimen-node-sizes-opacity-timestamps#node-spell-timestamp",
+            "specimen-node-sizes-opacity-timestamps#color-timestamped",
+            "specimen-node-sizes-opacity-timestamps#color-timestamped-last-earlier",
+            "specimen-node-sizes-opacity-timestamps#size-timestamped",
+            "specimen-node-sizes-opacity-timestamps#edge-timestamps-s",
+            "specimen-node-sizes-opacity-timestamps#edge-timestamps-t",
+            "specimen-node-sizes-opacity-timestamps#edge-timestamps",
+            "specimen-node-sizes-opacity-gexf12-open#default",
+            "specimen-node-sizes-opacity-gexf12-open#node-startopen",
+            "specimen-node-sizes-opacity-gexf12-open#node-endopen",
+            "specimen-node-sizes-opacity-gexf12-open#node-spell-open",
+            "specimen-node-sizes-opacity-gexf12-open#edge-startopen-s",
+            "specimen-node-sizes-opacity-gexf12-open#edge-startopen-t",
+            "specimen-node-sizes-opacity-gexf12-open#edge-startopen"
+        ],
+        "node parents": ["specimen-groups#group-parents"],
+        "timerepresentation=timestamp (timestamp, timestamps, timestamped viz values)": [
+            "specimen-node-sizes-opacity-timestamps#default",
+            "specimen-node-sizes-opacity-timestamps#node-timestamp",
+            "specimen-node-sizes-opacity-timestamps#node-timestamps",
+            "specimen-node-sizes-opacity-timestamps#node-spell-timestamp",
+            "specimen-node-sizes-opacity-timestamps#color-timestamped",
+            "specimen-node-sizes-opacity-timestamps#color-timestamped-last-earlier",
+            "specimen-node-sizes-opacity-timestamps#size-timestamped",
+            "specimen-node-sizes-opacity-timestamps#edge-timestamps-s",
+            "specimen-node-sizes-opacity-timestamps#edge-timestamps-t",
+            "specimen-node-sizes-opacity-timestamps#edge-timestamps"
+        ],
+        "dynamic edge weight (attvalue start/end)": [
+            "specimen-edges-lines-dynamic-weight#weight-timed-s",
+            "specimen-edges-lines-dynamic-weight#weight-timed-t",
+            "specimen-edges-lines-dynamic-weight#weight-timed-last-earlier-s",
+            "specimen-edges-lines-dynamic-weight#weight-timed-last-earlier-t",
+            "specimen-edges-lines-dynamic-weight#weight-timed-one-s",
+            "specimen-edges-lines-dynamic-weight#weight-timed-one-t",
+            "specimen-edges-lines-dynamic-weight#weight-timed",
+            "specimen-edges-lines-dynamic-weight#weight-timed-last-earlier",
+            "specimen-edges-lines-dynamic-weight#weight-timed-one"
+        ],
+        "1.2draft open interval bounds (startopen, endopen)": [
+            "specimen-node-sizes-opacity-gexf12-open#node-startopen",
+            "specimen-node-sizes-opacity-gexf12-open#node-endopen",
+            "specimen-node-sizes-opacity-gexf12-open#node-spell-open",
+            "specimen-node-sizes-opacity-gexf12-open#edge-startopen"
+        ],
+        "mode=slice (graph timestamp)": [
+            "specimen-node-sizes-opacity-slice#default",
+            "specimen-node-sizes-opacity-slice#node-in-slice",
+            "specimen-node-sizes-opacity-slice#node-outside-slice",
+            "specimen-node-sizes-opacity-slice#edge-outside-slice-s",
+            "specimen-node-sizes-opacity-slice#edge-outside-slice-t",
+            "specimen-node-sizes-opacity-slice#edge-outside-slice"
+        ],
+        "GEXF version (namespaces)": {
+            "1.3": [
+                "specimen-node-shapes",
+                "specimen-node-fills-borders",
+                "specimen-node-sizes-opacity",
+                "specimen-labels",
+                "specimen-edges-lines",
+                "specimen-edges-lines-nonpositive",
+                "specimen-arrows",
+                "specimen-arrows-undirected",
+                "specimen-arrows-mutual",
+                "specimen-edge-labels",
+                "specimen-groups",
+                "specimen-images-charts",
+                "specimen-node-sizes-opacity-dynamic",
+                "specimen-edges-lines-dynamic-weight",
+                "specimen-node-sizes-opacity-timestamps",
+                "specimen-node-sizes-opacity-slice"
+            ],
+            "1.2draft": [
+                "specimen-node-fills-borders-gexf12",
+                "specimen-edges-lines-gexf12",
+                "specimen-node-sizes-opacity-gexf12-open"
+            ],
+            "1.1draft": ["specimen-node-fills-borders-gexf11"]
+        }
+    },
+    "previewProperties": {
+        "edge.show": {
+            "type": "Boolean",
+            "default": "true",
+            "pages": ["specimen-edges-lines-p12"]
+        },
+        "edge.thickness": {
+            "type": "Float",
+            "default": "1.0",
+            "pages": ["specimen-edges-lines-p9"]
+        },
+        "edge.use-weight": {
+            "type": "Boolean",
+            "default": "true",
+            "pages": ["specimen-edges-lines-p8"]
+        },
+        "edge.rescale-weight": {
+            "type": "Boolean",
+            "default": "false",
+            "pages": ["specimen-edges-lines-p10", "specimen-edges-lines-p11"]
+        },
+        "edge.rescale-weight.min": {
+            "type": "Float",
+            "default": "0.4",
+            "pages": ["specimen-edges-lines-p11"],
+            "note": "drawn with edge.rescale-weight (its only effect)"
+        },
+        "edge.rescale-weight.max": {
+            "type": "Float",
+            "default": "8.0",
+            "pages": ["specimen-edges-lines-p11"],
+            "note": "drawn with edge.rescale-weight (its only effect)"
+        },
+        "edge.color": {
+            "type": "EdgeColor",
+            "default": "mixed",
+            "pages": [
+                "specimen-edges-lines-p3",
+                "specimen-edges-lines-p4",
+                "specimen-edges-lines-p5",
+                "specimen-edges-lines-p6"
+            ]
+        },
+        "edge.opacity": {
+            "type": "Float",
+            "default": "100.0",
+            "pages": ["specimen-edges-lines-p7"]
+        },
+        "edge.curved": {
+            "type": "Boolean",
+            "default": "true",
+            "pages": ["specimen-edges-lines-p2", "specimen-arrows-p5", "specimen-edge-labels-p12"]
+        },
+        "edge.radius": {
+            "type": "Float",
+            "default": "0.0",
+            "pages": ["specimen-arrows-p4"]
+        },
+        "arrow.size": {
+            "type": "Float",
+            "default": "3.0",
+            "pages": ["specimen-arrows-p2", "specimen-arrows-p3"]
+        },
+        "node.border.fixed": {
+            "type": "Boolean",
+            "default": "false",
+            "pages": [
+                "specimen-node-fills-borders-p2",
+                "specimen-node-fills-borders-p3",
+                "specimen-node-fills-borders-p7"
+            ]
+        },
+        "node.border.width": {
+            "type": "Float",
+            "default": "1.0",
+            "pages": ["specimen-node-fills-borders-p2", "specimen-node-fills-borders-p3"],
+            "note": "drawn with node.border.fixed (its only effect: unfixed, the border is 0.08 x the node's size)"
+        },
+        "node.border.color": {
+            "type": "DependantColor",
+            "default": "darker",
+            "pages": [
+                "specimen-node-fills-borders-p4",
+                "specimen-node-fills-borders-p5",
+                "specimen-node-fills-borders-p6"
+            ]
+        },
+        "node.opacity": {
+            "type": "Float",
+            "default": "100.0",
+            "pages": ["specimen-node-sizes-opacity-p3"]
+        },
+        "node.per.node.opacity": {
+            "type": "Boolean",
+            "default": "false",
+            "pages": ["specimen-node-shapes-p2", "specimen-node-sizes-opacity-p2", "specimen-images-charts-p2"]
+        },
+        "node.label.show": {
+            "type": "Boolean",
+            "default": "false",
+            "pages": ["specimen-labels-p2"],
+            "base": "true"
+        },
+        "node.label.customFont": {
+            "type": "Boolean",
+            "default": "false",
+            "pages": ["specimen-labels-p14", "specimen-labels-p22", "specimen-labels-p23", "specimen-labels-p24"]
+        },
+        "node.label.font": {
+            "type": "Font",
+            "default": "Dialog,plain,12",
+            "pages": ["specimen-labels-p14", "specimen-labels-p22", "specimen-labels-p23", "specimen-labels-p24"],
+            "note": "drawn with node.label.customFont"
+        },
+        "node.label.proportinalSize": {
+            "type": "Boolean",
+            "default": "true",
+            "pages": ["specimen-labels-p3"]
+        },
+        "node.label.color": {
+            "type": "DependantOriginalColor",
+            "default": "#000000",
+            "pages": ["specimen-labels-p4", "specimen-labels-p5", "specimen-labels-p6"]
+        },
+        "node.label.shorten": {
+            "type": "Boolean",
+            "default": "false",
+            "pages": ["specimen-labels-p7", "specimen-labels-p8"]
+        },
+        "node.label.avoidOverlap": {
+            "type": "Boolean",
+            "default": "true",
+            "pages": ["specimen-labels-p15", "specimen-labels-p16"],
+            "base": "false"
+        },
+        "node.label.overlapGridSize": {
+            "type": "Integer",
+            "default": "10",
+            "pages": ["specimen-labels-p16"],
+            "note": "drawn with node.label.avoidOverlap (its only effect)"
+        },
+        "node.label.max-char": {
+            "type": "Integer",
+            "default": "30",
+            "pages": ["specimen-labels-p8"],
+            "note": "drawn with node.label.shorten (its only effect)"
+        },
+        "node.label.outline.size": {
+            "type": "Float",
+            "default": "0.0",
+            "pages": [
+                "specimen-labels-p9",
+                "specimen-labels-p10",
+                "specimen-labels-p17",
+                "specimen-labels-p18",
+                "specimen-labels-p19"
+            ]
+        },
+        "node.label.outline.color": {
+            "type": "DependantColor",
+            "default": "#ffffff",
+            "pages": [
+                "specimen-labels-p9",
+                "specimen-labels-p10",
+                "specimen-labels-p17",
+                "specimen-labels-p18",
+                "specimen-labels-p19"
+            ],
+            "note": "drawn with node.label.outline.size (invisible at size 0)"
+        },
+        "node.label.outline.opacity": {
+            "type": "Float",
+            "default": "80.0",
+            "pages": ["specimen-labels-p10"],
+            "note": "drawn with node.label.outline.size (invisible at size 0)"
+        },
+        "node.label.box": {
+            "type": "Boolean",
+            "default": "false",
+            "pages": [
+                "specimen-labels-p11",
+                "specimen-labels-p12",
+                "specimen-labels-p13",
+                "specimen-labels-p20",
+                "specimen-labels-p21"
+            ]
+        },
+        "node.label.box.color": {
+            "type": "DependantColor",
+            "default": "parent",
+            "pages": ["specimen-labels-p12", "specimen-labels-p20", "specimen-labels-p21"],
+            "note": "drawn with node.label.box"
+        },
+        "node.label.box.opacity": {
+            "type": "Float",
+            "default": "100.0",
+            "pages": ["specimen-labels-p13"],
+            "note": "drawn with node.label.box"
+        },
+        "edge.label.show": {
+            "type": "Boolean",
+            "default": "false",
+            "pages": [
+                "specimen-edge-labels-p2",
+                "specimen-edge-labels-p3",
+                "specimen-edge-labels-p4",
+                "specimen-edge-labels-p5",
+                "specimen-edge-labels-p6",
+                "specimen-edge-labels-p7",
+                "specimen-edge-labels-p8",
+                "specimen-edge-labels-p9",
+                "specimen-edge-labels-p10",
+                "specimen-edge-labels-p11",
+                "specimen-edge-labels-p12",
+                "specimen-edge-labels-p13",
+                "specimen-edge-labels-p14",
+                "specimen-edge-labels-p15"
+            ]
+        },
+        "edge.label.customFont": {
+            "type": "Boolean",
+            "default": "false",
+            "pages": [
+                "specimen-edge-labels-p8",
+                "specimen-edge-labels-p13",
+                "specimen-edge-labels-p14",
+                "specimen-edge-labels-p15"
+            ],
+            "note": "paged with edge.label.show"
+        },
+        "edge.label.font": {
+            "type": "Font",
+            "default": "Dialog,plain,10",
+            "pages": [
+                "specimen-edge-labels-p8",
+                "specimen-edge-labels-p13",
+                "specimen-edge-labels-p14",
+                "specimen-edge-labels-p15"
+            ],
+            "note": "drawn with edge.label.customFont"
+        },
+        "edge.label.color": {
+            "type": "DependantOriginalColor",
+            "default": "original",
+            "pages": ["specimen-edge-labels-p3", "specimen-edge-labels-p4"],
+            "note": "paged with edge.label.show"
+        },
+        "edge.label.shorten": {
+            "type": "Boolean",
+            "default": "false",
+            "pages": ["specimen-edge-labels-p7"],
+            "note": "paged with edge.label.show"
+        },
+        "edge.label.max-char": {
+            "type": "Integer",
+            "default": "30",
+            "pages": ["specimen-edge-labels-p7"],
+            "note": "drawn with edge.label.shorten (its only effect)"
+        },
+        "edge.label.outline.size": {
+            "type": "Float",
+            "default": "0.0",
+            "pages": [
+                "specimen-edge-labels-p5",
+                "specimen-edge-labels-p6",
+                "specimen-edge-labels-p9",
+                "specimen-edge-labels-p10",
+                "specimen-edge-labels-p11"
+            ],
+            "note": "paged with edge.label.show"
+        },
+        "edge.label.outline.color": {
+            "type": "DependantColor",
+            "default": "#ffffff",
+            "pages": [
+                "specimen-edge-labels-p5",
+                "specimen-edge-labels-p6",
+                "specimen-edge-labels-p9",
+                "specimen-edge-labels-p10",
+                "specimen-edge-labels-p11"
+            ],
+            "note": "drawn with edge.label.outline.size (invisible at size 0)"
+        },
+        "edge.label.outline.opacity": {
+            "type": "Float",
+            "default": "80.0",
+            "pages": ["specimen-edge-labels-p6"],
+            "note": "drawn with edge.label.outline.size (invisible at size 0)"
+        }
+    },
+    "notCovered": {
+        "viz:color hex with a": "Gephi 0.11.3's GEXF importer throws on <viz:color hex=... a=...> (\"Color parameter outside of expected range: Green\") and opens nothing, so no sheet holding it has an oracle",
+        "viz:color r/g/b with a channel missing": "schema-valid but Gephi throws the same way; left out for the same reason",
+        "Preview simple values background-color and margin": "not drawn into the SVG: Gephi's SVG export has no background, and margin only pads the canvas, which the comparator fits on the anchors",
+        "Preview simple values edge.arc-curveness and edge.bezier-curveness": "not in Gephi's Preview settings (no UI; code only); node.scale.factor, edge.scale.factor, node.label.scale and edge.label.scale are set by refreshPreview from the Overview, not by the user",
+        "Preview simple values directed, visibility-ratio and canvas.moving": "not style settings: refreshPreview sets directed from the graph, visibility-ratio is an export-time option that drops a share of the nodes (1.0 keeps all), and canvas.moving only skips labels while the interactive preview is dragged"
+    }
+}

@@ -104,8 +104,12 @@ function renderTable(targets, resultsDir, table) {
         markdownTable(["Id", "What", "Target", "Measured", "Status"], body),
     ];
     if (known.length > 0) {
-        lines.push("", "Known misses on this class, which `bench:compare` reports without failing:", "");
-        lines.push(...known.map((k) => `- ${k}`));
+        lines.push(
+            "",
+            "Known misses on this class, which `bench:compare` reports without failing:",
+            "",
+            ...known.map((k) => `- ${k}`),
+        );
     }
     return lines.join("\n");
 }

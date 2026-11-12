@@ -3,8 +3,8 @@ import "@graphty/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/react";
 
+import { freshStore, storeOf } from "../../stories/freshStore";
 import { answerUsageData, forgetUsageAnswer } from "../privacy/usageData";
-import { createWorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
 import { DISCARD_DIALOG, SAVE_AS_DIALOG } from "./actions";
 import { clearRecent, rememberRecent } from "./recent";
@@ -47,10 +47,11 @@ async function loadRing(canvasElement: HTMLElement): Promise<void> {
  * @returns the story.
  */
 function dialogStory(dialog: string): Story {
-    const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 } });
     return {
-        args: { store },
-        play: async ({ canvasElement }) => {
+        ...freshStore({ project: { name: "Les Miserables", id: 1 } }),
+        play: async (context) => {
+            const { canvasElement } = context;
+            const store = storeOf(context);
             store.set({ dialog: null });
             await loadRing(canvasElement);
             store.set({ dialog });
@@ -100,7 +101,7 @@ export const RecentMissing: Story = {
     play: async ({ canvasElement }) => {
         const row = await new Promise<HTMLElement>((resolve) => {
             const find = (): void => {
-                const found = [...canvasElement.querySelectorAll<HTMLElement>(".ws-recent-open")].find((button) =>
+                const found = [...canvasElement.querySelectorAll<HTMLElement>(".cm-page-cell")].find((button) =>
                     button.textContent?.startsWith("Les Miserables, my copy"),
                 );
                 if (found === undefined) {
@@ -128,5 +129,5 @@ export const RecentMissing: Story = {
 /** Save as..., the name selected (`#/project-menu/save-as`). */
 export const SaveAs: Story = dialogStory(SAVE_AS_DIALOG);
 
-/** Close project or opening another over unsaved changes: the question before they are lost. */
+/** Back to start or opening another over unsaved changes: the question before they are lost. */
 export const DiscardChanges: Story = dialogStory(DISCARD_DIALOG);

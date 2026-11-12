@@ -19,6 +19,7 @@ import { Graph, operationQueueOf } from "../../src/Graph";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { laneOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
+import { drawnFrames } from "../helpers/drawn-frames";
 import { nextFrame } from "../helpers/real-input";
 
 const cleanups: (() => void)[] = [];
@@ -68,9 +69,7 @@ async function atRest(graph: Graph): Promise<void> {
         await nextFrame();
     }
 
-    for (let frame = 0; frame < 2; frame++) {
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
+    await drawnFrames(graph.getScene(), 2);
 }
 
 /**
@@ -131,7 +130,43 @@ function gatePreSteps(): { waiting: () => boolean; open: () => void; published: 
     return { waiting: () => waiting, open: release, published: () => published };
 }
 
+/**
+ * Settles on the element's next finished framing.
+ * @param graph - The graph.
+ * @returns When the camera has framed the graph.
+ */
+function framed(graph: Graph): Promise<void> {
+    return new Promise((resolve) => {
+        const stop = graph.on("zoom-to-fit-complete", () => {
+            stop();
+            resolve();
+        });
+    });
+}
+
 describe("the layout as a step", () => {
+    it("undo of a wider layout frames the old arrangement again, as a new layout is framed", async () => {
+        const graph = await loadedGraph();
+        const session = graph.getSession();
+        const first = framed(graph);
+        graph.zoomToFit();
+        await first;
+        await atRest(graph);
+        const before = graph.getCameraState().cameraDistance ?? 0;
+
+        const wide = framed(graph);
+        await session.layout.set("circular", { options: { scale: 20 } });
+        await wide;
+        await atRest(graph);
+        assert.isAbove(graph.getCameraState().cameraDistance ?? 0, before * 4, "the wide ring is framed wider");
+
+        const back = framed(graph);
+        await session.undo();
+        await back;
+        await atRest(graph);
+        assert.approximately(graph.getCameraState().cameraDistance ?? 0, before, before * 0.25);
+    });
+
     it("undo brings back the alternate engine that was chosen, with its options", async () => {
         const graph = await loadedGraph();
         const session = graph.getSession();
@@ -302,5 +337,28 @@ describe("the element's layout properties", () => {
 
         await session.undo();
         assert.strictEqual(element.layout, undefined, "one undo takes both back to the default");
+    });
+
+    it("a catalog id names the layout and its default engine draws it", async () => {
+        const element = document.createElement("graphty-element");
+        element.style.display = "block";
+        element.style.width = "400px";
+        element.style.height = "300px";
+        element.layout = "force";
+        element.layoutConfig = { seed: 1 };
+        document.body.appendChild(element);
+        cleanups.push(() => {
+            element.remove();
+        });
+        await element.updateComplete;
+        await operationQueueOf(element.graph).waitForCompletion();
+        const { session } = element;
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
+
+        assert.strictEqual(session.layout.id, "force");
+        assert.strictEqual(session.layout.engine, "ngraph");
+        assert.deepEqual(session.layout.options, { seed: 1 });
     });
 });

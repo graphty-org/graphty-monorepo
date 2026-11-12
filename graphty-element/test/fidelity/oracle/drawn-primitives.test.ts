@@ -1,0 +1,796 @@
+/**
+ * graphty's side of the oracle comparison (`drawnPrimitives`) on a hand-made drawn edge: a cap drawn at no opacity or
+ * no size is no arrowhead, a cap's shape class comes from its mesh's type name (the longest it holds, so an open
+ * triangle is no plain one), its color and fill are carried, and each line pattern graphty draws is read into the
+ * line class the program's drawing is.
+ */
+import { assert, describe, it } from "vitest";
+
+import type { Scene, SceneEdge } from "../../../../graph-io/test/fidelity/scene";
+import type { DrawnBorder, DrawnEdge, DrawnGraph, DrawnLabel, DrawnNode } from "../drawn-scene";
+import { rampColor, withoutCaptions } from "./compare-oracle";
+import { drawnPrimitives, inkedLines } from "./drawn-primitives";
+import type { Pt } from "./primitives";
+
+type Cap = DrawnEdge["caps"][number];
+const cap = (over: Partial<Cap>): Cap => ({
+    end: "arrowHead",
+    name: "arrow-2d-normal",
+    sizePx: 10,
+    outline: null,
+    color: "#ff0000",
+    opacity: 1,
+    ...over,
+});
+
+function graphOf(
+    caps: Cap[],
+    pattern: string | null = null,
+    gradient: DrawnEdge["gradient"] = null,
+    over: Partial<DrawnEdge> = {},
+    edgeOver: Partial<SceneEdge> = {},
+): PScene {
+    const sceneEdge: SceneEdge = {
+        id: "e",
+        source: "a",
+        target: "b",
+        points: [
+            [0, 0],
+            [100, 0],
+        ],
+        curved: false,
+        color: "#000000",
+        opacity: 1,
+        width: 2,
+        style: "solid",
+        arrow: { source: "none", target: "none" },
+        label: null,
+        ...edgeOver,
+    };
+    const scene = { nodes: [], edges: [sceneEdge], groups: [], annotations: [], gaps: [] } as unknown as Scene;
+    const edge: DrawnEdge = {
+        kind: "line-2d",
+        shown: true,
+        points: sceneEdge.points,
+        thicknessPx: 2,
+        color: "#000000",
+        opacity: 1,
+        pattern,
+        dashPx: null,
+        outline: null,
+        caps,
+        label: null,
+        endLabels: [],
+        gradient,
+        ...over,
+    };
+    const drawn: DrawnGraph = {
+        nodes: new Map(),
+        edges: new Map([["e", edge]]),
+        annotations: [],
+        background: { hex: "#ffffff", alpha: 1 },
+        width: 200,
+        height: 100,
+    };
+    return drawnPrimitives(scene, drawn);
+}
+type PScene = ReturnType<typeof drawnPrimitives>;
+
+describe("graphty's drawing in the oracle comparison's model", () => {
+    it("reads a label's words where its inked lines are, not over a blank line before them", () => {
+        // yEd's "\nCS" (graphml-stm32-func n30, n36): two lines, the words on the second, as the SVG's text box holds
+        const box = { x0: 0, y0: 0, x1: 10, y1: 20 };
+        // the scene counts only the inked lines; its text holds every laid-out line, and which were drawn a line tall
+        const label = (text: string, rotation: number, tall?: boolean[]): DrawnLabel =>
+            ({ text, rotation, lineCount: 1, tall }) as DrawnLabel;
+        assert.deepEqual(inkedLines(label("\nCS", 0, [true, true]), box), { x0: 0, y0: 10, x1: 10, y1: 20 });
+        assert.deepEqual(inkedLines(label("C\nS", 180, [true, true]), box), box);
+        assert.deepEqual(inkedLines(label("\nCS", 180, [true, true]), box), { x0: 0, y0: 0, x1: 10, y1: 10 });
+        // a blank line drawn with no height (always after the last words) is not part of the box
+        assert.deepEqual(inkedLines(label("CS\n", 0, [true, false]), box), box);
+        assert.deepEqual(inkedLines(label("\nCS", 0, [false, true]), box), box);
+        // turned a quarter clockwise, the lines step leftward; three quarters, rightward
+        assert.deepEqual(inkedLines(label("\nCS", 90, [true, true]), box), { x0: 0, y0: 0, x1: 5, y1: 20 });
+        assert.deepEqual(inkedLines(label("\nCS", 270, [true, true]), box), { x0: 5, y0: 0, x1: 10, y1: 20 });
+        assert.deepEqual(inkedLines(label("A\nB", 0), box), box);
+        assert.deepEqual(inkedLines(label("\nCS", 30), box), box);
+    });
+
+    it("counts no arrowhead for a cap drawn at no opacity or no size", () => {
+        assert.lengthOf(graphOf([cap({ opacity: 0 })]).edges[0].arrows, 0);
+        assert.lengthOf(graphOf([cap({ sizePx: 0 })]).edges[0].arrows, 0);
+        assert.lengthOf(graphOf([cap({})]).edges[0].arrows, 1);
+    });
+
+    it("reads a head drawn backward by its outline, and one off its line's end as misplaced", () => {
+        const head = (pts: Pt[], name = "arrow-2d-normal"): PScene["edges"][number]["arrows"][number] =>
+            graphOf([cap({ name, outline: pts })]).edges[0].arrows[0];
+        const at = (dx: number, dy: number, back = false): Pt[] =>
+            back
+                ? [
+                      [100 + dx, -5 + dy],
+                      [90 + dx, dy],
+                      [100 + dx, 5 + dy],
+                  ]
+                : [
+                      [90 + dx, -5 + dy],
+                      [100 + dx, dy],
+                      [90 + dx, 5 + dy],
+                  ];
+        const onEnd = head(at(0, 0));
+        assert.strictEqual(onEnd.shape, "triangle");
+        assert.isUndefined(onEnd.misplaced);
+        // the scene names it a triangle, its outline points back at the line
+        assert.strictEqual(head(at(0, 0, true)).shape, "inverted");
+        // a 15 px gap ahead of the line, 30 px back along it, 12 px to its side
+        assert.isAbove(head(at(15, 0)).misplaced ?? 0, 0);
+        assert.isAbove(head(at(-40, 0)).misplaced ?? 0, 0);
+        assert.isAbove(head(at(0, 12)).misplaced ?? 0, 0);
+        // half an arrow lies to one side by its make
+        const half: Pt[] = [
+            [90, -5],
+            [100, 0],
+            [90, 0],
+        ];
+        assert.isUndefined(head(half, "arrow-2d-half").misplaced);
+    });
+
+    it("reads a head its style draws at the middle of the line as part-way, not as standing off the line's end", () => {
+        // Pajek's `arrowPosition` (pajek-graphstream-b): both programs draw the head at the middle of every line
+        const middle: Pt[] = [
+            [45, -5],
+            [55, 0],
+            [45, 5],
+        ];
+        const head = (position: number): PScene["edges"][number]["arrows"][number] =>
+            graphOf([cap({ outline: middle, position })]).edges[0].arrows[0];
+        assert.isTrue(head(0.5).partWay);
+        assert.isUndefined(head(0.5).misplaced);
+        // drawn at the line's end by its style, a head in the middle stands off the end
+        assert.isUndefined(head(0).partWay);
+        assert.isAbove(head(0).misplaced ?? 0, 0);
+    });
+
+    it("reads each head of an annotation arrow as a shape of its own", () => {
+        const drawn: DrawnGraph = {
+            nodes: new Map(),
+            edges: new Map(),
+            annotations: [],
+            background: { hex: "#ffffff", alpha: 1 },
+            width: 200,
+            height: 100,
+        };
+        const arrow = (heads: number): Scene =>
+            ({
+                nodes: [],
+                edges: [],
+                groups: [],
+                gaps: [],
+                annotations: [
+                    {
+                        kind: "arrow",
+                        bbox: { x: 10, y: 50, w: 100, h: 0 },
+                        heads: [
+                            { x: 98, y: 45, w: 12, h: 10 },
+                            { x: 10, y: 45, w: 12, h: 10 },
+                        ].slice(0, heads),
+                    },
+                ],
+            }) as unknown as Scene;
+        const tags = (s: Scene): string[] => drawnPrimitives(s, drawn).strays.map((x) => x.tag);
+        assert.deepEqual(tags(arrow(2)), ["annotation-arrow", "annotation-arrow-head", "annotation-arrow-head"]);
+        assert.deepEqual(tags(arrow(0)), ["annotation-arrow"]);
+    });
+
+    it("reads the arrowhead of an edge it draws no line for as a free shape, as the oracle's is a stray", () => {
+        // Gephi's swallowed curved edge (gexf-sigma-ediaspora): an arrowhead with no line
+        const head = cap({
+            outline: [
+                [90, -5],
+                [100, 0],
+                [90, 5],
+            ],
+        });
+        const lineless = graphOf([head], null, null, {}, { opacity: 0 });
+        assert.lengthOf(lineless.edges, 0);
+        assert.deepEqual(
+            lineless.strays.map((s) => [s.tag, s.kind, s.box]),
+            [["arrowhead", "shape", { x0: 90, y0: -5, x1: 100, y1: 5 }]],
+        );
+        // an edge it draws a line for carries its arrowhead itself
+        assert.lengthOf(graphOf([head]).strays, 0);
+        // one wholly inside an opaque node is drawn under it, seen nowhere
+        const sceneEdge = {
+            id: "e",
+            source: "a",
+            target: "b",
+            points: [
+                [0, 0],
+                [100, 0],
+            ],
+            width: 2,
+            opacity: 0,
+        };
+        const scene = {
+            nodes: [{ id: "b", shape: "rect", visible: false }],
+            edges: [sceneEdge],
+            groups: [],
+            annotations: [],
+            gaps: [],
+        } as unknown as Scene;
+        const covering = (fillOpacity: number): DrawnNode =>
+            ({
+                visible: true,
+                fillDrawn: "#cccccc",
+                fillOpacity,
+                box: { x0: 80, y0: -20, x1: 120, y1: 20, near: 0, far: 0 },
+            }) as unknown as DrawnNode;
+        const strays = (fillOpacity: number): number =>
+            drawnPrimitives(scene, {
+                nodes: new Map([["b", covering(fillOpacity)]]),
+                edges: new Map([
+                    ["e", { shown: true, points: sceneEdge.points, caps: [head] } as unknown as DrawnEdge],
+                ]),
+                annotations: [],
+                background: { hex: "#ffffff", alpha: 1 },
+                width: 200,
+                height: 100,
+            }).strays.length;
+        assert.strictEqual(strays(1), 0);
+        assert.strictEqual(strays(0.4), 1);
+    });
+
+    it("carries a line on to the tip of a cap placed by its middle, a circle's far side", () => {
+        const ring = Array.from({ length: 16 }, (_v, k): [number, number] => [
+            100 + 5 * Math.cos((k * Math.PI) / 8),
+            5 * Math.sin((k * Math.PI) / 8),
+        ]);
+        const circle = graphOf([cap({ name: "arrow-2d-dot", outline: ring })]).edges[0];
+        assert.closeTo(circle.points.at(-1)?.[0] ?? 0, 105, 1e-9);
+        // a cap whose tip is the line's end leaves the line as it is
+        const head = graphOf([
+            cap({
+                outline: [
+                    [100, 0],
+                    [90, 3],
+                    [90, -3],
+                ],
+            }),
+        ]).edges[0];
+        assert.deepEqual(head.points.at(-1), [100, 0]);
+    });
+
+    it("ends a line at the back of an open half circle standing off its node, not at the mouth the scene reports", () => {
+        // an arc bulging back along the line from x 95 to its mouth at the line's end
+        const arc = Array.from({ length: 9 }, (_v, k): [number, number] => [
+            100 - 5 * Math.sin((k * Math.PI) / 8),
+            -5 * Math.cos((k * Math.PI) / 8),
+        ]);
+        // Cytoscape's OPEN_HALF_CIRCLE stands off its node: the line stops at the arc's back
+        const open = graphOf([cap({ name: "arrow-2d-open-half-circle", outline: arc, gap: 1 })]).edges[0];
+        assert.closeTo(open.points.at(-1)?.[0] ?? 0, 95, 1e-9);
+        // vis-network's inv_curve lies against its node: the line runs on under the arc to the node
+        const against = graphOf([cap({ name: "arrow-2d-open-half-circle", outline: arc })]).edges[0];
+        assert.closeTo(against.points.at(-1)?.[0] ?? 0, 100, 1e-9);
+        // the filled one is carried through to its tip, as the oracle's is
+        const filled = graphOf([cap({ name: "arrow-2d-half-circle", outline: arc })]).edges[0];
+        assert.closeTo(filled.points.at(-1)?.[0] ?? 0, 100, 1e-9);
+    });
+
+    it("reads vis-network's curve cap, a stroked arc, as a hollow half circle", () => {
+        const [arrow] = graphOf([cap({ name: "arrow-2d-curve" })]).edges[0].arrows;
+        assert.deepEqual([arrow.shape, arrow.filled], ["half-circle", false]);
+    });
+
+    it("reads a cap's shape class, fill and color from its mesh", () => {
+        const [open] = graphOf([cap({ name: "arrow-2d-open-normal" })]).edges[0].arrows;
+        assert.deepEqual([open.shape, open.filled, open.color], ["triangle", false, "#ff0000"]);
+        const [dot] = graphOf([cap({ name: "sphere-dot-arrow-3d", end: "arrowTail" })]).edges[0].arrows;
+        assert.deepEqual([dot.shape, dot.filled, dot.end], ["circle", true, "source"]);
+        assert.strictEqual(graphOf([cap({ name: "arrow-2d-half-open" })]).edges[0].arrows[0].shape, "half");
+    });
+
+    it("reads the caps graphty added for other programs' arrows into their classes and fills", () => {
+        const one = (name: string): [string, boolean] => {
+            const [a] = graphOf([cap({ name })]).edges[0].arrows;
+            return [a.shape, a.filled];
+        };
+        // a half-open cap is one filled barb, whatever its name says
+        assert.deepEqual(one("arrow-2d-half-open"), ["half", true]);
+        assert.deepEqual(one("arrow-2d-half-circle"), ["half-circle", true]);
+        assert.deepEqual(one("arrow-2d-open-half-circle"), ["half-circle", false]);
+        assert.deepEqual(one("arrow-2d-triangle-tee"), ["triangle", true]);
+        assert.deepEqual(one("arrow-2d-triangle-cross"), ["triangle", true]);
+        assert.deepEqual(one("arrow-2d-circle-triangle"), ["circle-triangle", true]);
+        // Cytoscape's CROSS_DELTA and CROSS_OPEN_DELTA, the class the oracle reads them in
+        assert.deepEqual(one("arrow-2d-cross-delta"), ["cross-delta", true]);
+        assert.deepEqual(one("arrow-2d-open-cross-delta"), ["cross-delta", false]);
+    });
+
+    it("reads a cap drawn part-way along the line as the line's middle one, a middle tail pointing back", () => {
+        const [head] = graphOf([cap({ end: "arrowMiddleHead" })]).edges[0].arrows;
+        assert.deepEqual([head.end, head.shape], ["middle", "triangle"]);
+        const [tail] = graphOf([cap({ end: "arrowMiddleTail" })]).edges[0].arrows;
+        assert.deepEqual([tail.end, tail.shape], ["middle", "inverted"]);
+    });
+
+    it("reads a line painted in a gradient as that gradient, its first stop its color", () => {
+        const linear = graphOf([], null, { kind: "linear", colors: ["#ff0000", "#00ff00", "#0000ff"] }).edges[0].stroke;
+        assert.strictEqual(linear?.color, "#ff0000");
+        // each piece is one color from its start to its end
+        assert.deepEqual(
+            linear?.gradient?.stops.map((s) => [s.offset, s.color]),
+            [
+                [0, "#ff0000"],
+                [1 / 3, "#ff0000"],
+                [1 / 3, "#00ff00"],
+                [2 / 3, "#00ff00"],
+                [2 / 3, "#0000ff"],
+                [1, "#0000ff"],
+            ],
+        );
+        assert.strictEqual(linear?.gradient?.angle, 0);
+        // a radial one is read out from the middle: the middle piece is its first stop
+        const radial = graphOf([], null, { kind: "radial", colors: ["#0000ff", "#ff0000", "#0000ff"] }).edges[0].stroke;
+        assert.deepEqual([radial?.gradient?.kind, radial?.color, radial?.gradient?.angle], ["radial", "#ff0000", null]);
+        assert.isNull(graphOf([]).edges[0].stroke?.gradient ?? null);
+    });
+
+    it("reads a hard switch between two pieces as drawn, not a blend of their colors at the switch", () => {
+        // Graphviz's `red;0.5:blue`, drawn as 64 pieces: half red, half blue
+        const colors = Array.from({ length: 64 }, (_, i) => (i < 32 ? "#ff0000" : "#0000ff"));
+        const { stroke } = graphOf([], null, { kind: "linear", colors }).edges[0];
+        const ramp = stroke?.gradient ?? null;
+
+        assert.isNotNull(ramp);
+        assert.include(["#ff0000", "#0000ff"], ramp === null ? "" : rampColor(ramp, 0.5));
+    });
+
+    it("reads each line pattern into its line class", () => {
+        const of = (pattern: string | null): string | undefined => graphOf([], pattern).edges[0].stroke?.dashClass;
+        assert.deepEqual([null, "dash", "dot", "box", "dash-dot", "zigzag", "sinewave", "star"].map(of), [
+            "solid",
+            "dashed",
+            "dotted",
+            "dotted",
+            "dash-dot",
+            "zigzag",
+            "sinewave",
+            "other",
+        ]);
+    });
+
+    it("reads a dashed or dotted line by the lengths and gaps of the elements it drew, not by its pattern's name", () => {
+        const of = (pattern: string, dashPx: number[]): string | undefined =>
+            graphOf([], pattern, null, { dashPx }).edges[0].stroke?.dashClass;
+        // dashes three widths long a width and a half apart, discs a width across: as named
+        assert.strictEqual(of("dash", [6, 3, 6, 3]), "dashed");
+        assert.strictEqual(of("dot", [2, 1, 2, 1]), "dotted");
+        assert.strictEqual(of("dash-dot", [6, 2, 1.2, 2]), "dash-dot");
+        // two dashes crowded onto a short edge, over one another: a solid line to a reader
+        assert.strictEqual(of("dash", [6, 0, 6, 0]), "solid");
+        // a dash drawn no longer than a dot is a dot
+        assert.strictEqual(of("dash", [2, 2, 2, 2]), "dotted");
+        // a pattern of other shapes keeps its name's class
+        assert.strictEqual(of("star", [2, 1, 2, 1]), "other");
+    });
+
+    it("carries the band graphty draws under a line", () => {
+        const outline = { color: "#ff0000", opacity: 1, width: 6 };
+        assert.deepEqual(graphOf([], null, null, { outline }).edges[0].outline, outline);
+        assert.isNull(graphOf([]).edges[0].outline ?? null);
+    });
+
+    it("reads a node's outer ring beside its own border apart from the border and the node's size", () => {
+        const ring = (color: string, widthPx: number, opacity = 1): DrawnBorder => ({
+            color,
+            widthPx,
+            style: "solid",
+            screen: false,
+            opacity,
+        });
+        const nodeOf = (over: Partial<DrawnNode>): PScene["nodes"][number] | undefined => {
+            const own = over.innerBorder ?? over.border ?? null;
+            // the scene's node as extractScene builds it: its box grown out to the outer ring, its border the outer one
+            const grow = over.outer?.gapPx ?? 0;
+            const sceneNode = {
+                id: "a",
+                x: 50,
+                y: 50,
+                w: 40 + 2 * grow,
+                h: 40 + 2 * grow,
+                shape: "ellipse",
+                fill: "#cccccc",
+                fillOpacity: 1,
+                border: {
+                    color: (over.border ?? own)?.color ?? null,
+                    width: (over.border ?? own)?.widthPx ?? 0,
+                    style: "solid",
+                },
+                label: null,
+                visible: true,
+                drawn: { subPixel: false, fillCovered: false, fillDrawn: "#cccccc" },
+            };
+            const drawnNode = { insetPx: 0, label: null, gradient: false, ramp: null, ...over } as unknown as DrawnNode;
+            const scene = {
+                nodes: [sceneNode],
+                edges: [],
+                groups: [],
+                annotations: [],
+                gaps: [],
+            } as unknown as Scene;
+            const drawn: DrawnGraph = {
+                nodes: new Map([["a", drawnNode]]),
+                edges: new Map(),
+                annotations: [],
+                background: { hex: "#ffffff", alpha: 1 },
+                width: 200,
+                height: 100,
+            };
+            return drawnPrimitives(scene, drawn).nodes[0];
+        };
+        const inner = ring("#505050", 1, 0.4);
+        const outer = { border: ring("#999999", 3), gapPx: 2 };
+        const split = nodeOf({ border: outer.border, innerBorder: inner, outer });
+        assert.deepEqual(
+            [split?.w, split?.stroke?.color, split?.stroke?.opacity, split?.ring?.color, split?.ring?.reach],
+            [40, "#505050", 0.4, "#999999", 5],
+        );
+        // an outer ring with no border of the node's own is its outline, as the oracle reads it
+        const alone = nodeOf({ border: outer.border, innerBorder: null, outer });
+        assert.deepEqual([alone?.w, alone?.stroke?.color, alone?.ring ?? null], [44, "#999999", null]);
+    });
+
+    it("reads a node's linear ramp along the direction its color changes once stretched over the node's box", () => {
+        // NodeMesh paints the ramp across a square texture and stretches it over the box
+        const angleOf = (direction: number, w: number, h: number): number | null | undefined => {
+            const sceneNode = {
+                id: "a",
+                x: 150,
+                y: 60,
+                w,
+                h,
+                shape: "rect",
+                fill: "#ff0000",
+                fillOpacity: 1,
+                border: { color: null, width: 0, style: "solid" },
+                label: null,
+                visible: true,
+                drawn: { subPixel: false, fillCovered: false, fillDrawn: "#ff0000" },
+            };
+            const ramp = { kind: "linear", colors: ["#ff0000", "#0000ff"], direction };
+            const drawnNode = { insetPx: 0, label: null, gradient: true, ramp } as unknown as DrawnNode;
+            const scene = { nodes: [sceneNode], edges: [], groups: [], annotations: [], gaps: [] } as unknown as Scene;
+            const drawn: DrawnGraph = {
+                nodes: new Map([["a", drawnNode]]),
+                edges: new Map(),
+                annotations: [],
+                background: { hex: "#ffffff", alpha: 1 },
+                width: 300,
+                height: 120,
+            };
+            return drawnPrimitives(scene, drawn).nodes[0]?.fill?.gradient?.angle;
+        };
+        // a 45-degree ramp on a 220 x 94 box changes color along 66.9 degrees on screen, as yEd Live's does
+        assert.closeTo(angleOf(45, 220, 94) ?? Number.NaN, (Math.atan2(220, 94) * 180) / Math.PI, 0.01);
+        // a square box, and a ramp along a side, are not turned
+        assert.closeTo(angleOf(45, 94, 94) ?? Number.NaN, 45, 0.01);
+        assert.closeTo(angleOf(90, 220, 94) ?? Number.NaN, 90, 0.01);
+        assert.closeTo(angleOf(180, 220, 94) ?? Number.NaN, 180, 0.01);
+    });
+
+    it("ends an edge at the node drawn over its own, where a reader sees it end (json-cyjs-tokyo's stacked stations)", () => {
+        const sceneNode = (id: string, x: number, hiddenBy: string | null) => ({
+            id,
+            x,
+            y: 50,
+            w: 20,
+            h: 20,
+            shape: "ellipse",
+            fill: "#cccccc",
+            fillOpacity: 1,
+            border: { color: null, width: 0, style: "solid" },
+            label: null,
+            visible: hiddenBy === null,
+            drawn: { subPixel: false, fillCovered: false, fillDrawn: "#cccccc", hiddenBy },
+        });
+        const sceneEdge = (id: string, source: string, target: string) => ({
+            id,
+            source,
+            target,
+            points: [
+                [0, 50],
+                [100, 50],
+            ],
+            curved: false,
+            color: "#000000",
+            opacity: 1,
+            width: 2,
+            style: "solid",
+            arrow: { source: "none", target: "none" },
+            label: null,
+        });
+        const scene = {
+            // "low" under "mid" under "top": an end at either is at "top"
+            nodes: [
+                sceneNode("a", 0, null),
+                sceneNode("low", 100, "mid"),
+                sceneNode("mid", 100, "top"),
+                sceneNode("top", 100, null),
+            ],
+            edges: [sceneEdge("e1", "a", "low"), sceneEdge("e2", "low", "top"), sceneEdge("e3", "a", "top")],
+            groups: [],
+            annotations: [],
+            gaps: [],
+        } as unknown as Scene;
+        const line = (): DrawnEdge => ({
+            kind: "line-2d",
+            shown: true,
+            points: [
+                [0, 50],
+                [100, 50],
+            ],
+            thicknessPx: 2,
+            color: "#000000",
+            opacity: 1,
+            pattern: null,
+            dashPx: null,
+            outline: null,
+            caps: [],
+            label: null,
+            endLabels: [],
+            gradient: null,
+        });
+        const drawn: DrawnGraph = {
+            nodes: new Map(),
+            edges: new Map(["e1", "e2", "e3"].map((id) => [id, line()])),
+            annotations: [],
+            background: { hex: "#ffffff", alpha: 1 },
+            width: 200,
+            height: 100,
+        };
+        const p = drawnPrimitives(scene, drawn);
+        assert.deepEqual(
+            p.nodes.map((n) => n.id),
+            ["a", "top"],
+        );
+        assert.deepEqual(
+            p.edges.map((e) => [e.id, e.source, e.target]),
+            [
+                ["e1", "a", "top"],
+                // between a node and the node over it: no loop of the node in front
+                ["e2", "low", "top"],
+                ["e3", "a", "top"],
+            ],
+        );
+        // the ends its file names are kept beside the ones a reader sees
+        assert.deepEqual(p.edges[0].ownEnds, { source: "a", target: "low" });
+        assert.isUndefined(p.edges[2].ownEnds);
+    });
+
+    it("leaves out a group it draws nothing for: no fill, no outline and no label", () => {
+        const groupOf = (fill: string | null, fillOpacity: number): PScene["groups"] => {
+            const parent = {
+                id: "p",
+                x: 50,
+                y: 50,
+                w: 40,
+                h: 40,
+                shape: "rectangle",
+                fill,
+                fillOpacity,
+                border: { color: null, width: 0, style: "solid" },
+                label: null,
+                visible: true,
+                drawn: { subPixel: false, fillCovered: false, fillDrawn: fill },
+            };
+            const scene = {
+                nodes: [parent],
+                edges: [],
+                groups: [{ id: "p", bbox: { x: 30, y: 30, w: 40, h: 40 }, fill, label: null, members: ["a"] }],
+                annotations: [],
+                gaps: [],
+            } as unknown as Scene;
+            const drawn: DrawnGraph = {
+                nodes: new Map([
+                    ["p", { insetPx: 0, label: null, gradient: false, ramp: null } as unknown as DrawnNode],
+                ]),
+                edges: new Map(),
+                annotations: [],
+                background: { hex: "#ffffff", alpha: 1 },
+                width: 200,
+                height: 100,
+            };
+            return drawnPrimitives(scene, drawn).groups;
+        };
+        assert.lengthOf(groupOf("#eeeeee", 1), 1);
+        assert.lengthOf(groupOf(null, 1), 0);
+        assert.lengthOf(groupOf("#eeeeee", 0), 0);
+    });
+
+    it("reads the label of a group it draws with no fill and no outline as free text, as a program's unboxed cluster", () => {
+        const label = {
+            text: "Q",
+            box: { x0: 40, y0: 30, x1: 60, y1: 44 },
+            fontPx: 14,
+            color: "#000000",
+            enabled: true,
+            onTop: false,
+            family: "Times",
+            weight: 400,
+            style: "normal",
+            rotation: 0,
+            textBox: null,
+            opacity: 1,
+            lineCount: 1,
+            align: "middle",
+            outline: null,
+            background: null,
+        } as unknown as NonNullable<DrawnNode["label"]>;
+        const scene = {
+            nodes: [
+                {
+                    id: "p",
+                    x: 50,
+                    y: 50,
+                    w: 40,
+                    h: 40,
+                    shape: "rectangle",
+                    fill: null,
+                    fillOpacity: 1,
+                    border: { color: null, width: 0, style: "solid" },
+                    label: { text: "Q", visible: true },
+                    visible: true,
+                },
+            ],
+            edges: [],
+            groups: [{ id: "p", bbox: { x: 30, y: 30, w: 40, h: 40 }, fill: null, label: "Q", members: ["a"] }],
+            annotations: [],
+            gaps: [],
+        } as unknown as Scene;
+        const drawn: DrawnGraph = {
+            nodes: new Map([["p", { insetPx: 0, label, gradient: false, ramp: null } as unknown as DrawnNode]]),
+            edges: new Map(),
+            annotations: [],
+            background: { hex: "#ffffff", alpha: 1 },
+            width: 200,
+            height: 100,
+        };
+        const p = drawnPrimitives(scene, drawn);
+        assert.lengthOf(p.groups, 0);
+        assert.deepEqual(
+            p.texts.map((t) => t.content),
+            ["Q"],
+        );
+    });
+
+    it("reads a node that draws no body as its label and its glyph, free texts, as a program's text or icon node", () => {
+        const label = {
+            text: "Label",
+            box: { x0: 40, y0: 45, x1: 60, y1: 55 },
+            fontPx: 10,
+            color: "#000000",
+            enabled: true,
+            onTop: false,
+            family: "DejaVu Sans",
+            weight: 400,
+            style: "normal",
+            rotation: 0,
+            textBox: null,
+            opacity: 1,
+            lineCount: 1,
+            align: "middle",
+            outline: null,
+            background: null,
+        } as unknown as NonNullable<DrawnNode["label"]>;
+        const sceneNode = (id: string, labelled: boolean): Record<string, unknown> => ({
+            id,
+            x: 50,
+            y: 50,
+            w: 20,
+            h: 28,
+            shape: "other",
+            fill: null,
+            fillOpacity: 1,
+            border: { color: null, width: 0, style: "solid" },
+            label: labelled ? { text: "Label", visible: true } : null,
+            visible: true,
+            drawn: { subPixel: false, fillCovered: false, fillDrawn: null },
+        });
+        const scene = {
+            nodes: [sceneNode("text", true), sceneNode("icon", false)],
+            edges: [],
+            groups: [],
+            annotations: [],
+            gaps: [],
+        } as unknown as Scene;
+        const node = (over: Partial<DrawnNode>): DrawnNode =>
+            ({
+                insetPx: 0,
+                label: null,
+                gradient: false,
+                ramp: null,
+                faceless: true,
+                glyph: null,
+                ...over,
+            }) as unknown as DrawnNode;
+        const drawn: DrawnGraph = {
+            nodes: new Map([
+                ["text", node({ label })],
+                ["icon", node({ glyph: { text: "A", color: "#1f77b4" } })],
+            ]),
+            edges: new Map(),
+            annotations: [],
+            background: { hex: "#ffffff", alpha: 1 },
+            width: 200,
+            height: 100,
+        };
+        const p = drawnPrimitives(scene, drawn);
+        // kept as nodes for the raster comparison's masks, read as texts by the comparison
+        assert.deepEqual(
+            p.nodes.map((n) => (n.faceless ?? []).map((t) => [t.content, t.owner, t.color])),
+            [[["A", "icon", "#1f77b4"]], [["Label", "text", "#000000"]]],
+        );
+        const read = withoutCaptions(p);
+        assert.lengthOf(read.nodes, 0);
+        assert.deepEqual(
+            read.texts.map((t) => t.content),
+            ["A", "Label"],
+        );
+    });
+
+    it("carries the picture an image node with no body draws as itself, so the comparison sees it drawn", () => {
+        const scene = {
+            nodes: [
+                {
+                    id: "img",
+                    x: 50,
+                    y: 50,
+                    w: 20,
+                    h: 20,
+                    shape: "other",
+                    fill: null,
+                    fillOpacity: 1,
+                    border: { color: null, width: 0, style: "solid" },
+                    label: null,
+                    visible: true,
+                    drawn: { subPixel: false, fillCovered: false, fillDrawn: null },
+                },
+            ],
+            edges: [],
+            groups: [],
+            annotations: [],
+            gaps: [],
+        } as unknown as Scene;
+        const picture = { x0: 40, y0: 40, x1: 60, y1: 60, near: 0, far: 0 };
+        const drawnOf = (over: Partial<DrawnNode>): DrawnGraph => ({
+            nodes: new Map([
+                [
+                    "img",
+                    {
+                        insetPx: 0,
+                        label: null,
+                        gradient: false,
+                        ramp: null,
+                        faceless: false,
+                        glyph: null,
+                        ...over,
+                    } as unknown as DrawnNode,
+                ],
+            ]),
+            edges: new Map(),
+            annotations: [],
+            background: { hex: "#ffffff", alpha: 1 },
+            width: 200,
+            height: 100,
+        });
+        assert.deepEqual(
+            drawnPrimitives(scene, drawnOf({ picture })).nodes.map((n) => n.pictures),
+            [[picture]],
+        );
+        assert.deepEqual(
+            drawnPrimitives(scene, drawnOf({})).nodes.map((n) => n.pictures),
+            [undefined],
+        );
+    });
+});

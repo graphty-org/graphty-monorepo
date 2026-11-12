@@ -3,6 +3,9 @@
  * @module test/ai/AiManager.keyPersistence.test
  */
 
+// encrypt-storage, as the ./ai and ./credentials entry points register it
+import "../../../src/ai/keys/withEncryptStorage";
+
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { AiManager } from "../../../src/ai/AiManager";

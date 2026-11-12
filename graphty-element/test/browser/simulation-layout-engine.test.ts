@@ -20,12 +20,14 @@
 import { type F32, maskTest } from "@graphty/graph-format";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
+import { WRITABLE_LANE } from "../../src/data/lane";
 import { type GraphtyError, isGraphtyError } from "../../src/errors";
 import type { GraphErrorEvent } from "../../src/events";
 import { Graph } from "../../src/Graph";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
-import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
+import { measureEnvelope, SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
+import { dataManagerInternals } from "../../src/managers/DataManager";
 import { createFakeAccelerator, type FakeAccelerator, type FakeSimulation } from "../../src/testing/fakeAccelerator";
 import { cleanupE2EGraph, createE2EGraph } from "../helpers/e2e-graph-setup";
 
@@ -228,20 +230,14 @@ async function drain(fake: FakeAccelerator): Promise<void> {
     await fake.flush().catch(() => undefined);
 }
 
-/** How long {@link until} may wait for the controller: the test's own budget. */
-const POLL_BUDGET_MS = 10_000;
-
 /**
  * Waits for a condition the controller reaches on its own.
  * @param predicate - What has to become true.
  */
 async function until(predicate: () => boolean): Promise<void> {
-    await vi.waitFor(
-        () => {
-            assert.isTrue(predicate(), "the condition never became true");
-        },
-        { timeout: POLL_BUDGET_MS, interval: 5 },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(predicate(), "the condition never became true");
+    });
 }
 
 afterEach(() => {
@@ -253,6 +249,57 @@ afterEach(() => {
 });
 
 describe("the simulation layout bridge", () => {
+    it("hands an accelerated simulation one community per row and the strength", async () => {
+        const graph = await pathGraph(5);
+        graph.acceleration.setAccelerator(createFakeAccelerator());
+        const rig = await bridge(graph, "spring-electrical", { clusterBy: "id", clusterStrength: 3 });
+        assert.isTrue(rig.engine.isAccelerated);
+
+        const { clusters } = rig.engine.simulation as FakeSimulation;
+        assert.strictEqual(clusters?.strength, 3);
+        assert.sameMembers([...(clusters?.communities ?? [])], [0, 1, 2, 3, 4]);
+    });
+
+    it("sets no communities without clusterBy", async () => {
+        const graph = await pathGraph(5);
+        graph.acceleration.setAccelerator(createFakeAccelerator());
+        const rig = await bridge(graph, "forceatlas2");
+
+        assert.isNull((rig.engine.simulation as FakeSimulation).clusters);
+    });
+
+    it("hands an accelerated simulation every node's drawn radius and the gap, in the simulation's units", async () => {
+        const graph = await pathGraph(5);
+        const fake = createFakeAccelerator();
+        graph.acceleration.setAccelerator(fake);
+        const rig = await bridge(graph, "spring-electrical", { nodeGap: 4, nodeGapFront: true });
+        assert.isTrue(rig.engine.isAccelerated);
+
+        rig.engine.publishPositions();
+
+        const simulation = rig.engine.simulation as FakeSimulation;
+        const { collision } = simulation;
+        assert.isNotNull(collision);
+        assert.isTrue(collision?.flat);
+        const node = graph.getDataManager().getNode("n2");
+        assert.isDefined(node);
+        assert.closeTo(collision?.radii[node.index] ?? 0, node.layoutRadius + 2, 1e-5);
+        const widest = Math.max(...[0, 1, 2, 3, 4].map((row) => Math.abs(rig.x(row))));
+        assert.isAbove(widest, 0, "the arrangement was published");
+        assert.isAbove(collision?.scale ?? 0, 0, "a scene unit in the simulation's units");
+    });
+
+    it("sets no collision without nodeGap", async () => {
+        const graph = await pathGraph(5);
+        const fake = createFakeAccelerator();
+        graph.acceleration.setAccelerator(fake);
+        const rig = await bridge(graph, "forceatlas2");
+
+        rig.engine.publishPositions();
+
+        assert.isNull((rig.engine.simulation as FakeSimulation).collision);
+    });
+
     it("the frame loop walks the graph's own nodes and edges, so the meshes follow the simulation", async () => {
         const graph = await pathGraph(5);
         const rig = await bridge(graph);
@@ -261,8 +308,23 @@ describe("the simulation layout bridge", () => {
         // What `UpdateManager` iterates. A bridge that kept no list of its own and answered these
         // with nothing would let the simulation rewrite the position array every frame while not
         // one mesh moved, no bounding box was computed and the camera never framed the graph.
-        assert.lengthOf(Array.from(layout.nodes), 5, "every node reaches the frame loop");
-        assert.lengthOf(Array.from(layout.edges), 4, "and every edge");
+        // Under renderPath "batched" a row may be stored with no `Node`: it is drawn and moved by its row, so it is not
+        // handed out here (building a `Node` for every row stalled a 100k-row layout's start for seconds, #6389).
+        const nodesBuilt = dataManagerInternals.nodesBuilt(graph.getDataManager());
+        assert.lengthOf(Array.from(layout.nodes), nodesBuilt, "every node with a Node reaches the frame loop");
+        if (graph.getEdgeRowLines() === null) {
+            assert.strictEqual(nodesBuilt, 5, "which on the objects path is every node");
+        }
+
+        // Under renderPath "batched" an edge may be stored with no `Edge`: the frame draws it as a row line, so it is
+        // not handed out here (building its `Edge` each frame ran a million-edge tab out of memory).
+        const dm = graph.getDataManager();
+        assert.strictEqual(dm.edges.size, 4, "every edge is stored");
+        const built = dataManagerInternals.edgesBuilt(dm);
+        assert.lengthOf(Array.from(layout.edges), built, "and every edge with an Edge");
+        if (graph.getEdgeRowLines() === null) {
+            assert.strictEqual(built, 4, "which on the objects path is every edge");
+        }
 
         const node = graph.getDataManager().getNode("n0");
         assert.isDefined(node);
@@ -1059,6 +1121,42 @@ describe("the simulation layout bridge", () => {
         assert.closeTo(written.x, simulation.x, 1e-3, "a scene-unit write arrives in the simulation's units");
         assert.closeTo(written.y, simulation.y, 1e-3);
         assert.closeTo(written.z, simulation.z, 1e-3);
+    });
+
+    it("publishes a column to the floats the per-node map writes, with no per-node write", async () => {
+        // The map below is the per-node loop this publish replaced, in the same double arithmetic,
+        // so a rounding moved by the column shows up as an inequality rather than a closeness.
+        const graph = await pathGraph(8);
+        const fake = createFakeAccelerator({ moveBy: 40, settleAfter: 50 });
+        graph.acceleration.setAccelerator(fake);
+        const rig = await bridge(graph, "forceatlas2", { scalingFactor: 100, seed: 42 });
+        for (let frame = 0; frame < 3; frame += 1) {
+            rig.step();
+            await drain(fake);
+        }
+
+        rig.engine.publishPositions();
+        const held = rig.row("n3");
+        const lane = graph.getDataManager()[WRITABLE_LANE];
+        graph.getNode("n3")?.pin();
+        const heldBefore = [...lane.view(8).subarray(3 * held, 3 * held + 3)];
+        rig.step();
+        await drain(fake);
+
+        const write = vi.spyOn(rig.engine as unknown as { writeNodePosition: () => boolean }, "writeNodePosition");
+        rig.engine.publishPositions();
+        assert.strictEqual(write.mock.calls.length, 0, "no row went through the per-node write");
+
+        const raw = fake.simulations[0].positions as F32;
+        const { scale, centre } = measureEnvelope(raw, 8, 100, (row) => row === held);
+        const published = lane.view(8);
+        for (let row = 0; row < 8; row += 1) {
+            for (let axis = 0; axis < 3; axis += 1) {
+                const expected =
+                    row === held ? heldBefore[axis] : Math.fround((raw[3 * row + axis] - centre[axis]) * scale);
+                assert.strictEqual(published[3 * row + axis], expected, `row ${String(row)}, axis ${String(axis)}`);
+            }
+        }
     });
 
     it("a freeze re-adopts the arrangement in the simulation's units and leaves it where it was", async () => {

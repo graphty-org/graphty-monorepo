@@ -40,6 +40,9 @@ import type { ElementSet, Memberships, SetOffer } from "./types";
 /** Counts the offers tests read. */
 export const offerCounters = { nodeScans: 0, edgePasses: 0 };
 
+/** The value an item is keyed on. */
+type KeyValue = string | number | boolean;
+
 /** What one shape offers. */
 interface OfferedShape {
     /** The per-element field an item is keyed on. */
@@ -57,7 +60,7 @@ interface OfferedShape {
      * @param value - The key's value.
      * @returns The name.
      */
-    name(value: string | number | boolean): string;
+    name(value: KeyValue): string;
 }
 
 /**
@@ -87,7 +90,7 @@ const OFFERED: Partial<Record<ResultShape, OfferedShape>> = {
         followable: true,
         path: false,
         partition: true,
-        name: (value) => String(value),
+        name: String,
     },
     "node-set": {
         field: "in",
@@ -213,9 +216,108 @@ function keyValues(value: unknown, spec: OfferedShape): (string | number | boole
  * @returns The halves it lives on.
  */
 function halvesOf(values: FilterRunResult, field: string): { node: boolean; edge: boolean } {
-    const kinds = values.fields.filter((descriptor) => descriptor.name === field).map((descriptor) => descriptor.kind);
+    const kinds = new Set(
+        values.fields.filter((descriptor) => descriptor.name === field).map((descriptor) => descriptor.kind),
+    );
 
-    return { node: kinds.includes("node"), edge: kinds.includes("edge") };
+    return { node: kinds.has("node"), edge: kinds.has("edge") };
+}
+
+/** Item key to its edge and node counts, as one edge pass builds them. */
+type PassCounts = Map<string, { edges: number; nodes: number }>;
+
+/**
+ * The edge pass read `induced`: an edge counts once for every item in the intersection of its
+ * endpoints' key values.
+ * @param spec - The shape's offers.
+ * @param values - The result by index.
+ * @param graph - The snapshot.
+ * @param keyOf - An item key from a key value.
+ * @param pass - The counts to fill.
+ * @returns `pass`, filled.
+ */
+function inducedPass(
+    spec: OfferedShape,
+    values: FilterRunResult,
+    graph: GraphSnapshot,
+    keyOf: (value: string | number | boolean) => string,
+    pass: PassCounts,
+): PassCounts {
+    const { src, dst } = graph.edgeList();
+    const keys: (string[] | null)[] = [];
+    for (let index = 0; index < graph.nodeCount; index++) {
+        const found = keyValues(values.nodeValue(index, spec.field), spec).map(keyOf);
+        keys.push(found.length === 0 ? null : found);
+    }
+
+    for (let edge = 0; edge < graph.edgeCount; edge++) {
+        const ends = [keys[src[edge]], keys[dst[edge]]];
+        for (const key of ends[0] ?? []) {
+            if (ends[1]?.includes(key) === true) {
+                const entry = pass.get(key) ?? { edges: 0, nodes: 0 };
+                pass.set(key, { ...entry, edges: entry.edges + 1 });
+            }
+        }
+    }
+
+    return pass;
+}
+
+/**
+ * The edge pass read `listed`: each item's node half, plus every member edge's endpoints.
+ * @param spec - The shape's offers.
+ * @param values - The result by index.
+ * @param graph - The snapshot.
+ * @param keyOf - An item key from a key value.
+ * @param pass - The counts to fill.
+ * @param halves - The halves the field lives on.
+ * @param halves.node - Whether it lives on nodes.
+ * @param halves.edge - Whether it lives on edges.
+ * @returns `pass`, filled.
+ */
+function listedPass(
+    spec: OfferedShape,
+    values: FilterRunResult,
+    graph: GraphSnapshot,
+    keyOf: (value: string | number | boolean) => string,
+    pass: PassCounts,
+    halves: { node: boolean; edge: boolean },
+): PassCounts {
+    const { src, dst } = graph.edgeList();
+    const members = new Map<string, { edges: number; nodes: Uint8Array }>();
+    const memberOf = (key: string): { edges: number; nodes: Uint8Array } => {
+        let entry = members.get(key);
+        if (entry === undefined) {
+            entry = { edges: 0, nodes: new Uint8Array(graph.nodeCount) };
+            members.set(key, entry);
+        }
+
+        return entry;
+    };
+    if (halves.node) {
+        for (let index = 0; index < graph.nodeCount; index++) {
+            for (const value of keyValues(values.nodeValue(index, spec.field), spec)) {
+                memberOf(keyOf(value)).nodes[index] = 1;
+            }
+        }
+    }
+
+    if (halves.edge) {
+        for (let edge = 0; edge < graph.edgeCount; edge++) {
+            for (const value of keyValues(values.edgeValue(edge, spec.field), spec)) {
+                const entry = memberOf(keyOf(value));
+                entry.edges++;
+                entry.nodes[src[edge]] = 1;
+                entry.nodes[dst[edge]] = 1;
+            }
+        }
+    }
+
+    for (const [key, entry] of members) {
+        pass.set(key, { edges: entry.edges, nodes: entry.nodes.reduce((sum, bit) => sum + bit, 0) });
+    }
+
+    return pass;
 }
 
 /**
@@ -243,13 +345,16 @@ function elementLocal(filter: RuleTree): boolean {
     switch (filter.kind) {
         case "expression":
         case "edges":
-        case "range":
-        case "categories":
         case "degree":
         case "isolated":
         case "self-loop":
         case "item":
             return true;
+        case "range":
+        case "categories":
+        case "text":
+            // "ends" reads every edge at the element, not the element alone.
+            return filter.nodes !== "ends";
         case "threshold":
             return filter.top === undefined;
         case "all":
@@ -289,6 +394,35 @@ function holdsNode(nodes: readonly NodeId[], id: NodeId): boolean {
 }
 
 /**
+ * How many nodes carry each item key of a run's field, in node order; empty when the field has no
+ * node half.
+ * @param spec - The shape's offers.
+ * @param values - The result by index.
+ * @param nodeCount - How many nodes the snapshot holds.
+ * @returns Item key to its value and node count.
+ */
+function nodeItemCounts(
+    spec: OfferedShape,
+    values: FilterRunResult,
+    nodeCount: number,
+): Map<string, { value: string | number | boolean; count: number }> {
+    const nodes = new Map<string, { value: string | number | boolean; count: number }>();
+    if (!halvesOf(values, spec.field).node) {
+        return nodes;
+    }
+
+    for (let index = 0; index < nodeCount; index++) {
+        for (const value of keyValues(values.nodeValue(index, spec.field), spec)) {
+            const key = itemKeyOf({ field: spec.field, value });
+            const entry = nodes.get(key);
+            nodes.set(key, { value, count: (entry?.count ?? 0) + 1 });
+        }
+    }
+
+    return nodes;
+}
+
+/**
  * Build offers and Memberships over a session.
  * @param sources - What they read.
  * @returns The offering.
@@ -323,17 +457,7 @@ export function createOffering(sources: OfferSources): Offering {
         }
 
         offerCounters.nodeScans++;
-        const nodes = new Map<string, { value: string | number | boolean; count: number }>();
-        if (halvesOf(values, spec.field).node) {
-            for (let index = 0; index < snapshot.nodeCount; index++) {
-                for (const value of keyValues(values.nodeValue(index, spec.field), spec)) {
-                    const key = itemKeyOf({ field: spec.field, value });
-                    const entry = nodes.get(key);
-                    nodes.set(key, { value, count: (entry?.count ?? 0) + 1 });
-                }
-            }
-        }
-
+        const nodes = nodeItemCounts(spec, values, snapshot.nodeCount);
         if (spec.only !== undefined && nodes.size === 0) {
             nodes.set(itemKeyOf({ field: spec.field, value: true }), { value: true, count: 0 });
         }
@@ -369,65 +493,12 @@ export function createOffering(sources: OfferSources): Offering {
     ): Map<string, { edges: number; nodes: number }> => {
         offerCounters.edgePasses++;
         const pass = new Map<string, { edges: number; nodes: number }>();
-        const { src, dst } = graph.edgeList();
         const keyOf = (value: string | number | boolean): string => itemKeyOf({ field: spec.field, value });
         const halves = halvesOf(values, spec.field);
 
-        if (spec.reading === "induced") {
-            const keys: (string[] | null)[] = [];
-            for (let index = 0; index < graph.nodeCount; index++) {
-                const found = keyValues(values.nodeValue(index, spec.field), spec).map(keyOf);
-                keys.push(found.length === 0 ? null : found);
-            }
-
-            for (let edge = 0; edge < graph.edgeCount; edge++) {
-                const ends = [keys[src[edge]], keys[dst[edge]]];
-                for (const key of ends[0] ?? []) {
-                    if (ends[1]?.includes(key) === true) {
-                        const entry = pass.get(key) ?? { edges: 0, nodes: 0 };
-                        pass.set(key, { ...entry, edges: entry.edges + 1 });
-                    }
-                }
-            }
-
-            return pass;
-        }
-
-        // Read `listed`: the node half, plus every member edge's endpoints.
-        const members = new Map<string, { edges: number; nodes: Uint8Array }>();
-        const memberOf = (key: string): { edges: number; nodes: Uint8Array } => {
-            let entry = members.get(key);
-            if (entry === undefined) {
-                entry = { edges: 0, nodes: new Uint8Array(graph.nodeCount) };
-                members.set(key, entry);
-            }
-
-            return entry;
-        };
-        if (halves.node) {
-            for (let index = 0; index < graph.nodeCount; index++) {
-                for (const value of keyValues(values.nodeValue(index, spec.field), spec)) {
-                    memberOf(keyOf(value)).nodes[index] = 1;
-                }
-            }
-        }
-
-        if (halves.edge) {
-            for (let edge = 0; edge < graph.edgeCount; edge++) {
-                for (const value of keyValues(values.edgeValue(edge, spec.field), spec)) {
-                    const entry = memberOf(keyOf(value));
-                    entry.edges++;
-                    entry.nodes[src[edge]] = 1;
-                    entry.nodes[dst[edge]] = 1;
-                }
-            }
-        }
-
-        for (const [key, entry] of members) {
-            pass.set(key, { edges: entry.edges, nodes: entry.nodes.reduce((sum, bit) => sum + bit, 0) });
-        }
-
-        return pass;
+        return spec.reading === "induced"
+            ? inducedPass(spec, values, graph, keyOf, pass)
+            : listedPass(spec, values, graph, keyOf, pass, halves);
     };
 
     /**
@@ -482,13 +553,11 @@ export function createOffering(sources: OfferSources): Offering {
                 const edges = counts.pass === undefined ? undefined : (passed?.edges ?? 0);
                 const name = spec.name(value);
                 const title = name.charAt(0).toUpperCase() + name.slice(1);
+                const noun = nodes === 1 ? "node" : "nodes";
 
                 return Object.freeze({
                     item,
-                    label:
-                        nodes === undefined
-                            ? title
-                            : `${title} (${nodes.toLocaleString("en-US")} ${nodes === 1 ? "node" : "nodes"})`,
+                    label: nodes === undefined ? title : `${title} (${nodes.toLocaleString("en-US")} ${noun})`,
                     ...(nodes === undefined ? {} : { nodes }),
                     ...(edges === undefined ? {} : { edges }),
                     reading,
@@ -520,12 +589,7 @@ export function createOffering(sources: OfferSources): Offering {
             const isNode = "node" in element;
             const index = isNode ? rowOfEitherSpelling(graph.ids, element.node) : edgeRowOf(graph, element.edge);
             if (index === INVALID_INDEX) {
-                throw new GraphtyError({
-                    code: "E_BAD_COMMAND",
-                    message: `The graph holds no ${isNode ? "node" : "edge"} ${JSON.stringify(isNode ? element.node : element.edge)}.`,
-                    source: "data",
-                    details: { ...element },
-                });
+                throw noSuchElement(element);
             }
 
             const sets = sources
@@ -560,6 +624,21 @@ export function createOffering(sources: OfferSources): Offering {
             return Object.freeze({ sets: Object.freeze(sets), items: Object.freeze(items) });
         },
     };
+}
+
+/**
+ * The refusal of a memberships read for an element the graph does not hold.
+ * @param element - The node or edge asked about.
+ * @returns The error to throw.
+ */
+function noSuchElement(element: { readonly node: NodeId } | { readonly edge: EdgeId }): GraphtyError {
+    const isNode = "node" in element;
+    return new GraphtyError({
+        code: "E_BAD_COMMAND",
+        message: `The graph holds no ${isNode ? "node" : "edge"} ${JSON.stringify(isNode ? element.node : element.edge)}.`,
+        source: "data",
+        details: { ...element },
+    });
 }
 
 /**
@@ -647,6 +726,11 @@ function ruleHolds(
             return ends();
         case "listed":
             return halves.edge?.(index) ?? false;
+        case "incident":
+            return (
+                (halves.edge === null || halves.edge(index)) &&
+                (nodeIn(snapshot.edgeSource(index)) || nodeIn(snapshot.edgeTarget(index)))
+            );
         default:
             return (halves.edge === null || halves.edge(index)) && ends();
     }

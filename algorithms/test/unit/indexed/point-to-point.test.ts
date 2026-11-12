@@ -6,6 +6,7 @@ import { astar, bidirectionalDijkstra, type PathResult } from "../../../src/inde
 import { exactArcWeights, fromAdjacencyMap } from "../../helpers/facade.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
+import type { ShortestPathResult } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, offGridWeights, undirectedFixtures } from "./port-fixtures.js";
 

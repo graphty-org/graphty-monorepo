@@ -79,7 +79,7 @@ import {
 } from "../../common/options.js";
 import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
-import { inferTextDtype, parseTextCell, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
+import { inferTextDtype, itemAt, parseTextCell, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
 import { parseWeightText } from "../../common/weights.js";
 import {
     type CommonImportOptions,
@@ -88,6 +88,8 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
+import { dotGraphLabel } from "./graph-label.js";
+import { dotLayout } from "./layout.js";
 import {
     CLUSTER_COLUMN,
     DOT_FORMAT,
@@ -97,9 +99,14 @@ import {
     PARENT_COLUMN,
     PIN_ATTRIBUTE,
     POS_ATTRIBUTE,
+    POSITION_COLUMN,
+    RANK_COLUMN,
+    RANK_SET_COLUMN,
     SOURCE_PORT_COLUMN,
     TARGET_PORT_COLUMN,
 } from "./names.js";
+import { dotPositions } from "./positions.js";
+import { dotStyles } from "./styles.js";
 import { DotSyntaxError, type DotToken, DotTokenizer } from "./tokenizer.js";
 
 /**
@@ -122,6 +129,12 @@ export interface DotImportOptions extends GraphChoiceOptions, CommonImportOption
      * @defaultValue true
      */
     positions?: boolean | undefined;
+    /**
+     * With `positions`, also keep `pos` as the text the file wrote; the position column is then
+     * named `graphty.position`, so a reader gets both.
+     * @defaultValue false
+     */
+    keepPositionSource?: boolean | undefined;
 }
 
 /**
@@ -168,8 +181,13 @@ export const DOT_ISSUE = Object.freeze({
     AMBIGUOUS_GRAPH_NAME: AMBIGUOUS_GRAPH_NAME_CODE,
     /** A badly delimited numeral (`1e3`) split into two tokens, as Graphviz does with a warning. */
     NUMERAL_AMBIGUITY: "W_DOT_NUMERAL_AMBIGUITY",
-    /** Attributes of a subgraph that is not a cluster (rank=same and the like) cannot be represented. */
+    /**
+     * Attributes of a subgraph that is not a cluster cannot be represented, except its `rank`, which is kept in the
+     * `graphty.rank` and `graphty.rankSet` node columns.
+     */
     SUBGRAPH_ATTRIBUTES_DROPPED: "W_DOT_SUBGRAPH_ATTRIBUTES_DROPPED",
+    /** A node in two rank subgraphs (`rank=same` and the like) keeps the first one's rank. */
+    RANK_CONFLICT: "W_DOT_RANK_CONFLICT",
     /** A port on a node statement has no meaning and was dropped. */
     NODE_PORT_DROPPED: "W_DOT_NODE_PORT_DROPPED",
     /** A plain node and a cluster share a name and were merged into one container node. */
@@ -253,8 +271,35 @@ const EXTENSIONS: readonly string[] = Object.freeze([".dot", ".gv"]);
 const MIME_TYPES: readonly string[] = Object.freeze(["text/vnd.graphviz"]);
 const CLUSTER_PREFIX = "cluster";
 const CLUSTER_ATTRIBUTE = "cluster";
+/** The subgraph attribute that puts its nodes on one rank, or on the first or last. */
+const RANK_ATTRIBUTE = "rank";
+/** The values of `rank` Graphviz knows (lib/common/const.h: SAMERANK ... SINKRANK). */
+const RANK_KINDS: ReadonlySet<string> = new Set(["same", "min", "max", "source", "sink"]);
 const STATEMENTS_PER_ABORT_CHECK = 64;
 const MAX_ANCESTOR_WALK = 4096;
+/**
+ * The graph attributes a cluster takes from the graphs around it when it sets none of its own: Graphviz gives a
+ * subgraph every graph attribute its enclosing graphs set before it opened (a root `label` set first labels every
+ * cluster). Only the attributes that decide how a cluster is drawn are copied.
+ */
+const INHERITED_GRAPH_ATTRIBUTES: ReadonlySet<string> = new Set([
+    "bgcolor",
+    "color",
+    "colorscheme",
+    "fillcolor",
+    "fontcolor",
+    "fontname",
+    "fontsize",
+    "gradientangle",
+    "label",
+    "labeljust",
+    "labelloc",
+    "pencolor",
+    "penwidth",
+    "peripheries",
+    "style",
+    "tooltip",
+]);
 
 /**
  * The header keyword, ended by what may follow it in DOT: space, `{`, a quoted ID or a comment.
@@ -311,6 +356,8 @@ interface Scope {
     readonly containers: number[];
     /** Subgraph attributes buffered until the subgraph closes (the root applies them at once). */
     readonly attributes: Map<string, DotAttribute>;
+    /** The drawing attributes a cluster opened in this scope inherits: the enclosing scopes' and this one's so far. */
+    readonly graphDefaults: Map<string, DotAttribute>;
     /** Whether the subgraph is a cluster (by name or by `cluster=true`). */
     cluster: boolean;
     /** The container node index once created, or INVALID_INDEX. */
@@ -323,9 +370,13 @@ interface Scope {
  */
 export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
     format: DOT_FORMAT,
-    options: Object.freeze(["mismatchedEdgeOperator", "positions"]),
+    options: Object.freeze(["keepPositionSource", "mismatchedEdgeOperator", "positions"]),
     extensions: EXTENSIONS,
     mimeTypes: MIME_TYPES,
+    styles: dotStyles,
+    positions: dotPositions,
+    layout: dotLayout,
+    annotations: dotGraphLabel,
 
     /**
      * Confidence that the head of an input is DOT: the `[strict] graph | digraph` header after
@@ -376,7 +427,15 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
         const reports = { current: report };
         const lexer = dotLexer(text, reports);
         const first = guard(report, () => lexer.next());
-        const parser = new DotParser(lexer, sink, report, resolved, mismatch, options?.positions !== false);
+        const parser = new DotParser(
+            lexer,
+            sink,
+            report,
+            resolved,
+            mismatch,
+            options?.positions !== false,
+            options?.keepPositionSource === true,
+        );
         parser.headCharset = head.charset;
         const trailing = parseGraph(parser, report, first);
         if (trailing.kind !== "eof") {
@@ -429,7 +488,15 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
             reports.current = report;
             const sink = sinkFor(done.length);
             reportSinkOptions(sink, options, report);
-            const parser = new DotParser(lexer, sink, report, resolved, mismatch, options?.positions !== false);
+            const parser = new DotParser(
+                lexer,
+                sink,
+                report,
+                resolved,
+                mismatch,
+                options?.positions !== false,
+                options?.keepPositionSource === true,
+            );
             parser.headCharset = head.charset;
             token = parseGraph(parser, report, token);
             throwIfAborted(resolved.signal);
@@ -513,21 +580,29 @@ function countGraphs(lexer: DotTokenizer, first: DotToken): number {
         if (!isPunct(token, "{")) {
             throw new DotSyntaxError(`expected "{" after the graph header, found ${describeToken(token)}`, token.line);
         }
-        for (let depth = 1; depth > 0;) {
-            token = lexer.next();
-            if (token.kind === "eof") {
-                throw new DotSyntaxError('missing "}" at the end of a graph', token.line);
-            }
-            if (isPunct(token, "{")) {
-                depth++;
-            } else if (isPunct(token, "}")) {
-                depth--;
-            }
-        }
+        skipGraphBody(lexer);
         count++;
         token = lexer.next();
     }
     return count;
+}
+
+/**
+ * Read past a graph's statements up to the `}` that balances its opening `{`.
+ * @param lexer - the tokenizer, positioned after the graph's `{`
+ */
+function skipGraphBody(lexer: DotTokenizer): void {
+    for (let depth = 1; depth > 0;) {
+        const token = lexer.next();
+        if (token.kind === "eof") {
+            throw new DotSyntaxError('missing "}" at the end of a graph', token.line);
+        }
+        if (isPunct(token, "{")) {
+            depth++;
+        } else if (isPunct(token, "}")) {
+            depth--;
+        }
+    }
 }
 
 /** How many leading bytes the `charset` search sees: a license comment may come before the graph. */
@@ -550,16 +625,15 @@ function dotCharset(head: string): string | null {
         let token = lexer.next();
         while (token.kind !== "eof") {
             if (isPunct(token, "[")) {
-                list = previous !== null && isKeyword(previous, "graph") ? "graph" : "other";
+                list = listOwner(previous);
             } else if (isPunct(token, "]")) {
                 list = null;
             } else if (list !== "other" && isKeyword(token, "charset")) {
-                const equals = lexer.next();
-                const value = isPunct(equals, "=") ? lexer.next() : equals;
-                if (value !== equals && value.kind === "id") {
-                    return value.text.replace(/^(latin|big)-/i, "$1");
+                const read = charsetValue(lexer);
+                if (read.label !== null) {
+                    return read.label;
                 }
-                token = value;
+                token = read.next;
             }
             previous = token;
             token = lexer.next();
@@ -574,11 +648,35 @@ function dotCharset(head: string): string | null {
 }
 
 /**
+ * Whose attribute list a `[` opens: the graph's after the keyword `graph`, else a node's or an edge's.
+ * @param previous - the token before the `[`
+ * @returns "graph" or "other"
+ */
+function listOwner(previous: DotToken | null): "graph" | "other" {
+    return previous !== null && isKeyword(previous, "graph") ? "graph" : "other";
+}
+
+/**
+ * Read the value of a `charset` attribute whose name was just read.
+ * @param lexer - the tokenizer, after the name
+ * @returns the label (Graphviz's `latin-1` and `big-5` mapped to the WHATWG labels), or null when
+ * no `= id` follows; and the last token read, where the scan continues
+ */
+function charsetValue(lexer: DotTokenizer): { readonly label: string | null; readonly next: DotToken } {
+    const equals = lexer.next();
+    const value = isPunct(equals, "=") ? lexer.next() : equals;
+    if (value !== equals && value.kind === "id") {
+        return { label: value.text.replace(/^(latin|big)-/i, "$1"), next: value };
+    }
+    return { label: null, next: value };
+}
+
+/**
  * Resolve the mismatchedEdgeOperator option.
  * @param value - the caller's value
  * @returns the value or the default; E_UNSUPPORTED for anything else
  */
-function mismatchOption(value: unknown): "operator" | "header" | "error" {
+function mismatchOption(value: unknown): NonNullable<DotImportOptions["mismatchedEdgeOperator"]> {
     if (value === undefined) {
         return "operator";
     }
@@ -668,7 +766,7 @@ function describeToken(token: DotToken): string {
  * @returns true when it starts with `cluster`
  */
 function isClusterName(name: string | null): boolean {
-    return name !== null && name.startsWith(CLUSTER_PREFIX);
+    return name?.startsWith(CLUSTER_PREFIX) === true;
 }
 
 /**
@@ -685,6 +783,8 @@ class DotParser {
 
     private readonly mismatch: "operator" | "header" | "error";
     private readonly positions: boolean;
+
+    private readonly keepPositionSource: boolean;
 
     private readonly ids: IdCoercer;
 
@@ -704,6 +804,12 @@ class DotParser {
 
     /** The parent assigned to a node by this import. */
     private readonly parentOf = new Map<number, number>();
+
+    /** Each cluster container's inherited drawing attributes, as its scope saw them when the cluster first opened. */
+    private readonly inherited = new Map<number, Map<string, DotAttribute>>();
+
+    /** The attributes each cluster container sets itself, which its inherited ones never replace. */
+    private readonly ownAttributes = new Map<number, Set<string>>();
 
     /** Nodes already warned about a cluster conflict. */
     private readonly conflictWarned = new Set<number>();
@@ -732,6 +838,16 @@ class DotParser {
 
     private targetPortHandle: ColumnHandle = INVALID_INDEX as ColumnHandle;
 
+    private rankHandle: ColumnHandle = INVALID_INDEX as ColumnHandle; // NOSONAR(S2933): stringColumn assigns it through this[field]
+
+    private rankSetHandle: ColumnHandle = INVALID_INDEX as ColumnHandle; // NOSONAR(S2933): stringColumn assigns it through this[field]
+
+    /** The rank subgraph each node was put in first, by node index. */
+    private readonly rankSetOf = new Map<number, string>();
+
+    /** How many anonymous rank subgraphs were read, which names the next `%<n>`. */
+    private anonymousRanks = 0;
+
     /** The current subgraph nesting depth. */
     private depth = 0;
 
@@ -758,6 +874,7 @@ class DotParser {
      * @param options - the resolved common options
      * @param mismatch - the resolved mismatchedEdgeOperator option
      * @param positions - whether `pos` goes to the position column
+     * @param keepPositionSource - whether `pos` also stays as text
      */
     constructor(
         lexer: DotTokenizer,
@@ -766,6 +883,7 @@ class DotParser {
         options: ResolvedImportOptions,
         mismatch: "operator" | "header" | "error",
         positions: boolean,
+        keepPositionSource: boolean,
     ) {
         this.lexer = lexer;
         this.sink = sink;
@@ -773,6 +891,7 @@ class DotParser {
         this.options = options;
         this.mismatch = mismatch;
         this.positions = positions;
+        this.keepPositionSource = keepPositionSource;
         this.ids = new IdCoercer(options.ids);
         this.resolver = new DirectionResolver(sink, report, options.onMixedDirection);
     }
@@ -819,6 +938,7 @@ class DotParser {
         });
         const root = this.newScope(null, headerLine, true, null);
         this.statementList(root);
+        this.applyInherited();
         return lexer.next();
     }
 
@@ -841,6 +961,7 @@ class DotParser {
             memberSet: new Set(),
             containers: [],
             attributes: new Map(),
+            graphDefaults: new Map(parent?.graphDefaults),
             cluster: false,
             container: INVALID_INDEX,
         };
@@ -892,22 +1013,43 @@ class DotParser {
             }
             throw new DotSyntaxError(`unexpected ${describeToken(token)} at the start of a statement`, token.line);
         }
-        if (!token.quoted && !token.html) {
-            const keyword = token.text.toLowerCase();
-            if (keyword === "node" || keyword === "edge" || keyword === "graph") {
-                lexer.next();
-                this.attributeStatement(scope, keyword, token.line);
-                return;
-            }
-            if (keyword === "subgraph") {
-                const group = this.subgraph(scope);
-                this.maybeEdgeStatement(scope, group, token.line);
-                return;
-            }
-            if (keyword === "digraph" || keyword === "strict") {
-                throw new DotSyntaxError(`unexpected keyword ${describeToken(token)} inside a graph`, token.line);
-            }
+        if (!token.quoted && !token.html && this.keywordStatement(scope, token)) {
+            return;
         }
+        this.idStatement(scope);
+    }
+
+    /**
+     * Parse a statement that starts with a keyword: an attribute statement or a subgraph.
+     * @param scope - the scope
+     * @param token - the statement's first token, not yet read
+     * @returns false when the token is no statement keyword (an ID)
+     */
+    private keywordStatement(scope: Scope, token: DotToken): boolean {
+        const keyword = token.text.toLowerCase();
+        if (keyword === "node" || keyword === "edge" || keyword === "graph") {
+            this.lexer.next();
+            this.attributeStatement(scope, keyword, token.line);
+            return true;
+        }
+        if (keyword === "subgraph") {
+            const group = this.subgraph(scope);
+            this.maybeEdgeStatement(scope, group, token.line);
+            return true;
+        }
+        if (keyword === "digraph" || keyword === "strict") {
+            throw new DotSyntaxError(`unexpected keyword ${describeToken(token)} inside a graph`, token.line);
+        }
+        return false;
+    }
+
+    /**
+     * Parse a statement that starts with an ID: `ID = ID`, a node statement, or an edge statement starting with a
+     * node.
+     * @param scope - the scope
+     */
+    private idStatement(scope: Scope): void {
+        const { lexer } = this;
         // ID '=' ID, a node statement, or an edge statement starting with a node
         const id = this.identifier();
         if (isPunct(lexer.peek(), "=")) {
@@ -917,12 +1059,47 @@ class DotParser {
             return;
         }
         const port = this.port();
+        if (isPunct(lexer.peek(), ",")) {
+            this.nodeListStatement(scope, [{ id, port }, ...this.moreNodes()]);
+            return;
+        }
         if (isEdgeOp(lexer.peek())) {
             const endpoint = this.mentionEndpoint(scope, id, port);
             this.edgeStatement(scope, endpoint === null ? [] : [endpoint], id.line);
             return;
         }
         this.nodeStatement(scope, id, port);
+    }
+
+    /**
+     * Read the rest of a node list after its first node: `, ID [port]` repeated (`a, b, c`).
+     * @returns the further nodes, in order
+     */
+    private moreNodes(): { id: DotToken; port: string | null }[] {
+        const out: { id: DotToken; port: string | null }[] = [];
+        while (isPunct(this.lexer.peek(), ",")) {
+            this.lexer.next();
+            const id = this.identifier();
+            out.push({ id, port: this.port() });
+        }
+        return out;
+    }
+
+    /**
+     * A statement starting with a node list (`a, b [attrs]` or `a, b -> c`): an edge statement from every node of
+     * the list, or a node statement for each.
+     * @param scope - the scope
+     * @param nodes - the listed nodes with their ports
+     */
+    private nodeListStatement(scope: Scope, nodes: readonly { id: DotToken; port: string | null }[]): void {
+        if (isEdgeOp(this.lexer.peek())) {
+            this.edgeStatement(scope, this.mentionAll(scope, nodes), nodes[0].id.line);
+            return;
+        }
+        const attributes = this.attributeList();
+        for (const n of nodes) {
+            this.applyNodeStatement(scope, n.id, n.port, attributes);
+        }
     }
 
     /**
@@ -1025,48 +1202,98 @@ class DotParser {
      */
     private closeScope(scope: Scope, parent: Scope): void {
         const { container } = scope;
-        if (container !== INVALID_INDEX) {
-            for (const attribute of scope.attributes.values()) {
-                if (attribute.name !== CLUSTER_ATTRIBUTE) {
-                    this.setNodeAttribute(container, attribute.name, attribute.value, attribute.line);
-                }
-            }
-            for (const nested of scope.containers) {
-                if (nested !== container && !this.parentOf.has(nested)) {
-                    this.setParent(nested, container);
-                }
-            }
-            for (const member of scope.members) {
-                if (member === container) {
-                    continue;
-                }
-                const existing = this.parentOf.get(member);
-                if (existing === undefined) {
-                    this.setParent(member, container);
-                } else if (existing !== container && !this.isAncestor(container, existing)) {
-                    this.clusterConflict(member, existing, container, scope.line);
-                }
-            }
-            parent.containers.push(container);
+        if (container === INVALID_INDEX) {
+            this.closePlainSubgraph(scope, parent);
         } else {
-            if (scope.attributes.size > 0) {
-                const names = [...scope.attributes.keys()].join(", ");
-                this.report.warning(
-                    "unsupported",
-                    DOT_ISSUE.SUBGRAPH_ATTRIBUTES_DROPPED,
-                    `subgraph ${scope.name === null ? "(anonymous)" : JSON.stringify(scope.name)} is not a cluster; its attributes (${names}) cannot be represented and were dropped`,
-                    { line: scope.line, element: scope.name },
-                );
-            }
-            for (const nested of scope.containers) {
-                parent.containers.push(nested);
-            }
+            this.closeCluster(scope, parent, container);
         }
         if (!parent.root) {
             for (const member of scope.members) {
                 if (!parent.memberSet.has(member)) {
                     parent.memberSet.add(member);
                     parent.members.push(member);
+                }
+            }
+        }
+    }
+
+    /**
+     * Finish a cluster: apply its attributes to its container node, assign parents to its nested
+     * containers and its members, and hand the container to the enclosing scope.
+     * @param scope - the closed scope
+     * @param parent - the enclosing scope
+     * @param container - the cluster's container node
+     */
+    private closeCluster(scope: Scope, parent: Scope, container: number): void {
+        const own = this.ownAttributes.get(container) ?? new Set<string>();
+        this.ownAttributes.set(container, own);
+        for (const attribute of scope.attributes.values()) {
+            if (attribute.name !== CLUSTER_ATTRIBUTE) {
+                own.add(attribute.name);
+                this.setNodeAttribute(container, attribute.name, attribute.value, attribute.line);
+            }
+        }
+        for (const nested of scope.containers) {
+            if (nested !== container && !this.parentOf.has(nested)) {
+                this.setParent(nested, container);
+            }
+        }
+        for (const member of scope.members) {
+            if (member !== container) {
+                this.adoptMember(member, container, scope.line);
+            }
+        }
+        parent.containers.push(container);
+    }
+
+    /**
+     * Put a cluster's member in it, unless it is already in another cluster this one is not inside.
+     * @param member - the member node
+     * @param container - the cluster's container node
+     * @param line - the cluster's line
+     */
+    private adoptMember(member: number, container: number, line: number): void {
+        const existing = this.parentOf.get(member);
+        if (existing === undefined) {
+            this.setParent(member, container);
+        } else if (existing !== container && !this.isAncestor(container, existing)) {
+            this.clusterConflict(member, existing, container, line);
+        }
+    }
+
+    /**
+     * Finish a subgraph that is not a cluster: keep its rank, report its other attributes dropped, and hand its nested
+     * containers to the enclosing scope.
+     * @param scope - the closed scope
+     * @param parent - the enclosing scope
+     */
+    private closePlainSubgraph(scope: Scope, parent: Scope): void {
+        const ranked = this.recordRank(scope);
+        const dropped = [...scope.attributes.keys()].filter((name) => !(ranked && name === RANK_ATTRIBUTE));
+        if (dropped.length > 0) {
+            const names = dropped.join(", ");
+            this.report.warning(
+                "unsupported",
+                DOT_ISSUE.SUBGRAPH_ATTRIBUTES_DROPPED,
+                `subgraph ${scope.name === null ? "(anonymous)" : JSON.stringify(scope.name)} is not a cluster; its attributes (${names}) cannot be represented and were dropped`,
+                { line: scope.line, element: scope.name },
+            );
+        }
+        for (const nested of scope.containers) {
+            parent.containers.push(nested);
+        }
+    }
+
+    /**
+     * Give every cluster the drawing attributes it inherits and does not set itself (Graphviz's subgraph attribute
+     * inheritance), once the whole graph is read: a cluster reopened later can still set its own.
+     */
+    private applyInherited(): void {
+        for (const [container, attributes] of this.inherited) {
+            const own = this.ownAttributes.get(container);
+            for (const attribute of attributes.values()) {
+                if (own?.has(attribute.name) !== true) {
+                    this.setNodeAttribute(container, attribute.name, attribute.value, attribute.line);
                 }
             }
         }
@@ -1156,6 +1383,7 @@ class DotParser {
             if (!this.containers.has(index)) {
                 this.containers.add(index);
                 this.sink.setNodeValue(this.clusterColumn(), index, true);
+                this.inherited.set(index, new Map(scope.graphDefaults));
             }
             scope.container = index;
         } catch (err) {
@@ -1173,6 +1401,9 @@ class DotParser {
      * @param attribute - the attribute
      */
     private scopeAttribute(scope: Scope, attribute: DotAttribute): void {
+        if (INHERITED_GRAPH_ATTRIBUTES.has(attribute.name)) {
+            scope.graphDefaults.set(attribute.name, attribute);
+        }
         if (scope.root) {
             this.setGraphAttribute(attribute);
             return;
@@ -1268,7 +1499,22 @@ class DotParser {
      * @param port - the port, if any (dropped with a warning)
      */
     private nodeStatement(scope: Scope, id: DotToken, port: string | null): void {
-        const attributes = this.attributeList();
+        this.applyNodeStatement(scope, id, port, this.attributeList());
+    }
+
+    /**
+     * Mention a node of a node statement and apply the statement's attributes to it.
+     * @param scope - the scope
+     * @param id - the id token
+     * @param port - the port, if any (dropped with a warning)
+     * @param attributes - the statement's attributes
+     */
+    private applyNodeStatement(
+        scope: Scope,
+        id: DotToken,
+        port: string | null,
+        attributes: readonly DotAttribute[],
+    ): void {
         const endpoint = this.mentionEndpoint(scope, id, null);
         if (endpoint === null) {
             return;
@@ -1316,19 +1562,35 @@ class DotParser {
                 groups.push(this.subgraph(scope));
             } else {
                 const id = this.identifier();
-                const port = this.port();
-                const endpoint = this.mentionEndpoint(scope, id, port);
-                groups.push(endpoint === null ? [] : [endpoint]);
+                groups.push(this.mentionAll(scope, [{ id, port: this.port() }, ...this.moreNodes()]));
             }
         }
         const attributes = this.attributeList();
         for (let k = 0; k < kinds.length; k++) {
+            const targets = groups[k + 1];
             for (const source of groups[k]) {
-                for (const target of groups[k + 1]) {
+                for (const target of targets) {
                     this.pushEdge(scope, source, target, kinds[k], attributes, line);
                 }
             }
         }
+    }
+
+    /**
+     * Mention each listed node as an edge endpoint.
+     * @param scope - the scope
+     * @param nodes - the nodes with their ports
+     * @returns the endpoints of the nodes that could be created
+     */
+    private mentionAll(scope: Scope, nodes: readonly { id: DotToken; port: string | null }[]): Endpoint[] {
+        const group: Endpoint[] = [];
+        for (const n of nodes) {
+            const endpoint = this.mentionEndpoint(scope, n.id, n.port);
+            if (endpoint !== null) {
+                group.push(endpoint);
+            }
+        }
+        return group;
     }
 
     /**
@@ -1456,21 +1718,15 @@ class DotParser {
         const element = `${String(source.id)} ${kind === "directed" ? "->" : "--"} ${String(target.id)}`;
         const where: EdgeWhere = { line, element };
         const { weightFrom } = this.options;
-        let weight: number | undefined;
-        const weightText = weightFrom === null ? undefined : effective.get(weightFrom);
-        if (weightText !== undefined) {
-            try {
-                weight = parseWeightText(weightText, this.report);
-            } catch (err) {
-                this.report.recordError(err, where);
-                this.report.counts.skippedEdges++;
-                return;
-            }
+        const read = this.edgeWeight(effective, where);
+        if (read === null) {
+            return;
         }
+        const { weight } = read;
         const key = effective.get(KEY_ATTRIBUTE);
         const dedupeKey = this.dedupeKey(source.index, target.index, kind, key);
         if (dedupeKey !== null) {
-            const existing = (this.strict ? this.strictEdges : this.keyedEdges).get(dedupeKey);
+            const existing = this.dedupeEdges.get(dedupeKey);
             if (existing !== undefined) {
                 this.mergeEdge(existing, weight, effective, where, key);
                 this.setPorts(existing, source, target, where);
@@ -1489,7 +1745,7 @@ class DotParser {
         }
         this.report.counts.edges += sink.edgeCount - before;
         if (dedupeKey !== null) {
-            (this.strict ? this.strictEdges : this.keyedEdges).set(dedupeKey, e);
+            this.dedupeEdges.set(dedupeKey, e);
         }
         for (const [name, value] of effective) {
             if (name !== weightFrom) {
@@ -1497,6 +1753,39 @@ class DotParser {
             }
         }
         this.setPorts(e, source, target, where);
+    }
+
+    /**
+     * The weight of an edge from its effective attributes, under the weightFrom option.
+     * @param effective - the edge's effective attributes
+     * @param where - the line and element
+     * @returns the weight (undefined when the edge has none); null when it does not parse (reported,
+     * the edge counted skipped)
+     */
+    private edgeWeight(
+        effective: ReadonlyMap<string, string>,
+        where: EdgeWhere,
+    ): { readonly weight: number | undefined } | null {
+        const { weightFrom } = this.options;
+        const weightText = weightFrom === null ? undefined : effective.get(weightFrom);
+        if (weightText === undefined) {
+            return { weight: undefined };
+        }
+        try {
+            return { weight: parseWeightText(weightText, this.report) };
+        } catch (err) {
+            this.report.recordError(err, where);
+            this.report.counts.skippedEdges++;
+            return null;
+        }
+    }
+
+    /**
+     * The edges later edges merge into: by endpoints in a strict graph, else by key.
+     * @returns dedupe key -> edge index
+     */
+    private get dedupeEdges(): Map<string, number> {
+        return this.strict ? this.strictEdges : this.keyedEdges;
     }
 
     /**
@@ -1586,6 +1875,9 @@ class DotParser {
                 this.sink.setNodeValue(this.nodeLabel(), index, value);
             } else if (name === POS_ATTRIBUTE && this.positions) {
                 this.setPosition(index, value, line, element);
+                if (this.keepPositionSource) {
+                    this.textWriter("node", name).write(index, value);
+                }
             } else {
                 this.textWriter("node", name).write(index, value);
             }
@@ -1668,8 +1960,9 @@ class DotParser {
         }
         const x = Number(match[1]);
         const y = Number(match[2]);
-        const z = match[3] === undefined ? 0 : Number(match[3]);
-        const dims = match[3] === undefined ? 2 : 3;
+        const zText = itemAt(match, 3);
+        const z = zText === undefined ? 0 : Number(zText);
+        const dims = zText === undefined ? 2 : 3;
         const point = [x, y, z];
         if (point.some((v) => !Number.isFinite(v))) {
             // a half-infinite point would be a half-valid position
@@ -1766,7 +2059,7 @@ class DotParser {
     private positionColumn(dims: 2 | 3): ColumnHandle {
         if (this.positionHandle === INVALID_INDEX) {
             this.positionHandle = this.declare("node", {
-                name: POS_ATTRIBUTE,
+                name: this.keepPositionSource ? POSITION_COLUMN : POS_ATTRIBUTE,
                 dtype: "f64",
                 components: 3,
                 nullable: true,
@@ -1777,6 +2070,54 @@ class DotParser {
             });
         }
         return this.positionHandle;
+    }
+
+    /**
+     * Keep a non-cluster subgraph's `rank` on its nodes: each gets the rank and the subgraph's name (`%<n>` for an
+     * anonymous one). A node already in another rank subgraph keeps that one, with a warning.
+     * @param scope - the closed subgraph
+     * @returns true when the subgraph has a rank Graphviz knows
+     */
+    private recordRank(scope: Scope): boolean {
+        const rank = scope.attributes.get(RANK_ATTRIBUTE)?.value.trim();
+        if (rank === undefined || !RANK_KINDS.has(rank)) {
+            return false;
+        }
+        const set = scope.name ?? `%${this.anonymousRanks++}`;
+        for (const member of scope.members) {
+            const held = this.rankSetOf.get(member);
+            const id = String(this.idOf.get(member) ?? member);
+            if (held === undefined) {
+                this.rankSetOf.set(member, set);
+                try {
+                    this.sink.setNodeValue(this.stringColumn("rankHandle", RANK_COLUMN), member, rank);
+                    this.sink.setNodeValue(this.stringColumn("rankSetHandle", RANK_SET_COLUMN), member, set);
+                } catch (err) {
+                    this.report.recordError(err, { element: id });
+                }
+            } else if (held !== set) {
+                this.report.warning(
+                    "coercion",
+                    DOT_ISSUE.RANK_CONFLICT,
+                    `node ${JSON.stringify(id)} is in rank subgraph ${JSON.stringify(held)} and in rank subgraph ${JSON.stringify(set)}; the first is kept`,
+                    { line: scope.line, element: id },
+                );
+            }
+        }
+        return true;
+    }
+
+    /**
+     * One of the importer's string node columns, declared on first use.
+     * @param field - the field holding its handle
+     * @param name - the column name
+     * @returns the handle
+     */
+    private stringColumn(field: "rankHandle" | "rankSetHandle", name: string): ColumnHandle {
+        if (this[field] === INVALID_INDEX) {
+            this[field] = this.declare("node", { name, dtype: "string", nullable: true, origin: DOT_ORIGIN });
+        }
+        return this[field];
     }
 
     /**

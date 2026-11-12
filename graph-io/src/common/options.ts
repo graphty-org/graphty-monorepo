@@ -102,7 +102,7 @@ const SANITIZE_MODES: ReadonlySet<string> = new Set(["error", "mangle"]);
  */
 export const DEFAULT_ERROR_LIMIT = 100;
 
-export { SINK_OPTION_CODE };
+export { SINK_OPTION_CODE } from "./codes.js";
 
 /** The builder-policy options a sink exposes read-only as `sink.options` (design section 8.4). */
 const SINK_OPTION_NAMES = ["addMissingNodes", "duplicateEdges", "selfLoops", "weightDtype"] as const;

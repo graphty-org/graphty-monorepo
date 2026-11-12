@@ -9,12 +9,31 @@ import manifest from "virtual:vite-plugin-cem/custom-elements-manifest";
 
 import { initConsoleCaptureUI } from "@graphty/remote-logger/ui";
 
+import { featuresFromUrl, setDefaultFeatures } from "../src/features/resolve";
 import { pinLabelFont } from "../test/helpers/pin-label-font";
 
 // Force import and registration of graphty-element and all its dependencies
 import { Graphty } from "../src/graphty-element";
 // @ts-expect-error MDX files are handled by Storybook's build system
 import DocumentationTemplate from "./DocumentationTemplate.mdx";
+import { configure } from "storybook/test";
+
+import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
+
+// A play function's waitFor and findBy* wait until the monorepo's one hang guard, not Testing
+// Library's 1000 ms: a deadline on a wait fails a story whenever the machine is busy
+// (tools/test-wait-guard.mjs).
+configure({ asyncUtilTimeout: WAIT_GUARD_MS });
+// graphty-element's waitForStableFrame() waits until the same guard, not its 30 s default.
+(globalThis as { __GRAPHTY_WAIT_GUARD_MS__?: number }).__GRAPHTY_WAIT_GUARD_MS__ = WAIT_GUARD_MS;
+
+// `?features=<ids>` on the preview iframe's URL (iframe.html, which the visual capture opens) switches
+// experiments on for its stories, as a consumer would (the visual capture's
+// VISUAL_REVIEW_STORY_QUERY=features=all captures the "On" configuration).
+const urlFeatures = featuresFromUrl(location.href);
+if (urlFeatures.length > 0) {
+    setDefaultFeatures(urlFeatures);
+}
 
 // Ensure custom element is registered
 if (!customElements.get("graphty-element")) {
@@ -59,7 +78,7 @@ const preview: Preview = {
         chromatic: {
             delay: 500, // Initial delay for graph setup
             pauseAnimationAtEnd: true,
-            // Pinned rather than left to Chromatic's default, so the size of every snapshot is a
+            // Pinned rather than left to the capture tool's default, so the size of every snapshot is a
             // decision recorded here.
             viewports: [1200],
         },

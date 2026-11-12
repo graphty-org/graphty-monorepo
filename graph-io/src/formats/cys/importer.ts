@@ -13,14 +13,15 @@
  * shows), in a label column named `name`, and ids an exporter mangled are restored from the node
  * table's `graphty:originalId` (restoreMangledIds). 2.x: one full XGMML file per network, with
  * selection and hidden state from `cysession.xml`. Everything is resolved by the XGMML emitter, so
- * both readers share every column rule. Styles are not read (issue #706): W_STYLES_NOT_IMPORTED.
+ * both readers share every column rule. Asked for styles, the importer reads the style the imported view names
+ * from `session_vizmap.xml` (styles.ts), kept for it through the report; otherwise W_STYLES_NOT_IMPORTED.
  */
 
 import { GraphFormatError, type GraphSink, INVALID_INDEX } from "@graphty/graph-format";
 
 import { declareResolved } from "../../common/attributes.js";
 import { IdCoercer } from "../../common/ids.js";
-import { decodeEntryName, throwIfAborted } from "../../common/input.js";
+import { decodeEntryName, readText, throwIfAborted } from "../../common/input.js";
 import {
     chooseGraph,
     graphChosen,
@@ -33,6 +34,7 @@ import {
 import { agree, elementCount, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { startsLikeZip } from "../../common/zip.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import {
     type CommonImportOptions,
     type GraphChoiceOptions,
@@ -88,6 +90,7 @@ import {
     urlDecode,
     type XmlNode,
 } from "./session.js";
+import { readSessionStyles, type SessionStyleSource } from "./styles.js";
 import { cellAtt, type CyTable, readCyTable, type VirtualColumn, virtualColumnsOf } from "./tables.js";
 
 /**
@@ -384,21 +387,7 @@ async function networks3(
             });
         }
     }
-    const known = new Set(choices.map((c) => c.graphId));
-    const strayViews = layout.views.filter((v) => !known.has(v.network)).map((v) => v.name);
-    const strayTables = layout.tables.filter(
-        (t) =>
-            !known.has(t.network) &&
-            !layout.networks.some((n) => n.suid === t.network) &&
-            !isGroupTable(t, session, docs),
-    );
-    if (strayViews.length > 0 || strayTables.length > 0) {
-        report.warning(
-            "validation-error",
-            CYS_ISSUE.DANGLING_REFERENCE,
-            `${strayViews.length + strayTables.length} view${plural(strayViews.length + strayTables.length)} or table${plural(strayViews.length + strayTables.length)} ${agree(strayViews.length + strayTables.length, "belongs", "belong")} to a network the session does not hold and were not read: ${listed([...strayViews, ...strayTables.map((t) => t.name)])}`,
-        );
-    }
+    warnStray(session, docs, choices, report);
     if (layout.networkList === null) {
         return choices;
     }
@@ -417,14 +406,7 @@ async function networks3(
         );
         return choices;
     }
-    const order = new Map<string, number>();
-    for (const node of elementsNamed(tree, "network")) {
-        const id = node.attrs.get("id");
-        const position = Number(node.attrs.get("order"));
-        if (id !== undefined && Number.isFinite(position)) {
-            order.set(id, position);
-        }
-    }
+    const order = networkOrder(tree);
     return choices
         .map((choice, index) => ({ choice, index }))
         .sort(
@@ -433,6 +415,54 @@ async function networks3(
                 a.index - b.index,
         )
         .map((c) => c.choice);
+}
+
+/**
+ * Warn about the views and tables of a 3.x session that belong to no network it holds.
+ * @param session - the session
+ * @param docs - the parsed network files
+ * @param choices - the registered subnetworks
+ * @param report - the report
+ */
+function warnStray(
+    session: Session,
+    docs: ReadonlyMap<string, Parsed>,
+    choices: readonly Choice3[],
+    report: ImportReportBuilder,
+): void {
+    const { layout } = session;
+    const known = new Set(choices.map((c) => c.graphId));
+    const strayViews = layout.views.filter((v) => !known.has(v.network)).map((v) => v.name);
+    const strayTables = layout.tables.filter(
+        (t) =>
+            !known.has(t.network) &&
+            !layout.networks.some((n) => n.suid === t.network) &&
+            !isGroupTable(t, session, docs),
+    );
+    if (strayViews.length > 0 || strayTables.length > 0) {
+        report.warning(
+            "validation-error",
+            CYS_ISSUE.DANGLING_REFERENCE,
+            `${strayViews.length + strayTables.length} view${plural(strayViews.length + strayTables.length)} or table${plural(strayViews.length + strayTables.length)} ${agree(strayViews.length + strayTables.length, "belongs", "belong")} to a network the session does not hold and were not read: ${listed([...strayViews, ...strayTables.map((t) => t.name)])}`,
+        );
+    }
+}
+
+/**
+ * The positions `network_list.xml` gives the networks.
+ * @param tree - the parsed list
+ * @returns network id -> its order
+ */
+function networkOrder(tree: XmlNode): Map<string, number> {
+    const order = new Map<string, number>();
+    for (const node of elementsNamed(tree, "network")) {
+        const id = node.attrs.get("id");
+        const position = Number(node.attrs.get("order"));
+        if (id !== undefined && Number.isFinite(position)) {
+            order.set(id, position);
+        }
+    }
+    return order;
 }
 
 /**
@@ -469,8 +499,9 @@ function registeredGraphs(parsed: Parsed): GraphRec[] {
  * @param choice - the subnetwork
  * @param sink - the sink
  * @param parsed - its network file, parsed for this import (its records are filled in)
+ * @returns the style its view names, or null
  */
-async function import3(prepared: Prepared, choice: Choice3, sink: GraphSink, parsed: Parsed): Promise<void> {
+async function import3(prepared: Prepared, choice: Choice3, sink: GraphSink, parsed: Parsed): Promise<string | null> {
     const { graph } = choice;
     const members = membersOf(parsed.doc, graph);
     const nodes = byId(members.nodes);
@@ -478,7 +509,7 @@ async function import3(prepared: Prepared, choice: Choice3, sink: GraphSink, par
     // the records are shared by every network of the file: what this import adds is undone after
     const restore = saveRecords(graph, nodes, edges);
     try {
-        await fill3(prepared, choice, sink, parsed, nodes, edges);
+        return await fill3(prepared, choice, sink, parsed, nodes, edges);
     } finally {
         restore();
     }
@@ -530,6 +561,7 @@ function saveRecords(
  * @param parsed - its network file
  * @param nodes - its node records by id
  * @param edges - its edge records by id
+ * @returns the style its view names, or null
  */
 async function fill3(
     prepared: Prepared,
@@ -538,7 +570,7 @@ async function fill3(
     parsed: Parsed,
     nodes: ReadonlyMap<string, NodeRec>,
     edges: ReadonlyMap<string, EdgeRec>,
-): Promise<void> {
+): Promise<string | null> {
     const { report, inner } = prepared;
     const { doc, dialect } = parsed;
     const { graph } = choice;
@@ -553,6 +585,12 @@ async function fill3(
     }
     const restoredIds = inner.restoreMangledIds ? restoreIds(members.nodes) : new Map<string, string>();
     const { visualStyle, extraViews, extraIds } = await readViews(prepared, choice, nodes, edges);
+    const block =
+        prepared.session.layout.block === null ? null : await entryText(prepared, prepared.session.layout.block);
+    if (block !== null) {
+        // the graphty.styles block of a session graphty wrote: a graph attribute, as in every other format
+        graph.atts.push(textAtt(STYLE_BLOCK_NAME, block));
+    }
     const cyMeta = sessionMeta(prepared, {
         collection: doc.root.label ?? choice.network.title,
         network: choice.graphId,
@@ -586,6 +624,7 @@ async function fill3(
     }
     reportRootOnly(parsed, report, choice.network.name);
     writeViewPositions(sink, extraViews, extraIds, report, prepared.inner, restoredIds);
+    return visualStyle;
 }
 
 /**
@@ -687,7 +726,41 @@ async function applyTables(
             unmatched += await applyTable(ctx, entry, table);
         }
     }
+    await applyGroupCollapsed(doc, layout.tables, tableOf);
     return unmatched;
+}
+
+/** The hidden network column where Cytoscape keeps the SUIDs of the networks a group is collapsed in. */
+const GROUP_COLLAPSED = "__groupCollapsed.SUID";
+
+/**
+ * Give each group's nested graph the networks it is collapsed in, from its own hidden network table. A session
+ * writes the nested graph's atts empty and keeps this state only there (`CyGroupImpl` stores it in the group
+ * network's hidden table); an XGMML file Cytoscape exports writes it as the nested graph's att, which is what the
+ * style reader reads.
+ * @param doc - the network file
+ * @param tables - the session's tables
+ * @param tableOf - reads a table by its path
+ */
+async function applyGroupCollapsed(
+    doc: Parsed["doc"],
+    tables: readonly TableEntry[],
+    tableOf: (path: string) => Promise<CyTable | null>,
+): Promise<void> {
+    for (const graph of doc.graphs) {
+        if (graph.owner === null || graph.id === null || graph.atts.some((a) => a.name === GROUP_COLLAPSED)) {
+            continue;
+        }
+        const entry = tables.find((t) => t.network === graph.id && t.namespace === "HIDDEN" && t.element === "network");
+
+        const table = entry === undefined ? null : await tableOf(entry.tablePath);
+        const at = table?.columns.findIndex((c) => c.name === GROUP_COLLAPSED) ?? -1;
+        const cells = table?.rows.get(graph.id);
+        if (table === null || at < 0 || cells === undefined) {
+            continue;
+        }
+        pushAtt(graph.atts, cellAtt(table.columns[at], cells[at] ?? "", table.lines.get(graph.id) ?? 0, null, true));
+    }
 }
 
 /**
@@ -749,7 +822,8 @@ function rowAtts(
     const line = table.lines.get(key) ?? 0;
     const out: AttRec[] = [];
     for (let i = 1; i < table.columns.length && i < cells.length; i++) {
-        pushAtt(out, cellAtt(table.columns[i], cells[i], line, namespace, hidden));
+        const quoted = table.quotedEmpty?.get(key)?.has(i) === true;
+        pushAtt(out, cellAtt(table.columns[i], cells[i], line, namespace, hidden, quoted));
     }
     return out;
 }
@@ -915,21 +989,12 @@ function applyView(
         target.y = node.y;
         target.z = node.z;
         if (node.graphics !== null) {
-            target.graphics = { ...(target.graphics ?? {}), ...node.graphics };
+            target.graphics = { ...target.graphics, ...node.graphics };
         }
     }
-    for (const edge of view.edges) {
-        const target = edge.viewId === null ? undefined : edges.get(edge.viewId);
-        if (target === undefined) {
-            dangling++;
-            continue;
-        }
-        if (edge.graphics !== null) {
-            target.graphics = { ...(target.graphics ?? {}), ...edge.graphics };
-        }
-    }
+    dangling += applyEdgeGraphics(view.edges, edges);
     if (view.root.graphics !== null) {
-        graph.graphics = { ...(graph.graphics ?? {}), ...view.root.graphics };
+        graph.graphics = { ...graph.graphics, ...view.root.graphics };
     }
     if (dangling > 0) {
         report.warning(
@@ -938,6 +1003,27 @@ function applyView(
             `${entryLabel(entry)}: ${dangling} view element${plural(dangling)} ${agree(dangling, "names", "name")} no node or edge of the network; they are not read`,
         );
     }
+}
+
+/**
+ * Copy the graphics of a view's edge elements onto the network's edge records (by `cy:edgeId`).
+ * @param viewEdges - the view's edge elements
+ * @param edges - the network's edge records by id
+ * @returns how many view edges name no edge of the network
+ */
+function applyEdgeGraphics(viewEdges: readonly EdgeRec[], edges: ReadonlyMap<string, EdgeRec>): number {
+    let dangling = 0;
+    for (const edge of viewEdges) {
+        const target = edge.viewId === null ? undefined : edges.get(edge.viewId);
+        if (target === undefined) {
+            dangling++;
+            continue;
+        }
+        if (edge.graphics !== null) {
+            target.graphics = { ...target.graphics, ...edge.graphics };
+        }
+    }
+    return dangling;
 }
 
 /**
@@ -1203,20 +1289,7 @@ async function networks2(
         return report.fail(CYS_ISSUE.NOT_SESSION, "the session has no cysession.xml");
     }
     const tree = await readXmlTree(await session.read(layout.cysession, report), layout.cysession.name, report, inner);
-    const documentVersion = tree.attrs.get("documentVersion") ?? "";
-    if (documentVersion.length > 0 && !/^\d+(\.\d+)*$/.test(documentVersion.trim())) {
-        report.warning(
-            "validation-error",
-            XGMML_ISSUE.DOCUMENT_VERSION,
-            `${layout.cysession.name}: documentVersion "${documentVersion}" does not parse; the session is read as Cytoscape 2.x`,
-        );
-    }
-    if (documentVersion.startsWith("3")) {
-        report.fail(
-            CYS_ISSUE.VERSION,
-            `cysession.xml has documentVersion ${documentVersion} and no version marker: the 2011 Cytoscape 3.0 pre-release layout, which no released Cytoscape reads`,
-        );
-    }
+    checkDocumentVersion2(tree, layout.cysession.name, report);
     const byDecoded = new Map<string, SessionEntry>();
     for (const [path, entry] of layout.files) {
         byDecoded.set(path, entry);
@@ -1227,49 +1300,10 @@ async function networks2(
     const missing: string[] = [];
     const named = new Set<SessionEntry>();
     for (const record of elementsNamed(tree, "network")) {
-        const given = record.attrs.get("id");
-        const filename = record.attrs.get("filename") ?? (given === undefined ? undefined : `${given}.xgmml`);
-        if (given === "Network Root") {
-            continue;
+        const choice = choice2Of(record, byDecoded, named, missing, report, layout.cysession.name);
+        if (choice !== null) {
+            choices.push(choice);
         }
-        if (filename === undefined) {
-            sessionRecord(
-                report,
-                layout.cysession.name,
-                "a <network> has neither an id nor a filename; it is not read",
-            );
-            continue;
-        }
-        const id = given ?? urlDecode(filename.replace(/\.xgmml$/i, ""));
-        if (given === undefined) {
-            sessionRecord(
-                report,
-                layout.cysession.name,
-                `a <network> for ${filename} has no id; it is named "${id}" after its file`,
-            );
-        }
-        const file = byDecoded.get(filename);
-        if (file === undefined) {
-            missing.push(filename);
-            continue;
-        }
-        if (named.has(file)) {
-            sessionRecord(
-                report,
-                layout.cysession.name,
-                `the <network> "${id}" names ${filename}, which an earlier record already names; it is not read a second time`,
-            );
-            continue;
-        }
-        named.add(file);
-        const parent = record.children.find((c) => c.name === "parent")?.attrs.get("id") ?? null;
-        choices.push({
-            era: "2",
-            file,
-            name: id,
-            record,
-            parent: parent === "Network Root" || parent === "NULL" ? null : parent,
-        });
     }
     if (missing.length > 0) {
         report.warning(
@@ -1290,6 +1324,86 @@ async function networks2(
 }
 
 /**
+ * The documentVersion checks of networks2(): W_XGMML_DOCUMENT_VERSION for a version that does not parse, and
+ * E_CYS_VERSION for the Cytoscape 3.0 pre-release layout.
+ * @param tree - the cysession.xml tree
+ * @param entry - the cysession.xml entry name
+ * @param report - the report
+ */
+function checkDocumentVersion2(tree: XmlNode, entry: string, report: ImportReportBuilder): void {
+    const documentVersion = tree.attrs.get("documentVersion") ?? "";
+    if (documentVersion.length > 0 && !/^\d+(\.\d+)*$/.test(documentVersion.trim())) {
+        report.warning(
+            "validation-error",
+            XGMML_ISSUE.DOCUMENT_VERSION,
+            `${entry}: documentVersion "${documentVersion}" does not parse; the session is read as Cytoscape 2.x`,
+        );
+    }
+    if (documentVersion.startsWith("3")) {
+        report.fail(
+            CYS_ISSUE.VERSION,
+            `cysession.xml has documentVersion ${documentVersion} and no version marker: the 2011 Cytoscape 3.0 pre-release layout, which no released Cytoscape reads`,
+        );
+    }
+}
+
+/**
+ * The network one cysession.xml `<network>` record names, for networks2(): null for `Network Root`, a record with
+ * neither id nor filename, a file the session does not hold (added to `missing`) or one an earlier record named.
+ * @param record - the `<network>` record
+ * @param byDecoded - the session's entries by path, as written and URL-decoded
+ * @param named - the entries earlier records named; the entry this record names is added
+ * @param missing - the file names the session does not hold; this record's is added
+ * @param report - the report
+ * @param entry - the cysession.xml entry name
+ * @returns the network, or null when the record names none to read
+ */
+function choice2Of(
+    record: XmlNode,
+    byDecoded: ReadonlyMap<string, SessionEntry>,
+    named: Set<SessionEntry>,
+    missing: string[],
+    report: ImportReportBuilder,
+    entry: string,
+): Choice2 | null {
+    const given = record.attrs.get("id");
+    const filename = record.attrs.get("filename") ?? (given === undefined ? undefined : `${given}.xgmml`);
+    if (given === "Network Root") {
+        return null;
+    }
+    if (filename === undefined) {
+        sessionRecord(report, entry, "a <network> has neither an id nor a filename; it is not read");
+        return null;
+    }
+    const id = given ?? urlDecode(filename.replace(/\.xgmml$/i, ""));
+    if (given === undefined) {
+        sessionRecord(report, entry, `a <network> for ${filename} has no id; it is named "${id}" after its file`);
+    }
+    const file = byDecoded.get(filename);
+    if (file === undefined) {
+        missing.push(filename);
+        return null;
+    }
+    if (named.has(file)) {
+        sessionRecord(
+            report,
+            entry,
+            `the <network> "${id}" names ${filename}, which an earlier record already names; it is not read a second time`,
+        );
+        return null;
+    }
+    named.add(file);
+    const parent = record.children.find((c) => c.name === "parent")?.attrs.get("id") ?? null;
+    return {
+        era: "2",
+        file,
+        name: id,
+        record,
+        parent: parent === "Network Root" || parent === "NULL" ? null : parent,
+    };
+}
+
+/**
  * W_CYS_SESSION_RECORD: a cysession.xml network record without an id, or one naming a file an
  * earlier record names.
  * @param report - the report
@@ -1305,8 +1419,9 @@ function sessionRecord(report: ImportReportBuilder, entry: string, message: stri
  * @param prepared - the prepared import
  * @param choice - the network
  * @param sink - the sink
+ * @returns the style the network uses, or null
  */
-async function import2(prepared: Prepared, choice: Choice2, sink: GraphSink): Promise<void> {
+async function import2(prepared: Prepared, choice: Choice2, sink: GraphSink): Promise<string | null> {
     const { report, inner, session } = prepared;
     const { doc, dialect } = await parseEntry(session, choice.file, report, inner);
     let unmatched = 0;
@@ -1343,6 +1458,7 @@ async function import2(prepared: Prepared, choice: Choice2, sink: GraphSink): Pr
     };
     const settings: XgmmlSettings = { labelAliases: true, cytoscapeEscapes: true, zAs: prepared.zAs };
     new XgmmlEmitter(doc, dialect, sink, report, inner, settings, extras).emit(null);
+    return cyMeta.visualStyle;
 }
 
 /**
@@ -1466,14 +1582,115 @@ function sessionMeta(
  */
 async function importChoice(prepared: Prepared, index: number, sink: GraphSink): Promise<ImportReport> {
     const choice = prepared.choices[index];
+    let visualStyle: string | null;
     if (choice.era === "3") {
         const parsed = prepared.docs.get(choice.network.name) as Parsed;
-        await import3(prepared, choice, sink, parsed);
+        visualStyle = await import3(prepared, choice, sink, parsed);
     } else {
-        await import2(prepared, choice, sink);
+        visualStyle = await import2(prepared, choice, sink);
     }
+    await keepStyleSource(prepared, index, visualStyle);
     throwIfAborted(prepared.common.signal);
     return prepared.report.finish();
+}
+
+/**
+ * Keep what the session's style reader needs (`styles()` gets it back as `context.kept`): the parsed
+ * `session_vizmap.xml` of a 3.x session, the style the imported view names, and which network was imported.
+ * Reading the styles never fails the import: a damaged entry is kept as the reason it cannot be read.
+ * @param prepared - the prepared import
+ * @param index - the network imported
+ * @param visualStyle - the style its view names, or null
+ */
+async function keepStyleSource(prepared: Prepared, index: number, visualStyle: string | null): Promise<void> {
+    const { layout } = prepared.session;
+    const entry = layout.styles.find((e) => e.path.endsWith("session_vizmap.xml"));
+    let vizmap: XmlNode | null = null;
+    let problem: string | null = null;
+    if (layout.era === "3" && entry !== undefined) {
+        const bytes = await entryBytes(prepared, entry);
+        const tree =
+            typeof bytes === "string"
+                ? bytes
+                : await parseXmlTree(bytes, entry.name, new ImportReportBuilder(FORMAT, 0), prepared.inner);
+        if (typeof tree === "string") {
+            problem = tree;
+        } else {
+            vizmap = tree;
+        }
+    }
+    const source: SessionStyleSource = {
+        era: layout.era,
+        vizmap,
+        problem,
+        visualStyle,
+        network: { index, name: prepared.choices[index].name },
+        weightFrom: prepared.inner.weightFrom,
+    };
+    prepared.report.keepForStyles(source);
+}
+
+/**
+ * An entry's bytes for the styles, read outside the import's report: a damaged entry is the reason, never a failure.
+ * @param prepared - the prepared import
+ * @param entry - the entry
+ * @returns the bytes, or why they cannot be read
+ */
+async function entryBytes(prepared: Prepared, entry: SessionEntry): Promise<Uint8Array | string> {
+    try {
+        return await prepared.session.read(entry, new ImportReportBuilder(FORMAT, 0));
+    } catch (err) {
+        if (err instanceof ImportError) {
+            return err.message;
+        }
+        throw err;
+    }
+}
+
+/**
+ * An entry's text for the styles, or null when it cannot be read.
+ * @param prepared - the prepared import
+ * @param entry - the entry
+ * @returns the text, or null
+ */
+async function entryText(prepared: Prepared, entry: SessionEntry): Promise<string | null> {
+    const bytes = await entryBytes(prepared, entry);
+    if (typeof bytes === "string") {
+        return null;
+    }
+    try {
+        return await readText(bytes, new ImportReportBuilder(FORMAT, 0), { signal: prepared.common.signal });
+    } catch (err) {
+        if (err instanceof ImportError) {
+            return null;
+        }
+        throw err;
+    }
+}
+
+/**
+ * A text att of the network.
+ * @param name - its name
+ * @param value - its text
+ * @returns the att
+ */
+function textAtt(name: string, value: string): AttRec {
+    return {
+        name,
+        type: "string",
+        cyType: "String",
+        elementType: null,
+        value,
+        hidden: false,
+        equation: false,
+        children: [],
+        extra: {},
+        xml: null,
+        hasGraph: false,
+        text: "",
+        line: 0,
+        namespace: null,
+    };
 }
 
 /**
@@ -1599,4 +1816,5 @@ export const cysImporter: GraphImporter<CysImportOptions> = Object.freeze({
     import: importCys,
     importAll: importAllCys,
     listGraphs: listCysGraphs,
+    styles: readSessionStyles,
 });

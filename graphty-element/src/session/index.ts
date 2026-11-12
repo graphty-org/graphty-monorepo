@@ -10,15 +10,66 @@
  * enforces it.
  */
 
+export { EXPORT_LOSS_CODES } from "../data/exportLossCodes";
+export type {
+    AddAssetOptions,
+    AssetId,
+    AssetOffer,
+    AssetRecord,
+    AssetsApi,
+    AssetSource,
+    AssetState,
+    BuiltInModelFormat,
+    ModelFormat,
+    ModelLimits,
+    ModelPart,
+    ModelPartRole,
+    ModelPartState,
+    ModelSummary,
+    NamedBlob,
+    PartAnswer,
+} from "./assets/AssetsApi";
+export { DEFAULT_MODEL_LIMITS, isAssetId } from "./assets/AssetsApi";
+export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";
+export { browserProjects } from "./browserProjects";
+export { COLUMN_ROLES } from "./data";
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
 export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./layout";
 export { recommendLayout } from "./layout";
-export type { DefaultableLimits } from "./limits";
+export type { DefaultableLimits, LimitsOption } from "./limits";
 export { DEFAULT_LIMITS } from "./limits";
+export type { NetworkApi, NetworkPolicy, NetworkRequest, NetworkRequestAsker, NetworkRequestKind } from "./network";
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./planning";
 export { isAlgorithmRunCommand } from "./planning";
 export type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
+export type { LoadStyleReport } from "./styles/fileStyles/apply";
+export type {
+    ExportStyleLossCode,
+    FileStyleCode,
+    FileStyleNoteCode,
+    FileStyleTranslationCode,
+} from "./styles/fileStyles/codes";
+export {
+    EXPORT_STYLE_LOSS_CODES,
+    FILE_STYLE_CODES,
+    FILE_STYLE_ISSUE,
+    FILE_STYLE_TRANSLATION_ISSUE,
+} from "./styles/fileStyles/codes";
+export type {
+    FileStyleMappingKind,
+    FileStyleMeaning,
+    FileStyleOrigin,
+    FileStyleReason,
+    FileStyleRole,
+    FileStyleRuleOrigin,
+} from "./styles/fileStyles/origin";
+export { FILE_STYLE_REASONS, fileStyleOf } from "./styles/fileStyles/origin";
+export type { FileStyleKind } from "./styles/fileStyles/path";
+export type { FileStyleShapeTable } from "./styles/fileStyles/shapes";
+export { FILE_STYLE_SHAPES } from "./styles/fileStyles/shapes";
+export type { FileStyleColumnValues, FileStyleLoadValues, FileStyleScalar } from "./styles/fileStyles/store";
+export type { FileStyleNote, FileStyleOptions } from "./styles/fileStyles/translate";
 export type {
     ColumnHistogram,
     ColumnRole,
@@ -33,30 +84,60 @@ export type {
     DraftRowFilter,
     DraftRowOptions,
     DraftTable,
+    EdgeEnd,
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
     ElementSession,
     Endpoint,
+    FileStyleSummary,
+    FileStyleTool,
+    FindAtLeastRow,
+    FindContainsRow,
     FindEnd,
     FindHit,
     FindHitBase,
     FindKind,
+    FindMatchValue,
+    FindNamedRow,
     FindOptions,
     FindResult,
     FindValueRow,
+    GraphFraming,
     GraphSession,
+    GraphSettingKey,
     GraphStatistics,
+    GroupOutlineClick,
     HistoryCause,
+    HistoryClearOptions,
     HistoryCode,
     HistoryOutcome,
+    HistoryRestoreOptions,
     HistoryStep,
     HistoryStepId,
     ImportOptions,
+    JoinChoices,
+    JoinKey,
+    JoinRecord,
+    JoinReport,
+    JoinRowFate,
+    JoinShape,
+    JoinSuggestion,
+    JoinWarning,
+    LeftOutEdge,
     LoadChoices,
     LoadDraft,
+    LoadedSource,
+    LoadedSourceKind,
+    LoadedWeight,
     LoadMapping,
     LoadMappingRead,
+    LocationColumns,
+    LocationKind,
+    LocationUnused,
+    LocationUsing,
+    ModelChange,
+    ModelState,
     Neighbor,
     NeighborOptions,
     NeighborPage,
@@ -74,12 +155,18 @@ export type {
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    RemoveSourceResult,
+    ReplaceCounts,
+    ReplaceReport,
+    ReplaceUnboundCode,
     ResultCell,
     ResultColumn,
     ResultColumnDescriptor,
     ResultSort,
     RowUpdate,
+    RunPlacement,
     SessionAttributes,
+    SessionCapabilities,
     SessionCatalogApi,
     SessionConfig,
     SessionDataApi,
@@ -92,10 +179,16 @@ export type {
     SessionRunsOptions,
     SessionStatus,
     SessionViews,
+    SettingEffect,
+    SettingEffectCode,
     StyleProblem,
     TableMapping,
     TableMappingRead,
+    TimeFound,
     TransactionOptions,
     TransactionScope,
+    TypeChangePreview,
+    ValueCounts,
+    ValueType,
 } from "./types";
 export { COMPONENT_SIZE_CAP } from "./types";

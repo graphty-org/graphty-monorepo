@@ -1,6 +1,6 @@
 import type { F32 } from "@graphty/graph-format";
 import { spectral } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
@@ -15,6 +15,7 @@ const spectralLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     scale: {
@@ -48,9 +49,9 @@ type SpectralLayoutOpts = Partial<SpectralLayoutConfigType>;
  * Spectral layout engine using graph Laplacian eigenvectors
  */
 export class SpectralLayout extends SnapshotLayoutEngine {
-    static type = "spectral";
-    static maxDimensions = 2;
-    static zodOptionsSchema: OptionsSchema = spectralLayoutOptionsSchema;
+    static readonly type: string = "spectral";
+    static readonly maxDimensions: number = 2;
+    static readonly zodOptionsSchema: OptionsSchema = spectralLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: SpectralLayoutConfigType;
 

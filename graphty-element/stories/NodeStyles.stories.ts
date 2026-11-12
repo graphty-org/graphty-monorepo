@@ -197,6 +197,59 @@ export const Wireframe: Story = {
 };
 
 /**
+ * A flat-shaded sphere beside a smooth one. Two large spheres, so the facets are big enough to
+ * see: the left one has `node.flat` on and is lit one triangle at a time, the right one is the
+ * same sphere with its normals smoothed across the surface. At the size of a node in a busy graph
+ * the facets of a sphere are only a few pixels across, so this story draws two nodes, not the cat
+ * network the rest of this file uses.
+ */
+export const Flat: Story = {
+    play: async ({ canvasElement }) => {
+        await waitForGraphSettled(canvasElement);
+
+        const scene = await drawn(canvasElement, "Styles/Node Flat");
+
+        await assertGraphLoaded(scene, { nodes: 2, edges: 0 });
+
+        const flat = scene.nodes.find((node) => node.id === "flat");
+        const smooth = scene.nodes.find((node) => node.id === "smooth");
+
+        await holds(
+            flat !== undefined && smooth !== undefined && flat.geometryDigest !== smooth.geometryDigest,
+            "Styles/Node Flat: the flat sphere and the smooth sphere are drawn from two different geometries",
+        );
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
+    args: {
+        dataSource: undefined,
+        dataSourceConfig: undefined,
+        nodeData: [
+            { id: "flat", position: { x: -2, y: 0, z: 0 } },
+            { id: "smooth", position: { x: 2, y: 0, z: 0 } },
+        ],
+        edgeData: [],
+        layout: "fixed",
+        layoutConfig: {},
+        setup: storySetup({
+            node: { "node.shape": "sphere", "node.size": 3, "node.color": "#f59e0b" },
+            layers: [
+                {
+                    name: "flat sphere",
+                    target: "node",
+                    selector: { match: "ids", nodes: ["flat"] },
+                    set: { "node.flat": true },
+                },
+            ],
+        }),
+    },
+    parameters: {
+        controls: {
+            include: [],
+        },
+    },
+};
+
+/**
  * A label on every node, reading each node's own id.
  *
  * `label: {enabled: true}` used to switch labels on and leave the words to the renderer's
@@ -240,6 +293,77 @@ export const Opacity: Story = {
     parameters: {
         controls: {
             include: ["node.color", "node.opacity"],
+        },
+    },
+};
+
+/**
+ * The highlight: the selection's halo, in each node's own shape, drawn on the nodes a layer
+ * picks. The box and the left sphere set `node.halo` alone and are drawn in the selection's
+ * look; the right sphere sets its own colour, scale and opacity. The middle node has none.
+ */
+export const Halo: Story = {
+    play: async ({ canvasElement }) => {
+        await waitForGraphSettled(canvasElement);
+
+        const scene = await drawn(canvasElement, "Styles/Node Halo");
+
+        await assertGraphLoaded(scene, { nodes: 4, edges: 0 });
+
+        const halos = scene.graph.scene.meshes.filter(
+            (mesh) => mesh.name.startsWith("graphty-selection-halo") && mesh.isVisible && mesh.isEnabled(),
+        );
+
+        await holds(halos.length === 3, "Styles/Node Halo: three of the four nodes are highlighted");
+        await holds(
+            halos.some((mesh) => mesh.name.toLowerCase().includes("#00bcd4")),
+            "Styles/Node Halo: one highlight is drawn in the layer's own colour",
+        );
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
+    args: {
+        dataSource: undefined,
+        dataSourceConfig: undefined,
+        nodeData: [
+            { id: "box", position: { x: -6, y: 0, z: 0 } },
+            { id: "plain", position: { x: -2, y: 0, z: 0 } },
+            { id: "gold", position: { x: 2, y: 0, z: 0 } },
+            { id: "teal", position: { x: 6, y: 0, z: 0 } },
+        ],
+        edgeData: [],
+        layout: "fixed",
+        layoutConfig: {},
+        setup: storySetup({
+            node: { "node.shape": "sphere", "node.size": 2 },
+            layers: [
+                {
+                    name: "a box",
+                    target: "node",
+                    selector: { match: "ids", nodes: ["box"] },
+                    set: { "node.shape": "box" },
+                },
+                {
+                    name: "highlighted in the selection's look",
+                    target: "node",
+                    selector: { match: "ids", nodes: ["box", "gold"] },
+                    set: { "node.halo": true },
+                },
+                {
+                    name: "highlighted in a look of its own",
+                    target: "node",
+                    selector: { match: "ids", nodes: ["teal"] },
+                    set: {
+                        "node.haloColor": "#00BCD4",
+                        "node.haloScale": 1.8,
+                        "node.haloOpacity": 0.6,
+                    },
+                },
+            ],
+        }),
+    },
+    parameters: {
+        controls: {
+            include: [],
         },
     },
 };

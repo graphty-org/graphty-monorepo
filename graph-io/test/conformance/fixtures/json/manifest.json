@@ -13917,8 +13917,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-path-1.json",
@@ -14108,8 +14107,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-cycle-directed-0.json",
@@ -14312,8 +14310,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-cycle-directed-1.json",
@@ -14571,8 +14568,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-star-0.json",
@@ -14817,8 +14813,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-star-1.json",
@@ -15090,8 +15085,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-complete-0.json",
@@ -15307,8 +15301,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-complete-1.json",
@@ -15558,8 +15551,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-gnm-0.json",
@@ -15987,8 +15979,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-gnm-1.json",
@@ -16379,8 +16370,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-gnm-directed-0.json",
@@ -16714,8 +16704,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-gnm-directed-1.json",
@@ -17117,8 +17106,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-barabasi-albert-0.json",
@@ -17534,8 +17522,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-barabasi-albert-1.json",
@@ -17976,8 +17963,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-watts-strogatz-0.json",
@@ -18384,8 +18370,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-watts-strogatz-1.json",
@@ -18806,8 +18791,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-karate-0.json",
@@ -19256,8 +19240,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-karate-1.json",
@@ -19704,8 +19687,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-florentine-0.json",
@@ -21004,8 +20986,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-multigraph-1.json",
@@ -21148,8 +21129,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-multidigraph-0.json",
@@ -21413,8 +21393,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-multidigraph-1.json",
@@ -21637,8 +21616,7 @@
           }
         ]
       },
-      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted",
-      "knownFailure": "json cytoscape: a numeric source / target is not read as the string id Cytoscape.js makes of it, so the edge ends 0, 1 of a networkx cytoscape_data file become new nodes next to the declared \"0\", \"1\" (every node doubled)"
+      "networkxDisagrees": "networkx keys its read-back nodes by data.value and writes edge ends as the original Python keys, while Cytoscape.js ids are the data.id strings (Cytoscape.js turns a numeric id, source or target into its string); the top-level `directed` key is a networkx extension the elements JSON does not define, so direction is not asserted"
     },
     {
       "file": "networkx-generated/cytoscape-string-ids-0.json",

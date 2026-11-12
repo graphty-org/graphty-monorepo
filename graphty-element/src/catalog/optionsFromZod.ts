@@ -17,8 +17,8 @@
  * Two rules the emitter never breaks:
  *
  * - An option is never dropped. A construct it cannot classify still produces a descriptor,
- *   carrying the option's name, its default and a type of "unknown" with a sentence in
- *   `unsupportedReason` saying what stopped it.
+ *   carrying the option's name, its default and a type of "unknown" with an `unsupported` code
+ *   saying what stopped it.
  * - The emitter never throws. A schema that cannot be converted at all becomes a set of
  *   "unknown" descriptors, one per option, not an exception in the middle of building a
  *   catalogue.
@@ -28,10 +28,10 @@
  * decision for whoever authors the descriptor: pass it through `overrides`.
  */
 
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import type { OptionsSchema } from "../config/OptionsSchema";
-import type { OptionChoice, OptionDescriptor, OptionType } from "./types";
+import type { OptionChoice, OptionDescriptor, OptionType, OptionUnsupported, OptionUnsupportedCode } from "./types";
 
 /** The UI metadata the element's own option schemas carry beside each Zod schema. */
 export type OptionUiMeta = OptionsSchema[string]["meta"];
@@ -225,7 +225,7 @@ const DEFINITION_PREFIX = "#/$defs/";
  */
 function resolve(node: JsonSchemaNode, root: JsonSchemaNode): JsonSchemaNode {
     const ref = node.$ref;
-    if (ref === undefined || !ref.startsWith(DEFINITION_PREFIX)) {
+    if (!ref?.startsWith(DEFINITION_PREFIX)) {
         return node;
     }
 
@@ -243,7 +243,7 @@ function resolve(node: JsonSchemaNode, root: JsonSchemaNode): JsonSchemaNode {
  */
 function describeNode(name: string, node: JsonSchemaNode, meta: Partial<OptionUiMeta>): OptionDescriptor {
     const union = flatten(node, 0);
-    const classified = classify(union);
+    const classified = classify(union, meta.choiceLabels);
 
     const descriptor: OptionDescriptor = {
         name,
@@ -292,7 +292,12 @@ function describeNode(name: string, node: JsonSchemaNode, meta: Partial<OptionUi
     }
 
     if (classified.unsupportedReason !== undefined) {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- the deprecated sentence is still published until the major
         descriptor.unsupportedReason = classified.unsupportedReason;
+    }
+
+    if (classified.unsupported !== undefined) {
+        descriptor.unsupported = classified.unsupported;
     }
 
     return descriptor;
@@ -312,6 +317,7 @@ function unknownDescriptor(name: string, meta: Partial<OptionUiMeta>, reason: st
         technicalName: name,
         type: "unknown",
         unsupportedReason: reason,
+        unsupported: unsupported("option.not-convertible"),
     };
 
     if (meta.description !== undefined) {
@@ -349,7 +355,12 @@ function flatten(node: JsonSchemaNode, depth: number): FlatUnion {
         return { arms: [], nullable: false, unresolvedRef: true };
     }
 
-    const branches = node.anyOf ?? node.oneOf;
+    // zod writes a union of plain types as one node with a type list (`["string", "number",
+    // "null"]`), the same thing as an anyOf with one arm per type.
+    const branches =
+        node.anyOf ??
+        node.oneOf ??
+        (Array.isArray(node.type) ? node.type.map((type) => ({ ...node, type })) : undefined);
     if (branches === undefined) {
         if (node.type === "null") {
             return { arms: [], nullable: true, unresolvedRef: false };
@@ -376,19 +387,35 @@ interface Classification {
     node?: JsonSchemaNode;
     values?: readonly OptionChoice[];
     unsupportedReason?: string;
+    unsupported?: OptionUnsupported;
+}
+
+/**
+ * Why an option has no control, as a code.
+ * @param code - The code.
+ * @param types - The union's arm types, for `option.union`.
+ * @returns The coded fact, frozen.
+ */
+function unsupported(code: OptionUnsupportedCode, types?: readonly string[]): OptionUnsupported {
+    return Object.freeze({
+        code,
+        params: Object.freeze(types === undefined ? {} : { types: Object.freeze([...types]) }),
+    });
 }
 
 /**
  * Decide which control an option asks for, from the arms that survived flattening.
  * @param union - The flattened union.
+ * @param labels - The authored name of each choice, by value.
  * @returns The option type, plus the bounds source and any enumerated values.
  */
-function classify(union: FlatUnion): Classification {
+function classify(union: FlatUnion, labels?: Readonly<Record<string, string>>): Classification {
     if (union.arms.length === 0) {
         if (union.unresolvedRef) {
             return {
                 type: "unknown",
                 unsupportedReason: "the schema is recursive, so it has no single value type",
+                unsupported: unsupported("option.recursive"),
             };
         }
 
@@ -397,10 +424,11 @@ function classify(union: FlatUnion): Classification {
             unsupportedReason: union.nullable
                 ? "the only value the schema accepts is null"
                 : "the schema declares no value type",
+            unsupported: unsupported(union.nullable ? "option.only-null" : "option.no-type"),
         };
     }
 
-    const choices = choicesFrom(union.arms);
+    const choices = choicesFrom(union.arms, labels);
     if (choices !== undefined) {
         return { type: "enum", node: union.arms[0], values: choices };
     }
@@ -418,6 +446,7 @@ function classify(union: FlatUnion): Classification {
     return {
         type: "unknown",
         unsupportedReason: `the schema is a union of ${types.join(" and ")}, which has no single control`,
+        unsupported: unsupported("option.union", types),
     };
 }
 
@@ -441,18 +470,21 @@ function classifyLeaf(node: JsonSchemaNode): Classification {
                 type: "unknown",
                 node,
                 unsupportedReason: "an array option has no descriptor type; give it one with an override",
+                unsupported: unsupported("option.array"),
             };
         case "object":
             return {
                 type: "unknown",
                 node,
                 unsupportedReason: "an object or record option has no descriptor type; give it one with an override",
+                unsupported: unsupported("option.object"),
             };
         default:
             return {
                 type: "unknown",
                 node,
                 unsupportedReason: "the Zod construct has no JSON Schema type, so its values cannot be classified",
+                unsupported: unsupported("option.untyped"),
             };
     }
 }
@@ -460,9 +492,13 @@ function classifyLeaf(node: JsonSchemaNode): Classification {
 /**
  * Read the enumerated values out of a set of union arms, when every arm is enumerated.
  * @param arms - The arms to read.
+ * @param labels - The authored name of each choice, by value; a value left out is humanized.
  * @returns The choices, or undefined when the arms are not all enumerations or literals.
  */
-function choicesFrom(arms: readonly JsonSchemaNode[]): readonly OptionChoice[] | undefined {
+function choicesFrom(
+    arms: readonly JsonSchemaNode[],
+    labels?: Readonly<Record<string, string>>,
+): readonly OptionChoice[] | undefined {
     const values: unknown[] = [];
     for (const arm of arms) {
         if (arm.enum !== undefined) {
@@ -485,7 +521,7 @@ function choicesFrom(arms: readonly JsonSchemaNode[]): readonly OptionChoice[] |
         }
 
         const text = String(value);
-        choices.push({ value: text, label: humanize(text) });
+        choices.push({ value: text, label: labels?.[text] ?? humanize(text) });
     }
 
     return choices;

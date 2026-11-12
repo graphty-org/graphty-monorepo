@@ -5,9 +5,9 @@
 # There are two kinds of hold, each with its own issue, and they never touch each other:
 #   - a train hold, "Release held: <what> failed on <sha>": a release train failed. A later train that fails
 #     retitles and comments on it; a train that passes closes it.
-#   - a publish hold, "Release held: publish failed on <sha>": the publish of a merged release pull request
-#     failed. Only re-running that publish run clears it, so trains never retitle or close it; a passing
-#     re-run closes it.
+#   - a publish hold, "Release held: publish failed on <sha>": the publish of a release already on master
+#     failed. Re-running that publish run clears it, so trains never retitle it; a passing re-run closes it.
+#     One that npm accepted but had not listed yet closes once npm lists it (tools/publish-hold.mjs settle).
 #
 #   tools/release-held.sh find [prefix]                    any hold's number (title starts with prefix), or nothing
 #   tools/release-held.sh find --train                     the train hold's number, or nothing
@@ -20,9 +20,15 @@ set -euo pipefail
 
 PUBLISH="Release held: publish failed"
 
+# A read tried three times, 5 then 15 seconds apart: GitHub answers a 5xx now and then, and a failed read here fails
+# the pick (or reads a hold as absent). RELEASE_HELD_RETRY_WAIT (seconds) replaces both waits, for tests.
+retry() {
+    "$@" || { sleep "${RELEASE_HELD_RETRY_WAIT:-5}"; "$@"; } || { sleep "${RELEASE_HELD_RETRY_WAIT:-15}"; "$@"; }
+}
+
 # $1: the title prefix (empty: any hold); $2: "train" drops publish holds
 find_held() {
-    gh issue list -R "$GITHUB_REPOSITORY" --state open --search 'in:title "Release held:"' --limit 50 \
+    retry gh issue list -R "$GITHUB_REPOSITORY" --state open --search "in:title \"${1:-Release held:}\"" --limit 50 \
         --json number,title --jq "[.[] | select(.title | startswith(\"${1:-Release held: }\"))
             | select(\"${2:-}\" != \"train\" or (.title | startswith(\"${PUBLISH}\") | not))][0].number // empty"
 }

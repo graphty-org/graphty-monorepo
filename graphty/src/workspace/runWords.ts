@@ -7,6 +7,9 @@
 
 import type { GraphSession, RunDistinction, Scope, SetId } from "@graphty/graphty-element/session";
 
+import { wordsFor } from "./analyze/words";
+import { formatNumber } from "./settings/numberFormat";
+
 /** The facts a run's name is worded from: a `Run`, or its `record`. */
 interface NamedRun {
     readonly algorithm: string;
@@ -80,6 +83,18 @@ function scopeWords(spec: Scope, setName: (id: SetId) => string | undefined): st
 }
 
 /**
+ * What to call the part of the graph a run computed over, where it is not the part a reader
+ * reads it on: "112 showing" (what was showing when it ran), else the scope's own words.
+ * @param session - the session, for a kept set's name.
+ * @param spec - the scope.
+ * @param nodes - how many nodes it covered.
+ * @returns a short phrase.
+ */
+export function ranOverWords(session: GraphSession, spec: Scope, nodes: number): string {
+    return spec === "visible" ? `${formatNumber(nodes)} showing` : scopeWords(spec, (id) => session.sets.get(id)?.name);
+}
+
+/**
  * What the app calls a run.
  *
  * The algorithm's catalog name, with the option its result was named after once that left its
@@ -94,8 +109,12 @@ export function runName(session: GraphSession, run: NamedRun): string {
         return typeof run.params.label === "string" ? run.params.label : "Batch";
     }
 
-    const algorithm =
-        session.catalog.algorithms().find((descriptor) => descriptor.key === run.algorithm)?.plainName ?? run.algorithm;
+    // The method's name in the app's words, so a reader who picked "PageRank" sees it everywhere.
+    const descriptor = session.catalog.algorithms().find((each) => each.key === run.algorithm);
+    let { algorithm } = run;
+    if (descriptor !== undefined) {
+        algorithm = wordsFor(descriptor).name;
+    }
     const { distinguishedBy: by } = run;
     const base =
         by === null ? algorithm : `${algorithm} (${OPTION_WORDS[by.option] ?? by.option} ${valueWords(by.value)})`;

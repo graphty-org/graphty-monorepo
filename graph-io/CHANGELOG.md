@@ -1,3 +1,744 @@
+## 0.3.55 (2026-11-10)
+
+### 🚀 Features
+
+- **graph-io:** dependable network source examples, checked live every week ([#6210](https://github.com/graphty-org/graphty-monorepo/issues/6210), [#2907](https://github.com/graphty-org/graphty-monorepo/issues/2907))
+- **graph-io:** dependable network source examples, checked live every week ([#6210](https://github.com/graphty-org/graphty-monorepo/issues/6210), [#2907](https://github.com/graphty-org/graphty-monorepo/issues/2907))
+- **graphty-element:** put styles from files behind the file-styles experiment ([#706](https://github.com/graphty-org/graphty-monorepo/issues/706))
+- **graphty-element:** draw a table edge label as its table (edge.labelTable) ([#5253](https://github.com/graphty-org/graphty-monorepo/issues/5253))
+- **graphty-element:** give a label a box that can differ from its words ([#4247](https://github.com/graphty-org/graphty-monorepo/issues/4247), [#5809](https://github.com/graphty-org/graphty-monorepo/issues/5809))
+- **graphty-element:** place a Cytoscape.js label outside its node by its words ([#5774](https://github.com/graphty-org/graphty-monorepo/issues/5774), [#4247](https://github.com/graphty-org/graphty-monorepo/issues/4247))
+
+### 🩹 Fixes
+
+- **graph-io:** keep a corpus reference unchanged when only its timestamp would change ([#6261](https://github.com/graphty-org/graphty-monorepo/issues/6261))
+- **graph-io:** mark a yEd GraphML color2 gradient node paintedOver in its reference ([#6169](https://github.com/graphty-org/graphty-monorepo/issues/6169), [#6261](https://github.com/graphty-org/graphty-monorepo/issues/6261), [#5809](https://github.com/graphty-org/graphty-monorepo/issues/5809))
+- **graph-io:** sort a seed with no neighbor after every keyed row in a capped expansion ([#6236](https://github.com/graphty-org/graphty-monorepo/issues/6236))
+- **graph-io:** judge a yEd GML gradient node's ramp, not its flat fill ([#5809](https://github.com/graphty-org/graphty-monorepo/issues/5809))
+- **graph-io:** read a yEd image or SVG node's reference as its picture alone ([#4515](https://github.com/graphty-org/graphty-monorepo/issues/4515))
+- **graph-io:** page capped Cypher neighborhoods on a (byServer, key) pair ([#6236](https://github.com/graphty-org/graphty-monorepo/issues/6236))
+- **graph-io:** match Cypher neighborhood seeds by the id property only ([#6215](https://github.com/graphty-org/graphty-monorepo/issues/6215))
+- **graph-io:** keep Cypher neighbors without idProperty; default User-Agent in Node ([#6215](https://github.com/graphty-org/graphty-monorepo/issues/6215), [#6217](https://github.com/graphty-org/graphty-monorepo/issues/6217))
+- **graph-io:** stop an expansion's stubs at its limit ([ca6d46e227](https://github.com/graphty-org/graphty-monorepo/commit/ca6d46e227))
+- **graph-io:** no nested template literals in the live and record scripts ([#6210](https://github.com/graphty-org/graphty-monorepo/issues/6210))
+- **graph-io:** draw yEd image and SVG nodes as their picture alone ([#4515](https://github.com/graphty-org/graphty-monorepo/issues/4515))
+- **graph-io:** draw the symbols inside yEd's BPMN nodes ([#5788](https://github.com/graphty-org/graphty-monorepo/issues/5788))
+- **graph-io:** draw a laid-out DOT graph's own label (the diagram's title) ([f055265ea2](https://github.com/graphty-org/graphty-monorepo/commit/f055265ea2))
+- **graph-io:** keep a DOT invis node so the edges that end at it are drawn ([e7544779d0](https://github.com/graphty-org/graphty-monorepo/commit/e7544779d0))
+- **graph-io:** draw a yEd UML class's stereotype, constraint, attributes and methods ([590cffcb6e](https://github.com/graphty-org/graphty-monorepo/commit/590cffcb6e))
+- **graph-io:** draw a yEd image or SVG node as its picture alone ([#5788](https://github.com/graphty-org/graphty-monorepo/issues/5788))
+- **graph-io:** read yFiles label font style, alignment, round box, wrapping and stretch turn ([f937753763](https://github.com/graphty-org/graphty-monorepo/commit/f937753763))
+- **graph-io:** take a Cytoscape heat map's domain label off the top of its plot ([1d4ca229f3](https://github.com/graphty-org/graphty-monorepo/commit/1d4ca229f3))
+- **graph-io:** color Cytoscape GML arrowheads with the edge fill ([#505050](https://github.com/graphty-org/graphty-monorepo/issues/505050))
+- **graph-io:** grow a yEd group round its members' hidden labels too ([#706](https://github.com/graphty-org/graphty-monorepo/issues/706))
+- **graph-io:** draw the drop shadows yEd paints under nodes ([098ec6b9bc](https://github.com/graphty-org/graphty-monorepo/commit/098ec6b9bc))
+- **graph-io:** grow a yEd group by its border insets, members' labels and bottom label ([#706](https://github.com/graphty-org/graphty-monorepo/issues/706))
+- **graph-io:** draw an open yEd group round its members, as yEd keeps it ([#706](https://github.com/graphty-org/graphty-monorepo/issues/706))
+- **graph-io:** draw a collapsed yFiles group at its FolderNodeState layout ([#706](https://github.com/graphty-org/graphty-monorepo/issues/706))
+- **graphty-element:** draw dashed and dotted lines in each program's own dash pattern ([674fa35669](https://github.com/graphty-org/graphty-monorepo/commit/674fa35669))
+- **graph-io:** draw yEd framed edges as a filled band outlined in the line color ([222dd9f405](https://github.com/graphty-org/graphty-monorepo/commit/222dd9f405))
+- **graph-io:** measure DOT record fields in the face their fontname names ([#5253](https://github.com/graphty-org/graphty-monorepo/issues/5253))
+- **graph-io:** draw only the outline of a multimer's copy ([#6182](https://github.com/graphty-org/graphty-monorepo/issues/6182))
+- **graph-io:** write yEd label icons as icon resources so yEd opens the images sheet ([#5792](https://github.com/graphty-org/graphty-monorepo/issues/5792))
+- **graph-io:** draw the note fold and multimer copy as the node's picture ([#6182](https://github.com/graphty-org/graphty-monorepo/issues/6182))
+- **graph-io:** draw yEd Live's bevel line over its lighter line, and judge a line inside the node ([#3366](https://github.com/graphty-org/graphty-monorepo/issues/3366), [#5788](https://github.com/graphty-org/graphty-monorepo/issues/5788), [#5789](https://github.com/graphty-org/graphty-monorepo/issues/5789))
+- **graph-io:** draw a yEd UML note's fold creases and an SBGN multimer's second outline ([#6182](https://github.com/graphty-org/graphty-monorepo/issues/6182))
+- **graph-io:** start yFiles 3 edges at their sourceport and targetport ([#706](https://github.com/graphty-org/graphty-monorepo/issues/706))
+- **graph-io:** place Pajek part-way arrowheads on the line between the outlines ([b481afe5c2](https://github.com/graphty-org/graphty-monorepo/commit/b481afe5c2))
+- **graph-io:** draw a yEd Live group's collapse icon and its background on the tab ([44a887cc4f](https://github.com/graphty-org/graphty-monorepo/commit/44a887cc4f))
+- **graphty-element:** lay out an unpositioned file at its program's spacing ([#3168](https://github.com/graphty-org/graphty-monorepo/issues/3168))
+- **graph-io:** bound an unrolled ramp by its stops, and keep its seams and hard stops sharp ([#5809](https://github.com/graphty-org/graphty-monorepo/issues/5809))
+- **graph-io:** read yFiles for HTML styles the way yEd Live draws them ([bab236c3dc](https://github.com/graphty-org/graphty-monorepo/commit/bab236c3dc))
+- **graph-io:** note a yFiles REFLECT or REPEAT ramp run again more than 64 times across its node ([#5809](https://github.com/graphty-org/graphty-monorepo/issues/5809))
+- **graph-io:** draw the marks yEd draws inside BPMN and flowchart GenericNodes ([daf8ebe2c4](https://github.com/graphty-org/graphty-monorepo/commit/daf8ebe2c4))
+- **graph-io:** read yEd's reflected and repeated ramps as the colors they paint ([#5809](https://github.com/graphty-org/graphty-monorepo/issues/5809))
+- **graph-io:** write a node's ports back as <port> elements on a GraphML save ([#5789](https://github.com/graphty-org/graphty-monorepo/issues/5789))
+- **graph-io:** draw the gloss yEd Live paints over a ShinyPlateNodeStyle ([#5788](https://github.com/graphty-org/graphty-monorepo/issues/5788))
+- **tools:** move to knip 6 so the dead-code check peaks at 1.4 GB, not 3 GB ([#6142](https://github.com/graphty-org/graphty-monorepo/issues/6142), [#6147](https://github.com/graphty-org/graphty-monorepo/issues/6147))
+- **graph-io:** draw a DOT gradientangle along the line Graphviz draws on a non-square node ([#5809](https://github.com/graphty-org/graphty-monorepo/issues/5809))
+- **graphty-element:** hand Graphviz an edge statement's ports and its cluster ends ([#5253](https://github.com/graphty-org/graphty-monorepo/issues/5253))
+- **graph-io:** draw yEd's com.yjava bevel and shiny plate nodes as yEd 3.25 does ([#5788](https://github.com/graphty-org/graphty-monorepo/issues/5788))
+- **graph-io:** read yEd Live and yFiles 3 linear node gradients ([#5809](https://github.com/graphty-org/graphty-monorepo/issues/5809))
+- **graphty-element:** judge table label outlines and same-row label words exactly ([#5253](https://github.com/graphty-org/graphty-monorepo/issues/5253))
+- **graph-io:** read yEd's gradient direction as yEd draws it ([#5809](https://github.com/graphty-org/graphty-monorepo/issues/5809), [#5788](https://github.com/graphty-org/graphty-monorepo/issues/5788))
+- **graph-io:** draw yEd Live's BPMN events on ports and choreography messages ([#5789](https://github.com/graphty-org/graphty-monorepo/issues/5789))
+- **graph-io:** place yEd Live edge labels by their label models ([#4247](https://github.com/graphty-org/graphty-monorepo/issues/4247), [#5809](https://github.com/graphty-org/graphty-monorepo/issues/5809))
+- **graph-io:** keep a node drawing's helpers private to their module ([#5789](https://github.com/graphty-org/graphty-monorepo/issues/5789))
+- **graph-io:** draw a DOT table edge label's box and hang a loop's label outside it ([#5253](https://github.com/graphty-org/graphty-monorepo/issues/5253))
+- **graph-io:** draw yEd Live's UML sections and BPMN symbols as a node picture ([#5789](https://github.com/graphty-org/graphty-monorepo/issues/5789))
+- **graph-io:** draw yEd entity headers and place edge labels by their models ([#4247](https://github.com/graphty-org/graphty-monorepo/issues/4247), [#5809](https://github.com/graphty-org/graphty-monorepo/issues/5809))
+- **graph-io:** place yEd Live and SmartNodeLabelModel labels by their models ([#4247](https://github.com/graphty-org/graphty-monorepo/issues/4247), [#5809](https://github.com/graphty-org/graphty-monorepo/issues/5809))
+- **graph-io:** correct the yEd reference for a border color with no alpha ([#5788](https://github.com/graphty-org/graphty-monorepo/issues/5788), [#5789](https://github.com/graphty-org/graphty-monorepo/issues/5789))
+- **graph-io:** draw no line in a bevel whose border has no color ([#5788](https://github.com/graphty-org/graphty-monorepo/issues/5788), [#5789](https://github.com/graphty-org/graphty-monorepo/issues/5789))
+- **graph-io:** draw yEd's bevels, panels, arrows and corner styles as yEd draws them ([#5788](https://github.com/graphty-org/graphty-monorepo/issues/5788), [#5789](https://github.com/graphty-org/graphty-monorepo/issues/5789))
+- **graph-io:** keep every other: arrow name Graphviz reads in DOT ([#5947](https://github.com/graphty-org/graphty-monorepo/issues/5947))
+- **graph-io:** write a lone DOT arrow's side and only names Graphviz reads ([#5946](https://github.com/graphty-org/graphty-monorepo/issues/5946), [#5947](https://github.com/graphty-org/graphty-monorepo/issues/5947))
+- **graph-io:** write a compound Graphviz arrow's whole name in DOT ([#5924](https://github.com/graphty-org/graphty-monorepo/issues/5924), [#5925](https://github.com/graphty-org/graphty-monorepo/issues/5925))
+- **graph-io:** paint yFiles bevels and panels, and draw yEd Live's arrows and corner styles ([#5788](https://github.com/graphty-org/graphty-monorepo/issues/5788), [#5789](https://github.com/graphty-org/graphty-monorepo/issues/5789))
+- **graph-io:** keep a label border's width through a GML save ([#5809](https://github.com/graphty-org/graphty-monorepo/issues/5809))
+- **graph-io:** place yEd labels sized to their nodes and inside against a side ([#4247](https://github.com/graphty-org/graphty-monorepo/issues/4247))
+- **graph-io:** carry yEd GML and yEd Live label boxes, read yEd bands and dots correctly ([#5809](https://github.com/graphty-org/graphty-monorepo/issues/5809))
+- **graphty-element:** draw rectangles rounded on one side only ([#5900](https://github.com/graphty-org/graphty-monorepo/issues/5900))
+- **graphty-element:** stand the slash back by a stem, so its cap spans its own length ([2462dc9136](https://github.com/graphty-org/graphty-monorepo/commit/2462dc9136))
+- **graph-io:** draw yEd's raised border and record what the oracle gained ([#5839](https://github.com/graphty-org/graphty-monorepo/issues/5839), [#5788](https://github.com/graphty-org/graphty-monorepo/issues/5788), [#5789](https://github.com/graphty-org/graphty-monorepo/issues/5789))
+- **graph-io:** read yEd's raised border, BPMN double lines and curved flowchart sides ([bd29dce6ad](https://github.com/graphty-org/graphty-monorepo/commit/bd29dce6ad))
+- **graph-io:** draw yEd's widths, stood-back caps and skewed dash as yEd does ([45bb978e1c](https://github.com/graphty-org/graphty-monorepo/commit/45bb978e1c))
+- **graphty-element:** keep a raised run's line in place; judge tiny and ghosted labels right ([#4247](https://github.com/graphty-org/graphty-monorepo/issues/4247))
+- **graph-io:** keep a node's center when yEd styles write it at its drawn size ([#5788](https://github.com/graphty-org/graphty-monorepo/issues/5788))
+- **graph-io:** size yEd's and yEd Live's other arrowheads as they draw them ([#5839](https://github.com/graphty-org/graphty-monorepo/issues/5839), [#5846](https://github.com/graphty-org/graphty-monorepo/issues/5846), [#5786](https://github.com/graphty-org/graphty-monorepo/issues/5786))
+- **graphty-element:** draw yEd's cross, kite, deltoid and crow's foot arrowheads ([#5786](https://github.com/graphty-org/graphty-monorepo/issues/5786), [#5790](https://github.com/graphty-org/graphty-monorepo/issues/5790))
+- **workspace:** close the CodeQL alerts in the studio tool and the GEXF sniff ([7888f899fc](https://github.com/graphty-org/graphty-monorepo/commit/7888f899fc))
+- **graph-io:** size yEd and yEd Live arrowheads, widths and default fill as they draw them ([#5786](https://github.com/graphty-org/graphty-monorepo/issues/5786), [#5787](https://github.com/graphty-org/graphty-monorepo/issues/5787))
+- **graph-io:** read yEd node types as yEd's drawings show them ([#5788](https://github.com/graphty-org/graphty-monorepo/issues/5788))
+- **graph-io:** read yEd Live's BPMN, UML and group styles and its label default ([#5789](https://github.com/graphty-org/graphty-monorepo/issues/5789), [#5791](https://github.com/graphty-org/graphty-monorepo/issues/5791))
+- **graph-io:** read yEd Live's BPMN node colors and Cytoscape's patterned borders ([#4456](https://github.com/graphty-org/graphty-monorepo/issues/4456))
+- **workspace:** tests and docs that the quick check found out of date ([bab29ccd4a](https://github.com/graphty-org/graphty-monorepo/commit/bab29ccd4a))
+- **graphty-element:** count a dropped value as no refused row ([c3fe4b4f1e](https://github.com/graphty-org/graphty-monorepo/commit/c3fe4b4f1e))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.42
+- Updated graph-format to 1.5.1
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
+## 0.3.54 (2026-11-09)
+
+### 🚀 Features
+
+- **graph-format:** share the text grammar, the seeded generator and the plain-object check ([#736](https://github.com/graphty-org/graphty-monorepo/issues/736))
+- **graph-io:** publish the layout a file asks for as a typed fact ([#2496](https://github.com/graphty-org/graphty-monorepo/issues/2496))
+
+### 🩹 Fixes
+
+- **graph-io:** keep a negative cy_radius off the style numbers ([04a1bcea04](https://github.com/graphty-org/graphty-monorepo/commit/04a1bcea04))
+- **graph-io:** draw a vis-network top-left circularImage where vis-network draws it ([#4515](https://github.com/graphty-org/graphty-monorepo/issues/4515))
+- **graph-io:** draw nothing in a DOT table cell styled invis; read long wrapped labels whole ([#4247](https://github.com/graphty-org/graphty-monorepo/issues/4247))
+- **graph-io:** turn a Pajek cross, man and woman by phi ([#5531](https://github.com/graphty-org/graphty-monorepo/issues/5531))
+- **graph-io:** yEd BPMN data objects as folded pages; name short Cytoscape arrows in references ([#3113](https://github.com/graphty-org/graphty-monorepo/issues/3113))
+- **graphty-element:** draw an off-middle radial gradient, report a node image that fails to load ([#4515](https://github.com/graphty-org/graphty-monorepo/issues/4515))
+- **graph-io,graphty-element:** draw a Pajek ellipse turned by phi ([#5531](https://github.com/graphty-org/graphty-monorepo/issues/5531), [#3113](https://github.com/graphty-org/graphty-monorepo/issues/3113))
+- **graph-io:** draw Cytoscape desktop's gradient and image custom graphics ([#4515](https://github.com/graphty-org/graphty-monorepo/issues/4515))
+- **graph-io:** draw no label on a laid-out gv2gml node written without one ([#5549](https://github.com/graphty-org/graphty-monorepo/issues/5549), [#5572](https://github.com/graphty-org/graphty-monorepo/issues/5572))
+- **graph-io,graphty-element:** round each program's corners by its own share of the shorter side ([#5544](https://github.com/graphty-org/graphty-monorepo/issues/5544))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.41
+- Updated graph-format to 1.5.0
+
+## 0.3.53 (2026-11-02)
+
+### 🚀 Features
+
+- **graphty-element:** space a computed layout of a styled file as its program does ([#3168](https://github.com/graphty-org/graphty-monorepo/issues/3168), [#3103](https://github.com/graphty-org/graphty-monorepo/issues/3103))
+
+### 🩹 Fixes
+
+- **graph-io:** tell yEd Live GraphML by a declared namespace, not a substring ([#3110](https://github.com/graphty-org/graphty-monorepo/issues/3110))
+- **graph-io:** read session group state, check tool rule-defaults, unify the block repair ([#3111](https://github.com/graphty-org/graphty-monorepo/issues/3111), [#5544](https://github.com/graphty-org/graphty-monorepo/issues/5544))
+- **graph-io:** skip node and edge loss notes for values the target program draws anyway ([#3008](https://github.com/graphty-org/graphty-monorepo/issues/3008))
+- **graph-io:** draw Pajek Bezier lines and turned labels as Pajek does ([#4524](https://github.com/graphty-org/graphty-monorepo/issues/4524), [#5531](https://github.com/graphty-org/graphty-monorepo/issues/5531), [#5226](https://github.com/graphty-org/graphty-monorepo/issues/5226))
+- **graph-io:** draw Pajek Bezier lines and turned labels as Pajek does ([#4524](https://github.com/graphty-org/graphty-monorepo/issues/4524), [#5531](https://github.com/graphty-org/graphty-monorepo/issues/5531), [#5226](https://github.com/graphty-org/graphty-monorepo/issues/5226))
+- **graphty-element:** calibrate lengths "spacing" on the spacing layouts settle at ([#5514](https://github.com/graphty-org/graphty-monorepo/issues/5514))
+- **graphty-element:** keep lint type checks inside the worktree ([#5296](https://github.com/graphty-org/graphty-monorepo/issues/5296))
+- **graphty-element:** leave out the edge labels Graphviz drops under forcelabels=false ([#5499](https://github.com/graphty-org/graphty-monorepo/issues/5499))
+- **graph-io:** wait for a fidelity story in its afterEach, not its play function ([#4997](https://github.com/graphty-org/graphty-monorepo/issues/4997))
+- **graph-io:** make each fidelity story test wait for its story and fail on its failure ([#4997](https://github.com/graphty-org/graphty-monorepo/issues/4997))
+- **graph-io:** write a placed Pajek line's arrow position back as the ap Pajek reads ([#4514](https://github.com/graphty-org/graphty-monorepo/issues/4514))
+- **graph-io:** straighten the edge of a parallel pair Cytoscape desktop draws straight ([#4258](https://github.com/graphty-org/graphty-monorepo/issues/4258))
+- **graph-io:** place a Pajek part-way arrowhead's tip 5 s past the point ap names ([#4514](https://github.com/graphty-org/graphty-monorepo/issues/4514))
+- **graphty-element:** leave out a DOT xlabel that forcelabels=false has no room for ([#5279](https://github.com/graphty-org/graphty-monorepo/issues/5279))
+- **graph-io:** name the server that answered on every source failure ([#5200](https://github.com/graphty-org/graphty-monorepo/issues/5200))
+- **workspace:** bundle storybook test dependencies afresh every run ([#5240](https://github.com/graphty-org/graphty-monorepo/issues/5240))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.40
+- Updated graph-format to 1.4.12
+
+## 0.3.52 (2026-11-01)
+
+### 🚀 Features
+
+- **graph-io:** read a DOT HTML-like table label as rows of cells (labelTable) ([#5258](https://github.com/graphty-org/graphty-monorepo/issues/5258))
+
+### 🩹 Fixes
+
+- **workspace:** shrink CLAUDE.md files and move area rules to where they apply ([#3304](https://github.com/graphty-org/graphty-monorepo/issues/3304), [#1607](https://github.com/graphty-org/graphty-monorepo/issues/1607), [#1591](https://github.com/graphty-org/graphty-monorepo/issues/1591), [#1595](https://github.com/graphty-org/graphty-monorepo/issues/1595), [#1741](https://github.com/graphty-org/graphty-monorepo/issues/1741))
+- **graph-io:** serve the DOT and GML specimen pictures so images-charts draws them ([#5344](https://github.com/graphty-org/graphty-monorepo/issues/5344), [#5345](https://github.com/graphty-org/graphty-monorepo/issues/5345), [#4970](https://github.com/graphty-org/graphty-monorepo/issues/4970), [#4863](https://github.com/graphty-org/graphty-monorepo/issues/4863), [#4712](https://github.com/graphty-org/graphty-monorepo/issues/4712), [#4662](https://github.com/graphty-org/graphty-monorepo/issues/4662), [#4781](https://github.com/graphty-org/graphty-monorepo/issues/4781), [#4754](https://github.com/graphty-org/graphty-monorepo/issues/4754))
+- **graph-io:** state per tool whether parallel edges fan: Cytoscape yes, yEd and Gephi no ([#3105](https://github.com/graphty-org/graphty-monorepo/issues/3105))
+- **graphty-element:** draw sigma and graphology labels at their screen size ([#3106](https://github.com/graphty-org/graphty-monorepo/issues/3106), [#5367](https://github.com/graphty-org/graphty-monorepo/issues/5367))
+- **graph-io:** read yEd's inside label places as inside and write GML anchors ([#3101](https://github.com/graphty-org/graphty-monorepo/issues/3101))
+- **graphty-element:** set a DOT table's text line by its font's ascent, descent and baseline ([#5313](https://github.com/graphty-org/graphty-monorepo/issues/5313))
+- **graphty-element:** size a DOT node and a table cell by their picture, and resolve picture paths ([#5313](https://github.com/graphty-org/graphty-monorepo/issues/5313), [#26](https://github.com/graphty-org/graphty-monorepo/issues/26), [#62](https://github.com/graphty-org/graphty-monorepo/issues/62), [#5307](https://github.com/graphty-org/graphty-monorepo/issues/5307))
+- **graphty-element:** draw DOT table backgrounds and cell pictures, read DOT node images ([#5281](https://github.com/graphty-org/graphty-monorepo/issues/5281))
+- **graphty-element:** draw a DOT edge's xlabel beside its label ([#5288](https://github.com/graphty-org/graphty-monorepo/issues/5288))
+- **graphty:** record the node.labelTable channel in the app's channel lists ([#5258](https://github.com/graphty-org/graphty-monorepo/issues/5258))
+- **graphty-element:** register the xlabel channels everywhere and restart a woken layout ([#5263](https://github.com/graphty-org/graphty-monorepo/issues/5263))
+- **graphty-element:** draw a DOT node's xlabel beside the node ([#5273](https://github.com/graphty-org/graphty-monorepo/issues/5273), [#5263](https://github.com/graphty-org/graphty-monorepo/issues/5263))
+- **graphty-element:** turn the 2D view for DOT rotate and landscape ([#5260](https://github.com/graphty-org/graphty-monorepo/issues/5260))
+- **graphty-element:** keep DOT synthetic-biology glyph pieces at their sizes in points ([#5262](https://github.com/graphty-org/graphty-monorepo/issues/5262), [#5259](https://github.com/graphty-org/graphty-monorepo/issues/5259))
+- **graphty-element:** round a fitted label box up to the DOT quantum ([#5224](https://github.com/graphty-org/graphty-monorepo/issues/5224))
+- **graphty-element:** grow a star around its label as Graphviz does ([#5224](https://github.com/graphty-org/graphty-monorepo/issues/5224))
+- **graph-io:** stretch a laid-out DOT drawing to its numeric ratio ([#5224](https://github.com/graphty-org/graphty-monorepo/issues/5224))
+- **graphty-element:** draw every DOT periphery as its own ring ([#5224](https://github.com/graphty-org/graphty-monorepo/issues/5224))
+- **graphty-element:** end Cytoscape annotation arrows at a note's text box and a node's outline ([#3](https://github.com/graphty-org/graphty-monorepo/issues/3), [#5231](https://github.com/graphty-org/graphty-monorepo/issues/5231))
+- **graph-io:** re-export graphvizFont from the root and document GraphvizFont ([#5116](https://github.com/graphty-org/graphty-monorepo/issues/5116))
+- **graphty-element:** size Graphviz labels in the face the element draws them in ([#5243](https://github.com/graphty-org/graphty-monorepo/issues/5243), [#5241](https://github.com/graphty-org/graphty-monorepo/issues/5241), [#5116](https://github.com/graphty-org/graphty-monorepo/issues/5116))
+- **graph-io:** measure DOT oracle labels in the face the browser draws them in ([#5116](https://github.com/graphty-org/graphty-monorepo/issues/5116), [#5224](https://github.com/graphty-org/graphty-monorepo/issues/5224), [#5223](https://github.com/graphty-org/graphty-monorepo/issues/5223))
+- **graphty-element:** bundle browser test dependencies afresh every run ([#885](https://github.com/graphty-org/graphty-monorepo/issues/885), [#5134](https://github.com/graphty-org/graphty-monorepo/issues/5134))
+- **graph-io:** start a Cytoscape annotation arrow past its source X, as Cytoscape draws it ([#60](https://github.com/graphty-org/graphty-monorepo/issues/60), [#153](https://github.com/graphty-org/graphty-monorepo/issues/153), [#5231](https://github.com/graphty-org/graphty-monorepo/issues/5231), [#90](https://github.com/graphty-org/graphty-monorepo/issues/90), [#0](https://github.com/graphty-org/graphty-monorepo/issues/0), [#4](https://github.com/graphty-org/graphty-monorepo/issues/4), [#5117](https://github.com/graphty-org/graphty-monorepo/issues/5117))
+- **graph-io:** run Pajek lines to an empty vertex's center and place its label as Pajek does ([#4524](https://github.com/graphty-org/graphty-monorepo/issues/4524), [#5226](https://github.com/graphty-org/graphty-monorepo/issues/5226), [#5224](https://github.com/graphty-org/graphty-monorepo/issues/5224), [#5223](https://github.com/graphty-org/graphty-monorepo/issues/5223))
+- **ci:** save CI caches only from the run's own commit; build chart test strings whole ([#3261](https://github.com/graphty-org/graphty-monorepo/issues/3261))
+- **graphty-element:** build with webpack 5, Vite 8 and esbuild with no optional peers ([#3219](https://github.com/graphty-org/graphty-monorepo/issues/3219), [#3278](https://github.com/graphty-org/graphty-monorepo/issues/3278))
+- **graphty-element:** pick a patterned edge along the route it is drawn on ([#3102](https://github.com/graphty-org/graphty-monorepo/issues/3102))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.39
+- Updated graph-format to 1.4.11
+
+## 0.3.51 (2026-10-31)
+
+### 🩹 Fixes
+
+- **graph-io:** decode the fidelity story pictures only when awaited ([#4615](https://github.com/graphty-org/graphty-monorepo/issues/4615), [#4991](https://github.com/graphty-org/graphty-monorepo/issues/4991), [#4238](https://github.com/graphty-org/graphty-monorepo/issues/4238), [#4499](https://github.com/graphty-org/graphty-monorepo/issues/4499), [#4512](https://github.com/graphty-org/graphty-monorepo/issues/4512))
+- **graphty:** give edge.supportScale a home, and drop the vis-siblings matched story ([16e36c50ac](https://github.com/graphty-org/graphty-monorepo/commit/16e36c50ac))
+- **graphty-element:** bow vis-network's dynamic curves as deep as it does on files it lays out ([#4455](https://github.com/graphty-org/graphty-monorepo/issues/4455), [#4271](https://github.com/graphty-org/graphty-monorepo/issues/4271))
+- **graph-io:** never hang on a chart range far from zero ([#4249](https://github.com/graphty-org/graphty-monorepo/issues/4249))
+- **graph-io:** read at most four shapes of a Graphviz arrow name, as Graphviz does ([#4267](https://github.com/graphty-org/graphty-monorepo/issues/4267))
+- **graph-io:** never throw on a malformed chart axis option, and cap a range axis at 100 ticks ([#4249](https://github.com/graphty-org/graphty-monorepo/issues/4249))
+- **graphty-element:** draw each part of a stacked arrowhead in a row along the line ([#4267](https://github.com/graphty-org/graphty-monorepo/issues/4267))
+- **graph-io:** draw Cytoscape chart axes' words and shrink the plot for them as JFreeChart does ([#404040](https://github.com/graphty-org/graphty-monorepo/issues/404040), [#4249](https://github.com/graphty-org/graphty-monorepo/issues/4249))
+- **graph-io:** draw vis-network lines at least 0.3 screen pixels wide ([#4268](https://github.com/graphty-org/graphty-monorepo/issues/4268))
+- **graph-io:** drop the fidelity story's off-screen element once its screenshot is shown ([#4314](https://github.com/graphty-org/graphty-monorepo/issues/4314))
+- **graph-io:** a DOT table label's padding survives graphty's own round trip ([#4248](https://github.com/graphty-org/graphty-monorepo/issues/4248))
+- **graph-io:** a DOT table's size is a least size, its border drawn only on its own box ([#4248](https://github.com/graphty-org/graphty-monorepo/issues/4248))
+- **graph-io:** take heat-strip and up-down bar colors from a scheme as Cytoscape's BarLayer does ([07938da807](https://github.com/graphty-org/graphty-monorepo/commit/07938da807))
+- **graph-io:** size file arrowheads as Cytoscape, vis-network and Graphviz draw them ([#4202](https://github.com/graphty-org/graphty-monorepo/issues/4202))
+- **graph-io:** a DOT plain node ignores its margin, as Graphviz does ([#4248](https://github.com/graphty-org/graphty-monorepo/issues/4248))
+- **graph-io:** read Cytoscape chart color schemes and a chart's own values ([#4249](https://github.com/graphty-org/graphty-monorepo/issues/4249))
+- **graph-io:** draw a DOT HTML table label's border and frame round its node ([#4248](https://github.com/graphty-org/graphty-monorepo/issues/4248))
+- **graphty-element:** style comparator round 5: own-layout and zigzag blind spots, false failures ([#4222](https://github.com/graphty-org/graphty-monorepo/issues/4222))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.38
+- Updated graph-format to 1.4.10
+
+## 0.3.50 (2026-10-29)
+
+### 🚀 Features
+
+- **graph-io:** keep a DOT file's rank subgraphs ([b96749ea5f](https://github.com/graphty-org/graphty-monorepo/commit/b96749ea5f))
+- **graph-io:** read vis-network's dynamic smooth edges as curves through support points ([062cc61c06](https://github.com/graphty-org/graphty-monorepo/commit/062cc61c06))
+- **graph-io:** declare a source's credential slots, and remember keys per slot in graphty-element ([35fb9f5d02](https://github.com/graphty-org/graphty-monorepo/commit/35fb9f5d02))
+
+### 🩹 Fixes
+
+- **tools:** fail a vitest run when Vite reloads a test page mid-run ([#4145](https://github.com/graphty-org/graphty-monorepo/issues/4145))
+- **graphty-element:** drop a duplicate cypher helper, update the API report ([#3395](https://github.com/graphty-org/graphty-monorepo/issues/3395))
+- **graph-io:** re-export BendPoint from the main entry beside graphvizPosBends ([#3167](https://github.com/graphty-org/graphty-monorepo/issues/3167))
+- **graph-io:** export BendPoint from the dot entry so its API docs build ([#3167](https://github.com/graphty-org/graphty-monorepo/issues/3167))
+- **graph-io:** write a Pajek line's arrowhead size and read a graphty-written file's arcs unbowed ([2c777460c6](https://github.com/graphty-org/graphty-monorepo/commit/2c777460c6))
+- **graph-io:** export the DOT rank columns and route bends from the root; record rank fixtures ([addd57b962](https://github.com/graphty-org/graphty-monorepo/commit/addd57b962))
+- **graphty-element:** clear the SonarQube findings on round 4's changed lines ([21e0e82d38](https://github.com/graphty-org/graphty-monorepo/commit/21e0e82d38))
+- **graphty-element:** stop growing a label-fit polygon by its corners' reach twice ([385bb4f7b5](https://github.com/graphty-org/graphty-monorepo/commit/385bb4f7b5))
+- **graphty-element:** draw each edge along the route Graphviz lays it ([0ba57c813b](https://github.com/graphty-org/graphty-monorepo/commit/0ba57c813b))
+- **graphty-element:** read and draw the smaller edge settings of Cytoscape.js, DOT and vis-network ([fc282fe5b3](https://github.com/graphty-org/graphty-monorepo/commit/fc282fe5b3))
+- **graphty-element:** judge covered arrowheads, mutual pairs and dashed routes in the comparator ([7162b30896](https://github.com/graphty-org/graphty-monorepo/commit/7162b30896))
+- **graph-io:** read Pajek arcs' arrowhead stops, mutual bows and ap as Pajek 6.02 draws them ([2724b7dcef](https://github.com/graphty-org/graphty-monorepo/commit/2724b7dcef))
+- **graphty-element:** measure self-loop bends against the node's size, not its border-shrunk fill ([7787044066](https://github.com/graphty-org/graphty-monorepo/commit/7787044066))
+- **graphty-element:** hold the oracle raster floors to the GPU path they were measured on ([e2886b7d0f](https://github.com/graphty-org/graphty-monorepo/commit/e2886b7d0f))
+- **graphty-element:** judge a specimen labeled as its caption in the comparator ([58b0da0416](https://github.com/graphty-org/graphty-monorepo/commit/58b0da0416))
+- **graphty-element:** read coincident, banded and tapered Cytoscape.js lines in the comparator ([5439146599](https://github.com/graphty-org/graphty-monorepo/commit/5439146599))
+- **graphty-element:** carry Cytoscape's patterned lines to their own arrowheads in the comparator ([49b1d22e23](https://github.com/graphty-org/graphty-monorepo/commit/49b1d22e23))
+- **graph-io:** refuse SPARQL updates, keep keys out of cursors, never uncap a Cypher query ([9f10dd6b30](https://github.com/graphty-org/graphty-monorepo/commit/9f10dd6b30))
+- **graphty-element:** name vis-network's nodes by where it drew them in the oracle comparator ([4054e4da91](https://github.com/graphty-org/graphty-monorepo/commit/4054e4da91))
+- **graphty-element:** read draw.io's classic arrow as notched in the oracle comparator ([a7b4625796](https://github.com/graphty-org/graphty-monorepo/commit/a7b4625796))
+- **graph-io:** read yEd's standard and yFiles' stealth arrows as notched ([86b45eb252](https://github.com/graphty-org/graphty-monorepo/commit/86b45eb252))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.37
+- Updated graph-format to 1.4.9
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+- graphty-agent @graphty-agent
+
+## 0.3.49 (2026-10-28)
+
+### 🚀 Features
+
+- **workspace:** publish graphty and githerd, and fold the fidelity tools into graph-io ([#3322](https://github.com/graphty-org/graphty-monorepo/issues/3322))
+- **tools:** key gate passes by their inputs and log every pipeline wait ([#3266](https://github.com/graphty-org/graphty-monorepo/issues/3266), [#3262](https://github.com/graphty-org/graphty-monorepo/issues/3262))
+- **graph-io:** say where a source's API key goes, so a form asks for the key alone ([408fe8e29f](https://github.com/graphty-org/graphty-monorepo/commit/408fe8e29f))
+- **graph-io:** report a Cypher load's node total, and list and save it in graphty-element ([e1b929655b](https://github.com/graphty-org/graphty-monorepo/commit/e1b929655b))
+- **graph-io:** export sha256Hex, over bytes as given or a text's UTF-8 ([f66e8cad74](https://github.com/graphty-org/graphty-monorepo/commit/f66e8cad74))
+- **graph-io:** a capped Cypher Everything load stops at its cap with the edges among its nodes ([c5af062d22](https://github.com/graphty-org/graphty-monorepo/commit/c5af062d22))
+- **graph-io:** a SPARQL source, registered among the built-ins ([714031aa45](https://github.com/graphty-org/graphty-monorepo/commit/714031aa45))
+- **graphty-element:** server preview, paging a chosen load, refresh and source features ([e78178fafa](https://github.com/graphty-org/graphty-monorepo/commit/e78178fafa))
+- **graph-io:** a capped Cypher Everything load stops at its cap with the edges among its nodes ([deb0f9e29b](https://github.com/graphty-org/graphty-monorepo/commit/deb0f9e29b))
+- **graph-io:** read Cytoscape's bar, line, box and heat map charts ([#404040](https://github.com/graphty-org/graphty-monorepo/issues/404040))
+- **graph-io:** a SPARQL source, registered among the built-ins ([fb28d7697c](https://github.com/graphty-org/graphty-monorepo/commit/fb28d7697c))
+- **graph-io:** read Graphviz records, Gephi edge radius and where programs put unplaced nodes ([3ece7a702b](https://github.com/graphty-org/graphty-monorepo/commit/3ece7a702b))
+- **graphty-element:** server preview, paging a chosen load, refresh and source features ([cdeadf22a2](https://github.com/graphty-org/graphty-monorepo/commit/cdeadf22a2))
+- **graph-io:** read a vis-network font modifier's vadjust, and where vis-network sets its runs ([8aebb5025b](https://github.com/graphty-org/graphty-monorepo/commit/8aebb5025b))
+- **graph-io:** read Graphviz's glyph shapes as the pieces Graphviz draws, at the node's size ([83ecafd6b5](https://github.com/graphty-org/graphty-monorepo/commit/83ecafd6b5))
+- **graph-io:** read radial gradients, wrap rules, end label turns, Pajek and vis-network loops ([4220f580ec](https://github.com/graphty-org/graphty-monorepo/commit/4220f580ec))
+- **graph-io:** read vis-network multi-font runs, icon nodes as glyphs, opacity on the whole node ([f9de8a4af5](https://github.com/graphty-org/graphty-monorepo/commit/f9de8a4af5))
+- **graph-io:** draw graphology edge labels under sigma.js's settings ([#666](https://github.com/graphty-org/graphty-monorepo/issues/666))
+- **graph-io:** carry sigma.js's screen-pixel edge floor and label threshold ([9fa401e223](https://github.com/graphty-org/graphty-monorepo/commit/9fa401e223))
+- **graph-io:** give Cytoscape desktop's wave swing and period as tool defaults ([8907bdf2e4](https://github.com/graphty-org/graphty-monorepo/commit/8907bdf2e4))
+- **graph-io:** lay Graphviz's and Gephi's own self-loops, read a Cytoscape.js double outline ([c379bd1d06](https://github.com/graphty-org/graphty-monorepo/commit/c379bd1d06))
+- **graph-io:** read one-sided arrows, crossed deltas, Graphviz polygon sizes, yEd label insets ([889de4e033](https://github.com/graphty-org/graphty-monorepo/commit/889de4e033))
+- **graph-io:** read OGDF's clusters as groups and its label places as label offsets ([080752bb93](https://github.com/graphty-org/graphty-monorepo/commit/080752bb93))
+- **graph-io:** read yEd label borders, drawn by new labelBorder channels in graphty-element ([ff231ffe52](https://github.com/graphty-org/graphty-monorepo/commit/ff231ffe52))
+- **graphty-element:** take Gephi's Preview settings for a GEXF file as gephiPreview ([baeaa007fd](https://github.com/graphty-org/graphty-monorepo/commit/baeaa007fd))
+- **graph-io:** draw a GEXF file under the Gephi Preview settings it was drawn with ([901613e459](https://github.com/graphty-org/graphty-monorepo/commit/901613e459))
+- **graph-io:** read a DOT label's \l and \r line ends as labelTextAlign ([c80207aaf2](https://github.com/graphty-org/graphty-monorepo/commit/c80207aaf2))
+- **graph-io:** read vis-network icon glyphs and yEd image and SVG node pictures ([#2](https://github.com/graphty-org/graphty-monorepo/issues/2))
+- **graph-io:** draw yEd's GenericNode outlines and vis-network's image padding ([94c280a437](https://github.com/graphty-org/graphty-monorepo/commit/94c280a437))
+- **graph-io:** read Cytoscape.js node and edge underlays and overlays ([d4d1f0fb94](https://github.com/graphty-org/graphty-monorepo/commit/d4d1f0fb94))
+- **graph-io:** read Cytoscape's HALF_BOTTOM arrow and vis-network's image arrows ([31b3778849](https://github.com/graphty-org/graphty-monorepo/commit/31b3778849))
+- **graph-io:** read Cytoscape loops and bend curves, Gephi arcs and OGDF regular polygons ([bc42bfecfb](https://github.com/graphty-org/graphty-monorepo/commit/bc42bfecfb))
+- **graph-io:** read Cytoscape desktop's pie and ring charts ([f11fa892dc](https://github.com/graphty-org/graphty-monorepo/commit/f11fa892dc))
+- **graph-io:** read Graphviz striped and wedged fills as stripes and a pie ([2544e05cb7](https://github.com/graphty-org/graphty-monorepo/commit/2544e05cb7))
+- **graph-io:** read node images, pie charts, stripes and rounded shapes ([905032a822](https://github.com/graphty-org/graphty-monorepo/commit/905032a822))
+- **graph-io:** read Cytoscape.js and vis-network arrows, outlines, gradients and end label offsets ([42f3bb14c8](https://github.com/graphty-org/graphty-monorepo/commit/42f3bb14c8))
+- **graphty-element:** draw vis-network borders in screen pixels at every zoom ([2257dae806](https://github.com/graphty-org/graphty-monorepo/commit/2257dae806))
+- **graph-io:** state how Cytoscape wraps a label and that Gephi hides overlapping labels ([5bc7b0e826](https://github.com/graphty-org/graphty-monorepo/commit/5bc7b0e826))
+- **graph-io:** read yEd gradient fills, inside label positions and BPMN shapes ([a8e740a985](https://github.com/graphty-org/graphty-monorepo/commit/a8e740a985))
+- **graph-io:** state how each program sizes its arrowheads ([a0e1686499](https://github.com/graphty-org/graphty-monorepo/commit/a0e1686499))
+- **graph-io:** carry the label visibility rules vis-network and sigma.js draw with ([6f762255c1](https://github.com/graphty-org/graphty-monorepo/commit/6f762255c1))
+- **graph-io:** read DOT clusters, fonts, polygons and edge xlabels as Graphviz draws them ([dee6195235](https://github.com/graphty-org/graphty-monorepo/commit/dee6195235))
+- **graph-io:** carry nodes that grow to fit their labels as labelFit facts ([#3167](https://github.com/graphty-org/graphty-monorepo/issues/3167))
+- **graph-io:** read each Cytoscape tool's parallel-edge spacing as fanSpacing ([#3171](https://github.com/graphty-org/graphty-monorepo/issues/3171))
+- draw Pajek's bodiless, cross, house, man and woman vertices and mid-line arrows ([#3170](https://github.com/graphty-org/graphty-monorepo/issues/3170))
+- read and draw a node border's opacity ([4a74d1f7e0](https://github.com/graphty-org/graphty-monorepo/commit/4a74d1f7e0))
+- **graph-io:** read and write a node label's wrap width ([0b5826d2ae](https://github.com/graphty-org/graphty-monorepo/commit/0b5826d2ae))
+- **graph-io:** name the annotation kinds a style import skips in a style note ([e92fc8ac22](https://github.com/graphty-org/graphty-monorepo/commit/e92fc8ac22))
+
+### 🩹 Fixes
+
+- **ci:** preset FC_FONTATIONS for every Chromium launch; one shared vitest base ([#3787](https://github.com/graphty-org/graphty-monorepo/issues/3787))
+- **graph-io:** run the fidelity story tests on graphty-element changes too ([#3472](https://github.com/graphty-org/graphty-monorepo/issues/3472))
+- clear the SonarQube findings on the data management changes ([#3315](https://github.com/graphty-org/graphty-monorepo/issues/3315))
+- **compact-mantine:** take only the storybook 8.6.19 security fix ([#3492](https://github.com/graphty-org/graphty-monorepo/issues/3492))
+- **workspace:** name fidelity-web-oracles in a project.json so nx runs from a package directory ([#3318](https://github.com/graphty-org/graphty-monorepo/issues/3318))
+- **workspace:** give fidelity-web-oracles a version so nx release can resolve it ([#3318](https://github.com/graphty-org/graphty-monorepo/issues/3318))
+- **graph-io:** center a plain GML node's label on its node ([70d0b65ac8](https://github.com/graphty-org/graphty-monorepo/commit/70d0b65ac8))
+- **graph-io:** read a Cytoscape.js label's text outline ([f22eeabab0](https://github.com/graphty-org/graphty-monorepo/commit/f22eeabab0))
+- **graph-io:** report no style loss for a property no element carries ([5a68c96ebf](https://github.com/graphty-org/graphty-monorepo/commit/5a68c96ebf))
+- **graph-io:** place a yEd smart label by its stored box, by its ratios only without one ([1e39e74850](https://github.com/graphty-org/graphty-monorepo/commit/1e39e74850))
+- **graph-io:** draw a Cytoscape pie's and ring's item labels on their slices ([#404040](https://github.com/graphty-org/graphty-monorepo/issues/404040))
+- **graph-io:** turn a DOT end label from the line when a stored route has no arrow tip ([a81be2a455](https://github.com/graphty-org/graphty-monorepo/commit/a81be2a455))
+- **graph-io:** bow CX parallel edges to the side Cytoscape desktop fans them ([0abb37c164](https://github.com/graphty-org/graphty-monorepo/commit/0abb37c164))
+- **graphty-element:** draw an edge outline band dash-dot as well ([72e0832455](https://github.com/graphty-org/graphty-monorepo/commit/72e0832455))
+- **graph-io:** read Pajek diamonds, phi, hooks, Dots and voided vertex lines as Pajek draws them ([0b0be7caa0](https://github.com/graphty-org/graphty-monorepo/commit/0b0be7caa0))
+- **graph-io:** keep a translucent Gephi node's border, and draw Gephi's node labels on top ([08b93cee3c](https://github.com/graphty-org/graphty-monorepo/commit/08b93cee3c))
+- **graph-io:** read Graphviz's curve and icurve as arcs of their own size ([71700521c8](https://github.com/graphty-org/graphty-monorepo/commit/71700521c8))
+- **graph-io:** read DOT HTML BR ALIGN and skip arrow tips that repeat a spline end ([89fd2b7ec0](https://github.com/graphty-org/graphty-monorepo/commit/89fd2b7ec0))
+- **graph-io:** read DOT HTML font runs, label places, arrow tips and quantum ([4a85ccdb55](https://github.com/graphty-org/graphty-monorepo/commit/4a85ccdb55))
+- **graph-io:** draw a yEd table node's header and lanes as bands in its table colors ([c4859aec56](https://github.com/graphty-org/graphty-monorepo/commit/c4859aec56))
+- **graph-io:** hang vis-network labels below sized nodes, read dashed edge backgrounds ([cf18b46384](https://github.com/graphty-org/graphty-monorepo/commit/cf18b46384))
+- **graph-io:** thin sigma.js labels by its own 100 px label grid ([c5dcf0d5c4](https://github.com/graphty-org/graphty-monorepo/commit/c5dcf0d5c4))
+- **graph-io:** pin Cytoscape.js labels aligned inside on one axis and outside on the other ([1d17f7aa19](https://github.com/graphty-org/graphty-monorepo/commit/1d17f7aa19))
+- **graph-io:** read yEd arcs as circular arcs and flattened curves as points on them ([1c0d09102a](https://github.com/graphty-org/graphty-monorepo/commit/1c0d09102a))
+- **graph-io:** center vis-network's and Pajek's node borders on the outline, as their strokes are ([955cb92479](https://github.com/graphty-org/graphty-monorepo/commit/955cb92479))
+- **graph-io:** size a Cytoscape.js background image on its padding box, its auto side its own ([a0651a1075](https://github.com/graphty-org/graphty-monorepo/commit/a0651a1075))
+- **graph-io:** keep every edge of a Gephi GML file that has no directed header ([79cebc2d6d](https://github.com/graphty-org/graphty-monorepo/commit/79cebc2d6d))
+- **graphty-element:** draw a label's border as a ring where its background lets the middle show ([61a4970016](https://github.com/graphty-org/graphty-monorepo/commit/61a4970016))
+- **graph-io:** note a Cytoscape.js double label border as approximated ([f4330b826f](https://github.com/graphty-org/graphty-monorepo/commit/f4330b826f))
+- **graph-io:** read yFiles 3's STEALTH and ELLIPSE arrows as the DEFAULT and CIRCLE they renamed ([4722ce5ba9](https://github.com/graphty-org/graphty-monorepo/commit/4722ce5ba9))
+- **graph-io:** round a CX2 round-rectangle label box as Cytoscape does ([3e752589e9](https://github.com/graphty-org/graphty-monorepo/commit/3e752589e9))
+- **graph-io:** keep a DOT plain node whose HTML label has no words ([f3c8eb1ca3](https://github.com/graphty-org/graphty-monorepo/commit/f3c8eb1ca3))
+- **graph-io:** read how far off its node Cytoscape draws a T, half circle, half arrow or square ([570172be4e](https://github.com/graphty-org/graphty-monorepo/commit/570172be4e))
+- **graph-io:** draw Cytoscape desktop's label box round its words, rounded for ROUND_RECTANGLE ([12b7e0d4d7](https://github.com/graphty-org/graphty-monorepo/commit/12b7e0d4d7))
+- **graph-io:** read a Cytoscape font face's weight from its name only ([07cd87d318](https://github.com/graphty-org/graphty-monorepo/commit/07cd87d318))
+- **graph-io:** draw desktop's ARROW filled, HAYSTACK edges straight, uncurved parallel edges fanned ([bbdf7ce71f](https://github.com/graphty-org/graphty-monorepo/commit/bbdf7ce71f))
+- **graph-io:** draw Pajek label places, line labels, Bezier lines, fonts and colors as Pajek does ([60af474bc4](https://github.com/graphty-org/graphty-monorepo/commit/60af474bc4))
+- **graph-io:** size a gv2gml double outline's node by its inner outline ([e85f598fb7](https://github.com/graphty-org/graphty-monorepo/commit/e85f598fb7))
+- **graph-io:** draw OGDF's and Graphviz's GML edge labels on their line where the program does ([8c973468bd](https://github.com/graphty-org/graphty-monorepo/commit/8c973468bd))
+- **graph-io:** hide the GML edges Gephi's importer leaves out ([9604870a69](https://github.com/graphty-org/graphty-monorepo/commit/9604870a69))
+- **graph-io:** read gv2gml open arrows, double outlines and lp, and OGDF's edge label place ([074cc19f67](https://github.com/graphty-org/graphty-monorepo/commit/074cc19f67))
+- **graph-io:** fit a vis-network label background box to its words ([00592ec315](https://github.com/graphty-org/graphty-monorepo/commit/00592ec315))
+- **graph-io:** hide the GEXF node labels Gephi's overlap avoidance hides ([8512e479a7](https://github.com/graphty-org/graphty-monorepo/commit/8512e479a7))
+- **graph-io:** draw Cytoscape.js label and ring opacities times the element's, label box padding ([b25603d67b](https://github.com/graphty-org/graphty-monorepo/commit/b25603d67b))
+- **graph-io:** keep a vis-network node opacity on its fill and its border apart ([ebb157d922](https://github.com/graphty-org/graphty-monorepo/commit/ebb157d922))
+- **graph-io:** leave out the line of a curved edge Gephi's nodes swallow ([4f1109013a](https://github.com/graphty-org/graphty-monorepo/commit/4f1109013a))
+- **graph-io:** read yEd Live edge bends and smoothing, stroke alpha and hollow arrows ([b96562660a](https://github.com/graphty-org/graphty-monorepo/commit/b96562660a))
+- **graph-io:** draw Gephi's label outline and box opacity and its box round the text ([545b4bdf6c](https://github.com/graphty-org/graphty-monorepo/commit/545b4bdf6c))
+- **graph-io:** draw Gephi's label outline and box opacity and its box round the text ([067d0286f8](https://github.com/graphty-org/graphty-monorepo/commit/067d0286f8))
+- **graph-io:** keep yEd outside label distances, free label offsets and label rotation ([73b296baf1](https://github.com/graphty-org/graphty-monorepo/commit/73b296baf1))
+- **graph-io:** draw a GEXF label's line break as Gephi does, as nothing ([5df968aa4e](https://github.com/graphty-org/graphty-monorepo/commit/5df968aa4e))
+- **graph-io:** read DOT peripheries, turned boxes, open arrows, arrow fill and color segments ([aa0c8a2a75](https://github.com/graphty-org/graphty-monorepo/commit/aa0c8a2a75))
+- **graph-io:** read Cytoscape.js label opacity, margins, borders, endpoints and rounded routes ([1cb62393f3](https://github.com/graphty-org/graphty-monorepo/commit/1cb62393f3))
+- **graph-io:** read vis-network group skips, border alpha, label stroke, vadjust, align, margins ([f78f6ec09a](https://github.com/graphty-org/graphty-monorepo/commit/f78f6ec09a))
+- **graph-io:** no degree rule over directed pairs, Graphviz band remainders, square striped boxes ([bfcfc818cf](https://github.com/graphty-org/graphty-monorepo/commit/bfcfc818cf))
+- **graph-io:** size Pajek figures, read vis-network hexagons, databases and corner radii ([40f98dac74](https://github.com/graphty-org/graphty-monorepo/commit/40f98dac74))
+- **graph-io:** leave the loops of a DOT file graphty wrote to its own style block ([00125cbcba](https://github.com/graphty-org/graphty-monorepo/commit/00125cbcba))
+- **graph-io:** draw a GEXF image shape as Gephi's disc, and rescale weights of large graphs ([ae98516232](https://github.com/graphty-org/graphty-monorepo/commit/ae98516232))
+- **graph-io:** draw an XGMML edge label level under EDGE_LABEL_AUTOROTATE, as Cytoscape desktop does ([000916ca74](https://github.com/graphty-org/graphty-monorepo/commit/000916ca74))
+- **graph-io:** scale each Pajek vertex axis on its own under Size of Vertices ([d7e8372826](https://github.com/graphty-org/graphty-monorepo/commit/d7e8372826))
+- **graph-io:** center a vis-network self-loop on the outline its node's shape has ([7c88ff2029](https://github.com/graphty-org/graphty-monorepo/commit/7c88ff2029))
+- **graph-io:** draw yEd Live's mirrored and turned 2.6 shapes the way yFiles documents them ([ce9a8c86a2](https://github.com/graphty-org/graphty-monorepo/commit/ce9a8c86a2))
+- **graph-io:** draw no DOT gradient on a filled striped box or wedged ellipse ([9071e6847c](https://github.com/graphty-org/graphty-monorepo/commit/9071e6847c))
+- **graph-io:** keep Cytoscape.js haystack mid arrows and turn vertical autorotate labels upright ([10b02fa52f](https://github.com/graphty-org/graphty-monorepo/commit/10b02fa52f))
+- **graph-io:** draw a Cytoscape bypass of a parent visual property on its children ([#404040](https://github.com/graphty-org/graphty-monorepo/issues/404040), [#9467](https://github.com/graphty-org/graphty-monorepo/issues/9467))
+- **graph-io:** read a yEd GML label's Java font in Java's face and its text alpha ([59f6d665ca](https://github.com/graphty-org/graphty-monorepo/commit/59f6d665ca))
+- **graph-io:** read CX2 edge label anchors and Cytoscape's EDGE_LABEL_AUTOROTATE ([c7fae3b223](https://github.com/graphty-org/graphty-monorepo/commit/c7fae3b223))
+- **graph-io:** place an OGDF cluster's label where drawSVG draws it ([91896eff33](https://github.com/graphty-org/graphty-monorepo/commit/91896eff33))
+- **graph-io:** size Cytoscape's annotation arrowheads as Cytoscape draws them ([5ec2fef9e7](https://github.com/graphty-org/graphty-monorepo/commit/5ec2fef9e7))
+- **graph-io:** put back the EDGE_UNSELECTED_PAINT default the label-place restore undid ([933f423d5d](https://github.com/graphty-org/graphty-monorepo/commit/933f423d5d))
+- **graph-io:** put back the Cytoscape label places the CX2 bend commit undid ([9ab68317e6](https://github.com/graphty-org/graphty-monorepo/commit/9ab68317e6))
+- **graph-io:** draw a Cytoscape edge with no mapped color in EDGE_UNSELECTED_PAINT's default ([#404040](https://github.com/graphty-org/graphty-monorepo/issues/404040), [#505050](https://github.com/graphty-org/graphty-monorepo/issues/505050))
+- **graph-io:** read CX2's EDGE_CONTROL_POINTS as the edge bends Cytoscape draws ([adcbcb3470](https://github.com/graphty-org/graphty-monorepo/commit/adcbcb3470))
+- **graph-io:** draw a Cytoscape edge with no mapped color in EDGE_UNSELECTED_PAINT's default ([#404040](https://github.com/graphty-org/graphty-monorepo/issues/404040), [#505050](https://github.com/graphty-org/graphty-monorepo/issues/505050))
+- **graph-io:** read Cytoscape desktop label places, boxes and transparencies as Cytoscape draws them ([2272056a53](https://github.com/graphty-org/graphty-monorepo/commit/2272056a53))
+- **graph-io:** read Pajek's s_size, numeric colors and SVG opacity as Pajek 6.02 draws them ([ecc9510bb5](https://github.com/graphty-org/graphty-monorepo/commit/ecc9510bb5))
+- **graph-io:** draw Pajek files in their Draw window, with its options, partitions and arrow sizes ([f20b59063c](https://github.com/graphty-org/graphty-monorepo/commit/f20b59063c))
+- **graph-io:** draw Cytoscape's default label font in Java's SansSerif face ([94f95ad8ed](https://github.com/graphty-org/graphty-monorepo/commit/94f95ad8ed))
+- **graph-io:** draw Gephi's node.label.box as a border round the label ([e730d60caf](https://github.com/graphty-org/graphty-monorepo/commit/e730d60caf))
+- **graph-io:** center a Gephi edge label on its line ([72b2f63cfa](https://github.com/graphty-org/graphty-monorepo/commit/72b2f63cfa))
+- **graph-io:** hide overlapping Gephi labels only under node.label.avoidOverlap ([b2b25ceced](https://github.com/graphty-org/graphty-monorepo/commit/b2b25ceced))
+- **graph-io:** read the ten X11 color names Graphviz added after 2.43 ([0495fa79bb](https://github.com/graphty-org/graphty-monorepo/commit/0495fa79bb))
+- **graph-io:** stroke Gephi's node borders inside the node as a tool default ([0a1ff34ec2](https://github.com/graphty-org/graphty-monorepo/commit/0a1ff34ec2))
+- **graph-io:** read DOT cluster boxes, peripheries=0 and outline alpha as Graphviz draws them ([4fd94bbc4b](https://github.com/graphty-org/graphty-monorepo/commit/4fd94bbc4b))
+- **graph-io:** read yEd Live's 2.6 node styles, shapes and label model parameters ([20cd880a8e](https://github.com/graphty-org/graphty-monorepo/commit/20cd880a8e))
+- **graph-io:** draw yEd's Java fonts in Java's faces and its label backgrounds ([fa218c53db](https://github.com/graphty-org/graphty-monorepo/commit/fa218c53db))
+- **graph-io:** draw GEXF size-0 nodes and node borders as Gephi does ([ddaf0390f1](https://github.com/graphty-org/graphty-monorepo/commit/ddaf0390f1))
+- **graph-io:** read vis-network curves, loops, label boxes and outlines as vis-network draws ([41972ec2de](https://github.com/graphty-org/graphty-monorepo/commit/41972ec2de))
+- **graph-io:** merge, drop and weigh GEXF edges as Gephi draws them ([8dd287d7c0](https://github.com/graphty-org/graphty-monorepo/commit/8dd287d7c0))
+- **graph-io:** read Cytoscape.js label outlines, boxes, turns, justification and edge label wraps ([27779d57db](https://github.com/graphty-org/graphty-monorepo/commit/27779d57db))
+- **graph-io:** read DOT colors, gradients, cluster labels and HTML tables as Graphviz draws them ([#808080](https://github.com/graphty-org/graphty-monorepo/issues/808080))
+- **graph-io:** write Cytoscape.js gradient angles from 0 to 360 ([e11a31bd27](https://github.com/graphty-org/graphty-monorepo/commit/e11a31bd27))
+- **graph-io:** draw a padded Cytoscape.js node larger by its padding on every side ([89abfe0d93](https://github.com/graphty-org/graphty-monorepo/commit/89abfe0d93))
+- **graph-io:** draw Cytoscape.js segments, taxi, unbundled-bezier and loop routes as drawn ([06cf8a767e](https://github.com/graphty-org/graphty-monorepo/commit/06cf8a767e))
+- **graph-io:** read Cytoscape.js haystack arrows, line opacity, gradients and label text as drawn ([dd42ab2f92](https://github.com/graphty-org/graphty-monorepo/commit/dd42ab2f92))
+- **graph-io:** draw a graphology edge half as wide as its size, as sigma.js 4 does ([3441592c47](https://github.com/graphty-org/graphty-monorepo/commit/3441592c47))
+- **graph-io:** draw a graphology edge without a size 1 wide, as sigma.js 4 does ([4f512ccd4b](https://github.com/graphty-org/graphty-monorepo/commit/4f512ccd4b))
+- **graph-io:** read Cytoscape.js -inside label alignments as positions inside the node ([3464c0d93c](https://github.com/graphty-org/graphty-monorepo/commit/3464c0d93c))
+- **graph-io:** spell a Cytoscape border stroke as its line type, other:forward-slash ([e4c3ffd184](https://github.com/graphty-org/graphty-monorepo/commit/e4c3ffd184))
+- **graph-io:** leave yEd's BPMN artifact and two SBGN shapes as boxes until yEd shows them ([b13dda830d](https://github.com/graphty-org/graphty-monorepo/commit/b13dda830d))
+- **graph-io:** place Cytoscape desktop charts as Cytoscape does, add the missing chart specimens ([c3e5ac654f](https://github.com/graphty-org/graphty-monorepo/commit/c3e5ac654f))
+- **graph-io:** read Graphviz's gv2gml GML as Graphviz draws it, with its specimen sheets ([#45](https://github.com/graphty-org/graphty-monorepo/issues/45))
+- **graph-io:** read graphology positions y up and labels on one line, as sigma.js draws them ([3a5147bbc4](https://github.com/graphty-org/graphty-monorepo/commit/3a5147bbc4))
+- **graph-io:** read every Cytoscape.js style alias as the property it points to ([012a53aaa5](https://github.com/graphty-org/graphty-monorepo/commit/012a53aaa5))
+- **graph-io:** read Pajek line values and patterns as Pajek draws them, with specimens ([3002476566](https://github.com/graphty-org/graphty-monorepo/commit/3002476566))
+- **graph-io:** read graphology colors with sigma.js's own parser and add the edge color sheet ([3de6d40016](https://github.com/graphty-org/graphty-monorepo/commit/3de6d40016))
+- **graph-io:** read edgeless Gephi JSON as Gephi's, and its sigma-named columns as data ([ef284b00d9](https://github.com/graphty-org/graphty-monorepo/commit/ef284b00d9))
+- **graph-io:** write Cytoscape.js line gradients as line-fill, and read vis-network's smooth ([f2c7953678](https://github.com/graphty-org/graphty-monorepo/commit/f2c7953678))
+- **graph-io:** read Gephi's GML as Gephi draws it, and add Gephi's GML specimen sheets ([d47dcc30e1](https://github.com/graphty-org/graphty-monorepo/commit/d47dcc30e1))
+- **graph-io:** read OGDF's and Cytoscape's GML as their programs draw it ([5471670800](https://github.com/graphty-org/graphty-monorepo/commit/5471670800))
+- **graph-io:** tell a vis-network document with no edges by its options, and export sniffJsonDialect ([a0311a66ed](https://github.com/graphty-org/graphty-monorepo/commit/a0311a66ed))
+- **graph-io:** draw graphology elements marked visibility hidden, as sigma.js 4 does ([1622484f43](https://github.com/graphty-org/graphty-monorepo/commit/1622484f43))
+- **graph-io:** draw Pajek files with Pajek's own defaults and carried parameters ([#660000](https://github.com/graphty-org/graphty-monorepo/issues/660000), [#999999](https://github.com/graphty-org/graphty-monorepo/issues/999999), [#007091](https://github.com/graphty-org/graphty-monorepo/issues/007091))
+- **graph-io:** repair the merged oracle branch so it builds ([2ada109567](https://github.com/graphty-org/graphty-monorepo/commit/2ada109567))
+- **graph-io:** state vis-network's bar arrow proportions ([f68e586b2a](https://github.com/graphty-org/graphty-monorepo/commit/f68e586b2a))
+- **graph-io:** do not place a Cytoscape.js compound at its saved position ([5d18550114](https://github.com/graphty-org/graphty-monorepo/commit/5d18550114))
+- **graph-io:** read node sizes and shapes the way Cytoscape and Cytoscape.js draw them ([4957f6997a](https://github.com/graphty-org/graphty-monorepo/commit/4957f6997a))
+- **graph-io:** read edge widths, bends and fans the way vis-network and Cytoscape desktop draw them ([7fa91444e9](https://github.com/graphty-org/graphty-monorepo/commit/7fa91444e9))
+- **graph-io:** read Java's logical fonts as the DejaVu faces Java draws them in ([aaaa1fabbf](https://github.com/graphty-org/graphty-monorepo/commit/aaaa1fabbf))
+- **graph-io:** read a Cytoscape font Java may lack with sans-serif after it ([7ff1c2d3cb](https://github.com/graphty-org/graphty-monorepo/commit/7ff1c2d3cb))
+- **graph-io:** hide a graphology element by sigma 4's visibility key ([f850fdc5b1](https://github.com/graphty-org/graphty-monorepo/commit/f850fdc5b1))
+- **graph-io:** draw no Cytoscape edge whose end Cytoscape hides ([9a4238bd28](https://github.com/graphty-org/graphty-monorepo/commit/9a4238bd28))
+- **graphty-element:** count a space after a label's last word too when wrapping as Cytoscape ([e05740eda4](https://github.com/graphty-org/graphty-monorepo/commit/e05740eda4))
+- **graph-io:** state each end's arrow as Cytoscape and Graphviz draw it ([02aa64163a](https://github.com/graphty-org/graphty-monorepo/commit/02aa64163a))
+- **graphty-element:** draw each Gephi curved edge as its own curve, so a mutual pair bows apart ([71c139b397](https://github.com/graphty-org/graphty-monorepo/commit/71c139b397))
+- **graph-io:** draw Graphviz's named polygons and decorated boxes as their own outlines ([eaa24a27fb](https://github.com/graphty-org/graphty-monorepo/commit/eaa24a27fb))
+- **graph-io:** draw a Cytoscape edge in its own line color bypass under arrowColorMatchesEdge ([#404040](https://github.com/graphty-org/graphty-monorepo/issues/404040))
+- **graph-io:** give each program's white background and read Cytoscape.js shape spellings ([10f1306d42](https://github.com/graphty-org/graphty-monorepo/commit/10f1306d42))
+- **graph-io:** read Cytoscape desktop styles the way Cytoscape draws them ([88352e2c68](https://github.com/graphty-org/graphty-monorepo/commit/88352e2c68))
+- **graph-io:** read GEXF styles the way Gephi's preview draws them ([bfa3c0da55](https://github.com/graphty-org/graphty-monorepo/commit/bfa3c0da55))
+- **graph-io:** read vis-network positions as y down ([2b10bc9715](https://github.com/graphty-org/graphty-monorepo/commit/2b10bc9715))
+- **graph-io:** read yEd ports, curved edges and self-loop points ([#3172](https://github.com/graphty-org/graphty-monorepo/issues/3172))
+- **graph-io:** mark graphology positions as fitted to the viewer, and read sigma labels as 12 px ([#3173](https://github.com/graphty-org/graphty-monorepo/issues/3173))
+- settle the round 6 style fixes together ([#3167](https://github.com/graphty-org/graphty-monorepo/issues/3167), [#3170](https://github.com/graphty-org/graphty-monorepo/issues/3170), [#3171](https://github.com/graphty-org/graphty-monorepo/issues/3171))
+- **graph-io:** read vis-network node sizes as radii, with value scaling and its default ([2327ed109d](https://github.com/graphty-org/graphty-monorepo/commit/2327ed109d))
+- **graph-io:** positions of yEd UML nodes and yFiles 3 NodeGeometry; yFiles 3 labels inside ([de73c93c62](https://github.com/graphty-org/graphty-monorepo/commit/de73c93c62))
+- **graph-io:** yEd node labels are inside or outside by their box and model ([4a05a8077c](https://github.com/graphty-org/graphty-monorepo/commit/4a05a8077c))
+- **graph-io:** read Pajek lengths and positions in one unit, with Pajek's defaults ([a3bec1109d](https://github.com/graphty-org/graphty-monorepo/commit/a3bec1109d))
+- **graph-io:** keep Pajek vertices with malformed intervals; read slash intervals, r g b colors ([3e609bd61f](https://github.com/graphty-org/graphty-monorepo/commit/3e609bd61f))
+- **graph-io:** vis-network labels sit below the shapes sized by size ([b43a66af2b](https://github.com/graphty-org/graphty-monorepo/commit/b43a66af2b))
+- **graph-io:** read GEXF viz:size as a radius and use sigma 4's node defaults ([#666666](https://github.com/graphty-org/graphty-monorepo/issues/666666))
+- **graph-io:** read the edge routes Graphviz stores in pos ([25cd3fe61d](https://github.com/graphty-org/graphty-monorepo/commit/25cd3fe61d))
+- **graph-io:** mark the parallel edges Cytoscape desktop fans as curved ([d3272baa20](https://github.com/graphty-org/graphty-monorepo/commit/d3272baa20))
+- **graph-io:** a Cytoscape discrete mapping with integer keys over a double column matches nothing ([99917a9eec](https://github.com/graphty-org/graphty-monorepo/commit/99917a9eec))
+- **graph-io:** leave an XGMML file graphty wrote to its block for labels ([33a39e5f70](https://github.com/graphty-org/graphty-monorepo/commit/33a39e5f70))
+- **graph-io:** place a yEd GML label anchored inside its node at the center ([51221f858e](https://github.com/graphty-org/graphty-monorepo/commit/51221f858e))
+- **graph-io:** mark not visible the group nodes and members Cytoscape does not draw ([b3083f43b4](https://github.com/graphty-org/graphty-monorepo/commit/b3083f43b4))
+- **graph-io:** read yEd GML groups, yEd files with no Creator line, and label anchors ([ec76f504ab](https://github.com/graphty-org/graphty-monorepo/commit/ec76f504ab))
+- **graph-io:** read a graphology node's size as the radius sigma draws ([8ea47768c1](https://github.com/graphty-org/graphty-monorepo/commit/8ea47768c1))
+- **graph-io:** draw the label a tool shows by default from its label column ([ea0625f194](https://github.com/graphty-org/graphty-monorepo/commit/ea0625f194))
+- **graph-io:** read shared name and shared interaction from name and interaction when absent ([950a1465f5](https://github.com/graphty-org/graphty-monorepo/commit/950a1465f5))
+- **graph-io:** keep a node's own width and height under Cytoscape's size lock ([d4a03df68f](https://github.com/graphty-org/graphty-monorepo/commit/d4a03df68f))
+
+### 🔥 Performance
+
+- **graph-io:** skip DOT glyphs whose corner count cannot match a polygon ([e50cce67b5](https://github.com/graphty-org/graphty-monorepo/commit/e50cce67b5))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.36
+- Updated graph-format to 1.4.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+- graphty-agent @graphty-agent
+
+## 0.3.48 (2026-10-21)
+
+### 🚀 Features
+
+- **graph-io:** the Cypher source for Neo4j and Neptune (experimental) ([fe4858f9e](https://github.com/graphty-org/graphty-monorepo/commit/fe4858f9e))
+- **graph-io:** the NDEx source (experimental) ([7680f51c4](https://github.com/graphty-org/graphty-monorepo/commit/7680f51c4))
+- **graph-io:** storableCredential and fromStorableCredential for a credential store (experimental) ([#2907](https://github.com/graphty-org/graphty-monorepo/issues/2907))
+- **graph-io:** the REST mapping source and the OpenAlex preset (experimental) ([45d12db10](https://github.com/graphty-org/graphty-monorepo/commit/45d12db10))
+- **graph-io:** network source framework (experimental) ([#2907](https://github.com/graphty-org/graphty-monorepo/issues/2907))
+
+### 🩹 Fixes
+
+- **graph-io:** read yEd SmartNodeLabelModel label placement and keep inside-top ([#2491](https://github.com/graphty-org/graphty-monorepo/issues/2491))
+- **graph-io:** keep master's Pajek label reading ([5e62bdd50](https://github.com/graphty-org/graphty-monorepo/commit/5e62bdd50))
+- **graph-io:** hash Cypher content on pages without Web Crypto ([d8ba52102](https://github.com/graphty-org/graphty-monorepo/commit/d8ba52102))
+- **graph-io:** page capped Cypher expansions and name a refused credentialed redirect ([2105a3885](https://github.com/graphty-org/graphty-monorepo/commit/2105a3885))
+- **graph-io:** a cap that cuts a downloaded file short fails with E_SOURCE_LIMIT ([#2907](https://github.com/graphty-org/graphty-monorepo/issues/2907))
+- **graph-io:** skip the background loss note when the target tool draws it anyway ([#2934](https://github.com/graphty-org/graphty-monorepo/issues/2934))
+- **graph-io:** read Cytoscape font sizes as the whole numbers Cytoscape draws ([#2890](https://github.com/graphty-org/graphty-monorepo/issues/2890))
+- **graph-io:** paint a yEd file's graph white, as yEd's canvas does ([#2654](https://github.com/graphty-org/graphty-monorepo/issues/2654))
+- **graph-io:** note fractional passthrough font sizes Cytoscape draws rounded ([#2881](https://github.com/graphty-org/graphty-monorepo/issues/2881))
+- **graph-io:** note font sizes and transparencies Cytoscape draws rounded ([#2653](https://github.com/graphty-org/graphty-monorepo/issues/2653))
+- **graph-io:** give Gephi's files Preview's arrow size and node-scaled label size ([#2660](https://github.com/graphty-org/graphty-monorepo/issues/2660))
+- **graph-io:** draw Gephi's files with Gephi Preview's defaults ([#2494](https://github.com/graphty-org/graphty-monorepo/issues/2494))
+- **graph-io:** round Cytoscape's integer properties and paint Graphviz's default background white ([#2497](https://github.com/graphty-org/graphty-monorepo/issues/2497))
+- **graph-io:** read and write cytoscape.js hollow arrowheads as the open arrow shapes ([#2371](https://github.com/graphty-org/graphty-monorepo/issues/2371))
+- **graph-io:** label each pajek vertex with its name, as pajek draws it ([#2323](https://github.com/graphty-org/graphty-monorepo/issues/2323))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.7
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.3.47 (2026-10-20)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.6
+
+## 0.3.46 (2026-10-19)
+
+### 🩹 Fixes
+
+- **graph-io:** keep Pajek's vertex borders visible by giving lines no default width ([ae2702d07](https://github.com/graphty-org/graphty-monorepo/commit/ae2702d07))
+- **graph-io:** read Pajek's own color names and its border, label and line defaults ([#2493](https://github.com/graphty-org/graphty-monorepo/issues/2493))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.3.45 (2026-10-18)
+
+### 🩹 Fixes
+
+- **graph-io:** cast yFiles child arrays to unknown[] as master does ([75957a428](https://github.com/graphty-org/graphty-monorepo/commit/75957a428))
+- **graph-io:** mark an edge curved only when its tool draws it curved ([#2489](https://github.com/graphty-org/graphty-monorepo/issues/2489))
+- **graph-io:** share the DOT styled export only within one export call ([#2414](https://github.com/graphty-org/graphty-monorepo/issues/2414))
+- **graph-io:** cut the work of the large style round trips in the harness ([#2414](https://github.com/graphty-org/graphty-monorepo/issues/2414))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.3.44 (2026-10-18)
+
+### 🚀 Features
+
+- **graph-io:** read a rounded rectangle's own corner radius as cornerRadius ([14204e710](https://github.com/graphty-org/graphty-monorepo/commit/14204e710))
+- **graph-io:** read Cytoscape annotations as neutral facts with readAnnotations ([0f5e182c1](https://github.com/graphty-org/graphty-monorepo/commit/0f5e182c1))
+- **graph-io:** read and write yEd edge bends as the neutral bends property ([761b32bfd](https://github.com/graphty-org/graphty-monorepo/commit/761b32bfd))
+- **graph-io:** say how many points a DOT input position unit is ([b781a7db5](https://github.com/graphty-org/graphty-monorepo/commit/b781a7db5))
+- **graph-io:** writtenPositions gives neutral coordinates as each built-in writer spells them ([35f60df6f](https://github.com/graphty-org/graphty-monorepo/commit/35f60df6f))
+- **graph-io:** read every format's stored node positions into one neutral form ([#2003](https://github.com/graphty-org/graphty-monorepo/issues/2003), [#2490](https://github.com/graphty-org/graphty-monorepo/issues/2490))
+- **graph-io:** draw a Gephi edge with no thickness as thick as its weight ([cff1c0b23](https://github.com/graphty-org/graphty-monorepo/commit/cff1c0b23))
+- **graph-io:** deprecate the old style columns and role writers, and guard against new ones ([f67274fd7](https://github.com/graphty-org/graphty-monorepo/commit/f67274fd7))
+- **graph-io:** read and write CX and CX2 styles with Cytoscape's rules ([1701767b1](https://github.com/graphty-org/graphty-monorepo/commit/1701767b1))
+- **graph-io:** read and write Pajek styles with Pajek's rules ([5e8f1f154](https://github.com/graphty-org/graphty-monorepo/commit/5e8f1f154))
+- **graph-io:** read and write DOT styles with Graphviz's rules ([a70454215](https://github.com/graphty-org/graphty-monorepo/commit/a70454215))
+- **graph-io:** read and write GML styles per writer ([ece17a1c0](https://github.com/graphty-org/graphty-monorepo/commit/ece17a1c0))
+- **graph-io:** read and write JSON dialect styles with each dialect's own defaults ([c73277752](https://github.com/graphty-org/graphty-monorepo/commit/c73277752))
+- **graph-io:** read and write GraphML styles from yEd, yFiles 3, Gephi and Cytoscape ([55ebdd2b7](https://github.com/graphty-org/graphty-monorepo/commit/55ebdd2b7))
+- **graph-io:** read and write XGMML and Cytoscape session styles ([90c9b3f6e](https://github.com/graphty-org/graphty-monorepo/commit/90c9b3f6e))
+- **graph-io:** read and write GEXF styles with Gephi's defaults ([7111cfa61](https://github.com/graphty-org/graphty-monorepo/commit/7111cfa61))
+- **graph-io:** read and write styles through the importer and exporter contracts ([9981555e3](https://github.com/graphty-org/graphty-monorepo/commit/9981555e3))
+- **graph-io:** apply, write and read Cytoscape.js stylesheets ([d649aab58](https://github.com/graphty-org/graphty-monorepo/commit/d649aab58))
+- **graph-io:** read and write Cytoscape desktop's visual style model ([ce919e1b7](https://github.com/graphty-org/graphty-monorepo/commit/ce919e1b7))
+- **graph-io:** style planner, reference resolver and replay ([f9cae48b7](https://github.com/graphty-org/graphty-monorepo/commit/f9cae48b7))
+- **graph-io:** canonical style values per dialect ([879590b44](https://github.com/graphty-org/graphty-monorepo/commit/879590b44))
+- **graph-io:** add the styles entry with style types, codes, work budget and tool defaults ([07f3e0a3e](https://github.com/graphty-org/graphty-monorepo/commit/07f3e0a3e))
+
+### 🩹 Fixes
+
+- **graph-io:** type the arrays the stricter lint rules from master flag ([43bab336d](https://github.com/graphty-org/graphty-monorepo/commit/43bab336d))
+- **graph-io:** document the kind field of each annotation type ([c26217fd5](https://github.com/graphty-org/graphty-monorepo/commit/c26217fd5))
+- **graph-io:** read yEd flowchart configurations as node shapes ([e6bef6536](https://github.com/graphty-org/graphty-monorepo/commit/e6bef6536))
+- **graph-io:** draw Pajek and GEXF node labels and Pajek's default border ([fdf268cd9](https://github.com/graphty-org/graphty-monorepo/commit/fdf268cd9))
+- close the CodeQL alerts in the file-styles code ([27bc92c08](https://github.com/graphty-org/graphty-monorepo/commit/27bc92c08))
+- **graph-io:** write each node's position into its yEd geometry in a styled GraphML export ([bf69a4788](https://github.com/graphty-org/graphty-monorepo/commit/bf69a4788))
+- **graph-io:** keep engine-typed style options out of the API docs ([a8116693e](https://github.com/graphty-org/graphty-monorepo/commit/a8116693e))
+- **graph-io:** mark an edge curved only when its tool draws it curved ([#2489](https://github.com/graphty-org/graphty-monorepo/issues/2489))
+- reconcile the merged file-styles, file-positions and master branches ([852fd978c](https://github.com/graphty-org/graphty-monorepo/commit/852fd978c))
+- **graph-io:** load the style oracles' color and shape readers from the sources ([bb8553e31](https://github.com/graphty-org/graphty-monorepo/commit/bb8553e31))
+- **graph-io:** publish only the style API a consumer or a format author uses ([62454358f](https://github.com/graphty-org/graphty-monorepo/commit/62454358f))
+- **graph-io:** report a node a GEXF 1.0 edge names that no node declares ([f24b8d54c](https://github.com/graphty-org/graphty-monorepo/commit/f24b8d54c))
+- **graph-io:** warn before writing a graphty.styles block its reader would refuse ([7473bdf1a](https://github.com/graphty-org/graphty-monorepo/commit/7473bdf1a))
+- **graph-io:** match nested Cytoscape.js selectors and deep parent chains in bounded work ([1045ad5a1](https://github.com/graphty-org/graphty-monorepo/commit/1045ad5a1))
+- **graph-io:** find an OGDF creator line in linear time after a comment banner ([da5e156e6](https://github.com/graphty-org/graphty-monorepo/commit/da5e156e6))
+- **graph-io:** rename a GML data column whose key would read back as a style value ([0ed09e077](https://github.com/graphty-org/graphty-monorepo/commit/0ed09e077))
+- **graph-io:** keep an empty-string style value apart from no value in a Cytoscape session ([04d8f590c](https://github.com/graphty-org/graphty-monorepo/commit/04d8f590c))
+- **graph-io:** copy a lost 32-bit float column as the values the rules read ([34ccd4091](https://github.com/graphty-org/graphty-monorepo/commit/34ccd4091))
+- **graph-io:** keep the file's order of JGF nodes keyed by integer-like ids ([105e0095a](https://github.com/graphty-org/graphty-monorepo/commit/105e0095a))
+- **graph-io:** write DOT attributes in the order a reader meets them ([8ccc79aa5](https://github.com/graphty-org/graphty-monorepo/commit/8ccc79aa5))
+- **graph-io:** read a 32-bit float style input as its shortest decimal ([e3a36a3d3](https://github.com/graphty-org/graphty-monorepo/commit/e3a36a3d3))
+- **graph-io:** replace an earlier write's style values with the new ones in every writer ([449f297f4](https://github.com/graphty-org/graphty-monorepo/commit/449f297f4))
+- **graph-io:** note a missing DOT label that reads back as the empty label ([ab840140a](https://github.com/graphty-org/graphty-monorepo/commit/ab840140a))
+- **graph-io:** read an opaque color edited over a translucent one graphty wrote as opacity 1 ([6e8158f0f](https://github.com/graphty-org/graphty-monorepo/commit/6e8158f0f))
+- **graph-io:** write another program's shape as its nearest Cytoscape shape ([faf7b9c2b](https://github.com/graphty-org/graphty-monorepo/commit/faf7b9c2b))
+- **graph-io:** read an empty style cell of a Cytoscape session as no value ([f7fb1d0c1](https://github.com/graphty-org/graphty-monorepo/commit/f7fb1d0c1))
+- **graph-io:** draw a Gephi edge as thick as its weight when every edge has a weight ([ad397d2b4](https://github.com/graphty-org/graphty-monorepo/commit/ad397d2b4))
+- **graph-io:** quote a DOT value that starts with a byte order mark ([491607903](https://github.com/graphty-org/graphty-monorepo/commit/491607903))
+- **graph-io:** read a straight loop back from the block of a Cytoscape.js file graphty wrote ([fe7cd72fa](https://github.com/graphty-org/graphty-monorepo/commit/fe7cd72fa))
+- **graph-io:** write styles over an earlier import's block, and copy only inputs that give values ([faf9537a9](https://github.com/graphty-org/graphty-monorepo/commit/faf9537a9))
+- **graph-io:** read a boolean style column back as booleans from a format without booleans ([8c5dbeb2b](https://github.com/graphty-org/graphty-monorepo/commit/8c5dbeb2b))
+- **graph-io:** set a block written for another graph aside as such before reading the rest ([ed4030b98](https://github.com/graphty-org/graphty-monorepo/commit/ed4030b98))
+- **graph-io:** keep vis.js edges and one-size nodes as written ([26a39ebbb](https://github.com/graphty-org/graphty-monorepo/commit/26a39ebbb))
+- **graph-io:** read a CX or CX2 style graphty wrote back from its block ([6bff1cecc](https://github.com/graphty-org/graphty-monorepo/commit/6bff1cecc))
+- **graph-io:** bring styles back exactly through session, DOT and Pajek writers ([85944888c](https://github.com/graphty-org/graphty-monorepo/commit/85944888c))
+- **graph-io:** read back a Cytoscape.js style it cannot hold from the block, and keep an empty label ([d2238096a](https://github.com/graphty-org/graphty-monorepo/commit/d2238096a))
+- **graph-io:** count every element a Cytoscape style write changes in its loss notes ([5db87e470](https://github.com/graphty-org/graphty-monorepo/commit/5db87e470))
+- **graph-io:** read a boolean style value back as a boolean from a format without booleans ([22a2faf0b](https://github.com/graphty-org/graphty-monorepo/commit/22a2faf0b))
+- **graph-io:** read a GEXF shape uri as a picture only on an image shape ([b874d984e](https://github.com/graphty-org/graphty-monorepo/commit/b874d984e))
+- **graph-io:** carry what a style rule reads when the format loses it ([9018b4e9a](https://github.com/graphty-org/graphty-monorepo/commit/9018b4e9a))
+- **graph-io:** keep a style block in any node order, and one style for an undirected edge's halves ([e0f1235fe](https://github.com/graphty-org/graphty-monorepo/commit/e0f1235fe))
+- **graph-io:** write a DOT graph charset as the UTF-8 the file is written in ([f468fe3ae](https://github.com/graphty-org/graphty-monorepo/commit/f468fe3ae))
+- **graph-io:** write a Cytoscape font or label position named like an object member ([c902f0336](https://github.com/graphty-org/graphty-monorepo/commit/c902f0336))
+- **graph-io:** write a style block that Cytoscape's escape convention reads back whole ([1ae492932](https://github.com/graphty-org/graphty-monorepo/commit/1ae492932))
+- **graphty-element:** draw a file's styles on nodes an edge created ([e339bc90d](https://github.com/graphty-org/graphty-monorepo/commit/e339bc90d))
+- **graph-io:** write styles that read back as graphty drew them in DOT, vis.js and XGMML ([bea1bb755](https://github.com/graphty-org/graphty-monorepo/commit/bea1bb755))
+- **graph-io:** count a graphty-only style property as lost only where no style block is written ([27827dd15](https://github.com/graphty-org/graphty-monorepo/commit/27827dd15))
+- **graph-io:** keep a Cytoscape.js degree order test as a predicate on the computed degree ([a3ca214ab](https://github.com/graphty-org/graphty-monorepo/commit/a3ca214ab))
+- **graph-io:** keep styles exact when a graph is written to another format ([9a735740e](https://github.com/graphty-org/graphty-monorepo/commit/9a735740e))
+- **graph-io:** note W_STYLE_OTHER_VIEWS when a CX file styles more than one view ([eeeb49a86](https://github.com/graphty-org/graphty-monorepo/commit/eeeb49a86))
+- **graph-io:** size regular and plain DOT nodes and clamp negative pen widths as Graphviz draws them ([dadd709ea](https://github.com/graphty-org/graphty-monorepo/commit/dadd709ea))
+- **graph-io:** stop over-deep XML with E_XML_NESTING and read deep XGMML atts without recursion ([2c9448377](https://github.com/graphty-org/graphty-monorepo/commit/2c9448377))
+
+### 🔥 Performance
+
+- **graph-io:** read large JSON, XML and XGMML files in linear time ([7a7c7f131](https://github.com/graphty-org/graphty-monorepo/commit/7a7c7f131))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.5
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.3.43 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.4
+
+## 0.3.42 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.3
+
+## 0.3.41 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.2
+
+## 0.3.40 (2026-10-14)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.1
+
+## 0.3.39 (2026-10-14)
+
+### 🚀 Features
+
+- **graph-io:** keepPositionSource option for the GML and DOT importers ([af7f18f57](https://github.com/graphty-org/graphty-monorepo/commit/af7f18f57))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.3.38 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graph-io:** never give a generated CX or CX2 edge id that a node already has ([f28603f5f](https://github.com/graphty-org/graphty-monorepo/commit/f28603f5f))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.15
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.3.37 (2026-10-13)
+
+### 🩹 Fixes
+
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.14
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.3.36 (2026-10-12)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.13
+
+## 0.3.35 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.12
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.34 (2026-10-11)
 
 ### 🩹 Fixes

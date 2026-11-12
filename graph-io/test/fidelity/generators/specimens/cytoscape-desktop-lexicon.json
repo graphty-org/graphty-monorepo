@@ -1,0 +1,975 @@
+{
+    "program": "Cytoscape desktop",
+    "version": "3.10.5",
+    "source": "http://localhost:9058/v1/styles/visualproperties",
+    "visualProperties": [
+        {
+            "id": "COMPOUND_NODE_PADDING",
+            "name": "Padding (Compound Node)",
+            "target": "CyNode",
+            "default": "10.0",
+            "values": null
+        },
+        {
+            "id": "COMPOUND_NODE_SHAPE",
+            "name": "Shape (Compound Node)",
+            "target": "CyNode",
+            "default": "ROUND_RECTANGLE",
+            "values": [
+                "DIAMOND",
+                "ELLIPSE",
+                "HEXAGON",
+                "OCTAGON",
+                "PARALLELOGRAM",
+                "RECTANGLE",
+                "ROUND_RECTANGLE",
+                "TRIANGLE",
+                "VEE"
+            ]
+        },
+        {
+            "id": "DING_RENDERING_ENGINE_ROOT",
+            "name": "Ding Rndering Engine Root Visual Property",
+            "target": "CyIdentifiable",
+            "default": "org.cytoscape.view.presentation.property.NullVisualProperty$NullDataTypeImpl@645ec136",
+            "values": null
+        },
+        {
+            "id": "EDGE",
+            "name": "Edge Visual Property",
+            "target": "CyEdge",
+            "default": "DefaultVisualizableVisualProperty(id=EDGE, name=Edge Visual Property)",
+            "values": null
+        },
+        {
+            "id": "EDGE_BEND",
+            "name": "Edge Bend",
+            "target": "CyEdge",
+            "default": "undefined",
+            "values": null
+        },
+        {
+            "id": "EDGE_CURVED",
+            "name": "Edge Curved",
+            "target": "CyEdge",
+            "default": "true",
+            "values": null
+        },
+        {
+            "id": "EDGE_LABEL",
+            "name": "Edge Label",
+            "target": "CyEdge",
+            "default": "",
+            "values": null
+        },
+        {
+            "id": "EDGE_LABEL_AUTOROTATE",
+            "name": "Edge Label Autorotate",
+            "target": "CyEdge",
+            "default": "false",
+            "values": null
+        },
+        {
+            "id": "EDGE_LABEL_BACKGROUND_COLOR",
+            "name": "Edge Label Background Color",
+            "target": "CyEdge",
+            "default": "#B6B6B6",
+            "values": null
+        },
+        {
+            "id": "EDGE_LABEL_BACKGROUND_SHAPE",
+            "name": "Edge Label Background Shape",
+            "target": "CyEdge",
+            "default": "NONE",
+            "values": ["NONE", "RECTANGLE", "ROUND_RECTANGLE"]
+        },
+        {
+            "id": "EDGE_LABEL_BACKGROUND_TRANSPARENCY",
+            "name": "Edge Label Background Transparency",
+            "target": "CyEdge",
+            "default": "255",
+            "values": null
+        },
+        {
+            "id": "EDGE_LABEL_COLOR",
+            "name": "Edge Label Color",
+            "target": "CyEdge",
+            "default": "#000000",
+            "values": null
+        },
+        {
+            "id": "EDGE_LABEL_FONT_FACE",
+            "name": "Edge Label Font Face",
+            "target": "CyEdge",
+            "default": "SansSerif.plain,plain,10",
+            "values": null
+        },
+        {
+            "id": "EDGE_LABEL_FONT_SIZE",
+            "name": "Edge Label Font Size",
+            "target": "CyEdge",
+            "default": "10",
+            "values": null
+        },
+        {
+            "id": "EDGE_LABEL_POSITION",
+            "name": "Edge Label Position",
+            "target": "CyEdge",
+            "default": "C,C,c,0.00,0.00",
+            "values": null
+        },
+        {
+            "id": "EDGE_LABEL_ROTATION",
+            "name": "Edge Label Rotation",
+            "target": "CyEdge",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "EDGE_LABEL_TRANSPARENCY",
+            "name": "Edge Label Transparency",
+            "target": "CyEdge",
+            "default": "255",
+            "values": null
+        },
+        {
+            "id": "EDGE_LABEL_WIDTH",
+            "name": "Edge Label Width",
+            "target": "CyEdge",
+            "default": "200.0",
+            "values": null
+        },
+        {
+            "id": "EDGE_LINE_TYPE",
+            "name": "Edge Line Type",
+            "target": "CyEdge",
+            "default": "SOLID",
+            "values": [
+                "BACKWARD_SLASH",
+                "CONTIGUOUS_ARROW",
+                "DASH_DOT",
+                "DOT",
+                "EQUAL_DASH",
+                "FORWARD_SLASH",
+                "LONG_DASH",
+                "MARQUEE_DASH",
+                "MARQUEE_DASH_DOT",
+                "MARQUEE_EQUAL",
+                "PARALLEL_LINES",
+                "SEPARATE_ARROW",
+                "SINEWAVE",
+                "SOLID",
+                "VERTICAL_SLASH",
+                "ZIGZAG"
+            ]
+        },
+        {
+            "id": "EDGE_PAINT",
+            "name": "Edge Paint",
+            "target": "CyEdge",
+            "default": "#808080",
+            "values": null
+        },
+        {
+            "id": "EDGE_SELECTED",
+            "name": "Edge Selected",
+            "target": "CyEdge",
+            "default": "false",
+            "values": null
+        },
+        {
+            "id": "EDGE_SELECTED_PAINT",
+            "name": "Edge Color (Selected)",
+            "target": "CyEdge",
+            "default": "#FF0000",
+            "values": null
+        },
+        {
+            "id": "EDGE_SOURCE_ARROW_SELECTED_PAINT",
+            "name": "Edge Source Arrow Selected Paint",
+            "target": "CyEdge",
+            "default": "#FFFF00",
+            "values": null
+        },
+        {
+            "id": "EDGE_SOURCE_ARROW_SHAPE",
+            "name": "Edge Source Arrow Shape",
+            "target": "CyEdge",
+            "default": "NONE",
+            "values": [
+                "ARROW",
+                "ARROW_SHORT",
+                "CIRCLE",
+                "CROSS_DELTA",
+                "CROSS_OPEN_DELTA",
+                "DELTA",
+                "DELTA_SHORT_1",
+                "DELTA_SHORT_2",
+                "DIAMOND",
+                "DIAMOND_SHORT_1",
+                "DIAMOND_SHORT_2",
+                "HALF_BOTTOM",
+                "HALF_CIRCLE",
+                "HALF_TOP",
+                "NONE",
+                "OPEN_CIRCLE",
+                "OPEN_DELTA",
+                "OPEN_DIAMOND",
+                "OPEN_HALF_CIRCLE",
+                "OPEN_SQUARE",
+                "SQUARE",
+                "T"
+            ]
+        },
+        {
+            "id": "EDGE_SOURCE_ARROW_SIZE",
+            "name": "Edge Source Arrow Size",
+            "target": "CyEdge",
+            "default": "6.0",
+            "values": null
+        },
+        {
+            "id": "EDGE_SOURCE_ARROW_UNSELECTED_PAINT",
+            "name": "Edge Source Arrow Unselected Paint",
+            "target": "CyEdge",
+            "default": "#000000",
+            "values": null
+        },
+        {
+            "id": "EDGE_STACKING",
+            "name": "Edge Stacking",
+            "target": "CyEdge",
+            "default": "AUTO_BEND",
+            "values": ["AUTO_BEND", "HAYSTACK"]
+        },
+        {
+            "id": "EDGE_STACKING_DENSITY",
+            "name": "Stacking Density",
+            "target": "CyEdge",
+            "default": "0.5",
+            "values": null
+        },
+        {
+            "id": "EDGE_STROKE_SELECTED_PAINT",
+            "name": "Edge Stroke Color (Selected)",
+            "target": "CyEdge",
+            "default": "#FF0000",
+            "values": null
+        },
+        {
+            "id": "EDGE_STROKE_UNSELECTED_PAINT",
+            "name": "Edge Stroke Color (Unselected)",
+            "target": "CyEdge",
+            "default": "#404040",
+            "values": null
+        },
+        {
+            "id": "EDGE_TARGET_ARROW_SELECTED_PAINT",
+            "name": "Edge Target Arrow Selected Paint",
+            "target": "CyEdge",
+            "default": "#FFFF00",
+            "values": null
+        },
+        {
+            "id": "EDGE_TARGET_ARROW_SHAPE",
+            "name": "Edge Target Arrow Shape",
+            "target": "CyEdge",
+            "default": "NONE",
+            "values": [
+                "ARROW",
+                "ARROW_SHORT",
+                "CIRCLE",
+                "CROSS_DELTA",
+                "CROSS_OPEN_DELTA",
+                "DELTA",
+                "DELTA_SHORT_1",
+                "DELTA_SHORT_2",
+                "DIAMOND",
+                "DIAMOND_SHORT_1",
+                "DIAMOND_SHORT_2",
+                "HALF_BOTTOM",
+                "HALF_CIRCLE",
+                "HALF_TOP",
+                "NONE",
+                "OPEN_CIRCLE",
+                "OPEN_DELTA",
+                "OPEN_DIAMOND",
+                "OPEN_HALF_CIRCLE",
+                "OPEN_SQUARE",
+                "SQUARE",
+                "T"
+            ]
+        },
+        {
+            "id": "EDGE_TARGET_ARROW_SIZE",
+            "name": "Edge Target Arrow Size",
+            "target": "CyEdge",
+            "default": "6.0",
+            "values": null
+        },
+        {
+            "id": "EDGE_TARGET_ARROW_UNSELECTED_PAINT",
+            "name": "Edge Target Arrow Unselected Paint",
+            "target": "CyEdge",
+            "default": "#000000",
+            "values": null
+        },
+        {
+            "id": "EDGE_TOOLTIP",
+            "name": "Edge Tooltip",
+            "target": "CyEdge",
+            "default": "",
+            "values": null
+        },
+        {
+            "id": "EDGE_TRANSPARENCY",
+            "name": "Edge Transparency",
+            "target": "CyEdge",
+            "default": "255",
+            "values": null
+        },
+        {
+            "id": "EDGE_UNSELECTED_PAINT",
+            "name": "Edge Color (Unselected)",
+            "target": "CyEdge",
+            "default": "#404040",
+            "values": null
+        },
+        {
+            "id": "EDGE_VISIBLE",
+            "name": "Edge Visible",
+            "target": "CyEdge",
+            "default": "true",
+            "values": null
+        },
+        {
+            "id": "EDGE_WIDTH",
+            "name": "Edge Width",
+            "target": "CyEdge",
+            "default": "1.0",
+            "values": null
+        },
+        {
+            "id": "EDGE_Z_ORDER",
+            "name": "Edge Z Order",
+            "target": "CyEdge",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NETWORK",
+            "name": "Network Visual Property",
+            "target": "CyNetwork",
+            "default": "DefaultVisualizableVisualProperty(id=NETWORK, name=Network Visual Property)",
+            "values": null
+        },
+        {
+            "id": "NETWORK_ANNOTATION_SELECTION",
+            "name": "Network Annotation Selection",
+            "target": "CyNetwork",
+            "default": "false",
+            "values": null
+        },
+        {
+            "id": "NETWORK_BACKGROUND_PAINT",
+            "name": "Network Background Paint",
+            "target": "CyNetwork",
+            "default": "#FFFFFF",
+            "values": null
+        },
+        {
+            "id": "NETWORK_CENTER_X_LOCATION",
+            "name": "Network Center X Location",
+            "target": "CyNetwork",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NETWORK_CENTER_Y_LOCATION",
+            "name": "Network Center Y Location",
+            "target": "CyNetwork",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NETWORK_CENTER_Z_LOCATION",
+            "name": "Network Center Z Location",
+            "target": "CyNetwork",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NETWORK_DEPTH",
+            "name": "Network Depth",
+            "target": "CyNetwork",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NETWORK_EDGE_SELECTION",
+            "name": "Network Edge Selection",
+            "target": "CyNetwork",
+            "default": "true",
+            "values": null
+        },
+        {
+            "id": "NETWORK_FORCE_HIGH_DETAIL",
+            "name": "Force High Detail",
+            "target": "CyNetwork",
+            "default": "false",
+            "values": null
+        },
+        {
+            "id": "NETWORK_HEIGHT",
+            "name": "Network Height",
+            "target": "CyNetwork",
+            "default": "400.0",
+            "values": null
+        },
+        {
+            "id": "NETWORK_NODE_LABEL_SELECTION",
+            "name": "Network Node Label Selection",
+            "target": "CyNetwork",
+            "default": "false",
+            "values": null
+        },
+        {
+            "id": "NETWORK_NODE_SELECTION",
+            "name": "Network Node Selection",
+            "target": "CyNetwork",
+            "default": "true",
+            "values": null
+        },
+        {
+            "id": "NETWORK_SCALE_FACTOR",
+            "name": "Network Scale Factor",
+            "target": "CyNetwork",
+            "default": "1.0",
+            "values": null
+        },
+        {
+            "id": "NETWORK_SIZE",
+            "name": "Network Size",
+            "target": "CyNetwork",
+            "default": "550.0",
+            "values": null
+        },
+        {
+            "id": "NETWORK_TITLE",
+            "name": "Network Title",
+            "target": "CyNetwork",
+            "default": "",
+            "values": null
+        },
+        {
+            "id": "NETWORK_WIDTH",
+            "name": "Network Width",
+            "target": "CyNetwork",
+            "default": "550.0",
+            "values": null
+        },
+        {
+            "id": "NODE",
+            "name": "Node Visual Property",
+            "target": "CyNode",
+            "default": "DefaultVisualizableVisualProperty(id=NODE, name=Node Visual Property)",
+            "values": null
+        },
+        {
+            "id": "NODE_BORDER_PAINT",
+            "name": "Node Border Paint",
+            "target": "CyNode",
+            "default": "#000000",
+            "values": null
+        },
+        {
+            "id": "NODE_BORDER_STROKE",
+            "name": "Node Border Line Type",
+            "target": "CyNode",
+            "default": "SOLID",
+            "values": [
+                "BACKWARD_SLASH",
+                "CONTIGUOUS_ARROW",
+                "DASH_DOT",
+                "DOT",
+                "EQUAL_DASH",
+                "FORWARD_SLASH",
+                "LONG_DASH",
+                "MARQUEE_DASH",
+                "MARQUEE_DASH_DOT",
+                "MARQUEE_EQUAL",
+                "PARALLEL_LINES",
+                "SEPARATE_ARROW",
+                "SINEWAVE",
+                "SOLID",
+                "VERTICAL_SLASH",
+                "ZIGZAG"
+            ]
+        },
+        {
+            "id": "NODE_BORDER_TRANSPARENCY",
+            "name": "Node Border Transparency",
+            "target": "CyNode",
+            "default": "255",
+            "values": null
+        },
+        {
+            "id": "NODE_BORDER_WIDTH",
+            "name": "Node Border Width",
+            "target": "CyNode",
+            "default": "2.0",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_1",
+            "name": "Node Image/Chart 1",
+            "target": "CyNode",
+            "default": "org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ],",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_2",
+            "name": "Node Image/Chart 2",
+            "target": "CyNode",
+            "default": "org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ],",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_3",
+            "name": "Node Image/Chart 3",
+            "target": "CyNode",
+            "default": "org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ],",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_4",
+            "name": "Node Image/Chart 4",
+            "target": "CyNode",
+            "default": "org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ],",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_5",
+            "name": "Node Image/Chart 5",
+            "target": "CyNode",
+            "default": "org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ],",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_6",
+            "name": "Node Image/Chart 6",
+            "target": "CyNode",
+            "default": "org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ],",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_7",
+            "name": "Node Image/Chart 7",
+            "target": "CyNode",
+            "default": "org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ],",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_8",
+            "name": "Node Image/Chart 8",
+            "target": "CyNode",
+            "default": "org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ],",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_9",
+            "name": "Node Image/Chart 9",
+            "target": "CyNode",
+            "default": "org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ],",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_POSITION_1",
+            "name": "Node Image/Chart Position 1",
+            "target": "CyNode",
+            "default": "C,C,c,0.00,0.00",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_POSITION_2",
+            "name": "Node Image/Chart Position 2",
+            "target": "CyNode",
+            "default": "C,C,c,0.00,0.00",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_POSITION_3",
+            "name": "Node Image/Chart Position 3",
+            "target": "CyNode",
+            "default": "C,C,c,0.00,0.00",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_POSITION_4",
+            "name": "Node Image/Chart Position 4",
+            "target": "CyNode",
+            "default": "C,C,c,0.00,0.00",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_POSITION_5",
+            "name": "Node Image/Chart Position 5",
+            "target": "CyNode",
+            "default": "C,C,c,0.00,0.00",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_POSITION_6",
+            "name": "Node Image/Chart Position 6",
+            "target": "CyNode",
+            "default": "C,C,c,0.00,0.00",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_POSITION_7",
+            "name": "Node Image/Chart Position 7",
+            "target": "CyNode",
+            "default": "C,C,c,0.00,0.00",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_POSITION_8",
+            "name": "Node Image/Chart Position 8",
+            "target": "CyNode",
+            "default": "C,C,c,0.00,0.00",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_POSITION_9",
+            "name": "Node Image/Chart Position 9",
+            "target": "CyNode",
+            "default": "C,C,c,0.00,0.00",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_SIZE_1",
+            "name": "Node Image/Chart Size 1",
+            "target": "CyNode",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_SIZE_2",
+            "name": "Node Image/Chart Size 2",
+            "target": "CyNode",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_SIZE_3",
+            "name": "Node Image/Chart Size 3",
+            "target": "CyNode",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_SIZE_4",
+            "name": "Node Image/Chart Size 4",
+            "target": "CyNode",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_SIZE_5",
+            "name": "Node Image/Chart Size 5",
+            "target": "CyNode",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_SIZE_6",
+            "name": "Node Image/Chart Size 6",
+            "target": "CyNode",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_SIZE_7",
+            "name": "Node Image/Chart Size 7",
+            "target": "CyNode",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_SIZE_8",
+            "name": "Node Image/Chart Size 8",
+            "target": "CyNode",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMGRAPHICS_SIZE_9",
+            "name": "Node Image/Chart Size 9",
+            "target": "CyNode",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMPAINT_1",
+            "name": "Node Custom Paint 1",
+            "target": "CyNode",
+            "default": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_1, name=Node Custom Paint 1)",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMPAINT_2",
+            "name": "Node Custom Paint 2",
+            "target": "CyNode",
+            "default": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_2, name=Node Custom Paint 2)",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMPAINT_3",
+            "name": "Node Custom Paint 3",
+            "target": "CyNode",
+            "default": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_3, name=Node Custom Paint 3)",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMPAINT_4",
+            "name": "Node Custom Paint 4",
+            "target": "CyNode",
+            "default": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_4, name=Node Custom Paint 4)",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMPAINT_5",
+            "name": "Node Custom Paint 5",
+            "target": "CyNode",
+            "default": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_5, name=Node Custom Paint 5)",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMPAINT_6",
+            "name": "Node Custom Paint 6",
+            "target": "CyNode",
+            "default": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_6, name=Node Custom Paint 6)",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMPAINT_7",
+            "name": "Node Custom Paint 7",
+            "target": "CyNode",
+            "default": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_7, name=Node Custom Paint 7)",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMPAINT_8",
+            "name": "Node Custom Paint 8",
+            "target": "CyNode",
+            "default": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_8, name=Node Custom Paint 8)",
+            "values": null
+        },
+        {
+            "id": "NODE_CUSTOMPAINT_9",
+            "name": "Node Custom Paint 9",
+            "target": "CyNode",
+            "default": "DefaultVisualizableVisualProperty(id=NODE_CUSTOMPAINT_9, name=Node Custom Paint 9)",
+            "values": null
+        },
+        {
+            "id": "NODE_DEPTH",
+            "name": "Node Depth",
+            "target": "CyNode",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NODE_FILL_COLOR",
+            "name": "Node Fill Color",
+            "target": "CyNode",
+            "default": "#C80000",
+            "values": null
+        },
+        {
+            "id": "NODE_HEIGHT",
+            "name": "Node Height",
+            "target": "CyNode",
+            "default": "40.0",
+            "values": null
+        },
+        {
+            "id": "NODE_LABEL",
+            "name": "Node Label",
+            "target": "CyNode",
+            "default": "",
+            "values": null
+        },
+        {
+            "id": "NODE_LABEL_BACKGROUND_COLOR",
+            "name": "Node Label Background Color",
+            "target": "CyNode",
+            "default": "#B6B6B6",
+            "values": null
+        },
+        {
+            "id": "NODE_LABEL_BACKGROUND_SHAPE",
+            "name": "Node Label Background Shape",
+            "target": "CyNode",
+            "default": "NONE",
+            "values": ["NONE", "RECTANGLE", "ROUND_RECTANGLE"]
+        },
+        {
+            "id": "NODE_LABEL_BACKGROUND_TRANSPARENCY",
+            "name": "Node Label Background Transparency",
+            "target": "CyNode",
+            "default": "255",
+            "values": null
+        },
+        {
+            "id": "NODE_LABEL_COLOR",
+            "name": "Node Label Color",
+            "target": "CyNode",
+            "default": "#000000",
+            "values": null
+        },
+        {
+            "id": "NODE_LABEL_FONT_FACE",
+            "name": "Node Label Font Face",
+            "target": "CyNode",
+            "default": "SansSerif.plain,plain,12",
+            "values": null
+        },
+        {
+            "id": "NODE_LABEL_FONT_SIZE",
+            "name": "Node Label Font Size",
+            "target": "CyNode",
+            "default": "12",
+            "values": null
+        },
+        {
+            "id": "NODE_LABEL_POSITION",
+            "name": "Node Label Position",
+            "target": "CyNode",
+            "default": "C,C,c,0.00,0.00",
+            "values": null
+        },
+        {
+            "id": "NODE_LABEL_ROTATION",
+            "name": "Node Label Rotation",
+            "target": "CyNode",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NODE_LABEL_TRANSPARENCY",
+            "name": "Node Label Transparency",
+            "target": "CyNode",
+            "default": "255",
+            "values": null
+        },
+        {
+            "id": "NODE_LABEL_WIDTH",
+            "name": "Node Label Width",
+            "target": "CyNode",
+            "default": "200.0",
+            "values": null
+        },
+        {
+            "id": "NODE_NESTED_NETWORK_IMAGE_VISIBLE",
+            "name": "Nested Network Image Visible",
+            "target": "CyNode",
+            "default": "true",
+            "values": null
+        },
+        {
+            "id": "NODE_PAINT",
+            "name": "Node Paint",
+            "target": "CyNode",
+            "default": "#787878",
+            "values": null
+        },
+        {
+            "id": "NODE_SELECTED",
+            "name": "Node Selected",
+            "target": "CyNode",
+            "default": "false",
+            "values": null
+        },
+        {
+            "id": "NODE_SELECTED_PAINT",
+            "name": "Node Selected Paint",
+            "target": "CyNode",
+            "default": "#FFFF00",
+            "values": null
+        },
+        {
+            "id": "NODE_SHAPE",
+            "name": "Node Shape",
+            "target": "CyNode",
+            "default": "ELLIPSE",
+            "values": [
+                "DIAMOND",
+                "ELLIPSE",
+                "HEXAGON",
+                "OCTAGON",
+                "PARALLELOGRAM",
+                "RECTANGLE",
+                "ROUND_RECTANGLE",
+                "TRIANGLE",
+                "VEE"
+            ]
+        },
+        {
+            "id": "NODE_SIZE",
+            "name": "Node Size",
+            "target": "CyNode",
+            "default": "50.0",
+            "values": null
+        },
+        {
+            "id": "NODE_TOOLTIP",
+            "name": "Node Tooltip",
+            "target": "CyNode",
+            "default": "",
+            "values": null
+        },
+        {
+            "id": "NODE_TRANSPARENCY",
+            "name": "Node Transparency",
+            "target": "CyNode",
+            "default": "255",
+            "values": null
+        },
+        {
+            "id": "NODE_VISIBLE",
+            "name": "Node Visible",
+            "target": "CyNode",
+            "default": "true",
+            "values": null
+        },
+        {
+            "id": "NODE_WIDTH",
+            "name": "Node Width",
+            "target": "CyNode",
+            "default": "60.0",
+            "values": null
+        },
+        {
+            "id": "NODE_X_LOCATION",
+            "name": "Node X Location",
+            "target": "CyNode",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NODE_Y_LOCATION",
+            "name": "Node Y Location",
+            "target": "CyNode",
+            "default": "0.0",
+            "values": null
+        },
+        {
+            "id": "NODE_Z_LOCATION",
+            "name": "Node Z Location",
+            "target": "CyNode",
+            "default": "0.0",
+            "values": null
+        }
+    ]
+}

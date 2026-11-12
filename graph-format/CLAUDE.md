@@ -43,7 +43,7 @@ graph-format/
 |   +-- snapshot/                 # graph-snapshot.ts views.ts queries.ts derived.ts validate.ts hash.ts
 |   +-- populate/                 # from-edge-arrays.ts from-csr.ts from-records.ts
 |   +-- wire/                     # to-wire.ts from-wire.ts bytes.ts (GSNP container)
-|   +-- util/                     # typed-array.ts mask.ts shared-buffers.ts (the 9.1 owner count)
+|   +-- util/                     # typed-array.ts mask.ts shared-buffers.ts (the 9.1 owner count), det-math.ts (engine-independent log, exp, sin, cos, acos, hypot, pow)
 |   +-- lib-resizable-array-buffer.d.ts   # local declaration for resizable / resize / maxByteLength
 +-- test/
 |   +-- helpers/                  # parts.ts (naive CSR + SnapshotParts), invariants.ts (I1-I18 checks), model-graph.ts, random-ops.ts
@@ -186,6 +186,10 @@ npm run ready:commit
 - `test/wire/golden.test.ts` compares `test/fixtures/rich-v1.gsnp` byte for byte (modulo `producer`);
   a deliberate layout change regenerates it with `tmp/make-golden.ts`.
 - `test/build-output.test.ts` checks the package.json shape and, when `dist/` exists, the build output.
+
+### Test projects
+
+- Single test project (Node.js); `test/types/*.test-d.ts` are compile-only (`npm run typecheck:strict-consumer` after a build)
 
 ## Adding a View
 

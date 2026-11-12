@@ -1,4 +1,4 @@
-import { Box, Text, UnstyledButton } from "@mantine/core";
+import { Box, Text, UnstyledButton, VisuallyHidden } from "@mantine/core";
 import React, { useId } from "react";
 
 import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
@@ -271,11 +271,13 @@ function detailsVariantWarning(
 //   text navigation. Naming it would be worse than leaving it alone -- WAI-ARIA
 //   "Providing Accessible Names and Descriptions" is explicit that a name must
 //   not replace content that says the same thing.
-// - departure: the WAI-ARIA `note` document-structure role, named from the
-//   `departure` label, so the severity the yellow triangle draws is also
-//   stated. Without it the line is text in a color, which fails WCAG 1.4.1.
-//   The triangle itself is then decorative and hidden, so the name is not read
-//   twice.
+// - departure: the WAI-ARIA `note` document-structure role, named by its own
+//   words: aria-labelledby joins the severity word (the `departure` label,
+//   "Warning" by default, visually hidden) and the line itself. The severity
+//   word is in the content as well as the name, so a screen reader that reads
+//   the note's content rather than its name still says it. Without it the line
+//   is text in a color, which fails WCAG 1.4.1. The triangle itself is
+//   decorative and hidden, so it adds nothing to the name or the content.
 // - runRecord: the APG "Button" pattern for the chevron. It is icon-only, so it
 //   takes its name from the `details` label, and `aria-describedby` points at
 //   the line it belongs to, which is how the full untruncated text reaches
@@ -347,6 +349,7 @@ export function ProseBlock({ variant, children, onDetails, busy, live }: ProseBl
     const labels = useLabels();
     const direction = useDirection();
     const lineId = useId();
+    const severityId = useId();
 
     useDevWarning(readingLengthWarning(variant, children));
     useDevWarning(detailsVariantWarning(variant, onDetails));
@@ -370,7 +373,7 @@ export function ProseBlock({ variant, children, onDetails, busy, live }: ProseBl
             <Box
                 {...announcement}
                 role="note"
-                aria-label={labels.departure}
+                aria-labelledby={`${severityId} ${lineId}`}
                 data-testid="prose-block"
                 data-variant={variant}
                 style={{
@@ -379,9 +382,15 @@ export function ProseBlock({ variant, children, onDetails, busy, live }: ProseBl
                     gap: INLINE_GAP,
                 }}
             >
-                {/* The triangle is decorative: the note around it already
-                    carries the name, and a second copy on the glyph would be
-                    read out twice. */}
+                {/* The severity in words, for assistive technology only: the
+                    triangle says it to the eye. Absolutely positioned, so it
+                    takes no place in the row. */}
+                <VisuallyHidden component="span" id={severityId}>
+                    {labels.departure}
+                </VisuallyHidden>
+                {/* The triangle is decorative: the words beside it already say
+                    the severity, and a second copy on the glyph would be read
+                    out twice. */}
                 <Box
                     aria-hidden
                     data-testid="prose-block-warning"
@@ -397,7 +406,7 @@ export function ProseBlock({ variant, children, onDetails, busy, live }: ProseBl
                 >
                     <UiGlyph name="warning" size={PANEL_GRID.GLYPH} />
                 </Box>
-                <Text span data-testid="prose-block-text" className="cm-chart-value">
+                <Text span id={lineId} data-testid="prose-block-text" className="cm-chart-value">
                     {children}
                 </Text>
             </Box>

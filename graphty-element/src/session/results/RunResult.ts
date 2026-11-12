@@ -442,21 +442,34 @@ function valueAt(table: ElementTable, field: string, position: number): unknown 
 }
 
 /**
+ * Where a table holds an element, trying the id's other spelling when the first finds nothing.
+ * @param table - The table.
+ * @param id - The element's id.
+ * @returns The element's position, or undefined when the table holds no such id.
+ */
+function heldPositionOf(table: ElementTable, id: NodeId): number | undefined {
+    const held = (at: number): boolean => at >= 0 && at < table.length;
+    const position = table.index.indexOf(id);
+    if (held(position)) {
+        return position;
+    }
+
+    // An integer id may be written either way: `"34"` finds node `34`, `17` finds edge `"17"`.
+    const other = otherIdSpelling(id);
+    const otherPosition = other === undefined ? -1 : table.index.indexOf(other);
+    return held(otherPosition) ? otherPosition : undefined;
+}
+
+/**
  * One element's fields, built from the columns.
  * @param table - The table.
  * @param id - The element's id.
  * @returns A frozen record, or undefined when the table holds no such id.
  */
 function recordOf(table: ElementTable, id: NodeId): Readonly<Record<string, unknown>> | undefined {
-    const held = (at: number): boolean => at >= 0 && at < table.length;
-    let position = table.index.indexOf(id);
-    if (!held(position)) {
-        // An integer id may be written either way: `"34"` finds node `34`, `17` finds edge `"17"`.
-        const other = otherIdSpelling(id);
-        position = other === undefined ? -1 : table.index.indexOf(other);
-        if (!held(position)) {
-            return undefined;
-        }
+    const position = heldPositionOf(table, id);
+    if (position === undefined) {
+        return undefined;
     }
 
     const pending = table.pendingRanks;
@@ -914,14 +927,20 @@ function summaryValueField(shape: ResultShape): string | null {
  * @param limit - How many rows a summary may carry.
  * @param named - Whether each group gets its rank and display name, which a partition into
  *   groups does and a table of levels or of named categories does not.
- * @returns The groups, bounded, or undefined when the value is not a table this can read.
+ * @returns The groups, bounded, and how many the whole table holds, or undefined when the value is
+ *   not a table this can read.
  */
-function toSummaryGroups(value: unknown, limit: number, named: boolean): readonly SummaryGroup[] | undefined {
+function toSummaryGroups(
+    value: unknown,
+    limit: number,
+    named: boolean,
+): { readonly groups: readonly SummaryGroup[]; readonly groupCount: number } | undefined {
     if (!Array.isArray(value)) {
         return undefined;
     }
 
     const groups: SummaryGroup[] = [];
+    let groupCount = 0;
 
     for (const row of value) {
         if (typeof row !== "object" || row === null) {
@@ -932,16 +951,15 @@ function toSummaryGroups(value: unknown, limit: number, named: boolean): readonl
         const group = record.group ?? record.category;
         const size = record.size ?? record.count;
         if (isGroupKey(group) && typeof size === "number") {
-            const rank = groups.length + 1;
-            groups.push(Object.freeze(named ? { group, size, rank, name: groupName(rank) } : { group, size }));
-        }
-
-        if (groups.length === limit) {
-            break;
+            groupCount++;
+            if (groups.length < limit) {
+                const rank = groupCount;
+                groups.push(Object.freeze(named ? { group, size, rank, name: groupName(rank) } : { group, size }));
+            }
         }
     }
 
-    return Object.freeze(groups);
+    return { groups: Object.freeze(groups), groupCount };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1195,6 +1213,21 @@ class Result implements RunResult {
         return this.#summary;
     }
 
+    groupRanks(): ReadonlyMap<string, number> | undefined {
+        const { sizes } = this.graph;
+        if (this.shape !== "community" || !Array.isArray(sizes)) {
+            return undefined;
+        }
+
+        // `sizes` is largest first, ties broken as the summary and the legend break them.
+        this.#groupRanks ??= new Map(
+            (sizes as readonly { readonly group: unknown }[]).map((row, position) => [String(row.group), position + 1]),
+        );
+        return this.#groupRanks;
+    }
+
+    #groupRanks: ReadonlyMap<string, number> | undefined;
+
     /**
      * What this result means, in one sentence of plain language.
      * @param options - The locale and how technical to be.
@@ -1345,6 +1378,21 @@ class Result implements RunResult {
     }
 
     /**
+     * The ids of the elements one half publishes values for, in the result's own order.
+     * @param half - Nodes or edges.
+     * @returns The ids.
+     */
+    elementIds(half: "node" | "edge"): NodeId[] {
+        const table = half === "node" ? this.#nodes : this.#edges;
+        const ids: NodeId[] = [];
+        for (let position = 0; position < table.length; position++) {
+            ids.push(table.index.idOf(position));
+        }
+
+        return ids;
+    }
+
+    /**
      * The id indexes this result reads through, for whoever charges for them.
      * @returns One per half that holds elements.
      */
@@ -1421,9 +1469,9 @@ class Result implements RunResult {
         };
 
         const table = this.graph.sizes ?? this.graph.categories;
-        const groups = toSummaryGroups(table, SUMMARY_GROUP_LIMIT, this.shape === "community");
+        const grouped = toSummaryGroups(table, SUMMARY_GROUP_LIMIT, this.shape === "community");
 
-        return Object.freeze(groups === undefined ? summary : { ...summary, groups });
+        return Object.freeze(grouped === undefined ? summary : { ...summary, ...grouped });
     }
 
     /**
@@ -1517,6 +1565,16 @@ interface RetainedIndex {
  */
 export function retentionOf(result: RunResult): { readonly bytes: number; readonly indexes: readonly RetainedIndex[] } {
     return result instanceof Result ? { bytes: result.byteSize, indexes: result.indexes() } : { bytes: 0, indexes: [] };
+}
+
+/**
+ * The ids of the elements one half of a result publishes values for.
+ * @param result - The result; one this module did not build publishes none it can list.
+ * @param half - Nodes or edges.
+ * @returns The ids.
+ */
+export function elementIdsOf(result: RunResult, half: "node" | "edge"): readonly NodeId[] {
+    return result instanceof Result ? result.elementIds(half) : [];
 }
 
 /**

@@ -43,48 +43,55 @@ export function graphtyManifestPlugin() {
 
             for (const module of customElementsManifest.modules ?? []) {
                 for (const declaration of module.declarations ?? []) {
-                    if (declaration.tagName !== TAG_NAME) {
-                        continue;
+                    if (declaration.tagName === TAG_NAME) {
+                        rewriteElementDeclaration(declaration, own, forwarded);
                     }
-
-                    declaration.members = (declaration.members ?? []).filter(
-                        (member) => typeof member.name === "string" && !member.name.startsWith("#"),
-                    );
-
-                    /** @type {Map<string, Record<string, unknown>>} */
-                    const events = new Map();
-
-                    // The element's own events come from its declaration, keeping whatever the
-                    // analyzer found about each. Nothing else the analyzer found is kept: an event
-                    // dispatched under a computed name comes out named after the variable that
-                    // held it ("name").
-                    const analyzed = new Map((declaration.events ?? []).map((event) => [event.name, event]));
-
-                    for (const event of own) {
-                        events.set(event.name, {
-                            ...analyzed.get(event.name),
-                            name: event.name,
-                            type: { text: event.type },
-                        });
-                    }
-
-                    for (const event of forwarded) {
-                        if (events.has(event.name)) {
-                            continue;
-                        }
-
-                        events.set(event.name, {
-                            name: event.name,
-                            type: { text: `CustomEvent<${event.detail}>` },
-                            ...(event.description ? { description: event.description } : {}),
-                        });
-                    }
-
-                    declaration.events = [...events.values()].sort((a, b) =>
-                        String(a.name).localeCompare(String(b.name)),
-                    );
                 }
             }
         },
     };
+}
+
+/**
+ * Rewrites the element's declaration: drops its private members and lists its events, its own
+ * first and then the ones it forwards, sorted by name.
+ * @param {Record<string, unknown>} declaration - The element's declaration in the manifest.
+ * @param {ReturnType<typeof readOwnDomEvents>} own - The events the element dispatches itself.
+ * @param {ReturnType<typeof readDomEvents>} forwarded - The events the element forwards.
+ */
+function rewriteElementDeclaration(declaration, own, forwarded) {
+    declaration.members = (declaration.members ?? []).filter(
+        (member) => typeof member.name === "string" && !member.name.startsWith("#"),
+    );
+
+    /** @type {Map<string, Record<string, unknown>>} */
+    const events = new Map();
+
+    // The element's own events come from its declaration, keeping whatever the
+    // analyzer found about each. Nothing else the analyzer found is kept: an event
+    // dispatched under a computed name comes out named after the variable that
+    // held it ("name").
+    const analyzed = new Map((declaration.events ?? []).map((event) => [event.name, event]));
+
+    for (const event of own) {
+        events.set(event.name, {
+            ...analyzed.get(event.name),
+            name: event.name,
+            type: { text: event.type },
+        });
+    }
+
+    for (const event of forwarded) {
+        if (events.has(event.name)) {
+            continue;
+        }
+
+        events.set(event.name, {
+            name: event.name,
+            type: { text: `CustomEvent<${event.detail}>` },
+            ...(event.description ? { description: event.description } : {}),
+        });
+    }
+
+    declaration.events = [...events.values()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
 }

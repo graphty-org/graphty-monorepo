@@ -2,10 +2,11 @@ import "../src/data/index.ts"; // Ensure all data sources are registered
 // Registers the <graphty-element> custom element; nothing is referenced by name.
 import "../src/graphty-element";
 
-import { Matrix, Vector3 } from "@babylonjs/core";
+import { Matrix, type Mesh, Vector3 } from "@babylonjs/core";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
-import isChromatic from "chromatic/isChromatic";
 
+import { GLYPH_DRAW_NAME } from "../src/meshes/GlyphLabels";
+import { ON_TOP_RENDERING_GROUP } from "../src/meshes/RichTextLabel";
 import {
     assertDistinctPicture,
     assertGraphLoaded,
@@ -17,7 +18,14 @@ import {
     holds,
 } from "./assertions";
 import { catSocialNetwork2FixedUrl, catSocialNetwork2Url } from "./datasets";
-import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup, waitForGraphSettled } from "./helpers";
+import {
+    eventWaitingDecorator,
+    isVisualCapture,
+    renderFn,
+    type StoryArgs,
+    storySetup,
+    waitForGraphSettled,
+} from "./helpers";
 import { drawnMargins, drawnText, labelDigest, type LabelGeometry, labelGeometry, labelMotion } from "./label-geometry";
 
 /**
@@ -1169,10 +1177,50 @@ export const Pointer: Story = {
 };
 
 /**
+ * A label with a close button: an x in the panel's top-right corner, in the text colour. A click
+ * on the x clears the selection; a click on the rest of the panel does nothing. The clicks
+ * themselves are tested under real input in test/interactions/label-close-button.test.ts; this
+ * story checks that every label draws its x and reports where it is.
+ */
+export const CloseButton: Story = {
+    args: {
+        ...CAT_NETWORK,
+        setup: storySetup({
+            node: {
+                "node.labelStyle": {
+                    background: "#FFFFFF",
+                    borderWidth: 2,
+                    borderColor: "#C5CAD6",
+                    cornerRadius: 12,
+                    padding: 8,
+                    closeButton: true,
+                },
+            },
+            nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
+        }),
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await labelled(canvasElement, "CloseButton");
+        const missing = scene.nodes.filter((node) => {
+            const label = scene.element.labelOf(node.id);
+            return label?.drawn === true && label.closeRect === undefined;
+        });
+
+        await holds(
+            missing.length === 0,
+            `Styles/Label CloseButton: every label asks for a close button and ${String(missing.length)} drawn ` +
+                `labels report no place for it: ${missing.map((node) => node.id).join(", ")}`,
+        );
+
+        await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
+    },
+};
+
+/**
  * A label that moves.
  *
  * TWO READINGS A FEW FRAMES APART, because one reading of an animated label is a still label at
- * some scale, which is indistinguishable from a label that never moved. Under Chromatic the
+ * some scale, which is indistinguishable from a label that never moved. Under visual capture the
  * animation is switched off, so that a per-story baseline is a picture of one thing rather than of
  * whatever the pulse happened to be doing -- and the reading below asks for stillness instead.
  */
@@ -1182,7 +1230,7 @@ export const Animation: Story = {
         setup: storySetup({
             node: {
                 "node.labelStyle": {
-                    animation: isChromatic() ? "none" : "pulse",
+                    animation: isVisualCapture() ? "none" : "pulse",
                     animationSpeed: 2,
                     background: "#FF3B30",
                     color: "#FFFFFF",
@@ -1200,7 +1248,7 @@ export const Animation: Story = {
         const scene = await labelled(canvasElement, "Animation");
         const moved = await labelMotion(scene);
 
-        if (isChromatic()) {
+        if (isVisualCapture()) {
             await holds(
                 moved.scale === 0,
                 `Styles/Label Animation: the animation is switched off for the baseline and a label still ` +
@@ -1372,6 +1420,58 @@ export const MaxNumber: Story = {
 };
 
 /**
+ * A long label wrapped to a width and cut to a number of lines.
+ *
+ * Every cat is named "Department of Health and Human Services", wrapped to a width of about three
+ * words. The indoor cats keep one line and the rest keep two, each ending in an ellipsis where the
+ * rest of the name was cut.
+ */
+export const WrappedLabels: Story = {
+    args: {
+        ...CAT_NETWORK,
+        setup: storySetup({
+            node: {
+                "node.label": "Department of Health and Human Services",
+                "node.labelStyle": { wrapWidth: 4, maxLines: 2 },
+            },
+            layers: [
+                {
+                    name: "Indoor cats keep one line",
+                    target: "node",
+                    selector: { match: "expression", where: "data.indoor_outdoor == 'indoor'" },
+                    set: { "node.labelStyle": { wrapWidth: 4, maxLines: 1 } },
+                },
+            ],
+        }),
+    },
+    parameters: {
+        controls: {
+            include: ["node.labelStyle.wrapWidth", "node.labelStyle.maxLines", "node.label"],
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await labelled(canvasElement, "WrappedLabels");
+        const labels = labelGeometry(scene);
+        const one = new Set(labels.filter((label) => INDOOR.includes(label.id)).map((label) => label.texture.height));
+        const two = new Set(labels.filter((label) => !INDOOR.includes(label.id)).map((label) => label.texture.height));
+
+        await holds(
+            one.size === 1 && two.size === 1,
+            `Styles/Label WrappedLabels: each half of the graph draws one string, so each should be one height; ` +
+                `the seven drew ${String(one.size)} heights and the thirteen drew ${String(two.size)}`,
+        );
+
+        await holds(
+            [...one][0] < [...two][0],
+            `Styles/Label WrappedLabels: one line should be shorter than two, and the indoor cats drew ` +
+                `${String([...one][0])} pixels tall against ${String([...two][0])}`,
+        );
+
+        await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
+    },
+};
+
+/**
  * What is drawn after a number that has been shortened.
  *
  * Both halves of the graph stop counting at 99. The indoor cats finish with a single `+` and the
@@ -1449,6 +1549,64 @@ export const TextAlign: Story = {
                 `labels the first line still starts well into the canvas -- ${centred
                     .map((label) => `${label.id} starts at ${(label.band.top.from * 100).toFixed(0)}%`)
                     .join(", ")}`,
+        );
+
+        await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
+    },
+};
+
+/**
+ * Words built from several values, one line each.
+ *
+ * The layer writes `node.label` as a template: the first line reads the node's name, the second
+ * reads its team as a place among the teams and how many there are. The node with no team has no
+ * second line, and the node whose name is written in label markup shows that markup as text,
+ * because a value from the data is never read as markup.
+ */
+export const TextTemplate: Story = {
+    args: {
+        // Empty, so the cat network the file's default args load gives way to the nodes below.
+        dataSource: "",
+        nodeData: [
+            { id: "a", name: "Ada", team: 7, position: { x: -6, y: 0, z: 0 } },
+            { id: "b", name: "Bo", team: 3, position: { x: 0, y: 0, z: 0 } },
+            { id: "c", name: "<color='#ff0000'>Cy</color>", position: { x: 6, y: 0, z: 0 } },
+        ],
+        edgeData: [
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ],
+        layout: "fixed",
+        layoutConfig: { dim: 3 },
+        setup: storySetup({
+            nodeEncode: {
+                "node.label": { template: ["<bold>{data.name}</bold>", "Team {data.team|rank} of {data.team|count}"] },
+            },
+        }),
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await labelled(canvasElement, "TextTemplate", { nodes: 3, edges: 2 });
+        const heightOf = (id: string): number => {
+            const box = scene.graph.getNode(id)?.label?.labelMesh?.getBoundingInfo().boundingBox;
+
+            return box ? box.maximum.y - box.minimum.y : 0;
+        };
+        const twoLines = heightOf("a");
+        const oneLine = heightOf("c");
+
+        await holds(
+            oneLine > 0 && twoLines / oneLine >= 1.6 && Math.abs(heightOf("b") / twoLines - 1) <= 0.05,
+            `Styles/Label TextTemplate: Ada and Bo have a team, so their labels have two lines, and Cy has none, ` +
+                `so its team line is left out; the labels are ${twoLines.toFixed(2)}, ${heightOf("b").toFixed(2)} ` +
+                `and ${oneLine.toFixed(2)} world units tall`,
+        );
+
+        const red = labelGeometry(scene, "#ff0000").find((label) => label.id === "c");
+
+        await holds(
+            red !== undefined && red.ink.width === 0,
+            "Styles/Label TextTemplate: Cy's name holds a color tag, and a value from the data is drawn as text, " +
+                `so none of its label should be red; red ink covers ${String(red?.ink.width)} pixels across`,
         );
 
         await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
@@ -1556,6 +1714,72 @@ export const DepthFade: Story = {
     },
 };
 
+/**
+ * Two large spheres, each in front of a small node whose label hangs behind it. The default
+ * (left) sorts the label by depth, so the nearer sphere hides it; `onTop` (right) draws it over
+ * the whole graph, so it stays whole.
+ */
+const BEHIND_SPHERES = [
+    { id: "front left", position: { x: -6, y: 0, z: -8 } },
+    { id: "behind left", position: { x: -6, y: -1, z: 4 } },
+    { id: "front right", position: { x: 6, y: 0, z: -8 } },
+    { id: "behind right", position: { x: 6, y: -1, z: 4 } },
+];
+
+export const OnTop: Story = {
+    args: {
+        dataSource: "",
+        nodeData: BEHIND_SPHERES,
+        edgeData: [],
+        layout: "fixed",
+        layoutConfig: { dim: 3 },
+        setup: storySetup({
+            layers: [
+                {
+                    name: "big front spheres",
+                    selector: { match: "ids", nodes: ["front left", "front right"] },
+                    set: { "node.size": 4 },
+                },
+                {
+                    name: "depth sorted label",
+                    selector: { match: "ids", nodes: ["behind left"] },
+                    set: { "node.label": "Hidden", "node.labelStyle": { sizePx: 64 } },
+                },
+                {
+                    name: "label on top",
+                    selector: { match: "ids", nodes: ["behind right"] },
+                    set: { "node.label": "On top", "node.labelStyle": { sizePx: 64, onTop: true } },
+                },
+            ],
+        }),
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await loaded(canvasElement, "OnTop", { nodes: BEHIND_SPHERES.length, edges: 0 });
+        const groupOf = (id: string): number | undefined => scene.graph.getNode(id)?.label?.labelMesh?.renderingGroupId;
+
+        // A label is drawn in its own group after the graph's (so no glow covers its words), and only
+        // an onTop label's group clears the depth the graph left: the default one still sorts by depth.
+        const clearsDepth = (id: string): boolean | undefined => {
+            const group = groupOf(id);
+            if (group === undefined) {
+                return undefined;
+            }
+            const setup = scene.graph.scene.getAutoClearDepthStencilSetup(group);
+            return setup.autoClear && setup.depth;
+        };
+        await holds(
+            groupOf("behind left") !== ON_TOP_RENDERING_GROUP && clearsDepth("behind left") === false,
+            `Styles/Label OnTop: the default label should sort by depth (a group that keeps the depth), got group ${String(groupOf("behind left"))}, clears depth ${String(clearsDepth("behind left"))}`,
+        );
+        await holds(
+            groupOf("behind right") === ON_TOP_RENDERING_GROUP,
+            `Styles/Label OnTop: the onTop label should draw over the graph (group ${String(ON_TOP_RENDERING_GROUP)}), got ${String(groupOf("behind right"))}`,
+        );
+
+        await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
+    },
+};
+
 export const EmojiLabels: Story = {
     args: {
         ...CAT_NETWORK,
@@ -1589,6 +1813,38 @@ export const EmojiLabels: Story = {
         );
 
         await assertDistinctPicture(scene, "Styles/Label");
+    },
+};
+
+/**
+ * Every cat's name drawn from one shared atlas of glyphs, in one draw, with
+ * `layoutBehavior.labels.labelText: "glyphs"`. The words sit where the canvas labels of Default put
+ * them; their edges come from a distance field, so they differ slightly from the canvas's.
+ */
+export const AtlasText: Story = {
+    args: {
+        ...CAT_NETWORK,
+        setup: storySetup({
+            nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
+            labelText: "glyphs",
+        }),
+    },
+    play: async ({ canvasElement }) => {
+        const { graph } = await loaded(canvasElement, "AtlasText");
+        const glyphs = graph.scene.meshes.filter((mesh) => mesh.name === GLYPH_DRAW_NAME);
+        const canvasDrawn = [...graph.getDataManager().nodes.values()].filter(
+            (node) => node.label !== undefined && node.label.drawnBy !== "glyphs",
+        );
+
+        await holds(glyphs.length === 1, `Styles/Label AtlasText: ${String(glyphs.length)} glyph draws, not one`);
+        await holds(
+            ((glyphs[0] as Mesh | undefined)?.thinInstanceCount ?? 0) > 0,
+            "Styles/Label AtlasText: the glyph draw holds no glyphs",
+        );
+        await holds(
+            canvasDrawn.length === 0,
+            `Styles/Label AtlasText: ${String(canvasDrawn.length)} plain labels were drawn on their own canvas`,
+        );
     },
 };
 
@@ -1698,5 +1954,108 @@ export const Declutter: Story = {
         await holds(hidden > 0, "Styles/Label Declutter: 128-pixel labels on twenty cats hid none");
         await holds(shown.length > 1, `Styles/Label Declutter: only ${String(shown.length)} label is drawn`);
         await assertDistinctPicture(scene, "Styles/Label");
+    },
+};
+
+/**
+ * Where each drawn label's plane is on screen, in the render's pixels.
+ * @param scene - What the story drew.
+ * @returns One rectangle per drawn label.
+ */
+function planesOnScreen(scene: Drawn): { id: string; left: number; right: number; top: number; bottom: number }[] {
+    const { graph } = scene;
+    const camera = graph.scene.activeCamera;
+    if (camera === null) {
+        return [];
+    }
+
+    const engine = graph.scene.getEngine();
+    const viewport = camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
+    const transform = camera.getViewMatrix().multiply(camera.getProjectionMatrix());
+    return graph.getNodes().flatMap((node) => {
+        const plane = node.label?.labelMesh;
+        if (!plane || plane.isDisposed() || !plane.isEnabled()) {
+            return [];
+        }
+
+        plane.computeWorldMatrix(true);
+        const xs: number[] = [];
+        const ys: number[] = [];
+        for (const corner of plane.getBoundingInfo().boundingBox.vectorsWorld) {
+            const p = Vector3.Project(corner, Matrix.Identity(), transform, viewport);
+            xs.push(p.x);
+            ys.push(p.y);
+        }
+
+        return [
+            {
+                id: String(node.id),
+                left: Math.min(...xs),
+                right: Math.max(...xs),
+                top: Math.min(...ys),
+                bottom: Math.max(...ys),
+            },
+        ];
+    });
+}
+
+export const ScreenSizedLabels: Story = {
+    args: {
+        ...CAT_NETWORK,
+        setup: storySetup({
+            node: { "node.labelStyle": { sizeMode: "screen", sizePx: 14 } },
+            nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
+        }),
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await labelled(canvasElement, "ScreenSizedLabels");
+        const heights = planesOnScreen(scene).map((plane) => plane.bottom - plane.top);
+        const spread = Math.max(...heights) - Math.min(...heights);
+
+        // Twenty cats at twenty depths: world-sized labels would be twenty heights.
+        await holds(
+            heights.length === CAT_NETWORK_SIZE.nodes && spread <= 2,
+            `Styles/Label ScreenSizedLabels: every label should be drawn the same height on screen whatever its ` +
+                `depth -- ${heights.map((h) => h.toFixed(1)).join(", ")}`,
+        );
+        await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
+    },
+};
+
+export const KeepInView: Story = {
+    args: {
+        ...CAT_NETWORK,
+        setup: storySetup({
+            node: {
+                "node.labelStyle": {
+                    sizeMode: "screen",
+                    sizePx: 14,
+                    location: "right",
+                    keepInView: true,
+                    background: "#ffffff",
+                    borderWidth: 1,
+                    borderColor: "#c5cad6",
+                    padding: 4,
+                },
+            },
+            nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
+        }),
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await labelled(canvasElement, "KeepInView");
+        const engine = scene.graph.scene.getEngine();
+        const width = engine.getRenderWidth();
+        const height = engine.getRenderHeight();
+        const out = planesOnScreen(scene).filter(
+            (p) => p.left < -1 || p.top < -1 || p.right > width + 1 || p.bottom > height + 1,
+        );
+
+        await holds(
+            out.length === 0,
+            `Styles/Label KeepInView: every label should be drawn inside the canvas; these cross its edge: ${out
+                .map((p) => p.id)
+                .join(", ")}`,
+        );
+        await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
     },
 };

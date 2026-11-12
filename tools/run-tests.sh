@@ -11,6 +11,9 @@
 #   ./tools/run-tests.sh [--list]   print the shard names
 #   ./tools/run-tests.sh <shard>    run one shard
 #   ./tools/run-tests.sh all        run every shard in turn, then list the ones that failed
+#   ./tools/run-tests.sh --command <shard> <command>
+#                                   run <command> in <shard>'s environment and judge it by its own
+#                                   output (a selection of the shard's test files: tools/test-changed.mjs)
 #
 # Build first, as CI does: pnpm exec nx run-many -t build
 #
@@ -20,6 +23,9 @@
 # (visual-fonts/, through FONTCONFIG_FILE), and for the lavapipe shard the Mesa
 # lavapipe Vulkan ICD with GRAPHTY_GPU_ADAPTER=llvmpipe and GRAPHTY_GPU_REQUIRE=any. Install
 # mesa-vulkan-drivers for that one, or set VK_DRIVER_FILES yourself.
+#
+# A shard passes only when its command exits 0 AND its output holds the vitest run summary of each
+# run, and the reports it asks vitest for were written (tools/shard-verdict.mjs).
 
 set -uo pipefail
 
@@ -36,13 +42,14 @@ SHARDS="$(MATRIX="$ROOT/tools/ci-test-matrix.mjs" node --input-type=module -e '
 ')" || exit 1
 
 run_shard() {
-    local name="$1" line browser lavapipe cmd icd
+    local name="$1" given="${2:-}" line browser lavapipe cmd icd
     line="$(awk -F'\t' -v n="$name" '$1 == n' <<<"$SHARDS")"
     if [ -z "$line" ]; then
         echo "tools/run-tests.sh: no shard named '$name' (--list shows them)" >&2
         return 2
     fi
     IFS=$'\t' read -r _ browser lavapipe cmd <<<"$line"
+    cmd="${given:-$cmd}"
     (
         export CI=true
         if [ "$browser" = 1 ]; then
@@ -70,7 +77,17 @@ run_shard() {
             export GRAPHTY_GPU_ADAPTER=llvmpipe GRAPHTY_GPU_REQUIRE=any XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}"
         fi
         echo "==> $name: $cmd"
-        sh -c "$cmd"
+        # Exit 0 alone is not a pass: a pnpm older than 10.29.1 on PATH reports a pnpm exec killed by a
+        # signal as exit 0. tools/shard-verdict.mjs also asks for the vitest summary and the reports.
+        # The log lives in the checkout's own tmp/, not /tmp: other processes on this machine clear /tmp
+        # entries they did not make, and a log removed before the verdict read it failed a passing shard.
+        mkdir -p "$ROOT/tmp/run-tests" || exit 1
+        logdir="$(mktemp -d "$ROOT/tmp/run-tests/$name.XXXXXX")" || exit 1
+        trap 'rm -rf "$logdir"' EXIT
+        log="$logdir/output.log"
+        start="$(node -p 'Date.now()')"
+        sh -c "$cmd" 2>&1 | tee "$log"
+        node "$ROOT/tools/shard-verdict.mjs" "$name" "${PIPESTATUS[0]}" "$log" "$start" ${given:+"$given"}
     )
 }
 
@@ -88,6 +105,13 @@ case "${1:---list}" in
             exit 1
         fi
         echo "all shards passed"
+        ;;
+    --command)
+        if [ "$#" -ne 3 ]; then
+            echo "usage: tools/run-tests.sh --command <shard> <command>" >&2
+            exit 2
+        fi
+        run_shard "$2" "$3"
         ;;
     -h | --help)
         sed -n '3,20p' "$0" | sed 's/^# \{0,1\}//'

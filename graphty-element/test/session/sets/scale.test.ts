@@ -70,7 +70,6 @@ async function runFrames(): Promise<void> {
     }
 }
 
-// eslint-disable-next-line local/no-test-timing -- no condition to wait on, loading the 100,000-node, 500,000-edge graph and its sets takes about 2 s locally and an estimated 8 s on CI (the file's 15 s locally is 61 s there), more than a third of the 10 s hook budget; tracked in #1636
 beforeAll(async () => {
     h = makeSession({ directed: false });
     h.add(
@@ -116,7 +115,7 @@ beforeAll(async () => {
         report: () => undefined,
     });
     await runFrames();
-}, 120_000);
+});
 
 afterAll(() => {
     edgeIndexOf.mockRestore();

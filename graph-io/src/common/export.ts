@@ -214,7 +214,8 @@ export function refusedSave(
     if (note === undefined) {
         return null;
     }
-    const code = codes[note.code] ?? REFUSAL_CODES[note.code] ?? "E_UNSUPPORTED";
+    const own: Readonly<Partial<Record<string, RefusalCode>>> = codes;
+    const code = own[note.code] ?? REFUSAL_CODES[note.code] ?? "E_UNSUPPORTED";
     return new GraphFormatError(code, note.message, { code: note.code, column: note.column, count: note.count });
 }
 
@@ -222,7 +223,7 @@ export function refusedSave(
 type RefusalCode = "E_INVALID_ID" | "E_DIRECTED" | "E_COLUMN_TYPE" | "E_UNSUPPORTED";
 
 /** The error code a save throws for each shared refusal note. */
-const REFUSAL_CODES: Readonly<Record<string, RefusalCode>> = {
+const REFUSAL_CODES: Readonly<Partial<Record<string, RefusalCode>>> = {
     [ID_CHARSET_REFUSAL]: "E_INVALID_ID",
     [ID_TEXT_COLLISION_CODE]: "E_INVALID_ID",
     [MIXED_DIRECTION_CODE]: "E_DIRECTED",
@@ -335,6 +336,24 @@ export interface CheckExtras {
      * W_ID_TEXT_TYPE. Omit it when the format records each id's type.
      */
     readonly idsReadBack?: IdCoercion | undefined;
+    /**
+     * True for a format that writes a column with the role `color`, `size`, `shape` or `thickness` as a plain
+     * attribute when it has no slot for it: its W_VIZ_DROPPED note then says the value is kept and the role is lost.
+     * Default false: the note says the column cannot be written.
+     *
+     * Deprecated behavior, kept unchanged until the next major version: a writer that stores a role column as a plain
+     * attribute (JSON, Neo4j CSV) keeps writing it that way. Styles reach a file through the style writer
+     * (`ExportOptions.styles`); in the next major version role columns are written only into a format's style slots.
+     */
+    readonly vizAsAttributes?: boolean | undefined;
+}
+
+/**
+ * The deprecated `ExportCapabilities.viz` fact, read only by the deprecated role-column notes below, which are what it
+ * describes.
+ */
+interface RoleSlots {
+    readonly viz: boolean;
 }
 
 /** The roles checkCapabilities() treats structurally rather than as attribute columns. */
@@ -371,50 +390,9 @@ export function checkCapabilities(
         checkEdgeStructure(snapshot, caps, options, note);
     }
 
-    const unrepresentable = countUnrepresentableIds(snapshot, caps.idCharset);
-    if (unrepresentable > 0) {
-        if (caps.idCharset === "dense-1-based") {
-            note(
-                LOSS.ID_RENUMBERED,
-                options.sanitizeIds === "mangle"
-                    ? `${unrepresentable} node id${plural(unrepresentable)} ${agree(unrepresentable, "is", "are")} not their 1-based index; nodes are numbered 1..N, the original ids are written too, and an import with restoreMangledIds: true reads them back as the ids; they are also the labels of nodes without a label value`
-                    : `${unrepresentable} node id${plural(unrepresentable)} ${agree(unrepresentable, "is", "are")} not their 1-based index; nodes are numbered 1..N and ids kept as labels of the nodes without a label value (a node with one loses its id)`,
-                null,
-                unrepresentable,
-            );
-        } else if (options.sanitizeIds === "mangle") {
-            note(
-                LOSS.ID_MANGLED,
-                `${unrepresentable} node id${plural(unrepresentable)} ${charsetText(caps.idCharset, unrepresentable)}, so they are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back`,
-                null,
-                unrepresentable,
-            );
-        } else {
-            note(
-                LOSS.ID_CHARSET,
-                `${unrepresentable} node id${plural(unrepresentable)} ${charsetText(caps.idCharset, unrepresentable)}, so the save fails unless sanitizeIds is "mangle"`,
-                null,
-                unrepresentable,
-            );
-        }
-    }
-
+    checkIdCharset(snapshot, caps, options, note);
     if (extras.idsReadBack !== undefined) {
-        let retyped = 0;
-        for (let i = 0; i < snapshot.nodeCount; i++) {
-            const id = snapshot.ids.idOf(i);
-            if (coerceIdText(String(id), extras.idsReadBack) !== id) {
-                retyped++;
-            }
-        }
-        if (retyped > 0) {
-            note(
-                LOSS.ID_TEXT_TYPE,
-                `${retyped} node id${plural(retyped)} ${agree(retyped, "reads", "read")} back with another type (a number as text, or text as a number)`,
-                null,
-                retyped,
-            );
-        }
+        checkIdsReadBack(snapshot, extras.idsReadBack, note);
     }
 
     if (edges) {
@@ -426,23 +404,127 @@ export function checkCapabilities(
     if (edges) {
         checkColumns(snapshot.edges, "edge", caps, extras, note);
     }
-    const graphColumns = tables.includes("graph") ? snapshot.graph.names() : [];
-    if (graphColumns.length > 0) {
-        if (caps.graphAttributes) {
-            checkColumns(snapshot.graph, "graph", caps, extras, note);
-        } else {
-            notes.push(
-                Object.freeze({
-                    code: LOSS.GRAPH_ATTRIBUTES,
-                    message: `${graphColumns.length} graph attribute${plural(graphColumns.length)} cannot be written`,
-                    column: null,
-                    count: graphColumns.length,
-                    columns: Object.freeze([...graphColumns]),
-                }),
-            );
+    checkGraphColumns(snapshot, caps, extras, tables, notes, note);
+    checkExtensionTables(snapshot, caps, tables, note);
+    return notes;
+}
+
+/**
+ * The id-charset check of checkCapabilities(): the node ids the format cannot hold as they are.
+ * @param snapshot - the snapshot about to be exported
+ * @param caps - the exporter's capabilities
+ * @param options - the resolved common export options
+ * @param note - the recorder
+ */
+function checkIdCharset(
+    snapshot: GraphSnapshot,
+    caps: ExportCapabilities,
+    options: ResolvedExportOptions,
+    note: NoteFn,
+): void {
+    const unrepresentable = countUnrepresentableIds(snapshot, caps.idCharset);
+    if (unrepresentable <= 0) {
+        return;
+    }
+    if (caps.idCharset === "dense-1-based") {
+        note(
+            LOSS.ID_RENUMBERED,
+            options.sanitizeIds === "mangle"
+                ? `${unrepresentable} node id${plural(unrepresentable)} ${agree(unrepresentable, "is", "are")} not their 1-based index; nodes are numbered 1..N, the original ids are written too, and an import with restoreMangledIds: true reads them back as the ids; they are also the labels of nodes without a label value`
+                : `${unrepresentable} node id${plural(unrepresentable)} ${agree(unrepresentable, "is", "are")} not their 1-based index; nodes are numbered 1..N and ids kept as labels of the nodes without a label value (a node with one loses its id)`,
+            null,
+            unrepresentable,
+        );
+    } else if (options.sanitizeIds === "mangle") {
+        note(
+            LOSS.ID_MANGLED,
+            `${unrepresentable} node id${plural(unrepresentable)} ${charsetText(caps.idCharset, unrepresentable)}, so they are rewritten; the original ids are written too, and an import with restoreMangledIds: true reads them back`,
+            null,
+            unrepresentable,
+        );
+    } else {
+        note(
+            LOSS.ID_CHARSET,
+            `${unrepresentable} node id${plural(unrepresentable)} ${charsetText(caps.idCharset, unrepresentable)}, so the save fails unless sanitizeIds is "mangle"`,
+            null,
+            unrepresentable,
+        );
+    }
+}
+
+/**
+ * The id read-back check of checkCapabilities(): the node ids the format's importer reads back with another type.
+ * @param snapshot - the snapshot about to be exported
+ * @param readBack - how the format's importer coerces id text
+ * @param note - the recorder
+ */
+function checkIdsReadBack(snapshot: GraphSnapshot, readBack: IdCoercion, note: NoteFn): void {
+    let retyped = 0;
+    for (let i = 0; i < snapshot.nodeCount; i++) {
+        const id = snapshot.ids.idOf(i);
+        if (coerceIdText(String(id), readBack) !== id) {
+            retyped++;
         }
     }
+    if (retyped > 0) {
+        note(
+            LOSS.ID_TEXT_TYPE,
+            `${retyped} node id${plural(retyped)} ${agree(retyped, "reads", "read")} back with another type (a number as text, or text as a number)`,
+            null,
+            retyped,
+        );
+    }
+}
 
+/**
+ * The graph-table check of checkCapabilities(): the graph attributes, checked as columns or lost whole.
+ * @param snapshot - the snapshot about to be exported
+ * @param caps - the exporter's capabilities
+ * @param extras - format facts the capabilities table does not carry
+ * @param tables - the tables the export writes
+ * @param notes - the notes, for the note that carries its column list
+ * @param note - the recorder
+ */
+function checkGraphColumns(
+    snapshot: GraphSnapshot,
+    caps: ExportCapabilities,
+    extras: CheckExtras,
+    tables: readonly ("node" | "edge" | "graph")[],
+    notes: LossNote[],
+    note: NoteFn,
+): void {
+    const graphColumns = tables.includes("graph") ? snapshot.graph.names() : [];
+    if (graphColumns.length === 0) {
+        return;
+    }
+    if (caps.graphAttributes) {
+        checkColumns(snapshot.graph, "graph", caps, extras, note);
+        return;
+    }
+    notes.push(
+        Object.freeze({
+            code: LOSS.GRAPH_ATTRIBUTES,
+            message: `${graphColumns.length} graph attribute${plural(graphColumns.length)} cannot be written`,
+            column: null,
+            count: graphColumns.length,
+            columns: Object.freeze([...graphColumns]),
+        }),
+    );
+}
+
+/**
+ * The extension-table check of checkCapabilities(): dynamic values and other extension tables.
+ * @param snapshot - the snapshot about to be exported
+ * @param caps - the exporter's capabilities
+ * @param tables - the tables the export writes
+ * @param note - the recorder
+ */
+function checkExtensionTables(
+    snapshot: GraphSnapshot,
+    caps: ExportCapabilities,
+    tables: readonly ("node" | "edge" | "graph")[],
+    note: NoteFn,
+): void {
     for (const [name, table] of snapshot.extensions) {
         // "temporal:node:<column>" is the node table's, "temporal:edge:<column>" the edge table's;
         // any other extension table is the graph's.
@@ -451,25 +533,22 @@ export function checkCapabilities(
         if (!tables.includes(owner)) {
             continue;
         }
-        if (name.startsWith("temporal:")) {
-            if (caps.temporal !== "dynamic-values") {
-                note(
-                    LOSS.DYNAMIC_VALUES,
-                    `dynamic values of "${name}" (${table.rowCount} row${plural(table.rowCount)}) cannot be written`,
-                    name,
-                    table.rowCount,
-                );
-            }
-        } else {
+        if (!name.startsWith("temporal:")) {
             note(
                 LOSS.EXTENSION_TABLE,
                 `extension table "${name}" (${table.rowCount} row${plural(table.rowCount)}) cannot be written`,
                 name,
                 table.rowCount,
             );
+        } else if (caps.temporal !== "dynamic-values") {
+            note(
+                LOSS.DYNAMIC_VALUES,
+                `dynamic values of "${name}" (${table.rowCount} row${plural(table.rowCount)}) cannot be written`,
+                name,
+                table.rowCount,
+            );
         }
     }
-    return notes;
 }
 
 /**
@@ -621,6 +700,27 @@ const ROLE_WORDS: Readonly<Record<string, string>> = {
     originalId: "original ids",
 };
 
+/** What the per-column checks of checkCapabilities() read besides the column. */
+interface ColumnCheck {
+    /** The domain, for messages. */
+    readonly domain: string;
+    /** The capabilities. */
+    readonly caps: ExportCapabilities;
+    /** Format extras. */
+    readonly extras: CheckExtras;
+    /** The recorder. */
+    readonly note: NoteFn;
+}
+
+/**
+ * How many values a column holds.
+ * @param column - the column
+ * @returns the count of set cells
+ */
+function setCount(column: Column): number {
+    return column.length - column.nullCount;
+}
+
 /**
  * The per-column checks of checkCapabilities().
  * @param table - the table
@@ -636,116 +736,209 @@ function checkColumns(
     extras: CheckExtras,
     note: NoteFn,
 ): void {
+    const check: ColumnCheck = { domain, caps, extras, note };
     for (const column of table) {
-        const { meta } = column;
-        const { name, role } = meta;
-        if (role !== null && STRUCTURAL_ROLES.has(role)) {
-            continue;
-        }
-        const label = `${domain} column "${name}"`;
-        const roleNames = roleNamesOf(domain, extras);
-        if (role !== null && roleNames !== undefined) {
-            const fixed = roleNames[role];
-            if (fixed !== undefined && fixed !== name) {
-                note(
-                    LOSS.COLUMN_NAME_CHANGED,
-                    `${label} (the ${ROLE_WORDS[role] ?? role}) is written as the format's own ${role} and reads back as "${fixed}"`,
-                    name,
-                    column.length - column.nullCount,
-                );
-            }
-        }
-        if (domain === "edge" && role === "id") {
-            continue;
-        }
-        const named = extras.writtenColumns?.[domain as "node" | "edge"]?.includes(name) ?? false;
-        if (
-            writesAttributes(domain, extras) === false &&
-            !named &&
-            !(role !== null && (extras.roles?.has(role) ?? false))
-        ) {
-            note(LOSS.COLUMN_DROPPED, `${label} is not written`, name, column.length - column.nullCount);
-            continue;
-        }
-        if (role === "timeText") {
-            if (extras.temporalText !== true) {
-                note(
+        checkColumn(column, check);
+    }
+}
+
+/**
+ * The checks of one column.
+ * @param column - the column
+ * @param check - what the checks read
+ */
+function checkColumn(column: Column, check: ColumnCheck): void {
+    const { name, role } = column.meta;
+    if (role !== null && STRUCTURAL_ROLES.has(role)) {
+        return;
+    }
+    const label = `${check.domain} column "${name}"`;
+    noteRoleRenamed(column, label, check);
+    if (check.domain === "edge" && role === "id") {
+        return;
+    }
+    if (isDropped(column, check)) {
+        check.note(LOSS.COLUMN_DROPPED, `${label} is not written`, name, setCount(column));
+        return;
+    }
+    const slot = role === null ? undefined : ROLE_SLOT_CHECKS.find(([holds]) => holds(role));
+    if (slot !== undefined) {
+        slot[1](column, label, check);
+        return;
+    }
+    checkAttribute(column, label, check);
+}
+
+/**
+ * COLUMN_NAME_CHANGED for a role column the format writes under a fixed name of its own.
+ * @param column - the column
+ * @param label - the column's label for messages
+ * @param check - what the checks read
+ */
+function noteRoleRenamed(column: Column, label: string, check: ColumnCheck): void {
+    const { name, role } = column.meta;
+    const fixed = role === null ? undefined : roleNamesOf(check.domain, check.extras)?.[role];
+    if (role !== null && fixed !== undefined && fixed !== name) {
+        check.note(
+            LOSS.COLUMN_NAME_CHANGED,
+            `${label} (the ${ROLE_WORDS[role] ?? role}) is written as the format's own ${role} and reads back as "${fixed}"`,
+            name,
+            setCount(column),
+        );
+    }
+}
+
+/**
+ * Whether a column is not written at all: the format writes no attributes of its domain, and the column is neither
+ * named as written nor of a role the format keeps.
+ * @param column - the column
+ * @param check - what the checks read
+ * @returns true when it is dropped
+ */
+function isDropped(column: Column, check: ColumnCheck): boolean {
+    const { name, role } = column.meta;
+    const { domain, extras } = check;
+    const named = extras.writtenColumns?.[domain as "node" | "edge"]?.includes(name) ?? false;
+    const kept = role !== null && (extras.roles?.has(role) ?? false);
+    return writesAttributes(domain, extras) === false && !named && !kept;
+}
+
+/** The check of a column whose role has a slot of its own, or none: the column is not checked as an attribute. */
+type RoleSlotCheck = (column: Column, label: string, check: ColumnCheck) => void;
+
+// The roles with slots of their own, each with its check: a role found here is not checked as an attribute.
+const ROLE_SLOT_CHECKS: readonly (readonly [(role: string) => boolean, RoleSlotCheck])[] = [
+    [
+        (role) => role === "timeText",
+        (column, label, check) => {
+            if (check.extras.temporalText !== true) {
+                check.note(
                     LOSS.TEMPORAL_TEXT,
                     `${label} (the original text of a date or time column) cannot be written`,
-                    name,
-                    column.length - column.nullCount,
+                    column.meta.name,
+                    setCount(column),
                 );
             }
-            continue;
-        }
-        if (role === "position") {
-            if (!caps.positions) {
-                note(LOSS.POSITIONS, `${label} (positions) cannot be written`, name, column.length - column.nullCount);
-            } else if (extras.positionDtype !== undefined && meta.dtype !== extras.positionDtype) {
-                note(
-                    LOSS.DTYPE,
-                    `${label} (positions) is ${meta.dtype}; the format reads positions back as ${extras.positionDtype}`,
-                    name,
-                    column.length - column.nullCount,
-                );
+        },
+    ],
+    [(role) => role === "position", checkPosition],
+    // Deprecated path (removed in the next major version): the role columns as the old way styles reached a
+    // file. With styles, the style writer is the only path and the caller leaves the role columns out.
+    [(role) => VIZ_ROLES.has(role), checkViz],
+    [
+        (role) => HIERARCHY_ROLES.has(role),
+        (column, label, check) => {
+            if (!check.caps.hierarchy) {
+                const { name, role } = column.meta;
+                check.note(LOSS.HIERARCHY, `${label} (${String(role)}) cannot be written`, name, setCount(column));
             }
-            continue;
-        }
-        if (role !== null && VIZ_ROLES.has(role)) {
-            if (!caps.viz) {
-                note(LOSS.VIZ, `${label} (${role}) cannot be written`, name, column.length - column.nullCount);
+        },
+    ],
+    [
+        (role) => TEMPORAL_ROLES.has(role),
+        (column, label, check) => {
+            if (check.caps.temporal === "none") {
+                const { name, role } = column.meta;
+                check.note(LOSS.TEMPORAL, `${label} (${String(role)}) cannot be written`, name, setCount(column));
             }
-            continue;
-        }
-        if (role !== null && HIERARCHY_ROLES.has(role)) {
-            if (!caps.hierarchy) {
-                note(LOSS.HIERARCHY, `${label} (${role}) cannot be written`, name, column.length - column.nullCount);
+        },
+    ],
+    [
+        (role) => role === "spells",
+        (column, label, check) => {
+            if (check.caps.temporal !== "spells" && check.caps.temporal !== "dynamic-values") {
+                check.note(LOSS.SPELLS, `${label} (spells) cannot be written`, column.meta.name, setCount(column));
             }
-            continue;
-        }
-        if (role !== null && TEMPORAL_ROLES.has(role)) {
-            if (caps.temporal === "none") {
-                note(LOSS.TEMPORAL, `${label} (${role}) cannot be written`, name, column.length - column.nullCount);
-            }
-            continue;
-        }
-        if (role === "spells") {
-            if (caps.temporal !== "spells" && caps.temporal !== "dynamic-values") {
-                note(LOSS.SPELLS, `${label} (spells) cannot be written`, name, column.length - column.nullCount);
-            }
-            continue;
-        }
-        if (role === "open" || role === "spellsOpen") {
-            // The open bits are written by the format's own temporal syntax when it has one; the
-            // column's u8 storage is never an attribute dtype, so no dtype note either way.
-            if (extras.openIntervals !== true) {
-                note(
+        },
+    ],
+    [
+        // The open bits are written by the format's own temporal syntax when it has one; the
+        // column's u8 storage is never an attribute dtype, so no dtype note either way.
+        (role) => role === "open" || role === "spellsOpen",
+        (column, label, check) => {
+            if (check.extras.openIntervals !== true) {
+                check.note(
                     LOSS.OPEN_INTERVAL,
                     `${label} (open intervals) cannot be written`,
-                    name,
-                    column.length - column.nullCount,
+                    column.meta.name,
+                    setCount(column),
                 );
             }
-            continue;
-        }
-        if (role !== null && !(extras.roles?.has(role) ?? false)) {
-            note(
-                LOSS.ROLE,
-                `${label} (${role}) is written as a plain attribute; the format has no ${role} slot and the role is lost`,
-                name,
-                column.length - column.nullCount,
-            );
-        }
-        if (meta.dynamic && caps.temporal !== "dynamic-values") {
-            note(LOSS.DYNAMIC_VALUES, `${label} is dynamic; only its static value can be written`, name, null);
-        }
-        checkDtype(column, label, caps, note);
-        if (meta.default !== undefined && !caps.defaults) {
-            note(LOSS.DEFAULT, `${label} declares a default; the format has no defaults`, name, null);
-        }
-        if (meta.options !== null && !caps.options) {
-            note(LOSS.OPTIONS, `${label} declares options; the format has no enumerations`, name, null);
-        }
+        },
+    ],
+];
+
+/**
+ * The checks of a position column.
+ * @param column - the column
+ * @param label - the column's label for messages
+ * @param check - what the checks read
+ */
+function checkPosition(column: Column, label: string, check: ColumnCheck): void {
+    const { caps, extras, note } = check;
+    const { meta } = column;
+    if (!caps.positions) {
+        note(LOSS.POSITIONS, `${label} (positions) cannot be written`, meta.name, setCount(column));
+    } else if (extras.positionDtype !== undefined && meta.dtype !== extras.positionDtype) {
+        note(
+            LOSS.DTYPE,
+            `${label} (positions) is ${meta.dtype}; the format reads positions back as ${extras.positionDtype}`,
+            meta.name,
+            setCount(column),
+        );
+    }
+}
+
+/**
+ * The checks of a deprecated style role column (color, size, shape, thickness).
+ * @param column - the column
+ * @param label - the column's label for messages
+ * @param check - what the checks read
+ */
+function checkViz(column: Column, label: string, check: ColumnCheck): void {
+    const { caps, extras, note } = check;
+    if ((caps as RoleSlots).viz) {
+        return;
+    }
+    const { name } = column.meta;
+    const role = String(column.meta.role);
+    note(
+        LOSS.VIZ,
+        extras.vizAsAttributes === true
+            ? `${label} (${role}) is written as a plain attribute; the format has no ${role} slot and the role is lost on re-import`
+            : `${label} (${role}) cannot be written`,
+        name,
+        setCount(column),
+    );
+}
+
+/**
+ * The checks of a column written as a plain attribute.
+ * @param column - the column
+ * @param label - the column's label for messages
+ * @param check - what the checks read
+ */
+function checkAttribute(column: Column, label: string, check: ColumnCheck): void {
+    const { caps, extras, note } = check;
+    const { meta } = column;
+    const { name, role } = meta;
+    if (role !== null && !(extras.roles?.has(role) ?? false)) {
+        note(
+            LOSS.ROLE,
+            `${label} (${role}) is written as a plain attribute; the format has no ${role} slot and the role is lost`,
+            name,
+            setCount(column),
+        );
+    }
+    if (meta.dynamic && caps.temporal !== "dynamic-values") {
+        note(LOSS.DYNAMIC_VALUES, `${label} is dynamic; only its static value can be written`, name, null);
+    }
+    checkDtype(column, label, caps, note);
+    if (meta.default !== undefined && !caps.defaults) {
+        note(LOSS.DEFAULT, `${label} declares a default; the format has no defaults`, name, null);
+    }
+    if (meta.options !== null && !caps.options) {
+        note(LOSS.OPTIONS, `${label} declares options; the format has no enumerations`, name, null);
     }
 }
 
@@ -810,7 +1003,7 @@ export function countMixedEdges(snapshot: GraphSnapshot): number {
         return 0;
     }
     const directed = snapshot.edges.byRole("directed");
-    if (directed === null || directed.dtype !== "bool") {
+    if (directed?.dtype !== "bool") {
         return 0;
     }
     const pair = snapshot.edges.byRole("pair");
@@ -1058,42 +1251,7 @@ export function sanitizeIds(snapshot: GraphSnapshot, charset: IdCharset, mode: "
             { reason: "charset", charset, count: bad.length, id: first, index: bad[0] },
         );
     }
-    const written = new Map<number, NodeId>();
-    if (charset === "nmtoken") {
-        const used = new Set<string>();
-        for (let i = 0; i < n; i++) {
-            const id = ids.idOf(i);
-            if (isRepresentableId(id, charset)) {
-                used.add(String(id));
-            }
-        }
-        for (const i of bad) {
-            const base = mangleNmtoken(String(ids.idOf(i)));
-            let candidate = base;
-            for (let k = 2; used.has(candidate); k++) {
-                candidate = `${base}_${k}`;
-            }
-            used.add(candidate);
-            written.set(i, candidate);
-        }
-    } else {
-        const used = new Set<number>();
-        for (let i = 0; i < n; i++) {
-            const id = ids.idOf(i);
-            if (typeof id === "number" && Number.isSafeInteger(id)) {
-                used.add(id);
-            }
-        }
-        let next = 0;
-        for (const i of bad) {
-            while (used.has(next)) {
-                next++;
-            }
-            used.add(next);
-            written.set(i, next);
-            next++;
-        }
-    }
+    const written = charset === "nmtoken" ? mangleNmtokenIds(ids, bad) : mangleIntegerIds(ids, bad);
     return {
         charset,
         changed: bad.length,
@@ -1101,6 +1259,64 @@ export function sanitizeIds(snapshot: GraphSnapshot, charset: IdCharset, mode: "
         isChanged: (i: number): boolean => written.has(i),
         originalAt: (i: number): NodeId => ids.idOf(i),
     };
+}
+
+/**
+ * The NMTOKEN ids sanitizeIds() writes for the ids the charset cannot hold: each mangled, then suffixed `_2`, `_3`...
+ * until unused.
+ * @param ids - the snapshot's id map
+ * @param bad - the indices of the ids to rewrite, ascending
+ * @returns the written id per rewritten index
+ */
+function mangleNmtokenIds(ids: GraphSnapshot["ids"], bad: readonly number[]): Map<number, NodeId> {
+    const written = new Map<number, NodeId>();
+    const used = new Set<string>();
+    for (let i = 0; i < ids.size; i++) {
+        const id = ids.idOf(i);
+        if (isRepresentableId(id, "nmtoken")) {
+            used.add(String(id));
+        }
+    }
+    for (const i of bad) {
+        const base = mangleNmtoken(String(ids.idOf(i)));
+        let candidate = base;
+        let k = 2;
+        while (used.has(candidate)) {
+            candidate = `${base}_${k}`;
+            k++;
+        }
+        used.add(candidate);
+        written.set(i, candidate);
+    }
+    return written;
+}
+
+/**
+ * The integer ids sanitizeIds() writes for the ids the charset cannot hold: the smallest unused non-negative integers
+ * in index order.
+ * @param ids - the snapshot's id map
+ * @param bad - the indices of the ids to rewrite, ascending
+ * @returns the written id per rewritten index
+ */
+function mangleIntegerIds(ids: GraphSnapshot["ids"], bad: readonly number[]): Map<number, NodeId> {
+    const written = new Map<number, NodeId>();
+    const used = new Set<number>();
+    for (let i = 0; i < ids.size; i++) {
+        const id = ids.idOf(i);
+        if (typeof id === "number" && Number.isSafeInteger(id)) {
+            used.add(id);
+        }
+    }
+    let next = 0;
+    for (const i of bad) {
+        while (used.has(next)) {
+            next++;
+        }
+        used.add(next);
+        written.set(i, next);
+        next++;
+    }
+    return written;
 }
 
 /**

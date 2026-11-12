@@ -157,6 +157,27 @@ describe("static layouts", () => {
         expectPlaced(cy);
     });
 
+    it("graphty-spectral brings a grid's columns and rows back", async () => {
+        // the 3 x 4 grid's two smallest nonzero Laplacian eigenvectors run along its 4 columns and its 3 rows, so
+        // each column shares one x and each row one y, and no two columns or rows share it
+        const cy = makeCy();
+        await run(cy, { name: "graphty-spectral" });
+        const coords = (axis: "x" | "y", group: (i: number) => number): string[][] => {
+            const by = new Map<number, Set<string>>();
+            cy.nodes().forEach((n) => {
+                const g = group(Number(n.id().slice(1)));
+                by.set(g, (by.get(g) ?? new Set()).add(n.position()[axis].toFixed(3)));
+            });
+            return [...by.values()].map((s) => [...s]);
+        };
+        const columns = coords("x", (i) => i % 4);
+        const rows = coords("y", (i) => Math.floor(i / 4));
+        expect(columns.every((c) => c.length === 1)).toBe(true);
+        expect(rows.every((r) => r.length === 1)).toBe(true);
+        expect(new Set(columns.flat()).size).toBe(4);
+        expect(new Set(rows.flat()).size).toBe(3);
+    });
+
     it("throw on a selection that matches no node", () => {
         const cy = makeCy();
         expect(() =>
@@ -171,7 +192,12 @@ describe("static layouts", () => {
             cy
                 .layout({ name: "graphty-kamada-kawai", maxNodes: n - 1, boundingBox: BOX } as unknown as LayoutOptions)
                 .run(),
-        ).toThrow(expect.objectContaining({ code: "E_TOO_LARGE", params: expect.objectContaining({ nodeCount: n }) }));
+        ).toThrow(
+            expect.objectContaining({
+                code: "E_TOO_LARGE",
+                params: expect.objectContaining({ nodeCount: n }) as unknown,
+            }),
+        );
     });
 
     it("lay out only the collection they are called on", async () => {
@@ -427,5 +453,65 @@ describe("library fixes found by the docs review", () => {
         await run(cy, { name: "graphty-forceatlas2", gpu: "off", maxIter: 1, randomize: false });
         // reading the positions at the box's scale moved this 0.3 or more in one iteration
         expect(change(before, shape(cy))).toBeLessThan(0.05);
+    });
+});
+
+describe("a destroyed core", () => {
+    for (const name of LAYOUT_NAMES) {
+        it(`graphty-${name}: a run started on a destroyed core is refused with E_CORE_DESTROYED, then layoutstop`, async () => {
+            const cy = makeCy();
+            cy.destroy();
+            const seen: string[] = [];
+            const errors: unknown[] = [];
+            const layout = cy.layout({ name: `graphty-${name}`, boundingBox: BOX } as unknown as LayoutOptions);
+            layout.on(EVENTS, (e: EventObject) => seen.push(e.type));
+            layout.on("layouterror", (_e: EventObject, error: unknown) => errors.push(error));
+            const done = layout.pon("layoutstop");
+            layout.run();
+            await done;
+            expect(seen).toEqual(["layoutstop"]);
+            expect(errors).toHaveLength(1);
+            expect((errors[0] as { code?: string }).code).toBe("E_CORE_DESTROYED");
+        });
+    }
+
+    it("a continuous run whose core is destroyed stops at its next frame with layoutstop alone", async () => {
+        const cy = makeCy();
+        const seen: string[] = [];
+        const layout = cy.layout({
+            name: "graphty-forceatlas2",
+            animate: true,
+            maxIter: 1_000_000,
+            settleThreshold: 0,
+            boundingBox: BOX,
+        } as unknown as LayoutOptions);
+        layout.on(`${EVENTS} layouterror`, (e: EventObject) => seen.push(e.type));
+        vi.useFakeTimers();
+        try {
+            const done = layout.pon("layoutstop");
+            layout.run();
+            expect(seen).toEqual(["layoutstart", "layoutready"]);
+            cy.destroy();
+            // the next frame would write positions to the destroyed core ("reading 'notify'" of its null renderer)
+            vi.runAllTimers();
+            await done;
+            expect(vi.getTimerCount()).toBe(0);
+        } finally {
+            vi.useRealTimers();
+        }
+        expect(seen).toEqual(["layoutstart", "layoutready", "layoutstop"]);
+    });
+
+    it("a container whose size reads NaN (detached from the page) lays out in a 1 x 1 box, not NaN", async () => {
+        for (const name of ["graphty-forceatlas2", "graphty-circular"]) {
+            const cy = makeCy();
+            vi.spyOn(cy, "width").mockReturnValue(Number.NaN);
+            vi.spyOn(cy, "height").mockReturnValue(Number.NaN);
+            const layout = cy.layout({ name, seed: 7 } as unknown as LayoutOptions);
+            const done = layout.pon("layoutstop");
+            layout.run();
+            await done;
+            expectPlaced(cy);
+        }
     });
 });

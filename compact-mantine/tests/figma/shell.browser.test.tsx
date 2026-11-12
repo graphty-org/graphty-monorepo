@@ -8,6 +8,7 @@
  * Hover, press and focus are driven with real input through the harness.
  */
 import { ActionIcon, Avatar, Badge, Indicator, Kbd, Pill, Tabs, Tooltip } from "@mantine/core";
+import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -23,6 +24,7 @@ import {
     ToolGroup,
     type ToolItem,
 } from "../../src";
+import { untilPasses } from "../../stories/helpers/settled";
 import {
     animationsSettled,
     drive,
@@ -58,19 +60,16 @@ function fakeTooltipTimers(): void {
 }
 
 /**
- * Let `ms` pass on the fake tooltip clock, with an animation frame before and after so React has
- * committed what the input scheduled and what the timers that fired scheduled.
+ * Let `ms` pass on the fake tooltip clock inside React's `act`, which commits every render and
+ * effect the timers that fired scheduled before it returns, so the DOM shows their result at once.
+ * The tooltips here have no transition (the theme's NO_TRANSITION), so a fired delay shows or hides
+ * the tooltip in that same commit.
  * @param ms - how far to step
  */
-async function elapse(ms: number): Promise<void> {
-    await frames();
-    vi.advanceTimersByTime(ms);
-    await frames();
-}
-
-/** Two animation frames. */
-async function frames(): Promise<void> {
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+function elapse(ms: number): void {
+    act(() => {
+        vi.advanceTimersByTime(ms);
+    });
 }
 const openTooltip = (): HTMLElement | null => document.querySelector<HTMLElement>(".cm-tooltip");
 
@@ -237,19 +236,17 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             expectMeasured(chevron, await fig("bc/tool-chevron--focus", 34, ["outline", "outlineOffset"]));
         });
 
-        it("opens a dark menu 4px above, start-aligned, with radio rows; the chevron stays pressed", async () => {
+        // Figma's flyout is dark in both themes; ours follows the page (light here), so the
+        // surface and row colors are the page-themed menu's and only the geometry is Figma's.
+        it("opens a menu 4px above, start-aligned, with radio rows; the chevron stays pressed", async () => {
             const { container } = await renderFigma(group());
             const chevron = part(container, ".cm-tool-chevron");
             await drive(chevron, "open");
             const menu = part(document.body, "[role='menu']");
+            expectMeasured(menu, { backgroundColor: "#ffffff" });
             expectMeasured(
                 menu,
-                await fig("bt/flyout-ShapeTools-chevron", 115, [
-                    "backgroundColor",
-                    "borderRadius",
-                    "paddingTop",
-                    "paddingBottom",
-                ]),
+                await fig("bt/flyout-ShapeTools-chevron", 115, ["borderRadius", "paddingTop", "paddingBottom"]),
             );
             const c = chevron.getBoundingClientRect();
             const m = menu.getBoundingClientRect();
@@ -260,13 +257,7 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             const row = part(menu, "[role='menuitemradio'][aria-checked='true']");
             expectMeasured(
                 row,
-                await fig("bt/flyout-ShapeTools-chevron", 119, [
-                    "height",
-                    "color",
-                    "fontSize",
-                    "lineHeight",
-                    "fontWeight",
-                ]),
+                await fig("bt/flyout-ShapeTools-chevron", 119, ["height", "fontSize", "lineHeight", "fontWeight"]),
             );
             const check = part(row, ".cm-tool-flyout-check");
             const label = part(row, "[class*='itemLabel']");
@@ -510,21 +501,27 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             const button = part(container, ".cm-rail-button:not([data-active])");
             fakeTooltipTimers();
             await drive(button, "hover");
-            await elapse(350);
+            elapse(350);
             expect(openTooltip()).toBeNull();
-            await elapse(350);
+            elapse(350);
             await animationsSettled();
             const tip = openTooltip();
             expect(tip).not.toBeNull();
-            const t = (tip as HTMLElement).getBoundingClientRect();
-            const b = button.getBoundingClientRect();
-            const pill = part(button, ".cm-rail-pill").getBoundingClientRect();
-            // ls/state-rail-button-hover-tooltip #70: bubble at x=62 for a button ending at 56,
-            // arrow box [56, 6 wide]; the tooltip center is the pill center.
-            expect(t.left - b.right).toBeCloseTo(6, 1);
-            const arrow = part(tip as HTMLElement, "[class*='arrow']").getBoundingClientRect();
-            expect(arrow.left).toBeGreaterThanOrEqual(b.right - 0.5);
-            expect(t.top + t.height / 2).toBeCloseTo(pill.top + pill.height / 2, 0);
+            // floating-ui places the tooltip asynchronously after it mounts: wait for the placement,
+            // on the real clock so waiting steps no tooltip timer, and on frames rather than a
+            // deadline that a stalled main thread runs out (#2719).
+            vi.useRealTimers();
+            await untilPasses(() => {
+                const t = (tip as HTMLElement).getBoundingClientRect();
+                const b = button.getBoundingClientRect();
+                const pill = part(button, ".cm-rail-pill").getBoundingClientRect();
+                // ls/state-rail-button-hover-tooltip #70: bubble at x=62 for a button ending at 56,
+                // arrow box [56, 6 wide]; the tooltip center is the pill center.
+                expect(t.left - b.right).toBeCloseTo(6, 1);
+                const arrow = part(tip as HTMLElement, "[class*='arrow']").getBoundingClientRect();
+                expect(arrow.left).toBeGreaterThanOrEqual(b.right - 0.5);
+                expect(t.top + t.height / 2).toBeCloseTo(pill.top + pill.height / 2, 0);
+            });
         });
 
         it("inside the app's Tooltip.Group the rail joins it: a warm hand-off from a toolbar tooltip is instant", async () => {
@@ -538,10 +535,10 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             );
             fakeTooltipTimers();
             await drive(part(container, ".cm-tool"), "hover");
-            await elapse(1000);
+            elapse(1000);
             expect(openTooltip()).not.toBeNull();
             await drive(part(container, ".cm-rail-button:not([data-active])"), "hover");
-            await elapse(100);
+            elapse(100);
             expect(openTooltip()?.textContent).toBe("Assets");
         });
 
@@ -550,10 +547,10 @@ describe.skipIf(!(await figmaAvailable()))("editor shell against Figma", () => {
             const button = part(container, ".cm-help-button");
             fakeTooltipTimers();
             await drive(button, "hover");
-            await elapse(100);
+            elapse(100);
             expect(openTooltip()).not.toBeNull();
             await userEvent.unhover(button);
-            await elapse(100);
+            elapse(100);
             expect(openTooltip()).toBeNull();
         });
     });

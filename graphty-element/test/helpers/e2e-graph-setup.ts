@@ -33,6 +33,8 @@ export interface E2EGraphOptions {
     edges?: TestEdgeData[];
     /** Whether to enable AI control (default: true) */
     enableAi?: boolean;
+    /** The assistant's `toolset`, when not its default. */
+    toolset?: "generated";
     /** Container width in pixels (default: 800) */
     width?: number;
     /** Container height in pixels (default: 600) */
@@ -53,6 +55,7 @@ export interface E2EGraphResult {
  * Container element for e2e tests.
  */
 let container: HTMLElement | null = null;
+let current: Graph | null = null;
 
 /**
  * Create a real Graph instance for E2E testing.
@@ -77,12 +80,10 @@ let container: HTMLElement | null = null;
  * ```
  */
 export async function createE2EGraph(options: E2EGraphOptions = {}): Promise<E2EGraphResult> {
-    const { nodes = [], edges = [], enableAi = true, width = 800, height = 600 } = options;
+    const { nodes = [], edges = [], enableAi = true, toolset, width = 800, height = 600 } = options;
 
-    // Clean up any previous test container
-    if (container) {
-        container.remove();
-    }
+    // Clean up any previous test graph
+    cleanupE2EGraph();
 
     // Create a container element
     container = document.createElement("div");
@@ -93,6 +94,7 @@ export async function createE2EGraph(options: E2EGraphOptions = {}): Promise<E2E
 
     // Create graph instance
     const graph = new Graph(container);
+    current = graph;
 
     // Initialize the graph
     await graph.init();
@@ -112,7 +114,7 @@ export async function createE2EGraph(options: E2EGraphOptions = {}): Promise<E2E
 
     // Enable AI control if requested
     if (enableAi) {
-        await graph.enableAiControl({ provider: "mock" });
+        await graph.enableAiControl({ provider: "mock", ...(toolset === undefined ? {} : { toolset }) });
     }
 
     return { element: container, graph };
@@ -123,6 +125,8 @@ export async function createE2EGraph(options: E2EGraphOptions = {}): Promise<E2E
  * Call this in afterEach to ensure clean test state.
  */
 export function cleanupE2EGraph(): void {
+    current?.dispose();
+    current = null;
     if (container) {
         container.remove();
         container = null;

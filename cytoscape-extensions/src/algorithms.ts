@@ -136,7 +136,16 @@ import type {
 } from "cytoscape";
 
 import { OPTION_NAMES } from "./algorithm-options.js";
-import { type Backend, backendOf, checkGpuMode, gpuFor, type GpuMode, recording, warnIfFixable } from "./gpu.js";
+import {
+    type Backend,
+    backendOf,
+    checkGpuMode,
+    coreDestroyedError,
+    gpuFor,
+    type GpuMode,
+    recording,
+    warnIfFixable,
+} from "./gpu.js";
 import {
     coreOf,
     type CytoscapeSnapshot,
@@ -490,10 +499,10 @@ function lookup(c: Ctx, ref: ElementRef, edges = false): number | undefined {
     const list = (edges ? c.cs.edges : c.cs.nodes) as unknown as Collection;
     // a selector goes through Cytoscape's own matching (a collection has no find() that takes one)
     const matches = typeof ref === "string" ? list.filter(ref) : (ref as Collection);
-    const ele = matches[0];
-    if (ele === undefined) {
+    if (matches.empty()) {
         return undefined;
     }
+    const ele = matches[0];
     if (!edges) {
         const i = c.s.ids.indexOf(ele.id());
         return i === INVALID_INDEX ? undefined : i;
@@ -622,7 +631,8 @@ function scored<T extends object>(c: Ctx, values: ArrayLike<number>, extra: T, e
  * @returns the partition
  */
 function partition<T extends object>(c: Ctx, labels: ArrayLike<number>, extra: T): Partition<T> {
-    const groups: number[][] = [];
+    // sparse: a label no node carries leaves a hole, which Array.from below reads as undefined
+    const groups: (number[] | undefined)[] = [];
     for (let i = 0; i < labels.length; i++) {
         const l = labels[i];
         if (l !== INVALID_INDEX) {
@@ -669,9 +679,9 @@ function search(
             const from = c.cs.nodes[p];
             const to = c.cs.nodes[v];
             const joining = c.s.directed ? from.edgesTo(to) : from.edgesWith(to);
-            const e = joining.intersection(c.cs.edges)[0];
-            if (e !== undefined) {
-                out.push(e);
+            const e = joining.intersection(c.cs.edges);
+            if (e.nonempty()) {
+                out.push(e[0]);
             }
         }
         out.push(c.cs.nodes[v]);
@@ -1534,7 +1544,11 @@ const IMPLS = {
     hierarchicalClustering: (
         c: Ctx,
         _o: AlgorithmOptions & HierarchicalOptions = {},
-    ): { cut(height: number): Partition; readonly merges: number } => {
+    ): {
+        cut(height: number): Partition;
+        cutAt(by: { readonly clusters: number } | { readonly distance: number }): Partition;
+        readonly merges: number;
+    } => {
         const r = hierarchicalClustering(c.s, c.rest);
         const quiet: Ctx = { ...c, field: undefined };
         const cut = (h: number): Partition => {
@@ -1546,7 +1560,9 @@ const IMPLS = {
             });
             return partition(quiet, labels, {});
         };
-        return { merges: r.left.length, cut };
+        const cutAt = (by: { readonly clusters: number } | { readonly distance: number }): Partition =>
+            partition(quiet, r.cutAt(by).labels, {});
+        return { merges: r.left.length, cut, cutAt };
     },
     teraHAC: (c: Ctx, _o: AlgorithmOptions & TeraHacOptions = {}): Partition<{ merges: number }> => {
         const r = teraHAC(c.s, c.rest);
@@ -1741,6 +1757,18 @@ export const ASYNC_ALGORITHM_NAMES: readonly string[] = ASYNC_KEYS.map((k) => `$
 type Algos = Record<GpuKey, (...args: never[]) => unknown>;
 
 /**
+ * Checks that a JavaScript caller passed one options object (or nothing, which the default turns into one).
+ * @param name - the method name, for the message
+ * @param options - what the caller passed
+ */
+function checkOptions(name: string, options: unknown): asserts options is AlgorithmOptions {
+    // a Cytoscape built-in takes some arguments positionally (kruskal(weightFn)); one ignored here would run unweighted
+    if (typeof options !== "object" || options === null || Array.isArray(options)) {
+        throw new TypeError(`${name}: takes one options object; pass a weight function as { weight: fn }`);
+    }
+}
+
+/**
  * Runs one algorithm over a collection.
  * @param eles - the collection
  * @param key - the algorithm
@@ -1755,10 +1783,6 @@ function run(
     algos: Algos,
 ): { result: unknown; snapshot: GraphSnapshot } {
     const name = methodName(key);
-    // a Cytoscape built-in takes some arguments positionally (kruskal(weightFn)); one ignored here would run unweighted
-    if (typeof options !== "object" || options === null || Array.isArray(options)) {
-        throw new TypeError(`${name}: takes one options object; pass a weight function as { weight: fn }`);
-    }
     if (options.weight !== undefined && UNWEIGHTED.has(key)) {
         throw new Error(`${name}: this algorithm reads no edge weights; remove the weight option`);
     }
@@ -1836,8 +1860,9 @@ function named(error: unknown, key: keyof Impls): unknown {
  * @param options - the caller's options
  * @returns the result
  */
-function runSync(eles: Collection, key: keyof Impls, options: AlgorithmOptions = {}): unknown {
-    checkGpuMode(methodName(key), options?.gpu);
+function runSync(eles: Collection, key: keyof Impls, options: unknown = {}): unknown {
+    checkOptions(methodName(key), options);
+    checkGpuMode(methodName(key), options.gpu);
     if (options.gpu === "require") {
         const name = methodName(key);
         throw new Error(
@@ -1857,9 +1882,15 @@ function runSync(eles: Collection, key: keyof Impls, options: AlgorithmOptions =
  * @param options - the caller's options
  * @returns the result with `backend`
  */
-async function runAsync(eles: Collection, key: keyof Impls, options: AlgorithmOptions = {}): Promise<unknown> {
-    checkGpuMode(`${methodName(key)}Async`, options?.gpu);
-    const d = await gpuFor(coreOf(eles), options.gpu);
+async function runAsync(eles: Collection, key: keyof Impls, options: unknown = {}): Promise<unknown> {
+    checkOptions(methodName(key), options);
+    checkGpuMode(`${methodName(key)}Async`, options.gpu);
+    const cy = coreOf(eles);
+    const d = await gpuFor(cy, options.gpu);
+    // destroyed while the device was acquired: its device is disposed and its elements are gone with it
+    if (cy.destroyed()) {
+        throw coreDestroyedError();
+    }
     const rec = d.gpu === null ? null : recording(d.gpu.accelerator);
     warnIfFixable(d, eles.nodes().length);
     const { result, snapshot } = run(eles, key, options, accelerated(rec?.accelerator ?? null));
@@ -1868,6 +1899,9 @@ async function runAsync(eles: Collection, key: keyof Impls, options: AlgorithmOp
     let value: object;
     try {
         value = (await result) as object;
+    } catch (e) {
+        // destroyed mid-run, the device fails with "GpuContext is disposed"; the cause is the destroy
+        throw cy.destroyed() ? coreDestroyedError() : e;
     } finally {
         unhold();
         if (d.gpu !== null && typeof options.weight === "function") {
@@ -1875,11 +1909,7 @@ async function runAsync(eles: Collection, key: keyof Impls, options: AlgorithmOp
             d.gpu.accelerator.release(snapshot);
         }
     }
-    const backend = backendOf(
-        d,
-        rec?.used() ?? false,
-        "the options or the graph need the CPU implementation (the @graphty/algorithms dispatcher does not say which)",
-    );
+    const backend = backendOf(d, rec?.used() ?? false, "the options or the graph need the CPU implementation");
     return Object.assign(value, { backend });
 }
 

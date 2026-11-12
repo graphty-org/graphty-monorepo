@@ -10,7 +10,7 @@ import type { FallbackProps } from "@/types/error-boundary";
  * @param root0.resetError - Function to reset the error state and try again
  * @returns The error fallback UI component
  */
-export function ErrorFallback({ resetError }: FallbackProps): React.JSX.Element {
+export function ErrorFallback({ resetError }: Readonly<FallbackProps>): React.JSX.Element {
     return (
         <Box
             style={{
@@ -22,7 +22,7 @@ export function ErrorFallback({ resetError }: FallbackProps): React.JSX.Element 
             }}
         >
             <Stack align="center" gap="lg">
-                <AlertTriangle size={48} color="var(--mantine-color-red-5)" />
+                <AlertTriangle size={48} color="var(--cm-text-danger)" />
                 <Title order={2} c="gray.1">
                     Something went wrong
                 </Title>

@@ -1,0 +1,1590 @@
+// Pure mapping from GitHub's responses to the model's raw items and the values the collector observes
+// (design/ci/health-dashboard.md section 4). No I/O here, so every rule is tested on recorded responses.
+
+import {
+    type CostItem,
+    DAY,
+    isOffMaster,
+    type IssueItem,
+    type JobItem,
+    type LoadKind,
+    loadOf,
+    MIN,
+    type PrStages,
+    type PullRequestItem,
+    type RunItem,
+    type StepItem,
+    type TestItem,
+} from "../model/items.js";
+import {
+    type ChannelAttempt,
+    type LaneJob,
+    NOT_A_TRAIN,
+    type OwnerWait,
+    type PrStockPrs,
+    type ReleaseSeen,
+    type WorkflowState,
+} from "../model/snapshots.js";
+import { failureGroups } from "./snapshots.js";
+
+// ---------------------------------------------------------------------------------------------------------------
+// The REST shapes the collector reads (only the fields it uses).
+
+export interface GhRun {
+    id: number;
+    name: string;
+    path: string;
+    head_branch: string | null;
+    head_sha: string;
+    event: string;
+    status: string;
+    conclusion: string | null;
+    run_attempt: number;
+    created_at: string;
+    run_started_at?: string;
+    updated_at: string;
+    display_title?: string;
+    check_suite_node_id?: string;
+    triggering_actor?: { login: string } | null;
+    pull_requests?: { number: number }[];
+    repository?: { full_name: string };
+}
+
+export interface GhStep {
+    name: string;
+    status?: string;
+    conclusion: string | null;
+    number?: number;
+    started_at: string | null;
+    completed_at: string | null;
+}
+
+export interface GhJob {
+    id: number;
+    run_id: number;
+    run_attempt: number;
+    workflow_name?: string;
+    name: string;
+    status: string;
+    conclusion: string | null;
+    created_at: string;
+    started_at: string | null;
+    completed_at: string | null;
+    labels: string[];
+    steps?: GhStep[];
+}
+
+const ms = (iso: string | null | undefined): number | undefined => (iso ? Date.parse(iso) : undefined);
+const msOr = (iso: string | null): number => (iso ? Date.parse(iso) : Number.NaN);
+const opt = <K extends string, V>(k: K, v: V | undefined | null): Partial<Record<K, V>> =>
+    (v === undefined || v === null ? {} : { [k]: v }) as Partial<Record<K, V>>;
+
+/**
+ * "ci.yml" from ".github/workflows/ci.yml" (a dynamic run's path keeps its own name).
+ * @param path - the run's workflow path
+ * @returns the workflow file name
+ */
+export const workflowFile = (path: string): string => path.split("/").pop()?.split("@")[0] ?? path;
+
+// ---------------------------------------------------------------------------------------------------------------
+// Runs, jobs, steps.
+
+/**
+ * A REST workflow run as the model's run item.
+ * @param run - the run from the REST API
+ * @param repo - owner/name of the repository
+ * @param extra - fields to set on the item over the mapped ones
+ * @returns the run item
+ */
+export function toRunItem(run: GhRun, repo: string, extra: Partial<RunItem> = {}): RunItem {
+    const completed = run.status === "completed";
+    const workflow = workflowFile(run.path);
+    const pr = run.pull_requests?.[0]?.number;
+    return {
+        kind: "run",
+        id: `${repo}/${run.id}`,
+        attempt: run.run_attempt,
+        repo,
+        runId: run.id,
+        workflow,
+        event: run.event,
+        branch: run.head_branch ?? "",
+        sha: run.head_sha,
+        ...opt("pr", pr),
+        status: run.status,
+        ...opt("conclusion", run.conclusion),
+        ...(workflow === "ci.yml" && run.event === "pull_request" ? { runKind: "pr", budgetMs: 20 * MIN } : {}),
+        createdAt: Date.parse(run.created_at),
+        ...opt("startedAt", ms(run.run_started_at)),
+        // The runs API has no completion time; a completed run's last update is its end.
+        ...(completed ? { completedAt: Date.parse(run.updated_at) } : {}),
+        ...extra,
+    };
+}
+
+/**
+ * A test family, bins folded: "Test (graphty-element-browser-3)" and "CI / Test (graphty-3)" lose the bin.
+ * @param name - the job name
+ * @returns the family, or undefined when the job is not a test shard
+ */
+export function family(name: string): string | undefined {
+    const m = /(?:^|\/ )Test \(([^$)]+?)(?:-\d+)?\)$/.exec(name);
+    return m?.[1];
+}
+
+/**
+ * Which runner limit a job counts against (section 4.3): every GitHub-hosted job the 60, macOS also its 5.
+ * @param labels - the job's runner labels
+ * @returns the pool the job counts against
+ */
+export function pool(labels: string[]): JobItem["pool"] {
+    if (labels.some((l) => /macos/i.test(l))) {
+        return "macos";
+    }
+    if (labels.some((l) => /^(ubuntu|windows)-/i.test(l) || l === "ubuntu-latest" || l === "windows-latest")) {
+        return "linux_windows";
+    }
+    return "other";
+}
+
+/**
+ * A GitHub-hosted job's OS (its list-price rate, section 7).
+ * @param labels the job's runner labels
+ * @returns the OS, or undefined for self-hosted and machine.dev runners
+ */
+export function runnerOs(labels: string[]): JobItem["os"] {
+    const OS: [RegExp, NonNullable<JobItem["os"]>][] = [
+        [/^macos-/i, "macos"],
+        [/^windows-/i, "windows"],
+        [/^ubuntu-/i, "linux"],
+    ];
+    return OS.find(([re]) => labels.some((l) => re.test(l)))?.[1];
+}
+
+/**
+ * A skipped job is created, started and completed at once (sources.md section 1): no wait, no duration.
+ * @param j - the job
+ * @returns true when the job was skipped
+ */
+const isSkipped = (j: GhJob): boolean => j.conclusion === "skipped";
+
+/**
+ * The kind of load a run puts on the runners (4.3, runner-minutes per merge): model/items.ts loadOf.
+ * @param run the run
+ * @returns the run's load kind
+ */
+export function loadKind(run: Pick<GhRun, "path" | "event" | "head_branch">): LoadKind {
+    return loadOf(workflowFile(run.path), run.event, run.head_branch);
+}
+
+/**
+ * Whether a run is on a branch other than master (model/items.ts isOffMaster).
+ * @param run - the run
+ * @returns true when the run's branch is not master
+ */
+export function offMaster(run: Pick<GhRun, "head_branch">): boolean {
+    return isOffMaster(run.head_branch);
+}
+
+/**
+ * A REST job as the model's job item; a skipped job gets no start or completion time.
+ * @param j - the job from the REST API
+ * @param repo - owner/name of the repository
+ * @param workflow - the workflow file the job's run belongs to
+ * @param hang - true when the job ended at its own timeout
+ * @param load - the kind of load the job's run puts on the runners
+ * @param offMasterRun - true when the job's run is on a branch other than master
+ * @returns the job item
+ */
+export function toJobItem(
+    j: GhJob,
+    repo: string,
+    workflow: string,
+    hang = false,
+    load?: LoadKind,
+    offMasterRun = false,
+): JobItem {
+    const skipped = isSkipped(j);
+    const fam = family(j.name);
+    return {
+        kind: "job",
+        id: `${repo}/${j.id}`,
+        attempt: j.run_attempt,
+        repo,
+        runId: j.run_id,
+        workflow,
+        name: j.name,
+        ...opt("family", fam),
+        pool: pool(j.labels),
+        ...opt("os", runnerOs(j.labels)),
+        ...opt("load", load),
+        status: j.status,
+        ...opt("conclusion", j.conclusion),
+        ...(hang ? { hang: true } : {}),
+        ...(offMasterRun ? { offMaster: true as const } : {}),
+        createdAt: Date.parse(j.created_at),
+        ...(skipped ? {} : opt("startedAt", ms(j.started_at))),
+        ...(skipped ? {} : opt("completedAt", ms(j.completed_at))),
+    };
+}
+
+/**
+ * A job's completed, not skipped steps as step items.
+ * @param j - the job with its steps
+ * @param repo - owner/name of the repository
+ * @param workflow - the workflow file the job's run belongs to
+ * @returns one step item per completed step
+ */
+export function toStepItems(j: GhJob, repo: string, workflow: string): StepItem[] {
+    return (j.steps ?? [])
+        .filter((s) => s.conclusion !== "skipped" && s.completed_at)
+        .map((s, i) => ({
+            kind: "step" as const,
+            id: `${repo}/${j.id}/${s.number ?? i + 1}`,
+            attempt: j.run_attempt,
+            repo,
+            runId: j.run_id,
+            jobId: j.id,
+            workflow,
+            job: j.name,
+            name: s.name,
+            ...opt("conclusion", s.conclusion),
+            ...opt("startedAt", ms(s.started_at)),
+            ...opt("completedAt", ms(s.completed_at)),
+        }));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Cancels and hangs, from the check runs' annotations (4, "Master state": never from timing).
+
+export interface CheckRunNote {
+    name: string;
+    conclusion: string | null;
+    annotations: string[];
+}
+
+export type CancelClass = NonNullable<RunItem["cancelClass"]>;
+
+/**
+ * Why a cancelled run was cancelled, from its check runs' annotations.
+ * @param checkRuns - the run's check runs with their annotations
+ * @returns "superseded", "by-hand" or "red"
+ */
+export function classifyCancel(checkRuns: CheckRunNote[]): CancelClass {
+    // No job was ever created: the run was cancelled while it waited, because a newer push or dispatch replaced it
+    // in its concurrency group (ci.yml since #3855/#3940). It never ran, so it says nothing about the commit.
+    if (!checkRuns.length) {
+        return "superseded";
+    }
+    const all = checkRuns.flatMap((c) => c.annotations);
+    if (all.some((m) => /Canceling since a higher priority waiting request for/i.test(m))) {
+        return "superseded";
+    }
+    if (all.some((m) => /The run was cancell?ed by @/i.test(m))) {
+        return "by-hand";
+    }
+    return "red";
+}
+
+/**
+ * Names of jobs that ended at their own timeout-minutes (a hang).
+ * @param checkRuns - the run's check runs with their annotations
+ * @returns the names of the timed-out check runs
+ */
+export function timedOutJobs(checkRuns: CheckRunNote[]): Set<string> {
+    return new Set(
+        checkRuns
+            .filter((c) => c.annotations.some((m) => /has exceeded the maximum execution time/i.test(m)))
+            .map((c) => c.name),
+    );
+}
+
+/** The GraphQL answer for `nodes(ids: [check suite ids])`, flattened. */
+export interface SuiteNode {
+    id: string;
+    checkRuns?: { nodes: { name: string; conclusion: string | null; annotations: { nodes: { message: string }[] } }[] };
+}
+export const suiteNotes = (node: SuiteNode | null): CheckRunNote[] =>
+    (node?.checkRuns?.nodes ?? []).map((c) => ({
+        name: c.name,
+        conclusion: c.conclusion?.toLowerCase() ?? null,
+        annotations: c.annotations.nodes.map((a) => a.message),
+    }));
+
+// ---------------------------------------------------------------------------------------------------------------
+// Master state (4.1), from the newest ci.yml push runs on master.
+
+const RED = new Set(["failure", "timed_out", "startup_failure"]);
+
+export interface MasterState {
+    red: boolean;
+    /** When the current red span began (the first red build after the last green), when red. */
+    redSince?: number;
+    redBuilds: number;
+    /** The newest build queued or running, and since when. */
+    buildingSince?: number;
+}
+
+/**
+ * Runs newest first or in any order; a gray cancel (superseded, by hand) keeps the verdict before it.
+ * @param runs - master's ci.yml push runs
+ * @returns whether master is red, since when, and the newest build in flight
+ */
+export function masterState(runs: RunItem[]): MasterState {
+    const sorted = [...runs].sort((a, b) => b.createdAt - a.createdAt);
+    const building = sorted.find((r) => r.status !== "completed");
+    const out: MasterState = { red: false, redBuilds: 0, ...opt("buildingSince", building?.createdAt) };
+    for (const r of sorted) {
+        if (r.status !== "completed") {
+            continue;
+        }
+        const c = r.conclusion ?? "";
+        const red = RED.has(c) || (c === "cancelled" && r.cancelClass === "red");
+        if (c === "success") {
+            break;
+        }
+        if (!red) {
+            continue;
+        } // gray: superseded, by hand, skipped, neutral
+        out.red = true;
+        out.redBuilds++;
+        out.redSince = r.completedAt ?? r.createdAt;
+    }
+    return out;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Runner use (4.3), counted in jobs of every unfinished run, never from run status.
+
+export interface RunnerUse {
+    running: Record<JobItem["pool"], number>;
+    queued: number;
+    /** Linux and Windows jobs waiting for a runner (status "queued") over 2 minutes, and runs queued with no jobs. */
+    queuedOver2: number;
+    /**
+     * Linux and Windows jobs "queued" over 2 minutes that wait on their own workflow, not on GitHub: a job created
+     * later already holds a runner, so a runner was free. A matrix job held back by its `max-parallel` reads "queued".
+     */
+    heldByRun: number;
+    longestQueuedMs: number;
+}
+
+/**
+ * Whether a job is waiting for a Linux or Windows runner: status "queued" for over 2 minutes. Only "queued" waits for
+ * a runner: "waiting" is an environment approval and "pending" a concurrency group, so neither says GitHub is short
+ * of runners (the owner's own Promote run read as an outage). macOS jobs queue behind their own 5-job limit while
+ * Linux runners sit free: that is no outage. A job queued under 2 minutes is GitHub's normal assignment delay.
+ * @param j - the job
+ * @param nowMs - the current epoch ms
+ * @returns true when the job waits for a Linux or Windows runner
+ */
+export function waitsForRunner(j: GhJob, nowMs: number): boolean {
+    return j.status === "queued" && pool(j.labels) === "linux_windows" && nowMs - Date.parse(j.created_at) > 2 * MIN;
+}
+
+/**
+ * Counts one job that has not started (queued, waiting or pending) into `use`.
+ * @param use - the counts to add to
+ * @param j - the job
+ * @param p - the job's pool
+ * @param nowMs - the current epoch ms
+ * @param newestRunning - the creation epoch ms of the newest Linux or Windows job that holds a runner
+ */
+function countWaiting(use: RunnerUse, j: GhJob, p: JobItem["pool"], nowMs: number, newestRunning: number): void {
+    if (p === "other") {
+        return;
+    } // machine.dev and self-hosted pools are outside GitHub's limit
+    const age = nowMs - Date.parse(j.created_at);
+    use.queued++;
+    if (waitsForRunner(j, nowMs)) {
+        if (Date.parse(j.created_at) < newestRunning - 2 * MIN) {
+            use.heldByRun++;
+        } else {
+            use.queuedOver2++;
+        }
+    }
+    use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
+}
+
+/**
+ * Jobs running per pool and jobs waiting, from the jobs of the unfinished runs.
+ * @param jobs - the jobs of every unfinished run
+ * @param runsWithoutJobs - unfinished runs GitHub has created no jobs for yet
+ * @param nowMs - the current epoch ms
+ * @returns the runner use counts
+ */
+export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number): RunnerUse {
+    const use: RunnerUse = {
+        running: { linux_windows: 0, macos: 0, other: 0 },
+        queued: 0,
+        queuedOver2: 0,
+        heldByRun: 0,
+        longestQueuedMs: 0,
+    };
+    // ponytail: assumes GitHub hands Linux runners out roughly first come, first served; a job created over 2 minutes
+    // after a queued one that already runs means runners were free. Exact per-matrix max-parallel needs the workflow files.
+    const newestRunning = Math.max(
+        0,
+        ...jobs
+            .filter((j) => j.status === "in_progress" && pool(j.labels) === "linux_windows")
+            .map((j) => Date.parse(j.created_at)),
+    );
+    for (const j of jobs) {
+        const p = pool(j.labels);
+        if (j.status === "in_progress") {
+            use.running[p]++;
+            if (p === "macos") {
+                use.running.linux_windows++;
+            } // a macOS job counts against the 60 too
+        } else if (j.status === "queued" || j.status === "waiting" || j.status === "pending") {
+            countWaiting(use, j, p, nowMs, newestRunning);
+        }
+    }
+    for (const r of runsWithoutJobs) {
+        const age = nowMs - Date.parse(r.created_at);
+        use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
+        // In an Actions outage runs sit queued before GitHub creates their jobs: each counts as one job waiting.
+        if (age > 2 * MIN && r.status === "queued") {
+            use.queuedOver2++;
+        }
+    }
+    return use;
+}
+
+/**
+ * An unfinished pull_request run of the home repository whose pull request is no longer open (merged or closed):
+ * GitHub can leave it queued for hours (run 40441556963, "Lint PR Title" queued 21 h after #3940 merged). It holds no
+ * runner and nobody waits on it, so runner use leaves it out. GitHub empties a merged pull request's runs'
+ * pull_requests, so a run is matched to an open pull request by number or head branch. `open` must be every open pull
+ * request: with a truncated list nothing is called a ghost.
+ * @param run - the run
+ * @param open - the open pull requests
+ * @param complete - true when `open` is every open pull request
+ * @returns true when the run is a ghost
+ */
+export function isGhostRun(run: GhRun, open: GqlPr[], complete: boolean): boolean {
+    if (!complete || run.event !== "pull_request" || run.status === "completed") {
+        return false;
+    }
+    const listed = new Set((run.pull_requests ?? []).map((p) => p.number));
+    return !open.some((p) => listed.has(p.number) || p.headRefName === run.head_branch);
+}
+
+/**
+ * An unfinished run with no jobs that waits on its own workflow's concurrency group, not for a runner: GitHub creates
+ * no job until the group is free, and reports the run as "pending" or, as for Release restart 41191120998 behind full
+ * run 41188440989 in release.yml's `release-train` group (2026-10-31, 10:02-10:25Z), as "queued". So a run is taken to
+ * wait on its group when it is "pending", or when an older run of the same workflow on the same branch is in progress.
+ * It holds no runner, so runner use leaves it out. `unfinished` is the unfinished runs of the run's repository.
+ * @param run - the run
+ * @param unfinished - the unfinished runs of the run's repository
+ * @returns true when the run waits on its concurrency group
+ */
+export function waitsOnConcurrency(run: GhRun, unfinished: GhRun[]): boolean {
+    if (run.status === "pending") {
+        return true;
+    }
+    const created = Date.parse(run.created_at);
+    return unfinished.some(
+        (o) =>
+            o.id !== run.id &&
+            o.status === "in_progress" &&
+            o.path === run.path &&
+            o.head_branch === run.head_branch &&
+            Date.parse(o.created_at) < created,
+    );
+}
+
+/**
+ * Saturated: jobs queued > 2 min while running >= limit - 3. Not assigned: queued > 2 min while running < 75%.
+ * @param use - the runner use counts
+ * @param limit - the Linux and Windows runner limit
+ * @returns the saturated and unassigned flags
+ */
+export function runnerFlags(use: RunnerUse, limit: number): { saturated: boolean; unassigned: boolean } {
+    const waiting = use.queuedOver2 > 0;
+    return {
+        saturated: waiting && use.running.linux_windows >= limit - 3,
+        unassigned: waiting && use.running.linux_windows < 0.75 * limit,
+    };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Pull requests (4.2), from one GraphQL query.
+
+export interface GqlCheck {
+    __typename: string;
+    id?: string;
+    name?: string;
+    /**
+     * What the failing check run failed on, filled in by the collector (collect.ts failureSignatures): each failed
+     * test as "file > name", and each failure annotation's first line. Empty or absent when nothing says.
+     */
+    signatures?: string[];
+    detailsUrl?: string | null;
+    status?: string;
+    conclusion?: string | null;
+    context?: string;
+    state?: string;
+    createdAt?: string;
+    startedAt?: string;
+}
+
+export interface GqlPr {
+    number: number;
+    title: string;
+    state: string;
+    isDraft: boolean;
+    reviewDecision: string | null;
+    baseRefName: string;
+    headRefName?: string;
+    headRefOid?: string;
+    createdAt: string;
+    updatedAt: string;
+    mergedAt: string | null;
+    closedAt: string | null;
+    autoMergeRequest: { enabledAt: string } | null;
+    /** Null for a deleted account. */
+    author?: { login: string } | null;
+    labels: { nodes: { name: string }[] };
+    readyEvents: { nodes: { __typename: string; createdAt?: string }[] };
+    /** Only on the open page (the recent page leaves checks out). */
+    commits?: {
+        nodes: {
+            commit: {
+                oid?: string;
+                committedDate?: string;
+                statusCheckRollup: { state: string; contexts: { nodes: GqlCheck[] } } | null;
+            };
+        }[];
+    };
+    /** The head's last 100 commits, to count a pull request stacked on another once (only on the open page). */
+    stackCommits?: { nodes: { commit: { oid: string } }[] };
+}
+
+/** Labels that keep auto-merge off by rule, so the pull request waits on the owner. */
+const OWNER_LABELS = new Set(["hold", "needs-decision"]);
+
+/**
+ * Auto-merge off by rule (4.2): a hold label, a breaking title, or a required review (code-owner paths).
+ * @param p - the pull request
+ * @returns true when a rule keeps auto-merge off
+ */
+export function ownerWait(p: GqlPr): boolean {
+    if (p.labels.nodes.some((l) => OWNER_LABELS.has(l.name))) {
+        return true;
+    }
+    if (/^\w+(\([^)]*\))?!:/.test(p.title)) {
+        return true;
+    }
+    return p.reviewDecision === "REVIEW_REQUIRED";
+}
+
+/** The repository owner's account: tools/pr-open.sh leaves auto-merge off on a pull request he opened. */
+export const OWNER_LOGIN = "apowers313";
+
+/**
+ * Waiting on the owner now: auto-merge off by rule (ownerWait), or his own pull request with auto-merge off, which
+ * only he merges. Left out of the open count and the oldest open (4.2); listed under "Waiting on the owner".
+ * @param p - the pull request
+ * @returns true when the pull request waits on the owner
+ */
+export const waitsOnOwner = (p: GqlPr): boolean =>
+    ownerWait(p) || (p.author?.login === OWNER_LOGIN && !p.autoMergeRequest);
+
+/**
+ * Ready time: the last ReadyForReviewEvent, else creation when it was never a draft.
+ * @param p - the pull request
+ * @returns epoch ms it became ready, or undefined while it is (or was) a draft with no ready event
+ */
+export function readyAt(p: GqlPr): number | undefined {
+    const ready = p.readyEvents.nodes.filter((e) => e.__typename === "ReadyForReviewEvent" && e.createdAt);
+    const lastReady = ready.at(-1)?.createdAt;
+    if (lastReady) {
+        return Date.parse(lastReady);
+    }
+    const drafted = p.readyEvents.nodes.some((e) => e.__typename === "ConvertToDraftEvent");
+    return p.isDraft || drafted ? undefined : Date.parse(p.createdAt);
+}
+
+/**
+ * A GraphQL pull request as the model's pull request item.
+ * @param p - the pull request
+ * @param repo - owner/name of the repository
+ * @returns the pull request item
+ */
+export function toPrItem(p: GqlPr, repo: string): PullRequestItem {
+    return {
+        kind: "pr",
+        id: `${repo}#${p.number}`,
+        attempt: 1,
+        repo,
+        number: p.number,
+        base: p.baseRefName,
+        createdAt: Date.parse(p.createdAt),
+        ...opt("readyAt", readyAt(p)),
+        ...opt("mergedAt", ms(p.mergedAt)),
+        ...opt("closedAt", ms(p.closedAt)),
+        ...(ownerWait(p) ? { ownerWait: true } : {}),
+    };
+}
+
+/**
+ * The hold labels and breaking title that keep a pull request waiting on the owner, with the CODEOWNERS paths.
+ * @param p - the pull request
+ * @param files - the paths the pull request changes
+ * @param codeowners - the CODEOWNERS patterns
+ * @returns why and since when the pull request waits on the owner
+ */
+export function ownerWaitOf(p: GqlPr, files: string[], codeowners: string[]): OwnerWait {
+    return {
+        number: p.number,
+        title: p.title,
+        since: readyAt(p) ?? Date.parse(p.createdAt),
+        paths: ownedPaths(files, codeowners),
+        breaking: /^\w+(\([^)]*\))?!:/.test(p.title),
+        labels: p.labels.nodes.map((l) => l.name).filter((l) => OWNER_LABELS.has(l)),
+    };
+}
+
+/**
+ * A CODEOWNERS pattern as a path test: "/x/" a directory at the root, "x" anywhere, "*" within a name.
+ * @param pat - the CODEOWNERS pattern
+ * @returns a regular expression matching the paths the pattern covers
+ */
+function ownerPattern(pat: string): RegExp {
+    const body = (pat.startsWith("/") ? pat.slice(1) : `**/${pat}`).replace(/\/$/, "");
+    const re = body
+        .split("**/")
+        .map((part) => part.replaceAll(/[.+?^${}()|[\]\\]/g, String.raw`\$&`).replaceAll("*", "[^/]*"))
+        .join("(?:.*/)?");
+    return new RegExp(`^${re}(?:/.*)?$`);
+}
+
+/**
+ * The CODEOWNERS patterns (as written, leading "/" dropped) that some of `files` match, in CODEOWNERS order.
+ * @param files - the paths to test
+ * @param codeowners - the CODEOWNERS patterns
+ * @returns the matching patterns
+ */
+export function ownedPaths(files: string[], codeowners: string[]): string[] {
+    return codeowners
+        .filter((pat) => {
+            const re = ownerPattern(pat);
+            return files.some((f) => re.test(f));
+        })
+        .map((pat) => pat.replace(/^\//, ""));
+}
+
+/**
+ * The patterns of a CODEOWNERS file, one per rule line.
+ * @param text - the CODEOWNERS file's text
+ * @returns the first field of each rule line
+ */
+export const codeownerPatterns = (text: string): string[] =>
+    text
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l && !l.startsWith("#"))
+        .map((l) => l.split(/\s+/)[0]);
+
+/** One ci.yml pull request run attempt for "Where the time goes": [start, first job start, end, passed 1/0]. */
+export type PrRun = [number, number, number, 0 | 1];
+
+/**
+ * The pull request a run belongs to. GitHub empties a run's pull_requests once its pull request merged, so
+ * fall back to the head branch among the cycle's pull requests, preferring one whose head is the run's commit,
+ * then a merged one when it is the only pull request with that branch name (fork branches named "main" collide);
+ * otherwise none.
+ * @param run - the run
+ * @param prs - the cycle's pull requests
+ * @returns the pull request number, or undefined
+ */
+export function prOfRun(
+    run: Pick<GhRun, "pull_requests" | "head_branch" | "head_sha">,
+    prs: GqlPr[],
+): number | undefined {
+    const listed = run.pull_requests?.[0]?.number;
+    if (listed !== undefined || !run.head_branch) {
+        return listed;
+    }
+    const same = prs.filter((p) => p.headRefName === run.head_branch);
+    return (
+        same.find((p) => p.headRefOid === run.head_sha) ??
+        (same.length === 1 ? same.find((p) => p.mergedAt) : undefined)
+    )?.number;
+}
+
+/**
+ * A finished, passed or failed ci.yml pull request run as a PrRun.
+ * @param run - the run
+ * @param jobs - the run's jobs
+ * @returns the run's start, first job start, end and pass flag, or undefined for any other run
+ */
+export function prRunOf(run: GhRun, jobs: GhJob[]): PrRun | undefined {
+    if (workflowFile(run.path) !== "ci.yml" || run.event !== "pull_request" || run.status !== "completed") {
+        return undefined;
+    }
+    if (run.conclusion !== "success" && run.conclusion !== "failure") {
+        return undefined;
+    }
+    const start = Date.parse(run.run_attempt > 1 && run.run_started_at ? run.run_started_at : run.created_at);
+    const starts = jobs.map((j) => msOr(j.started_at)).filter(Number.isFinite);
+    const first = starts.length ? Math.max(start, Math.min(...starts)) : start;
+    return [start, first, Math.max(first, Date.parse(run.updated_at)), run.conclusion === "success" ? 1 : 0];
+}
+
+/**
+ * Where a merged pull request's time went (4.2 Where the time goes), from its ci.yml runs before the merge: waiting
+ * for a runner until the first job started, checks running from then to the run's end, red from a failed run's end
+ * to the next run, and green to merged after the last run passed.
+ * ponytail: only the first job's runner wait counts as waiting; later jobs' waits count as checks running, and
+ * overlapping runs add up. Per-job waits if the bars ever need to be exact.
+ * @param runs - the pull request's ci.yml runs
+ * @param mergedAt - epoch ms of the merge
+ * @returns the time in each stage, or undefined when no run started before the merge
+ */
+export function prStages(runs: PrRun[], mergedAt: number): PrStages | undefined {
+    const rs = runs.filter((r) => r[0] <= mergedAt).sort((a, b) => a[0] - b[0]);
+    if (!rs.length) {
+        return undefined;
+    }
+    const s: PrStages = { runners: 0, checks: 0, red: 0, merging: 0 };
+    rs.forEach(([start, first, end, ok], i) => {
+        s.runners += first - start;
+        s.checks += end - first;
+        if (!ok) {
+            s.red += Math.max(0, Math.min(rs[i + 1]?.[0] ?? mergedAt, mergedAt) - end);
+        }
+    });
+    const last = rs.at(-1);
+    if (last?.[3]) {
+        s.merging = Math.max(0, mergedAt - last[2]);
+    }
+    return s;
+}
+
+export interface PrStocks {
+    open: number;
+    oldestOpenMs: number;
+    /** Armed, green and still unmerged 2 h after arming. */
+    autoMergeGreenStuck: number;
+    /** Armed 24 h or more, green or not. */
+    autoMergeArmedLong: number;
+    screenshotBacklogMs: number;
+    maxFailingSameCheck: number;
+    /** The pull requests behind the counts, so a row can name them ("which one?"). */
+    prs: PrStockPrs;
+}
+
+/**
+ * How long the pull request's pictures have waited for the owner: its pending "Visual review" status, 0 if none.
+ * @param p - the pull request
+ * @param nowMs - the current epoch ms
+ * @returns the wait in ms
+ */
+function screenshotWaitMs(p: GqlPr, nowMs: number): number {
+    let ms = 0;
+    for (const c of p.commits?.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? []) {
+        if (c.__typename === "StatusContext" && c.context === "Visual review" && c.state === "PENDING" && c.createdAt) {
+            ms = Math.max(ms, nowMs - Date.parse(c.createdAt));
+        }
+    }
+    return ms;
+}
+
+/**
+ * The "now" members of 4.2 and "Red on the same check" of 4.1, from the open pull requests.
+ * ponytail: reads the first 50 open pull requests; past 50 the counts stop growing, which is already red.
+ * @param open - the open pull requests
+ * @param nowMs - the current epoch ms
+ * @param masterFailing - the checks (families folded) master's newest build failed
+ * @returns the counts and the pull requests behind them
+ */
+export function prStocks(open: GqlPr[], nowMs: number, masterFailing?: ReadonlySet<string>): PrStocks {
+    const s: PrStocks = {
+        open: 0,
+        oldestOpenMs: 0,
+        autoMergeGreenStuck: 0,
+        autoMergeArmedLong: 0,
+        screenshotBacklogMs: 0,
+        maxFailingSameCheck: 0,
+        prs: { greenStuck: [], armedLong: [] },
+    };
+    for (const p of open) {
+        if (p.state !== "OPEN" || p.isDraft) {
+            continue;
+        }
+        if (!waitsOnOwner(p)) {
+            s.open++;
+            const age = nowMs - Date.parse(p.createdAt);
+            if (age > s.oldestOpenMs) {
+                s.oldestOpenMs = age;
+                s.prs.oldest = p.number;
+            }
+        }
+        const rollup = p.commits?.nodes[0]?.commit.statusCheckRollup;
+        const armed = p.autoMergeRequest ? nowMs - Date.parse(p.autoMergeRequest.enabledAt) : -1;
+        if (armed >= 2 * 60 * MIN && rollup?.state === "SUCCESS") {
+            s.autoMergeGreenStuck++;
+            s.prs.greenStuck.push(p.number);
+        }
+        if (armed >= 24 * 60 * MIN) {
+            s.autoMergeArmedLong++;
+            s.prs.armedLong.push(p.number);
+        }
+        s.screenshotBacklogMs = Math.max(s.screenshotBacklogMs, screenshotWaitMs(p, nowMs));
+    }
+    // An aggregator failing alone counts too (4, "Excluded checks"); a stack of pull requests counts once.
+    s.maxFailingSameCheck = Math.max(
+        0,
+        ...[...failureGroups(open, nowMs, masterFailing).values()].map((g) => g.units.size),
+    );
+    return s;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Issues.
+
+export interface GqlIssue {
+    number: number;
+    title: string;
+    state: string;
+    stateReason: string | null;
+    createdAt: string;
+    updatedAt: string;
+    closedAt: string | null;
+    labels: { nodes: { name: string }[] };
+}
+
+/** An open "Nightly held on <sha>" issue (ISSUE_QUERY's `nightly` search), with its body and last comments. */
+export interface GqlHoldIssue {
+    number: number;
+    title: string;
+    state: string;
+    createdAt: string;
+    body?: string;
+    comments?: { nodes: { body: string; createdAt: string }[] };
+}
+
+const HOLD_VERDICT = /\bended (green-images|green-clean|red|owner-item|approved|rejected)\b/;
+
+/**
+ * The held nightly candidate waiting only on the owner's screenshot review: its hold issue's newest verdict
+ * (tools/channel/hold.mjs writes "ended <state>" in the body, then in a comment per re-test) is green-images. A red
+ * or owner-item hold is the agents' to fix, and a publish hold ("Release held") is not a nightly hold at all.
+ * @param issues - the `nightly` search's nodes
+ * @returns since when it has waited and its issue, or undefined
+ */
+export function screenshotReview(issues: (GqlHoldIssue | null)[]): { since: number; issue: number } | undefined {
+    for (const i of issues) {
+        if (i?.state !== "OPEN" || !i.title.startsWith("Nightly held on")) {
+            continue;
+        }
+        const said = [{ body: i.body ?? "", createdAt: i.createdAt }, ...(i.comments?.nodes ?? [])]
+            .map((x) => ({ at: Date.parse(x.createdAt), state: HOLD_VERDICT.exec(x.body)?.[1] }))
+            .filter((x) => x.state);
+        let k = said.length;
+        while (k > 0 && said[k - 1].state === "green-images") {
+            k--;
+        } // re-tests that stay green-images keep the wait
+        if (k < said.length) {
+            return { since: said[k].at, issue: i.number };
+        }
+    }
+    return undefined;
+}
+
+/**
+ * A GraphQL issue as the model's issue item.
+ * @param i - the issue
+ * @param repo - owner/name of the repository
+ * @returns the issue item
+ */
+export function toIssueItem(i: GqlIssue, repo: string): IssueItem {
+    return {
+        kind: "issue",
+        id: `${repo}#${i.number}`,
+        attempt: 1,
+        repo,
+        number: i.number,
+        title: i.title,
+        labels: i.labels.nodes.map((l) => l.name),
+        createdAt: Date.parse(i.createdAt),
+        ...opt("closedAt", ms(i.closedAt)),
+        ...opt("stateReason", i.stateReason?.toLowerCase()),
+    };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Release lanes (4.5), from release.yml's job conclusions (sources.md section 3).
+
+export const LANES = {
+    ci: "CI",
+    t4: "T4 GPU",
+    hosts: "Hosts",
+    autosave_macos: "Work protection (macOS)",
+    audit: "Security audit",
+    llm: "LLM regression",
+    version: "Version the release",
+    land: "Land the release on master",
+    publish: "Publish the release",
+} as const;
+export type Lane = keyof typeof LANES;
+export type LaneResult = "passed" | "failed" | "skipped" | "running" | "not in this mode" | "absent";
+
+const TESTING: Lane[] = ["ci", "t4", "hosts", "autosave_macos", "audit", "llm"];
+const BAD = new Set(["failure", "timed_out", "cancelled", "startup_failure", "action_required"]);
+
+/**
+ * "full" from "Release (full)"; runs before 2026-10-25 18:00 say just "Release" (legacy).
+ * @param title - the run's display title
+ * @returns the release mode
+ */
+export const releaseMode = (title: string | undefined): string => /\(([\w-]+)\)/.exec(title ?? "")?.[1] ?? "legacy";
+
+/** release.yml's job that deploys nightly.graphty.app once the candidate was promoted. */
+const NIGHTLY_SITE = "Deploy the nightly site";
+
+const jobsOf = (jobs: GhJob[], name: string): GhJob[] =>
+    jobs.filter((j) => j.name === name || j.name.startsWith(`${name} / `));
+
+/**
+ * One lane's result from its jobs (the job named `name` or its called workflow's jobs).
+ * @param jobs - the run's jobs
+ * @param name - the lane's job name
+ * @returns the lane's result
+ */
+function laneOf(jobs: GhJob[], name: string): LaneResult {
+    const mine = jobsOf(jobs, name);
+    if (!mine.length) {
+        return "absent";
+    }
+    if (mine.some((j) => j.status !== "completed")) {
+        return "running";
+    }
+    if (mine.some((j) => BAD.has(j.conclusion ?? ""))) {
+        return "failed";
+    }
+    if (mine.every((j) => j.conclusion === "skipped")) {
+        return "skipped";
+    }
+    return "passed";
+}
+
+export interface ReleaseAttempt {
+    mode: string;
+    lanes: Record<Lane, LaneResult>;
+    /** It tested its candidate: some testing lane did not skip. */
+    tested: boolean;
+    red: Lane[];
+    /** Each lane's jobs that ran (not skipped): name, count, wall time, newest failure. */
+    jobs: Partial<Record<Lane, LaneJob>>;
+    /** The first job that failed, wherever it is (for an attempt that failed before its lanes). */
+    failedJob?: string;
+    /** Its "Deploy the nightly site" job: passed means it promoted the candidate to nightly. */
+    nightly: LaneResult;
+    /** Its "Coverage" job (publishes to Coveralls): skipped when the run's CI did not pass. */
+    coverage: LaneResult;
+}
+
+/**
+ * A lane's jobs that ran: their name, count, wall time and newest failure.
+ * @param mine - the lane's jobs
+ * @param name - the lane's job name
+ * @returns the summary, or undefined when every job skipped
+ */
+function laneJob(mine: GhJob[], name: string): LaneJob | undefined {
+    const ran = mine.filter((j) => j.conclusion !== "skipped");
+    if (!ran.length) {
+        return undefined;
+    }
+    const starts = ran.map((j) => msOr(j.started_at)).filter(Number.isFinite);
+    const ends = ran.map((j) => msOr(j.completed_at)).filter(Number.isFinite);
+    const bad = ran
+        .filter((j) => BAD.has(j.conclusion ?? ""))
+        .map((j) => msOr(j.completed_at))
+        .filter(Number.isFinite);
+    return {
+        job: ran.length === 1 ? ran[0].name : name,
+        n: ran.length,
+        s: starts.length && ends.length ? Math.round((Math.max(...ends) - Math.min(...starts)) / 1000) : 0,
+        ...(bad.length ? { redAt: Math.max(...bad) } : {}),
+    };
+}
+
+/**
+ * One release.yml run attempt's mode, lane results and failures.
+ * @param run - the release.yml run
+ * @param jobs - the attempt's jobs
+ * @returns the release attempt
+ */
+export function releaseAttempt(run: GhRun, jobs: GhJob[]): ReleaseAttempt {
+    const mode = releaseMode(run.display_title);
+    const names: Record<Lane, string> = { ...LANES };
+    // In full and restart mode version/land/publish are skipped by design: judge the dry run instead.
+    const full = mode === "full" || mode === "restart";
+    if (full) {
+        names.version = "Version dry run";
+    }
+    const lanes = {} as Record<Lane, LaneResult>;
+    const laneJobs: Partial<Record<Lane, LaneJob>> = {};
+    for (const [lane, name] of Object.entries(names) as [Lane, string][]) {
+        lanes[lane] = laneOf(jobs, name);
+        const j = laneJob(jobsOf(jobs, name), name);
+        if (j) {
+            laneJobs[lane] = j;
+        }
+    }
+    if (full) {
+        lanes.land = "not in this mode";
+        lanes.publish = "not in this mode";
+        // A failed job inside a lane can be non-gating (continue-on-error: CI's Performance Benchmarks, Story tests
+        // parity), which the jobs API does not say. "Red early (<lane>)" runs only when the lane's result is failure,
+        // so a lane whose Red early job skipped passed. Not in a cancelled run (!cancelled() skips every Red early
+        // job) and not over a cancelled or timed-out job, which continue-on-error does not cover.
+        for (const [lane, name] of Object.entries(names) as [Lane, string][]) {
+            const early = jobs.find((j) => j.name === `Red early (${name})`);
+            const onlyFailures = jobsOf(jobs, name).every(
+                (j) => !BAD.has(j.conclusion ?? "") || j.conclusion === "failure",
+            );
+            if (
+                lanes[lane] === "failed" &&
+                run.conclusion !== "cancelled" &&
+                onlyFailures &&
+                early?.status === "completed" &&
+                early.conclusion === "skipped"
+            ) {
+                lanes[lane] = "passed";
+            }
+        }
+    }
+    const tested = TESTING.some((l) => lanes[l] !== "skipped" && lanes[l] !== "absent");
+    const red = (Object.keys(lanes) as Lane[]).filter((l) => lanes[l] === "failed");
+    const failed = jobs
+        .filter((j) => BAD.has(j.conclusion ?? ""))
+        .sort((a, b) => msOr(a.completed_at) - msOr(b.completed_at))[0];
+    const nightly = laneOf(jobs, NIGHTLY_SITE);
+    const coverage = laneOf(jobs, "Coverage");
+    return {
+        mode,
+        lanes,
+        tested,
+        red,
+        jobs: laneJobs,
+        nightly,
+        coverage,
+        ...(failed ? { failedJob: failed.name } : {}),
+    };
+}
+
+/**
+ * When the coverage source was last current (#6119): Coveralls is fed only by a full run whose Coverage job ran,
+ * and that job runs only when the run's CI passed, so a red full run publishes nothing. While no finished attempt
+ * reached Coverage after the newest Coveralls build, that build is all there is to publish, and the source is
+ * current as of the newest finished attempt; the red run itself is already master.full_run_failed's alarm. An
+ * attempt that reached Coverage after the build and published nothing leaves the build's own time, so a broken
+ * publish still goes stale. Attempts read before the Coverage result was kept count as reaching it.
+ * @param builtAt - the newest Coveralls build on master, epoch ms
+ * @param attempts - the finished release attempts the collector has read
+ * @returns epoch ms the coverage source counts as current at
+ */
+export function coverageAsOf(builtAt: number, attempts: { at: number; created?: number; coverage?: string }[]): number {
+    const after = attempts.filter((a) => a.at > builtAt);
+    const reached = (a: { coverage?: string }): boolean => a.coverage !== "skipped" && a.coverage !== "absent";
+    if (after.some((a) => reached(a) && (a.created ?? a.at) > builtAt)) {
+        return builtAt;
+    }
+    return Math.max(builtAt, ...after.map((a) => a.at));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The release channels (#4460): canary's deploys and production's promotions. Nightly's are release attempts.
+
+/**
+ * A finished run's outcome as a channel attempt: success is ok, a cancel is cancelled, anything else failed.
+ * @param conclusion - the run's conclusion
+ * @returns the attempt's outcome
+ */
+const runOutcome = (conclusion: string | null): ChannelAttempt["outcome"] => {
+    if (conclusion === "success") {
+        return "ok";
+    }
+    return conclusion === "cancelled" ? "cancelled" : "bad";
+};
+
+/**
+ * Canary's attempts, newest first: finished deploy-pages.yml runs; a skipped run (master's build was red) is none.
+ * @param runs - deploy-pages.yml runs
+ * @returns one attempt per finished, not skipped run
+ */
+export function canaryAttempts(runs: GhRun[]): ChannelAttempt[] {
+    return runs
+        .filter((r) => r.status === "completed" && r.conclusion !== "skipped")
+        .map((r) => ({
+            at: Date.parse(r.updated_at),
+            outcome: runOutcome(r.conclusion),
+            // run-name is "Deploy <the built commit>"; the run's own head is master's newest commit.
+            sha: /\b[0-9a-f]{40}\b/.exec(r.display_title ?? "")?.[0] ?? r.head_sha,
+            run: r.id,
+        }))
+        .sort((a, b) => b.at - a.at);
+}
+
+/**
+ * A finished promote.yml run as a production promotion: it moved channel/production, or its promotion failed. A dry
+ * run, a configuration redeploy or a nightly rollback is null. ponytail: a failed dry run counts as a failed
+ * promotion, since the jobs API does not say which runs were dry; read the run's inputs if that misleads.
+ * @param run - the promote.yml run
+ * @param jobs - the run's jobs
+ * @returns the promotion attempt, or null when the run was no promotion
+ */
+export function promotion(run: GhRun, jobs: GhJob[]): ChannelAttempt | null {
+    const move = jobs.find((j) => j.name.startsWith("Move channel/"));
+    if (move?.name !== "Move channel/production") {
+        return null;
+    }
+    const moved = laneOf(jobs, move.name);
+    if (moved !== "passed" && moved !== "failed" && laneOf(jobs, "Promote (owner approval)") !== "failed") {
+        return null;
+    }
+    // A run that succeeded without moving the channel failed its promotion (its promote job did).
+    const failed = run.conclusion === "success" ? "failure" : run.conclusion;
+    return { at: Date.parse(run.updated_at), outcome: moved === "passed" ? "ok" : runOutcome(failed), run: run.id };
+}
+
+/**
+ * The scheduler's App dispatches the train; anything else is ad hoc.
+ * @param run - the release run
+ * @returns true when the scheduler's App started the run
+ */
+export const isScheduled = (run: GhRun): boolean => run.triggering_actor?.login === "graphty-release-scheduler[bot]";
+
+/**
+ * The newest runs that failed in a row, newest first, of one workflow's completed runs.
+ * @param runs - one workflow's runs, any order
+ * @returns the failed runs since the last good one
+ */
+export function failedStreak(runs: GhRun[]): GhRun[] {
+    const out: GhRun[] = [];
+    for (const r of [...runs].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))) {
+        if (r.status !== "completed" || r.conclusion === "skipped" || r.conclusion === "cancelled") {
+            continue;
+        }
+        if (!BAD.has(r.conclusion ?? "")) {
+            break;
+        }
+        out.push(r);
+    }
+    return out;
+}
+
+/**
+ * The cancelled runs a newer run of the same workflow took the place of: a newer run was created before the cancel
+ * (a concurrency group replacing a waiting run, or a stuck run cancelled by hand after its successor started).
+ * Neutral: neither failed nor a skipped train. A run cancelled with no successor yet still counts as it did.
+ * @param runs - one workflow's runs
+ * @returns the ids of the replaced runs
+ */
+export function replacedRuns(runs: GhRun[]): Set<number> {
+    const created = runs.map((r) => Date.parse(r.created_at));
+    return new Set(
+        runs
+            .filter(
+                (r) =>
+                    r.status === "completed" &&
+                    r.conclusion === "cancelled" &&
+                    created.some((t) => t > Date.parse(r.created_at) && t <= Date.parse(r.updated_at)),
+            )
+            .map((r) => r.id),
+    );
+}
+
+/**
+ * Whether the train skipped a new commit: the newest train attempt (not a promote-nightly, abandon or candidate run)
+ * that a newer run did not replace did not test, on a commit other than the candidate's.
+ * @param attempts the seen attempts, newest first
+ * @param runs the release workflow's newest runs
+ * @returns true when the newest train attempt skipped testing a new commit
+ */
+export function trainSkipped(attempts: ReleaseSeen[], runs: GhRun[]): boolean {
+    const replaced = replacedRuns(runs);
+    const modes = new Map(runs.map((r) => [r.id, releaseMode(r.display_title)]));
+    const train = (a: ReleaseSeen): boolean => a.run === undefined || !NOT_A_TRAIN.has(modes.get(a.run) ?? "full");
+    const candidate = attempts.find((a) => a.tested);
+    const newest = attempts.find((a) => train(a) && (a.run === undefined || !replaced.has(a.run)));
+    return !!newest && !newest.tested && newest.sha !== candidate?.sha;
+}
+
+/**
+ * The events each release workflow declares in its `on:` (test/collector/parse.test.ts checks them against the
+ * files). GitHub also records a failed run of a workflow for a push to any branch whose copy of the file it cannot
+ * use (promote.yml's "10 failures in a row" on 2026-10-25 were such push runs), which say nothing about the workflow.
+ */
+export const RELEASE_WORKFLOW_EVENTS: Record<string, string[]> = {
+    "release.yml": ["workflow_dispatch"],
+    "promote.yml": ["workflow_dispatch"],
+    "release-watch.yml": ["workflow_run", "workflow_dispatch"],
+};
+
+/**
+ * The runs of an event the workflow declares; every run when the workflow's events are not known.
+ * @param workflow - the workflow file
+ * @param runs - the workflow's runs
+ * @returns the runs of a declared event
+ */
+export const declaredRuns = (workflow: string, runs: GhRun[]): GhRun[] =>
+    runs.filter((r) => RELEASE_WORKFLOW_EVENTS[workflow]?.includes(r.event) ?? true);
+
+/**
+ * Consecutive failed runs, newest first, of one workflow's completed runs.
+ * @param runs - one workflow's runs, any order
+ * @returns the length of the failing streak
+ */
+export const failedInRow = (runs: GhRun[]): number => failedStreak(runs).length;
+
+/**
+ * One release workflow's row (4.5, Release workflows): completed runs in the last 24 hours, how many failed, the
+ * failing streak and its start. ponytail: counts only the runs the collector reads (10 or 12), so "in a row"
+ * stops there.
+ * @param workflow - the workflow file
+ * @param all - the workflow's newest runs
+ * @param nowMs - the current epoch ms
+ * @returns the workflow's row
+ */
+export function workflowState(workflow: string, all: GhRun[], nowMs: number): WorkflowState {
+    const runs = declaredRuns(workflow, all);
+    const day = runs.filter(
+        (r) => r.status === "completed" && r.conclusion !== "skipped" && nowMs - Date.parse(r.created_at) <= DAY,
+    );
+    const streak = failedStreak(runs);
+    const replaced = replacedRuns(runs);
+    const first = streak.at(-1);
+    return {
+        workflow,
+        runs: day.length,
+        failed: day.filter((r) => BAD.has(r.conclusion ?? "") && !replaced.has(r.id)).length,
+        inRow: streak.length,
+        ...(first ? { since: Date.parse(first.created_at) } : {}),
+    };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The weekly stress run (4.7): 0 ok, 1 found nothing three weeks running, 2 filing failed or the run broke.
+
+export interface StressRun {
+    state: 0 | 2;
+    foundFailures: boolean;
+    /** The job that broke the run (Build, or the filing job), or "File the load-sensitive tests" when it never ran. */
+    failedJob?: string;
+}
+
+/** One stress run as the collector's `stress` cursor keeps it (the Data sources page reads it). */
+export type StressCursorRun = StressRun & { at: number; runId: number };
+
+/** The step restricted-cpu-stress.yml runs in a shard job only when that shard's tests failed. */
+export const STRESS_FOUND = "Tests failed under the CPU quota";
+
+/**
+ * One stress run's state from its jobs.
+ * @param jobs the run's jobs
+ * @returns its state, whether it found failures, and the job that broke it
+ */
+export function stressRunState(jobs: GhJob[]): StressRun {
+    const REPORT = "File the load-sensitive tests";
+    const report = jobs.find((j) => j.name === REPORT);
+    const build = jobs.find((j) => j.name === "Build");
+    const stress = jobs.filter((j) => j.name.startsWith("Restricted CPU"));
+    // The test step has continue-on-error, so a shard job concludes success even when its tests failed; the
+    // workflow runs a marker step only then. A job that failed outright still counts.
+    const foundFailures = stress.some(
+        (j) =>
+            j.conclusion === "failure" ||
+            (j.steps ?? []).some((s) => s.name === STRESS_FOUND && s.conclusion === "success"),
+    );
+    const buildBroke = BAD.has(build?.conclusion ?? "");
+    const broke = buildBroke || !report || BAD.has(report.conclusion ?? "");
+    if (!broke) {
+        return { state: 0, foundFailures };
+    }
+    return { state: 2, foundFailures, failedJob: buildBroke ? "Build" : REPORT };
+}
+
+/** Weeks of stress runs the "found nothing" rule reads. */
+export const STRESS_WEEKS = 3;
+
+/**
+ * Found nothing three weeks running: a run in each of the last three weeks (7-day slots back from now), and none of
+ * the runs in them found a failure. Three runs alone are not three weeks: a re-run or a dispatch puts two in a week.
+ * @param runs the stress runs (any order)
+ * @param nowMs now
+ * @returns true when every one of the last three weeks had a run and none found a failure
+ */
+export function stressQuiet(runs: Pick<StressCursorRun, "at" | "foundFailures">[], nowMs: number): boolean {
+    const inRange = runs.filter((r) => nowMs - r.at < STRESS_WEEKS * 7 * DAY);
+    const weeks = new Set(inRange.map((r) => Math.floor((nowMs - r.at) / (7 * DAY))));
+    return weeks.size === STRESS_WEEKS && !inRange.some((r) => r.foundFailures);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Costs (section 7).
+
+export interface Rates {
+    t4: { bootMin: number; usdPerMin: Record<string, number> };
+    llm: {
+        step: string;
+        bisectStep: string;
+        legacyBisectRuns: number[];
+        usdPerPaidStep: number;
+        paidConclusions: string[];
+    };
+    fixedMonthly: Record<string, { usd: number } | null>;
+}
+
+const dayOf = (msTime: number): number => Math.floor(msTime / DAY) * DAY;
+
+/**
+ * One machine.dev T4 job: minutes rounded up, plus boot, times the tenancy's rate.
+ * @param j - the job
+ * @param repo - owner/name of the repository
+ * @param rates - the cost rates
+ * @param workflow - the workflow file the job's run belongs to
+ * @returns the cost item, or undefined for a job that is no finished T4 job or has no rate
+ */
+export function t4Cost(j: GhJob, repo: string, rates: Rates, workflow?: string): CostItem | undefined {
+    const label = j.labels.find((l) => l.startsWith("machine/gpu=t4"));
+    if (!label || !j.started_at || !j.completed_at || isSkipped(j)) {
+        return undefined;
+    }
+    const tenancy = /tenancy=(\w+)/.exec(label)?.[1] ?? "on_demand";
+    const rate = rates.t4.usdPerMin[tenancy];
+    if (rate === undefined) {
+        return undefined;
+    } // a missing rate is NO DATA, never zero
+    const min = Math.ceil((Date.parse(j.completed_at) - Date.parse(j.started_at)) / MIN) + rates.t4.bootMin;
+    const end = Date.parse(j.completed_at);
+    return {
+        kind: "cost",
+        id: `t4#${repo}/${j.id}`,
+        attempt: j.run_attempt,
+        line: "t4",
+        ...opt("workflow", workflow),
+        day: dayOf(end),
+        usd: min * rate,
+    };
+}
+
+/**
+ * Whether a bisect.yml run bisects the llm lane: its run name says so, or it is listed from before the name did.
+ * @param run - the bisect.yml run, if known
+ * @param rates - the cost rates (their legacy bisect run list)
+ * @returns true when the run bisects the llm lane
+ */
+const llmBisect = (run: Pick<GhRun, "id" | "display_title"> | undefined, rates: Rates): boolean =>
+    !!run && (/\bllm lane\b/.test(run.display_title ?? "") || rates.llm.legacyBisectRuns.includes(run.id));
+
+/** The step after the LLM tests whose name carries the run's logged cost (release.yml, tools/llm-spend.mjs). */
+const LLM_COST_STEP = /^LLM regression cost: (\d+(?:\.\d+)?) USD$/;
+
+/**
+ * Paid LLM test steps (as tools/llm-spend.mjs counts them) times the per-run cost: release.yml's LLM regression step,
+ * and the test step of each point of a bisect of the llm lane. A job whose cost step logged its real cost is priced at
+ * that instead.
+ * @param j - the job
+ * @param repo - owner/name of the repository
+ * @param rates - the cost rates
+ * @param workflow - the workflow file the job's run belongs to
+ * @param run - the job's run (its id and display title)
+ * @returns the cost item, or undefined when the job ran no paid LLM step
+ */
+export function llmCost(
+    j: GhJob,
+    repo: string,
+    rates: Rates,
+    workflow?: string,
+    run?: Pick<GhRun, "id" | "display_title">,
+): CostItem | undefined {
+    const bisect = workflow === "bisect.yml";
+    if (bisect && !llmBisect(run, rates)) {
+        return undefined;
+    }
+    const step = bisect ? rates.llm.bisectStep : rates.llm.step;
+    const paid = (j.steps ?? []).filter(
+        (s) => s.name === step && rates.llm.paidConclusions.includes(s.conclusion ?? ""),
+    );
+    const lastPaid = paid.at(-1);
+    if (!lastPaid) {
+        return undefined;
+    }
+    const logged = (j.steps ?? []).map((s) => LLM_COST_STEP.exec(s.name)?.[1]).find((v) => v !== undefined);
+    const end = Date.parse(lastPaid.completed_at ?? j.completed_at ?? j.created_at);
+    return {
+        kind: "cost",
+        id: `llm#${repo}/${j.id}`,
+        attempt: j.run_attempt,
+        line: "llm",
+        ...opt("workflow", workflow),
+        day: dayOf(end),
+        usd: logged === undefined ? paid.length * rates.llm.usdPerPaidStep : Number(logged),
+    };
+}
+
+/**
+ * Each fixed monthly line spread over the month's days, so a month-to-date projection holds.
+ * @param rates - the cost rates (their fixed monthly lines)
+ * @param dayMs - an epoch ms in the day to price
+ * @returns one cost item per fixed line for that day
+ */
+export function fixedCosts(rates: Rates, dayMs: number): CostItem[] {
+    const d = new Date(dayMs);
+    const days = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    const day = dayOf(dayMs);
+    const iso = new Date(day).toISOString().slice(0, 10);
+    return Object.entries(rates.fixedMonthly).flatMap(([line, r]) =>
+        r && !line.startsWith("$")
+            ? [{ kind: "cost" as const, id: `${line}#${iso}`, attempt: 1, line, day, usd: r.usd / days }]
+            : [],
+    );
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// npm (4.5 "Tagged, not on npm").
+
+export interface Tag {
+    project: string;
+    version: string;
+    taggedAt: number;
+}
+
+/**
+ * `{project}@{version}` tags; `golden-good` and other non-release tags are dropped.
+ * @param nodes - the GraphQL tag refs
+ * @returns the release tags with their tag times
+ */
+export function releaseTags(
+    nodes: { name: string; target: { committedDate?: string; tagger?: { date: string } } }[],
+): Tag[] {
+    return nodes.flatMap((n) => {
+        const m = /^(.+)@(\d+\.\d+\.\d+[^@]*)$/.exec(n.name);
+        const when = n.target.committedDate ?? n.target.tagger?.date;
+        return m && when ? [{ project: m[1], version: m[2], taggedAt: Date.parse(when) }] : [];
+    });
+}
+
+/** Projects with tags that are never published to npm (the graphty app ships as a site; githerd is retired). */
+export const NOT_ON_NPM = new Set(["graphty", "githerd"]);
+
+/** Projects published to npm without the @graphty scope (test/collector/parse.test.ts checks the package.json names). */
+export const UNSCOPED_ON_NPM = new Set(["babylonjs-map"]);
+
+export const npmName = (project: string): string =>
+    project.startsWith("@") || UNSCOPED_ON_NPM.has(project) ? project : `@graphty/${project}`;
+
+/**
+ * Tags whose version npm does not list and no later publish of the package has superseded (a release that was
+ * tagged and deliberately never published, #5397).
+ * @param tags the release tags
+ * @param times npm name to its packument `time` (undefined: 404)
+ * @returns the tags still due on npm
+ */
+export function taggedNotOnNpm(tags: Tag[], times: Map<string, Record<string, string> | undefined>): Tag[] {
+    return tags.filter((t) => {
+        const time = times.get(npmName(t.project)) ?? {};
+        if (NOT_ON_NPM.has(t.project) || time[t.version]) {
+            return false;
+        }
+        return !Object.entries(time).some(
+            ([v, at]) => v !== "created" && v !== "modified" && Date.parse(at) > t.taggedAt,
+        );
+    });
+}
+
+/** A compare (base...master) commit: its sha, parents and committer date. */
+export interface CompareCommit {
+    sha: string;
+    parents: { sha: string }[];
+    commit: { committer: { date: string } };
+}
+
+/**
+ * The commit date of the oldest commit on master's first-parent line after the tested base, or undefined when master
+ * is the base. Only that line landed on master: a pull request branch's own merge of master (a second-parent ancestor)
+ * can be a day older than its landing and must not age master.
+ * @param commits the compare's commits, oldest first, master's head last
+ * @returns the oldest first-parent commit's date in ms
+ */
+export function oldestUntested(commits: CompareCommit[]): number | undefined {
+    const bySha = new Map(commits.map((c) => [c.sha, c]));
+    let at = commits.at(-1);
+    let oldest: number | undefined;
+    while (at) {
+        oldest = Date.parse(at.commit.committer.date);
+        at = bySha.get(at.parents[0]?.sha ?? "");
+    }
+    return oldest;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Flaky tests from CI annotations (the flaky-history backfill).
+
+/**
+ * The jobs that run test shards through tools/test-quarantine.mjs: the check run's name, its job key (GITHUB_JOB,
+ * the third part of the invocation id tools/results/run-group.mjs baseId() makes) and the family suffix
+ * (run-group.mjs groupFamily(): the story-tests job takes screenshots, `<family>-shots`).
+ */
+const SHARD_JOBS: [RegExp, string, string][] = [
+    [/(?:^|\/ )Test \(/, "test", ""],
+    [/(?:^|\/ )Story tests \(/, "story-tests", "-shots"],
+    [/(?:^|\/ )Restricted CPU \(/, "stress", ""],
+];
+
+/**
+ * A test that failed on try 1 and passed its retry, as tools/test-quarantine.mjs prints it (printDecision) and
+ * tools/results/run-group.mjs prJudge() rewords it: `[FLAKY] <shard>: <file> > <test> failed and passed on the same
+ * inputs, ...`, `[FLAKY-UNRELATED] ... failed and passed; ...`, `[QUARANTINED] ... failed and passed; ...`. A
+ * `[QUARANTINED] ... failed again` test failed both times: not flaky. A file name holds no " > "; a test name may.
+ */
+const FLAKY_LINE =
+    /^\[(?:FLAKY|FLAKY-UNRELATED|QUARANTINED)\] (\S+): (.+?) > (.+) failed and passed(?: on the same inputs,|;)/;
+
+/**
+ * The live feed's row (ingest.ts failureItems() for tools/results/client.mjs postFlaky()) for one annotation of a
+ * test shard's check run, or undefined when the annotation is not a flaky test or the check run is no test shard.
+ * Same id, so a backfilled row and a live one are the same row. The annotation carries no failure message, so the
+ * signature is empty.
+ * @param message the annotation's message
+ * @param checkRun the check run's name ("Test (layout)", "CI / Test (layout)")
+ * @param runId the workflow run's id
+ * @param attempt the run attempt the check run belongs to
+ * @param seenAt when the check run completed
+ * @returns the test item, or undefined
+ */
+export function flakyTestItem(
+    message: string,
+    checkRun: string,
+    runId: number,
+    attempt: number,
+    seenAt: number,
+): TestItem | undefined {
+    const job = SHARD_JOBS.find(([re]) => re.test(checkRun));
+    const m = FLAKY_LINE.exec(message);
+    if (!job || !m) {
+        return undefined;
+    }
+    const [, shard, file, name] = m;
+    const invocation = `${runId}.${attempt}.${job[1]}.${shard}.1`;
+    return {
+        kind: "test",
+        id: `${invocation}#${file}#${name}`,
+        attempt: 1,
+        source: "ci",
+        invocation,
+        family: shard.replace(/-\d+$/, "") + job[2],
+        file,
+        name,
+        outcome: "flaky",
+        status: "fail",
+        signature: "",
+        seenAt,
+    };
+}

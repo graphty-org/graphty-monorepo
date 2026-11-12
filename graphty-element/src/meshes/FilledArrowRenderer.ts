@@ -10,9 +10,159 @@ import {
     VertexData,
 } from "@babylonjs/core";
 
+import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { ArrowCap, arrowCapBatch } from "./ArrowCapBatch";
+import { EDGE_TRIM_GLSL } from "./edgeTrim";
 import { MaterialHelper } from "./MaterialHelper";
 import { PerSceneMaterials } from "./PerSceneMaterials";
+
+/** Segments a whole circle is drawn with; an arc gets its share of them. */
+const ARC_SEGMENTS = 32;
+/** How thick the open box's frame is: the open dot's ring (its radius 0.5 inset 22.5%). */
+const OPEN_FRAME = 0.5 * 0.225;
+/**
+ * How long along its line the half barb's stroke is, as a share of the cap: Cytoscape 3.10.5's HALF_TOP glyph is a strip
+ * 0.135 of its 1.135 long (ding SVG export `M -0.3 0.1 L -1.3 1.1 L -1.435 1.1 L -0.535 0.2`).
+ */
+export const HALF_BARB = 0.135 / 1.135;
+/** How far back from its tip half-open's arm meets its line: its inner corner. */
+export const HALF_OPEN_MEETS = 0.4;
+
+/**
+ * A disc's piece between two angles, as a fan from its center, in the XZ plane.
+ * @param cx - The center's x.
+ * @param r - The radius.
+ * @param cz - The center's z.
+ * @param from - The first angle, in radians from +x toward +z.
+ * @param to - The last angle.
+ * @returns The center, then the arc's points.
+ */
+function arc(cx: number, r: number, cz: number, from: number, to: number): [number, number][] {
+    const steps = Math.max(2, Math.ceil((ARC_SEGMENTS * Math.abs(to - from)) / (2 * Math.PI)));
+    const points: [number, number][] = [[cx, cz]];
+    for (let i = 0; i <= steps; i++) {
+        const a = from + ((to - from) * i) / steps;
+        points.push([cx + r * Math.cos(a), cz + r * Math.sin(a)]);
+    }
+    return points;
+}
+
+/**
+ * An arc drawn as a band between two radii about a center on the axis, one quad per step.
+ * @param cx - The center's x.
+ * @param r - The outer radius.
+ * @param inner - The inner radius as a fraction of the outer.
+ * @param from - The first angle, in radians from +x toward +z.
+ * @param to - The last angle.
+ * @returns The quads.
+ */
+function band(cx: number, r: number, inner: number, from: number, to: number): [number, number][][] {
+    const steps = Math.max(2, Math.ceil((ARC_SEGMENTS * Math.abs(to - from)) / (2 * Math.PI)));
+    const at = (a: number, k: number): [number, number] => [cx + k * r * Math.cos(a), k * r * Math.sin(a)];
+    const quads: [number, number][][] = [];
+    for (let i = 0; i < steps; i++) {
+        const a0 = from + ((to - from) * i) / steps;
+        const a1 = from + ((to - from) * (i + 1)) / steps;
+        quads.push([at(a0, 1), at(a1, 1), at(a1, inner), at(a0, inner)]);
+    }
+    return quads;
+}
+
+/**
+ * A bar across the line, from x0 back to x1, `half` to each side of it.
+ * @param x0 - Its back.
+ * @param x1 - Its front.
+ * @param half - Half its width.
+ * @returns Its corners.
+ */
+function rect(x0: number, x1: number, half: number): [number, number][] {
+    return [
+        [x0, -half],
+        [x1, -half],
+        [x1, half],
+        [x0, half],
+    ];
+}
+
+/**
+ * A convex outline drawn as a frame `t` thick inside it, one quad per side: each side moved in by
+ * `t`, and each corner of the inner outline where two moved sides meet.
+ * @param outline - The outline's corners, in order.
+ * @param t - How thick the frame is.
+ * @returns The quads.
+ */
+function frame(outline: readonly (readonly [number, number])[], t: number): [number, number][][] {
+    const n = outline.length;
+    // the side from corner i to i + 1, moved in by t: a point on it and its direction
+    const area = outline.reduce((sum, [x, z], i) => {
+        const [x1, z1] = outline[(i + 1) % n];
+        return sum + x * z1 - x1 * z;
+    }, 0);
+    const turn = area > 0 ? 1 : -1;
+    const sides = outline.map(([x, z], i) => {
+        const [x1, z1] = outline[(i + 1) % n];
+        const length = Math.hypot(x1 - x, z1 - z);
+        const [dx, dz] = [(x1 - x) / length, (z1 - z) / length];
+        // the inward normal: to the left of a side of a counter-clockwise outline
+        const [nx, nz] = [-dz * turn, dx * turn];
+        return { x: x + nx * t, z: z + nz * t, dx, dz };
+    });
+    const inner = outline.map((_, i) => {
+        const a = sides[(i + n - 1) % n];
+        const b = sides[i];
+        const det = a.dx * b.dz - a.dz * b.dx;
+        const k = ((b.x - a.x) * b.dz - (b.z - a.z) * b.dx) / det;
+        return [a.x + k * a.dx, a.z + k * a.dz] as [number, number];
+    });
+    return outline.map((corner, i) => [
+        [corner[0], corner[1]],
+        [outline[(i + 1) % n][0], outline[(i + 1) % n][1]],
+        inner[(i + 1) % n],
+        inner[i],
+    ]);
+}
+
+/**
+ * A mesh of convex pieces in the XZ plane, each fanned from its first corner.
+ * @param name - The mesh's name.
+ * @param pieces - The pieces' corners, in order.
+ * @param scene - Babylon.js scene
+ * @returns The mesh.
+ */
+function piecesMesh(name: string, pieces: readonly (readonly (readonly [number, number])[])[], scene: Scene): Mesh {
+    const mesh = new Mesh(name, scene);
+    const positions: number[] = [];
+    const indices: number[] = [];
+    for (const piece of pieces) {
+        const first = positions.length / 3;
+        for (const [x, z] of piece) {
+            positions.push(x, 0, z);
+        }
+        for (let i = 1; i + 1 < piece.length; i++) {
+            indices.push(first, first + i, first + i + 1);
+        }
+    }
+
+    const vertexData = new VertexData();
+    vertexData.positions = positions;
+    vertexData.indices = indices;
+    vertexData.applyToMesh(mesh);
+
+    return mesh;
+}
+
+/** How long a cross's stroke is along the line at any place across it, as a share of the cross: a pixel in eight. */
+const CROSS_STROKE = 0.15;
+
+/** Cytoscape's CROSS_DELTA, 3 long: a delta 2 long and 1 wide at the tip, and a bar 0.25 deep and 1.5 wide at the back. */
+const CROSS_DELTA = {
+    delta: [
+        [0, 0],
+        [-2 / 3, -1 / 6],
+        [-2 / 3, 1 / 6],
+    ] as [number, number][],
+    bar: rect(-1, -11 / 12, 0.25),
+};
 
 export interface FilledArrowOptions {
     size: number; // Screen-space size in pixels
@@ -20,6 +170,9 @@ export interface FilledArrowOptions {
     opacity?: number; // 0-1
     clipEndX?: number; // X-axis clipping: undefined = no clipping, number = clip at X position
 }
+
+/** How long a tee cap is along its line, as a fraction of its size: a bar a third as deep as its 1.5 width. */
+export const TEE_DEPTH = 0.5;
 
 /**
  * Renderer for filled arrow heads using uniform screen-space scaling
@@ -138,12 +291,48 @@ uniform vec3 cameraPosition;
 // values are instance attributes rather than uniforms.
 attribute vec3 arrowDirection; // Line direction
 attribute float arrowSize;     // World-space arrow length
-attribute vec3 arrowColor;
+// The cap's color and, in alpha, its opacity (multiplying the batch's own).
+attribute vec4 arrowColor;
 // Where a pattern segment is cut off, per instance: the last segment of a zigzag or a sinewave is
 // clipped to the room left on its line, and -1 leaves a segment (and every arrow cap) whole.
 attribute float arrowClip;
-varying vec3 vColor;
+// 1 while the visibility mask hides the cap (ArrowCapBatch.park): drawn at no size, so hiding or
+// showing it writes this one float and never its matrix. An unbound attribute reads 0, drawn.
+attribute float arrowHidden;
+varying vec4 vColor;
 varying float vClip;
+#ifdef CAP_PULLED
+// A pulled cap (PulledCapBatch): no place of its own. Its two rows, head end last (a tail is the
+// head of its edge turned round), and what it stands back by; its place is read from the row
+// table each frame, so a move uploads no cap byte.
+attribute vec2 capRows;
+// The source end's gap, the target end's gap, the cap's own gap, and how far its centre sits
+// behind its tip at scale 1.
+attribute vec4 capPlace;
+uniform highp sampler2D rowPosition;
+uniform highp sampler2D rowExtent;
+${EDGE_TRIM_GLSL}
+vec4 capTexel(highp sampler2D table, int i) {
+    return texelFetch(table, ivec2(i & 1023, i >> 10), 0);
+}
+// A row's end as Edge.trimInput gives it for a closed end: rowExtent's scale, round radius, border
+// and flags, then half extents, each at the part w of it drawn.
+EdgeTrimEnd capEnd(int row, float w, float gap, out float scale) {
+    vec4 a = capTexel(rowExtent, row * 3);
+    vec4 b = capTexel(rowExtent, row * 3 + 1);
+    EdgeTrimEnd end;
+    end.radius = mod(a.w, 2.0) >= 1.0 ? a.y * w : -1.0;
+    end.halfSize = b.xyz * w;
+    end.ellipse = 0.0;
+    end.border = a.z;
+    end.gap = gap;
+    end.measured = -1.0;
+    end.leaves = 0.0;
+    end.group = 0.0;
+    scale = a.x * w;
+    return end;
+}
+#endif
 #else
 // Individual meshes (pattern elements)
 uniform vec3 lineDirection;
@@ -167,7 +356,7 @@ void main() {
     // reads as the world origin, and since this shader builds the cap from the centre and
     // arrowSize, not from the matrix, it would draw a full-size cap there. A placed slot's
     // bottom-right is 1, so a zero there means "draw nothing": collapse the cap to a point.
-    float scale = finalWorld[3][3] == 0.0 ? 0.0 : arrowSize;
+    float scale = finalWorld[3][3] == 0.0 || arrowHidden > 0.5 ? 0.0 : arrowSize;
     vColor = arrowColor;
     vClip = arrowClip;
 #else
@@ -177,12 +366,56 @@ void main() {
 
     // Extract arrow center position from world matrix
     vec3 worldCenter = vec3(finalWorld[3][0], finalWorld[3][1], finalWorld[3][2]);
+#ifdef CAP_PULLED
+    // Edge.placeArrowHead over the include's ends: the tip stands its gap back from where the line
+    // meets the head's node, the centre its offset behind the tip, both along the trimmed line.
+    scale = 0.0;
+    if (capRows.x >= 0.0 && capRows.y >= 0.0) {
+        int fromRow = int(capRows.x + 0.5);
+        int to = int(capRows.y + 0.5);
+        vec4 a = capTexel(rowPosition, fromRow);
+        vec4 b = capTexel(rowPosition, to);
+        if (a.w * b.w != 0.0) {
+            float fromScale;
+            float toScale;
+            EdgeTrimEnd source = capEnd(fromRow, a.w, capPlace.x, fromScale);
+            EdgeTrimEnd target = capEnd(to, b.w, capPlace.y, toScale);
+            EdgeTrimmed ends = edgeTrimEnds(a.xyz, b.xyz, source, target, 0.0);
+            toScale = toScale > 0.0 ? toScale : 1.0;
+            vec3 tip = ends.dst;
+            bool placed = ends.hasSrc && ends.hasDst && ends.dst != ends.src;
+            if (placed) {
+                // A closed end lies on the line between the centres, so that line's direction is
+                // the trimmed line's, with fewer roundings.
+                lineDir = normalize(b.xyz - a.xyz);
+            } else if (any(greaterThan(abs(b.xyz - a.xyz), vec3(0.01)))) {
+                // Edge.placeArrowFromCentres: the line has no ends (the nodes overlap), so the
+                // tip stands at the target's box along the line between the centres.
+                lineDir = normalize(b.xyz - a.xyz);
+                target.radius = -1.0;
+                tip = b.xyz - lineDir * edgeTrimReach(-lineDir, target);
+                placed = true;
+            }
+            if (placed) {
+                vec3 centre = tip - lineDir * (capPlace.z + capPlace.w * toScale);
+                worldCenter = (finalWorld * vec4(centre, 1.0)).xyz;
+                scale = arrowSize * toScale;
+            }
+        }
+    }
+#endif
 
     // Build camera-facing coordinate system
     // This system is aligned with the line but rotates to face the camera
     vec3 forward = normalize(lineDir);                    // Arrow points along line
     vec3 toCamera = normalize(cameraPosition - worldCenter);
-    vec3 right = normalize(cross(forward, toCamera));     // Perpendicular to line AND camera
+    vec3 right = cross(forward, toCamera);                // Perpendicular to line AND camera
+    // Camera exactly on the line: the cross is zero and normalize() of it is NaN. Any axis across
+    // the line will do there, since the flat cap is edge-on to the camera whichever one it is.
+    if (dot(right, right) < 1e-12) {
+        right = cross(forward, abs(forward.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0));
+    }
+    right = normalize(right);
     vec3 up = cross(right, forward);                      // Completes orthonormal basis, faces camera
 
     // Transform arrow vertex from local space to world space
@@ -202,7 +435,7 @@ precision highp float;
 
 // Uniforms
 #ifdef INSTANCES
-varying vec3 vColor;
+varying vec4 vColor;
 varying float vClip;
 #else
 uniform vec3 color;
@@ -228,7 +461,7 @@ void main() {
     }
 
 #ifdef INSTANCES
-    gl_FragColor = vec4(vColor, opacity);
+    gl_FragColor = vec4(vColor.rgb, opacity * vColor.a);
 #else
     gl_FragColor = vec4(color, opacity);
 #endif
@@ -252,7 +485,7 @@ void main() {
 
         // Normalized dimensions
         const length = 1;
-        const width = 0.8;
+        const width = EDGE_CONSTANTS.NORMAL_ARROW_ASPECT;
 
         // Tip at origin, base extends backward
         // This allows positionOffset: 0 to place tip exactly at sphere surface
@@ -296,7 +529,7 @@ void main() {
 
         // Normalized dimensions
         const length = 1;
-        const width = 0.8;
+        const width = EDGE_CONSTANTS.NORMAL_ARROW_ASPECT;
 
         // Front tip at origin, extends backward
         // This allows positionOffset: 0 to place front tip exactly at sphere surface
@@ -438,7 +671,9 @@ void main() {
      *
      * Geometry is in XZ plane pointing towards +X axis
      * Uses normalized dimensions - actual sizing handled by shader
-     * V-shape: Triangle with middle baseline point pushed 2/3 toward tip
+     * V-shape: a triangle whose baseline's middle is pushed half its length toward the tip, the
+     * vee Graphviz (lib/common/arrows.c arrow_type_crow0, its inner corner at 0.5 of the arrow),
+     * Cytoscape.js (vee: (0, -0.15) of a 0.3 arrow) and vis-network (Vee: (-0.5, 0)) draw
      * @param scene - Babylon.js scene
      * @returns Created vee arrow mesh
      */
@@ -447,14 +682,14 @@ void main() {
 
         // Normalized dimensions
         const length = 1;
-        const width = 0.8;
+        const width = EDGE_CONSTANTS.NORMAL_ARROW_ASPECT;
 
         // Tip at origin, base extends backward
         const tip = 0;
         const base = -length;
 
-        // Middle point: starts at center of baseline, pushed 60% toward tip (2/3 - 10%)
-        const middleX = base + 0.6 * length; // -1.0 + 0.6 = -0.4
+        // Middle point: the baseline's center pushed half the length toward the tip
+        const middleX = base + 0.5 * length;
 
         // XZ plane (normal in Y), pointing along X axis
         // 4 vertices to form V-shape (2 triangles)
@@ -504,7 +739,7 @@ void main() {
 
         // Normalized dimensions - 3:1 rectangle (width:depth), 50% larger than base size
         const width = 1.5; // Z-axis (horizontal span)
-        const depth = width / 3; // X-axis (shallow depth) = 0.5
+        const depth = TEE_DEPTH; // X-axis (shallow depth) = width / 3
         const halfWidth = width / 2;
 
         // Front edge at origin, extends backward
@@ -562,8 +797,8 @@ void main() {
         const tip = 0;
         const base = -length;
 
-        // Middle point: pushed 60% toward tip (same as vee)
-        const middleX = base + 0.6 * length; // -0.4
+        // Middle point: pushed 60% toward tip (deeper than the vee's half)
+        const middleX = -HALF_OPEN_MEETS;
 
         // XZ plane (normal in Y), pointing along X axis
         // Only one side of the V (3 vertices forming 1 triangle)
@@ -595,11 +830,13 @@ void main() {
     }
 
     /**
-     * Create a crow arrow mesh (V-shaped) - EXACT COPY OF VEE
+     * Create a crow arrow mesh (crow's foot)
      *
      * Geometry is in XZ plane pointing towards +X axis
      * Uses normalized dimensions - actual sizing handled by shader
-     * V-shape: Triangle with middle baseline point pushed 2/3 toward tip
+     * Crow's foot: a reversed vee (shared point at the back on the line, corners at the front near
+     * the node) whose inner corner sits 0.6 of the length from the base toward the back, plus a
+     * narrow center prong pointing at the node
      * @param scene - Babylon.js scene
      * @returns Created crow arrow mesh
      */
@@ -794,9 +1031,8 @@ void main() {
             const innerNext = i + segments + 2;
 
             // First triangle: outer-current → inner-current → inner-next
-            indices.push(outerCurrent, innerCurrent, innerNext);
             // Second triangle: outer-current → inner-next → outer-next
-            indices.push(outerCurrent, innerNext, outerNext);
+            indices.push(outerCurrent, innerCurrent, innerNext, outerCurrent, innerNext, outerNext);
         }
 
         const vertexData = new VertexData();
@@ -887,6 +1123,249 @@ void main() {
         vertexData.applyToMesh(mesh);
 
         return mesh;
+    }
+
+    /**
+     * The arrow types drawn from a list of convex pieces (`polygonArrow`), each piece in the XZ
+     * plane with the tip at the origin and the arrow reaching back to x = -1:
+     *
+     * - "half-circle": a filled half disc, its flat side across the tip and its round side back
+     *   along the line (Cytoscape's HALF_CIRCLE), twice as wide as it is long.
+     * - "open-half-circle": the round side of that half disc alone, an arc opening toward the node
+     *   (Cytoscape's OPEN_HALF_CIRCLE, vis-network's inv_curve).
+     * - "curve": the same arc turned round, bulging toward the node (vis-network's curve).
+     * - "triangle-tee": a triangle with a bar behind it (Cytoscape.js's triangle-tee).
+     * - "triangle-cross": a triangle with a thin bar across the line behind it (triangle-cross).
+     * - "circle-triangle": a dot at the tip with a triangle behind it pointing at it (circle-triangle).
+     * - "half-open-flipped": half-open's one arm on the line's other side (Cytoscape's HALF_BOTTOM).
+     * - "open-box": the box's outline (Cytoscape's OPEN_SQUARE, Cytoscape.js's hollow square).
+     * - "cross-delta": a delta with a bar across the line a little behind it (Cytoscape's CROSS_DELTA).
+     * - "open-cross-delta": the delta outlined, with the bar (Cytoscape's CROSS_OPEN_DELTA).
+     * - "open-inverted": the inverted triangle's outline, its base across the tip (Graphviz's oinv).
+     * - "half-barb": half-open's arm as one thin stroke, a strip a tenth of its length thick from the tip back to
+     *   its corner (Cytoscape's HALF_TOP, which Cytoscape strokes where Graphviz's halfopen is a filled wedge).
+     * - "half-barb-flipped": that barb on the line's other side (Cytoscape's HALF_BOTTOM).
+     * - "inverted-vee": a vee turned round, its point back on the line, its corners at the tip and its notch a quarter
+     *   back from them, with no tine along the line (vis-network's crow).
+     * - "cross": two strokes crossing on the line, a box as long as it is wide (yEd's and yEd Live's cross).
+     * - "kite": widest a fifth of its length from its back, its back a point on the line (yEd Live's kite).
+     * - "deltoid": wider than it is long, its sides bowed in and its back notched (yEd Live's deltoid).
+     * - "open-vee": two half barbs meeting at the tip, nothing between them (yEd's plain, concave and convex).
+     * - "slash": one stroke an eighth of the cap thick, corner to corner of a square as long as the cap (yEd's
+     *   skewed_dash, 8 x 8).
+     * - "stem": a piece of the line, as long as the cap. EdgeMesh sets how wide from the line's width.
+     */
+    static readonly POLYGON_ARROWS: Readonly<Record<string, () => readonly (readonly [number, number])[][]>> = {
+        "half-circle": () => [arc(0, 1, 0, Math.PI / 2, (3 * Math.PI) / 2)],
+        "open-half-circle": () => band(0, 1, 0.75, Math.PI / 2, (3 * Math.PI) / 2),
+        curve: () => band(-1, 1, 0.75, -Math.PI / 2, Math.PI / 2),
+        "triangle-tee": () => [
+            [
+                [0, 0],
+                [-0.6, -0.3],
+                [-0.6, 0.3],
+            ],
+            rect(-1, -0.8, 0.3),
+        ],
+        "triangle-cross": () => [
+            [
+                [0, 0],
+                [-0.75, -0.375],
+                [-0.75, 0.375],
+            ],
+            rect(-1, -0.92, 0.375),
+        ],
+        "circle-triangle": () => [
+            arc(-0.25, 0.25, 0, 0, 2 * Math.PI),
+            [
+                [-0.5, 0],
+                [-1, -0.25],
+                [-1, 0.25],
+            ],
+        ],
+        // half-open's arm (tip, base corner, middle) reflected across the line, wound the same way
+        "half-open-flipped": () => [
+            [
+                [0, 0],
+                [-HALF_OPEN_MEETS, 0],
+                [-1, 0.4],
+            ],
+        ],
+        // half-open's arm (tip on the line, back corner at z -0.4) as a strip HALF_BARB long along the line, each
+        // piece wound as half-open's triangle is
+        "half-barb": () => [
+            [
+                [0, 0],
+                [-1 + HALF_BARB, -0.4],
+                [-1, -0.4],
+                [-HALF_BARB, 0],
+            ],
+        ],
+        "half-barb-flipped": () => [
+            [
+                [0, 0],
+                [-HALF_BARB, 0],
+                [-1, 0.4],
+                [-1 + HALF_BARB, 0.4],
+            ],
+        ],
+        // vis-network's crow (EndPoints.ts Crow: -1,0 0,0.5 -0.25,0 0,-0.5), as wide as the vee: two triangles
+        // meeting along the line from the point to the notch
+        "inverted-vee": () => [
+            [
+                [-1, 0],
+                [-0.25, 0],
+                [0, -EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+            ],
+            [
+                [-1, 0],
+                [0, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+                [-0.25, 0],
+            ],
+        ],
+        // yEd Live's cross (M 10,-5 L 0,5 M 0,-5 L 10,5), each stroke a strip CROSS_STROKE long along the line
+        cross: () => [
+            [
+                [-1, -0.5],
+                [-CROSS_STROKE, 0.5],
+                [0, 0.5],
+                [-1 + CROSS_STROKE, -0.5],
+            ],
+            [
+                [-1, 0.5],
+                [-1 + CROSS_STROKE, 0.5],
+                [0, -0.5],
+                [-CROSS_STROKE, -0.5],
+            ],
+        ],
+        // yEd Live's kite: M 0,0 L 8,-3 L 10,0 L 8,3 Z
+        kite: () => [
+            [
+                [0, 0],
+                [-0.8, -0.3],
+                [-1, 0],
+                [-0.8, 0.3],
+            ],
+        ],
+        // yEd Live's deltoid (M 5.2,-3 Q 2.86,-1.04 0,0 Q 2.86,1.04 5.2,3 Q 4.68,0 5.2,-3 Z), its curves through their
+        // middles, a half of it to each side of the line, each two triangles
+        deltoid: () =>
+            [1, -1].flatMap((side) => {
+                const [waist, corner, notch]: [number, number][] = [
+                    [-0.525, 0.244 * side],
+                    [-1, (3 / 5.2) * side],
+                    [-0.95, 0],
+                ];
+                const wound = (a: [number, number], b: [number, number], c: [number, number]): [number, number][] =>
+                    side > 0 ? [a, c, b] : [a, b, c];
+                return [wound([0, 0], waist, notch), wound(waist, corner, notch)];
+            }),
+        "open-vee": () => [
+            ...FilledArrowRenderer.POLYGON_ARROWS["half-barb"](),
+            ...FilledArrowRenderer.POLYGON_ARROWS["half-barb-flipped"](),
+        ],
+        slash: () => {
+            const half = Math.SQRT2 / 16;
+            return [
+                [
+                    [-1, -0.5 - half],
+                    [-1, -0.5 + half],
+                    [0, 0.5 + half],
+                    [0, 0.5 - half],
+                ],
+            ];
+        },
+        stem: () => [rect(-1, 0, 0.5)],
+        // Cytoscape's CROSS_DELTA: a delta with a bar across the line behind it, a gap between them
+        "cross-delta": () => [CROSS_DELTA.delta, CROSS_DELTA.bar],
+        // CROSS_OPEN_DELTA: the same outlined, its 0.25 stroke a twelfth of its length; the bar it strokes is solid
+        "open-cross-delta": () => [...frame(CROSS_DELTA.delta, 1 / 12), rect(-1, -5 / 6, 0.25)],
+        // the inverted triangle (base across the tip, point back along the line) as a frame as thick as open-box's
+        "open-inverted": () =>
+            frame(
+                [
+                    [0, -EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+                    [0, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+                    [-1, 0],
+                ],
+                OPEN_FRAME,
+            ),
+        // the box's square (x -1..0, z -0.5..0.5) as a frame as thick as the open dot's ring
+        "open-box": () => [
+            rect(-1, 0, 0.5).map(([x, z]) => [x, z < 0 ? z : -0.5 + OPEN_FRAME] as [number, number]),
+            rect(-1, 0, 0.5).map(([x, z]) => [x, z > 0 ? z : 0.5 - OPEN_FRAME] as [number, number]),
+            rect(-1, -1 + OPEN_FRAME, 0.5 - OPEN_FRAME),
+            rect(-OPEN_FRAME, 0, 0.5 - OPEN_FRAME),
+        ],
+    };
+
+    /**
+     * Build one of {@link POLYGON_ARROWS}: each convex piece fanned from its first corner.
+     * @param type - The arrow type.
+     * @param scene - Babylon.js scene
+     * @returns The mesh, in the XZ plane like every other arrow.
+     */
+    static createPolygonArrow(type: string, scene: Scene): Mesh {
+        return piecesMesh(`filled-${type}-arrow`, this.POLYGON_ARROWS[type](), scene);
+    }
+
+    /**
+     * The open caps' outlines, used when a cap's `outlineWidth` is set, in the cap's frame (tip at the origin, back
+     * along -x) before its width (`ArrowStyle.width`) is applied:
+     *
+     * - "open-normal": the triangle's outline (Graphviz's onormal, Cytoscape.js's hollow triangle).
+     * - "open-diamond": the diamond's outline (odiamond).
+     * - "open-dot": the dot's ring, centred on the origin (odot).
+     * - "open-inverted": the inverted triangle's outline, its base across the tip (oinv).
+     * - "open-box": the box's outline (obox, Cytoscape's OPEN_SQUARE).
+     *
+     * Unset, an open cap keeps its own thin frame (`createOpenNormal` and the rest); set, {@link createOpenOutline}
+     * frames the outline at that thickness, as Graphviz and Cytoscape.js stroke an open arrow with the edge's own pen.
+     */
+    static readonly OPEN_OUTLINES: Readonly<Record<string, readonly (readonly [number, number])[]>> = {
+        "open-normal": [
+            [0, 0],
+            [-1, -EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+            [-1, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+        ],
+        "open-diamond": [
+            [0, 0],
+            [-0.5, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+            [-1, 0],
+            [-0.5, -EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+        ],
+        "open-dot": arc(0, 0.5, 0, 0, 2 * Math.PI).slice(1, -1),
+        "open-inverted": [
+            [0, -EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+            [0, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+            [-1, 0],
+        ],
+        "open-box": rect(-1, 0, 0.5),
+    };
+
+    /**
+     * Build one of {@link OPEN_OUTLINES}: its outline widened, then drawn as a frame `stroke` thick inside it. The frame
+     * is never more than half the way to the shape's middle, so the shape always reads as open.
+     * @param type - The arrow type.
+     * @param scene - Babylon.js scene
+     * @param stroke - How thick the frame is, in the cap's own lengths (its outline width over the cap's length).
+     * @param breadth - How wide the cap is across its line, as a multiple of its own (`ArrowStyle.width`).
+     * @returns The mesh, in the XZ plane like every other arrow.
+     */
+    static createOpenOutline(type: string, scene: Scene, stroke: number, breadth = 1): Mesh {
+        const outline = this.OPEN_OUTLINES[type].map(([x, z]) => [x, z * breadth] as [number, number]);
+        // how far the middle (the corners' mean) is from the nearest side
+        const [cx, cz] = outline.reduce(
+            ([x, z], [px, pz]) => [x + px / outline.length, z + pz / outline.length],
+            [0, 0],
+        );
+        const inner = Math.min(
+            ...outline.map(([x, z], i) => {
+                const [x1, z1] = outline[(i + 1) % outline.length];
+                return Math.abs((x1 - x) * (cz - z) - (z1 - z) * (cx - x)) / Math.hypot(x1 - x, z1 - z);
+            }),
+        );
+        return piecesMesh(`filled-${type}-arrow`, frame(outline, Math.min(stroke, inner / 2)), scene);
     }
 
     /**
@@ -1052,25 +1531,36 @@ void main() {
     }
 
     /**
-     * Draw one billboarded 3D arrow cap as a slot in its scene's batch for that shape and
-     * opacity. The direction, size and colour are the slot's own attributes, so caps of every
-     * colour and size share one draw call.
+     * Draw one billboarded 3D arrow cap as a slot in its scene's batch for that shape. The
+     * direction, size, colour and opacity are the slot's own attributes, so caps of every look
+     * share one draw call.
      * @param shape - The arrow type, which names the batch's geometry
      * @param createShape - Builds that geometry, for a new batch
      * @param options - The cap's size (world-space length), colour and opacity
      * @param scene - Babylon.js scene
+     * @param reuse - A cap to recolor and hand back when it is in this batch at this size
      * @returns The cap; point it with {@link ArrowCap.place}
      */
-    static createArrowCap(shape: string, createShape: () => Mesh, options: FilledArrowOptions, scene: Scene): ArrowCap {
-        const opacity = options.opacity ?? 1;
-        const cap = this.capOf(
+    static createArrowCap(
+        shape: string,
+        createShape: () => Mesh,
+        options: FilledArrowOptions,
+        scene: Scene,
+        reuse: ArrowCap | null = null,
+    ): ArrowCap {
+        // The opacity is the slot's too, so caps of one shape share a batch whatever their color
+        // (issue #6026), and a cap already in it is recolored where it stands. Opaque and
+        // translucent caps keep apart, since one batch is drawn in one pass (issue #6326).
+        const pass = (options.opacity ?? 1) < 1 ? "translucent" : "opaque";
+        const batch = arrowCapBatch(
             scene,
-            `3d|${shape}|${String(opacity)}`,
-            () => this.applyInstancedShader(createShape(), opacity, scene),
-            { scale: options.size, billboard: true },
+            `3d|${shape}|${pass}`,
+            () => this.applyInstancedShader(createShape(), 1, scene),
+            true,
         );
+        const cap = reuse?.drawsIn(batch, options.size) === true ? reuse : new ArrowCap(batch, options.size);
 
-        cap.setAppearance(options.size, options.color);
+        cap.setAppearance(options.size, options.color, options.opacity ?? 1);
 
         return cap;
     }
@@ -1091,7 +1581,7 @@ void main() {
             scene,
             { vertex: "filledArrow", fragment: "filledArrow" },
             {
-                attributes: ["position", "arrowDirection", "arrowSize", "arrowColor", "arrowClip"],
+                attributes: ["position", "arrowDirection", "arrowSize", "arrowColor", "arrowClip", "arrowHidden"],
                 // `world` is the batch mesh's own transform, which Babylon's instancing include
                 // multiplies a thin instance's slot matrix by. Without it in this list the
                 // include declares the uniform and nothing ever writes it, so the whole batch
@@ -1109,6 +1599,36 @@ void main() {
         // Below 1 this is what puts the batch in the alpha-blended queue, as it did each cap.
         mesh.visibility = opacity;
 
+        return mesh;
+    }
+
+    /**
+     * Give a pulled cap batch's mesh (`PulledCapBatch`) the billboard shader with `CAP_PULLED`:
+     * each cap's place and direction come from its two rows, not from its slot.
+     * @param mesh - The batch's mesh
+     * @param opacity - The opacity every cap in the batch is drawn at
+     * @param scene - Babylon.js scene
+     * @returns The same mesh
+     */
+    static applyPulledShader(mesh: Mesh, opacity: number, scene: Scene): Mesh {
+        this.registerShaders();
+        const material = new ShaderMaterial(
+            "pulledArrowMaterial",
+            scene,
+            { vertex: "filledArrow", fragment: "filledArrow" },
+            {
+                attributes: ["position", "arrowSize", "arrowColor", "capRows", "capPlace"],
+                uniforms: ["world", "viewProjection", "cameraPosition", "opacity"],
+                samplers: ["rowPosition", "rowExtent"],
+                defines: ["#define CAP_PULLED"],
+            },
+        );
+        material.setFloat("opacity", opacity);
+        this.cameraTracked.add(material);
+        material.blockDirtyMechanism = true;
+        material.backFaceCulling = false;
+        mesh.material = material;
+        mesh.visibility = opacity;
         return mesh;
     }
 
@@ -1203,8 +1723,11 @@ void main() {
                 mesh = this.createOpenDiamond(scene);
                 break;
             default:
-                // Default to normal triangle
-                mesh = this.createTriangle(false, scene);
+                // a polygon arrow by its table, and any other as the normal triangle
+                mesh =
+                    type in this.POLYGON_ARROWS
+                        ? this.createPolygonArrow(type, scene)
+                        : this.createTriangle(false, scene);
         }
 
         // Extract vertex data from the temporary mesh

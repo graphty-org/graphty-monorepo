@@ -442,8 +442,11 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
                     figmaElement(base, { tag: "svg" }),
                 ]);
                 const iconInk = await figmaElement(base, { cls: "base-icon-button__icon" });
-                // Figma draws a disabled toggle exactly like an enabled one, pointer states included.
-                const ink = iconInk.style.fill;
+                // Figma's disabled capture draws the enabled look; the spec text (4.4) dims it instead
+                // (issue #2102): --cm-icon-disabled, an "on" toggle on --cm-bg-disabled, no pointer states.
+                const ink = disabled ? "#0000004d" : iconInk.style.fill;
+                const disabledGround = checked ? "#d9d9d9" : "#00000000";
+                const ground = disabled ? disabledGround : undefined;
                 const { container, unmount } = await renderFigma(
                     <ToggleIconButton
                         label="Lock aspect ratio"
@@ -461,7 +464,7 @@ describe.skipIf(!(await figmaAvailable()))("buttons against Figma", () => {
                 await drive(button, state);
                 expectMeasured(button, {
                     ...figmaSpec(icon, ["width", "height"]),
-                    backgroundColor: label ? label.style.backgroundColor : "#00000000",
+                    backgroundColor: ground ?? (label ? label.style.backgroundColor : "#00000000"),
                     borderRadius: "5px",
                     color: ink,
                 });

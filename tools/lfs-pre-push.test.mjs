@@ -6,13 +6,17 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, it } from "node:test";
+import { after, describe, it } from "node:test";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
+
+// The temporary directories this file makes go inside this one, removed when the file finishes.
+const TMP = mkdtempSync(join(tmpdir(), "lfs-pre-push-"));
+after(() => rmSync(TMP, { recursive: true, force: true }));
 
 const SCRIPT = new URL("./lfs-pre-push.sh", import.meta.url).pathname;
 const hasLfs = spawnSync("git", ["lfs", "version"]).status === 0;
@@ -72,7 +76,7 @@ function run(cwd, args, env) {
 // a pre-push hook that runs `hook`. isolatedGitEnv() keeps the developer's config and, under the
 // pre-push gate, the hook's GIT_DIR away from it.
 async function setup(lfsUrl, hook) {
-    const dir = mkdtempSync(join(tmpdir(), "lfs-pre-push-"));
+    const dir = mkdtempSync(join(TMP, "lfs-pre-push-"));
     const repo = join(dir, "repo");
     const hooks = join(dir, "hooks");
     mkdirSync(hooks);

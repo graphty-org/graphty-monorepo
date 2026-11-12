@@ -70,7 +70,8 @@ function asSim(sim: GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>): 
     if (!(sim instanceof ForceSimulation)) {
         throw new Error("createForceAtlas2 must return a ForceSimulation");
     }
-    return sim;
+    // instanceof drops the type arguments; the factory builds exactly this one
+    return sim as Fa2Sim;
 }
 
 function stageRunner(sim: Fa2Sim): (upTo: string) => Promise<void> {

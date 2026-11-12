@@ -1,9 +1,10 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { coupledGroups, inboxOf, message, notifyOnce, notifyStep } from "../trusted/lib/inbox.mjs";
+
+import { tempDir } from "./helpers.mjs";
 
 const project = (name, extra = {}) => ({ project: name, problem: null, downloading: false, undecided: 0, ...extra });
 const target = (pr, projects, extra = {}) => ({
@@ -25,8 +26,10 @@ describe("inboxOf", () => {
         target(4, [project("a", { problem: "capture failed", logUrl: "https://gh/job/a" }), project("b")]),
         target(5, [project("a", { problem: "download failed: boom; reload the page to retry" }), project("b")]),
         target(6, [project("a", { problem: "waiting for CI on 1234567890" }), project("b")]),
+        target(11, [project("a", { problem: "local preview still capturing" }), project("b")]),
         target(7, [project("a"), project("b", { problem: "no capture" }), project("c", { problem: "not affected" })]),
         target(8, [project("a"), project("b")], { unpublished: 3 }),
+        target(10, [project("a", { rejected: 2 }), project("b")]),
         target(null, [project("a", { undecided: 9 })], { id: "master" }),
         target(9, [project("a", { undecided: 9 })], { local: true }),
     ];
@@ -56,7 +59,23 @@ describe("inboxOf", () => {
             }),
             expect.objectContaining({ pr: 5, reason: "download failed: boom", retry: true }),
         ]);
-        expect(inbox).toMatchObject({ capturing: 1, done: 1 });
+        expect(inbox).toMatchObject({ capturing: 2, done: 1, rejected: 1 });
+    });
+
+    it("offers the held candidate first, by its commit, and never a plain master seed", () => {
+        const commit = "4".repeat(40);
+        const candidate = target(null, [project("a", { undecided: 569 })], {
+            id: "master",
+            title: `master candidate ${commit.slice(0, 10)} (0 queued)`,
+            headSha: undefined,
+            candidate: { commit, runId: 1, queued: [] },
+        });
+        const inbox = inboxOf([...targets, candidate], { now: 1000 });
+        expect(inbox.ready[0]).toMatchObject({ id: "master", pr: null, headSha: commit, undecided: 569 });
+        expect(inbox.ready.filter((r) => r.pr === null)).toHaveLength(1);
+        expect(message([inbox.ready[0]], "https://x").message).toBe(
+            `master candidate ${commit.slice(0, 10)} (0 queued): 569 images\nhttps://x`,
+        );
     });
 
     it("keeps when a pull request became ready, and orders equal counts by it", () => {
@@ -66,6 +85,25 @@ describe("inboxOf", () => {
             [2, 5],
             [1, 50],
         ]);
+    });
+
+    it("never offers a draft pull request: its author is still working on it (issue 2727)", () => {
+        const two = [
+            target(1, [project("a", { undecided: 1 })], { draft: true }),
+            target(2, [project("a", { problem: "capture failed" })], { draft: true }),
+            target(3, [project("a", { undecided: 1 })]),
+        ];
+        const inbox = inboxOf(two, { now: 1 });
+        expect(inbox.ready.map((r) => r.pr)).toEqual([3]);
+        expect(inbox.notReady).toEqual([]);
+        expect(inbox).toMatchObject({ drafts: 2, capturing: 0, done: 0 });
+    });
+
+    it("keeps a draft the owner Finished part of waiting, with the count left (issue 3235)", () => {
+        const draft = target(1, [project("a", { undecided: 17, decided: 93, finished: 93 })], { draft: true });
+        const inbox = inboxOf([draft], { now: 1 });
+        expect(inbox.ready).toEqual([expect.objectContaining({ pr: 1, undecided: 17, decided: 93 })]);
+        expect(inbox.drafts).toBe(0);
     });
 });
 
@@ -119,6 +157,19 @@ describe("coupledGroups", () => {
         const decided = [target(1, [project("a")]), target(2, [project("a")])];
         expect(inboxOf(decided, { now: 0, coupling }).groups).toEqual([]);
     });
+
+    it("says what each group member is waiting on, so none reads as done when it is not", () => {
+        const members = [
+            target(1, [project("a", { undecided: 1 })]),
+            target(2, [project("a", { problem: "capture failed" })]),
+            target(3, [project("a", { downloading: true })]),
+            target(4, [project("a")]),
+        ];
+        const coupling = new Map(members.map((t) => [t.id, { paths: ["a/x.png"], images: [], packages: ["p"] }]));
+        expect(inboxOf(members, { now: 0, coupling }).groups.map((g) => g.states)).toEqual([
+            ["ready", "notReady", "capturing", "done"],
+        ]);
+    });
 });
 
 describe("the notifier", () => {
@@ -170,7 +221,7 @@ describe("the notifier", () => {
     });
 
     it("runs the command without a shell, keeps what it sent, and ignores a stale inbox", async () => {
-        const dir = mkdtempSync(join(tmpdir(), "vr-notify-"));
+        const dir = tempDir("vr-notify-");
         const out = join(dir, "sent.json");
         const command = [
             process.execPath,
@@ -199,7 +250,7 @@ describe("the notifier", () => {
     });
 
     it("tries again next time when the command fails", async () => {
-        const dir = mkdtempSync(join(tmpdir(), "vr-notify-"));
+        const dir = tempDir("vr-notify-");
         writeFileSync(join(dir, "inbox.json"), JSON.stringify({ at: 0, origin: "o", ready: [ready(1)] }));
         await expect(
             notifyOnce({ stateDir: dir, command: [process.execPath, "-e", "process.exit(1)"], now: 1, gap: 0 }),

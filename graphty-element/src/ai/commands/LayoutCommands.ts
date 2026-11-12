@@ -36,7 +36,7 @@ export const setLayout: GraphCommand = {
         "Change the graph layout algorithm. Common layouts include 'circular' (nodes in a circle), 'ngraph' (force-directed physics), 'random', 'spiral', 'shell', 'd3' (D3 force simulation), 'spring', 'planar', 'spectral', and 'forceatlas2'.",
     parameters: z.object({
         type: LayoutTypeSchema,
-        options: z.record(z.unknown()).optional().describe("Additional layout-specific options"),
+        options: z.record(z.string(), z.unknown()).optional().describe("Additional layout-specific options"),
     }),
     examples: [
         { input: "Use circular layout", params: { type: "circular" } },

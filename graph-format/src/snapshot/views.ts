@@ -532,27 +532,42 @@ export function computeMate(snapshot: GraphSnapshot): U32 {
             while (g < end && colIdx[g] === v) {
                 g++;
             }
-            const k = g - a;
-            if (v === u) {
-                for (let i = 0; i < k; i++) {
-                    mate[a + i] = a + i;
-                }
-            } else {
-                const b = cursor[v];
-                if (v < u || b + k > rowPtr[v + 1] || colIdx[b] !== u || colIdx[b + k - 1] !== u) {
-                    throw pairingError(u, v, a);
-                }
-                for (let i = 0; i < k; i++) {
-                    mate[a + i] = b + i;
-                    mate[b + i] = a + i;
-                }
-                cursor[v] = b + k;
-            }
+            pairRun(snapshot, mate, cursor, u, a, g - a);
             a = g;
         }
         cursor[u] = end;
     }
     return mate;
+}
+
+/**
+ * Pair one run of k parallel arcs u -> v starting at arc a with the run v -> u at row v's cursor
+ * (a self-loop run maps to itself), advancing the cursor; part of {@link computeMate}.
+ * @param snapshot - the snapshot
+ * @param mate - out: the mate of every arc
+ * @param cursor - the per-row walk cursors
+ * @param u - the row being walked
+ * @param a - the run's first arc
+ * @param k - the run length
+ */
+function pairRun(snapshot: GraphSnapshot, mate: U32, cursor: U32, u: number, a: number, k: number): void {
+    const { rowPtr, colIdx } = snapshot;
+    const v = colIdx[a];
+    if (v === u) {
+        for (let i = 0; i < k; i++) {
+            mate[a + i] = a + i;
+        }
+        return;
+    }
+    const b = cursor[v];
+    if (v < u || b + k > rowPtr[v + 1] || colIdx[b] !== u || colIdx[b + k - 1] !== u) {
+        throw pairingError(u, v, a);
+    }
+    for (let i = 0; i < k; i++) {
+        mate[a + i] = b + i;
+        mate[b + i] = a + i;
+    }
+    cursor[v] = b + k;
 }
 
 // ============================================================ degree order
@@ -621,17 +636,9 @@ export function computeSymmetric(snapshot: GraphSnapshot, reverse: ReverseView):
     if (!snapshot.directed) {
         return true;
     }
-    const { nodeCount, arcCount, rowPtr, colIdx, weights } = snapshot;
-    for (let v = 0; v <= nodeCount; v++) {
-        if (rowPtr[v] !== reverse.rowPtr[v]) {
-            return false;
-        }
-    }
-    const revIdx = reverse.colIdx;
-    for (let a = 0; a < arcCount; a++) {
-        if (colIdx[a] !== revIdx[a]) {
-            return false;
-        }
+    const { arcCount, weights } = snapshot;
+    if (!sameTargets(snapshot, reverse)) {
+        return false;
     }
     const revWeights = reverse.weights;
     if (weights === null || revWeights === null) {
@@ -645,7 +652,41 @@ export function computeSymmetric(snapshot: GraphSnapshot, reverse: ReverseView):
         }
         return true;
     }
-    // multigraph: compare each parallel run (adjacent by I4, equal targets in both rows) as a multiset
+    return sameRunWeights(snapshot, weights, revWeights);
+}
+
+/**
+ * Whether forward and reverse rows hold the same targets versus sources (equal rowPtr and colIdx).
+ * @param snapshot - a directed snapshot
+ * @param reverse - its reverse view
+ * @returns true when they agree
+ */
+function sameTargets(snapshot: GraphSnapshot, reverse: ReverseView): boolean {
+    const { nodeCount, arcCount, rowPtr, colIdx } = snapshot;
+    for (let v = 0; v <= nodeCount; v++) {
+        if (rowPtr[v] !== reverse.rowPtr[v]) {
+            return false;
+        }
+    }
+    const revIdx = reverse.colIdx;
+    for (let a = 0; a < arcCount; a++) {
+        if (colIdx[a] !== revIdx[a]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Whether every parallel run of a multigraph (adjacent by I4, equal targets in both rows) holds the
+ * same weight multiset forward and reverse.
+ * @param snapshot - a directed multigraph snapshot whose targets match its reverse view
+ * @param weights - the forward weights
+ * @param revWeights - the reverse weights
+ * @returns true when every run agrees
+ */
+function sameRunWeights(snapshot: GraphSnapshot, weights: F32, revWeights: F32): boolean {
+    const { nodeCount, arcCount, rowPtr, colIdx } = snapshot;
     let a = 0;
     while (a < arcCount) {
         let b = a + 1;
@@ -839,6 +880,61 @@ function allocVector<T extends NumericVector>(like: T, length: number): T {
 }
 
 /**
+ * Add every arc that is not its edge's declared orientation into the edge's value.
+ * @param perArc - the per-arc values
+ * @param arcCount - the arc count
+ * @param arcToEdge - arc -> edge
+ * @param edgeToArc - edge -> its declared-orientation arc
+ * @param result - the per-edge values, seeded with the declared arcs
+ */
+function sumOtherArcs(
+    perArc: NumericVector,
+    arcCount: number,
+    arcToEdge: U32,
+    edgeToArc: U32,
+    result: NumericVector,
+): void {
+    for (let a = 0; a < arcCount; a++) {
+        const e = arcToEdge[a];
+        if (edgeToArc[e] !== a) {
+            result[e] += perArc[a];
+        }
+    }
+}
+
+/**
+ * Raise each edge's value to the largest of its arcs.
+ * @param perArc - the per-arc values
+ * @param arcCount - the arc count
+ * @param arcToEdge - arc -> edge
+ * @param result - the per-edge values
+ */
+function maxOverArcs(perArc: NumericVector, arcCount: number, arcToEdge: U32, result: NumericVector): void {
+    for (let a = 0; a < arcCount; a++) {
+        const e = arcToEdge[a];
+        if (perArc[a] > result[e]) {
+            result[e] = perArc[a];
+        }
+    }
+}
+
+/**
+ * Lower each edge's value to the smallest of its arcs.
+ * @param perArc - the per-arc values
+ * @param arcCount - the arc count
+ * @param arcToEdge - arc -> edge
+ * @param result - the per-edge values
+ */
+function minOverArcs(perArc: NumericVector, arcCount: number, arcToEdge: U32, result: NumericVector): void {
+    for (let a = 0; a < arcCount; a++) {
+        const e = arcToEdge[a];
+        if (perArc[a] < result[e]) {
+            result[e] = perArc[a];
+        }
+    }
+}
+
+/**
  * Reduce a per-arc vector (arcCount entries) to a per-edge vector (edgeCount entries) through
  * `arcToEdge` (design section 7.5): `"first"` takes the value of the arc holding the declared
  * orientation (`edgeToArc[e]`), `"sum"` / `"max"` / `"min"` combine both arcs of an undirected edge.
@@ -879,28 +975,13 @@ export function foldArcs<T extends NumericVector>(
         case "first":
             break;
         case "sum":
-            for (let a = 0; a < arcCount; a++) {
-                const e = arcToEdge[a];
-                if (edgeToArc[e] !== a) {
-                    result[e] += perArc[a];
-                }
-            }
+            sumOtherArcs(perArc, arcCount, arcToEdge, edgeToArc, result);
             break;
         case "max":
-            for (let a = 0; a < arcCount; a++) {
-                const e = arcToEdge[a];
-                if (perArc[a] > result[e]) {
-                    result[e] = perArc[a];
-                }
-            }
+            maxOverArcs(perArc, arcCount, arcToEdge, result);
             break;
         case "min":
-            for (let a = 0; a < arcCount; a++) {
-                const e = arcToEdge[a];
-                if (perArc[a] < result[e]) {
-                    result[e] = perArc[a];
-                }
-            }
+            minOverArcs(perArc, arcCount, arcToEdge, result);
             break;
         default: {
             const unknown: never = reducer;

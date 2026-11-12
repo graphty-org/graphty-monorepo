@@ -78,6 +78,12 @@ export interface GraphStoreOptions {
      * own under itself, which is what a headless session reads.
      */
     readonly inputs?: InputCounters;
+    /**
+     * Whether a fresh builder may index its edge ids by offset: while ids are stamped in row
+     * order, the row is the id less one offset and no per-edge map entry is kept. Read once per
+     * fresh builder; absent reads false. The element turns it on for the "batched" render path.
+     */
+    readonly denseEdgeIds?: () => boolean;
 }
 
 /** The node column an importer seeds file coordinates into; deleted from every snapshot by the attach. */
@@ -259,6 +265,7 @@ interface BuilderState {
     readonly handles: readonly ColumnHandle[];
     readonly edgeIdByIndex: number[];
     readonly indexByEdgeId: Map<number, number>;
+    readonly denseOffset: number | null;
     readonly pairsOrdered: boolean | null;
 }
 
@@ -567,6 +574,11 @@ export class GraphStore {
      * live edges plus at most the ones removed since the last freeze.
      */
     private indexByEdgeId = new Map<number, number>();
+    /**
+     * With `denseEdgeIds`, the id less the row of the first edge stamped into this builder: an
+     * edge stamped where id - row equals it has no entry in {@link indexByEdgeId}. Null when off.
+     */
+    private denseOffset: number | null = null;
     /**
      * The kept graph the builder was last restored from, with the builder and its mutation count
      * once that restore settled. While the count still matches, the builder holds exactly that
@@ -985,8 +997,14 @@ export class GraphStore {
      */
     stampEdgeId(edgeIndex: number, edgeId: number): void {
         this.builder.setEdgeValue(this.edgeIdHandle, edgeIndex, edgeId);
+        if (this.edgeIdByIndex.length === 0 && this.options.denseEdgeIds?.() === true) {
+            this.denseOffset = edgeId - edgeIndex;
+        }
+
         this.edgeIdByIndex[edgeIndex] = edgeId;
-        this.indexByEdgeId.set(edgeId, edgeIndex);
+        if (edgeId - edgeIndex !== this.denseOffset) {
+            this.indexByEdgeId.set(edgeId, edgeIndex);
+        }
     }
 
     /**
@@ -1039,9 +1057,23 @@ export class GraphStore {
         // First, so the index below is not read from before a structural change still waiting.
         this.settle();
         const index = this.indexByEdgeId.get(edgeId);
-        return index !== undefined && this.edgeIdByIndex[index] === edgeId && this.builder.hasEdge(index)
-            ? index
-            : INVALID_INDEX;
+        if (index !== undefined && this.liveEdgeAt(index, edgeId)) {
+            return index;
+        }
+
+        // An edge stamped in row order has no map entry; a stale entry falls through to it too.
+        const dense = this.denseOffset === null ? -1 : edgeId - this.denseOffset;
+        return dense >= 0 && this.liveEdgeAt(dense, edgeId) ? dense : INVALID_INDEX;
+    }
+
+    /**
+     * Whether a builder row holds the live edge with this id.
+     * @param index - the row
+     * @param edgeId - the id
+     * @returns true when it does
+     */
+    private liveEdgeAt(index: number, edgeId: number): boolean {
+        return this.edgeIdByIndex[index] === edgeId && this.current.hasEdge(index);
     }
 
     /**
@@ -1346,6 +1378,10 @@ export class GraphStore {
             builder.removeEdge(row);
         }
 
+        if (nodeRowList.length > 0) {
+            // Rows added row-numbered (no id map) keep their ids through the freeze that compacts them.
+            builder.keepIds();
+        }
         for (const row of nodeRowList) {
             builder.removeNodeByIndex(row);
         }
@@ -1672,6 +1708,7 @@ export class GraphStore {
 
         for (const node of nodes) {
             if (builder.hasNode(node.id)) {
+                builder.keepIds();
                 builder.removeNode(node.id);
             }
         }
@@ -1710,6 +1747,7 @@ export class GraphStore {
                 ],
                 edgeIdByIndex: this.edgeIdByIndex,
                 indexByEdgeId: this.indexByEdgeId,
+                denseOffset: this.denseOffset,
                 pairsOrdered: this.pairsOrdered,
             },
             count: old.mutationCount,
@@ -1734,7 +1772,7 @@ export class GraphStore {
         this.setAside.delete(kept);
         this.setAsideKey = null;
         const old = this.current;
-        const { builder, handles, edgeIdByIndex, indexByEdgeId, pairsOrdered } = aside.state;
+        const { builder, handles, edgeIdByIndex, indexByEdgeId, denseOffset, pairsOrdered } = aside.state;
         this.current = builder;
         [
             this.seedHandle,
@@ -1747,6 +1785,7 @@ export class GraphStore {
         ] = handles;
         this.edgeIdByIndex = edgeIdByIndex;
         this.indexByEdgeId = indexByEdgeId;
+        this.denseOffset = denseOffset;
         this.pairsOrdered = pairsOrdered;
         // Recorded again once it has frozen, so a further redo can set it aside once more.
         this.restoring = kept;
@@ -1819,6 +1858,7 @@ export class GraphStore {
         this.edgeIdByIndex = [];
         // A new map, not cleared: a builder set aside for an undo keeps the one it had.
         this.indexByEdgeId = new Map();
+        this.denseOffset = null;
         return builder;
     }
 
@@ -2134,6 +2174,8 @@ export class GraphStore {
         }
 
         this.edgeIdByIndex = moved;
+        // Every row moved has its entry now; the offset no longer describes them.
+        this.denseOffset = null;
     }
 
     /**
@@ -2173,6 +2215,50 @@ export class GraphStore {
     }
 
     /**
+     * Complete the session edges when they are every live edge in the store (a graph added
+     * through a door rather than a load): the three columns are written whole, as typed arrays,
+     * as a covering load's are, instead of three checked cell writes per edge.
+     * @param graph - where endpoints and ids are read
+     * @param ordered - whether pairs are ordered
+     * @param completingLoad - whether a load's edges are being completed too
+     * @returns false, writing nothing, when a load or another edge is live beside them
+     */
+    private writeSessionColumnsWhole(graph: IdentityGraph, ordered: boolean, completingLoad: boolean): boolean {
+        if (completingLoad) {
+            return false;
+        }
+
+        const builder = this.current;
+        let live = 0;
+        for (const { row } of this.sessionEdges) {
+            if (builder.hasEdge(row)) {
+                live++;
+            }
+        }
+
+        if (live !== builder.edgeCount) {
+            return false;
+        }
+
+        const bound = builder.edgeBound;
+        const hashes = new Uint32Array(2 * bound);
+        const minusOnes = new Int32Array(bound).fill(-1);
+        for (const { row, counter, fileId } of this.sessionEdges) {
+            if (builder.hasEdge(row)) {
+                const { a, b } = sessionEdgeHash(graph, row, counter, fileId, ordered);
+                hashes[2 * row] = a;
+                hashes[2 * row + 1] = b;
+            }
+        }
+
+        this.sessionEdges = [];
+        builder.setEdgeColumn(IDENTITY_COLUMNS.edgeHash, hashes, { dtype: "u32", components: 2 });
+        builder.setEdgeColumn(IDENTITY_COLUMNS.edgeOrdinal, minusOnes, { dtype: "i32", default: -1 });
+        builder.setEdgeColumn(IDENTITY_COLUMNS.edgeAmong, minusOnes.slice(), { dtype: "i32", default: -1 });
+        return true;
+    }
+
+    /**
      * The completion pass (design 12.2, 12.3): hash new nodes, complete session edges, and, when
      * no load is open, complete the load's edges -- ordinal and among per pair over the load's
      * surviving edges, and the edge hash, in one sorted pass.
@@ -2195,6 +2281,10 @@ export class GraphStore {
         };
         const ordered = this.latchPairsOrdered();
         const noSessionEdges = this.sessionEdges.length === 0;
+        if (this.writeSessionColumnsWhole(graph, ordered, completingLoad)) {
+            return;
+        }
+
         for (const { row, counter, fileId } of this.sessionEdges) {
             if (builder.hasEdge(row)) {
                 builder.setEdgeValue(this.edgeOrdinalColumn, row, -1);

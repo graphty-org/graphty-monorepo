@@ -585,6 +585,19 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
         }
     }
 
+    // A `layoutConfig.<option>` the reader changed wins over the controls above. The panel labels a
+    // control by the option it sets (`layoutConfig.weighted`), but its arg key is something else
+    // (`kamadaWeighted`), so a link built from the label -- `?args=layoutConfig.weighted:!false` --
+    // reaches Storybook as a nested write into the `layoutConfig` arg, and the control's unchanged
+    // value used to overwrite it. Either spelling works in a URL now (issue #229).
+    const initialLayoutConfig = (storyConfig.initialArgs.layoutConfig ?? {}) as Record<string, unknown>;
+
+    for (const [option, value] of Object.entries((args.layoutConfig ?? {}) as Record<string, unknown>)) {
+        if (value !== initialLayoutConfig[option]) {
+            layoutConfig[option] = value;
+        }
+    }
+
     applyConfiguration(g, setup);
     applyStyleLayers(g, setup);
 
@@ -819,6 +832,12 @@ export interface RealInput {
     hover(element: Element, point: { x: number; y: number }): Promise<void>;
     /** Press and release the left button at a point in CSS pixels from the element's top-left corner. */
     click(element: Element, point: { x: number; y: number }): Promise<void>;
+    /** Click twice at a point, as one double-click, in CSS pixels from the element's top-left corner. */
+    doubleClick(element: Element, point: { x: number; y: number }): Promise<void>;
+    /** Move to a point and press the left button there, holding it, in CSS pixels from the element's top-left corner. */
+    press(element: Element, point: { x: number; y: number }): Promise<void>;
+    /** Release the left button at a point, as after `press`. */
+    release(element: Element, point: { x: number; y: number }): Promise<void>;
 }
 
 /**

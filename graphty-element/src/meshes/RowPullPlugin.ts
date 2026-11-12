@@ -37,6 +37,14 @@ uniform highp sampler2D rowPosition;
 `,
     [String.raw`!vNormalW=normalUpdated/vec3\(dot\(normalWorld\[0\],normalWorld\[0\]\),dot\(normalWorld\[1\],normalWorld\[1\]\),dot\(normalWorld\[2\],normalWorld\[2\]\)\);vNormalW=normalize\(normalWorld\*vNormalW\);`]:
         "vNormalW=normalize(normalWorld*normalUpdated);",
+    // A batch whose rows are all unscaled sends no matrices (20 bytes a row): each row's own matrix is the identity.
+    [String.raw`!mat4\s+finalWorld=mat4\(world0,world1,world2,world3\);`]: `
+#ifdef ROW_UNSCALED
+mat4 finalWorld=mat4(1.0);
+#else
+mat4 finalWorld=mat4(world0,world1,world2,world3);
+#endif
+`,
     CUSTOM_VERTEX_UPDATE_WORLDPOS: `#ifdef ROW_PULL
 int grRow = int(graphtyRow + 0.5);
 vec4 grPlace = graphtyRow < 0.0 ? vec4(0.0) : texelFetch(rowPosition, ivec2(grRow & 1023, grRow >> 10), 0);
@@ -54,6 +62,13 @@ var rowPosition: texture_2d<f32>;
 `,
     [String.raw`!vertexOutputs\.vNormalW=normalUpdated/\s*vec3f\(dot\(normalWorld\[0\],normalWorld\[0\]\),dot\(normalWorld\[1\],normalWorld\[1\]\),dot\(normalWorld\[2\],normalWorld\[2\]\)\);vertexOutputs\.vNormalW=normalize\(normalWorld\*vertexOutputs\.vNormalW\);`]:
         "vertexOutputs.vNormalW=normalize(normalWorld*normalUpdated);",
+    [String.raw`!var\s+finalWorld\s*=\s*mat4x4<f32>\(vertexInputs\.world0,vertexInputs\.world1,vertexInputs\.world2,vertexInputs\.world3\);`]: `
+#ifdef ROW_UNSCALED
+var finalWorld=mat4x4<f32>(vec4f(1.0,0.0,0.0,0.0),vec4f(0.0,1.0,0.0,0.0),vec4f(0.0,0.0,1.0,0.0),vec4f(0.0,0.0,0.0,1.0));
+#else
+var finalWorld=mat4x4<f32>(vertexInputs.world0,vertexInputs.world1,vertexInputs.world2,vertexInputs.world3);
+#endif
+`,
     CUSTOM_VERTEX_UPDATE_WORLDPOS: `#ifdef ROW_PULL
 let grRow: i32 = i32(vertexInputs.graphtyRow + 0.5);
 var grPlace: vec4f = vec4f(0.0);
@@ -76,6 +91,8 @@ worldPos = vec4f((worldPos.xyz - grOrigin) * grPlace.w + grOrigin + grLinear * g
 interface RowBatchMetadata {
     /** The table that places its rows. */
     readonly rowPlaces: { readonly positionTexture: RawTexture };
+    /** Whether the batch sends no matrices, its rows all unscaled. */
+    readonly rowUnscaled?: boolean;
 }
 
 /**
@@ -96,6 +113,15 @@ export function isRowBatch(mesh: AbstractMesh): boolean {
     return rowPlacesOf(mesh) !== undefined;
 }
 
+/**
+ * Whether a batch sends no matrices, its rows all unscaled: a shader drawing it takes each row's matrix as the identity.
+ * @param mesh - The mesh.
+ * @returns True for such a batch.
+ */
+export function isUnscaledRowBatch(mesh: AbstractMesh): boolean {
+    return (mesh.metadata as Partial<RowBatchMetadata> | null | undefined)?.rowUnscaled === true;
+}
+
 /** Reads a batch's rows from the row table; see the file comment. */
 class RowPullPlugin extends MaterialPluginBase {
     /**
@@ -103,7 +129,7 @@ class RowPullPlugin extends MaterialPluginBase {
      * @param material - The material.
      */
     constructor(material: Material) {
-        super(material, PLUGIN_NAME, PLUGIN_PRIORITY, { ROW_PULL: false }, true, true);
+        super(material, PLUGIN_NAME, PLUGIN_PRIORITY, { ROW_PULL: false, ROW_UNSCALED: false }, true, true);
     }
 
     /**
@@ -130,6 +156,7 @@ class RowPullPlugin extends MaterialPluginBase {
      */
     override prepareDefines(defines: Record<string, unknown>, _scene: Scene, mesh: AbstractMesh): void {
         defines.ROW_PULL = rowPlacesOf(mesh) !== undefined;
+        defines.ROW_UNSCALED = isUnscaledRowBatch(mesh);
     }
 
     /**

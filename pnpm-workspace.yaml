@@ -36,6 +36,15 @@ patchedDependencies:
     # ignored: the real element loads instead. Vitest 5 checks for the trailing slash; this is
     # that fix (issue #493).
     "@vitest/browser@4.1.12": patches/@vitest__browser@4.1.12.patch
+    # Vitest 4.1.12's Playwright provider answers a request for a vi.mock'd module by asking the test
+    # page that registered the mock to run its factory. When that page closes first (its file ended,
+    # failed to load, or Vite reloaded it), the ask rejects with "rpc is closed" inside Playwright's
+    # route handler, where nothing catches it: an unhandled rejection that failed graphty-element
+    # browser shards whose every test passed. Every browser test file hits this through
+    # test/setup.ts's @babylonjs/core mock, whose factory loads all of Babylon.js, so a busy machine
+    # widens the window. The patch drops the request when the page's connection is closed
+    # (issue #6525).
+    "@vitest/browser-playwright@4.1.12": patches/@vitest__browser-playwright@4.1.12.patch
     # graphty-element's live voice (src/ai/engine/tanstack/live.ts, UPSTREAM.md). OpenAI's realtime
     # adapter sends response.create after every tool result, so a response with two calls asks for a
     # second response while the first result is still alone: this sends one after the response's
@@ -121,8 +130,8 @@ overrides:
     # knip locked zod 4.6.5 (GHSA-mrhx-c7xc-m3w5).
     "zod@>=4.0.0 <4.6.6": ^4.6.6
     # @sonar/scan 5.0.1 locked node-forge 1.4.0 (GHSA-86w9-cpqp-85rv and the other fixes of the 1.4.1
-    # security release).
-    "node-forge@<1.4.1": ^1.4.1
+    # security release), then 1.4.2 (GHSA-j8rw-jp99-435v, GHSA-w4xr-hqv8-ch44, GHSA-6889-vf6x-f3g5).
+    "node-forge@<1.4.3": ^1.4.3
     # vitepress 1.x depends on vite 5, which the Vite 6.4.3 advisories do not patch.
     "vite@<6.4.3": ^6.4.3
     # graphty-element builds TanStack AI and the provider SDKs it drives into its own chunks, so

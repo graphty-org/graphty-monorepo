@@ -77,8 +77,7 @@ let model = new ScriptedModel();
 
 /**
  * Every enable reaches the scripted model instead of the network, with the rest of the app's own
- * configuration as it is. A provider instance skips the element's key handling, so a given key is
- * handed to its key store here.
+ * configuration as it is, a given key included.
  */
 function scriptEnable(): void {
     const tag = customElements.get("graphty-element") as unknown as {
@@ -90,9 +89,6 @@ function scriptEnable(): void {
         config: AiManagerConfig,
     ) {
         await real.call(this, { ...config, providerInstance: model });
-        if (config.apiKey !== undefined) {
-            this.getApiKeyManager()?.setKey(config.provider, config.apiKey);
-        }
     });
 }
 

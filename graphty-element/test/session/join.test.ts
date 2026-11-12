@@ -258,6 +258,29 @@ describe("joining a table onto the graph", () => {
         session.dispose();
     });
 
+    it("takes the join back when its table is removed, as one undo step", async () => {
+        const session = await proteins();
+        await session.data.updateNodes([{ id: "TP53", values: { tissue: "blood" } }]);
+        const draft = await expression(session);
+        const { keys } = draft.suggestJoin();
+        await draft.load({ join: { keys, columns: ["log2fc", "tissue"], clash: { tissue: "overwrite" } } });
+        const [join] = session.data.joins();
+        assert.strictEqual(session.data.node("TP53")?.tissue, "lung");
+
+        await session.data.removeSource(join.source);
+        assert.isUndefined(session.data.node("G02")?.log2fc, "a value it wrote is gone");
+        assert.isUndefined(session.data.node("G02")?.tissue);
+        assert.strictEqual(session.data.node("TP53")?.tissue, "blood", "a value it overwrote is back");
+        assert.deepEqual(session.data.joins(), []);
+        assert.strictEqual(session.data.nodes().length, 60);
+
+        await session.undo();
+        assert.strictEqual(session.data.node("G02")?.log2fc, 0.1);
+        assert.strictEqual(session.data.node("TP53")?.tissue, "lung");
+        assert.strictEqual(session.data.joins().length, 1);
+        session.dispose();
+    });
+
     it("survives a save and an open, and a reopened join can be edited", async () => {
         const session = await proteins();
         const draft = await expression(session);
@@ -392,6 +415,11 @@ describe("joining edges between the nodes a graph holds", () => {
         await draft.load({ join: { keys, ignoreCase: true, ignoreSpaces: true } });
         assert.strictEqual(session.data.nodes().length, 41);
         assert.isDefined(session.data.edges().find((edge) => edge.source === "S3" && edge.target === "S4"));
+
+        await session.data.removeSource(session.data.joins()[0].source);
+        assert.strictEqual(session.data.nodes().length, 40, "the end only the join made is gone");
+        assert.strictEqual(session.data.edges().length, 0);
+        assert.deepEqual(session.data.joins(), []);
         session.dispose();
     });
 

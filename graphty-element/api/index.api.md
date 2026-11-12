@@ -910,6 +910,9 @@ export class DataManager implements Manager {
     renderLimits: {
         ceilings(): Readonly<Ceilings> | undefined;
         batched(): boolean;
+        objectRows?(): number;
+        objectEdges?(): number;
+        objectCap?(of: "nodes" | "edges", wanted: number, cap: number): void;
     } | null;
     get seededNodeCount(): number;
     setEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void;
@@ -4556,6 +4559,14 @@ export type GraphtyWarningCode =
 */
 | "W_LIMITS_IGNORED"
 /**
+* More rows ask to be drawn as objects of their own (a look no batch draws, such as a border)
+* than `limits.objectRows` allows, on `render-path="batched"`: the rows past it are drawn as
+* plain bodies and plain lines. `params.of` is `"nodes"` or `"edges"`, `params.wanted` how
+* many asked, `params.cap` the budget.
+* @experimental cosmograph
+*/
+| "W_OBJECT_CAP"
+/**
 * A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
 * which draws no text. `params.channel` is the channel, `params.path` where in the layer the
 * size sits, and `params.value` the size.
@@ -4968,6 +4979,7 @@ export abstract class LayoutEngine {
     protected keptRows(rows: number): NodeMask | null;
     // @internal
     protected lastPublishedBox(): Readonly<Float64Array> | null;
+    protected get leavesEdgesOut(): boolean;
     loadArrangement(): void;
     // (undocumented)
     static maxDimensions: number;
@@ -5116,6 +5128,8 @@ export interface Limits {
     edgesDrawn: number;
     graphMemoryBudgetBytes: number;
     largeGraphThreshold: number;
+    objectEdges: number;
+    objectRows: number;
     renderCeiling: number;
     selectionCap: number;
 }

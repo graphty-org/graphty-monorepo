@@ -35,6 +35,9 @@ const skip = flags.includes("skip-layout"),
     curves = flags.includes("curves"),
     // the lean mode's straight edges kept in 3D, where they are pulled under batched (cosmos-gap G12)
     threeD = flags.includes("3d"),
+    // graphty-element loads through session.data.importColumns with the typed arrays cosmos.gl gets,
+    // not nodeData/edgeData records (cosmos-gap G8)
+    columns = flags.includes("columns"),
     noStill = flags.includes("no-still"),
     noMove = flags.includes("no-move");
 const N = Number(n),
@@ -173,42 +176,40 @@ try {
     });
     log("floor", await page.evaluate(() => B.floor()));
     log("gen", await page.evaluate(([n, m]) => B.gen(n, m), [N, M]));
-    log(
-        "setup",
-        await page.evaluate(
-            ([l, o]) => B.setup(l, o),
-            [
-                lib,
-                {
-                    mode,
-                    accel,
-                    dpr: DPR,
-                    labels,
-                    sampled,
-                    glyphs,
-                    curves,
-                    threeD,
-                    renderPath: RENDER_PATH,
-                    renderer: RENDERER,
-                    antialias: ANTIALIAS,
-                    limits: LIMITS,
-                    onDemand: !!process.env.LAYOUT_ONLY,
-                },
-            ],
-        ),
-    );
-    // BENCH_PROFILE_TIMED names a file prefix: the load and the layout frame stages are then CPU-profiled
-    // while they are timed, into <prefix>-load.cpuprofile and <prefix>-layout.cpuprofile, to read their
+    // BENCH_PROFILE_TIMED names a file prefix: the engine setup, the load and the layout frame stages are then
+    // CPU-profiled while they are timed, into <prefix>-setup, -load and -layout .cpuprofile, to read their
     // garbage collector and per-function time. The profiler slows them, so write those rows to their own file.
-    const profiled = async (stage, run) => {
-        if (!process.env.BENCH_PROFILE_TIMED) return page.evaluate(run);
+    const profiled = async (stage, run, arg) => {
+        if (!process.env.BENCH_PROFILE_TIMED) return page.evaluate(run, arg);
         await cdp.send("Profiler.enable");
         await cdp.send("Profiler.start");
-        const out = await page.evaluate(run);
+        const out = await page.evaluate(run, arg);
         const { profile: p } = await cdp.send("Profiler.stop");
         writeFileSync(`${process.env.BENCH_PROFILE_TIMED}-${stage}.cpuprofile`, JSON.stringify(p));
         return out;
     };
+    log(
+        "setup",
+        await profiled("setup", ([l, o]) => B.setup(l, o), [
+            lib,
+            {
+                mode,
+                accel,
+                dpr: DPR,
+                labels,
+                sampled,
+                glyphs,
+                curves,
+                threeD,
+                columns,
+                renderPath: RENDER_PATH,
+                renderer: RENDERER,
+                antialias: ANTIALIAS,
+                limits: LIMITS,
+                onDemand: !!process.env.LAYOUT_ONLY,
+            },
+        ]),
+    );
     const load = await profiled("load", () => B.load());
     log("load", load);
     if (load.error) throw new Error("load failed: " + load.error);
@@ -275,6 +276,8 @@ try {
     if (!noMove) log("orbit", await page.evaluate(() => B.orbit(200)));
     if (!noMove) log("drag", await page.evaluate(() => B.drag(60)));
     if (!noMove) await checkBatched("drag");
+    // The heap as the page holds it, before the forced collection below shrinks it.
+    log("memoryNoGc", { ...(await page.evaluate(() => B.mem())), rssMB: rssMB() });
     await cdp.send("HeapProfiler.collectGarbage");
     log("memory", { ...(await page.evaluate(() => B.mem())), gpuMBDelta: gpuMB() - gpu0, rssMB: rssMB() });
     // Hover before the layout: a run of the layout moves cosmos.gl's points off the screen, which is

@@ -12,7 +12,7 @@ import * as path from "node:path";
 import { z } from "zod";
 
 import type { LogStorage } from "../../server/log-storage.js";
-import { resolveProjectMarker } from "../../server/marker-utils.js";
+import { assertSafeMarker, resolveProjectMarker } from "../../server/marker-utils.js";
 
 /**
  * Input schema for the logs_get_file_path tool.
@@ -48,6 +48,7 @@ export interface LogsGetFilePathOutput {
  * @returns Full path to the JSONL file
  */
 export function getLogFilePath(projectMarker: string): string {
+    assertSafeMarker(projectMarker);
     return path.join(os.tmpdir(), "remote-logger", projectMarker, "logs.jsonl");
 }
 

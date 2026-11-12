@@ -38,6 +38,7 @@ import { withFeaturesOn } from "../tools/features-on.mjs";
 import { shardCacheDir } from "../tools/test-slots.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
+import { withBabylonCompilers } from "../vitest.babylon-compilers.mjs";
 import { baseTest } from "../vitest.base.mjs";
 import { isTileServer, mapTileCommands } from "../vitest.map-tiles.mjs";
 
@@ -1528,5 +1529,6 @@ config.test = {
     ),
 };
 
-// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
-export default withTestGuards(config);
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs), and Babylon.js's GLSL
+// compilers from a local copy rather than cdn.babylonjs.com (vitest.babylon-compilers.mjs).
+export default withTestGuards(withBabylonCompilers(config));

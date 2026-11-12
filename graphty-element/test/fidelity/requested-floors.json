@@ -1,5 +1,5 @@
 {
-    "about": "Per sample, per property: the least share of elements that must match the source program's drawing in what graphty-element is asked to draw (test/fidelity/scorecard.test.ts). Floors only rise; record them with GRAPHTY_FIDELITY_RECORD=1.",
+    "about": "Per sample, per property: the least share of elements that must match the source program's drawing in what graphty-element is asked to draw (test/fidelity/scorecard.test.ts). Floors only rise; record them with GRAPHTY_FIDELITY_RECORD=1. A property no longer judged at all is taken off its floors and listed in `retired` with its reason.",
     "floors": {
         "dot-profile": {
             "position": 0,
@@ -655,7 +655,6 @@
             "position": 1,
             "size": 1,
             "shape": 0.43243243243243246,
-            "fill": 1,
             "fillOpacity": 1,
             "borderColor": 1,
             "borderWidth": 1,
@@ -2062,5 +2061,8 @@
         "pajek-synth-vertices/labelColor": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8933, 2026-10-20)",
         "pajek-synth-vertices/shape": "reference corrected against Pajek 6.02's own SVG export draws every diamond as a six-cornered polygon cut q wide at its top and bottom (q 0.001 by default; pajek-specimen-node-shapes q-0-5-diamond a hexagon, q-2-diamond a bow tie), so graph-io writes it as a polygon with its shapePoints, which this scorecard classes as other; the oracle report passes node.shape on this sample; and a placed vertex line that names no shape and starts with bc, bw, s_size or another such key is drawn in the shape before it (Pajek 6.02 probes of the third fix round)",
         "xgmml-syn-bypass/labelPosition": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8793, 2026-10-20)"
+    },
+    "retired": {
+        "graphml-yfiles-html-stag-flowchart/fill": "no longer judged: every node is filled with a LinearGradient (#e8eef7 to #b7c9e3), so its reference marks it paintedOver and its flat first stop is not judged; the oracle scorecard judges the gradient against the drawing (node.gradient 1 per view) (#6265)"
     }
 }

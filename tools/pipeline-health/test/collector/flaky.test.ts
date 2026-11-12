@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
     blockedPrs,
+    cleanRunsNeeded,
     flakyMembers,
     type FlakySeen,
     type IssueText,
@@ -13,7 +14,8 @@ import {
 } from "../../src/collector/flaky.js";
 import { GitHub } from "../../src/collector/github.js";
 import type { GqlPr } from "../../src/collector/parse.js";
-import { DAY, floorTo, MIN, rollKey, type TestItem } from "../../src/model/items.js";
+import { type Bucket, DAY, floorTo, MIN, rollKey, type TestItem } from "../../src/model/items.js";
+import { fileRunKey } from "../../src/model/metrics.js";
 import { putRaw } from "../../src/model/raw.js";
 import { MemoryStore } from "../../src/model/store.js";
 
@@ -162,6 +164,8 @@ describe("flaky in CI with no open issue", () => {
             "flaky.blocked_prs": 0,
             "flaky.blocked_oldest_ms": 0,
             "flaky.net_change": 0,
+            "flaky.net_added": 0,
+            "flaky.net_resolved": 0,
         });
         expect(asked).toEqual([]);
     });
@@ -309,23 +313,79 @@ describe("the quarantine issues of 2026-10-27", () => {
 describe("net new flaky", () => {
     const seen = (file: string, ...days: number[]): [string, FlakySeen] => [
         testKey(file, "t"),
-        { file, name: "t", days: days.map((d) => TODAY - d * DAY) },
+        { file, name: "t", days: days.map((d) => TODAY - d * DAY), families: ["graphty"], events: days.length },
     ];
+    /** flaky.file_runs daily buckets: on each day ago, each file ran `n` times, `clean` of them clean. */
+    const fileRuns = (runs: Record<string, { n: number; clean: number }>, daysAgo: number[]): Map<number, Bucket> =>
+        new Map(
+            daysAgo.map((d) => [
+                TODAY - d * DAY,
+                {
+                    n: 0,
+                    sum: 0,
+                    dims: Object.fromEntries(
+                        Object.entries(runs).map(([file, r]) => [
+                            fileRunKey("graphty", file),
+                            { n: r.n, sum: r.clean },
+                        ]),
+                    ),
+                },
+            ]),
+        );
+    const allDays = Array.from({ length: 28 }, (_, i) => i);
 
-    it("adds tests first seen this week and takes away tests quiet for 7 days or fixed since their last detection", () => {
+    it("adds tests first seen this week and takes away tests fixed since their last detection", () => {
         const history = new Map([
             seen("new.ts", 2), // new this week
             seen("new-and-fixed.ts", 1), // new, then fixed
             seen("old-still-flaky.ts", 20, 3), // neither
-            seen("went-quiet.ts", 20, 9), // quiet since 9 days: resolved this week
-            seen("quiet-long-ago.ts", 25), // resolved in an earlier week
             seen("fixed-then-flaky-again.ts", 20, 1), // its issue closed before the newest detection
         ]);
         const fixed = new Map([
             [testKey("new-and-fixed.ts", "t"), TODAY - DAY + 3 * 3_600_000],
             [testKey("fixed-then-flaky-again.ts", "t"), TODAY - 4 * DAY],
         ]);
-        expect(netChange(history, fixed, NOW)).toBe(2 - 2);
+        expect(netChange(history, fixed, new Map(), NOW)).toEqual({ added: 2, resolved: 1 });
+    });
+
+    it("resolves a quiet test only once its clean runs would have shown its old failure rate", () => {
+        // Each file ran 4 times a day, every run after its last detection (9 days ago) clean.
+        const runs = fileRuns(
+            {
+                "one-in-ten.ts": { n: 4, clean: 4 },
+                "one-in-fifty.ts": { n: 4, clean: 4 },
+                "deleted.ts": { n: 0, clean: 0 },
+            },
+            allDays,
+        );
+        const history = new Map([
+            // 10 events in the 76 runs of days 27..9: about 1 in 8, so 22 clean runs, reached 3 days ago: resolved this
+            // week.
+            seen("one-in-ten.ts", 27, 25, 23, 21, 19, 17, 15, 13, 11, 9),
+            // 1 event in 76 runs needs 227 clean runs: 8 quiet days are not enough.
+            seen("one-in-fifty.ts", 9),
+            // Its file stopped running: removed, not resolved.
+            seen("deleted.ts", 20, 9),
+        ]);
+        expect(netChange(history, new Map(), runs, NOW)).toEqual({ added: 0, resolved: 1 });
+    });
+
+    it("does not resolve a test again in a later week, nor count runs that were not clean", () => {
+        const history = new Map([seen("rare.ts", 27, 20)]);
+        // 2 events in the 32 runs of days 27..20: 47 clean runs needed, reached 8 days ago: in the week of 2 days ago,
+        // not in this one.
+        const clean = fileRuns({ "rare.ts": { n: 4, clean: 4 } }, allDays);
+        expect(netChange(history, new Map(), clean, NOW - 2 * DAY).resolved).toBe(1);
+        expect(netChange(history, new Map(), clean, NOW)).toEqual({ added: 0, resolved: 0 });
+        // Runs that never passed the test (its group failed outright) are not clean: never resolved.
+        expect(netChange(history, new Map(), fileRuns({ "rare.ts": { n: 4, clean: 0 } }, allDays), NOW)).toEqual({
+            added: 0,
+            resolved: 0,
+        });
+    });
+
+    it("needs more clean runs the rarer the failure", () => {
+        expect([0.2, 0.1, 0.05, 0.02, 1].map(cleanRunsNeeded)).toEqual([14, 29, 59, 149, 1]);
     });
 
     it("reads closed issues from the search into flakyMembers", async () => {
@@ -338,6 +398,7 @@ describe("net new flaky", () => {
         );
         const m = await flakyMembers(store, gh, REPO, [], NOW);
         expect(m["flaky.net_change"]).toBe(1); // two new, one fixed
+        expect([m["flaky.net_added"], m["flaky.net_resolved"]]).toEqual([2, 1]);
         expect(m["flaky.no_issue"]).toBe(0); // one open issue, one closed as fixed after its last detection
     });
 });

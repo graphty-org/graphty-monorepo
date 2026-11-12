@@ -788,7 +788,8 @@ export abstract class MapSurface {
         if (entry.state === "failed" && now >= entry.retryAt) {
             entry.state = "queued";
         }
-        if (entry.state === "queued") {
+        // A tile asked for twice in one update (a globe's root, by its pole caps and its picks) loads once.
+        if (entry.state === "queued" && !this.queue.includes(entry)) {
             this.queue.push(entry);
         }
         return entry;

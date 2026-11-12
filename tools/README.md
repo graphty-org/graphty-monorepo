@@ -205,7 +205,7 @@ section). The two packages without a CLAUDE.md:
 **cytoscape-extensions:**
 
 - Single test project (Node.js, headless Cytoscape); resolves the graphty packages through their dist, so build them first. Dataset downloads are answered from `graph-samples/dist/data/v1/` (`test/setup/local-datasets.mjs`), never the network. `test/gpu-device.test.ts` needs a real GPU and follows the `GRAPHTY_GPU_REQUIRE` rule of webgpu-graph-algorithms
-- Storybook demo (`npm run storybook`, `stories/`): every layout, algorithm, generator, small dataset and file format in a real Cytoscape instance, one story per tile; `test/demo-catalog.test.ts` fails when the extension registers something `stories/catalog.ts` does not list. The capture browser has no WebGPU, so the screenshots show the CPU path; the GPU path is covered by the package's GPU tests
+- Storybook demo (`npm run storybook`, `stories/`): every layout, algorithm, generator, small dataset and file format in a real Cytoscape instance, one story per tile; `test/demo-catalog.test.ts` fails when the extension registers something `stories/catalog.ts` does not list. The capture browser has no WebGPU, so the screenshots show the CPU path and leave the Large graphs stories out; those are screenshotted WITH WebGPU on the full run's T4 against owner-approved references (cytoscape-extensions/CLAUDE.md, "GPU screenshots"), and the rest of the GPU path is covered by the package's GPU tests
 
 ### Running Specific Test Projects
 
@@ -214,7 +214,9 @@ section). The two packages without a CLAUDE.md:
 
 ### Coverage Thresholds
 
-All packages: 80% lines/functions/statements, 75% branches
+At least 80% lines, functions and statements and 75% branches in every package; graph-format, graph-io,
+graph-samples, babylonjs-map, algorithms and layout require 90% in all four. Every package is moving to 90
+(issue #3043); a package's thresholds rise to 90 in the pull request that brings it there.
 
 ## Testing
 

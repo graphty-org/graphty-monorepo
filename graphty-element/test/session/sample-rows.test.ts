@@ -20,6 +20,16 @@ import { dataDigest } from "../../src/session/project/digest";
 /** graph-samples' built dataset files, served the way graphty.app serves them. */
 const DATA = resolve(__dirname, "../../../graph-samples/dist/data/v1");
 
+/** The datasets compared, each served as `<name>.gsnp.gz`. */
+const DATASETS = [
+    "karate",
+    "les-miserables",
+    "florentine-families",
+    "davis-southern-women",
+    "go-slim-generic",
+    "knuth-miles",
+];
+
 /**
  * The digest of the session's graph slice and snapshot, and what its load entry says.
  * @param session - The session.
@@ -75,18 +85,26 @@ describe("graph-samples' graphs on the batched path", () => {
     });
 
     describe("datasets", () => {
+        /** Each dataset's file, by the path the server answers it at. */
+        const files = new Map<string, Buffer>();
         let server: Server;
         let baseUrl = "";
 
         beforeAll(async () => {
-            server = createServer((request, response) => {
-                const name = (request.url ?? "").replace(/^\//, "");
-                if (!/^[a-z0-9-]+\.gsnp\.gz$/.test(name) || !existsSync(resolve(DATA, name))) {
-                    response.statusCode = 404;
-                    response.end();
-                    return;
+            for (const name of DATASETS) {
+                const file = resolve(DATA, `${name}.gsnp.gz`);
+                if (existsSync(file)) {
+                    files.set(`/${name}.gsnp.gz`, readFileSync(file));
                 }
-                response.end(readFileSync(resolve(DATA, name)));
+            }
+
+            server = createServer((request, response) => {
+                const body = files.get(request.url ?? "");
+                if (body === undefined) {
+                    response.statusCode = 404;
+                }
+
+                response.end(body);
             });
             await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
             baseUrl = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}/`;
@@ -97,15 +115,8 @@ describe("graph-samples' graphs on the batched path", () => {
         });
 
         it("loads a downloaded dataset as the objects path does, with no JSON text", async () => {
-            for (const name of [
-                "karate",
-                "les-miserables",
-                "florentine-families",
-                "davis-southern-women",
-                "go-slim-generic",
-                "knuth-miles",
-            ]) {
-                if (!existsSync(resolve(DATA, `${name}.gsnp.gz`))) {
+            for (const name of DATASETS) {
+                if (!files.has(`/${name}.gsnp.gz`)) {
                     continue;
                 }
 

@@ -8,6 +8,7 @@
 import type { EdgeId, NodeId, SourceKey } from "../catalog/types";
 import { GraphtyError, type GraphtyErrorCode } from "../errors";
 import { joinClashes, type JoinGraph, type JoinPlan, joinReport, type JoinTable, planJoin, suggestJoin } from "./join";
+import { isSourceFactKey } from "./sources/ids";
 import type {
     JoinChoices,
     JoinClash,
@@ -267,8 +268,9 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
                   const node = graph.nodes.get(String(id));
                   return node === undefined ? [] : [{ ...node.data, id: node.id }];
               });
+        // A network load's `_source.` bookkeeping is no column of the table: a step never joins on it.
         const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))].filter(
-            (column) => !load.asEdges || column !== "id",
+            (column) => (!load.asEdges || column !== "id") && !isSourceFactKey(column),
         );
         return { name: load.name, columns, rows };
     };

@@ -3063,7 +3063,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                         records: [{ source: "door-c", target: "door-d" }],
                         source: "source",
                         target: "target",
-                        weight: "weight",
                     },
                 }),
             ),

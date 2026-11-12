@@ -201,6 +201,12 @@ passes them limits. Stage 30 then adds only the object budgets (`objectRows`, `o
       The comparison harness gains a `columns` mode that hands graphty-element the typed arrays cosmos.gl gets, and keeps the
       record mode, so both are measured.
 
+    Correction (G8's first pull request): `importColumns` builds the records the record doors take, so there is no column
+    path to route record arrays to yet. `columnsEligible`, the routing and the report's path wait for stage 29's
+    records-into-columns; install-as-a-load is written off (1.9 ms of an 11.6 s 100k + 1M load). G8 is now the harness
+    `columns` mode, the parity half of its proving test, and the per-edge bookkeeping its profile found
+    (row-renderer.md, "Every feeder through the column door").
+
 ### 3.4 The million-edge frame: an option for cheaper lines (G5, G12)
 
 No CPU change moves a fill-bound frame. Two picture changes do, so both are opt-in:
@@ -279,11 +285,11 @@ build on one are follow-on pull requests after its last pull request merges, nev
 - Proving test: Stage 27's counted test (`Edge`s built 0 on the lean load), in 2D and 3D; undo across a load.
 - Measured target: 100k + 1M records: first frame at most 17 s (12 s needs G4 too, which does not depend on G7).
 
-**G8. Every feeder through the column door.** `columnsEligible`; record arrays routed under `"batched"` (stage 28 already routes graph-io and graph-samples); path in the import report; install as a load; harness `columns` mode.
+**G8. Every feeder through the column door.** Harness `columns` mode; the per-edge load bookkeeping (`GraphOps.addEdge`, `DataManager.builtUnpainted`, `edgePaint`). `columnsEligible`, routing and the report's path wait for stage 29; install as a load is written off (section 3.3 item 5).
 
 - Depends on: stage 28, G4, G7.
-- Proving test: Digest and import report equal the records path on every sample dataset and every graph-io fixture format; an ineligible load takes the records path whole, counted; records built during an eligible file import counted at 0.
-- Measured target: 100k + 1M typed: first frame at most 5 s; records at most 6.5 s; 100k + 1k typed at most 1.9 s.
+- Proving test: Digest, counts and graph-level values of `importColumns` equal the record doors' on every dataset in the repository (the 17 small ones; the six hosted ones hold no data here), every generator and every graph-io corpus format, both render paths (built). The counted halves (an ineligible load takes the records path whole, counted; records built during an eligible file import counted at 0) and import-report equality move to stage 29's row (row-renderer.md), since they need a column path that skips the record.
+- Measured target: 100k + 1M typed: first frame at most 5 s; records at most 6.5 s; 100k + 1k typed at most 0.8 s (raised from 1.9 s, which the 1.30 s of 2026-11-11 met; 0.89-0.94 s at G8's first pull request, not yet met).
 
 **G9. The million-row run.** Harness matrix at 1M + 10k and 1M + 1M, typed and records, 3 rounds, GPU timer probe; committed to `benchmarks/results/cosmos-gap/`.
 
@@ -399,7 +405,8 @@ request, kept until G9 has measured it, so a revert or a reshape stays a minor r
   `attributes` (per-node columns by name). It refuses with `E_TOO_LARGE` above the effective limits, which under `"objects"`
   are the defaults, and with `E_INVALID_COLUMNS` when a length disagrees or a node number is out of range. Like
   `nodeData`, it places rows with the element's `layout`.
-- **The load report's path** (G8): `LoadReport.path`, read through `session.data.lastImport()`, is
+- **The load report's path** (G8, moved to stage 29: not built, since there is no column path for a load to take yet;
+  and `importColumns` as built resolves to `void`, not a `LoadReport`): `LoadReport.path`, read through `session.data.lastImport()`, is
   `{ code: "PATH_COLUMNS", params: {} }` or `{ code: "PATH_RECORDS", params: { reason } }`, where `reason` is
   `"objects"`, `"duplicateIds"` (import only), `"repeatedEdges"`, `"endpoints"`, `"weights"` or `"records"`.
 
@@ -473,7 +480,8 @@ For faster frames at a million edges, add `antialias="false"` to the tag (harder
   per-row interning and its 0.4-1.8 s.
 - **Range keys change the session's lane and history**, which undo, redo, restore, autosave and the timeline read; G4's
   tests cover a load mixed with later per-edge edits and a restore across it.
-- **Two ingest paths can drift.** G8's digest and report equality on every sample and graph-io fixture holds them together.
+- **Two ingest paths can drift.** G8's digest, count and graph-level value equality on every repository dataset, generator and
+  graph-io corpus file holds them together; report equality comes with the column path itself (stage 29).
 - **Pulled 2D lines** must keep drawing a sub-pixel line one pixel wide and fainter; G3's sub-pixel parity case proves it.
 - **The stray pixel may survive stage 15's trace** and the owner may refuse it. The million-edge frame then stops at G5's
   60-65 ms.

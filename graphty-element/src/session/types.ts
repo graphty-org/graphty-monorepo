@@ -3004,7 +3004,10 @@ export interface ImportColumnsInput {
     readonly nodeCount: number;
     /** Each node's id, one per node. Default: the row number. */
     readonly ids?: ArrayLike<string | number>;
-    /** Each edge's weight, one per edge, stored as the record's `weight`. Default: 1. */
+    /**
+     * Each edge's weight, one per edge, stored as the record's `weight`. Default: read from the edge
+     * attributes as `addEdges` reads it, else 1.
+     */
     readonly weights?: ArrayLike<number>;
     /** Each node's starting position as x, y, z, three numbers per node. Default: placed by the layout. */
     readonly positions?: ArrayLike<number>;

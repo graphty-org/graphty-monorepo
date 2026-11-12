@@ -299,6 +299,8 @@ export function stall({ state, publishHold, now }) {
         "waiting-for-screenshots": `waiting for the owner's screenshot review of ${state.offered?.sha?.slice(0, 7) ?? "the offered candidate"}`,
         "resume-due": "an approved candidate waits for its resume run (release.yml mode promote-nightly)",
         rejected: "the owner rejected the candidate's screenshots: fix forward",
+        refused:
+            "the promotion gate refused the approved candidate: fix the cause on master and dispatch promote-nightly again (the hold issue has the command)",
         promotable: "the verdict is green-clean but nothing promoted it: read the newest release.yml run",
         unjudged: `${canary} has no verdict yet: no full run judged it`,
         held: heldBlock(state),

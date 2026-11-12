@@ -438,9 +438,19 @@ async function putTestDurations(body, who, db, nowMs, name) {
     return { stored: true };
 }
 
-// approved and rejected: release.yml's promotion after the owner's screenshot approval (tools/channel/resume.mjs)
+// approved and refused: release.yml's promotion after the owner's screenshot approval (tools/channel/resume.mjs);
+// refused is its screenshot gate's refusal, which a later promotion may retry (#6783); rejected is an abandon
 // deferred: an attempt-1 red waiting for its same-commit re-run, which the pick does not take as judged
-const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item", "approved", "rejected", "deferred"]);
+const VERDICTS = new Set([
+    "green-clean",
+    "green-images",
+    "red",
+    "owner-item",
+    "approved",
+    "rejected",
+    "refused",
+    "deferred",
+]);
 
 // The full run's verdict on its candidate (channels 5): only master's release.yml writes it, under its own run.
 async function postVerdict(body, who, db, nowMs) {

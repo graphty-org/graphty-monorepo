@@ -7467,10 +7467,12 @@ describe("release.yml's nightly promotion (#1020)", () => {
         );
         const decide = gate.steps.find((st) => st.id === "promote");
         assert.deepEqual([decide.run, decide.env.STATE], ["node tools/channel/nightly.mjs decide", "approved"]);
-        // only a gate refusal is recorded (rejected), never a wait for a publish hold
-        const rejected = gate.steps.find((st) => st.run === "node tools/channel/resume.mjs record");
-        assert.equal(rejected.if, "${{ steps.gate.outputs.outcome == 'failure' }}");
-        assert.equal(rejected.env.STATE, "rejected");
+        // only a gate refusal is recorded (refused, never the owner's rejected: #6783), with the judging run a retry
+        // needs, never a wait for a publish hold
+        const refused = gate.steps.find((st) => st.run === "node tools/channel/resume.mjs record");
+        assert.equal(refused.if, "${{ steps.gate.outputs.outcome == 'failure' }}");
+        assert.equal(refused.env.STATE, "refused");
+        assert.equal(refused.env.SOURCE_RUN, "${{ needs.pick.outputs.source_run }}");
         // the builds the promotion ships: those the judging run kept for its held green-images head
         assert.equal(
             steps.keep_builds.if,

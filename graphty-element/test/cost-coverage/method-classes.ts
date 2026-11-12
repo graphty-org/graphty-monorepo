@@ -962,6 +962,7 @@ export const READ_ONLY: readonly string[] = [
     "LlmProvider.validateApiKey",
     "LoadDraft.dispose",
     "LoadDraft.joinReport",
+    "LoadDraft.lookup",
     "LoadDraft.missing",
     "LoadDraft.report",
     "LoadDraft.resolve",

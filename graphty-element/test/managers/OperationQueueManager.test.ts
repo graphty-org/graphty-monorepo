@@ -123,6 +123,35 @@ describe("OperationQueueManager", () => {
         assert.include(events, "error");
     });
 
+    it("reports an AbortError the operation body throws itself as an error, once", async () => {
+        const errors: unknown[] = [];
+        const queueEvents: string[] = [];
+        eventManager.addListener("error", (event) => {
+            errors.push(event);
+        });
+        eventManager.onGraphEvent.add((event) => {
+            if (event.type === "operation-obsoleted" || event.type === "operation-cancelled") {
+                queueEvents.push(event.type);
+            }
+        });
+
+        const thrown = new Error("aborted by the body");
+        thrown.name = "AbortError";
+        const outcome = queueManager.queueOperationAsync("data-add", () => {
+            throw thrown;
+        });
+
+        let rejection: unknown;
+        await outcome.catch((error: unknown) => {
+            rejection = error;
+        });
+        await queueManager.waitForCompletion();
+
+        assert.strictEqual(rejection, thrown);
+        assert.lengthOf(errors, 1);
+        assert.deepEqual(queueEvents, []);
+    });
+
     it("should provide queue statistics", async () => {
         // Queue some operations but don't wait
         queueManager.queueOperation("data-add", async () => {

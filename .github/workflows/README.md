@@ -115,14 +115,18 @@ A link to graphty.app must point at something `tools/assemble-pages-site.sh` pub
 **The held nightly candidate.** A run that is not green-clean after its re-run holds its commit: branch
 `channel/candidate`, the store's hold and a "Nightly held on <sha12>" issue (`tools/channel/hold.mjs`). Master
 keeps merging, and nothing promotes past the held commit, except that a newer commit's green-clean or green-images
-run replaces a held head judged red, owner-item or rejected (`hold.mjs replace`): the red hold ends, and the newer
-commit promotes or is held for review in its place. A held green-images head awaiting review is never replaced. Fix it forward from the candidate's head, never
+run replaces a held head judged red, owner-item, rejected, refused or green-images (`hold.mjs replace`): that hold
+ends, and the newer commit promotes or is held for review in its place, so nightly never waits behind an older
+screenshot review (#6604); only an approved head, or one whose approval is already on master, is never replaced
+(its promotion is due). Fix it forward from the candidate's head, never
 from newer master: `./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candidate --issue <n>`,
 `Refs #<hold issue>` in the commit message, then `tools/pr-open.sh`. When it merges, `mode: candidate` merges the
 fix commit (never master) into `channel/candidate` and re-tests the new head as a whole full run. A green-clean
 head promotes to nightly; a green-images one when the owner's screenshot approval merges
-(`mode: promote-nightly`); a screenshot gate that refuses the approval records the head `rejected`, comments the
-gate's reason on the "Nightly held on" issue (opening one when the store names none) and fails the run. The hold ends on that promotion, or by an abandon, which needs no owner (owner, 2026-10-27: it publishes
+(`mode: promote-nightly`); a screenshot gate that refuses the approval records the head `refused` (never the
+owner's `rejected`, #6783), comments the gate's reason and the retry command on the "Nightly held on" issue (opening
+one when the store names none) and fails the run; once the cause is fixed on master, dispatching promote-nightly for
+the same candidate and approval tries again (a full slot's catch-up does not). The hold ends on that promotion, or by an abandon, which needs no owner (owner, 2026-10-27: it publishes
 nothing and the next full run undoes it): anyone's `gh workflow run nightly-abandon.yml --ref master -f
 reason="<why>"`, or the full run's own (`hold.mjs auto`) before it picks, when only a pipeline lane (screenshot
 capture or re-capture) since fixed on master held the head red, or when the hold is over 24 hours old and master

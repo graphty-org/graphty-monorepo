@@ -89,10 +89,8 @@ overrides:
     # commitizen pins lodash 4.17.21 (4.17.23 in a fresh resolution).
     "lodash@<4.18.0": ^4.18.0
     # compact-mantine's vite-plugin-dts -> @microsoft/api-extractor pins minimatch 10.0.3 and,
-    # through @microsoft/tsdoc-config, ajv 8.13; nx's @nx/devkit, typescript-eslint and glob 10 hold
-    # minimatch 9 and 10. GHSA-g3hv-75wg-m249 (>=7.0.0 <11.0.1) is patched only in 11.0.1, which keeps
-    # 9 and 10's named exports. minimatch 3 and 5 (eslint, vite-plugin-cem) are outside its range.
-    "minimatch@>=7.0.0 <11.0.1": ^11.0.1
+    # through @microsoft/tsdoc-config, ajv 8.13.
+    "minimatch@>=10.0.0 <10.2.3": ^10.2.3
     "ajv@>=7.0.0-alpha.0 <8.18.0": ^8.18.0
     # graphty-element's @jsonhero/schema-infer -> @jsonhero/json-infer-types pins ip-address 8 and
     # uuid 8. Floor 10.7.4 covers GHSA-j6r3-76f7-8jcv, GHSA-h3mg-xc3c-68pw and GHSA-rxp7-6hxx-x8q5; uuid 11.1.1 covers

@@ -27,7 +27,7 @@ overrides:
   smol-toml@<1.7.1: ^1.7.1
   axios@<1.20.0: ^1.20.0
   lodash@<4.18.0: ^4.18.0
-  minimatch@>=7.0.0 <11.0.1: ^11.0.1
+  minimatch@>=10.0.0 <10.2.3: ^10.2.3
   ajv@>=7.0.0-alpha.0 <8.18.0: ^8.18.0
   ip-address@<10.7.4: ^10.7.4
   uuid@<11.1.1: ^11.1.1
@@ -2677,9 +2677,6 @@ packages:
   '@isaacs/fs-minipass@4.0.1':
     resolution: {integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==}
     engines: {node: '>=18.0.0'}
-
-  '@isaacs/nonrecursive-glob-match@1.1.0':
-    resolution: {integrity: sha512-GPm/Dbvk5RLmhRnxXIa7nTpK0xtl4E0wj0MslsuNiJ1FIROU+2+9lgUC/dgF7Ey4QCWhfEsgxilMRMCdHPfDfw==}
 
   '@jest/diff-sequences@30.0.1':
     resolution: {integrity: sha512-n5H8QLDJ47QqbCNn5SuFjCRDrOLEZ0h8vAHCK5RL9Ls7Xa8AQLa/YxAc9UjFqoEDM48muwtBGjtMY5cr0PLDCw==}
@@ -7833,9 +7830,13 @@ packages:
   minimalistic-crypto-utils@1.0.1:
     resolution: {integrity: sha512-JIYlbt6g8i5jKfJ3xz7rF0LXmv2TkDxBLUkiBeZ7bAx4GnnNMr8xFpGnOxn6GhTEHx3SjRrZEoU+j04prX1ktg==}
 
-  minimatch@11.0.7:
-    resolution: {integrity: sha512-Tnk+M9mPjqKDZlUd77eMSjPjhnlBIa1mABOwetMryIshUwi1YmOBdGFfQnHgn4Z8A66eLT8ENzJrxwYmKfqrZg==}
-    engines: {node: 20 || >=22}
+  minimatch@10.2.5:
+    resolution: {integrity: sha512-MULkVLfKGYDFYejP07QOurDLLQpcjk7Fw+7jXS2R2czRQzR56yHRveU5NDJEOviH+hETZKSkIk5c+T23GjFUMg==}
+    engines: {node: 18 || 20 || >=22}
+
+  minimatch@10.2.6:
+    resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==}
+    engines: {node: 18 || 20 || >=22}
 
   minimatch@3.1.5:
     resolution: {integrity: sha512-VgjWUsnnT6n+NUk6eZq77zeFdpW2LWDzP6zFGrCbHXiYNul5Dzqk2HHQ5uFH2DNW5Xbp8+jVzaeNt94ssEEl4w==}
@@ -7843,6 +7844,10 @@ packages:
   minimatch@5.1.9:
     resolution: {integrity: sha512-7o1wEA2RyMP7Iu7GNba9vc0RWWGACJOCZBJX2GJWip0ikV+wcOsgVuY9uE8CPiyQhkGFSlhuSkZPavN7u1c2Fw==}
     engines: {node: '>=10'}
+
+  minimatch@9.0.9:
+    resolution: {integrity: sha512-OBwBN9AL4dqmETlpS2zasx+vTeWclWzkblfZk7KTA5j3jeOONz/tRCnZomUyvNg83wL5Zv9Ss6HMJXAgL8R2Yg==}
+    engines: {node: '>=16 || 14 >=14.17'}
 
   minimist@1.2.8:
     resolution: {integrity: sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==}
@@ -11938,8 +11943,6 @@ snapshots:
     dependencies:
       minipass: 7.1.3
 
-  '@isaacs/nonrecursive-glob-match@1.1.0': {}
-
   '@jest/diff-sequences@30.0.1': {}
 
   '@jitl/quickjs-ffi-types@0.31.0': {}
@@ -12075,7 +12078,7 @@ snapshots:
       '@rushstack/ts-command-line': 5.1.5(@types/node@20.19.43)
       diff: 8.0.4
       lodash: 4.18.1
-      minimatch: 11.0.7
+      minimatch: 10.2.6
       resolve: 1.22.12
       semver: 7.5.4
       source-map: 0.6.1
@@ -12179,7 +12182,7 @@ snapshots:
       '@zkochan/js-yaml': 0.0.7
       ejs: 5.0.1
       enquirer: 2.3.6
-      minimatch: 11.0.7
+      minimatch: 10.2.5
       nx: 22.7.12(patch_hash=baab19dc4a33e56c1994f3746699e464fdc509dada8070259b467bc4d2e0961f)
       semver: 7.8.5
       tslib: 2.8.1
@@ -14113,7 +14116,7 @@ snapshots:
       '@typescript-eslint/types': 8.71.0
       '@typescript-eslint/visitor-keys': 8.71.0
       debug: 4.4.3(supports-color@7.2.0)
-      minimatch: 11.0.7
+      minimatch: 10.2.6
       semver: 7.8.5
       tinyglobby: 0.2.17
       ts-api-utils: 2.5.0(typescript@5.9.3)
@@ -14128,7 +14131,7 @@ snapshots:
       '@typescript-eslint/types': 8.72.2
       '@typescript-eslint/visitor-keys': 8.72.2
       debug: 4.4.3(supports-color@7.2.0)
-      minimatch: 11.0.7
+      minimatch: 10.2.6
       semver: 7.8.5
       tinyglobby: 0.2.17
       ts-api-utils: 2.5.0(typescript@5.9.3)
@@ -14451,7 +14454,7 @@ snapshots:
       '@vue/compiler-vue2': 2.7.16
       '@vue/shared': 3.5.43
       alien-signals: 0.4.14
-      minimatch: 11.0.7
+      minimatch: 9.0.9
       muggle-string: 0.4.1
       path-browserify: 1.0.1
     optionalDependencies:
@@ -16696,7 +16699,7 @@ snapshots:
     dependencies:
       foreground-child: 3.3.1
       jackspeak: 3.4.3
-      minimatch: 11.0.7
+      minimatch: 9.0.9
       minipass: 7.1.3
       package-json-from-dist: 1.0.1
       path-scurry: 1.11.1
@@ -18090,9 +18093,12 @@ snapshots:
 
   minimalistic-crypto-utils@1.0.1: {}
 
-  minimatch@11.0.7:
+  minimatch@10.2.5:
     dependencies:
-      '@isaacs/nonrecursive-glob-match': 1.1.0
+      brace-expansion: 5.0.12
+
+  minimatch@10.2.6:
+    dependencies:
       brace-expansion: 5.0.12
 
   minimatch@3.1.5:
@@ -18100,6 +18106,10 @@ snapshots:
       brace-expansion: 1.1.21
 
   minimatch@5.1.9:
+    dependencies:
+      brace-expansion: 2.1.7
+
+  minimatch@9.0.9:
     dependencies:
       brace-expansion: 2.1.7
 
@@ -18338,7 +18348,7 @@ snapshots:
       mime-db: 1.52.0
       mime-types: 2.1.35
       mimic-fn: 2.1.0
-      minimatch: 11.0.7
+      minimatch: 10.2.5
       minimist: 1.2.8
       ms: 2.1.3
       npm-run-path: 4.0.1
@@ -20194,7 +20204,7 @@ snapshots:
       '@gerrit0/mini-shiki': 3.23.0
       lunr: 2.3.9
       markdown-it: 14.3.3
-      minimatch: 11.0.7
+      minimatch: 10.2.6
       typescript: 5.9.3
       yaml: 2.9.1
 

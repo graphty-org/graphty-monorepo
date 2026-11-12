@@ -8,6 +8,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import type { GraphStore } from "../../src/data/GraphStore";
 import type { GraphSession } from "../../src/session";
 import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
 import { dataDigest } from "../../src/session/project/digest";
@@ -20,6 +21,17 @@ import { assertScalesLinearly } from "../helpers/cost";
  */
 function digest(session: GraphSession): string {
     return dataDigest(dispatcherOf(session).state.graph, () => session.data.snapshot());
+}
+
+/**
+ * The graph builder's id map: null while every node's id is its own row (graph-format design 6.6).
+ * @param session - The session.
+ * @returns The map, or null when the builder keeps none.
+ */
+function idMapOf(session: GraphSession): unknown {
+    // The graph's store and the builder's staging are private: this reads the one fact the stage is about.
+    const { store } = dispatcherOf(session).graph as unknown as { store: GraphStore };
+    return (store.builder as unknown as { staging: { idToIndex: unknown } }).staging.idToIndex;
 }
 
 /** Five nodes in a ring with a chord; node 4 has no edge of its own besides the ring. */
@@ -111,6 +123,31 @@ describe("session.data.importColumns", () => {
             session.data.nodes().map((node) => node.id),
             [0, 1, 2, 3],
         );
+    });
+
+    it("keeps no id map for nodes numbered by row on the batched path, and the objects path's on objects", async () => {
+        const batched = createElementSession({}, { batched: () => true });
+        const objects = createElementSession({}, { batched: () => false });
+        for (const session of [batched, objects]) {
+            await session.data.importColumns({ sources: SOURCES, targets: TARGETS, nodeCount: 5 });
+        }
+
+        assert.isNull(idMapOf(batched));
+        assert.isNotNull(idMapOf(objects));
+        assert.strictEqual(digest(batched), digest(objects));
+
+        // A named node joining later builds the map, and every row keeps its id.
+        for (const session of [batched, objects]) {
+            await session.data.addNodes([{ id: "late" }]);
+            await session.data.addEdges([{ source: "late", target: 0 }]);
+        }
+
+        assert.isNotNull(idMapOf(batched));
+        assert.deepStrictEqual(batched.data.snapshot().ids.toArray(), [0, 1, 2, 3, 4, "late"]);
+        assert.strictEqual(digest(batched), digest(objects));
+        await batched.undo();
+        await objects.undo();
+        assert.strictEqual(digest(batched), digest(objects));
     });
 
     it("refuses columns that do not line up, adding nothing", async () => {

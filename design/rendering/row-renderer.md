@@ -1169,6 +1169,12 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.
+  No id map for typed input (built, fourth pull request of stage 28): under `"batched"` a new node whose id is the
+  row it lands on (the ids `importColumns` gives when it gets no `ids`, or any record load numbered 0, 1, 2, ...) is
+  added as an anonymous builder row, so the builder keeps no `idToIndex` map or `ids` array until a node with any
+  other id joins; it is taken only while the builder holds no removed row. Under `"objects"` every node is added by
+  id as before. The snapshot's id map is the same either way (a run of row numbers freezes as `identity` on both
+  paths), so nothing downstream sees the difference (`test/session/import-columns.test.ts`).
 - **The load's position publish is already one typed write.** The 2026-11-09 profile credits 1.0 s of the 100k + 1M
   load to `publishPositions` in the derivation pass's position hook. Correction: the publish itself (`publishComputed`)
   is 9 ms and already writes the position column whole. The second is the fixed layout's first run reading its graph:

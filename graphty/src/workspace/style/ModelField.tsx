@@ -11,10 +11,11 @@ import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import { Tooltip } from "@mantine/core";
 import React, { useCallback, useState } from "react";
 
-import { modelName, modelThumbnail, pictureName } from "../canvas/models";
+import { modelName, pictureName } from "../canvas/models";
 import { nodeModelsOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { CustomModelDialog, type ModelDraft } from "./CustomModelDialog";
 import { ModelSettings } from "./ModelSettings";
 import { ModelsPopover } from "./ModelsPopover";
 import { ModelProblems } from "./PartsPopover";
@@ -22,7 +23,7 @@ import { PictureField, PicturePopover } from "./PicturePopover";
 import type { RowContext } from "./PropertyRow";
 import { layerWord, lineIn, removeLine, without, writeIn } from "./row";
 import { focusSectionNext } from "./useFocusLine";
-import { ValueField } from "./ValueField";
+import { ModelValueField, ValueField } from "./ValueField";
 import { fieldName, MODEL_CHANNELS, MODEL_PICK, MODEL_TILE, PICTURE_WORD, valueWords } from "./words";
 
 /** The Model settings pop-over's width, as every Style panel pop-over. */
@@ -72,6 +73,22 @@ interface LineHelpers extends AssetLineArgs {
 }
 
 /**
+ * The values a row's model is drawn with: its color and its model settings, where the row sets
+ * them to a value (a binding varies by node, so no one picture shows it).
+ * @param ctx - the row.
+ * @returns the values, by channel.
+ */
+function modelStyleOf(ctx: RowContext): ModelDraft {
+    const channels: readonly Channel[] = ["node.color", ...MODEL_CHANNELS.filter((c) => c !== "node.model")];
+    return Object.fromEntries(
+        channels.flatMap((channel) => {
+            const value = lineIn(ctx, channel)?.value;
+            return value === undefined ? [] : [[channel, value]];
+        }),
+    );
+}
+
+/**
  * The model a Shape line's own layer names, if any.
  * @param ctx - the row.
  * @param channel - the line's property.
@@ -101,13 +118,10 @@ export function useAssetLine(args: AssetLineArgs): AssetLine | undefined {
     const { ref: model } = modelOf(ctx, channel, on);
     const [modelsOpen, setModelsOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
-    // A model picked while it waits for parts: the Parts pop-over opens in the Models pop-over's place.
-    const [partsAsked, setPartsAsked] = useState(false);
+    // The Load custom model dialog, opened by the Models pop-over's Custom model....
+    const [customOpen, setCustomOpen] = useState(false);
     // Fill's Picture line, added with "+": its pop-over opens at once.
     const [pictureOpen, setPictureOpen] = useState(() => on && channel === "node.texture" && pending);
-    const onPartsOpened = useCallback(() => {
-        setPartsAsked(false);
-    }, []);
     // Focus back on the field, once the pop-over that took its place has gone.
     const focusField = useCallback(() => {
         requestAnimationFrame(() => {
@@ -121,9 +135,8 @@ export function useAssetLine(args: AssetLineArgs): AssetLine | undefined {
             setModelsOpen,
             settingsOpen,
             setSettingsOpen,
-            partsAsked,
-            setPartsAsked,
-            onPartsOpened,
+            customOpen,
+            setCustomOpen,
             focusField,
         });
     }
@@ -140,9 +153,8 @@ interface ShapeState {
     readonly setModelsOpen: (open: boolean) => void;
     readonly settingsOpen: boolean;
     readonly setSettingsOpen: (open: boolean) => void;
-    readonly partsAsked: boolean;
-    readonly setPartsAsked: (asked: boolean) => void;
-    readonly onPartsOpened: () => void;
+    readonly customOpen: boolean;
+    readonly setCustomOpen: (open: boolean) => void;
     readonly focusField: () => void;
 }
 
@@ -206,14 +218,16 @@ function shapeLine(args: LineHelpers, state: ShapeState): AssetLine {
         });
         said(args, done, words);
     };
-    const pickModel = (ref: string, into: Channel, waiting: boolean): void => {
+    const pickModel = (
+        ref: string,
+        into: Channel,
+        settings?: Readonly<Partial<Record<Channel, ChannelValue>>>,
+    ): void => {
         setModelsOpen(false);
-        if (waiting) {
-            state.setPartsAsked(true);
-        } else {
-            focusField();
-        }
-        said(args, writeIn(ctx, into, { value: ref }), () =>
+        state.setCustomOpen(false);
+        focusField();
+        // The model and the dialog's settings, in one undo step.
+        said(args, writeIn(ctx, into, { value: ref }, settings), () =>
             into === "node.model"
                 ? `${name} now ${modelName(session, ref)}`
                 : `Node picture now ${pictureName(session, ref)}`,
@@ -279,11 +293,12 @@ function shapeLine(args: LineHelpers, state: ShapeState): AssetLine {
             opened={state.modelsOpen}
             anchor={box}
             current={model}
-            onPick={(ref, waiting) => {
-                pickModel(ref, "node.model", waiting);
+            onPick={(ref) => {
+                pickModel(ref, "node.model");
             }}
-            onPicture={(ref) => {
-                pickModel(ref, "node.texture", false);
+            onCustom={() => {
+                setModelsOpen(false);
+                state.setCustomOpen(true);
             }}
             onBack={() => {
                 setModelsOpen(false);
@@ -298,8 +313,29 @@ function shapeLine(args: LineHelpers, state: ShapeState): AssetLine {
             }}
         />
     );
+    const dialogs = (
+        <>
+            {popover}
+            {state.customOpen ? (
+                <CustomModelDialog
+                    forLayer
+                    baseStyle={modelStyleOf(ctx)}
+                    onAdd={(ref, settings) => {
+                        pickModel(ref, "node.model", settings);
+                    }}
+                    onPicture={(ref) => {
+                        pickModel(ref, "node.texture");
+                    }}
+                    onClose={() => {
+                        state.setCustomOpen(false);
+                        focusField();
+                    }}
+                />
+            ) : null}
+        </>
+    );
     if (model === undefined) {
-        return { extraChoices, pick, ownsVary: false, extras: popover };
+        return { extraChoices, pick, ownsVary: false, extras: dialogs };
     }
     return {
         model,
@@ -307,12 +343,12 @@ function shapeLine(args: LineHelpers, state: ShapeState): AssetLine {
         pick,
         ownsVary: true,
         control: (
-            <ValueField
+            <ModelValueField
                 descriptor={descriptor}
                 label={name}
-                value={undefined}
-                shown={undefined}
-                model={{ name: modelName(session, model), thumbnail: modelThumbnail(session, model) }}
+                model={model}
+                style={modelStyleOf(ctx)}
+                name={modelName(session, model)}
                 extraChoices={extraChoices}
                 onChange={(value) => {
                     pick(value);
@@ -349,15 +385,8 @@ function shapeLine(args: LineHelpers, state: ShapeState): AssetLine {
         remove: removeModel,
         extras: (
             <>
-                <ModelProblems
-                    modelRef={model}
-                    anchor={box}
-                    onDone={focusField}
-                    onUseAsPicture={modelToPicture}
-                    openParts={state.partsAsked}
-                    onPartsOpened={state.onPartsOpened}
-                />
-                {popover}
+                <ModelProblems modelRef={model} anchor={box} onDone={focusField} onUseAsPicture={modelToPicture} />
+                {dialogs}
             </>
         ),
     };

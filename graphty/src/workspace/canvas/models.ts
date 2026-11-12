@@ -5,14 +5,11 @@
  * it the files.
  */
 
-import {
-    type AssetOffer,
-    type AssetSource,
-    type GraphSession,
-    isAssetId,
-    type ModelChange,
-} from "@graphty/graphty-element/session";
-import { useEffect, useState } from "react";
+import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
+import { type AssetSource, type GraphSession, isAssetId, type ModelChange } from "@graphty/graphty-element/session";
+import { type HTMLAttributes, useEffect, useState } from "react";
+
+import { useWorkspace } from "../state/WorkspaceContext";
 
 /** What was dropped: the files, and the same files as graphty-element's assets take them. */
 interface Dropped {
@@ -64,30 +61,6 @@ export async function readDrop(transfer: DataTransfer): Promise<Dropped> {
 }
 
 /**
- * Hands files to the models waiting for parts first (`session.assets.offer`), so a picture reaches
- * the model that needs it; what no waiting model takes is left to add.
- * @param session - the element's session.
- * @param source - the files as `session.assets.add` takes them.
- * @param files - the same files, one by one.
- * @returns the parts supplied, and what is left to add (null when nothing is).
- */
-export async function offerFirst(
-    session: GraphSession,
-    source: AssetSource,
-    files: readonly File[],
-): Promise<{ readonly supplied: AssetOffer["supplied"]; readonly rest: AssetSource | null }> {
-    if (session.assets.waiting().length === 0 || files.length === 0) {
-        return { supplied: [], rest: source };
-    }
-    const offered = await session.assets.offer(files);
-    if (offered.supplied.length === 0) {
-        return { supplied: [], rest: source };
-    }
-    // ponytail: what is left loses its folder paths; a waiting model's parts arrive by name.
-    return { supplied: offered.supplied, rest: offered.rest.length === 0 ? null : [...offered.rest] };
-}
-
-/**
  * The files of a source handed over one by one: what a chooser or a drop gave.
  * @param source - the files.
  * @returns them, or none for a URL or bytes.
@@ -126,7 +99,8 @@ function addressOf(ref: string): string {
 }
 
 /**
- * A model's name for the reader: its main file without the extension, or a sample's name.
+ * A model's name for the reader: the name the reader gave it, its main file without the extension,
+ * or a sample's name.
  * @param session - the element's session.
  * @param ref - what a layer names: an asset id, the id a model had while it waited, or a URL.
  * @returns the name.
@@ -136,7 +110,8 @@ export function modelName(session: GraphSession, ref: string): string {
     if (sample !== undefined) {
         return sample.plainName;
     }
-    return fileStem(session.assets.find(ref)?.path ?? addressOf(ref)) || "Model";
+    const record = session.assets.find(ref);
+    return record?.plainName ?? (fileStem(record?.path ?? addressOf(ref)) || "Model");
 }
 
 /**
@@ -170,12 +145,79 @@ export function useModelStates(session: GraphSession | null): readonly ModelChan
 }
 
 /**
- * A model's picture: a sample's catalog thumbnail. A model the reader added has none (the cube
- * stands in): graphty-element's `nodeThumbnail` draws only built-in shapes yet.
- * @param session - the element's session.
+ * A model's picture, drawn by graphty-element as a node draws it (`modelThumbnail`), or a sample's
+ * shipped thumbnail. Drawn again when the model or its style changes; undefined while it is drawn
+ * and for a model that cannot be drawn (the cube stands in).
  * @param ref - what a layer names, or undefined for no model.
+ * @param size - the picture's side in CSS pixels; it is drawn at the screen's pixel ratio.
+ * @param style - the node's style values the picture is drawn with (Up, Turn, Color...).
  * @returns the picture's URL, or undefined.
  */
-export function modelThumbnail(session: GraphSession, ref: string | undefined): string | undefined {
-    return ref === undefined ? undefined : session.catalog.models().find((m) => m.id === ref)?.thumbnail;
+export function useModelPicture(
+    ref: string | undefined,
+    size: number,
+    style?: Readonly<Partial<Record<Channel, ChannelValue>>>,
+): string | undefined {
+    const { session, element } = useWorkspace();
+    // Read again when a model moves on, so a model that just got its parts is drawn.
+    useModelStates(session);
+    const sample = ref === undefined ? undefined : session?.catalog.models().find((m) => m.id === ref)?.thumbnail;
+    const record = ref === undefined || sample !== undefined ? undefined : session?.assets.find(ref);
+    const key = record?.state === "accepted" ? JSON.stringify([ref, record.digest, size, style ?? null]) : undefined;
+    const [drawn, setDrawn] = useState<{ readonly key: string; readonly url: string } | null>(null);
+    useEffect(() => {
+        if (key === undefined || element === null) {
+            return undefined;
+        }
+        // Read back from the key, so a style object made anew on every render draws once.
+        const [asked, , side, values] = JSON.parse(key) as [
+            string,
+            string,
+            number,
+            Record<string, ChannelValue> | null,
+        ];
+        let live = true;
+        element
+            .modelThumbnail(asked, { size: side * Math.ceil(window.devicePixelRatio || 1), style: values ?? {} })
+            .then((url) => {
+                if (live) {
+                    setDrawn({ key, url });
+                }
+            })
+            // The cube stays: the model's own chips say why it cannot be drawn.
+            .catch(() => undefined);
+        return () => {
+            live = false;
+        };
+    }, [key, element]);
+    return sample ?? (drawn !== null && drawn.key === key ? drawn.url : undefined);
+}
+
+/**
+ * Whether files are held over a drop target, and the handlers that tell: the target is drawn as
+ * the compact-mantine file drop zone draws itself while files are held over it.
+ * @returns the flag and the handlers to spread on the target.
+ */
+export function useDropOver(): {
+    readonly over: boolean;
+    readonly handlers: Pick<HTMLAttributes<HTMLElement>, "onDragOver" | "onDragLeave" | "onDrop">;
+} {
+    const [over, setOver] = useState(false);
+    return {
+        over,
+        handlers: {
+            onDragOver: (event) => {
+                event.preventDefault();
+                setOver(true);
+            },
+            onDragLeave: (event) => {
+                if (!(event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))) {
+                    setOver(false);
+                }
+            },
+            onDrop: () => {
+                setOver(false);
+            },
+        },
+    };
 }

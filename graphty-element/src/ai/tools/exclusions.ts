@@ -204,7 +204,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     ...(["Graphty", "Graph"] as const).flatMap((root): Exclusion[] => [
-        { root, members: ["nodeThumbnail"], reason: "raw-data", kind: BY_DESIGN },
+        { root, members: ["nodeThumbnail", "modelThumbnail"], reason: "raw-data", kind: BY_DESIGN },
     ]),
     {
         root: "Graph",
@@ -393,6 +393,9 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "TimeApi", members: ["parse"], reason: "mechanism", kind: BY_DESIGN },
     { root: "SessionShaders", members: ["approve"], reason: "reader-trust", kind: BY_DESIGN },
     { root: "SessionShaders", members: ["thumbnail"], reason: "raw-data", kind: BY_DESIGN },
+    { root: "SessionShaders", members: ["describe"], reason: "covered-by", by: "shaders.list", kind: BY_DESIGN },
+    // What a write naming a catalog shader does itself to copy it in.
+    { root: "SessionShaders", members: ["fromCatalog"], reason: "mechanism", kind: BY_DESIGN },
     {
         root: "BasemapManager",
         members: ["attributionOffset", "globeLook"],

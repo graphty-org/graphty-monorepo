@@ -462,6 +462,24 @@ export interface Toolset {
     readonly index: SearchIndex;
 }
 
+/** Common color names, as search words for every color channel. */
+const COLOR_WORDS = [
+    "red",
+    "orange",
+    "yellow",
+    "green",
+    "blue",
+    "purple",
+    "pink",
+    "brown",
+    "black",
+    "white",
+    "gray",
+    "grey",
+    "paint",
+    "colour",
+];
+
 /**
  * The index `catalog search` reads: every catalog entry and every tool, consumer commands too.
  * @param catalog - The catalog.
@@ -558,7 +576,8 @@ function buildIndex(
             summary: `${entry.plainName}: ${entry.accepts}.`,
             tool: "style",
             action: "add",
-            words: [entry.group, entry.shortName],
+            // A color channel is what "make them red" wants, so a color's name finds it.
+            words: [entry.group, entry.shortName, ...(entry.accepts === "color" ? COLOR_WORDS : [])],
         })),
         ...catalog.cameras.map((entry) => ({
             kind: "camera" as const,

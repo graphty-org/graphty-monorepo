@@ -147,7 +147,7 @@ export function makeSession(
     const session = createElementSession(sessionOptions, options.internals ?? {});
 
     const touch = (): void => {
-        store.touch();
+        store.recordsChanged();
         dispatcherOf(session).graph.retoken();
     };
 

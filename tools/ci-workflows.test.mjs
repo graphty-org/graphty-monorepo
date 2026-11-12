@@ -4112,6 +4112,11 @@ describe("release.yml", () => {
     const publish = job(release, "publish");
     const approve = job(release, "approve");
 
+    it("gives the land its identity in the environment, so a local run cannot write the shared .git/config", () => {
+        assert.doesNotMatch(landSh, /^\s*git config/m);
+        assert.match(landSh, /^export GIT_AUTHOR_NAME=/m);
+    });
+
     it("opens no pull request and pushes to master only from the land job, with the deploy key", () => {
         assert.doesNotMatch(release, /gh pr create|head_commit/);
         assert.deepEqual(release.match(/git push[^\n]*/g), [
@@ -6500,6 +6505,10 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "figma-lock\\n");\n`,
             );
             writeFileSync(
+                join(dir, "tools/check-saved-format-allowlist.mjs"),
+                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "saved-format\\n");\n`,
+            );
+            writeFileSync(
                 join(dir, "tools/release-dry-run.mjs"),
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "release\\n");\n`,
             );
@@ -6576,6 +6585,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             writeFileSync(join(gate, "tools/sonar-gate.mjs"), sonar("gate-sonar"));
             writeFileSync(join(gate, "tools/check-committed-images.mjs"), sonar("gate-images"));
             writeFileSync(join(gate, "tools/check-figma-lock.mjs"), sonar("gate-figma-lock"));
+            writeFileSync(join(gate, "tools/check-saved-format-allowlist.mjs"), sonar("gate-saved-format"));
             writeFileSync(join(gate, "tools/release-dry-run.mjs"), sonar("gate-release"));
             writeFileSync(join(root, "tools/check-links.sh"), log("root-links"), { mode: 0o755 });
             writeFileSync(join(root, "tools/sonar-gate.mjs"), sonar("root-sonar"));

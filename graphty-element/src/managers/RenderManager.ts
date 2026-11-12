@@ -25,7 +25,6 @@ import { OrbitCameraController } from "../cameras/OrbitCameraController";
 import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
-import { shaderDescriptor } from "../catalog/shaderRegistry";
 import type { ShaderParams, ShaderUse } from "../catalog/shaders";
 import type { NodeId } from "../catalog/types";
 import { backgroundColorOf, DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig } from "../config/GraphStyle";
@@ -683,9 +682,8 @@ class ShaderScene {
         }
 
         const project = shadersControllerOf(session)?.descriptors() ?? [];
-        const bloomy = (id: string): boolean =>
-            (shaderDescriptor(id) ?? project.find((descriptor) => descriptor.id === id))?.bloom === true;
-        const wantsBloom = layers.some((layer) => [...idsNamedBy(layer)].some(bloomy));
+        const bloomy = (id: string): boolean => project.find((descriptor) => descriptor.id === id)?.bloom === true;
+        const wantsBloom = layers.some((layer) => [...idsNamedBy(layer, true)].some(bloomy));
         if (wantsBloom) {
             void this.loadBloom();
         } else if (this.bloom !== null) {

@@ -23,10 +23,9 @@ import { operationQueueOf } from "../../../src/Graph";
 import { everyFrameAnimationsOn } from "../../../src/managers/everyFrameAnimations";
 import type { RenderManager } from "../../../src/managers/RenderManager";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
-import { type RenderQualityChange, shadersControllerOf } from "../../../src/session/shaders";
+import { type RenderQualityChange, shaderContentHash, shadersControllerOf } from "../../../src/session/shaders";
 import type { LazyShaderHost } from "../../../src/shaders/chunk";
 import { defineShader } from "../../../src/simple/defineShader";
-import { sha256Hex } from "../../../src/utils/sha256";
 import { drawnFrames } from "../../helpers/drawn-frames";
 
 const WIDTH = 400;
@@ -430,7 +429,7 @@ describe("motion", () => {
                 state: "still",
                 problem: { code: "shader.flashing", params: { id } },
             });
-            assert.isAtLeast(hostOf(element).loaded?.uniforms.frozenTime(sha256Hex(text)) ?? -1, 0);
+            assert.isAtLeast(hostOf(element).loaded?.uniforms.frozenTime(shaderContentHash(text)) ?? -1, 0);
         });
     }
 });

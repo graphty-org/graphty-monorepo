@@ -405,6 +405,8 @@ export interface LiveConnection {
     interrupt(): void;
     /** Answer one response's tool calls, all of them, in one call. */
     sendToolResults(results: readonly LiveToolResult[]): void;
+    /** Send graphty's own words as a turn of text, which the provider answers. */
+    sendText(text: string): void;
     /** The microphone's level now, from 0 (silence) to 1. */
     level(): number;
     /**

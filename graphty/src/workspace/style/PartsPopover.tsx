@@ -3,12 +3,13 @@ import { type CodedFact, type GraphSession, GraphtyError, type PartAnswer } from
 import { Button, Group, Loader, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
-import { modelName, useModelStates } from "../canvas/models";
+import { modelName, useDropOver, useModelStates } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { FactChip, ModelChip } from "./ModelChip";
 import { AddressForm, FileInput } from "./ModelsPopover";
 import { countChip, middleCut, PART_CODES, roleWord } from "./modelWords";
+import { CUSTOM_MODEL } from "./words";
 
 /** The pop-over's width: room for a part's name and its address. */
 const WIDTH = 280;
@@ -23,35 +24,6 @@ const WIDTH = 280;
 function mainFile(session: GraphSession, modelRef: string): string {
     const path = session.assets.find(modelRef)?.path;
     return path === undefined ? modelName(session, modelRef) : (path.split("/").pop() ?? path);
-}
-
-/**
- * Whether files are held over a drop target, and the handlers that tell: the target is drawn as
- * the compact-mantine file drop zone draws itself while files are held over it.
- * @returns the flag and the handlers to spread on the target.
- */
-function useDropOver(): {
-    readonly over: boolean;
-    readonly handlers: Pick<React.HTMLAttributes<HTMLElement>, "onDragOver" | "onDragLeave" | "onDrop">;
-} {
-    const [over, setOver] = useState(false);
-    return {
-        over,
-        handlers: {
-            onDragOver: (event) => {
-                event.preventDefault();
-                setOver(true);
-            },
-            onDragLeave: (event) => {
-                if (!(event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))) {
-                    setOver(false);
-                }
-            },
-            onDrop: () => {
-                setOver(false);
-            },
-        },
-    };
 }
 
 /**
@@ -118,11 +90,11 @@ function thrown(error: unknown): CodedFact {
  * @param props.role - `params.role`.
  * @returns the glyph.
  */
-function RoleGlyph({ role }: Readonly<{ role: unknown }>): React.JSX.Element {
+export function RoleGlyph({ role }: Readonly<{ role: unknown }>): React.JSX.Element {
     if (role === "texture") {
         return <GLYPHS.picture size={14} aria-hidden />;
     }
-    if (role === "materials") {
+    if (role === "materials" || role === "other") {
         return <GLYPHS.file size={14} aria-hidden />;
     }
     return <GLYPHS.model size={14} aria-hidden />;
@@ -138,6 +110,11 @@ interface PartRowProps {
     readonly supply: (answer: PartAnswer) => Promise<readonly CodedFact[]>;
     /** Says that Escape took back typed text. */
     readonly onDiscard: () => void;
+    /**
+     * The set's files nothing names: for a missing part, Use file comes first and its address
+     * waits behind Address... (the file was most likely renamed). Default: none.
+     */
+    readonly unused?: readonly string[];
 }
 
 /** What a part row's controls need. */
@@ -152,6 +129,7 @@ interface PartControlsProps {
     readonly setUrl: (url: string) => void;
     readonly answer: (given: PartAnswer) => void;
     readonly onDiscard: () => void;
+    readonly unused: readonly string[];
 }
 
 /**
@@ -189,7 +167,8 @@ function WhichFile({ part, name, label, first, answer }: Readonly<PartControlsPr
 
 /**
  * The ways to hand a missing part over: its address, Choose, and Load without it when it may be
- * left out.
+ * left out. With files of the set nothing names, Use file comes first and the address waits
+ * behind Address....
  * @param props - Component props
  * @param props.part - the part
  * @param props.name - its name, as the model names it
@@ -199,6 +178,7 @@ function WhichFile({ part, name, label, first, answer }: Readonly<PartControlsPr
  * @param props.setUrl - the typing
  * @param props.answer - hands the part over
  * @param props.onDiscard - says Escape took the typing back
+ * @param props.unused - the set's files nothing names
  * @returns The controls
  */
 function SupplyPart({
@@ -210,24 +190,43 @@ function SupplyPart({
     setUrl,
     answer,
     onDiscard,
+    unused,
 }: Readonly<PartControlsProps>): React.JSX.Element {
     const chooser = useRef<HTMLInputElement | null>(null);
+    const [byAddress, setByAddress] = useState(unused.length === 0);
     return (
         <>
-            <AddressForm
-                name={`${label} address`}
-                submitName={`Load ${label} from address`}
-                value={url}
-                busy={false}
-                autofocus={first}
-                onChange={setUrl}
-                onDiscard={onDiscard}
-                onSubmit={() => {
-                    if (url.trim() !== "") {
-                        answer({ name, url: url.trim() });
-                    }
-                }}
-            />
+            {unused.length > 0 ? (
+                <PanelField
+                    label={`File for ${label}`}
+                    kind="select"
+                    width="fill"
+                    value={null}
+                    placeholder={CUSTOM_MODEL.useFile}
+                    data={unused.map((file) => ({ value: file, label: file }))}
+                    data-autofocus={first ? true : undefined}
+                    onChange={(next) => {
+                        answer({ name, use: String(next) });
+                    }}
+                />
+            ) : null}
+            {byAddress ? (
+                <AddressForm
+                    name={`${label} address`}
+                    submitName={`Load ${label} from address`}
+                    placeholder={CUSTOM_MODEL.partAddress(label)}
+                    value={url}
+                    busy={false}
+                    autofocus={first && unused.length === 0}
+                    onChange={setUrl}
+                    onDiscard={onDiscard}
+                    onSubmit={() => {
+                        if (url.trim() !== "") {
+                            answer({ name, url: url.trim() });
+                        }
+                    }}
+                />
+            ) : null}
             <Group gap={4}>
                 <Tooltip label={`Choose ${label}`}>
                     <Button
@@ -246,6 +245,24 @@ function SupplyPart({
                         answer({ name, file });
                     }}
                 />
+                {byAddress ? null : (
+                    <Button
+                        size="compact-xs"
+                        variant="default"
+                        aria-label={`Address for ${label}`}
+                        onClick={(event) => {
+                            const row = event.currentTarget.closest(".ws-part-row");
+                            const field = CSS.escape(`${label} address`);
+                            setByAddress(true);
+                            // The button goes; focus goes to the field it opened.
+                            requestAnimationFrame(() => {
+                                row?.querySelector<HTMLInputElement>(`input[aria-label="${field}"]`)?.focus();
+                            });
+                        }}
+                    >
+                        {CUSTOM_MODEL.byAddress}
+                    </Button>
+                )}
                 {part.params.optional === true ? (
                     <Tooltip label={`Load without ${label}`}>
                         <Button
@@ -321,9 +338,10 @@ function PartErrors({
  * @param props.first - takes focus on open
  * @param props.supply - hands an answer over
  * @param props.onDiscard - says typed text was taken back
+ * @param props.unused - the set's files nothing names, offered as Use file
  * @returns The row
  */
-function PartRow({ part, first, supply, onDiscard }: Readonly<PartRowProps>): React.JSX.Element {
+export function PartRow({ part, first, supply, onDiscard, unused = [] }: Readonly<PartRowProps>): React.JSX.Element {
     const [url, setUrl] = useState("");
     const [busy, setBusy] = useState(false);
     const [errors, setErrors] = useState<readonly CodedFact[]>([]);
@@ -346,7 +364,7 @@ function PartRow({ part, first, supply, onDiscard }: Readonly<PartRowProps>): Re
                 setBusy(false);
             });
     };
-    const controls: PartControlsProps = { part, name, label, first, url, setUrl, answer, onDiscard };
+    const controls: PartControlsProps = { part, name, label, first, url, setUrl, answer, onDiscard, unused };
 
     return (
         <div // NOSONAR(S6819): an ARIA group naming one part's controls; a fieldset would draw its own border and legend

@@ -1,8 +1,10 @@
 import { ComboInput, CompactColorInput, PanelField } from "@graphty/compact-mantine";
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
+import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import { Text, TextInput } from "@mantine/core";
 import React from "react";
 
+import { useModelPicture } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { channelWord, colorName, enumWords, GLYPH_TABLES, hexOf, isPercent, TWO_WORDS, valueFieldKind } from "./words";
 
@@ -357,6 +359,49 @@ function TextValueField(props: KindFieldProps): React.JSX.Element {
                     event.currentTarget.blur();
                 }
             }}
+        />
+    );
+}
+
+/**
+ * The Shape field holding a model: its name, and its picture drawn by graphty-element.
+ * @param props - Component props
+ * @param props.descriptor - the Shape property
+ * @param props.label - the field's name
+ * @param props.model - what the layer's `node.model` names
+ * @param props.style - the layer's color and model settings, so the picture is drawn as its nodes are
+ * @param props.name - the model's name
+ * @param props.extraChoices - the list's Model... entry
+ * @param props.onChange - a choice from the list
+ * @returns The field
+ */
+export function ModelValueField({
+    descriptor,
+    label,
+    model,
+    style,
+    name,
+    extraChoices,
+    onChange,
+}: Readonly<{
+    descriptor: ChannelDescriptor;
+    label: string;
+    model: string;
+    style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
+    name: string;
+    extraChoices: React.ComponentProps<typeof ValueField>["extraChoices"];
+    onChange: (value: ChannelValue) => void;
+}>): React.JSX.Element {
+    const thumbnail = useModelPicture(model, 16, style);
+    return (
+        <ValueField
+            descriptor={descriptor}
+            label={label}
+            value={undefined}
+            shown={undefined}
+            model={{ name, ...(thumbnail === undefined ? {} : { thumbnail }) }}
+            extraChoices={extraChoices}
+            onChange={onChange}
         />
     );
 }

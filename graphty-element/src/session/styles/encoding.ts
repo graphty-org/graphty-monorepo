@@ -58,7 +58,8 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { shaderDescriptor } from "../../catalog/shaderRegistry";
+import { plannedShaderDescriptor, projectShaderDescriptor } from "../../catalog/shaderRegistry";
+import type { ShaderDescriptor } from "../../catalog/shaders";
 import type {
     Binding,
     BindingNumberFormat,
@@ -2926,12 +2927,16 @@ export function sequenceOf(options: SequenceOptions): StyleSequence {
  * The channel a bound shader parameter reads as: a number or a color between the parameter's
  * declared ends, landing on the layer's uses of its shader.
  * @param address - Where the binding points.
+ * @param describe - How the shader is looked up: the project's own, unless planning a write.
  * @returns A descriptor the binding is prepared against.
  * @throws A `GraphtyError`: `E_UNKNOWN_SHADER` when the catalog lists no such shader, and
  *   `E_UNKNOWN_SHADER_PARAM` when it declares no such parameter or does not let it vary.
  */
-export function shaderParamDescriptor(address: ShaderParamTarget): ChannelDescriptor {
-    const shader = shaderDescriptor(address.shader);
+export function shaderParamDescriptor(
+    address: ShaderParamTarget,
+    describe: (id: string) => ShaderDescriptor | undefined = projectShaderDescriptor,
+): ChannelDescriptor {
+    const shader = describe(address.shader);
     if (shader === undefined) {
         throw new GraphtyError({
             code: "E_UNKNOWN_SHADER",
@@ -2988,7 +2993,8 @@ export function shaderParamChannel(address: ShaderParamAddress): ChannelDescript
         });
     }
 
-    return shaderParamDescriptor(target);
+    // A description for a picker, before any write: a catalog shader the write would copy in counts.
+    return shaderParamDescriptor(target, plannedShaderDescriptor);
 }
 
 /**
@@ -3003,7 +3009,8 @@ function prepareParamBinding(address: ShaderParamTarget, options: PrepareBinding
     const descriptor = shaderParamDescriptor(address);
     const { binding } = options;
     const integer =
-        shaderDescriptor(address.shader)?.params.find((entry) => entry.name === address.param)?.type === "integer";
+        projectShaderDescriptor(address.shader)?.params.find((entry) => entry.name === address.param)?.type ===
+        "integer";
     const ranged =
         "by" in binding &&
         binding.range === undefined &&
@@ -3049,4 +3056,15 @@ function prepareParamBinding(address: ShaderParamTarget, options: PrepareBinding
         paint: (value) => patch(prepared.paint(value)),
         paintIgnoringHidden: (value) => patch(prepared.paintIgnoringHidden(value)),
     };
+}
+
+/**
+ * The built-in node shapes and edge line patterns an overflow policy steps through, for the saved-name scan: a save file that names one by id depends on this
+ * build still shipping it (design/architecture/self-contained-save-files.md, section 2.2).
+ * Exported, and so tagged public, because test/saved-format/builtInIds.ts finds and loads it by reading the source.
+ * @returns The kind and its ids.
+ * @public
+ */
+export function builtInIdsForTesting(): { kind: string; ids: readonly string[] } {
+    return { kind: "overflowLists", ids: [...OVERFLOW_SHAPES, ...OVERFLOW_PATTERNS] };
 }

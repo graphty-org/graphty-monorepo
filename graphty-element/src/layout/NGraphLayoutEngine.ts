@@ -17,8 +17,8 @@ import {
     readCommunities,
     sameCommunities,
 } from "./clusterForce";
-import type { D3RowSource, EdgeRow } from "./D3GraphLayoutEngine";
-import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
+import type { D3RowSource } from "./D3GraphLayoutEngine";
+import { EdgePosition, type EdgeRow, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
 import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
 
 /**
@@ -694,6 +694,15 @@ export class NGraphEngine extends LayoutEngine {
     }
 
     /**
+     * The box the last publish left the rows in: one {@link LayoutEngine.publishColumn} per publish.
+     * @returns The box, or null.
+     * @internal
+     */
+    override publishedBounds(): Readonly<Float64Array> | null {
+        return this.lastPublishedBox();
+    }
+
+    /**
      * Copy one body's position into the publish scratch, flat when ngraph carries no z.
      * @param id - The body's ngraph id.
      * @param row - Its row.
@@ -834,6 +843,27 @@ export class NGraphEngine extends LayoutEngine {
         if (rows.length > 0) {
             this.unsettle();
         }
+    }
+
+    /**
+     * Hand an `Edge` built late for an edge stored with no `Edge` the link its row is already on, so
+     * the simulation keeps its springs and does not unsettle for an edge it already pulls on.
+     * @param key - The edge's id.
+     * @param e - Its `Edge`.
+     * @returns False when no link carries that id, and the `Edge` must be added instead.
+     * @internal
+     */
+    adoptEdgeRow(key: string, e: Edge): boolean {
+        const link = this.rowLinks.get(key);
+        if (link === undefined) {
+            return false;
+        }
+
+        this.rowLinks.delete(key);
+        pairOf(link).rows.delete(key);
+        pairOf(link).edges.add(e);
+        this.edgeMapping.set(e, link);
+        return true;
     }
 
     /**

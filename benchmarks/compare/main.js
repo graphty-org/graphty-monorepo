@@ -682,6 +682,7 @@ async function graphtyAdapter({
             return out;
         },
         async layoutFps(count, capMs) {
+            const tCall = now();
             await el.setLayout("ngraph");
             const t0 = now();
             // wait for the engine to exist
@@ -702,6 +703,10 @@ async function graphtyAdapter({
                 ...(st.length > 2 ? stats(intervals(st)) : { n: st.length - 1 }),
                 frames: st.length - 1,
                 setupMs: +(t - t0).toFixed(0),
+                // From the setLayout call to the first frame drawn after the engine exists: what a
+                // reader waits between starting the layout and seeing it run.
+                setLayoutMs: +(t0 - tCall).toFixed(0),
+                startToFirstFrameMs: st.length ? +(st[0] - tCall).toFixed(0) : null,
                 engine: eng?.type,
                 accelerated: eng?.isAccelerated ?? false,
                 iterationsPerSec: it0 === null ? null : +((it1 - it0) / ((now() - t) / 1000)).toFixed(1),

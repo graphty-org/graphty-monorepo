@@ -239,6 +239,8 @@ export function roleOfName(name: string): PartRole {
 export interface Findings {
     readonly warnings: CodedFact[];
     readonly missing: CodedFact[];
+    /** Each reference found in the set, in the order the model names it, when the caller lists parts. */
+    readonly found?: { readonly name: string; readonly role: PartRole; readonly file: string }[];
 }
 
 /**
@@ -263,6 +265,10 @@ export function findReference(
         const used = resolved.substituted;
         if (used !== undefined && !findings.warnings.some((w) => w.params.name === used.params.name)) {
             findings.warnings.push(used);
+        }
+
+        if (resolved.path !== "") {
+            findings.found?.push({ name: String(used?.params.name ?? resolved.path), role, file: resolved.path });
         }
 
         return resolved;

@@ -1373,6 +1373,12 @@ jobs:
             - name: compact-mantine Figma lock
               run: pnpm run check:figma-lock
 
+            # Save files carry what they use: adding a known exception to graphty-element's saved-format
+            # checks needs the owner's `Saved-Format-Exception-Approved: <reason>` trailer, and a shipped
+            # shader hash leaves only by being revoked. The same check runs in tools/prepush-source-checks.sh.
+            - name: Saved-format exceptions
+              run: pnpm run check:saved-format-allowlist
+
             # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
             # ends (.github/actions/early-verdict).
             - name: Fail the summary checks now

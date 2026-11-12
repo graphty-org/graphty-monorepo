@@ -257,6 +257,13 @@ async function loadContainer(
             },
         });
         await texturesSettled(container.textures);
+        // Babylon stops a load for a disposed scene only when the file's bytes arrive; a graph
+        // disposed after that gets no template made in its dead scene (issue #6683).
+        if (scene.isDisposed) {
+            container.dispose();
+            throw new Error("graphty-element: the scene was disposed while the model loaded");
+        }
+
         for (const item of [...container.cameras, ...container.lights]) {
             item.dispose();
         }

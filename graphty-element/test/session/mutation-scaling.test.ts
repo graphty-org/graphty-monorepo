@@ -1051,6 +1051,23 @@ const CASES: readonly Case[] = [
             };
         },
     },
+    {
+        method: "SessionShaders.fromCatalog",
+        growth: "linear",
+        prepare: async (session) => {
+            // The project holds pearl's id with other text, so the pick copies pearl in under a fresh id.
+            await session.styles.applyTemplate({
+                version: 1,
+                layers: [],
+                shaders: [{ id: "pearl", text: TINT.replace('"user/tint"', '"pearl"') }],
+            });
+            await session.styles.settled();
+            return async () => {
+                assert.notStrictEqual(await session.shaders.fromCatalog("pearl"), "pearl");
+                await session.styles.settled();
+            };
+        },
+    },
 ];
 
 describe("the session's mutating methods do work in proportion to their reach", () => {

@@ -208,8 +208,13 @@ describe("shaders on the Selected and Hovered rows", () => {
         const { session, element } = await openScene();
         await openStyle("Selected");
         await addShader("Shockwave");
-        const selected = session.styles.list().find((layer) => layer.name === "Selected" && layer.target !== "edge");
-        assert.include(shadersOf(selected), "shockwave", "the Selected row's node layer carries the shader");
+        // The pick writes once the element names the project's copy of the gallery's shader.
+        await waitFor(() => {
+            const selected = session.styles
+                .list()
+                .find((layer) => layer.name === "Selected" && layer.target !== "edge");
+            assert.include(shadersOf(selected), "shockwave", "the Selected row's node layer carries the shader");
+        });
         assert.isUndefined(element.drawnShaders().nodes.get("shockwave"), "nothing is selected, so nothing draws it");
 
         const stop = countEntrances(element, "shockwave");

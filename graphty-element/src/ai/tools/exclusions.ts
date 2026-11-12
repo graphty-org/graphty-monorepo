@@ -559,6 +559,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     { root: "SessionDataApi", members: ["nodes"], reason: "covered-by", by: "query.nodes", kind: BY_DESIGN },
     { root: "SessionDataApi", members: ["edges"], reason: "covered-by", by: "query.edges", kind: BY_DESIGN },
+    { root: "SessionDataApi", members: ["count"], reason: "covered-by", by: "query.statistics", kind: BY_DESIGN },
     { root: "SessionDataApi", members: ["prepare"], reason: "needs-host", kind: BY_DESIGN },
     {
         root: "SessionDataApi",

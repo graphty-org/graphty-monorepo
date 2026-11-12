@@ -1962,6 +1962,16 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * How many nodes and edges the graph holds, read without building a record.
+     * @returns the node count and the edge count
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    count(): { readonly nodes: number; readonly edges: number } {
+        const snapshot = this.current();
+        return { nodes: snapshot.nodeCount, edges: snapshot.edgeCount };
+    }
+
+    /**
      * One page of node records.
      * @param options - the window, the scope and the order
      * @returns the page, with `columns` present

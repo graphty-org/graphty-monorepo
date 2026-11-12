@@ -1076,6 +1076,16 @@ export interface SessionDataApi {
      */
     edges(): readonly EdgeRecord[];
     /**
+     * How many nodes and edges the graph holds, read without building a record: what a
+     * "1,234 nodes" label reads instead of `nodes().length`.
+     *
+     * ```ts
+     * const { nodes, edges } = session.data.count();
+     * ```
+     * @returns the node count and the edge count
+     */
+    count(): { readonly nodes: number; readonly edges: number };
+    /**
      * One page of node records, without reading the rest: what a table showing a few rows of a
      * large graph reads. The order is computed once per revision, scope and sort and then reused,
      * so scrolling through the pages of one order costs only the records on each page.

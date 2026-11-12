@@ -5737,6 +5737,10 @@ export interface SessionDataApi {
     checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
     clear(): Promise<void>;
     collapse(id: NodeId_2): Promise<CollapseResult>;
+    count(): {
+        readonly nodes: number;
+        readonly edges: number;
+    };
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
     edge(id: EdgeId): EdgeRecord | undefined;
     edgePage(options: EdgePageOptions & {

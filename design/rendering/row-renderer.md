@@ -1140,7 +1140,8 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   with one range entry in the op log, the only bulk history entry (cosmos-gap.md G4 reuses it). Rows are placed by the element's `layout`, as
   `nodeData`'s are. graph-io and graph-samples route through it.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
-  margin) and cuts batch data toward 20 bytes. New `session.data.count()` serves `JoinScreen.tsx:636`.
+  margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
+  the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.
 - **The load's position publish is already one typed write.** The 2026-11-09 profile credits 1.0 s of the 100k + 1M
   load to `publishPositions` in the derivation pass's position hook. Correction: the publish itself (`publishComputed`)
   is 9 ms and already writes the position column whole. The second is the fixed layout's first run reading its graph:

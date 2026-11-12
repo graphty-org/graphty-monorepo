@@ -67,6 +67,11 @@ export const urlSource: GraphSource<UrlParams> = defineSource<UrlParams>({
             filename: sourceFileName(URL_DESCRIPTOR, { ...params }),
             formatOptions: { csv: csvOptions(params) },
             ...(params.directed === undefined ? {} : { importOptions: { defaultDirected: params.directed === "yes" } }),
+            // The id column a CSV node table was keyed by is saved with the load, so a reopened
+            // project keys it the same way after the importer's default changes. A header name of
+            // digits only would read back as a position, so it is left to the default.
+            settle: ({ idColumn }) =>
+                typeof idColumn === "string" && !/^\d+$/.test(idColumn) ? { ...params, idColumn } : undefined,
         };
     },
 });

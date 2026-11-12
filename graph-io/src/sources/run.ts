@@ -583,7 +583,7 @@ async function bytesOf(input: ImportInput, signal: AbortSignal): Promise<Uint8Ar
  * @param prepared - the call
  * @param formats - the registry
  * @param options - the caller's options
- * @returns the format the file was read as
+ * @returns the format the file was read as, and the params its `settle` gave
  */
 async function runFile(
     source: GraphSource<never>,
@@ -591,7 +591,7 @@ async function runFile(
     prepared: Prepared,
     formats: FormatRegistry,
     options: LoadFromSourceOptions,
-): Promise<string> {
+): Promise<{ format: string; params: Readonly<Record<string, unknown>> | undefined }> {
     const { ctx } = prepared.created;
     const read = source.file as (p: unknown, c: typeof ctx) => Promise<SourceFile>;
     const file = await read(prepared.params, ctx);
@@ -612,9 +612,10 @@ async function runFile(
     }
     const importer = formats.importer(format);
     const own = { ...file.importOptions, ...file.formatOptions?.[format] };
-    prepared.report.include(await importer.import(body, sink, { ...own, ...importerOptions(options, ctx.signal) }));
+    const report = await importer.import(body, sink, { ...own, ...importerOptions(options, ctx.signal) });
+    prepared.report.include(report);
     writeMeta(sink, file.meta ?? {});
-    return format;
+    return { format, params: file.settle?.(report.resolved ?? {}) };
 }
 
 /** What a run into a sink produced. */
@@ -655,8 +656,15 @@ export async function runIntoSink(
             };
         }
         if (typeof source.file === "function") {
-            const format = await runFile(source, wrapped, prepared, formats, options);
-            return { report: withSource(prepared.report.finish(), prepared, null), format };
+            const { format, params } = await runFile(source, wrapped, prepared, formats, options);
+            const report = withSource(prepared.report.finish(), prepared, null);
+            return {
+                report:
+                    params === undefined || report.source === undefined
+                        ? report
+                        : Object.freeze({ ...report, source: Object.freeze({ ...report.source, params }) }),
+                format,
+            };
         }
         const run = source.import as (p: unknown, s: GraphSink, c: typeof ctx) => Promise<ImportReport>;
         const report = await stopAtLimit(run(prepared.params, wrapped, ctx), prepared);

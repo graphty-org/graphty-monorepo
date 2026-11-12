@@ -40,6 +40,21 @@ describe("url source", () => {
         expect(report.source?.endpoint).toBe(`${HOST}/data/buildings.csv`);
     });
 
+    it("reports the CSV id column it keyed a node table by in the params to save, and nothing for a given one", async () => {
+        const url = `${HOST}/people.csv`;
+        const people = "person_id,name\np1,Ann\np2,Bob\n";
+        const guessed = await loadFromSource("url", { url }, { fetch: replayFetch([{ url, body: people }]) });
+        expect(guessed.snapshot.ids.toArray()).toEqual(["p1", "p2"]);
+        expect(guessed.report.source?.params).toEqual({ url, idColumn: "person_id" });
+        const given = await loadFromSource(
+            "url",
+            { url, idColumn: "name" },
+            { fetch: replayFetch([{ url, body: people }]) },
+        );
+        expect(given.snapshot.ids.toArray()).toEqual(["Ann", "Bob"]);
+        expect(given.report.source?.params).toBe(undefined);
+    });
+
     it("reads an address with no extension in the format it is given", async () => {
         const fetch = replayFetch([{ url: `${HOST}/export?id=7`, body: GRAPHML }]);
         const { format, snapshot, report } = await loadFromSource(

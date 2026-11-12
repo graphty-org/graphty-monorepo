@@ -1577,12 +1577,16 @@ class TableReader {
         }
         const candidates = idCandidates(names);
         const rows = this.drained;
-        if (rows === null || candidates.length === 0) {
-            return findColumn(names, ID_NAMES);
-        }
-        const unique = candidates.find((column) => isKey(rows, column));
-        if (unique !== undefined) {
-            return unique;
+        // null: no candidate keys every row
+        const chosen =
+            rows === null || candidates.length === 0
+                ? findColumn(names, ID_NAMES)
+                : (candidates.find((column) => isKey(rows, column)) ?? null);
+        if (chosen !== null) {
+            if (chosen >= 0) {
+                this.state.report.resolve("idColumn", names[chosen]);
+            }
+            return chosen;
         }
         const columns = candidates.map((c) => names[c]);
         this.state.report.warning(

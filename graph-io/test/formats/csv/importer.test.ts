@@ -855,6 +855,11 @@ describe("csvImporter: node tables", () => {
         );
         expect(people.snapshot.ids.toArray()).toEqual(["P1", "P2", "P3"]);
         expect(people.report.issues).toEqual([]);
+        // the column chosen is reported, to read the file the same way again; a given one is not
+        expect(people.report.resolved).toEqual({ idColumn: "person_id" });
+        expect((await load("person_id,name\nP1,A\n", { table: "nodes", idColumn: "name" })).report.resolved).toBe(
+            undefined,
+        );
         // id beats a column ending in id; a repeated id column is skipped for the next candidate
         expect((await load("PersonId,id\nP1,x\nP2,y\n", { table: "nodes" })).snapshot.ids.toArray()).toEqual([
             "x",

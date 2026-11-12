@@ -4112,6 +4112,11 @@ describe("release.yml", () => {
     const publish = job(release, "publish");
     const approve = job(release, "approve");
 
+    it("gives the land its identity in the environment, so a local run cannot write the shared .git/config", () => {
+        assert.doesNotMatch(landSh, /^\s*git config/m);
+        assert.match(landSh, /^export GIT_AUTHOR_NAME=/m);
+    });
+
     it("opens no pull request and pushes to master only from the land job, with the deploy key", () => {
         assert.doesNotMatch(release, /gh pr create|head_commit/);
         assert.deepEqual(release.match(/git push[^\n]*/g), [

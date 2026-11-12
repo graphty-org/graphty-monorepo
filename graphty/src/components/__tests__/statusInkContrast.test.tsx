@@ -175,6 +175,17 @@ describe("status ink contrast", () => {
             assert.isAtLeast(ratio, 3, `contrast ${ratio.toFixed(2)}:1`);
         });
 
+        // The heading and its paragraph were gray.1 and gray.4: near-white on the light scheme's body (#7048).
+        it(`the error screen's heading and text meet 4.5:1 in the ${scheme} scheme`, async () => {
+            renderIn(scheme, <ErrorFallback error={new Error("x")} resetError={() => undefined} />);
+            const heading = await screen.findByRole("heading", { name: "Something went wrong" });
+            const failures = [
+                ...(await contrastFailures(heading)),
+                ...(await contrastFailures(screen.getByText(/An unexpected error occurred/))),
+            ];
+            assert.deepEqual(failures, [], failures.join("\n"));
+        });
+
         it(`a server preview's failure code meets 4.5:1 in the ${scheme} scheme`, async () => {
             renderIn(
                 scheme,

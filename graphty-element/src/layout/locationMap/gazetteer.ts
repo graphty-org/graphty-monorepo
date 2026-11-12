@@ -109,7 +109,14 @@ function layerFromFile(file: unknown): GazetteerLayer {
     const byName = new Map<string, Place[]>();
     for (const [name, alternates, country, region, lat, lon, population] of f.places) {
         const place: Place = { name, country, region, lat, lon, population };
-        const keys = new Set([name, ...alternates, ...(f.layer === "country" ? [country] : [])].map(normalizePlace));
+        // A one-character alternate is a postal code (Natural Earth gives the Maldives' Baa atoll "B"),
+        // never a name a table holds; indexed, it makes a column of labels "A", "B" read as regions.
+        const others = alternates.map(normalizePlace).filter((key: string) => key.length > 1);
+        const keys = new Set([
+            normalizePlace(name),
+            ...others,
+            ...(f.layer === "country" ? [country] : []).map(normalizePlace),
+        ]);
         for (const key of keys) {
             if (key !== "") {
                 const list = byName.get(key);

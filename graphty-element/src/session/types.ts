@@ -1097,9 +1097,13 @@ export interface SessionDataApi {
      * ```ts
      * const { nodes, edges } = session.data.count();
      * ```
+     * @param options - What to count.
+     * @param options.scope - `"visible"` for what the filter and the time window show, `"graph"`
+     *     for the whole graph; absent, what is shown while the session's `workingGraph` is on (the
+     *     default), the whole graph while it is off.
      * @returns the node count and the edge count
      */
-    count(): { readonly nodes: number; readonly edges: number };
+    count(options?: { readonly scope?: "graph" | "visible" }): { readonly nodes: number; readonly edges: number };
     /**
      * One page of node records, without reading the rest: what a table showing a few rows of a
      * large graph reads. The order is computed once per revision, scope and sort and then reused,

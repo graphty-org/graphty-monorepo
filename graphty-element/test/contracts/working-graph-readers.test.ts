@@ -211,6 +211,7 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
         view: (s) => s.data.edgePage({ limit: 50 }),
         whole: (s) => s.data.edgePage({ limit: 50, scope: "graph" }),
     },
+    "data.count()": { view: (s) => s.data.count() },
     "data.edges()": { view: (s) => s.data.edges() },
     "data.editJoin()": "writes",
     "data.editJoinReport()": "not the graph",

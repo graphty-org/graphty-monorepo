@@ -714,7 +714,11 @@ export class LayoutManager implements Manager {
      * it was queued under, or null. Further filter changes before it starts ask for nothing more: it
      * reads what is shown when it starts.
      */
-    #relayoutQueued: { readonly generation: number; readonly done: Promise<void> } | null = null;
+    #relayoutQueued: {
+        readonly generation: number;
+        readonly atRest: boolean;
+        readonly done: Promise<void>;
+    } | null = null;
     /** Whether the last restore of the arrangement was the reader's (undo, redo, a history jump). */
     #restoredByReader = false;
 
@@ -2790,17 +2794,30 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * Whether what is shown is no longer what the running layout was built over, so
+     * {@link LayoutManager.followView} would lay the graph out again.
+     * @returns True when it would.
+     * @internal
+     */
+    viewChanged(): boolean {
+        const engine = this.layoutEngine;
+        return engine !== undefined && !sameShown(layoutEngineInternals.view(engine), this.shownNow());
+    }
+
+    /**
      * Lay the graph out again when what is shown is no longer what the running layout was built
      * over: a filter change, a time-window commit, or an undo or redo of one, while the session
      * reads the working graph or `layout.visibleOnly` is on (design/working-graph/design.md,
      * section 7); or when either was switched. A restore brings back an arrangement of its own.
      * Hidden nodes keep their last positions; nodes that came back start from theirs; the same
      * layout, with the same options, runs once more over the view, with the animated transition.
-     * Queued behind every build already asked for, and counted as a build.
+     * Queued behind every build already asked for, and counted as a build. An undo or a redo builds
+     * it at rest instead: history brings back the arrangement it held, and nothing moves.
+     * @param atRest - Whether an undo or a redo changed what is shown.
      * @returns Settles once the layout has been built again, or at once when nothing changed.
      * @internal
      */
-    followView(): Promise<void> {
+    followView(atRest = false): Promise<void> {
         const engine = this.layoutEngine;
         if (layoutDiag.isDebugEnabled()) {
             const built = engine === undefined ? null : layoutEngineInternals.view(engine);
@@ -2809,14 +2826,13 @@ export class LayoutManager implements Manager {
                 engine: engine?.type,
                 built: viewSummary(built),
                 now: viewSummary(now),
-                sameGraph: built !== null && now !== null ? built.graph === now.graph : null,
+                atRest,
                 sameShown: sameShown(built, now),
-                willRelayout: engine !== undefined && !sameShown(built, now),
             });
         }
         if (
             engine === undefined ||
-            this.restoring() ||
+            (!atRest && this.restoring()) ||
             sameShown(layoutEngineInternals.view(engine), this.shownNow())
         ) {
             return Promise.resolve();
@@ -2826,35 +2842,14 @@ export class LayoutManager implements Manager {
         // A play changes the filter every frame: one relayout waiting to start covers them all, and
         // reads what is shown when it starts.
         const queued = this.#relayoutQueued;
-        if (queued?.generation === generation) {
+        if (queued?.generation === generation && queued.atRest === atRest) {
             return queued.done;
         }
 
         this.#building++;
         const rebuild = this.#applying.then(async () => {
             this.#relayoutQueued = null;
-            const running = this.layoutEngine;
-            if (
-                running === undefined ||
-                this.#generation !== generation ||
-                sameShown(layoutEngineInternals.view(running), this.shownNow())
-            ) {
-                layoutDiag.debug("followView queued rebuild skipped", {
-                    engine: running?.type,
-                    built: running === undefined ? null : viewSummary(layoutEngineInternals.view(running)),
-                    now: viewSummary(this.shownNow()),
-                });
-                return;
-            }
-            layoutDiag.debug("followView rebuilding", { engine: running.type, dimension: this.engineDimension ?? 3 });
-
-            await this._setLayoutInternal(running.type, this.driverOptions, {
-                dimension: this.engineDimension ?? 3,
-                restoring: false,
-                live: () => this.#generation === generation,
-                explicitScope: false,
-                transition: true,
-            });
+            await this.#rebuildOverView(atRest, generation);
         });
         this.#applying = rebuild.catch(() => undefined);
         // A wait for the graph to settle waits for it: it is going to move the nodes.
@@ -2869,8 +2864,38 @@ export class LayoutManager implements Manager {
             .finally(() => {
                 this.#building--;
             });
-        this.#relayoutQueued = { generation, done };
+        this.#relayoutQueued = { generation, atRest, done };
         return done;
+    }
+
+    /**
+     * The rebuild {@link LayoutManager.followView} queues: the running layout, with its options,
+     * built again over what is shown now. At rest, for an undo or a redo, it publishes nothing and
+     * keeps the arrangement history brought back; otherwise it runs, with the animated transition,
+     * unless a restore has come since it was asked for.
+     * @param atRest - Whether to build it at rest.
+     * @param generation - The restore generation it was asked for under.
+     */
+    async #rebuildOverView(atRest: boolean, generation: number): Promise<void> {
+        const running = this.layoutEngine;
+        if (
+            running === undefined ||
+            (!atRest && this.#generation !== generation) ||
+            sameShown(layoutEngineInternals.view(running), this.shownNow())
+        ) {
+            layoutDiag.debug("followView queued rebuild skipped", { engine: running?.type, atRest });
+            return;
+        }
+
+        const now = this.#generation;
+        layoutDiag.debug("followView rebuilding", { engine: running.type, atRest });
+        await this._setLayoutInternal(running.type, this.driverOptions, {
+            dimension: this.engineDimension ?? 3,
+            restoring: atRest,
+            live: () => this.#generation === now,
+            explicitScope: false,
+            transition: !atRest,
+        });
     }
 
     /**

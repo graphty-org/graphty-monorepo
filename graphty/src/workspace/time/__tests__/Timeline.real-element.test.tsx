@@ -660,7 +660,7 @@ describe("the Overview and the import of time", () => {
         });
     });
 
-    it("draws the elements outside the window as ghosts with Outside: Ghost, and moves them as the window moves", async () => {
+    it("keeps Outside: Ghost under the working graph the app reads, drawing no ghost and saying so", async () => {
         const { session } = await open(PAPERS);
         await session.config.set({ startingRows: true });
         await pickField("year", "Node time");
@@ -676,34 +676,26 @@ describe("the Overview and the import of time", () => {
             assert.isNotNull(session.time.current);
         });
         const outside = await (await timeCard()).findByRole("radiogroup", { name: "Outside" });
-        const graph = session.data.snapshot();
         const ghostLayer = session.styles.list().find((layer) => layer.name === "Ghost" && layer.target === "node");
         assert.isDefined(ghostLayer);
         // Ghosts are outside the working graph the app reads, so counting them names the whole graph.
         const ghosts = (): number => session.styles.counts(ghostLayer?.id ?? "", { scope: "graph" }).matched;
+        const askedForGhosts = (): boolean => session.visibility.notDrawn.some((fact) => fact.params.asked === "ghost");
         assert.equal(ghosts(), 0, "hidden, not ghosted, by default");
+        assert.isFalse(askedForGhosts());
 
+        // The working graph draws nothing outside the view (design/working-graph/design.md, section
+        // 3): the setting is kept, no ghost is drawn, and the element says why.
         await userEvent.click(within(outside).getByText("Ghost"));
         await waitFor(() => {
             assert.equal(session.time.settings.outside, "ghost");
-            assert.isAbove(ghosts(), 0);
-            assert.equal(ghosts(), graph.nodeCount - session.visibility.summary.visibleNodes);
+            assert.isTrue(askedForGhosts());
         });
-        // Ghosts are drawn but not visible: the counts are the window's.
-        const visibleBefore = [...session.visibility.nodes].sort();
-
-        // Scrub: step forward, and the ghosts follow the window.
-        const first = Number(session.time.current?.from);
-        await userEvent.keyboard(".");
-        await waitFor(() => {
-            assert.isAbove(Number(session.time.current?.from), first);
-            assert.notDeepEqual([...session.visibility.nodes].sort(), visibleBefore);
-            assert.equal(ghosts(), graph.nodeCount - session.visibility.summary.visibleNodes);
-        });
+        assert.equal(ghosts(), 0);
 
         await userEvent.click(within(outside).getByText("Hide"));
         await waitFor(() => {
-            assert.equal(ghosts(), 0);
+            assert.isFalse(askedForGhosts());
         });
     });
 

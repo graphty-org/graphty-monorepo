@@ -1737,7 +1737,7 @@ export class Graph implements GraphContext {
         this.session.on("visibility:changed", ({ cause }) => {
             layoutDiag.debug("visibility changed", { workingGraph: working.enabled, viewMode: this.getViewMode() });
             if (cause !== "restore" && cause !== "rollback" && this.followsShown(working)) {
-                this.followShown();
+                this.followShown(cause === "undo" || cause === "redo");
             }
         });
 
@@ -8566,13 +8566,22 @@ export class Graph implements GraphContext {
         return this.styles.config.behavior.layout.visibleOnly ?? working.enabled;
     }
 
-    /** Have the running layout follow what is shown, queued so that `waitForSettled` waits for it. */
-    private followShown(): void {
+    /**
+     * Have the running layout follow what is shown, queued so that `waitForSettled` waits for it.
+     * Nothing is queued when what is shown is what it was built over: a change that moves no node
+     * (a time field, a playback setting) draws no frame for it.
+     * @param atRest - Whether an undo or a redo changed what is shown: see `LayoutManager.followView`.
+     */
+    private followShown(atRest = false): void {
+        if (!this.layoutManager.viewChanged()) {
+            return;
+        }
+
         void this.operationQueue
             .queueOperationAsync(
                 "layout-update",
                 async () => {
-                    await this.layoutManager.followView();
+                    await this.layoutManager.followView(atRest);
                 },
                 { description: "Laying out what is shown" },
             )

@@ -54,6 +54,8 @@ async function slidingElement(
     { nodes, edges } = { nodes: NODES, edges: EDGES },
 ): Promise<Graphty> {
     const element = document.createElement("graphty-element");
+    // The working graph off: Ghost steps draw only with it off, and a step must move no node.
+    element.workingGraph = false;
     element.style.width = "400px";
     element.style.height = "300px";
     element.style.display = "block";
@@ -332,6 +334,8 @@ describe("changed rows on real nodes and edges", () => {
 
     it("draws the nodes a Ghost step rebuilt on a frozen scene, when no edge moved", async () => {
         const element = document.createElement("graphty-element");
+        // The working graph off: Ghost steps draw only with it off, and a step must move no node.
+        element.workingGraph = false;
         element.style.width = "400px";
         element.style.height = "300px";
         element.style.display = "block";

@@ -5771,7 +5771,9 @@ export interface SessionDataApi {
     checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
     clear(): Promise<void>;
     collapse(id: NodeId_2): Promise<CollapseResult>;
-    count(): {
+    count(options?: {
+        readonly scope?: "graph" | "visible";
+    }): {
         readonly nodes: number;
         readonly edges: number;
     };

@@ -2293,6 +2293,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             clustersChanged: TRANSPORT,
             // What is shown changed; the layout follows it, and rests in its own step.
             followView: TRANSPORT,
+            // Whether followView would lay the graph out again; it only reads.
+            viewChanged: READ,
         },
     },
     {

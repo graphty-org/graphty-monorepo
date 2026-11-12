@@ -4979,7 +4979,6 @@ export abstract class LayoutEngine {
     protected keepInPublishedBox(n: Node_2 | ElementPositions | undefined, rows: ReadonlySet<number>): void;
     // @internal
     protected lastPublishedBox(): Readonly<Float64Array> | null;
-    protected get leavesEdgesOut(): boolean;
     loadArrangement(): void;
     // (undocumented)
     static maxDimensions: number;
@@ -5049,7 +5048,7 @@ export class LayoutManager implements Manager {
     drawArrivedPaint: (() => void) | null;
     get edges(): Iterable<Edge>;
     // @internal
-    followView(): Promise<void>;
+    followView(atRest?: boolean): Promise<void>;
     getNodePosition(node: Node_2): [number, number, number] | undefined;
     getStats(): {
         layoutType: string | undefined;
@@ -5101,6 +5100,8 @@ export class LayoutManager implements Manager {
     steppedPublishes: number;
     updatePositions(nodes: Node_2[]): Promise<void>;
     updateStyles(styles: Styles): void;
+    // @internal
+    viewChanged(): boolean;
 }
 
 // @public

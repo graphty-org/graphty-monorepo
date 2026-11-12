@@ -1997,12 +1997,17 @@ export class SessionData implements SessionDataApi {
 
     /**
      * How many nodes and edges the graph holds, read without building a record.
+     * @param options - What to count.
+     * @param options.scope - `"visible"` or `"graph"`; absent, what the working graph says.
      * @returns the node count and the edge count
      * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
      */
-    count(): { readonly nodes: number; readonly edges: number } {
+    count(options: { readonly scope?: WorkingScope } = {}): { readonly nodes: number; readonly edges: number } {
         const snapshot = this.current();
-        return { nodes: snapshot.nodeCount, edges: snapshot.edgeCount };
+        const view = this.viewOf(options.scope);
+        return view === null
+            ? { nodes: snapshot.nodeCount, edges: snapshot.edgeCount }
+            : { nodes: view.nodeCount, edges: view.edgeCount };
     }
 
     /**

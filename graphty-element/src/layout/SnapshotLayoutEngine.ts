@@ -1,11 +1,4 @@
-import {
-    type F32,
-    type GraphSnapshot,
-    makeMask,
-    maskSet,
-    maskTest,
-    type NodeMask,
-} from "@graphty/graph-format";
+import { type F32, type GraphSnapshot, makeMask, maskSet, maskTest, type NodeMask } from "@graphty/graph-format";
 import type { LayoutResult } from "@graphty/layout";
 
 import type { AuthoredLayoutDescriptor } from "../catalog/types";

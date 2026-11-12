@@ -67,6 +67,10 @@ async function loadedGraph(): Promise<Graph> {
     document.body.appendChild(container);
     const graph = new Graph(container);
     await graph.init();
+    // The working graph off: with it on, a filter change lays out what is shown outside any history
+    // step, so an undo brings the filter back but not the places the layout gave the nodes it then
+    // hides (design/working-graph/design.md, section 7), and the digests could not match.
+    graph.getSession().workingGraph = false;
     await graph.setLayout("circular");
     await graph.addNodes([{ id: "n1" }, { id: "n2" }, { id: "n3" }]);
     await graph.addEdges([

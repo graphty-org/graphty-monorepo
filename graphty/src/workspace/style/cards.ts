@@ -438,7 +438,7 @@ export function selectorOf(cards: readonly Card[], ends: readonly RuleTree[] = [
  * @param card - the card.
  * @returns the card to combine.
  */
-function rankedAmongShown(card: Card): Card {
+function rankedAmongShown(card: Card): Condition {
     const leaf = card.type === "fixed" ? null : styleLeafOf(card);
     return leaf?.kind === "threshold" ? { type: "fixed", key: card.key, leaf } : card;
 }

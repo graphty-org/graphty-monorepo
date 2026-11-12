@@ -2,9 +2,9 @@ import { GraphtyLogger, LogLevel } from "@graphty/graphty-element/logging";
 
 /**
  * Sends this page's console to a @graphty/remote-logger server, for debugging a browser we cannot
- * open ourselves. Only with `?remoteLog` in the page's address: `?remoteLog=https://host:port`
- * names the server, and `?remoteLog=1` uses the one this build was made with (VITE_REMOTE_LOG_URL).
- * Without the parameter nothing is fetched or configured (the logging entry is already in the page,
+ * open ourselves. Only with `?remoteLog` in the page's address, and only to the server this build
+ * was made with (VITE_REMOTE_LOG_URL): the address never names the server, so a link cannot load
+ * a script from anywhere else. Without the parameter nothing is fetched or configured (the logging entry is already in the page,
  * for src/lib/sentryPrivacy.ts).
  *
  * It loads the server's `/remote-logger.js`, which forwards every console call, reports uncaught
@@ -12,14 +12,13 @@ import { GraphtyLogger, LogLevel } from "@graphty/graphty-element/logging";
  * "diag" logging channel at debug level, whose records reach the console and so the server.
  */
 export function startRemoteLogIfAsked(): void {
-    const value = new URLSearchParams(globalThis.location.search).get("remoteLog");
-    if (value === null) {
+    if (!new URLSearchParams(globalThis.location.search).has("remoteLog")) {
         return;
     }
 
-    const server = /^https?:\/\//.test(value) ? value : import.meta.env.VITE_REMOTE_LOG_URL;
+    const server = import.meta.env.VITE_REMOTE_LOG_URL;
     if (server === undefined || server === "") {
-        console.warn("[remoteLog] no server: pass ?remoteLog=https://host:port");
+        console.warn("[remoteLog] no server: this build was made with no VITE_REMOTE_LOG_URL");
         return;
     }
 

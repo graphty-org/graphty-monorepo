@@ -2072,7 +2072,6 @@ export abstract class LayoutEngine {
     protected keepInPublishedBox(n: Node_2 | ElementPositions | undefined, rows: ReadonlySet<number>): void;
     // @internal
     protected lastPublishedBox(): Readonly<Float64Array> | null;
-    protected get leavesEdgesOut(): boolean;
     loadArrangement(): void;
     // (undocumented)
     static maxDimensions: number;

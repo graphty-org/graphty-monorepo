@@ -99,12 +99,7 @@ export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
  * An edge is written only when both its ends are.
  */
 export type ExportScope =
-    | RuleTree
-    | "all"
-    | "shown"
-    | "selection"
-    | { readonly set: SetId }
-    | { readonly nodes: readonly NodeId[] };
+    RuleTree | "all" | "shown" | "selection" | { readonly set: SetId } | { readonly nodes: readonly NodeId[] };
 
 /**
  * Options of one export: the writer's own, graph-io's common ones, and the element's `scope`

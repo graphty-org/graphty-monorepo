@@ -41,7 +41,7 @@ describe("column commands on the element", () => {
             { id: "b", amount: "N/A" },
             { id: "c", amount: "3" },
         ]);
-        const amounts = (name: string): unknown[] => session.data.nodes().map((node) => node[name]);
+        const amounts = (name: string): unknown[] => session.data.nodes({ scope: "graph" }).map((node) => node[name]);
 
         assert.strictEqual(session.data.previewType({ kind: "node", name: "amount" }, "number").fails, 1);
         const steps = session.history.steps.length;

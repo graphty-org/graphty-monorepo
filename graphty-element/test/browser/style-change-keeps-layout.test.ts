@@ -95,6 +95,8 @@ async function after(element: Graphty): Promise<Record<string, number[]>> {
 describe("only a layout moves nodes", () => {
     test("a style layer, a filter step and a run with a filter step on leave every node in place", async () => {
         const element = document.createElement("graphty-element");
+        // The working graph off: with it on, a filter step lays out what is shown, by design.
+        element.workingGraph = false;
         element.style.display = "block";
         element.style.width = "400px";
         element.style.height = "300px";

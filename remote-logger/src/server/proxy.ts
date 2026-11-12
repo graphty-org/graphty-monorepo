@@ -226,20 +226,20 @@ export function isValidProxyTarget(targetUrl: string): boolean {
 const PRIVATE_ADDRESSES = new net.BlockList();
 for (const [address, prefix] of [
     ["0.0.0.0", 8],
-    ["10.0.0.0", 8], // NOSONAR(typescript:S1313): a range the proxy refuses, not an address it uses
-    ["100.64.0.0", 10], // NOSONAR(typescript:S1313): a range the proxy refuses, not an address it uses
+    ["10.0.0.0", 8], // NOSONAR(S1313): a range the proxy refuses, not an address it uses
+    ["100.64.0.0", 10], // NOSONAR(S1313): a range the proxy refuses, not an address it uses
     ["127.0.0.0", 8],
-    ["169.254.0.0", 16], // NOSONAR(typescript:S1313): a range the proxy refuses, not an address it uses
-    ["172.16.0.0", 12], // NOSONAR(typescript:S1313): a range the proxy refuses, not an address it uses
-    ["192.168.0.0", 16], // NOSONAR(typescript:S1313): a range the proxy refuses, not an address it uses
+    ["169.254.0.0", 16], // NOSONAR(S1313): a range the proxy refuses, not an address it uses
+    ["172.16.0.0", 12], // NOSONAR(S1313): a range the proxy refuses, not an address it uses
+    ["192.168.0.0", 16], // NOSONAR(S1313): a range the proxy refuses, not an address it uses
 ] as const) {
     PRIVATE_ADDRESSES.addSubnet(address, prefix, "ipv4");
 }
 for (const [address, prefix] of [
     ["::", 128],
     ["::1", 128],
-    ["fc00::", 7], // NOSONAR(typescript:S1313): a range the proxy refuses, not an address it uses
-    ["fe80::", 10], // NOSONAR(typescript:S1313): a range the proxy refuses, not an address it uses
+    ["fc00::", 7], // NOSONAR(S1313): a range the proxy refuses, not an address it uses
+    ["fe80::", 10], // NOSONAR(S1313): a range the proxy refuses, not an address it uses
 ] as const) {
     PRIVATE_ADDRESSES.addSubnet(address, prefix, "ipv6");
 }

@@ -6,8 +6,10 @@
  * @module server/proxy
  */
 
-import type * as http from "node:http";
+import * as dns from "node:dns";
+import * as http from "node:http";
 import * as https from "node:https";
+import * as net from "node:net";
 
 import httpProxy from "http-proxy";
 import { defaultTreeAdapter, type DefaultTreeAdapterMap, html as parse5Html, parse, serialize } from "parse5";
@@ -216,6 +218,83 @@ export function isValidProxyTarget(targetUrl: string): boolean {
     }
 }
 
+/**
+ * Addresses the proxy refuses to reach unless private targets are allowed: unspecified,
+ * loopback, RFC 1918 private, carrier-grade NAT, link-local (including the 169.254.169.254
+ * cloud metadata service) and IPv6 unique-local. IPv4-mapped IPv6 addresses match too.
+ */
+const PRIVATE_ADDRESSES = new net.BlockList();
+for (const [address, prefix] of [
+    ["0.0.0.0", 8],
+    ["10.0.0.0", 8],
+    ["100.64.0.0", 10],
+    ["127.0.0.0", 8],
+    ["169.254.0.0", 16],
+    ["172.16.0.0", 12],
+    ["192.168.0.0", 16],
+] as const) {
+    PRIVATE_ADDRESSES.addSubnet(address, prefix, "ipv4");
+}
+for (const [address, prefix] of [
+    ["::", 128],
+    ["::1", 128],
+    ["fc00::", 7],
+    ["fe80::", 10],
+] as const) {
+    PRIVATE_ADDRESSES.addSubnet(address, prefix, "ipv6");
+}
+
+/**
+ * Check whether an IP address is loopback, private, link-local or unspecified.
+ * @param address - An IPv4 or IPv6 address (IPv6 without brackets)
+ * @returns True if the address is one the proxy refuses by default; false for anything that is not an IP
+ */
+export function isPrivateAddress(address: string): boolean {
+    const family = net.isIP(address);
+    if (family === 0) {
+        return false;
+    }
+    return PRIVATE_ADDRESSES.check(address, family === 6 ? "ipv6" : "ipv4");
+}
+
+type LookupCallback = (
+    err: NodeJS.ErrnoException | null,
+    address: string | dns.LookupAddress[],
+    family?: number,
+) => void;
+
+/**
+ * A DNS lookup for the proxy's outgoing connections that fails when a name resolves to a
+ * private address. It runs at connect time, so a name cannot pass a check and then
+ * resolve somewhere else for the connection.
+ * @param hostname - The host name to resolve
+ * @param options - The lookup options Node passes
+ * @param callback - Receives the addresses, or an error for a private one
+ */
+function publicOnlyLookup(hostname: string, options: dns.LookupOptions, callback: LookupCallback): void {
+    dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
+        if (err) {
+            callback(err, []);
+            return;
+        }
+        const refused = addresses.find((a) => isPrivateAddress(a.address));
+        if (refused) {
+            callback(
+                new Error(
+                    `Refusing to proxy ${hostname}: it resolves to the private address ${refused.address} (start the server with --proxy-allow-private to allow it)`,
+                ),
+                [],
+            );
+            return;
+        }
+        if (options.all) {
+            callback(null, addresses);
+        } else {
+            callback(null, addresses[0].address, addresses[0].family);
+        }
+    });
+}
+
 /** Result of creating a proxy instance. */
 export interface ProxyInstance {
     /** Handle an incoming proxy request. */
@@ -234,15 +313,22 @@ export interface ProxyInstance {
  * Create a proxy instance that injects the remote-logger into HTML responses.
  * @param proxyBasePath - Base path for the proxy (e.g., "/proxy/")
  * @param quiet - Suppress terminal output
+ * @param allowPrivate - Let the proxy reach loopback, private and link-local addresses
+ *   (default false: anyone who can reach the server could otherwise use it to reach
+ *   services only this machine can see)
  * @returns A proxy instance with handleRequest and close methods
  */
-export function createProxy(proxyBasePath: string, quiet: boolean): ProxyInstance {
+export function createProxy(proxyBasePath: string, quiet: boolean, allowPrivate = false): ProxyInstance {
+    const lookup = allowPrivate ? undefined : publicOnlyLookup;
+    const httpAgent = new http.Agent({ lookup });
+
     // Custom TLS agent to avoid JA3 fingerprint-based blocking by CDNs.
     // Fastly, Akamai, etc. blocklist Node.js's default TLS fingerprint.
     // Using a custom sigalgs list changes the fingerprint without restricting
     // TLS version, so sites that only support TLS 1.2 still work.
+    // Upstream certificates are verified (Node's default).
     const httpsAgent = new https.Agent({
-        rejectUnauthorized: false,
+        lookup,
         sigalgs:
             "ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256:rsa_pkcs1_sha256:ecdsa_secp384r1_sha384:rsa_pss_rsae_sha384:rsa_pkcs1_sha384:rsa_pss_rsae_sha512:rsa_pkcs1_sha512",
     });
@@ -251,7 +337,6 @@ export function createProxy(proxyBasePath: string, quiet: boolean): ProxyInstanc
         selfHandleResponse: true,
         changeOrigin: true,
         followRedirects: false,
-        secure: false,
     });
 
     proxy.on("proxyRes", (proxyRes, req, res) => {
@@ -321,6 +406,18 @@ export function createProxy(proxyBasePath: string, quiet: boolean): ProxyInstanc
             return;
         }
 
+        // Literal IP hosts never reach the agent's lookup, so check them here
+        const hostname = new URL(targetUrl).hostname.replace(/^\[|\]$/g, "");
+        if (!allowPrivate && isPrivateAddress(hostname)) {
+            res.writeHead(403, { "Content-Type": "application/json" });
+            res.end(
+                JSON.stringify({
+                    error: `Refusing to proxy the private address ${hostname} (start the server with --proxy-allow-private to allow it)`,
+                }),
+            );
+            return;
+        }
+
         const target = extractOrigin(targetUrl);
         const targetPath = extractPath(targetUrl);
 
@@ -350,16 +447,18 @@ export function createProxy(proxyBasePath: string, quiet: boolean): ProxyInstanc
         // Use a standard Chrome UA to avoid bot detection
         req.headers["user-agent"] = CHROME_UA;
 
-        const proxyOptions: httpProxy.ServerOptions = { target };
-        if (targetUrl.startsWith("https://")) {
-            proxyOptions.agent = httpsAgent;
-        }
+        const proxyOptions: httpProxy.ServerOptions = {
+            target,
+            agent: targetUrl.startsWith("https://") ? httpsAgent : httpAgent,
+        };
 
         proxy.web(req, res, proxyOptions);
     };
 
     const close = (): void => {
         proxy.close();
+        httpAgent.destroy();
+        httpsAgent.destroy();
     };
 
     return { handleRequest, close };

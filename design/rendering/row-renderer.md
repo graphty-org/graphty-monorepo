@@ -1207,6 +1207,20 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   `reconcile` 145 ms before, 41 ms after, under G4's 0.1 s target; first frame 18.1 s and 17.1 s. The one range
   history entry is now built (stage 28, third pull request): a batched run of edges is one `edges` op in the
   op log.
+- **Every feeder through the column door (cosmos-gap.md G8), first pull request.** The comparison harness gains a
+  `columns` flag (`benchmarks/compare`, `lean-m-few-columns`, `lean-m-columns`) that loads through `importColumns` with
+  the typed arrays cosmos.gl gets. Correction to cosmos-gap.md section 3.3 item 5 and the G8 row: there is no column
+  path for record arrays to be routed to. `importColumns` builds the records the record doors take (see "The typed
+  door" above), so turning `nodeData` or `addEdges` records into columns would turn them back into records, and a
+  `columnsEligible` choice or a `LoadReport.path` would report a difference that does not exist; neither is built
+  until a load path that skips the record exists (stage 29). Measured on master `af5cec31c2` under `"batched"`, quiet
+  machine (load average 1-3), interleaved, same session: 100k + 1k first frame 0.89-0.93 s by records and 0.92-0.94 s
+  by columns (n=3 each), against G8's raised 0.8 s target; 100k + 1M 11.26 s by records and 11.24 s by columns (n=1),
+  against 5 s. The duplicate-edge checks are gone (stage 117's stored pairs) and the position publish is a 5 ms write
+  (above), so neither is in the way any more. The 100k + 1M columns load, CPU-profiled (11.6 s), spends its self time
+  in `GraphOps.addEdge` 2.7 s, `DataManager.builtUnpainted` 2.1 s (one `e:` key into `unpainted` and one
+  `StylePainter.queue` per edge), `edgePaint` 1.1 s, the first frame's
+  `readPixels` 0.5 s and garbage collection 0.5 s: per-edge bookkeeping, which the later pull requests of G8 take on.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.

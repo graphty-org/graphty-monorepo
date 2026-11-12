@@ -24,6 +24,7 @@ declare -A C=(
   [lean-m-few]="graphty lean on 100000 1000 1 skip-layout"
   [lean-m-few-columns]="graphty lean on 100000 1000 1 skip-layout columns"
   [lean-m-columns]="graphty lean on 100000 1000000 1 skip-layout columns"
+  [lean-m-records]="graphty lean on 100000 1000000 1 skip-layout"
   [default-s]="graphty default on 10000 100000 1"
   [default-m]="graphty default on 100000 1000000 1"
   [lean-m-tail]="graphty lean on 100000 1000000 1 no-still"

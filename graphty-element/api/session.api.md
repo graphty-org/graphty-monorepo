@@ -50,6 +50,7 @@ import { SourceCredentialSlot } from '@graphty/graph-io';
 import { SourceCursor } from '@graphty/graph-io';
 import { SourceDescriptor } from '@graphty/graph-io';
 import { EdgeRecord as SourceEdgeRecord } from '@graphty/graph-io';
+import { sourceEndpoint } from '@graphty/graph-io';
 import { SourceExample } from '@graphty/graph-io';
 import { SourceFeature } from '@graphty/graph-io';
 import { SourceFile } from '@graphty/graph-io';
@@ -6397,6 +6398,8 @@ export { SourceCursor }
 export { SourceDescriptor }
 
 export { SourceEdgeRecord }
+
+export { sourceEndpoint }
 
 export { SourceExample }
 

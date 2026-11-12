@@ -14,6 +14,7 @@ import {
     type LoadFromSourceOptions,
     registry,
     SOURCE_FORMAT_PREFIX,
+    sourceEndpoint,
     type SourceListing,
     type SourceListQuery,
     type SourceProbe,
@@ -92,7 +93,9 @@ async function accessFor(
     params?: Readonly<Record<string, unknown>>,
 ): Promise<Access> {
     const descriptor = descriptorOf(id);
-    const endpoint = options.endpoint ?? descriptor?.defaultEndpoint ?? null;
+    // The `url` source's address is its endpoint, so a credential is found by that address's origin.
+    const found = sourceEndpoint(descriptor, params ?? {}, options.endpoint);
+    const endpoint = found === null ? null : String(found);
     const slot = slotNameOf(id);
     if (options.credential !== undefined) {
         return { endpoint, credential: options.credential, slot, stored: false };

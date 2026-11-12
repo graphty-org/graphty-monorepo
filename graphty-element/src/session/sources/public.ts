@@ -91,4 +91,5 @@ export {
     registerSource,
     replayFetch,
     SOURCE_ISSUE,
+    sourceEndpoint,
 } from "@graphty/graph-io";

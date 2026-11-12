@@ -5,7 +5,7 @@
  * and remove it.
  */
 
-import { type Channel, type ChannelDescriptor, channelsFor } from "@graphty/graphty-element/catalog";
+import { type Channel, type ChannelDescriptor, channelsFor, type LabelStyle } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 
 /**
@@ -55,4 +55,17 @@ export function shownChannel(
         offeredChannel(session, side, channel) ??
         (held ? channelsFor(side).find((d) => d.channel === channel) : undefined)
     );
+}
+
+/**
+ * The channel that varies one field of a block of words' style per node or edge: of the channels
+ * named after the block's words channel (`node.label`, `edge.arrowHeadText`), the one whose
+ * `labelField` is that field, as graphty-element ships it.
+ * @param side - nodes or edges.
+ * @param words - the block's words channel.
+ * @param field - the field of its style.
+ * @returns the channel, or undefined when no channel varies that field.
+ */
+export function fieldChannelOf(side: "node" | "edge", words: Channel, field: keyof LabelStyle): Channel | undefined {
+    return channelsFor(side).find((d) => d.labelField === field && d.channel.startsWith(words))?.channel;
 }

@@ -441,7 +441,7 @@ describe("label entries on the real element", () => {
         // The groups are headings one level under the pop-out's title.
         assert.deepEqual(
             [...settings.querySelectorAll("h3")].map((h) => h.textContent),
-            ["Type", "Box", "Letters", "Placement", "Motion and distance", "Badge"],
+            ["Type", "Wrap", "Box", "Letters", "Placement", "Motion and distance", "Badge"],
         );
         await choose("Gradient", "On", settings);
         await within(settings).findByRole("group", { name: "Gradient colors" });

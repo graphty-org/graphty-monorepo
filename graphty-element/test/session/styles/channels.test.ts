@@ -1208,3 +1208,23 @@ describe("which drawn part a channel adjusts", () => {
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].modifies);
     });
 });
+
+describe("labelField", () => {
+    it("names the label style field each channel sets on its own, and only on such a channel", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelLetterSize"].labelField, "letterSize");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.labelWrapWidth"].labelField, "wrapWidth");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelSize"].labelField, "sizePx");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelTextAlign"].labelField, "textAlign");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.tooltipBackground"].labelField, "background");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHeadTextSize"].labelField, "sizePx");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowTailTextRotation"].labelField, "rotation");
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.labelStyle"].labelField);
+        assert.isUndefined(CHANNEL_DESCRIPTORS["edge.arrowHeadTextDistance"].labelField);
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.color"].labelField);
+        for (const descriptor of Object.values(CHANNEL_DESCRIPTORS)) {
+            if (descriptor.labelField !== undefined) {
+                assert.include(LABEL_STYLE_FIELDS, descriptor.labelField, descriptor.channel);
+            }
+        }
+    });
+});

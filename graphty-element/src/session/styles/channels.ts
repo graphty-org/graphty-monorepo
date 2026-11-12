@@ -948,6 +948,15 @@ export interface ChannelDescriptor {
      * @experimental file-styles
      */
     readonly feature?: "file-styles";
+    /**
+     * The label style field this channel sets on its own, on a channel that sets one field of a
+     * block of words' style (a label, a tooltip, an arrow caption): `"letterSize"` on
+     * `node.labelLetterSize`, `"sizePx"` on `edge.arrowHeadTextSize`. A style editor that draws a
+     * label style's fields finds here the channel that varies one of them per node or edge. Absent
+     * on every other channel.
+     * @since 3.51.0
+     */
+    readonly labelField?: keyof LabelStyle;
 }
 
 /**
@@ -5134,6 +5143,39 @@ function stepOf(descriptor: ChannelDescriptor): number | undefined {
     return descriptor.perWorldUnit !== undefined || descriptor.channel === "edge.patternCount" ? 1 : 0.1;
 }
 
+/** The label style field each caption or tooltip channel sets, by the suffix after its block's name. */
+const CAPTION_FIELD_OF_SUFFIX = {
+    Size: "sizePx",
+    Color: "color",
+    Background: "background",
+    LetterSize: "letterSize",
+    Font: "font",
+    Weight: "weight",
+    Opacity: "opacity",
+    Rotation: "rotation",
+    OffsetX: "offsetX",
+    OffsetY: "offsetY",
+} as const satisfies Record<string, keyof LabelStyle>;
+
+/**
+ * The label style field a channel sets on its own: see {@link ChannelDescriptor.labelField}.
+ * @param channel - The channel.
+ * @returns The field, or undefined for a channel that sets no one field.
+ */
+function labelFieldOfChannel(channel: Channel): keyof LabelStyle | undefined {
+    const field = labelFieldOf(channel)?.field;
+    if (field !== undefined) {
+        return field;
+    }
+
+    const match =
+        /^(?:node\.tooltip|edge\.arrow(?:Head|Tail)Text)(Size|Color|Background|LetterSize|Font|Weight|Opacity|Rotation|OffsetX|OffsetY)$/.exec(
+            channel,
+        );
+
+    return match === null ? undefined : CAPTION_FIELD_OF_SUFFIX[match[1] as keyof typeof CAPTION_FIELD_OF_SUFFIX];
+}
+
 /**
  * Every channel, with what the element actually does with it and what a style editor needs to
  * draw a row for it: a short name, a group, the default it opens on, and why it cannot be set.
@@ -5145,6 +5187,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         const value = shippedDefault(descriptor) ?? descriptor.default;
         const step = descriptor.step ?? stepOf(descriptor);
         const modifies = MODIFIES.get(descriptor.channel);
+        const labelField = labelFieldOfChannel(descriptor.channel);
 
         return [
             descriptor.channel,
@@ -5153,6 +5196,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
                 ...(value === undefined ? {} : { default: value }),
                 ...(step === undefined ? {} : { step }),
                 ...(modifies === undefined ? {} : { modifies }),
+                ...(labelField === undefined ? {} : { labelField }),
                 // @experimental file-styles
                 ...(FILE_STYLE_CHANNELS.has(descriptor.channel) ? { feature: "file-styles" as const } : {}),
             },

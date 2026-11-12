@@ -17,7 +17,7 @@ import { cardLines, cardSummary } from "./cardLines";
 import { CARD_LOOK, isCard } from "./cardLook";
 import { CardContents } from "./LabelCard";
 import { LabelSettings, type VaryField } from "./LabelSettings";
-import { offeredChannel, shownChannel } from "./offered";
+import { fieldChannelOf, offeredChannel, shownChannel } from "./offered";
 import { Field, type RowContext, VarySlot } from "./PropertyRow";
 import {
     type DataChoice,
@@ -36,7 +36,7 @@ import {
 import { AddButton, type AddOption } from "./Section";
 import { focusLineNext, focusSectionNext, headerBottom, lineTarget } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
-import { failureWords, positionWord, TEXT_KINDS, type TextKindSpec } from "./words";
+import { failureWords, positionWord, takesBinding, TEXT_KINDS, type TextKindSpec } from "./words";
 
 /** The width of the entry's pop-outs: the source list as wide as the panel's rows, the settings wider. */
 const LIST_WIDTH = 248;
@@ -516,24 +516,8 @@ function SourcePicker({
 }
 
 /**
- * The channel a label setting varies through: the text color, background and size vary by a value
- * through their own channels.
- * @param kind - the kind of text.
- * @param key - the setting.
- * @returns its channel, or undefined when it does not vary.
- */
-function varyChannelOf(kind: TextKindSpec, key: keyof LabelStyle): Channel | undefined {
-    if (key === "color") {
-        return kind.color;
-    }
-    if (key === "background") {
-        return kind.background;
-    }
-    return key === "sizePx" ? kind.size : undefined;
-}
-
-/**
- * A label setting's field when it varies through its own channel: the row's field when the row
+ * A label setting's field when it varies through its own channel (graphty-element's `labelField`:
+ * the text color, the background, the size, the letter size, ...): the row's field when the row
  * holds that channel and is not locked, else the slot that starts varying it.
  * @param ctx - the row.
  * @param kind - the kind of text.
@@ -547,15 +531,17 @@ function varyFieldOf(
     key: keyof LabelStyle,
     descriptorOf: (channel: Channel) => ChannelDescriptor | undefined,
 ): VaryField | undefined {
-    const channel = varyChannelOf(kind, key);
+    const channel = fieldChannelOf(ctx.side, kind.words, key);
     const descriptor = channel === undefined ? undefined : descriptorOf(channel);
     if (channel === undefined || descriptor === undefined) {
         return undefined;
     }
     const line = lineIn(ctx, channel);
-    return line !== undefined && !line.layer.locked
-        ? { field: <Field ctx={ctx} descriptor={descriptor} /> }
-        : { slot: <VarySlot ctx={ctx} descriptor={descriptor} /> };
+    if (line !== undefined && !line.layer.locked) {
+        return { field: <Field ctx={ctx} descriptor={descriptor} /> };
+    }
+    // A yes-or-no field varies by nothing: no glyph, and no empty column beside it.
+    return takesBinding(descriptor) ? { slot: <VarySlot ctx={ctx} descriptor={descriptor} /> } : undefined;
 }
 
 /**

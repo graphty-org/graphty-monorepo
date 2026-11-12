@@ -12,7 +12,9 @@ import {
     PER_VALUE_CONTROLS,
     publishedGraphSettings,
 } from "../coverage";
-import { isPercent, sectionsFor, takesBinding, valueFieldKind } from "../words";
+import { LABEL_SETTINGS_FIELDS } from "../labelFields";
+import { fieldChannelOf } from "../offered";
+import { isPercent, sectionsFor, takesBinding, TEXT_KINDS, valueFieldKind } from "../words";
 
 /**
  * A path the glob gives relative to this folder, as a path under `src/`.
@@ -60,8 +62,18 @@ const ALL_SECTIONS = [
 /** Every channel a section of the Style tab draws as a line, the experiments' included. */
 const DRAWN = new Set<string>(ALL_SECTIONS.flatMap((section) => section.channels));
 
-/** Every channel the Style tab sets: its lines, and what a line sets from inside (Model settings). */
-const PLACED = new Set<string>([...DRAWN, ...ALL_SECTIONS.flatMap((section) => section.inner ?? [])]);
+/** Every channel a text entry varies beside a field of its Label settings (the letter size, the font). */
+const VARIED = (["node", "edge"] as const).flatMap((side) =>
+    TEXT_KINDS[side].flatMap((kind) =>
+        LABEL_SETTINGS_FIELDS.flatMap((field) => fieldChannelOf(side, kind.words, field) ?? []),
+    ),
+);
+
+/**
+ * Every channel the Style tab sets: its lines, what a line sets from inside (Model settings), and
+ * what a text entry varies through its Label settings.
+ */
+const PLACED = new Set<string>([...DRAWN, ...ALL_SECTIONS.flatMap((section) => section.inner ?? []), ...VARIED]);
 
 describe("every style has a home", () => {
     it("gives every channel graphty-element publishes a control or a reason", () => {

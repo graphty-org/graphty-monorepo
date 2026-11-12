@@ -1131,6 +1131,39 @@ describe("GET /v1/site (promote.yml's record of a nightly, #4495)", () => {
         assert.equal((await call("GET", "/v1/site?sha=abc", { token: LOCAL_TOKEN })).status, 400);
         assert.equal((await call("GET", `/v1/site?sha=${C}`)).status, 401);
     });
+    it("answers master's promote.yml, which writes nothing, and refuses any other workflow (#6820)", async () => {
+        const { call } = service();
+        await call("POST", "/v1/channel-moves", { token: master("release.yml"), body: move() });
+        const promote = master("promote.yml");
+        assert.equal((await call("GET", `/v1/site?sha=${C}`, { token: promote })).status, 200);
+        const writes = [
+            "POST /v1/hold",
+            "POST /v1/verdicts",
+            "POST /v1/invocations",
+            "POST /v1/failures",
+            "POST /v1/durations",
+            "POST /v1/issues",
+            "POST /v1/sites",
+            "POST /v1/base-checks",
+            "POST /v1/channel-moves",
+            "POST /v1/story-captures",
+            "POST /v1/story-reach",
+            "PUT /v1/durations/tests/browser",
+        ];
+        for (const route of writes) {
+            const [method, path] = route.split(" ");
+            const body = { rows: [], sha: C, channel: "nightly" };
+            assert.equal((await call(method, path, { token: promote, body })).status, 403, route);
+        }
+        const elsewhere = oidc({
+            event_name: "workflow_dispatch",
+            ref: "refs/heads/feature",
+            job_workflow_ref: `${REPO}/.github/workflows/promote.yml@refs/heads/feature`,
+        });
+        for (const token of [master("other.yml"), elsewhere]) {
+            assert.equal((await call("GET", `/v1/site?sha=${C}`, { token })).status, 403);
+        }
+    });
 });
 
 describe("GET /v1/failures", () => {

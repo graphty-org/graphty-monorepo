@@ -1066,23 +1066,6 @@ export function positionWord(location: LabelLocation | undefined): string {
 }
 
 /**
- * The label line's statement, from the element's label counts (round 8: every count is computed
- * from live state). The hidden part is said only while the overlap rule is on (Show all labels off).
- * @param counts - the element's `nodeLabelCounts`.
- * @param counts.labeled - nodes whose label has text.
- * @param counts.hiddenByOverlap - of those, labels the overlap rule hid.
- * @param declutter - whether the overlap rule is on.
- * @returns "77 labels, 64 hidden", or "77 labels".
- */
-export function labelStatement(
-    counts: { readonly labeled: number; readonly hiddenByOverlap: number },
-    declutter: boolean,
-): string {
-    const labels = `${String(counts.labeled)} ${counts.labeled === 1 ? "label" : "labels"}`;
-    return declutter ? `${labels}, ${String(counts.hiddenByOverlap)} hidden` : labels;
-}
-
-/**
  * Whether an item's name matches a search: the start of any word (tier1-design.md section 2.8,
  * "the field list").
  * @param name - the item's name.

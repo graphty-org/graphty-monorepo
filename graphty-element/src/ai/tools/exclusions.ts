@@ -293,7 +293,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         kind: BY_DESIGN,
     },
     { root: "LoadDraft", members: ["graphtyDocument", "styles"], reason: "whole-document", kind: BY_DESIGN },
-    { root: "LoadDraft", members: ["suggestJoin", "joinReport"], reason: "needs-host", kind: BY_DESIGN },
+    { root: "LoadDraft", members: ["suggestJoin", "joinReport", "lookup"], reason: "needs-host", kind: BY_DESIGN },
     {
         root: "RunsApi",
         members: ["answered", "layers", "readers"],

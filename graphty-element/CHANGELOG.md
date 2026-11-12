@@ -1,3 +1,25 @@
+## 3.39.0 (2026-11-12)
+
+### 🚀 Features
+
+- **graphty-element:** session.data.count() gives node and edge counts without records ([#3249](https://github.com/graphty-org/graphty-monorepo/issues/3249))
+
+### 🩹 Fixes
+
+- **graphty-element:** keep a given apiKey in the key store beside a providerInstance ([#6785](https://github.com/graphty-org/graphty-monorepo/issues/6785))
+- **graphty-element:** serve Babylon's GLSL compilers to tests from a local copy ([#6787](https://github.com/graphty-org/graphty-monorepo/issues/6787))
+- **graphty-element:** classify session.data.count() as a read door ([#3249](https://github.com/graphty-org/graphty-monorepo/issues/3249))
+
+### 🔥 Performance
+
+- **graphty-element:** index a fresh load's edge ids by offset on the batched path ([#6389](https://github.com/graphty-org/graphty-monorepo/issues/6389))
+- **graphty-element:** stop the layout envelope boxing a number per row every publish ([#6389](https://github.com/graphty-org/graphty-monorepo/issues/6389))
+- **graphty-element:** name edge repeats from one pair set on the batched path ([#6389](https://github.com/graphty-org/graphty-monorepo/issues/6389))
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
 ## 3.38.0 (2026-11-12)
 
 ### 🚀 Features

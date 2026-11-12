@@ -26,6 +26,8 @@
  * - a timer in code handed to the page: `setTimeout(fn, n)` with a delay inside a function passed
  *   to `evaluate`, `evaluateHandle`, `$eval`, `$$eval`, `addInitScript` or `evaluateOnNewDocument`.
  *   The page then runs its steps on the clock instead of on the events they wait on (#2422, #2447).
+ *   A page script written as a template string (a fixture's served HTML) is test code too: a
+ *   `new Promise((r) => setTimeout(r, n))` in its text is reported as a fixed sleep (#6958);
  *
  * - a time budget on a wait: a `timeout` or `interval` option (or a number in its place) on `waitFor`,
  *   `waitForElementToBeRemoved`, `vi.waitFor`, `vi.waitUntil`, `expect.poll`, `expect.element`,
@@ -68,6 +70,9 @@ const DISABLE_HINT =
     "Fix the test instead. A timing exception that must stay is an entry in eslint.config.js, where it is reviewed.";
 const PAGE_TIMER_HINT =
     "Drive each step in the page from the event it waits on (an awaited waitForFunction, a promise the test resolves) instead of a timer.";
+
+// A sleep in page code written as text: `new Promise((r) => setTimeout(r, n))` with a delay other than 0.
+const PAGE_TEXT_SLEEP = /new Promise\(\(?([\w$]+)\)? ?=> ?(?:window\.|globalThis\.)?setTimeout\(\1, ?([^)]+)\)/g;
 
 const TEST_NAMES = new Set(["it", "test", "describe", "suite"]);
 const HOOK_NAMES = new Set(["beforeAll", "beforeEach", "afterAll", "afterEach"]);
@@ -931,6 +936,21 @@ const rule = {
                     context.report({ node, messageId: "timeout" });
                 } else {
                     checkTimeoutArgs(node);
+                }
+            },
+            TemplateLiteral(node) {
+                // A page script served as text: no AST to visit, so its sleeps are found by their
+                // spelling. A zero delay is a yield, as in code; a timer that stands in for a late
+                // event is not a wait.
+                for (const quasi of node.quasis) {
+                    const text = sourceCode.text.slice(quasi.range[0], quasi.range[1]);
+                    for (const m of text.matchAll(PAGE_TEXT_SLEEP)) {
+                        if (m[2].trim() === "0") {
+                            continue;
+                        }
+                        const loc = sourceCode.getLocFromIndex(quasi.range[0] + m.index);
+                        context.report({ loc, messageId: "sleep" });
+                    }
                 }
             },
             NewExpression(node) {

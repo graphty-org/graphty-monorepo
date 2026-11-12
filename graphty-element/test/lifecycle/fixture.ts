@@ -216,10 +216,17 @@ if (params.get("rows") !== "late" && params.get("rows") !== "none") rows();
 document.body.appendChild(el);
 const summary = (r) => r && { revision: r.revision, entry: r.entry.id, wasDiscarded: r.wasDiscarded, copiedFrom: r.copiedFrom, others: r.others };
 // Ready once both halves of the page's load (nodes, then edges) are in, so a test's first edit
-// does not land between them, where the edges load would replace it as a new project.
+// does not land between them, where the edges load would replace it as a new project. The element
+// settles once the restore is decided and every page load held behind it has run; a graph still
+// short of the page's rows then is a broken load, reported as one and never as ready.
 const ready = el.autosaver.ready.then(async (restored) => {
     if (params.get("rows") === "late") rows();
-    for (let f = 0; f < 6000 && (el.session.data.snapshot().nodeCount < n || el.session.data.snapshot().edgeCount < n); f++) await new Promise((r) => setTimeout(r, 10));
+    await el.waitForSettled();
+    const { nodeCount, edgeCount } = el.session.data.snapshot();
+    if (nodeCount < n || edgeCount < n) {
+        report("not-ready", { nodeCount, edgeCount, n });
+        throw new Error("settled with " + nodeCount + " nodes and " + edgeCount + " edges of " + n);
+    }
     const s = el.autosaver.status;
     const probes = [...new Set(Array.from(el.session.data.nodes(), (node) => node.probe ?? null))];
     // The key's entries as stored, for a page that restored nothing: what the tab that holds the work has.
@@ -442,13 +449,19 @@ export async function startFixture(options: { bundles?: Record<string, string> }
             `${origin}/fixture.html?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString()}`,
         events: (tab, type) => log.filter((event) => event.tab === tab && (type === undefined || event.type === type)),
         lastSaved: (tab) => Math.max(0, ...fixture.events(tab, "saved").map((event) => event.revision as number)),
+        // A page whose load settled short of its rows never reports ready: every wait fails on its
+        // not-ready report at once, instead of waiting on the hang guard.
         waitFor: (predicate) =>
-            new Promise((resolve) => {
+            new Promise((resolve, reject) => {
                 const check = (): void => {
                     const found = log.find(predicate);
+                    const broken = log.find((event) => event.type === "not-ready");
                     if (found !== undefined) {
                         waiters.delete(check);
                         resolve(found);
+                    } else if (broken !== undefined) {
+                        waiters.delete(check);
+                        reject(new Error(`tab ${broken.tab} is not ready: ${JSON.stringify(broken)}`));
                     }
                 };
                 waiters.add(check);

@@ -1139,6 +1139,23 @@ eight corners are the framing's spots, so `camera.fitBounds` "turning" keeps the
 nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attributes` are optional. Same ceilings, report and undo step,
   with one range entry in the op log, the only bulk history entry (cosmos-gap.md G4 reuses it). Rows are placed by the element's `layout`, as
   `nodeData`'s are. graph-io and graph-samples route through it.
+- **Bulk lane keys (cosmos-gap.md G4, first pull request).** Under `"batched"` a forward add marks its edges dirty as
+  one range key per run of consecutive edges, `e+:<first edge counter>:<count>`, through `DerivationLane.touchLater`,
+  whose key is read when the next pass starts. Correction to cosmos-gap.md section 3.3 item 2: the range is over the
+  element's edge counters, not builder indices, because every reader (`DataManager.reconcile`, the session's
+  `editedRows`) looks edges up by id; and stage 28's range history entry did not exist when G4 started, so this
+  pull request changes only the keys, and the op log still holds one operation per edge. Because of that, undo,
+  redo, restore and rollback touch each edge they move by its own `e:` key, so the range key appears only on forward
+  passes: `reconcile` always skips it (its edges were drawn as ingested), and `DataManager.notePainted` reads it as
+  the per-edge keys it names, so a paged batched import is drawn page by page as on `"objects"`. Under `"objects"`
+  every edge is touched as before (`test/session/bulk-lane-keys.test.ts`,
+  `test/browser/autosave/bulk-lane-keys-element.test.ts`, `test/browser/styles-from-the-first-frame.test.ts`).
+- **Bulk lane keys, second pull request.** A batched run also touches the rows-added and rows-moved keys once, when the
+  run starts, instead of twice per edge; the lane's touch count for a batched load no longer grows with the edge count.
+  Measured on Lean 100k + 1M (`lean-m`, batched, `BENCH_PROFILE_TIMED`, one run each, same session): `touch` plus
+  `reconcile` 145 ms before, 41 ms after, under G4's 0.1 s target; first frame 18.1 s and 17.1 s. The one range
+  history entry is still not built: it waits for stage 28's `importColumns` range entry, which is not on master, and
+  until then the op log keeps one operation per edge.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.

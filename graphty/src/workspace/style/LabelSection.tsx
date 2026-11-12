@@ -696,7 +696,6 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
         label: look.id === lookId && edited ? `${look.plainName}, edited` : look.plainName,
     }));
     const sizeDescriptor = descriptorOf(kind.size);
-    const tableDescriptor = kind.table === undefined ? undefined : descriptorOf(kind.table);
     // The position varies by a value from its own line, as a setting varies from Label settings.
     const locationVary = vary("location");
     const addPart = (key: string): void => {
@@ -863,17 +862,14 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                 />
             </StyleLine>
             {sizeDescriptor === undefined ? null : <Field ctx={ctx} descriptor={sizeDescriptor} word="Size" />}
-            {tableDescriptor === undefined ? null : (
-                <Field
-                    ctx={ctx}
-                    descriptor={tableDescriptor}
-                    word="Table"
-                    pending={tableWaiting && kind.table !== undefined && lineIn(ctx, kind.table) === undefined}
-                    onCancel={() => {
-                        setTableWaiting(false);
-                    }}
-                />
-            )}
+            <TableLine
+                ctx={ctx}
+                descriptor={kind.table === undefined ? undefined : descriptorOf(kind.table)}
+                waiting={tableWaiting}
+                onCancel={() => {
+                    setTableWaiting(false);
+                }}
+            />
             {locationVary?.field ?? (
                 <StyleLine
                     word="Position"
@@ -897,6 +893,41 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                 </StyleLine>
             )}
         </Stack>
+    );
+}
+
+/**
+ * A label's table, drawn as a words field: while "+" has added it and nothing is typed yet, it waits
+ * for the table's words, writing nothing.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.descriptor - the table's channel, when the element offers it
+ * @param props.waiting - whether "+" added it
+ * @param props.onCancel - drops it while it waits
+ * @returns The line, or nothing
+ */
+function TableLine({
+    ctx,
+    descriptor,
+    waiting,
+    onCancel,
+}: Readonly<{
+    ctx: RowContext;
+    descriptor: ChannelDescriptor | undefined;
+    waiting: boolean;
+    onCancel: () => void;
+}>): React.JSX.Element | null {
+    if (descriptor === undefined) {
+        return null;
+    }
+    return (
+        <Field
+            ctx={ctx}
+            descriptor={descriptor}
+            word="Table"
+            pending={waiting && lineIn(ctx, descriptor.channel) === undefined}
+            onCancel={onCancel}
+        />
     );
 }
 

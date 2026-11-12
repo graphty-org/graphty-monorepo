@@ -212,6 +212,31 @@ describe("Operation Cancellation", () => {
         assert.deepEqual(cancelledEvents, [{ id: op2, code: "cancelled" }]);
     });
 
+    it("should cancel a category's running and queued operations and answer both callers", async () => {
+        const started = gate();
+        const running = queueManager.queueOperationAsync(
+            "data-add",
+            async (context) => {
+                started.open();
+                await untilAborted(context);
+            },
+            { skipTriggers: true },
+        );
+        await started.promise;
+        const queued = queueManager.queueOperationAsync("data-add", () => undefined, { skipTriggers: true });
+
+        assert.equal(queueManager.cancelByCategory("data-add"), 2);
+
+        // Both awaits resolve: a cancelled operation is not an error, and one that never started
+        // is answered by the cancel itself.
+        await Promise.all([running, queued]);
+        await queueManager.waitForCompletion();
+
+        assert.lengthOf(startEvents, 1, "the queued operation never started");
+        assert.lengthOf(cancelledEvents, 2);
+        assert.deepEqual(completeEvents, []);
+    });
+
     it("should not cancel already completed operations", async () => {
         const completed: string[] = [];
 

@@ -1096,7 +1096,8 @@ export class OperationQueueManager implements Manager {
     cancelOperation(operationId: string): boolean {
         const controller = this.activeControllers.get(operationId);
         // A finished operation keeps its controller until its cleanup runs; it is not cancelled.
-        if (controller && !controller.signal.aborted && this.rankOf(operationId) !== -1) {
+        const rank = this.rankOf(operationId);
+        if (controller && !controller.signal.aborted && rank !== -1) {
             controller.abort();
 
             // Emit cancellation event
@@ -1106,6 +1107,16 @@ export class OperationQueueManager implements Manager {
                 code: "cancelled",
                 reason: "Manual cancellation",
             } satisfies OperationCancelledEvent);
+
+            // One that has not started never reaches `executeOperation` (p-queue drops an aborted
+            // task before running it), so drop it here and answer its caller, as `obsolete()` does.
+            const operation = this.pendingOperations.get(operationId) ?? this.queuedOperations.get(operationId);
+            if (rank !== 2 && operation) {
+                this.pendingOperations.delete(operationId);
+                this.queuedOperations.delete(operationId);
+                this.currentBatch.delete(operationId);
+                this.settleResolved(operation);
+            }
 
             return true;
         }

@@ -2,7 +2,7 @@
  * The source loads an opened project holds but has not run: read synchronously, so it is kept
  * apart from load.ts, which the session loads only when a source is first used.
  */
-import { registry, type SourceDescriptor } from "@graphty/graph-io";
+import { registry, type SourceDescriptor, sourceEndpoint } from "@graphty/graph-io";
 
 import { isLocalNetwork } from "./endpoint";
 import type { SourceHost } from "./host";
@@ -18,15 +18,16 @@ export function descriptorOf(id: string): SourceDescriptor | undefined {
 }
 
 /**
- * Where a load's requests go: its endpoint, else a REST mapping's own endpoint, else the source's
- * default.
+ * Where a load's requests go: its endpoint, else a REST mapping's own endpoint, else the address
+ * param the source names (the `url` source's), else the source's default.
  * @param record - the load
  * @returns the endpoint, or null when none is known
  */
 export function targetOf(record: SourceLoadRecord): string | null {
     const { mapping } = record.config as { mapping?: { endpoint?: unknown } };
     const mapped = typeof mapping?.endpoint === "string" ? mapping.endpoint : null;
-    return record.endpoint ?? mapped ?? descriptorOf(record.source)?.defaultEndpoint ?? null;
+    const fallback = sourceEndpoint(descriptorOf(record.source), record.config);
+    return record.endpoint ?? mapped ?? (fallback === null ? null : String(fallback));
 }
 
 /**

@@ -62,7 +62,7 @@ describe("sourceDescriptors()", () => {
     it("lists the built-in sources with their examples, loading no source code", () => {
         const infos = sourceDescriptors();
         const ids = infos.map((info) => info.id);
-        for (const id of ["ndex", "cypher", "neo4j", "neptune", "rest", "openalex", "sparql"]) {
+        for (const id of ["ndex", "cypher", "neo4j", "neptune", "rest", "openalex", "sparql", "url"]) {
             assert.include(ids, id);
         }
 

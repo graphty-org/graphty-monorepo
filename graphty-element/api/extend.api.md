@@ -101,9 +101,11 @@ import { SourceCredentialSlot } from '@graphty/graph-io';
 import { SourceCursor } from '@graphty/graph-io';
 import { SourceDescriptor } from '@graphty/graph-io';
 import { EdgeRecord as SourceEdgeRecord } from '@graphty/graph-io';
+import { sourceEndpoint } from '@graphty/graph-io';
 import { SourceExample } from '@graphty/graph-io';
 import { SourceFeature } from '@graphty/graph-io';
 import { SourceFile } from '@graphty/graph-io';
+import { sourceFileName } from '@graphty/graph-io';
 import { SourceFinish } from '@graphty/graph-io';
 import { SourceFreshness } from '@graphty/graph-io';
 import { SourceInfo } from '@graphty/graph-io';
@@ -3079,6 +3081,8 @@ export { SourceDescriptor }
 
 export { SourceEdgeRecord }
 
+export { sourceEndpoint }
+
 export { SourceExample }
 
 // @public
@@ -3117,6 +3121,8 @@ export interface SourceFeatures {
 }
 
 export { SourceFile }
+
+export { sourceFileName }
 
 export { SourceFinish }
 

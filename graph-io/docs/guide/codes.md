@@ -159,6 +159,7 @@ attribute: the node label, the edge weight, a position. See
 - <a id="W_CSV_NODE_TABLE"></a>`W_CSV_NODE_TABLE`: Node attributes are written by a `table: "nodes"` export only. Save: [csv](./formats/csv.md).
 - <a id="W_CSV_NONFINITE"></a>`W_CSV_NONFINITE`: NaN / Infinity in a numeric column read back as text. Save: [csv](./formats/csv.md).
 - <a id="W_CSV_NO_DATA_ROWS"></a>`W_CSV_NO_DATA_ROWS`: A header and no data rows. Import: [csv](./formats/csv.md).
+- <a id="W_CSV_NO_UNIQUE_ID"></a>`W_CSV_NO_UNIQUE_ID`: Every id-like column of a node table's header (`id`, `person_id`, `node`, `key`, `name`) repeats a value or leaves one blank, so the nodes are numbered by row (0 for the first data row). Pass `idColumn` to key the table by one of them anyway. Import: [csv](./formats/csv.md).
 - <a id="W_CSV_PADDED_ID"></a>`W_CSV_PADDED_ID`: An id that is not quoted has spaces at its start or end; they are kept, so it is a different id from the trimmed text. Reported once per import. Import: [csv](./formats/csv.md).
 - <a id="W_CSV_RESERVED_NAME"></a>`W_CSV_RESERVED_NAME`: An attribute column named like a reserved header is not written. Save: [csv](./formats/csv.md).
 - <a id="W_CSV_ROLE_NAME"></a>`W_CSV_ROLE_NAME`: A role column (id, label) whose name the importer does not recognize; the role is lost. Save: [csv](./formats/csv.md).

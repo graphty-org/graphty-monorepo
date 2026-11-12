@@ -34,7 +34,8 @@
  * E_TOO_LARGE. The forward form is chosen per batch: the first batch runs `bc-forward`; a later one runs the
  * edge-parallel form when the previous batch's level count -- the MAXIMUM depth over its sources, the only depth
  * figure the host has, which over-estimates the median of design 8.4's rule and so errs toward the frontier form --
- * is below `BC_EDGE_PARALLEL_GAMMA x log2(n)`.
+ * is below `BC_EDGE_PARALLEL_GAMMA x log2(n)`, on a snapshot of at least `BC_EDGE_PARALLEL_MIN_NODES` nodes whose
+ * degrees are not skewed (`edgeParallelEligible`, issue #776); anywhere else the frontier form was faster.
  *
  * The host applies the CPU package's convention after the readback (`@graphty/algorithms` betweenness.ts): the vertex
  * scores are halved on an undirected snapshot (the gather counts each unordered pair from both ends); the edge scores
@@ -58,6 +59,8 @@ import {
     BC_BATCH_BUDGET_FRACTION,
     BC_COUNT_MAX_GROUPS,
     BC_EDGE_PARALLEL_GAMMA,
+    BC_EDGE_PARALLEL_MAX_SKEW,
+    BC_EDGE_PARALLEL_MIN_NODES,
     BC_MAX_BATCH,
     MAX_LEVELS_PER_SUBMIT,
 } from "../constants.js";
@@ -668,12 +671,32 @@ async function runBatch(
 }
 
 /**
- * The forward body of the next batch: pinned, or under "auto" edge-parallel once the last batch was shallow; always
- * the frontier body when there are no edges to run edge-parallel over.
+ * Whether "auto" may ever run the edge-parallel forward form on a snapshot (issue #776): at least
+ * `BC_EDGE_PARALLEL_MIN_NODES` nodes and a largest out-degree within `BC_EDGE_PARALLEL_MAX_SKEW` times the mean. Below
+ * either the frontier form was faster on every graph measured, shallow or deep.
+ * @internal
+ * @param s - the snapshot
+ * @returns true when the per-batch depth test decides
+ */
+export function edgeParallelEligible(s: GraphSnapshot): boolean {
+    const n = s.nodeCount;
+    if (n < BC_EDGE_PARALLEL_MIN_NODES || s.arcCount === 0) {
+        return false;
+    }
+    let maxDegree = 0;
+    for (let v = 0; v < n; v++) {
+        maxDegree = Math.max(maxDegree, s.rowPtr[v + 1] - s.rowPtr[v]);
+    }
+    return maxDegree * n <= BC_EDGE_PARALLEL_MAX_SKEW * s.arcCount;
+}
+
+/**
+ * The forward body of the next batch: pinned, or under "auto" edge-parallel once the last batch was shallow on an
+ * eligible snapshot; always the frontier body when there are no edges to run edge-parallel over.
  * @param pinned - the tuning's pin
  * @param previousLevels - the last batch's levels, -1 before the first
  * @param n - the node count
- * @param exact - the exact kernels (forwardEdge null when there are no edges)
+ * @param exact - the exact kernels (forwardEdge null when there are no edges, or when "auto" never runs it)
  * @returns the form
  */
 function forwardForm(pinned: ForwardForm | "auto", previousLevels: number, n: number, exact: ModeKernels): ForwardForm {
@@ -733,7 +756,7 @@ async function runRaw(
     assertWholeCore(core, s.arcCount, ctx.caps.limits.maxStorageBufferBindingSize, ALGORITHM);
     const { edgeCount } = s;
     // the edge-parallel form runs only when pinned, or from the second batch on: a one-batch run never uploads the view
-    const mayRunEdge = pinned === "edge" || (pinned === "auto" && sources.length > kMax);
+    const mayRunEdge = pinned === "edge" || (pinned === "auto" && sources.length > kMax && edgeParallelEligible(s));
     const edgeView = mayRunEdge && edgeCount > 0 ? ctx.residency.view(s, "edgeList") : null;
     const scope = algorithmScope(ctx, ALGORITHM, RING_SLOTS);
     try {

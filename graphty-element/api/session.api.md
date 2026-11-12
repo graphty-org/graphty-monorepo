@@ -708,6 +708,96 @@ export interface ComponentStatistics {
 }
 
 // @public
+export type Condition<F extends ConditionField = ConditionField> = {
+    readonly type: "number";
+    readonly key: string;
+    readonly field: F;
+    readonly match: "range" | "top" | Presence;
+    readonly min?: number;
+    readonly max?: number;
+    readonly top?: number;
+    readonly from?: "high" | "low";
+    readonly percent?: boolean;
+} | {
+    readonly type: "category";
+    readonly key: string;
+    readonly field: F;
+    readonly match: "values" | Presence;
+    readonly values: readonly string[];
+    readonly gaps: boolean;
+} | {
+    readonly type: "text";
+    readonly key: string;
+    readonly field: F;
+    readonly match: ConditionTextMode | Presence | "list";
+    readonly text: string;
+    readonly caseSensitive: boolean;
+    readonly ids?: readonly string[];
+} | {
+    readonly type: "date";
+    readonly key: string;
+    readonly field: F;
+    readonly match: "before" | "after" | "between" | Presence;
+    readonly min?: number;
+    readonly max?: number;
+} | {
+    readonly type: "yes-no";
+    readonly key: string;
+    readonly field: F;
+    readonly match: "yes" | "no" | "unset" | Presence;
+} | {
+    readonly type: "source";
+    readonly key: string;
+    readonly field: F;
+    readonly sources: readonly SourceKey[];
+} | {
+    readonly type: "ends";
+    readonly key: "ends";
+    readonly reading: "clipped" | "incident";
+} | {
+    readonly type: "fixed";
+    readonly key: string;
+    readonly leaf: RuleTree | null;
+    readonly selector?: Selector_2;
+    readonly repeat?: true;
+};
+
+// @public
+export const CONDITION_SOURCE_PATH = "@source";
+
+// @public
+export interface ConditionField {
+    readonly kind: ConditionFieldKind;
+    readonly on: "node" | "edge";
+    readonly path: string;
+    readonly range?: {
+        readonly min: number;
+        readonly max: number;
+    };
+}
+
+// @public
+export type ConditionFieldKind = ReadableValueKind | "name" | "source" | "date";
+
+// @public
+export function conditionFields(session: GraphSession, on: "node" | "edge"): ListedConditionField[];
+
+// @public
+export const conditionKey: (field: Pick<ConditionField, "on" | "path">) => string;
+
+// @public
+export function conditionLeaf(condition: Condition): RuleTree | null;
+
+// @public
+export function conditionOf<F extends ConditionField>(leaf: RuleTree, fields: readonly F[], at: number): Condition<F>;
+
+// @public
+export function conditionSelector(conditions: readonly Condition[], ends?: readonly RuleTree[]): Selector_2;
+
+// @public
+export type ConditionTextMode = "substring" | "starts-with" | "ends-with" | "exact";
+
+// @public
 export interface CostBasis {
     readonly derivationSeconds: number;
     readonly edges: number | null;
@@ -903,6 +993,9 @@ export interface DraftTable {
     readonly rowCount: number;
     readonly weightCandidate?: string;
 }
+
+// @public
+export function edgeConditions<F extends ConditionField>(selector: Selector_2, fields: readonly F[]): Condition<F>[];
 
 // @public
 export type EdgeEnd = "source" | "target";
@@ -2814,6 +2907,9 @@ export function isAlgorithmRunCommand(value: unknown): value is AlgorithmRunComm
 export function isAssetId(value: unknown): value is AssetId;
 
 // @public
+export const isConditionFinished: (condition: Condition) => boolean;
+
+// @public
 export function isGraphtyError(value: unknown): value is GraphtyErrorFor;
 
 // @public
@@ -3207,6 +3303,13 @@ export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn">>
 // @public
 export function listAutosaves(key: string, options?: AutosaveLookupOptions): Promise<readonly AutosaveEntry[]>;
 
+// @public
+export interface ListedConditionField extends ConditionField {
+    readonly from: ReadableValue["from"] | "source";
+    readonly integer?: true;
+    readonly value?: ReadableValue;
+}
+
 export { listSources }
 
 // @public
@@ -3596,6 +3699,17 @@ export type NetworkRequestAsker = "file" | "ai" | "data" | "source" | "supplied"
 
 // @public
 export type NetworkRequestKind = "model" | "texture" | "source";
+
+// @public
+export function newCondition<F extends ConditionField>(field: F): Exclude<Condition<F>, {
+    type: "fixed" | "ends";
+}>;
+
+// @public
+export function nodeConditionLeaves(selector: Selector_2): readonly RuleTree[] | null;
+
+// @public
+export function nodeConditions<F extends ConditionField>(selector: Selector_2, fields: readonly F[]): Condition<F>[];
 
 // @public
 export type NodeId = string | number;
@@ -5623,6 +5737,10 @@ export interface SessionDataApi {
     checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
     clear(): Promise<void>;
     collapse(id: NodeId_2): Promise<CollapseResult>;
+    count(): {
+        readonly nodes: number;
+        readonly edges: number;
+    };
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
     edge(id: EdgeId): EdgeRecord | undefined;
     edgePage(options: EdgePageOptions & {

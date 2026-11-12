@@ -69,6 +69,7 @@ import {
     graphOverrides,
     kernelSpec,
 } from "../kernels.js";
+import { type CoreBinding } from "../memory/residency.js";
 import { prepareAdvance } from "../primitives/advance.js";
 import { prepareCompact } from "../primitives/compact.js";
 import { coreOfView, coreWindows } from "../primitives/core-shape.js";
@@ -94,9 +95,9 @@ const NEXT_DEGREE_MAX_GROUPS = 128;
  * `bfs-contract`, the bits `fill`, `bfs-bitset-build`) and four re-issued once per arc window (`advance-expand`,
  * `bfs-fused`, the fused retry, `bfs-bottom-up`). The driver as built writes fewer -- the contract and the bitset
  * build share one window-free record, a window's two fused dispatches share one, the bits fill has one record per
- * submit, `bfs-next-degree` has one window-free record of its own (issue #391), and a directed snapshot's reverse
- * view is one window whatever the forward core's count -- so at most `4 + 3 x windows` per level, and the bound
- * holds with room. The 16 covers the per-submit rebuild
+ * submit, `bfs-next-degree` has one window-free record of its own (issue #391), and the sweep has one record per window
+ * of the reverse core, which a directed snapshot windows on its own (issue #471) -- so with `windows` the larger of
+ * the two cores' counts, at most `4 + 3 x windows` per level, and the bound holds with room. The 16 covers the per-submit rebuild
  * (`bfs-unvisited-flags` and `compact`, whose scan is at most 9 dispatches for any n below 2^32, so 10, plus the
  * bits fill). The result batch flushes in its own submit, so the ring must hold IT too, and its size grows with `n`,
  * not with the cadence: the iota `fill`, the radix sort's four passes of one record plus its scan's `2 x levels - 1`
@@ -108,7 +109,7 @@ const NEXT_DEGREE_MAX_GROUPS = 128;
  * batches. At one window and `MAX_LEVELS_PER_SUBMIT` it is P8-T6's 304; test/device/constants.test.ts pins the
  * arithmetic.
  * @internal
- * @param windows - the forward core's arc windows (1 when it is not windowed)
+ * @param windows - the larger of the forward and the reverse core's arc window counts (1 when neither is windowed)
  * @param levelsPerSubmit - the levels recorded per submit
  * @returns the ring's slot count
  */
@@ -275,24 +276,20 @@ function checkBfsArgs(source: number, n: number, tuning: BfsTuning): number {
 }
 
 /**
- * Refuses a directed snapshot whose reverse adjacency exceeds one binding: the bottom-up sweep binds the reverse
- * VIEW whole, which spec 4.3 never windows.
+ * The core the bottom-up sweep walks in-neighbours over: on an undirected snapshot the forward core itself
+ * (graph-format invariant I7; P7's residency aliases them, so a windowed core's windows ARE the reverse's), on a
+ * directed one the reverse view, bound whole while its colIdx fits one binding and as a windowed core above that
+ * (issue #471), so the sweep runs once per reverse window.
  * @param ctx - the context
  * @param s - the snapshot
+ * @param core - the forward core
+ * @returns the reverse core
  */
-function assertReverseFits(ctx: GpuContext, s: GraphSnapshot): void {
-    if (s.directed && 4 * s.arcCount > ctx.caps.limits.maxStorageBufferBindingSize) {
-        throw new WebGpuGraphError(
-            "E_TOO_LARGE",
-            `${ALGORITHM}: the reverse adjacency of a directed snapshot (${4 * s.arcCount} bytes) needs arc windows, which no view executes (spec 4.3); the bottom-up sweep binds it whole`,
-            {
-                needed: 4 * s.arcCount,
-                limit: ctx.caps.limits.maxStorageBufferBindingSize,
-                path: "windowed",
-                algorithm: ALGORITHM,
-            },
-        );
+function reverseCore(ctx: GpuContext, s: GraphSnapshot, core: CoreBinding): CoreBinding {
+    if (!s.directed) {
+        return core;
     }
+    return ctx.residency.reverseWindowed(s) ?? coreOfView(ctx.residency.view(s, "reverse"), s.arcCount);
 }
 
 /** The readbacks `onLevel` reads after a submit. */
@@ -432,18 +429,17 @@ export async function bfsWithTuning(
     // a windowed core (colIdx above the binding limit) is executed, not refused (P8-T12 lifts DEP-P8-E): every
     // frontier-walking kernel is dispatched once per arc window with the window's owned range in its record
     const forward = coreWindows(core);
-    // the bottom-up sweep walks in-neighbours over the reverse core: on an undirected snapshot the forward arrays
-    // themselves (graph-format invariant I7; P7's residency aliases them, so a windowed core's windows ARE the
-    // reverse's), on a directed one the reverse VIEW, which spec 4.3 never windows -- so a directed snapshot whose
-    // reverse adjacency exceeds one binding is refused here, as the residency refuses the undirected view, instead
-    // of failing at the device's bind-group validation
-    assertReverseFits(ctx, s);
-    const reverse = s.directed ? coreOfView(ctx.residency.view(s, "reverse"), s.arcCount) : core;
+    // the bottom-up sweep walks in-neighbours over the reverse core, windowed like the forward one when it must be
+    const reverse = reverseCore(ctx, s, core);
     const backward = coreWindows(reverse);
     // the two degree views: in-degrees for the unvisited rebuild and both for bfs-next-degree (P8-T8, issue #1358)
     const outDegree = degreeView(ctx, s, "outDegree");
     const inDegree = degreeView(ctx, s, "inDegree");
-    const scope = algorithmScope(ctx, ALGORITHM, bfsRingSlots(forward.length, levelsPerSubmit));
+    const scope = algorithmScope(
+        ctx,
+        ALGORITHM,
+        bfsRingSlots(Math.max(forward.length, backward.length), levelsPerSubmit),
+    );
     tuning.onScope?.(scope);
     try {
         const bytes = 4 * n;

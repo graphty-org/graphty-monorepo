@@ -19,8 +19,8 @@ interface FileAccessWindow {
 
 /** A handle's permission calls, also missing from TypeScript's DOM library. */
 interface PermissionHandle {
-    queryPermission?: (options: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
-    requestPermission?: (options: { mode: "read" | "readwrite" }) => Promise<PermissionState>;
+    queryPermission?: (options: { mode: "read" }) => Promise<PermissionState>;
+    requestPermission?: (options: { mode: "read" }) => Promise<PermissionState>;
 }
 
 /**
@@ -41,7 +41,8 @@ function isCancel(error: unknown): boolean {
 }
 
 /**
- * Reads a remembered file, asking the reader's permission again where the browser wants it. Must
+ * Reads a remembered file, asking the reader's permission to read it again where the browser wants
+ * it -- read only, since nothing writes through a handle, so Chromium never asks to edit it. Must
  * run inside the click that asked for it, because asking for permission needs one.
  * @param handle - the file.
  * @returns the file, or null when the browser can no longer read it (moved, deleted, refused).
@@ -49,8 +50,8 @@ function isCancel(error: unknown): boolean {
 export async function readHandle(handle: FileSystemFileHandle): Promise<File | null> {
     const permission = handle as unknown as PermissionHandle;
     try {
-        const state = (await permission.queryPermission?.({ mode: "readwrite" })) ?? "granted";
-        if (state !== "granted" && (await permission.requestPermission?.({ mode: "readwrite" })) !== "granted") {
+        const state = (await permission.queryPermission?.({ mode: "read" })) ?? "granted";
+        if (state !== "granted" && (await permission.requestPermission?.({ mode: "read" })) !== "granted") {
             return null;
         }
         return await handle.getFile();

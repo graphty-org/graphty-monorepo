@@ -51,7 +51,7 @@ export const STORIES = ["force-atlas-2", "fruchterman-reingold", "spring-electri
     [2000, 10000, 50000].map((n) => `${layout}-at-${n}`),
 );
 /** The story folders' id prefixes, newest first: "Large graphs", and the older "Demo/Force Layouts By Size". */
-export const FOLDERS = ["large-graphs", "demo-force-layouts-by-size"];
+export const FOLDERS = ["gallery-large-graphs", "large-graphs", "demo-force-layouts-by-size"];
 export const REFERENCES = join(PKG, "test/gpu-screenshots");
 
 /** webgpu-graph-algorithms' NVIDIA flag set (vitest.config.ts BROWSER_FLAGS.nvidia), then CPU raster and the capture's text settings. */

@@ -37,5 +37,6 @@ stories out (`disableSnapshot` on their meta in `stories/LargeGraphs.stories.ts`
   `test/gpu-screenshots/`, and put the `hold` label on the pull request: only the owner approves new reference
   images, and the pull request merges once they have looked. Nothing else ever writes them, and CI never runs
   `--update`.
-- **Story ids:** the stories are found by name in either folder, "Large graphs" (`large-graphs--<name>`) or the
-  older "Demo/Force Layouts By Size"; `STORIES` and `FOLDERS` at the top of the script are the one list.
+- **Story ids:** the stories are found by name in the "Gallery/Large graphs" folder
+  (`gallery-large-graphs--<name>`) or one of its older names; `STORIES` and `FOLDERS` at the top of the script are the
+  one list.

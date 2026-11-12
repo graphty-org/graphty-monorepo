@@ -11,9 +11,6 @@ export type Home = { readonly place: string } | { readonly notOffered: string };
 const at = (place: string): Home => ({ place });
 const no = (notOffered: string): Home => ({ notOffered });
 
-/** A channel golden added after the unified Style panel was designed; the panel has no row for it yet. */
-const NOT_PLACED = no("added to graphty-element after the Style panel's design; no row for it yet");
-
 /** Every channel, by where the Style tab sets it. */
 export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.color": at("Nodes, Fill, Color"),
@@ -47,7 +44,9 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.haloScale": at("Nodes, Shape, Halo size"),
     "node.haloOpacity": at("Nodes, Shape, Halo opacity"),
     "node.flat": at("Nodes, Shape, Flat shading"),
-    "node.marker": no("graphty-element refuses it"),
+    "node.marker": no(
+        "graphty-element refuses it: accepts 'nothing' and renderable is false, so no control could set it",
+    ),
     "node.sizeMode": at("Nodes, Shape, Size settings, Mode"),
     "node.labelFont": at("Nodes, Label settings, Type, Font (varies by a value)"),
     "node.labelWeight": at("Nodes, Label settings, Type, Weight (varies by a value)"),
@@ -450,7 +449,7 @@ export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
     enabled: at("Label entry, eye (off draws no label here)"),
     sizePx: at("Label entry, size (through the label size channel)"),
     sizeMode: at("Label settings, Type, Size in"),
-    size: no("the panel sets the size as sizePx, Label settings, Type, Size"),
+    size: no("the same size is set as sizePx in Label settings, Type, Size (a value the panel sets another way)"),
     italic: TYPE,
     keepInView: PLACEMENT,
     panelShadow: BOX,
@@ -629,18 +628,18 @@ export const GRAPH_SETTING_HOMES: Readonly<Record<string, Home>> = {
     "selection.edgeColor": at("Selected row, Effects, Band"),
     "selection.edgeScale": at("Selected row, Effects, Band settings"),
     "selection.edgeOpacity": at("Selected row, Effects, Band settings"),
-    viewMode: no("not a style: the toolbar's 2D / 3D"),
+    viewMode: no("not a style: the toolbar's 2D / 3D sets it"),
     lighting: at("Graph settings, Canvas, Lighting"),
     "layoutBehavior.labels": at("Graph settings, Labels"),
     "layoutBehavior.node.depthIndependentSize": at("Graph settings, Canvas, Same size at any depth"),
     highlightColor: at("Graph settings, Canvas, Highlight color"),
     "layoutBehavior.node.outlineWidth": at("Graph settings, Canvas, Outline width"),
-    twoD: no("deprecated: View sets it"),
-    addDefaultStyle: no("ignored by graphty-element"),
-    startingRows: no("a project setting, not a style"),
-    startingCameraDistance: no("not a style: the camera"),
-    layout: no("not a style: the toolbar's Layout"),
-    layoutOptions: no("not a style: the toolbar's Layout"),
+    twoD: no("deprecated alias of viewMode; the toolbar's View sets it"),
+    addDefaultStyle: no("accepted and ignored by graphty-element (GraphStyle.ts says so); setting it changes nothing"),
+    startingRows: no("a project setting copied to the renderer, set from project settings, not a style"),
+    startingCameraDistance: no("the camera, not a style"),
+    layout: no("not a style: the toolbar's Layout sets it"),
+    layoutOptions: no("not a style: the toolbar's Layout sets it"),
 };
 
 /**

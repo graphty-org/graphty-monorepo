@@ -6,6 +6,7 @@ import {
     COLOR_BRANCHES,
     DESIGN_PLACED,
     GRAPH_SETTING_HOMES,
+    type Home,
     homeless,
     LABEL_FIELD_HOMES,
     noVaryReason,
@@ -80,7 +81,45 @@ const VARIED = (["node", "edge"] as const).flatMap((side) =>
  */
 const PLACED = new Set<string>([...DRAWN, ...ALL_SECTIONS.flatMap((section) => section.inner ?? []), ...VARIED]);
 
+/**
+ * The only styles the panel may leave without a control, each for a reason no control could fix.
+ * Every other channel, label style field and graph setting has an `at(...)` home, so a channel
+ * graphty-element adds later fails here until the panel draws a control for it.
+ */
+const NOT_OFFERED = [
+    "node.marker",
+    "label field size",
+    "viewMode",
+    "twoD",
+    "addDefaultStyle",
+    "startingRows",
+    "startingCameraDistance",
+    "layout",
+    "layoutOptions",
+];
+
+/**
+ * The names a home map marks "not offered".
+ * @param homes - the map.
+ * @param prefix - put before each name, to tell label fields from channels.
+ * @returns the names, in the map's order.
+ */
+function notOfferedIn(homes: Readonly<Record<string, Home>>, prefix = ""): string[] {
+    return Object.entries(homes).flatMap(([name, home]) => ("notOffered" in home ? [prefix + name] : []));
+}
+
 describe("every style has a home", () => {
+    it("gives every style a control except the few no control could set", () => {
+        assert.deepEqual(
+            [
+                ...notOfferedIn(CHANNEL_HOMES),
+                ...notOfferedIn(LABEL_FIELD_HOMES, "label field "),
+                ...notOfferedIn(GRAPH_SETTING_HOMES),
+            ],
+            NOT_OFFERED,
+        );
+    });
+
     it("gives every channel graphty-element publishes a control or a reason", () => {
         assert.deepEqual(homeless(CHANNELS, CHANNEL_HOMES), []);
     });

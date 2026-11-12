@@ -1401,14 +1401,13 @@ class Writer implements GraphWriter {
         }
 
         bumpFields(this.store, "edge", undefined, record, this.bumped);
-        const ranged = this.entry !== null && this.graph.touchesRanges;
-        this.record(
-            { kind: "edge", edgeId, source, target, weight, record, created, fileId },
-            ranged ? null : edgeKey(edgeIdOf(edgeId)),
-            EDGES_ADDED,
-        );
-        if (ranged) {
+        const op: GraphOp = { kind: "edge", edgeId, source, target, weight, record, created, fileId };
+        if (this.entry !== null && this.graph.touchesRanges) {
+            // The run marks its edges, and the rows they add and move, once per run, not per edge.
+            this.entry.push(op);
             this.extendRun(edgeId);
+        } else {
+            this.record(op, edgeKey(edgeIdOf(edgeId)), EDGES_ADDED);
         }
 
         return { index, edgeId };
@@ -1631,7 +1630,8 @@ class Writer implements GraphWriter {
 
     /**
      * Add an edge to the run of consecutive edges this writer is marking as one range key, or
-     * start a new run when it does not follow on or a pass already read the run's key.
+     * start a new run when it does not follow on or a pass already read the run's key. A new run
+     * also marks the rows added and moved, which a pass reading the run's key has cleared.
      * @param edgeId - The edge's counter.
      */
     private extendRun(edgeId: number): void {
@@ -1643,6 +1643,8 @@ class Writer implements GraphWriter {
 
         const next = { first: edgeId, count: 1, read: false };
         this.run = next;
+        this.graph.touch(EDGES_ADDED);
+        this.graph.touch(ROWS_MOVED);
         this.graph.touchLater(() => {
             next.read = true;
             return edgeRangeKey(next.first, next.count);
@@ -1669,18 +1671,16 @@ class Writer implements GraphWriter {
     /**
      * Keep an op in the entry, and mark its key dirty, when the writer records.
      * @param op - The op.
-     * @param key - Its lane key, or null when the caller marks it (an edge in a range).
+     * @param key - Its lane key.
      * @param rows - The key marking the rows it added, or null.
      */
-    private record(op: GraphOp, key: string | null, rows: string | null): void {
+    private record(op: GraphOp, key: string, rows: string | null): void {
         if (this.entry === null) {
             return;
         }
 
         this.entry.push(op);
-        if (key !== null) {
-            this.graph.touch(key);
-        }
+        this.graph.touch(key);
 
         if (rows !== null) {
             this.graph.touch(rows);

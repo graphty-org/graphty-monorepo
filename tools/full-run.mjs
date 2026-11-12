@@ -878,6 +878,7 @@ function approvalMerged(held) {
  * attempt keeps attempt 1's pick outputs, and another run may have held its commit since.
  * @param cfg the store's settings
  * @param env the environment (SHA, HELD)
+ * @param o the verdict
  * @param o.state this run's verdict
  * @param o.decides whether the verdict decides (not a deferred attempt 1, not a failed pick)
  * @returns `{ now, hold }`: the store's hold (heldNow) and holdAction's answer

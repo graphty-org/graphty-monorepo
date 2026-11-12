@@ -14,6 +14,7 @@ import { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import type { EdgePaint } from "../../src/managers/StylePainter";
+import { EdgeRowLines } from "../../src/meshes/EdgeRowLines";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { edgeBetween } from "../helpers/testSetup";
 import { pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
@@ -483,6 +484,23 @@ describe("an edge loaded with no switch", () => {
         assert.isFalse(dm.drawHeld);
         assert.equal(dataManagerInternals.edgesBuilt(dm), 0);
         assert.equal(element.graph.getEdgeRowLines()?.count, 2);
+    });
+
+    // A million-edge load decided one shared style a million times, by a pass over its keys and a color parse per
+    // edge (cosmos-gap.md G8): rows painted with the same style decide it once.
+    it("decides a style its rows share once", async () => {
+        const element = await lazyLoaded([], true, { switched: false });
+        const decided = vi.spyOn(EdgeRowLines.prototype as unknown as { drawsStyle: () => boolean }, "drawsStyle");
+        await element.session.data.addEdges([
+            { src: 0, dst: 1 },
+            { src: 1, dst: 2 },
+            { src: 0, dst: 2 },
+        ]);
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 0);
+        assert.equal(element.graph.getEdgeRowLines()?.count, 3);
+        assert.equal(decided.mock.calls.length, 1);
     });
 
     it("is found between its nodes, building its Edge", async () => {

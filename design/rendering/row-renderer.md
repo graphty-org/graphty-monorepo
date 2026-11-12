@@ -1175,6 +1175,15 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   other id joins; it is taken only while the builder holds no removed row. Under `"objects"` every node is added by
   id as before. The snapshot's id map is the same either way (a run of row numbers freezes as `identity` on both
   paths), so nothing downstream sees the difference (`test/session/import-columns.test.ts`).
+  Released staging (measured, sixth pull request of stage 28, not built): after a batched `importColumns` load of
+  100,000 nodes and 1,000,000 edges, the builder's staging holds 22.2 MB, and the same after the first freeze:
+  `src`, `dst`, `nextOut`, `nextIn` and `weight` at 4.2 MB each (four bytes an edge, no growth slack), `firstOut`
+  and `firstIn` at 0.5 MB, no node or edge columns (`tmp/stage-28/staging-bytes.test.ts` in that pull request's
+  worktree, happy-dom, 2026-11-12). Correction: the 400 MB target does not hinge on it. Releasing it frees at most
+  22 MB of 400 (5.5%), while the store keeps editing that builder after every load, so the first edit after a load
+  would rebuild the staging from the snapshot, a pass over every edge. It is left for stage 30's harness run to
+  decide, as stage 29 is. Of those 22 MB, `weight` (4.2 MB) is held even for input with no weights: the store adds
+  every edge with an explicit weight (`weightMode` "explicit").
 - **The load's position publish is already one typed write.** The 2026-11-09 profile credits 1.0 s of the 100k + 1M
   load to `publishPositions` in the derivation pass's position hook. Correction: the publish itself (`publishComputed`)
   is 9 ms and already writes the position column whole. The second is the fixed layout's first run reading its graph:
@@ -1419,7 +1428,7 @@ Labels
   Stage 8 found one candidate, untested as the cause: with no `preferredHandedness`, Babylon casts from one controller only, whichever attached
   first, so a test that aims one controller can miss. `node-batch-xr.test.ts` aims both.
   Hand-tracked pinch, AR and translucent batches were not run.
-- **Heap at a million is 850-920 MB by estimate** against 800 MB, before 20-byte batches and released staging. Holders at 100,000 are scaled
+- **Heap at a million is 850-920 MB by estimate** against 800 MB, before 20-byte batches and released staging (the staging is 22 MB at a million edges, section 4.6). Holders at 100,000 are scaled
   from 50,000, because the snapshot crashed the renderer.
 - **`Node.roundRadiusMesh`** (`Node.ts:776`) kept about 183 MB of replaced meshes alive in a sparse 30,000-node graph: probably a defect today.
 - **`engine._device`, `_readPixelsAsync` and stage 39's engine overrides are Babylon internals**, each behind one tested function, and a

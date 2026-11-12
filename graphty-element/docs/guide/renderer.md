@@ -76,7 +76,10 @@ that would fail. Keep the default renderer on a page that offers VR or AR.
 WebAssembly modules, glslang and twgsl, which it fetches from `https://cdn.babylonjs.com` the first
 time a WebGPU graph opens on the page, about 1 MB together. The element fetches them before it
 draws, so a page whose Content Security Policy or network blocks that host draws with WebGL and
-says so in `rendererStatus.reason`, rather than drawing a graph with no edges.
+says so in `rendererStatus.reason`, rather than drawing a graph with no edges. To serve them yourself,
+copy `glslang/glslang.js`, `glslang/glslang.wasm`, `twgsl/twgsl.js` and `twgsl/twgsl.wasm` from
+`https://cdn.babylonjs.com/v<babylon version>/` to your own host and point Babylon.js at it before the
+graph opens: `Tools.ScriptBaseUrl = "https://example.com/babylon"` (`Tools` from `@babylonjs/core`).
 
 ## One device for drawing and layout
 
@@ -138,6 +141,22 @@ when they change. On the default `"objects"` path `limits` is ignored, the eleme
 `limits-warning` with the code `W_LIMITS_IGNORED`, and the 100,000 and 1,000,000 stand. Changing
 `renderPath` to `"objects"` while the graph holds more than those is refused: the element fires
 `error` with `E_TOO_LARGE` and stays on `"batched"`.
+
+A node whose look no batch can draw (a border, a model, a picture) or an edge with an arrow head,
+a dash or a label is drawn as an object of its own, which costs far more memory. `limits` also
+caps how many of those there are: `objectRows` for nodes and `objectEdges` for edges, by default
+100,000 and 1,000,000. Past a cap, later nodes are drawn as plain bodies and later edges as plain
+lines, and the element fires `limits-warning` with the code `W_OBJECT_CAP` and
+`{ of, wanted, cap }`:
+
+```js
+graph.limits = { renderCeiling: 1_000_000, objectRows: 50_000 };
+graph.addEventListener("limits-warning", (event) => {
+    if (event.detail.code === "W_OBJECT_CAP") {
+        console.log(event.detail.params); // { of: "nodes", wanted: 1000000, cap: 50000 }
+    }
+});
+```
 
 ## Smoothing (antialias)
 

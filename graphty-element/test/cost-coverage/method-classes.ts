@@ -1117,6 +1117,7 @@ export const READ_ONLY: readonly string[] = [
     "SessionDataApi.valueCounts",
     "SessionDataApi.lastImport",
     "SessionDataApi.checkSource",
+    "SessionDataApi.count",
     "SessionDataApi.listSource",
     "SessionDataApi.loads",
     "SessionDataApi.loadedWeight",

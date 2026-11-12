@@ -198,30 +198,72 @@ export function measureEnvelope(
     scalingFactor: number,
     held: ((row: number) => boolean) | null = null,
 ): LayoutEnvelope {
-    let placed = 0;
-    let cx = 0;
-    let cy = 0;
-    let cz = 0;
+    // ONE LOOP PER FUNCTION, ITS SUMS KEPT IN A TYPED ARRAY. This runs once a publish, so V8 optimizes
+    // it on the stack mid-loop (OSR), and code after a loop that had not yet run when it was compiled
+    // threw that code away again, every call: the rest of the walk then ran unoptimized, boxing a heap
+    // number per coordinate, about 300 KB of garbage a publish at 100,000 rows (issue #6389).
+    sumPlaced(positions, nodeCount, held, ENVELOPE_SUMS);
+    const placed = ENVELOPE_SUMS[0];
+    if (placed === 0) {
+        return { scale: 1, centre: [0, 0, 0], placed };
+    }
+
+    const cx = ENVELOPE_SUMS[1] / placed;
+    const cy = ENVELOPE_SUMS[2] / placed;
+    const cz = ENVELOPE_SUMS[3] / placed;
+    const radius = Math.sqrt(furthestSquared(positions, nodeCount, held, cx, cy, cz));
+    return { scale: radius > POINT_RADIUS ? scalingFactor / radius : 1, centre: [cx, cy, cz], placed };
+}
+
+/** The count and coordinate sums {@link sumPlaced} writes: placed, x, y, z. */
+const ENVELOPE_SUMS = new Float64Array(4);
+
+/**
+ * Count and sum the finite rows not held, into `out` (placed, x, y, z), accumulated in place so no
+ * code runs after the loop.
+ * @param positions - A stride-3 array.
+ * @param nodeCount - How many rows of it.
+ * @param held - Answers true for a row to leave out, or null.
+ * @param out - Where the sums go.
+ */
+function sumPlaced(
+    positions: ArrayLike<number>,
+    nodeCount: number,
+    held: ((row: number) => boolean) | null,
+    out: Float64Array,
+): void {
+    out.fill(0);
     for (let row = 0; row < nodeCount; row += 1) {
         const x = positions[3 * row];
         const y = positions[3 * row + 1];
         const z = positions[3 * row + 2];
         if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z) && held?.(row) !== true) {
-            placed += 1;
-            cx += x;
-            cy += y;
-            cz += z;
+            out[0] += 1;
+            out[1] += x;
+            out[2] += y;
+            out[3] += z;
         }
     }
+}
 
-    if (placed === 0) {
-        return { scale: 1, centre: [0, 0, 0], placed };
-    }
-
-    cx /= placed;
-    cy /= placed;
-    cz /= placed;
-
+/**
+ * The largest squared distance of a row not held from a centre.
+ * @param positions - A stride-3 array.
+ * @param nodeCount - How many rows of it.
+ * @param held - Answers true for a row to leave out, or null.
+ * @param cx - The centre's x.
+ * @param cy - The centre's y.
+ * @param cz - The centre's z.
+ * @returns The squared distance, 0 for none.
+ */
+function furthestSquared(
+    positions: ArrayLike<number>,
+    nodeCount: number,
+    held: ((row: number) => boolean) | null,
+    cx: number,
+    cy: number,
+    cz: number,
+): number {
     let furthest = 0;
     for (let row = 0; row < nodeCount; row += 1) {
         if (held?.(row) === true) {
@@ -237,8 +279,7 @@ export function measureEnvelope(
         }
     }
 
-    const radius = Math.sqrt(furthest);
-    return { scale: radius > POINT_RADIUS ? scalingFactor / radius : 1, centre: [cx, cy, cz], placed };
+    return furthest;
 }
 
 /**

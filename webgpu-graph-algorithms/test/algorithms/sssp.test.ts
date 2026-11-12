@@ -18,17 +18,25 @@
  * real kernels.
  */
 
-import { type F32, type GraphSnapshot, INVALID_INDEX, type NumericVector } from "@graphty/graph-format";
+import { type F32, type GraphSnapshot, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
 import { type TestContext } from "vitest";
 
 import { breadthFirstSearch } from "../../src/algorithms/bfs.js";
-import { sssp, type SsspTuning, ssspWithTuning } from "../../src/algorithms/sssp.js";
+import { predBufferWords, sssp, type SsspTuning, ssspWithTuning } from "../../src/algorithms/sssp.js";
 import { MAX_LEVELS_PER_SUBMIT } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
 import { type WebGpuGraphError } from "../../src/errors.js";
+import { CommandBatch } from "../../src/kernel/batch.js";
+import { plan1d } from "../../src/kernel/dispatch.js";
 import { type UniformValues } from "../../src/kernel/struct-block.js";
+import { UniformRing } from "../../src/kernel/uniform-ring.js";
+import { FRONTIER_PARAMS, kernelSpec } from "../../src/kernels.js";
+import { GraphResidency } from "../../src/memory/residency.js";
 import { type SsspOptions } from "../../src/types/accelerator.js";
 import { type GpuSsspResult } from "../../src/types/traversal.js";
+import { fakeCaps } from "../helpers/caps-tables.js";
+import { withResidency } from "../helpers/degree-check.js";
+import { bindingOf, readU32, uploadBuffer } from "../helpers/device.js";
 import {
     completeEdges,
     type EdgeSpec,
@@ -44,7 +52,7 @@ import {
 } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { adapterClass, recordNoiseRow, writeNoiseFixture } from "../helpers/noise-floor.js";
-import { assertCheckPasses } from "../helpers/sabotage.js";
+import { assertCheckPasses, withSabotage } from "../helpers/sabotage.js";
 import {
     absorbPath,
     distBits,
@@ -156,6 +164,70 @@ function overrideOf(
         out[a] = draw(random());
     }
     return out;
+}
+
+/** What the hand-bound predecessor pass over the window [1, 3) must write: arc 1 (0 -> 2, weight 1) explains dist[2]. */
+const PRED_OVER_WINDOW = Uint32Array.of(INVALID_INDEX, INVALID_INDEX, 1);
+
+/**
+ * The f32-mode predecessor pass (role 2, every hop count 0) hand-bound over ONE window of a three-node CSR -- arcs
+ * 0: 0 -> 1 (w 5), 1: 0 -> 2 (w 1), 2: 1 -> 2 (w 7), dist [0, 5, 1] -- with `arcBase` 1: colIdx and weights are bound
+ * as the window's slices, so only `weights[a - P.arcBase]` finds arc 1 tight (a kernel reading `weights[a]` sees 7).
+ * @param ctx - the context
+ * @returns pred[0, 3)
+ */
+async function predOverWindow(ctx: GpuContext): Promise<U32> {
+    const n = 3;
+    const predInit = new Uint32Array(predBufferWords(n));
+    predInit.fill(INVALID_INDEX, 0, n);
+    const buffers = [
+        uploadBuffer(ctx, Uint32Array.of(0, 2, 3, 3), "pred-window/rowPtr"),
+        uploadBuffer(ctx, Uint32Array.of(2, 2), "pred-window/colIdx"),
+        uploadBuffer(ctx, Float32Array.of(1, 7), "pred-window/weights"),
+        uploadBuffer(ctx, Float32Array.of(0, 5, 1), "pred-window/dist"),
+        uploadBuffer(ctx, predInit, "pred-window/pred"),
+    ];
+    const [rowPtr, colIdx, weights, dist, pred] = buffers;
+    const ring = new UniformRing(ctx.device, ctx.allocator, 1, "pred-window/ring");
+    try {
+        const kernel = await ctx.pipelines.kernel(
+            kernelSpec("sssp-pred", { USE_PERM: false, HAS_WEIGHTS: true, MODE: 0 }),
+        );
+        const wg = ctx.workgroupSize;
+        ring.write(0, FRONTIER_PARAMS, {
+            n,
+            wg,
+            stride: wg,
+            predKind: 0,
+            source: 0,
+            arcBase: 1,
+            arcEnd: 3,
+            mode: 0,
+            role: 2,
+            iteration: 0,
+        });
+        const bound = kernel.bind({
+            rowPtr: bindingOf(rowPtr),
+            colIdx: bindingOf(colIdx),
+            weights: bindingOf(weights),
+            perm: bindingOf(rowPtr),
+            dist: bindingOf(dist),
+            pred: bindingOf(pred),
+            P: ring.binding(FRONTIER_PARAMS),
+        });
+        const batch = new CommandBatch(ctx, "pred-window");
+        const pass = batch.pass("pred");
+        kernel.dispatch(pass, bound, plan1d(wg, wg, ctx.caps), [ring.offsetOf(0)]);
+        batch.endPass();
+        ring.flush();
+        await batch.submit().readback;
+        return await readU32(ctx, pred, n);
+    } finally {
+        ring.destroy();
+        for (const buffer of buffers) {
+            buffer.destroy();
+        }
+    }
 }
 
 describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
@@ -594,6 +666,47 @@ describe("sssp (design 8.4 / 9.7; P8-T9)", () => {
             samples,
         });
         expect(worst, "the spread vs the tolerance in use").toBeLessThanOrEqual(ssspTolerance().value);
+    });
+
+    it("the unit-weight route on a windowed core (issue #471): at a FAKED 256-byte binding limit (64 arcs a window) the unweighted karate, undirected and directed, gives dist, predArc and reachedCount bitwise the unwindowed run's", async (t) => {
+        const ctx = await context(t);
+        for (const directed of [false, true]) {
+            const s = snapshotOf(KARATE_EDGES, { directed, label: `karate-unit-windowed-${directed}` });
+            const caps = fakeCaps(ctx.caps, { maxStorageBufferBindingSize: 256 });
+            const residency = new GraphResidency(ctx.device, caps, ctx.allocator, { warnUnreleasedSnapshots: 2 });
+            try {
+                const faked = withResidency(ctx, residency);
+                expect(residency.core(s).plan, "the faked core is windowed").toBe("windowed");
+                for (const source of [0, s.nodeCount - 1]) {
+                    const label = `karate directed=${directed} from ${source}`;
+                    const whole = await sssp(ctx, s, source);
+                    const windowed = await sssp(faked, s, source);
+                    expectBitwiseEqual(distBits(windowed.dist), distBits(whole.dist), `${label}: dist`);
+                    expectBitwiseEqual(windowed.predArc, whole.predArc, `${label}: predArc`);
+                    expect(windowed.reachedCount, `${label}: reachedCount`).toBe(whole.reachedCount);
+                }
+            } finally {
+                residency.destroyAll();
+            }
+            ctx.release(s);
+        }
+    });
+
+    it("sssp-pred reads weights[a - P.arcBase] (issue #471): hand-bound over the window [1, 3) of a three-node graph, the predecessor pass names arc 1, and the weights[a] mutant does not", async (t) => {
+        const ctx = await context(t);
+        expectBitwiseEqual(await predOverWindow(ctx), PRED_OVER_WINDOW, "pred over the window [1, 3)");
+        const mutant = await withSabotage(
+            "sssp-pred",
+            {
+                name: "weights-unwindowed",
+                find: "let w = select(1.0, weights[a - P.arcBase], HAS_WEIGHTS);",
+                replace: "let w = select(1.0, weights[a], HAS_WEIGHTS);",
+                minFactor: 10,
+                test: "test/algorithms/sssp.test.ts",
+            },
+            predOverWindow,
+        );
+        expect(Array.from(mutant), "the weights[a] mutant").not.toEqual(Array.from(PRED_OVER_WINDOW));
     });
 
     it("the sabotage check passes on the real kernels (factor 0)", async (t) => {

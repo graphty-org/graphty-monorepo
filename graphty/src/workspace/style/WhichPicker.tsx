@@ -150,7 +150,7 @@ function pickRows(session: GraphSession, ids: readonly string[], side: Side): Pi
                 name,
                 layer,
                 cards,
-                nodes: nodeLayer === undefined ? [] : nodeLeaves(session, nodeLayer.selector),
+                nodes: nodeLayer === undefined ? [] : nodeLeaves(nodeLayer.selector),
                 ...(side === "node" && edgeLayer !== undefined ? { edge: edgeLayer } : {}),
                 ...(endsCard?.type === "ends" ? { ends: endsCard.reading } : {}),
             },

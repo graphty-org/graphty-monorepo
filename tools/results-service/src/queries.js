@@ -331,6 +331,7 @@ const BLOCKING = {
     "green-images": "waiting-for-screenshots",
     approved: "resume-due",
     rejected: "rejected",
+    refused: "refused",
     "green-clean": "promotable",
 };
 
@@ -386,7 +387,7 @@ export async function getReleaseState(q, who, db, now) {
         ? ((await db.prepare("SELECT built_at FROM site WHERE sha = ?").bind(nightly.sha).first())?.built_at ??
           nightly.movedAt - FULL_RUN_SLOT)
         : 0;
-    const last = states.findLast((s) => !["approved", "rejected"].includes(s.state));
+    const last = states.findLast((s) => !["approved", "rejected", "refused"].includes(s.state));
     const canary = await newestSite(db);
     const canaryVerdict = states.find((s) => s.sha === canary?.sha);
     const unpromoted = !!canary && !sameAsNightly(canary.sha, nightly?.sha, states) && canary.builtAt > nightlyBuilt;

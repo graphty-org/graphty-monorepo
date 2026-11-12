@@ -6561,6 +6561,11 @@ export class Graphty extends LitElement {
      * (`{ renderPath }`). A switch to `"objects"` while the graph is past the defaults is refused
      * with an `error` event carrying `E_TOO_LARGE`, and the path stays `"batched"`.
      * `session.capabilities.limits` reports the limits in force.
+     *
+     * `objectRows` and `objectEdges` (defaults 100,000 and 1,000,000) are how many nodes and edges
+     * may be drawn as objects of their own, for a look no batch draws (a border, an arrow head).
+     * Past either, later rows draw as plain bodies and plain lines, and `limits-warning` says so
+     * with `W_OBJECT_CAP` (`{ of, wanted, cap }`).
      * @returns The limits asked for.
      * @experimental cosmograph
      * @example

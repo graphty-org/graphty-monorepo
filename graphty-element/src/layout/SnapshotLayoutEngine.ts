@@ -253,13 +253,16 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
     /** Run the layout, or publish the asynchronous answer that has arrived for this graph. */
     doLayout(): void {
         this.stale = false;
-        const { graph } = this;
         const stored = this.sourceGraph;
+        // The undirected graph has the stored node rows. It is read only by a layout that reads
+        // it, so the fixed layout never makes the graph undirected.
+        const n = stored.nodeCount;
+        const graph = (): GraphSnapshot => super.graph;
 
         const ready = this.#ready;
         this.#ready = null;
         if (ready !== null && ready.stored === stored) {
-            this.result = this.#resultOf(ready.positions, graph);
+            this.result = this.#resultOf(ready.positions, n);
             this.#published = true;
             return;
         }
@@ -268,7 +271,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         const controller = new AbortController();
         const answer = this.compute(this.#input(graph, stored, controller));
         if (!(answer instanceof Promise)) {
-            this.result = this.#resultOf(answer, graph);
+            this.result = this.#resultOf(answer, n);
             this.#published = true;
             return;
         }
@@ -283,7 +286,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
 
                 this.#settle();
                 try {
-                    this.#resultOf(positions, graph);
+                    this.#resultOf(positions, n);
                 } catch (error) {
                     this.#host?.fail(error);
                     return;
@@ -377,11 +380,11 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
     /**
      * Check an answer's shape and hand it to `StaticLayoutEngine` as a layout result.
      * @param positions - the answer
-     * @param graph - the graph it arranges
+     * @param nodeCount - the rows of the graph it arranges
      * @returns the result
      */
-    #resultOf(positions: F32, graph: GraphSnapshot): LayoutResult {
-        const expected = this.dimensions * graph.nodeCount;
+    #resultOf(positions: F32, nodeCount: number): LayoutResult {
+        const expected = this.dimensions * nodeCount;
         if (!(positions instanceof Float32Array) || positions.length !== expected) {
             const answered =
                 positions instanceof Float32Array
@@ -397,18 +400,18 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             });
         }
 
-        return { positions, dim: this.dimensions, n: graph.nodeCount };
+        return { positions, dim: this.dimensions, n: nodeCount };
     }
 
     /**
      * Assemble what the layout is handed.
-     * @param graph - the undirected graph
+     * @param graph - reads the undirected graph, which is built on its first read
      * @param stored - the graph as stored
      * @param controller - the run's abort controller
      * @returns the input
      */
-    #input(graph: GraphSnapshot, stored: GraphSnapshot, controller: AbortController): SnapshotLayoutInput {
-        const n = graph.nodeCount;
+    #input(graph: () => GraphSnapshot, stored: GraphSnapshot, controller: AbortController): SnapshotLayoutInput {
+        const n = stored.nodeCount;
         const dim = this.dimensions;
         const positions = simpleLayoutInternals.positions(this);
         const initial = positions === null ? new Float32Array(dim * n).fill(Number.NaN) : this.#current(positions, n);
@@ -446,7 +449,9 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
             (nodes[row]?.data as Record<string | number, unknown> | undefined) ?? this.#host?.rowData?.(row);
         const { options } = this;
         return {
-            graph,
+            get graph(): GraphSnapshot {
+                return graph();
+            },
             stored,
             firstRun: !this.#published,
             weightMeaning: () => {
@@ -468,7 +473,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
                 // A run's result, or an attribute named the way an algorithm's option names one,
                 // is read through the session; a bare path is read from each node's own data.
                 if (path.startsWith("results.") || path.startsWith("data.")) {
-                    const read = this.#host?.column?.(graph, path);
+                    const read = this.#host?.column?.(graph(), path);
                     if (read !== undefined) {
                         return read;
                     }
@@ -599,7 +604,8 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
 
     #nodesByRow(n: number): (Node | undefined)[] {
         const out = new Array<Node | undefined>(n);
-        const { ids } = this.graph;
+        // The stored graph's ids: the undirected graph has the same rows, and is not built for this.
+        const { ids } = this.sourceGraph;
         for (const node of this._nodes) {
             const row = ids.indexOf(node.id);
             if (row >= 0 && row < n) {

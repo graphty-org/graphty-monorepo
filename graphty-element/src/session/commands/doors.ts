@@ -2606,6 +2606,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edge: READ,
             nodes: READ,
             edges: READ,
+            // Two numbers off the snapshot.
+            count: READ,
             // Deep-frozen records, read a window at a time.
             nodePage: READ,
             edgePage: READ,

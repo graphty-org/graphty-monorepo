@@ -1082,6 +1082,14 @@ export class Graph implements GraphContext {
         this.dataManager.renderLimits = {
             ceilings: () => this.#limits.overrides,
             batched: () => this.#renderPath === "batched",
+            objectRows: () => this.#limits.effective.objectRows,
+            objectEdges: () => this.#limits.effective.objectEdges,
+            objectCap: (of, wanted, cap) => {
+                this.eventManager.emit("limits-warning", {
+                    code: "W_OBJECT_CAP",
+                    params: { of, wanted, cap },
+                } satisfies Omit<LimitsWarningEvent, "type">);
+            },
         };
 
         // ONE controller for the element, this graph and its session. Nothing is probed until

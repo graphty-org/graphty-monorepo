@@ -585,6 +585,19 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
         }
     }
 
+    // A `layoutConfig.<option>` the reader changed wins over the controls above. The panel labels a
+    // control by the option it sets (`layoutConfig.weighted`), but its arg key is something else
+    // (`kamadaWeighted`), so a link built from the label -- `?args=layoutConfig.weighted:!false` --
+    // reaches Storybook as a nested write into the `layoutConfig` arg, and the control's unchanged
+    // value used to overwrite it. Either spelling works in a URL now (issue #229).
+    const initialLayoutConfig = (storyConfig.initialArgs.layoutConfig ?? {}) as Record<string, unknown>;
+
+    for (const [option, value] of Object.entries((args.layoutConfig ?? {}) as Record<string, unknown>)) {
+        if (value !== initialLayoutConfig[option]) {
+            layoutConfig[option] = value;
+        }
+    }
+
     applyConfiguration(g, setup);
     applyStyleLayers(g, setup);
 

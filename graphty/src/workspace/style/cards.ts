@@ -1,21 +1,32 @@
 /**
  * Condition cards: a layer's pick as the Which nodes and Which edges pickers draw it (tier3 design,
- * "2026-10-16 -- The combined Style panel"). Each card is one rule leaf on one field, typed by the
- * field's kind; the cards combine with AND. The selector each kind's layer holds is read into
- * cards and written back from them; the element's selector stays the one source of truth.
+ * "2026-10-16 -- The combined Style panel"). Each card is one of graphty-element's conditions on one
+ * field, named and worded for a reader here; the cards combine with AND. graphty-element reads a
+ * selector into conditions and writes them back (`nodeConditions`, `conditionSelector`); the
+ * element's selector stays the one source of truth.
  */
 
 import {
-    type EdgeReading,
+    type Condition,
+    CONDITION_SOURCE_PATH,
+    type ConditionField,
+    conditionFields,
+    conditionKey,
+    conditionLeaf,
+    conditionOf,
+    conditionSelector,
+    type ConditionTextMode,
+    edgeConditions,
     type GraphSession,
+    isConditionFinished,
     type Layer,
     type LayerId,
-    type ReadableValue,
-    type ReadableValueKind,
+    type ListedConditionField,
+    newCondition,
+    nodeConditionLeaves,
+    nodeConditions,
     type RuleTree,
     type Scope,
-    selectorRule,
-    type SourceKey,
     type ValueHistogram,
 } from "@graphty/graphty-element/session";
 
@@ -31,18 +42,10 @@ export type Side = "node" | "edge";
 /** The heading a field is listed under in the add menu. */
 type FieldGroup = "Data" | "Results" | "Structure";
 
-/** One value a card can test: an entry of `session.data.readableValues()`, named for a reader. */
-export interface CardField {
-    readonly path: string;
-    readonly on: Side;
-    /**
-     * What kind of card it makes: the element's kind, `name` for the node id, `source` for the
-     * load an element came from, or `date` for a column graphty-element says measures time.
-     */
-    readonly kind: ReadableValueKind | "name" | "source" | "date";
+/** One value a card can test: one of graphty-element's condition fields, named for a reader. */
+export interface CardField extends ConditionField {
     readonly name: string;
     readonly group: FieldGroup;
-    readonly range?: { readonly min: number; readonly max: number };
     /** graphty-element says it holds whole numbers only (a count, a rank), so a slider steps by 1. */
     readonly integer?: boolean;
     /** One fact that tells it from its neighbors in a list ("1 to 36", "6 values"), as the Vary by list says it. */
@@ -72,7 +75,7 @@ export interface CardField {
 }
 
 /** How a text or a name card compares. */
-export type TextMode = "substring" | "starts-with" | "ends-with" | "exact";
+export type TextMode = ConditionTextMode;
 
 /**
  * The `userData` key a layer keeps the name it was given by default under (a selection's name),
@@ -80,78 +83,17 @@ export type TextMode = "substring" | "starts-with" | "ends-with" | "exact";
  */
 export const DEFAULT_NAME_KEY = "graphtyDefaultName";
 
-/** The two "Match" choices every value card ends with. */
-type Presence = "present" | "absent";
+/** graphty-element's fixed condition: a leaf or a whole selector no card edits. */
+type FixedCondition = Extract<Condition<CardField>, { type: "fixed" }>;
 
-/** One card: what it reads and what it keeps. `key` is the field (`node:<path>`), "ends", or a fixed card's own. */
-export type Card =
-    | {
-          readonly type: "number";
-          readonly key: string;
-          readonly field: CardField;
-          readonly match: "range" | "top" | Presence;
-          readonly min?: number;
-          readonly max?: number;
-          readonly top?: number;
-          /** Which end By position counts from: the highest values (the default) or the lowest. */
-          readonly from?: "high" | "low";
-          /** By position's count is a share of all the elements, in percent. */
-          readonly percent?: boolean;
-      }
-    | {
-          readonly type: "category";
-          readonly key: string;
-          readonly field: CardField;
-          readonly match: "values" | Presence;
-          readonly values: readonly string[];
-          /** "(no value)" is ticked: the elements without one pass too. */
-          readonly gaps: boolean;
-      }
-    | {
-          readonly type: "text";
-          readonly key: string;
-          readonly field: CardField;
-          readonly match: TextMode | Presence | "list";
-          readonly text: string;
-          readonly caseSensitive: boolean;
-          /** The fixed list of node ids, for a name card's "Use the selected nodes". */
-          readonly ids?: readonly string[];
-      }
-    | {
-          /** Instants, epoch milliseconds, both ends kept: the element's range leaf read `as: "time"`. */
-          readonly type: "date";
-          readonly key: string;
-          readonly field: CardField;
-          readonly match: "before" | "after" | "between" | Presence;
-          readonly min?: number;
-          readonly max?: number;
-      }
-    | {
-          readonly type: "yes-no";
-          readonly key: string;
-          readonly field: CardField;
-          /** `"unset"`: nothing picked yet, so the card makes no leaf. */
-          readonly match: "yes" | "no" | "unset" | Presence;
-      }
-    | {
-          /** The loads an element came from (`data.sources()` keys), ticked ones being alternatives. */
-          readonly type: "source";
-          readonly key: string;
-          readonly field: CardField;
-          readonly sources: readonly SourceKey[];
-      }
-    | { readonly type: "ends"; readonly key: "ends"; readonly reading: "clipped" | "incident" }
-    | {
-          readonly type: "fixed";
-          readonly key: string;
-          /** The leaf it holds, or null for a whole selector that stands alone (edges picked by hand). */
-          readonly leaf: RuleTree | null;
-          readonly selector?: Selector;
-          readonly words: string;
-      };
+/**
+ * One card: graphty-element's condition on a named field; a fixed one carries the words its chip
+ * says. `key` is the field (`node:<path>`), "ends", or a fixed card's own.
+ */
+export type Card = Exclude<Condition<CardField>, { type: "fixed" }> | (FixedCondition & { readonly words: string });
 
 /** The Data source field's path: not a column, the load an element came from (a `source` leaf). */
-export const SOURCE_PATH = "@source";
+export const SOURCE_PATH = CONDITION_SOURCE_PATH;
 
 /**
  * The Data source field of one kind.
@@ -167,53 +109,43 @@ const sourceField = (side: Side): CardField => ({
 });
 
 /**
- * The fields a card can test on one kind, from graphty-element's readable values: the node id as
- * Name (Structure), the data columns (Data) and each finished run's fields (Results). A node value
- * read at an edge's end is left out: the Ends card says how edges follow the nodes. With two or
- * more loads, which one an element came from is a field too, Data source.
+ * The fields a card can test on one kind: graphty-element's condition fields, named and grouped
+ * here -- the node id as Node id (Structure), the data columns (Data), each finished run's fields
+ * (Results), and Data source with two or more loads.
  * @param session - the element's session.
  * @param side - nodes or edges.
  * @returns the fields, in the element's order.
  */
 export function cardFields(session: GraphSession, side: Side): CardField[] {
-    const times = new Set(
-        session.data
-            .attributes()
-            .filter((each) => each.kind === side && each.measurement === "time")
-            .map((each) => each.path),
-    );
-    const fields = session.data
-        .readableValues()
-        // A data column that only spells each node's id is the node id, listed once as Node id.
-        .filter((value) => value.on === side && value.end === undefined && value.holdsNodeIds !== true)
-        .map((value) => fieldOf(session, value, times.has(value.path)));
-    return session.data.sources().length >= 2 ? [...fields, sourceField(side)] : fields;
+    return conditionFields(session, side).map((field) => fieldOf(session, field));
 }
 
 /**
- * One readable value as a card field.
+ * One condition field as a card field.
  * @param session - the element's session.
- * @param value - the value.
- * @param time - graphty-element says the column measures time: a date card, with the span of the
- * time field it is, as the table writes dates.
- * @returns the field.
+ * @param field - the field.
+ * @returns the card field.
  */
-function fieldOf(session: GraphSession, value: ReadableValue, time = false): CardField {
-    if (value.path === "id") {
-        return { path: "id", on: value.on, kind: "name", name: "Node id", group: "Structure" };
+function fieldOf(session: GraphSession, field: ListedConditionField): CardField {
+    const { value } = field;
+    if (value === undefined) {
+        return sourceField(field.on);
     }
-    const groups: Record<ReadableValue["from"], FieldGroup> = { element: "Structure", data: "Data", run: "Results" };
-    const span = time ? timeSpan(session, value.path) : undefined;
+    if (field.kind === "name") {
+        return { path: field.path, on: field.on, kind: "name", name: "Node id", group: "Structure" };
+    }
+    const groups: Record<typeof value.from, FieldGroup> = { element: "Structure", data: "Data", run: "Results" };
+    const span = timeSpan(session, field.path);
     return {
-        path: value.path,
-        on: value.on,
-        kind: time && value.kind !== "number" ? "date" : value.kind,
+        path: field.path,
+        on: field.on,
+        kind: field.kind,
         name: readableName(session, value).name,
         group: groups[value.from],
         // A result is found by its field's name too ("Label propagation: community").
-        ...(value.from === "run" ? { aliases: [value.path.split(".").at(-1) ?? ""] } : {}),
-        ...(value.range === undefined ? {} : { range: value.range }),
-        ...(value.kind === "number" && wholeNumbers(session, value.path) ? { integer: true } : {}),
+        ...(value.from === "run" ? { aliases: [field.path.split(".").at(-1) ?? ""] } : {}),
+        ...(field.range === undefined ? {} : { range: field.range }),
+        ...(field.integer === true ? { integer: true } : {}),
         ...withFact(span ?? valueFact(value)),
     };
 }
@@ -329,93 +261,20 @@ const withFact = (fact: string | undefined): { fact?: string } => (fact === unde
  * @param field - the field.
  * @returns the key.
  */
-export const keyOf = (field: Pick<CardField, "on" | "path">): string => `${field.on}:${field.path}`;
+export const keyOf = conditionKey;
 
 /**
- * The leaf that says an element carries a value for a path (the element's own spelling of "has a value").
- * @param path - the value path.
- * @returns the leaf.
- */
-const present = (path: string): RuleTree => ({ kind: "text", reads: path, mode: "regex", text: "" });
-
-/**
- * Whether a leaf is "has a value" on some path.
- * @param leaf - the leaf.
- * @returns its path, or undefined.
- */
-function presentPath(leaf: RuleTree): string | undefined {
-    return leaf.kind === "text" && leaf.mode === "regex" && leaf.text === "" ? leaf.reads : undefined;
-}
-
-/**
- * A new card on a field, as "+ Add a condition" starts it: a number over its whole range, Yes for
- * a yes-or-no value, nothing picked or typed yet for the rest.
+ * A new card on a field, as "+ Add a condition" starts it: graphty-element's new condition.
  * @param field - the field.
  * @returns the card.
  */
-export function newCard(field: CardField): Card {
-    const key = keyOf(field);
-    switch (field.kind) {
-        case "number":
-            return { type: "number", key, field, match: "range", min: field.range?.min, max: field.range?.max };
-        case "category":
-            return { type: "category", key, field, match: "values", values: [], gaps: false };
-        case "yes-no":
-            return { type: "yes-no", key, field, match: "yes" };
-        case "date":
-            return { type: "date", key, field, match: "before" };
-        case "source":
-            return { type: "source", key, field, sources: [] };
-        default:
-            return { type: "text", key, field, match: "substring", text: "", caseSensitive: false };
-    }
-}
+export const newCard = (field: CardField): Card => newCondition(field);
 
 /**
  * The rule leaf a card makes, or null while it is unfinished (no value ticked, no text typed).
  * The Ends card makes none: it says how the node cards reach the edges.
- * @param card - the card.
- * @returns the leaf.
  */
-export function leafOf(card: Card): RuleTree | null {
-    if (card.type === "ends") {
-        return null;
-    }
-    if (card.type === "fixed") {
-        return card.leaf;
-    }
-    if (card.type === "source") {
-        return card.sources.length === 0 ? null : { kind: "source", sources: card.sources };
-    }
-    const { path } = card.field;
-    if (card.match === "present") {
-        return present(path);
-    }
-    if (card.match === "absent") {
-        return { kind: "not", of: present(path) };
-    }
-    switch (card.type) {
-        case "number":
-            return numberLeaf(card, path);
-        case "date":
-            return dateLeaf(card, path);
-        case "category":
-            return categoryLeaf(card, path);
-        case "yes-no":
-            if (card.match === "unset") {
-                return null;
-            }
-            return {
-                kind: "text",
-                reads: path,
-                mode: "exact",
-                text: String(card.match === "yes"),
-                caseSensitive: true,
-            };
-        default:
-            return textLeaf(card, path);
-    }
-}
+export const leafOf: (card: Card) => RuleTree | null = conditionLeaf;
 
 /**
  * The rule leaf a card makes in a style layer: a Highest or a percentile ranks among what is
@@ -430,141 +289,11 @@ export function styleLeafOf(card: Card): RuleTree | null {
     return leaf?.kind === "threshold" && card.type !== "fixed" ? { ...leaf, within: "visible" } : leaf;
 }
 
-/** A card of one type. */
-type CardOf<T extends Card["type"]> = Extract<Card, { type: T }>;
-
-/**
- * A date card's leaf: its range compared as times, or null while it has neither end.
- * @param card - the card, matching neither present nor absent.
- * @param path - the value path.
- * @returns the leaf, or null while it is unfinished.
- */
-function dateLeaf(card: CardOf<"date">, path: string): RuleTree | null {
-    if (card.min === undefined && card.max === undefined) {
-        return null;
-    }
-    return {
-        kind: "range",
-        attribute: path,
-        ...(card.min === undefined ? {} : { min: card.min }),
-        ...(card.max === undefined ? {} : { max: card.max }),
-        as: "time",
-    };
-}
-
-/**
- * A number card's leaf: its top N, or its range.
- * @param card - the card, matching neither present nor absent.
- * @param path - the value path.
- * @returns the leaf, or null while it is unfinished.
- */
-function numberLeaf(card: CardOf<"number">, path: string): RuleTree | null {
-    if (card.match === "top") {
-        const from = card.from === "low" ? { from: "low" as const } : {};
-        if (card.percent === true) {
-            return card.top === undefined || card.top <= 0 || card.top > 100
-                ? null
-                : { kind: "threshold", path, percentile: card.top, ...from };
-        }
-        return card.top === undefined || card.top < 1
-            ? null
-            : { kind: "threshold", path, top: card.top, ties: "all", ...from };
-    }
-    return {
-        kind: "range",
-        attribute: path,
-        ...(card.min === undefined ? {} : { min: card.min }),
-        ...(card.max === undefined ? {} : { max: card.max }),
-    };
-}
-
-/**
- * A category card's leaf: its ticked values, and the elements without one when "(no value)" is.
- * @param card - the card, matching neither present nor absent.
- * @param path - the value path.
- * @returns the leaf, or null while nothing is ticked.
- */
-function categoryLeaf(card: CardOf<"category">, path: string): RuleTree | null {
-    const values: RuleTree = { kind: "categories", attribute: path, values: card.values };
-    if (card.values.length === 0) {
-        return card.gaps ? { kind: "not", of: present(path) } : null;
-    }
-    return card.gaps ? { kind: "any", of: [values, { kind: "not", of: present(path) }] } : values;
-}
-
-/**
- * A text or name card's leaf: its fixed list of ids, or its typed text.
- * @param card - the card, matching neither present nor absent.
- * @param path - the value path.
- * @returns the leaf, or null while it is unfinished.
- */
-function textLeaf(card: CardOf<"text">, path: string): RuleTree | null {
-    if (card.match === "list") {
-        return (card.ids ?? []).length === 0 ? null : { kind: "member", of: { nodes: card.ids ?? [] } };
-    }
-    const text = card.text.trim();
-    // Present and absent are leafOf's own, before a card's type is read.
-    if (text === "" || card.match === "present" || card.match === "absent") {
-        return null;
-    }
-    return {
-        kind: "text",
-        reads: path,
-        mode: card.match,
-        text,
-        ...(card.caseSensitive ? { caseSensitive: true } : {}),
-    };
-}
-
 /**
  * Whether a card is finished: it makes a leaf, it is the Ends card, or it holds a whole selector
  * that stands alone (edges picked by hand).
- * @param card - the card.
- * @returns true when finished.
  */
-export const isFinished = (card: Card): boolean =>
-    card.type === "ends" || (card.type === "fixed" && card.selector !== undefined) || leafOf(card) !== null;
-
-/** What a selector holds, as leaves ANDed together, or a whole selector that stands alone. */
-type Leaves =
-    | { readonly leaves: readonly RuleTree[]; readonly edges?: EdgeReading }
-    | { readonly whole: Selector; readonly words: string };
-
-/**
- * A selector as the leaves the cards draw: a rule's `all`, a fixed id list and a saved selection as
- * member leaves, any other selector the element has a rule form for through `selectorRule`.
- * @param session - the element's session.
- * @param selector - the selector.
- * @returns the leaves, or the whole selector when it cannot be ANDed with a card.
- */
-function leavesOf(session: GraphSession, selector: Selector): Leaves {
-    switch (selector.match) {
-        case "everything":
-            return { leaves: [] };
-        case "ids": {
-            // Ids picked by hand (a layer made from a selection): the nodes are a member leaf, so
-            // a condition can be added beside them; edge ids have no leaf form and stand alone.
-            const nodes = selector.nodes ?? [];
-            const edges = selector.edges ?? [];
-            return edges.length === 0
-                ? { leaves: [{ kind: "member", of: { nodes } }] }
-                : { whole: selector, words: pickedWords(nodes.length, edges.length) };
-        }
-        case "member":
-            return { leaves: [{ kind: "member", of: selector.of }] };
-        default: {
-            // A rule typed in find (`donations >= \`10000\``) reads as its cards too.
-            const rule = selectorRule(selector, { comparisons: true, states: true });
-            if (rule === undefined) {
-                return selector.match === "expression"
-                    ? { leaves: [{ kind: "expression", where: selector.where }] }
-                    : { whole: selector, words: "A rule set elsewhere" };
-            }
-            const leaves = rule.where.kind === "all" ? rule.where.of : [rule.where];
-            return { leaves, ...(rule.edges === undefined ? {} : { edges: rule.edges }) };
-        }
-    }
-}
+export const isFinished: (card: Card) => boolean = isConditionFinished;
 
 /**
  * Whether a card is a fixed list of nodes picked by hand, whose words already say how many.
@@ -590,38 +319,65 @@ function pickedWords(nodes: number, edges: number): string {
     return `Picked by hand: ${parts.join(", ")}`;
 }
 
+/** The words of a fixed card graphty-element says nothing more about. */
+const ELSEWHERE = "A rule set elsewhere";
+
 /**
- * Whether a leaf on an edge layer's rule speaks about nodes (so it came from the node cards
- * through the Ends card): the node id, a saved selection or id list, the shape leaves, or a value
- * only nodes carry.
- * @param leaf - the leaf.
- * @param edgeFields - the values edges carry.
- * @returns true when it speaks nodes.
+ * A condition as its card: a fixed one with the words its chip says. A Data source leaf kept after
+ * a load was removed (so the kind offers no Data source field) still draws as its card.
+ * @param session - the element's session.
+ * @param condition - graphty-element's condition.
+ * @param fields - the fields of the kind.
+ * @returns the card.
  */
-function speaksNodes(leaf: RuleTree, edgeFields: readonly CardField[]): boolean {
-    const onEdges = (path: string): boolean => edgeFields.some((field) => field.path === path);
+function cardFrom(session: GraphSession, condition: Condition<CardField>, fields: readonly CardField[]): Card {
+    if (condition.type !== "fixed") {
+        return condition;
+    }
+    const { leaf, selector } = condition;
+    if (selector?.match === "ids") {
+        return { ...condition, words: pickedWords(selector.nodes?.length ?? 0, selector.edges?.length ?? 0) };
+    }
+    if (leaf?.kind === "source" && condition.repeat !== true) {
+        const field = sourceField(fields[0]?.on ?? "node");
+        return { type: "source", key: keyOf(field), field, sources: leaf.sources };
+    }
+    return {
+        ...condition,
+        words: leaf === null || condition.repeat === true ? ELSEWHERE : fixedWords(session, leaf, fields),
+    };
+}
+
+/**
+ * A leaf no card edits, in words: "Degree above 16", "Rule: hours < 20", "Picked by hand: 3
+ * nodes", "In a saved selection: Hubs", "On the canvas: hovered".
+ * @param session - the element's session.
+ * @param leaf - the leaf.
+ * @param fields - the fields of the kind.
+ * @returns the words.
+ */
+function fixedWords(session: GraphSession, leaf: RuleTree, fields: readonly CardField[]): string {
     switch (leaf.kind) {
-        case "range":
-        case "categories":
-            return !onEdges(leaf.attribute);
-        case "text":
-            return leaf.reads === "id" || !onEdges(leaf.reads);
-        case "threshold":
-            return !onEdges(leaf.path);
-        case "not":
-            return speaksNodes(leaf.of, edgeFields);
-        case "any":
-        case "all":
-            return leaf.of.length > 0 && leaf.of.every((each) => speaksNodes(each, edgeFields));
-        case "member":
-        case "degree":
-        case "component":
-        case "neighborhood":
-        case "isolated":
+        case "threshold": {
+            const f = fields.find((each) => each.path === leaf.path);
+            return f?.kind === "number" && leaf.above !== undefined && leaf.top === undefined
+                ? `${f.name} above ${num(leaf.above)}`
+                : ELSEWHERE;
+        }
         case "expression":
-            return true;
+            return ruleWords(leaf.where);
+        case "member":
+            if (typeof leaf.of === "object" && "nodes" in leaf.of) {
+                return pickedWords(leaf.of.nodes.length, 0);
+            }
+            if (typeof leaf.of === "object" && "set" in leaf.of) {
+                return `In a saved selection: ${session.sets.get(leaf.of.set)?.name ?? "a saved selection"}`;
+            }
+            return ELSEWHERE;
+        case "state":
+            return `On the canvas: ${leaf.state}`;
         default:
-            return false;
+            return ELSEWHERE;
     }
 }
 
@@ -634,221 +390,7 @@ function speaksNodes(leaf: RuleTree, edgeFields: readonly CardField[]): boolean 
  * @returns the card.
  */
 export function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly CardField[], at: number): Card {
-    const field: FieldFinder = (path) => fields.find((each) => each.path === path);
-    const elsewhere: CardOf<"fixed"> = {
-        type: "fixed",
-        key: `fixed:${String(at)}:${JSON.stringify(leaf)}`,
-        leaf,
-        words: "A rule set elsewhere",
-    };
-    const has = presentPath(leaf);
-    const hasField = has === undefined ? undefined : field(has);
-    if (hasField !== undefined) {
-        return presenceCard(hasField, "present");
-    }
-    switch (leaf.kind) {
-        case "not": {
-            const not = presentPath(leaf.of);
-            const notField = not === undefined ? undefined : field(not);
-            return notField === undefined ? elsewhere : presenceCard(notField, "absent");
-        }
-        case "range":
-            return rangeCard(leaf, field(leaf.attribute), elsewhere);
-        case "threshold":
-            return thresholdCard(leaf, field, elsewhere);
-        case "expression":
-            return expressionCard(leaf, field, elsewhere);
-        case "categories": {
-            const f = field(leaf.attribute);
-            if (f?.kind === "yes-no" && leaf.values.length === 0) {
-                // A yes-or-no value with nothing picked yet: its card, showing no choice.
-                return { type: "yes-no", key: keyOf(f), field: f, match: "unset" };
-            }
-            return f === undefined
-                ? elsewhere
-                : { type: "category", key: keyOf(f), field: f, match: "values", values: leaf.values, gaps: false };
-        }
-        case "any":
-            return gapsCard(leaf, field, elsewhere);
-        case "text":
-            return textCard(leaf, field, elsewhere);
-        case "source": {
-            // Offered once two loads are in; a rule kept after one was removed still draws.
-            const f = field(SOURCE_PATH) ?? sourceField(fields[0]?.on ?? "node");
-            return { type: "source", key: keyOf(f), field: f, sources: leaf.sources };
-        }
-        case "member":
-            return memberCard(session, leaf, elsewhere);
-        case "state":
-            return { ...elsewhere, words: `On the canvas: ${leaf.state}` };
-        default:
-            return elsewhere;
-    }
-}
-
-/**
- * The card a range leaf draws: a date card for a range read as times, a number card for one read
- * as numbers, else the fixed card.
- * @param leaf - the range leaf.
- * @param f - its field, if the kind has it.
- * @param elsewhere - the fixed card.
- * @returns the card.
- */
-function rangeCard(leaf: Extract<RuleTree, { kind: "range" }>, f: CardField | undefined, elsewhere: Card): Card {
-    if (leaf.as === "time") {
-        return f?.kind === "date" ? dateCard(f, leaf.min, leaf.max) : elsewhere;
-    }
-    return f?.kind === "number"
-        ? { type: "number", key: keyOf(f), field: f, match: "range", min: leaf.min, max: leaf.max }
-        : elsewhere;
-}
-
-/**
- * A date card from its leaf's bounds: Before with only an end, After with only a start.
- * @param field - the date field.
- * @param min - the leaf's first instant kept.
- * @param max - the leaf's last instant kept.
- * @returns the card.
- */
-function dateCard(field: CardField, min: number | undefined, max: number | undefined): Card {
-    let match: "before" | "after" | "between" = "between";
-    if (min === undefined) {
-        match = "before";
-    } else if (max === undefined) {
-        match = "after";
-    }
-    return {
-        type: "date",
-        key: keyOf(field),
-        field,
-        match,
-        ...(min === undefined ? {} : { min }),
-        ...(max === undefined ? {} : { max }),
-    };
-}
-
-/** Finds the field a path names. */
-type FieldFinder = (path: string) => CardField | undefined;
-
-/** A rule leaf of one kind. */
-type LeafOf<K extends RuleTree["kind"]> = Extract<RuleTree, { kind: K }>;
-
-/**
- * A threshold's card: its top N, or "Above 16" said as it is.
- * @param leaf - the leaf.
- * @param field - finds a path's field.
- * @param elsewhere - the fixed card for a leaf no card edits.
- * @returns the card.
- */
-function thresholdCard(leaf: LeafOf<"threshold">, field: FieldFinder, elsewhere: CardOf<"fixed">): Card {
-    const f = field(leaf.path);
-    if (f?.kind !== "number") {
-        return elsewhere;
-    }
-    if (leaf.above !== undefined && leaf.top === undefined) {
-        // "Above 16" has no card of its own (a range card keeps its ends); it is said, kept as it is.
-        return { ...elsewhere, words: `${f.name} above ${num(leaf.above)}` };
-    }
-    const from = leaf.from === "low" ? { from: "low" as const } : {};
-    if (leaf.percentile !== undefined && leaf.top === undefined && leaf.above === undefined) {
-        return { type: "number", key: keyOf(f), field: f, match: "top", top: leaf.percentile, percent: true, ...from };
-    }
-    return leaf.top !== undefined && leaf.above === undefined
-        ? { type: "number", key: keyOf(f), field: f, match: "top", top: leaf.top, ...from }
-        : elsewhere;
-}
-
-/**
- * An expression's card. A bare column name (find's `=email`) tests that the column holds a value:
- * an ordinary card, "Has a value" (Yes for a yes-or-no column). The element reads the name.
- * ponytail: an empty text reads as "has a value" here while the expression passes none; the card's
- * count says what the card keeps.
- * @param leaf - the leaf.
- * @param field - finds a path's field.
- * @param elsewhere - the fixed card for a leaf no card edits.
- * @returns the card.
- */
-function expressionCard(leaf: LeafOf<"expression">, field: FieldFinder, elsewhere: CardOf<"fixed">): Card {
-    const bare = selectorRule({ match: "expression", where: `${leaf.where} != \`null\`` }, { comparisons: true });
-    const path = bare === undefined ? undefined : presentPath(bare.where);
-    const named = path === undefined ? undefined : field(path);
-    if (named === undefined) {
-        return { ...elsewhere, words: ruleWords(leaf.where) };
-    }
-    return named.kind === "yes-no"
-        ? { type: "yes-no", key: keyOf(named), field: named, match: "yes" }
-        : presenceCard(named, "present");
-}
-
-/**
- * "Group 3 or no value": a category card with "(no value)" ticked.
- * @param leaf - the leaf.
- * @param field - finds a path's field.
- * @param elsewhere - the fixed card for a leaf no card edits.
- * @returns the card.
- */
-function gapsCard(leaf: LeafOf<"any">, field: FieldFinder, elsewhere: CardOf<"fixed">): Card {
-    const [values, gap] = leaf.of;
-    const f = values?.kind === "categories" ? field(values.attribute) : undefined;
-    const gapPath = gap?.kind === "not" ? presentPath(gap.of) : undefined;
-    return f !== undefined && leaf.of.length === 2 && values.kind === "categories" && gapPath === f.path
-        ? { type: "category", key: keyOf(f), field: f, match: "values", values: values.values, gaps: true }
-        : elsewhere;
-}
-
-/**
- * A text leaf's card: Yes or No on a yes-or-no value, else a text card.
- * @param leaf - the leaf.
- * @param field - finds a path's field.
- * @param elsewhere - the fixed card for a leaf no card edits.
- * @returns the card.
- */
-function textCard(leaf: LeafOf<"text">, field: FieldFinder, elsewhere: CardOf<"fixed">): Card {
-    const f = field(leaf.reads);
-    if (f === undefined || leaf.mode === "regex") {
-        return elsewhere;
-    }
-    if (f.kind === "yes-no" && leaf.mode === "exact" && (leaf.text === "true" || leaf.text === "false")) {
-        return { type: "yes-no", key: keyOf(f), field: f, match: leaf.text === "true" ? "yes" : "no" };
-    }
-    return {
-        type: "text",
-        key: keyOf(f),
-        field: f,
-        match: leaf.mode,
-        text: leaf.text,
-        caseSensitive: leaf.caseSensitive === true,
-    };
-}
-
-/**
- * A member leaf's card: a fixed list of nodes reads as what it is, nodes picked by hand, whatever
- * made it; a saved selection by its name.
- * @param session - the element's session.
- * @param leaf - the leaf.
- * @param elsewhere - the fixed card for a leaf no card edits.
- * @returns the card.
- */
-function memberCard(session: GraphSession, leaf: LeafOf<"member">, elsewhere: CardOf<"fixed">): Card {
-    if (typeof leaf.of === "object" && "nodes" in leaf.of) {
-        return { ...elsewhere, words: pickedWords(leaf.of.nodes.length, 0) };
-    }
-    if (typeof leaf.of === "object" && "set" in leaf.of) {
-        const set = session.sets.get(leaf.of.set)?.name ?? "a saved selection";
-        return { ...elsewhere, words: `In a saved selection: ${set}` };
-    }
-    return elsewhere;
-}
-
-/**
- * A "Has a value" or "Has no value" card on a field.
- * @param field - the field.
- * @param match - which.
- * @returns the card.
- */
-function presenceCard(field: CardField, match: Presence): Card {
-    const card = newCard(field);
-    return { ...card, match } as Card;
+    return cardFrom(session, conditionOf(leaf, fields, at), fields);
 }
 
 /**
@@ -859,11 +401,7 @@ function presenceCard(field: CardField, match: Presence): Card {
  * @returns the cards.
  */
 export function nodeCards(session: GraphSession, selector: Selector, fields: readonly CardField[]): Card[] {
-    const read = leavesOf(session, selector);
-    if ("whole" in read) {
-        return [{ type: "fixed", key: "fixed:whole", leaf: null, selector: read.whole, words: read.words }];
-    }
-    return dedupe(read.leaves.map((leaf, at) => cardOf(session, leaf, fields, at)));
+    return nodeConditions(selector, fields).map((condition) => cardFrom(session, condition, fields));
 }
 
 /**
@@ -875,77 +413,34 @@ export function nodeCards(session: GraphSession, selector: Selector, fields: rea
  * @returns the cards.
  */
 export function edgeCards(session: GraphSession, selector: Selector, fields: readonly CardField[]): Card[] {
-    const read = leavesOf(session, selector);
-    if ("whole" in read) {
-        return [{ type: "fixed", key: "fixed:whole", leaf: null, selector: read.whole, words: read.words }];
-    }
-    const own = read.leaves.filter((leaf) => !speaksNodes(leaf, fields));
-    const ends: Card[] =
-        own.length < read.leaves.length
-            ? [{ type: "ends", key: "ends", reading: read.edges === "incident" ? "incident" : "clipped" }]
-            : [];
-    return [...ends, ...dedupe(own.map((leaf, at) => cardOf(session, leaf, fields, at)))];
-}
-
-/**
- * One card per field: a second leaf on a field already drawn becomes a fixed card, so nothing is lost.
- * @param cards - the cards in order.
- * @returns them, keys unique.
- */
-function dedupe(cards: readonly Card[]): Card[] {
-    const seen = new Set<string>();
-    return cards.map((card, at) => {
-        if (!seen.has(card.key)) {
-            seen.add(card.key);
-            return card;
-        }
-        const leaf = leafOf(card);
-        return {
-            type: "fixed",
-            key: `fixed:${String(at)}:${JSON.stringify(leaf)}`,
-            leaf,
-            words: "A rule set elsewhere",
-        };
-    });
+    return edgeConditions(selector, fields).map((condition) => cardFrom(session, condition, fields));
 }
 
 /**
  * The node leaves a node part's selector holds, which the Ends card copies into the edge part, or
  * null when it is a whole selector that cannot be.
- * @param session - the element's session.
- * @param selector - the node part's selector.
- * @returns the leaves.
  */
-export function nodeLeaves(session: GraphSession, selector: Selector): readonly RuleTree[] | null {
-    const read = leavesOf(session, selector);
-    return "whole" in read ? null : read.leaves;
-}
+export const nodeLeaves: (selector: Selector) => readonly RuleTree[] | null = nodeConditionLeaves;
 
 /**
- * The selector some cards make. A whole fixed card stands alone; no leaves is every element.
- * @param cards - the side's cards; unfinished ones are left out.
+ * The selector some cards make (unfinished ones left out), with the node leaves an Ends card brings.
+ * A style layer's Highest or percentile card ranks among what is shown: see {@link styleLeafOf}.
+ * @param cards - the side's cards.
  * @param ends - the node leaves an Ends card brings, for the edge part.
  * @returns the selector.
  */
 export function selectorOf(cards: readonly Card[], ends: readonly RuleTree[] = []): Selector {
-    const whole = cards.find((card) => card.type === "fixed" && card.selector !== undefined);
-    if (whole?.type === "fixed" && whole.selector !== undefined) {
-        return whole.selector;
-    }
-    const endsCard = cards.find((card) => card.type === "ends");
-    const own = cards.flatMap((card) => styleLeafOf(card) ?? []);
-    const leaves = endsCard === undefined ? own : [...ends, ...own];
-    if (leaves.length === 0) {
-        return { match: "everything" };
-    }
-    // The bare state is the one selector the element tests per element, with no rule to resolve.
-    if (leaves.length === 1 && leaves[0].kind === "state") {
-        return { match: "state", state: leaves[0].state };
-    }
-    const where: RuleTree = leaves.length === 1 ? leaves[0] : { kind: "all", of: leaves };
-    return endsCard?.type === "ends" && endsCard.reading === "incident"
-        ? { match: "rule", where, edges: "incident" }
-        : { match: "rule", where };
+    return conditionSelector(cards.map(rankedAmongShown), ends);
+}
+
+/**
+ * A card whose leaf ranks among what is shown, as a fixed card holding that leaf; any other card as it is.
+ * @param card - the card.
+ * @returns the card to combine.
+ */
+function rankedAmongShown(card: Card): Card {
+    const leaf = card.type === "fixed" ? null : styleLeafOf(card);
+    return leaf?.kind === "threshold" ? { type: "fixed", key: card.key, leaf } : card;
 }
 
 /**
@@ -955,6 +450,9 @@ export function selectorOf(cards: readonly Card[], ends: readonly RuleTree[] = [
  * @returns true when they are the same.
  */
 export const sameSelector = (a: Selector, b: Selector): boolean => JSON.stringify(a) === JSON.stringify(b);
+
+/** A card of one type. */
+type CardOf<T extends Card["type"]> = Extract<Card, { type: T }>;
 
 /**
  * A number as a card writes it: "12", "0.25".
@@ -1254,7 +752,7 @@ export async function writeKind(
  * @returns the new part's selector.
  */
 function newPartSelector(session: GraphSession, side: Side, node: Layer | undefined): Selector {
-    const leaves = side === "edge" && node !== undefined ? nodeLeaves(session, node.selector) : [];
+    const leaves = side === "edge" && node !== undefined ? nodeLeaves(node.selector) : [];
     return leaves !== null && leaves.length > 0
         ? selectorOf([{ type: "ends", key: "ends", reading: "clipped" }], leaves)
         : { match: "everything" };

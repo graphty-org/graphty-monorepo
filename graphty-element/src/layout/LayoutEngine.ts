@@ -2038,12 +2038,14 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * @returns the start rows, or null
      */
     protected startPositions(dim: 2 | 3): F32 | null {
-        const { snapshot, positions } = this.#loaded ?? this.#load();
+        const loaded = this.#loaded ?? this.#load();
+        const { positions } = loaded;
         if (this.#keep === null || positions === null) {
             return null;
         }
 
-        return fromPositionColumn(positions.view(snapshot.nodeCount), dim, this.scalingFactor, null);
+        const { nodeCount } = loaded.source ?? loaded.snapshot;
+        return fromPositionColumn(positions.view(nodeCount), dim, this.scalingFactor, null);
     }
 
     /**
@@ -2496,14 +2498,21 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
                 };
             }
 
-            const { snapshot } = source.undirected(store);
+            const { undirected } = source;
+            // Made undirected on first read: a layout that reads no edges (fixed) never builds a
+            // second graph over every edge, which at a million edges is about 180 ms of a load.
+            // The undirected graph keeps the stored node rows, so a row is found in either.
+            let snapshot: GraphSnapshot | null = null;
             return {
-                snapshot,
+                get snapshot(): GraphSnapshot {
+                    snapshot ??= undirected.call(source, store).snapshot;
+                    return snapshot;
+                },
                 source: store,
                 element: store,
                 origin: null,
                 positions: writableLane(manager) ?? null,
-                rowOf: (n) => (n.index < snapshot.nodeCount ? n.index : INVALID_INDEX),
+                rowOf: (n) => (n.index < store.nodeCount ? n.index : INVALID_INDEX),
             };
         }
 
@@ -2607,7 +2616,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             return idKeyed && this.#publishIdKeyedRows(loaded);
         }
 
-        const count = Math.min(column.length / 3, loaded.snapshot.nodeCount);
+        const count = Math.min(column.length / 3, loaded.source.nodeCount);
         const { rows, coords } = this.publishScratch(count);
         // A working graph is arranged in its own rows: each reaches the element through its origin.
         const { origin } = loaded;

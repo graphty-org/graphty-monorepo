@@ -1757,6 +1757,34 @@ jobs:
               if: matrix.browsers
               run: pnpm exec playwright install ${{ matrix.browsers }}
 
+            # graphty-element loads Babylon.js's GLSL compilers before it opens WebGPU, and the browser tests answer
+            # those requests from a local copy (vitest.babylon-compilers.mjs), never cdn.babylonjs.com: a CDN that
+            # did not answer once failed a gpu-loss shard on an unrelated pull request (#6787). Cached per Babylon.js
+            # version, so the CDN is asked only when the version changes; the fetch step fills a miss.
+            - name: Key the Babylon.js GLSL compilers by version
+              id: babylon-compilers-key
+              if: matrix.needs-browser
+              run: echo "key=babylon-shader-compilers-$(node -p "require('@babylonjs/core/package.json').version")" >> "$GITHUB_OUTPUT"
+
+            - name: Restore the Babylon.js GLSL compilers
+              id: babylon-compilers
+              if: matrix.needs-browser
+              uses: actions/cache/restore@v6
+              with:
+                  path: ~/.cache/babylon-shader-compilers
+                  key: ${{ steps.babylon-compilers-key.outputs.key }}
+
+            - name: Fetch the Babylon.js GLSL compilers
+              if: matrix.needs-browser
+              run: node vitest.babylon-compilers.mjs
+
+            - name: Save the Babylon.js GLSL compilers
+              if: matrix.needs-browser && steps.babylon-compilers.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: ~/.cache/babylon-shader-compilers
+                  key: ${{ steps.babylon-compilers-key.outputs.key }}
+
             # webgpu-graph-algorithms node shard: Dawn needs a Vulkan ICD; ubuntu-24.04 has none preinstalled.
             # The .deb files apt chose are cached per runner image, as playwright-system-deps does for Chromium's,
             # so a hit installs with dpkg and never touches the network: in run 41256221732 both no-subgroups jobs

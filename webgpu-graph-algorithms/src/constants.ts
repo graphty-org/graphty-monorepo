@@ -290,8 +290,20 @@ export const BC_BATCH_BUDGET_FRACTION = 0.25;
  * stay at `MAX_LEVELS_PER_SUBMIT`: the parameter ring is sized for it.
  */
 export const BC_MAX_BATCH = 256;
-/** Design 8.4 (McLaughlin-Bader): a betweenness batch runs the edge-parallel forward pass when the previous batch's level count is below `BC_EDGE_PARALLEL_GAMMA * log2(n)`. The design names the rule and no value; 2 is unmeasured and a benchmark run re-fixes it. */
+/**
+ * Design 8.4 (McLaughlin-Bader): a betweenness batch runs the edge-parallel forward pass when the previous batch's
+ * level count is below `BC_EDGE_PARALLEL_GAMMA * log2(n)` -- and only on a graph `BC_EDGE_PARALLEL_MIN_NODES` and
+ * `BC_EDGE_PARALLEL_MAX_SKEW` admit (issue #776). Measured 2026-11-10 (768 sources in batches of 256, RTX 4070 SUPER,
+ * median of 5, edge time / frontier time): the depth test alone separates nothing that matters -- every shallow
+ * graph had levels / log2(n) between 0.42 and 0.8 and every deep one (grids, paths) 6 or more, where the edge form is
+ * 5.6-12x slower, so any gamma between 1 and 6 is the same rule -- while size and degree skew decide the shallow ones:
+ * G(n, 4n) 1k-24k 3.3x-1.5x slower, 32k-128k 0.6x-0.8x (faster); R-MAT x8 2^10-2^18 1.4x-2.3x slower at every size.
+ */
 export const BC_EDGE_PARALLEL_GAMMA = 2;
+/** Issue #776: the edge-parallel forward form is never chosen below this many nodes (G(n, 4n): 24k nodes 1.48x slower than the frontier form, 32k 0.72x). See `BC_EDGE_PARALLEL_GAMMA`. */
+export const BC_EDGE_PARALLEL_MIN_NODES = 28_000;
+/** Issue #776: the edge-parallel forward form is never chosen when the largest degree exceeds this multiple of the mean (R-MAT x8 measured 65-1857 and lost at every size; G(n, m) 1.7-2.6 and won from 32k nodes). See `BC_EDGE_PARALLEL_GAMMA`. */
+export const BC_EDGE_PARALLEL_MAX_SKEW = 32;
 /**
  * Betweenness path counts that wrapped u32 are recounted as f32, rescaled per depth by a power of two (`bc-count`):
  * when the largest count at one depth has a binary exponent above this cap, the next depth's counts are scaled down so

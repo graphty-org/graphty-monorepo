@@ -476,8 +476,9 @@ export interface LayoutWarningEvent {
 
 /**
  * Emitted when the `limits` the element was given are not in force: under `render-path="objects"`
- * the shipped ceilings stand (`W_LIMITS_IGNORED`, `params.renderPath`). A code and its
- * parameters, never a sentence.
+ * the shipped ceilings stand (`W_LIMITS_IGNORED`, `params.renderPath`); or when more rows ask to be
+ * objects than `objectRows` or `objectEdges` allows, so the rest are drawn plain (`W_OBJECT_CAP`,
+ * `params.of`, `params.wanted`, `params.cap`). A code and its parameters, never a sentence.
  * @experimental cosmograph
  */
 export interface LimitsWarningEvent {

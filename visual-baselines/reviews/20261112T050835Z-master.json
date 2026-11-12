@@ -1,0 +1,65 @@
+{
+  "version": 2,
+  "pr": null,
+  "subject": {
+    "builtMerge": "6c303b16d6311d73d1089983a8e6315ffb7a32c8",
+    "head": null,
+    "runId": 43148817648,
+    "runAttempt": 1,
+    "environment": {
+      "harness": "story-test",
+      "mode": "production",
+      "cpu": "AMD EPYC 9V45 96-Core Processor | AMD EPYC 9V74 80-Core Processor | AMD EPYC 7763 64-Core Processor",
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "6c303b16d6311d73d1089983a8e6315ffb7a32c8",
+      "chromium": "143.0.7499.4"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty-element/camera-controls--fit-three-d.png",
+      "from": "6b4b3f2b62c015a383bce33a22037815502a80c4d8da4ed5a93494dffb21fde9",
+      "to": "2034ac0c18b783ffc78d952b5dd3e7934d54a7fd42a2bfa3dc1ce9bfc69dc652",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--main-menu-open.dark.png",
+      "from": "a5079f35c9eb12a9e42a71a063dc26550243e33c8effc02ede7ccc058de7dbe1",
+      "to": "da16611c7a110c56042878d2b6ed2e473cc46154b2d34613bda0b044b5ea0351",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--main-menu-open.light.png",
+      "from": "5bc7799ddb73903ba32494e50352cb116180e0f4c31d61c878d99dca2455a7d1",
+      "to": "e396507389c4de3b7c51d81f8101e23b9f85d464de9dc5b787ba6228b961baed",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--open-sample-menu.dark.png",
+      "from": "74dba74b20501053ecc52cbdd98c40f6ef8bd30fb1099961632e4e3a2544990b",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-frame--open-sample-menu.light.png",
+      "from": "222609cc4b0794411f0c7cfe59241af8422fc5bfe9aa6edb4ec0792a02c6b2f9",
+      "to": null,
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--custom-model-main-menu.dark.png",
+      "from": "8ae22ffd1321f029b5adde5111aa79a3dbd6bdd747181e6eaec001cf56f185db",
+      "to": "2a72fa54751d5e63cc675ba5e10dd94cad1d972db8a84c2e1ef068407959c32c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-style-panel-review--custom-model-main-menu.light.png",
+      "from": "9b64f658172591a2969239b8bd9c03c8bc6f8291fee48ca8a1caf60ea0d91583",
+      "to": "78f91daca594ab05e9c1886529347d4e5452c3aa1c4495fceb034eabafcea211",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-11-12T05:08:35.686Z"
+}

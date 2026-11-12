@@ -327,7 +327,9 @@ describe("ingest: what it stores", () => {
         const rows = [{ workflow: "deploy.yml", job: "deploy", ms: 9000, runId: 700, attempt: 1 }];
         const res = await h(event("/v1/durations", { rows }, { claims: site }));
         expect(res.statusCode).toBe(200);
-        expect([...mem.items.values()].find((i) => i.kind === "step")?.repo).toBe("graphty-org/graphty-nightly");
+        // Taken and checked, but not stored: nothing reads a step row (#6813).
+        expect(JSON.parse(res.body as string)).toMatchObject({ stored: 0 });
+        expect([...mem.items.values()].some((i) => i.kind === "step")).toBe(false);
         // A site deploy's timings never make ci-results look fresh.
         const sources = [...mem.items.values()].map((i) => i.source).filter(Boolean);
         expect(sources).toContain("site");

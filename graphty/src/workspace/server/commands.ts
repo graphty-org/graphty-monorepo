@@ -1,5 +1,6 @@
 /**
- * Network data (data prototype spec section 3.9): the Sources "+" Network data... door, the
+ * Network data (data prototype spec section 3.9): the Sources "+" Network data... door (the start
+ * page's Open network data chooser, whose cards open the server form), the
  * Expand... and Collapse verbs on a node a server load brought, and how the form's rows become one
  * `data.import` call. graphty-element reads the server, pages, refreshes and expands; this file
  * only turns what the reader picked into its inputs.
@@ -23,6 +24,9 @@ import { type CommandContext, defineRegistration } from "../commands/registry";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { codeWords, failureOf, kindName } from "./words";
+
+/** The `dialog` value that opens Open network data, the chooser of servers, a web address and a file. */
+export const NETWORK_DIALOG = "network";
 
 /** The `dialog` value that opens the server form beside the Sources section. */
 export const SERVER_DIALOG = "server";
@@ -512,7 +516,7 @@ export const registration = defineRegistration({
             keywords: ["add", "source", "server", "database", "neo4j", "cypher", "sparql", "ndex", "openalex", "rest"],
             shown: (ctx) => ctx.session !== null,
             run: (ctx) => {
-                openServerForm(ctx.workspace);
+                ctx.workspace.set({ dialog: NETWORK_DIALOG });
             },
         },
         {

@@ -1140,7 +1140,8 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   with one range entry in the op log, the only bulk history entry (cosmos-gap.md G4 reuses it). Rows are placed by the element's `layout`, as
   `nodeData`'s are. graph-io and graph-samples route through it.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
-  margin) and cuts batch data toward 20 bytes. New `session.data.count()` serves `JoinScreen.tsx:636`.
+  margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
+  the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.
 - **The load's position publish is already one typed write.** The 2026-11-09 profile credits 1.0 s of the 100k + 1M
   load to `publishPositions` in the derivation pass's position hook. Correction: the publish itself (`publishComputed`)
   is 9 ms and already writes the position column whole. The second is the fixed layout's first run reading its graph:
@@ -1313,6 +1314,16 @@ object per element. Stages 26 to 28 remove that reason.
 - **Object budgets.** `objectRows` defaults to 100,000 and `objectEdges` to 1,000,000, the default ceilings, so a budget cannot bind at or
   below them. Past a budget under a raised ceiling, later rows draw as plain bodies and edges as plain lines, and
   `{ code: "W_OBJECT_CAP", params: { wanted, cap } }` reports it.
+- **As stage 30 built it** (corrections to the bullet above). An object row is a row the batches cannot draw, so a
+  `Node` (or an `Edge`) is built for it; the budget counts those objects that exist now (built and not yet removed or
+  cleared, so a clear and a reload get the whole budget back), and is checked where a row stored with
+  no `Node` would get one (`UpdateManager.unbuiltPainted`, `unbuiltEdgePainted`). Past it, the row is drawn from a plain
+  paint (`plainNodePaint`, `plainEdgePaint` in `StylePainter.ts`: shape, color, opacity and line width only, keyed
+  `plain|...`) and gets no object. A row that already has its `Node` is left as it is. `W_OBJECT_CAP` carries
+  `params.of` (`"nodes"` or `"edges"`) beside `wanted` and `cap`, since one code serves both budgets; it arrives on
+  `limits-warning` once a repaint settles, and again only when the number held plain changes. The app's
+  `fitsInBrowser` and `isLarge` take the limits as an optional parameter, defaulting to `DEFAULT_LIMITS`; no caller
+  passes raised ones yet, because the app does not raise `limits` on the element.
 
 ## 9. Edge-case rulings (input -> expected result)
 
@@ -1760,6 +1771,19 @@ batched path") pins both, in 2D and 3D. Measured on 2772e6f57f (WebGPU, `lean`, 
 load average 5.25, `benchmarks/results/g7-pr1`): first frame 16.93 s against G7's 17 s target, met; `objectEdges` 0
 and `pulledEdges` 1,000,000. No interleaved master run was taken, so this number is not compared with the 14.75 s
 above; the harness sets `nodeData` before `edgeData`, so its edges never wait and the fix does not touch its path.
+
+Stage 116 (frame garbage) found, on master 3ac6da36aa at 100k + 1M (WebGPU, `lean`, batched), that a still frame
+allocates nothing per row: about 15-36 KB a frame of fixed work (Babylon's render observers and sort, the frame-rate
+sampler, the idle check), and no scavenge at all across 122 still frames once the load's garbage is collected.
+Correction to the 2026-11-11 comparison: its 4.3 ms of collection per still frame was not the frame's own garbage. It
+was the memory reducer's major collection of the load's heap (`GCFinalizeMCReduceMemory`), which lands in whatever
+frames follow the load; after a 300-frame warm-up the still frames spent 0.00-0.01 ms a frame collecting. The layout
+frame's one per-row allocation was `measureEnvelope` in `SimulationLayoutEngine`: called once a publish, it was
+optimized mid-loop and thrown away again at the code after the loop, every call, so the rest of the walk ran
+unoptimized and boxed a number per coordinate (about 16 MB over 60 layout frames). It now sums into a typed array,
+one loop per function. The framing walk at a layout's start and settle still allocates a few vectors per row; it is
+not per frame. `test/browser/batched-still-frame-allocates-nothing-per-row.test.ts` counts the bytes a still frame
+allocates at two sizes.
 
 | #   | Stage                               | Issues                          | What it changes                                                                                                                                                                                                                                                                                         | Depends on                                                                                                                                       | R   | Target                                                                                                                                                                                               | Proving test                                                                                                                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

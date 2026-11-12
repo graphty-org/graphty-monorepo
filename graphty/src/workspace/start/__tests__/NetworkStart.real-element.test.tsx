@@ -3,7 +3,8 @@
  * of network, a card opens the app with the form on that kind, and closing the form stays in the
  * app, also across a reload; a refused Load stays in the form; and the Load network data
  * section holds one sample of each kind of source, each of which reads first and lands on the graph
- * with the Style panel up; a project's Samples offers the same samples. Every step is real input;
+ * with the Style panel up; a project's Samples offers the same samples; and in a project, the
+ * Sources "+" Network data... opens the same chooser, whose web address adds a source. Every step is real input;
  * NDEx answers from its recording.
  */
 
@@ -21,6 +22,7 @@ import { clearRecent, rememberRecent } from "../../project/recent";
 import ndexRecordings from "../../server/__tests__/ndex-wp5483.json";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../samples";
 
 const NDEX = "https://www.ndexbio.org";
 const WP5483 = "86719f5b-1439-11f0-9806-005056ae3c32";
@@ -524,5 +526,64 @@ describe("network data from the start page", () => {
         const session = await openBy(store, () => userEvent.click(tile));
         await landedOnStylePanel(store, session, 57);
         assert.isNull(store.get().notice);
+    });
+});
+
+/**
+ * Where the app serves a fixture.
+ * @param name - its file name.
+ * @returns the absolute address.
+ */
+function fixtureUrl(name: string): string {
+    const sample = PROTOTYPE_SAMPLES.find((each) => sampleName(each) === name);
+    if (sample === undefined) {
+        throw new Error(`no fixture ${name}`);
+    }
+    return sampleUrl(sample);
+}
+
+describe("network data from a project", () => {
+    afterEach(async () => {
+        await clearRecent();
+    });
+
+    it("adds a graph file by web address from the Sources + Network data... chooser", async () => {
+        const store = createWorkspaceStore({ project: { name: "Supply", id: 1 }, place: "data" });
+        render(<Workspace store={store} />);
+        let session: GraphSession | undefined;
+        await waitFor(() => {
+            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                "graphty-element:not([data-start-page])",
+            )?.session;
+            assert.isDefined(session);
+        });
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        const live = session;
+        await live.data.import({ config: { url: fixtureUrl("suppliers.csv") }, name: "suppliers.csv" });
+        await waitFor(() => {
+            assert.lengthOf(live.data.sources(), 1);
+        });
+
+        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
+        const chooser = await screen.findByRole("dialog", { name: "Open network data" });
+        assert.isNotNull(within(chooser).getByRole("button", { name: /^NDEx/ }), "the same cards as the start page");
+        assert.isNotNull(within(chooser).getByRole("button", { name: /^Open a file/ }));
+        await userEvent.type(
+            within(chooser).getByPlaceholderText("Web address of a graph file"),
+            `${fixtureUrl("ships-to-2024-09.csv")}{Enter}`,
+        );
+        const join = await screen.findByRole("region", { name: /^Join / });
+        await userEvent.click(within(join).getByRole("button", { name: "Join" }));
+
+        await waitFor(() => {
+            assert.deepEqual(
+                live.data.sources().map((source) => source.name),
+                ["suppliers.csv", "ships-to-2024-09.csv"],
+            );
+        });
+        assert.strictEqual(store.get().project?.name, "Supply", "added to this project, not opened in its place");
     });
 });

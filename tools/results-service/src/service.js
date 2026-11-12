@@ -8,7 +8,8 @@
 //   for its own merge commit; master's own release.yml, ci.yml or a lane it calls (gpu.yml, hosts.yml,
 //   work-protection-macos.yml) writes `full`, bisect.yml `bisect`,
 //   base-check.yml `base`, restricted-cpu-stress.yml `stress`, story-slices.yml `slice` (story captures),
-//   deploy-pages.yml `site` (the site-<sha> it kept), each only on refs/heads/master.
+//   deploy-pages.yml `site` (the site-<sha> it kept), promote.yml `promote` (reads only), each only on
+//   refs/heads/master.
 // - An OIDC token from a site repository (DEPLOY_REPOSITORY_IDS) writes only `deploy` durations.
 // - A local token whose SHA-256 is in LOCAL_TOKEN_HASHES writes only `local` records.
 import {
@@ -47,6 +48,8 @@ const MASTER_KINDS = {
     "nightly-site.yml": "nightly-site",
     // the rolling screenshot slices (design/visual-testing/early-capture.md): story captures only
     "story-slices.yml": "slice",
+    // the production promotion: reads a nightly's record (GET /v1/site) and writes nothing
+    "promote.yml": "promote",
 };
 // Kinds that write no test records, and why.
 const NO_TESTS = {
@@ -55,6 +58,7 @@ const NO_TESTS = {
     "nightly-site": "nightly-site.yml writes only its channel move and durations",
     master: "a push to master runs ci.yml as a build only, with no tests",
     slice: "story-slices.yml writes only story captures",
+    promote: "promote.yml only reads",
 };
 const MASTER = "refs/heads/master";
 const MASTER_EVIDENCE = new Set(["full", "bisect", "base"]);
@@ -363,6 +367,7 @@ async function postFailures(body, who, db, nowMs) {
 
 async function postDurations(body, who, db, nowMs) {
     if (who.kind === "local") refuse(403, "durations come only from Actions runs");
+    if (who.kind === "promote") refuse(403, NO_TESTS.promote);
     const rows = body?.rows;
     if (!Array.isArray(rows)) refuse(400, "rows must be a list");
     for (const r of rows) {

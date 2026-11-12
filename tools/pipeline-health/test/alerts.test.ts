@@ -406,7 +406,7 @@ describe("the policy's conditions", () => {
         expect((await run(store, ev, early + 6 * HOUR, p.fetch, SLAS)).sent).toHaveLength(1);
     });
 
-    it("AWS pages once past its $8 yellow line, well before its $10 lockout, with the Costs page's forecast", async () => {
+    it("AWS pages once past its $40 yellow line, well before its $50 lockout, with the Costs page's forecast", async () => {
         const aws = (v: number, projected: number) =>
             evaluation({ ...cost("cost.aws", v, v), state: "WARNING", facts: { projected } });
         const sent = async (v: number, projected: number) => {
@@ -417,13 +417,15 @@ describe("the policy's conditions", () => {
             await run(store, aws(v, projected), day + HOUR, p.fetch, SLAS);
             return p.calls.map((c) => c.get("title"));
         };
-        expect(await sent(7.9, 9.5)).toEqual([]); // under the yellow line
-        // Billing data lags a day: past $8 it pages, even with the forecast under $10.
-        expect(await sent(8.4, 9.02)).toEqual([
-            "Health alerts stop at $10 AWS spend (forecast $9.02): raise the limit?",
+        expect(await sent(39.9, 47.5)).toEqual([]); // under the yellow line
+        // Billing data lags a day: past $40 it pages, even with the forecast under $50.
+        expect(await sent(42.4, 45.02)).toEqual([
+            "Health alerts stop at $50 AWS spend (forecast $45): raise the limit?",
         ]);
         // The forecast is the engine's month-end projection (facts.projected), the one the Costs page shows.
-        expect(await sent(8.4, 13.1)).toEqual(["Health alerts stop at $10 AWS spend (forecast $13): raise the limit?"]);
+        expect(await sent(42.4, 63.1)).toEqual([
+            "Health alerts stop at $50 AWS spend (forecast $63): raise the limit?",
+        ]);
     });
 
     it("a cost group pages once per floor, naming every limit over, though members cross their lines apart", async () => {

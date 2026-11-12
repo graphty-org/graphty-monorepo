@@ -78,6 +78,12 @@ export interface GraphStoreOptions {
      * own under itself, which is what a headless session reads.
      */
     readonly inputs?: InputCounters;
+    /**
+     * Whether a fresh builder may index its edge ids by offset: while ids are stamped in row
+     * order, the row is the id less one offset and no per-edge map entry is kept. Read once per
+     * fresh builder; absent reads false. The element turns it on for the "batched" render path.
+     */
+    readonly denseEdgeIds?: () => boolean;
 }
 
 /** The node column an importer seeds file coordinates into; deleted from every snapshot by the attach. */
@@ -259,6 +265,7 @@ interface BuilderState {
     readonly handles: readonly ColumnHandle[];
     readonly edgeIdByIndex: number[];
     readonly indexByEdgeId: Map<number, number>;
+    readonly denseOffset: number | null;
     readonly pairsOrdered: boolean | null;
 }
 
@@ -567,6 +574,11 @@ export class GraphStore {
      * live edges plus at most the ones removed since the last freeze.
      */
     private indexByEdgeId = new Map<number, number>();
+    /**
+     * With `denseEdgeIds`, the id less the row of the first edge stamped into this builder: an
+     * edge stamped where id - row equals it has no entry in {@link indexByEdgeId}. Null when off.
+     */
+    private denseOffset: number | null = null;
     /**
      * The kept graph the builder was last restored from, with the builder and its mutation count
      * once that restore settled. While the count still matches, the builder holds exactly that
@@ -985,8 +997,14 @@ export class GraphStore {
      */
     stampEdgeId(edgeIndex: number, edgeId: number): void {
         this.builder.setEdgeValue(this.edgeIdHandle, edgeIndex, edgeId);
+        if (this.edgeIdByIndex.length === 0 && this.options.denseEdgeIds?.() === true) {
+            this.denseOffset = edgeId - edgeIndex;
+        }
+
         this.edgeIdByIndex[edgeIndex] = edgeId;
-        this.indexByEdgeId.set(edgeId, edgeIndex);
+        if (edgeId - edgeIndex !== this.denseOffset) {
+            this.indexByEdgeId.set(edgeId, edgeIndex);
+        }
     }
 
     /**
@@ -1039,9 +1057,23 @@ export class GraphStore {
         // First, so the index below is not read from before a structural change still waiting.
         this.settle();
         const index = this.indexByEdgeId.get(edgeId);
-        return index !== undefined && this.edgeIdByIndex[index] === edgeId && this.builder.hasEdge(index)
-            ? index
-            : INVALID_INDEX;
+        if (index !== undefined && this.liveEdgeAt(index, edgeId)) {
+            return index;
+        }
+
+        // An edge stamped in row order has no map entry; a stale entry falls through to it too.
+        const dense = this.denseOffset === null ? -1 : edgeId - this.denseOffset;
+        return dense >= 0 && this.liveEdgeAt(dense, edgeId) ? dense : INVALID_INDEX;
+    }
+
+    /**
+     * Whether a builder row holds the live edge with this id.
+     * @param index - the row
+     * @param edgeId - the id
+     * @returns true when it does
+     */
+    private liveEdgeAt(index: number, edgeId: number): boolean {
+        return this.edgeIdByIndex[index] === edgeId && this.current.hasEdge(index);
     }
 
     /**
@@ -1710,6 +1742,7 @@ export class GraphStore {
                 ],
                 edgeIdByIndex: this.edgeIdByIndex,
                 indexByEdgeId: this.indexByEdgeId,
+                denseOffset: this.denseOffset,
                 pairsOrdered: this.pairsOrdered,
             },
             count: old.mutationCount,
@@ -1734,7 +1767,7 @@ export class GraphStore {
         this.setAside.delete(kept);
         this.setAsideKey = null;
         const old = this.current;
-        const { builder, handles, edgeIdByIndex, indexByEdgeId, pairsOrdered } = aside.state;
+        const { builder, handles, edgeIdByIndex, indexByEdgeId, denseOffset, pairsOrdered } = aside.state;
         this.current = builder;
         [
             this.seedHandle,
@@ -1747,6 +1780,7 @@ export class GraphStore {
         ] = handles;
         this.edgeIdByIndex = edgeIdByIndex;
         this.indexByEdgeId = indexByEdgeId;
+        this.denseOffset = denseOffset;
         this.pairsOrdered = pairsOrdered;
         // Recorded again once it has frozen, so a further redo can set it aside once more.
         this.restoring = kept;
@@ -1819,6 +1853,7 @@ export class GraphStore {
         this.edgeIdByIndex = [];
         // A new map, not cleared: a builder set aside for an undo keeps the one it had.
         this.indexByEdgeId = new Map();
+        this.denseOffset = null;
         return builder;
     }
 
@@ -2134,6 +2169,8 @@ export class GraphStore {
         }
 
         this.edgeIdByIndex = moved;
+        // Every row moved has its entry now; the offset no longer describes them.
+        this.denseOffset = null;
     }
 
     /**

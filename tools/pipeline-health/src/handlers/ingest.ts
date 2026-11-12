@@ -324,9 +324,13 @@ async function itemsOf(route: string, body: Record<string, unknown>, who: Who, d
         case "benchmarks":
             return { items: [], extra: await benchItems(body, who, db, now), source: "benchmarks" };
         case "durations":
+            // Checked as before, and the post still ages its source, but no row is stored: no metric, view or
+            // drill-down reads a step row, and the pull request runs post about 3,000 each, 230,000 on a busy day,
+            // the dashboard's largest writer (#6813). The results service keeps them.
+            durationItems(body, who, now);
             // The site repositories' and deploy-pages.yml's deploy timings must not keep ci-results looking fresh.
             return {
-                items: durationItems(body, who, now),
+                items: [],
                 extra: [],
                 source: who.kind === "deploy" || who.kind === "site" ? "site" : "ci-results",
             };

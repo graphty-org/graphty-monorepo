@@ -302,10 +302,17 @@ export function createNetworkApi(
         }
 
         // A waiting source load on an allowed host runs too, when it needs no credential: one
-        // that does waits for the page, which has the reader's login to give it.
+        // that does waits for the page, which has the reader's login to give it. A load on this
+        // machine or a local network never runs on a policy or a remembered host: the reader is
+        // asked about it every time, and only `allow(id)` runs it.
         for (const request of sourceRequests()) {
             const load = sources?.pendingSourceLoads().find((each) => each.id === request.params.id);
-            if (load !== undefined && load.authRequired !== "required" && api.allowed(request.params.host)) {
+            if (
+                load !== undefined &&
+                load.authRequired !== "required" &&
+                !load.isLocalNetwork &&
+                api.allowed(request.params.host)
+            ) {
                 dismissed.add(load.id);
                 void sources?.runPendingSourceLoad(load.id).catch(() => {
                     dismissed.delete(load.id);

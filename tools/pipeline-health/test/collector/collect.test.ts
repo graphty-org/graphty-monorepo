@@ -52,6 +52,26 @@ describe("collector without the GitHub App", () => {
 });
 
 describe("collector with the GitHub App", () => {
+    it("a cycle that finds a JSON cursor unchanged does not write it again (#6813)", async () => {
+        const store = new MemoryStore();
+        const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });
+        await collect(deps(store, fake));
+        const before = new Map([...store.items].filter(([k]) => k.startsWith("CURSOR#")));
+        const puts: string[] = [];
+        const put = store.put.bind(store);
+        store.put = (item, condition) => {
+            puts.push(item.pk);
+            return put(item, condition);
+        };
+        await collect(deps(store, fake, NOW + 5 * MIN));
+        // The same answers: the JSON cursors every cycle sets stay as they were, so none is written again.
+        for (const name of ["chronic-jobs", "pr-stocks", "owner-wait"]) {
+            expect(before.has(`CURSOR#${name}\u0000-`), name).toBe(true);
+            expect(puts, name).not.toContain(`CURSOR#${name}`);
+        }
+        expect(puts).toContain("CURSOR#cycle"); // the time cursors still advance
+    });
+
     it("writes runs, jobs, pull requests, issues, release lanes and observations, and advances its cursors", async () => {
         const store = new MemoryStore();
         const fake = fakeGitHub({ coveralls: "2026-10-25T23:00:00Z" });

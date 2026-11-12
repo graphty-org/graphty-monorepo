@@ -20,10 +20,12 @@ import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
 import type { GraphSnapshotReplacedEvent, LayoutChangedEvent, LayoutWarningEvent } from "../events";
 import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
+import { FixedLayout } from "../layout/FixedLayoutEngine";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
 import { laidGroupMargins } from "../layout/groupMargins";
 import { labelBounds, paddedBox, sizedGroupBox } from "../layout/groupSizing";
 import {
+    type EdgeRow,
     LayoutEngine,
     layoutEngineInternals,
     type LayoutEngineStatics,
@@ -51,7 +53,7 @@ import { reportCaught, strictStateEnabled, strictViolation } from "../session/pr
 import { isDefinedLayout } from "../simple/defineLayout";
 import type { Styles } from "../Styles";
 import { transitionsOf } from "../transitions/LayoutTransitionRunner";
-import { type DataManager, dataManagerInternals } from "./DataManager";
+import { type DataManager, dataManagerInternals, type LayoutEdgeRows, noLayoutEdgeRows } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
@@ -672,6 +674,11 @@ export class LayoutManager implements Manager {
     #building = 0;
     /** Moves at every restore of the arrangement; pre-steps computed before one are dropped. */
     #generation = 0;
+    /**
+     * The generation a filter relayout is queued under and has not started yet, or null. Further
+     * filter changes before it starts ask for nothing more: it reads what the filter shows when it starts.
+     */
+    #relayoutQueued: number | null = null;
     /** Whether the last restore of the arrangement was the reader's (undo, redo, a history jump). */
     #restoredByReader = false;
 
@@ -1411,7 +1418,8 @@ export class LayoutManager implements Manager {
         try {
             // Add all existing nodes and edges to the new engine
             const nodeArray = this.nodesWithBodies(engine);
-            const edgeArray = [...this.dataManager.edges.values()];
+            const edgeArray = this.edgesWithLinks(engine);
+            const edgeRows = this.unbuiltEdgeRowsFor(engine);
             // Before the nodes and edges arrive, so an engine that weighs them as they come knows
             // which take no part; and again after init(), whose freeze may renumber the rows.
             this.leaveOut(engine, visible);
@@ -1419,6 +1427,7 @@ export class LayoutManager implements Manager {
             // makes its ends' bodies in edge order, and a seeded simulation draws another picture.
             this.addBodies(engine, nodeArray);
             layoutEngineInternals.addEdges(engine, edgeArray);
+            this.edgeRowsOf(engine)?.add(edgeRows);
 
             this.engine = engine;
             this.engineDimension = dimension;
@@ -1432,7 +1441,7 @@ export class LayoutManager implements Manager {
                 throw cancelledBuild();
             }
 
-            this.addLateArrivals(engine, nodeArray, edgeArray);
+            this.addLateArrivals(engine, nodeArray, edgeArray, edgeRows);
 
             // AFTER init(), and before any step runs. See `replayPins`.
             this.replayPins(engine, nodeArray);
@@ -1447,6 +1456,7 @@ export class LayoutManager implements Manager {
             // Update DataManager with new layout engine
             this.dataManager.setLayoutEngine(engine);
             dataManagerInternals.setLayoutRows(this.dataManager, this.lateRowsOf(engine));
+            dataManagerInternals.setLayoutEdgeRows(this.dataManager, this.edgeRowsOf(engine));
 
             await this.startArrangement(engine, type, nodeArray, edgeArray.length, how);
 
@@ -1476,6 +1486,7 @@ export class LayoutManager implements Manager {
             this.driverOptions = previousDriverOptions;
             this.dataManager.setLayoutEngine(previousEngine);
             dataManagerInternals.setLayoutRows(this.dataManager, this.lateRowsOf(previousEngine));
+            dataManagerInternals.setLayoutEdgeRows(this.dataManager, this.edgeRowsOf(previousEngine));
 
             // Cancelled or overtaken is not a failure: nothing is reported.
             if (!how.live()) {
@@ -1556,6 +1567,26 @@ export class LayoutManager implements Manager {
                         this.reportLayoutFailure(type, error, "stepped");
                     },
                     dataManager: this.dataManager,
+                    // An edge stored with no `Edge` is simulated by row and drawn by its row line.
+                    builtEdges: () => dataManagerInternals.builtEdges(this.dataManager).values(),
+                    // Every node under "objects", where every row has its `Node`, as before.
+                    builtNodes: () =>
+                        this.dataManager.renderLimits?.batched() === true
+                            ? dataManagerInternals.builtNodes(this.dataManager)
+                            : this.dataManager.nodes.values(),
+                    rowSpacingRadius: (row, flat) => {
+                        if (this.dataManager.renderLimits?.batched() !== true) {
+                            return null;
+                        }
+
+                        const extent = this.graphContext?.getRowTable?.()?.extentOf(row);
+                        if (extent === undefined || extent.scale <= 0) {
+                            return null;
+                        }
+
+                        const { half } = extent;
+                        return extent.round ?? Math.hypot(half.x, half.y, flat ? 0 : half.z);
+                    },
                     fromSeed: how.fromSeed,
                     weightMeaning: this.weightMeaningFor(type),
                     drawnTarget: () => this.graphContext?.getDrawnTarget?.() ?? null,
@@ -1682,6 +1713,65 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * How an engine is handed an edge stored with no `Edge`: d3 and ngraph take its edge row, an
+     * engine that reads the snapshot (a static engine, a simulation) needs nothing, and any other
+     * engine lays out only `Edge`s, so every edge stored under it gets one.
+     * @param engine - The engine, or none.
+     * @returns The hand-over, or null.
+     */
+    private edgeRowsOf(engine: LayoutEngine | undefined): LayoutEdgeRows | null {
+        if (engine instanceof D3GraphEngine || engine instanceof NGraphEngine) {
+            return {
+                add: (rows) => {
+                    engine.addEdgeRows(rows);
+                },
+                remove: (keys) => {
+                    engine.removeEdgeRows(keys);
+                },
+                adopt: (key, e) => engine.adoptEdgeRow(key, e),
+            };
+        }
+
+        if (!placesLateRows(engine) || readsEdges(engine)) {
+            return null;
+        }
+
+        // A static engine holds the late `Edge` without laying out again; a simulation holds none.
+        return laysOutRows(engine)
+            ? {
+                  ...noLayoutEdgeRows,
+                  adopt: (_key, e) => {
+                      simpleLayoutInternals.adoptEdge(engine, e);
+                      return true;
+                  },
+              }
+            : noLayoutEdgeRows;
+    }
+
+    /**
+     * The edges a new engine is handed as `Edge`s: the built ones when it takes the others as edge
+     * rows or needs none of them, otherwise every edge, building an `Edge` for each.
+     * @param engine - The new engine.
+     * @returns The edges.
+     */
+    private edgesWithLinks(engine: LayoutEngine): Edge[] {
+        return this.edgeRowsOf(engine) === null
+            ? [...this.dataManager.edges.values()]
+            : [...dataManagerInternals.builtEdges(this.dataManager).values()];
+    }
+
+    /**
+     * The edge rows a new d3 or ngraph engine is handed for the edges stored with no `Edge`.
+     * @param engine - The new engine.
+     * @returns The rows; none for any other engine.
+     */
+    private unbuiltEdgeRowsFor(engine: LayoutEngine): EdgeRow[] {
+        return engine instanceof D3GraphEngine || engine instanceof NGraphEngine
+            ? dataManagerInternals.unbuiltEdgeRows(this.dataManager)
+            : [];
+    }
+
+    /**
      * The nodes a new engine is handed: every `Node` but one whose row is drawn with no `Node`,
      * which a d3 or ngraph engine is handed as its row instead, so that no row has two bodies.
      * An engine that lays out no row it was not handed a `Node` for (a third party's that is no
@@ -1756,8 +1846,14 @@ export class LayoutManager implements Manager {
      * @param engine - The new engine.
      * @param nodeArray - The nodes it was given before `init()`.
      * @param edgeArray - The edges it was given before `init()`.
+     * @param edgeRows - The edge rows it was given before `init()`.
      */
-    private addLateArrivals(engine: LayoutEngine, nodeArray: readonly Node[], edgeArray: readonly Edge[]): void {
+    private addLateArrivals(
+        engine: LayoutEngine,
+        nodeArray: readonly Node[],
+        edgeArray: readonly Edge[],
+        edgeRows: readonly EdgeRow[],
+    ): void {
         // WHAT ARRIVED WHILE `init()` WAS AWAITED went to the previous engine, which the
         // DataManager still holds until the swap below. A load that replaces the dataset
         // clears (which rebuilds the layout) and adds its records in the same turn, so without
@@ -1770,8 +1866,15 @@ export class LayoutManager implements Manager {
         );
         layoutEngineInternals.addEdges(
             engine,
-            [...this.dataManager.edges.values()].filter((e) => !knownEdges.has(e)),
+            this.edgesWithLinks(engine).filter((e) => !knownEdges.has(e)),
         );
+        // An edge row built or removed meanwhile went from the previous engine only.
+        const rows = this.unbuiltEdgeRowsFor(engine);
+        const now = new Set(rows.map((row) => row.key));
+        const knownRows = new Set(edgeRows.map((row) => row.key));
+        const handOver = this.edgeRowsOf(engine);
+        handOver?.remove([...knownRows].filter((key) => !now.has(key)));
+        handOver?.add(rows.filter((row) => !knownRows.has(row.key)));
     }
 
     /**
@@ -2387,8 +2490,15 @@ export class LayoutManager implements Manager {
         }
 
         const generation = this.#generation;
+        // A play changes the filter every frame: one relayout waiting to start covers them all.
+        if (this.#relayoutQueued === generation) {
+            return;
+        }
+
+        this.#relayoutQueued = generation;
         this.#building++;
         const rebuild = this.#applying.then(async () => {
+            this.#relayoutQueued = null;
             const running = this.layoutEngine;
             if (running === undefined || this.#generation !== generation) {
                 return;
@@ -3231,6 +3341,22 @@ function sameShown(a: Shown | null, b: Shown | null): boolean {
  */
 function validRow(index: number): boolean {
     return Number.isInteger(index) && index >= 0 && index !== INVALID_INDEX;
+}
+
+/**
+ * Whether an engine that lays out by row still builds its structure from the `Edge`s it holds:
+ * Graphviz, and `fixed` when it routes edges through Graphviz, read `_edges` and key their routes
+ * by `Edge`, so an edge stored under them with no `Edge` would be laid out as absent.
+ * @param engine - The engine, or none.
+ * @returns True for an engine that needs an `Edge` for every edge.
+ */
+function readsEdges(engine: LayoutEngine | undefined): boolean {
+    if (engine instanceof FixedLayout) {
+        return engine.config.edgeRoutes === "graphviz";
+    }
+
+    const type = (engine?.constructor as { type?: unknown } | undefined)?.type;
+    return typeof type === "string" && type.startsWith("graphviz-");
 }
 
 /**

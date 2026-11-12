@@ -107,10 +107,9 @@ function makeStore(directed: boolean | "auto" = "auto", positionScale = 1): Harn
 }
 
 describe("GraphStore", () => {
-    it("freezes once per revision and caches", () => {
+    it("freezes once per builder mutation and caches", () => {
         const { store, events } = makeStore();
         store.builder.addEdge("a", "b");
-        store.touch();
         const first = store.getSnapshot();
         const second = store.getSnapshot();
         assert.strictEqual(first, second);
@@ -118,14 +117,12 @@ describe("GraphStore", () => {
         assert.strictEqual(events[0]?.previous, null);
     });
 
-    it("invalidates on a MERGE, which builder.mutationCount also counts", () => {
+    it("invalidates on a MERGE, which builder.mutationCount counts", () => {
         const { store } = makeStore();
         store.builder.addNode("a");
-        store.touch();
         const first = store.getSnapshot();
         const mutationCountBefore = store.builder.mutationCount;
         store.builder.addNodeRecord("a", { label: "second write" });
-        store.touch();
         const second = store.getSnapshot();
         assert.ok(store.builder.mutationCount > mutationCountBefore, "the format counted the merge");
         assert.notStrictEqual(second, first, "and the store did");
@@ -134,7 +131,6 @@ describe("GraphStore", () => {
     it("attaches the element positions as the role-position column, by reference", () => {
         const { store } = makeStore();
         store.builder.addEdge("a", "b");
-        store.touch();
         const snapshot = store.getSnapshot();
         assert.notStrictEqual(snapshot.nodes.byRole("position"), null);
         const { data } = snapshot.nodes.requireTyped("position", "f32");
@@ -147,7 +143,6 @@ describe("GraphStore", () => {
         const { store } = makeStore();
         const index = store.builder.addNode("a");
         store.builder.setNodeValue(store.seedColumn, index, [11, 12, 13]);
-        store.touch();
         const snapshot = store.getSnapshot();
         assert.strictEqual(snapshot.nodes.get("graphty.importPosition"), null, "replaceRole removed the seed column");
         const out = { x: 0, y: 0, z: 0 };
@@ -161,7 +156,6 @@ describe("GraphStore", () => {
         const { store } = makeStore("auto", 10);
         const index = store.builder.addNode("a");
         store.builder.setNodeValue(store.seedColumn, index, [1, 2, 3]);
-        store.touch();
         store.getSnapshot();
         const out = { x: 0, y: 0, z: 0 };
         store.positions.read(0, out);
@@ -175,13 +169,11 @@ describe("GraphStore", () => {
         const { store, scale } = makeStore("auto", 1);
         const first = store.builder.addNode("a");
         store.builder.setNodeValue(store.seedColumn, first, [1, 2, 3]);
-        store.touch();
         store.getSnapshot();
 
         scale.value = 10;
         const second = store.builder.addNode("b");
         store.builder.setNodeValue(store.seedColumn, second, [1, 2, 3]);
-        store.touch();
         store.getSnapshot();
 
         const out = { x: 0, y: 0, z: 0 };
@@ -202,7 +194,6 @@ describe("GraphStore", () => {
         store.builder.setNodeValue(store.seedColumn, flatZ, [3, 4, Number.NaN]);
         store.builder.setNodeValue(store.seedColumn, infinite, [Number.POSITIVE_INFINITY, 0, 0]);
         store.builder.setNodeValue(store.seedColumn, good, [1, 2, 3]);
-        store.touch();
         store.getSnapshot();
         assert.strictEqual(store.positions.isPlaced(flatZ), false, "a NaN z must not pass as a placed row");
         assert.strictEqual(store.positions.isPlaced(infinite), false, "nor must an infinite x");
@@ -222,7 +213,6 @@ describe("GraphStore", () => {
         const ok = store.builder.addNode("ok");
         store.builder.setNodeValue(store.seedColumn, big, [1e30, 1, 1]);
         store.builder.setNodeValue(store.seedColumn, ok, [1, 1, 2]);
-        store.touch();
         const snapshot = store.getSnapshot();
         assert.strictEqual(store.positions.isPlaced(big), false, "the overflowing row is left to the layout");
         assert.strictEqual(store.positions.isPlaced(ok), true, "and the rest of the burst is still seeded");
@@ -239,13 +229,11 @@ describe("GraphStore", () => {
         const { store, nodeRemaps, edgeRemaps, log } = makeStore();
         store.builder.addEdge("a", "b");
         store.builder.addEdge("b", "c");
-        store.touch();
         store.getSnapshot();
         store.positions.write(0, 1, 1, 1);
         store.positions.write(1, 2, 2, 2);
         store.positions.write(2, 3, 3, 3);
         store.builder.removeNode("a");
-        store.touch();
         const next = store.getSnapshot();
         assert.strictEqual(next.nodeCount, 2);
         assert.strictEqual(nodeRemaps.length, 1);
@@ -267,14 +255,12 @@ describe("GraphStore", () => {
         // seed. Move the pass under the non-remapping branch and the new node stays at NaN forever.
         const { store } = makeStore();
         store.builder.addEdge("a", "b");
-        store.touch();
         store.getSnapshot();
         store.positions.write(0, 1, 1, 1);
         store.positions.write(1, 2, 2, 2);
         store.builder.removeNode("a");
         const added = store.builder.addNode("c");
         store.builder.setNodeValue(store.seedColumn, added, [7, 8, 9]);
-        store.touch();
         const next = store.getSnapshot();
         assert.strictEqual(next.nodeCount, 2);
         const out = { x: 0, y: 0, z: 0 };
@@ -287,7 +273,6 @@ describe("GraphStore", () => {
     it("undirected(s) is cached and shares the node table with its source", () => {
         const { store } = makeStore();
         store.builder.addEdge("a", "b");
-        store.touch();
         const s = store.getSnapshot();
         const u = store.undirected(s);
         assert.strictEqual(store.undirected(s), u);
@@ -298,10 +283,8 @@ describe("GraphStore", () => {
     it("emits previous on the second freeze so a listener can release it", () => {
         const { store, events } = makeStore();
         store.builder.addEdge("a", "b");
-        store.touch();
         const first = store.getSnapshot();
         store.builder.addEdge("b", "c");
-        store.touch();
         const second = store.getSnapshot();
         assert.strictEqual(events.length, 2);
         assert.strictEqual(events[1]?.previous, first);
@@ -319,13 +302,11 @@ describe("GraphStore publication", () => {
         const { store, events, nodeRemaps, edgeRemaps, throwOnce } = makeStore();
         store.builder.addEdge("a", "b");
         store.builder.addEdge("b", "c");
-        store.touch();
         const first = store.getSnapshot();
         store.positions.write(0, 1, 1, 1);
         store.positions.write(1, 2, 2, 2);
         store.positions.write(2, 3, 3, 3);
         store.builder.removeNode("a");
-        store.touch();
         throwOnce.onNodeRemap = true;
         assert.throws(() => store.getSnapshot(), /blew up inside onNodeRemap/);
         assert.deepStrictEqual(nodeRemaps, [], "the throwing delivery recorded nothing");
@@ -359,10 +340,8 @@ describe("GraphStore publication", () => {
         const { store, events, nodeRemaps, edgeRemaps, log, throwOnce } = makeStore();
         store.builder.addEdge("a", "b");
         store.builder.addEdge("b", "c");
-        store.touch();
         store.getSnapshot();
         store.builder.removeNode("a");
-        store.touch();
         throwOnce.onReplaced = true;
         assert.throws(() => store.getSnapshot(), /blew up inside onReplaced/);
         assert.strictEqual(nodeRemaps.length, 1, "the remap got through before the listener threw");
@@ -389,10 +368,8 @@ describe("GraphStore publication", () => {
         const { store, events, nodeRemaps, edgeRemaps, log, reenter, reentered } = makeStore();
         store.builder.addEdge("a", "b");
         store.builder.addEdge("b", "c");
-        store.touch();
         store.getSnapshot();
         store.builder.removeNode("a");
-        store.touch();
         reenter.on = true;
         const next = store.getSnapshot();
         assert.strictEqual(reentered.length, 3, "all three callbacks asked");
@@ -408,10 +385,8 @@ describe("GraphStore publication", () => {
         const { store, events, nodeRemaps } = makeStore();
         store.builder.addEdge("a", "b");
         store.builder.addEdge("b", "c");
-        store.touch();
         const first = store.getSnapshot();
         store.builder.removeNode("a");
-        store.touch();
         // Fail the attach the way a graph-format regression would. By then `positions` has ALREADY
         // been remapped and freezeWithReport has reported against the previous freeze, so a store
         // that let the throw skip the commit would lose the report for good: the retry re-freezes,
@@ -457,13 +432,11 @@ describe("GraphStore publication", () => {
         const { store, events, nodeRemaps } = makeStore();
         store.builder.addEdge("a", "b");
         store.builder.addEdge("b", "c");
-        store.touch();
         const first = store.getSnapshot();
         store.positions.write(0, 10, 0, 0);
         store.positions.write(1, 20, 0, 0);
         store.positions.write(2, 30, 0, 0);
         store.builder.removeNode("a");
-        store.touch();
 
         const remap = store.positions.remap.bind(store.positions);
         let armed = true;
@@ -502,10 +475,8 @@ describe("GraphStore publication", () => {
         const { store, log, events, edgeRemaps, disposeOn } = makeStore();
         store.builder.addEdge("a", "b");
         store.builder.addEdge("b", "c");
-        store.touch();
         store.getSnapshot();
         store.builder.removeNode("a");
-        store.touch();
         disposeOn.which = "onNodeRemap";
         store.getSnapshot();
 
@@ -520,7 +491,6 @@ describe("GraphStore hazards", () => {
     it("the format believes it owns the element's position buffer, so the element must never transfer", () => {
         const { store } = makeStore();
         store.builder.addEdge("a", "b");
-        store.touch();
         const snapshot = store.getSnapshot();
         const transferables = snapshot.transferables();
         const positionsBuffer = store.positions.view(snapshot.nodeCount).buffer;
@@ -537,7 +507,6 @@ describe("GraphStore lifecycle", () => {
         const { store } = makeStore(false);
         assert.strictEqual(store.builder.directedLocked, true);
         store.builder.addEdge("a", "b");
-        store.touch();
         const s = store.getSnapshot();
         assert.strictEqual(s.directed, false);
         assert.throws(
@@ -551,7 +520,6 @@ describe("GraphStore lifecycle", () => {
         const { store } = makeStore(true);
         assert.strictEqual(store.builder.directedLocked, true);
         store.builder.addEdge("a", "b");
-        store.touch();
         assert.strictEqual(store.getSnapshot().directed, true);
         assert.throws(() => store.builder.setDirected(false), /locked/);
     });
@@ -563,14 +531,12 @@ describe("GraphStore lifecycle", () => {
         assert.strictEqual(store.builder.directedLocked, false);
         store.builder.setDirected(false);
         store.builder.addEdge("a", "b");
-        store.touch();
         assert.strictEqual(store.getSnapshot().directed, false, "the importer's choice reached the snapshot");
     });
 
     it("returns an identity DerivedGraph for an already undirected snapshot", () => {
         const { store } = makeStore(false);
         store.builder.addEdge("a", "b");
-        store.touch();
         const s = store.getSnapshot();
         const u = store.undirected(s);
         assert.strictEqual(u.snapshot, s, "no second snapshot is built for a graph that is already undirected");
@@ -580,14 +546,13 @@ describe("GraphStore lifecycle", () => {
         assert.strictEqual(u.report.mergedEdges, 0);
     });
 
-    it("reports stale until the next read, and again after a touch", () => {
+    it("reports stale until the next read, and again after a write of the builder", () => {
         const { store } = makeStore();
         assert.strictEqual(store.stale, true, "nothing has been frozen yet");
         store.builder.addNode("a");
-        store.touch();
         store.getSnapshot();
         assert.strictEqual(store.stale, false);
-        store.touch();
+        store.builder.addNode("b");
         assert.strictEqual(store.stale, true);
     });
 
@@ -606,12 +571,10 @@ describe("GraphStore lifecycle", () => {
         const { store } = makeStore();
         store.builder.addEdge("a", "b");
         store.builder.addEdge("b", "c");
-        store.touch();
         store.getSnapshot();
 
         const pinned = store.getSnapshot().ids.indexOf("b");
         assert.isTrue(store.positions.setPinned(pinned, true));
-        store.touch();
 
         const column = store.getSnapshot().nodes.get("graphty.pinned");
         assert.isNotNull(column, "every snapshot carries the lane");
@@ -620,19 +583,55 @@ describe("GraphStore lifecycle", () => {
         assert.strictEqual(column.value(pinned === 0 ? 1 : 0), 0, "and no other node is");
     });
 
+    it("follows the builder's mutationCount: a column write and a direction change each freeze again", () => {
+        const { store } = makeStore();
+        const column = store.builder.declareNodeColumn({ name: "score", dtype: "f64" });
+        store.builder.addNode("a");
+        const first = store.getSnapshot();
+
+        store.builder.setNodeValue(column, 0, 2);
+        const written = store.getSnapshot();
+        assert.notStrictEqual(written, first, "a column write is a new snapshot");
+        assert.strictEqual(written.nodes.value("score", 0), 2);
+
+        store.builder.setDirected(!store.builder.directed);
+        const turned = store.getSnapshot();
+        assert.notStrictEqual(turned, written, "a direction change is a new snapshot");
+        assert.strictEqual(turned.directed, store.builder.directed);
+    });
+
+    it("freezes again after a record change the builder cannot count", () => {
+        const { store } = makeStore();
+        store.builder.addNode("a");
+        const first = store.getSnapshot();
+        store.recordsChanged();
+        assert.strictEqual(store.stale, true);
+        assert.notStrictEqual(store.getSnapshot(), first);
+    });
+
+    it("serves the same snapshot to two reads with no write between, after the identity pass", () => {
+        const { store, events } = makeStore();
+        store.openLoad();
+        store.recordIngestedEdge(store.builder.addEdge("a", "b"), store.nextEdgeId());
+        store.closeLoad();
+        const first = store.getSnapshot();
+        assert.strictEqual(store.stale, false, "the identity columns written before the freeze are in its key");
+        assert.strictEqual(store.getSnapshot(), first);
+        assert.strictEqual(events.length, 1, "one freeze, announced once");
+    });
+
     it("dispose is TERMINAL: a use after teardown throws instead of being served", () => {
         // The callbacks point into a DataManager that is being torn down. A freeze served after
         // dispose() emits snapshot-replaced with previous: null -- the contract's "FIRST freeze" --
         // to listeners still holding the real previous snapshot.
         const { store, events } = makeStore();
         store.builder.addEdge("a", "b");
-        store.touch();
         const snapshot = store.getSnapshot();
         assert.strictEqual(store.isDisposed, false);
         store.dispose();
         assert.strictEqual(store.isDisposed, true);
         assert.throws(() => store.getSnapshot(), /after dispose/);
-        assert.throws(() => store.touch(), /after dispose/);
+        assert.throws(() => store.recordsChanged(), /after dispose/);
         assert.throws(() => store.nextEdgeId(), /after dispose/);
         // Otherwise it builds and caches a fresh DerivedGraph over a snapshot the store has just
         // told the world it released, with the DataManager behind `options` already torn down.
@@ -663,11 +662,9 @@ describe("GraphStore edge-id index", () => {
             kept.push(add(`k${i}`, `k${i + 1}`));
         }
 
-        store.touch();
         store.getSnapshot();
         for (let cycle = 0; cycle < 1500; cycle++) {
             const added = [add("a", "b"), add("b", "c"), add("c", "a")];
-            store.touch();
             store.getSnapshot();
             store.removeRows([], added);
             store.getSnapshot();
@@ -699,7 +696,6 @@ describe("GraphStore removal runs", () => {
             store.builder.addNode(`v${String(at)}`);
         }
 
-        store.touch();
         store.getSnapshot();
         return store;
     }

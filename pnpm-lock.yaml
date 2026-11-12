@@ -56,6 +56,9 @@ overrides:
   '@playwright/test': 1.57.0
 
 patchedDependencies:
+  '@babylonjs/core@8.56.2':
+    hash: f71e421b4152b5355eaabfafbfa1e5e5abb2e7e82368f194fce01990693321e2
+    path: patches/@babylonjs__core@8.56.2.patch
   '@tanstack/ai-gemini@0.37.2':
     hash: 3c06607cba01b73aa29822c88ef3160f018ac85fd69fb5fbc8d37e12b0d986f7
     path: patches/@tanstack__ai-gemini@0.37.2.patch
@@ -341,7 +344,7 @@ importers:
     devDependencies:
       '@babylonjs/core':
         specifier: ^8.36.1
-        version: 8.56.2
+        version: 8.56.2(patch_hash=f71e421b4152b5355eaabfafbfa1e5e5abb2e7e82368f194fce01990693321e2)
       '@types/ngeohash':
         specifier: ^0.6.8
         version: 0.6.8
@@ -706,7 +709,7 @@ importers:
     devDependencies:
       '@babylonjs/core':
         specifier: ^8.36.1
-        version: 8.56.2
+        version: 8.56.2(patch_hash=f71e421b4152b5355eaabfafbfa1e5e5abb2e7e82368f194fce01990693321e2)
       '@codemirror/commands':
         specifier: 6.11.1
         version: 6.11.1
@@ -914,10 +917,10 @@ importers:
     devDependencies:
       '@babylonjs/core':
         specifier: ^8.36.1
-        version: 8.56.2
+        version: 8.56.2(patch_hash=f71e421b4152b5355eaabfafbfa1e5e5abb2e7e82368f194fce01990693321e2)
       '@babylonjs/loaders':
         specifier: 8.56.2
-        version: 8.56.2(@babylonjs/core@8.56.2)(babylonjs-gltf2interface@8.56.2)
+        version: 8.56.2(@babylonjs/core@8.56.2(patch_hash=f71e421b4152b5355eaabfafbfa1e5e5abb2e7e82368f194fce01990693321e2))(babylonjs-gltf2interface@8.56.2)
       '@graphty/remote-logger':
         specifier: workspace:^
         version: link:../remote-logger
@@ -11311,11 +11314,11 @@ snapshots:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
 
-  '@babylonjs/core@8.56.2': {}
+  '@babylonjs/core@8.56.2(patch_hash=f71e421b4152b5355eaabfafbfa1e5e5abb2e7e82368f194fce01990693321e2)': {}
 
-  '@babylonjs/loaders@8.56.2(@babylonjs/core@8.56.2)(babylonjs-gltf2interface@8.56.2)':
+  '@babylonjs/loaders@8.56.2(@babylonjs/core@8.56.2(patch_hash=f71e421b4152b5355eaabfafbfa1e5e5abb2e7e82368f194fce01990693321e2))(babylonjs-gltf2interface@8.56.2)':
     dependencies:
-      '@babylonjs/core': 8.56.2
+      '@babylonjs/core': 8.56.2(patch_hash=f71e421b4152b5355eaabfafbfa1e5e5abb2e7e82368f194fce01990693321e2)
       babylonjs-gltf2interface: 8.56.2
 
   '@bcoe/v8-coverage@1.0.2': {}
@@ -14258,9 +14261,9 @@ snapshots:
       obug: 2.2.1
       std-env: 4.3.0
       tinyrainbow: 3.2.0
-      vitest: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@20.19.43)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(@vitest/ui@4.1.12)(happy-dom@21.0.4)(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@20.19.43)(esbuild@0.25.10)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@20.19.43)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(@vitest/ui@4.1.12)(happy-dom@21.0.4)(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@20.19.43)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
     optionalDependencies:
-      '@vitest/browser': 4.1.12(patch_hash=5860fc4758e760f7fedfc33fe2a20f7c1ee40625ab65617bb47a68677bd11e67)(vite@8.3.5(@types/node@20.19.43)(esbuild@0.25.10)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.12)
+      '@vitest/browser': 4.1.12(patch_hash=5860fc4758e760f7fedfc33fe2a20f7c1ee40625ab65617bb47a68677bd11e67)(vite@8.3.5(@types/node@20.19.43)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(vitest@4.1.12)
 
   '@vitest/expect@2.0.5':
     dependencies:
@@ -14349,7 +14352,7 @@ snapshots:
       sirv: 3.0.2
       tinyglobby: 0.2.17
       tinyrainbow: 3.2.0
-      vitest: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@20.19.43)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(@vitest/ui@4.1.12)(happy-dom@21.0.4)(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@20.19.43)(esbuild@0.25.10)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 4.1.12(@opentelemetry/api@1.9.0)(@types/node@20.19.43)(@vitest/browser-playwright@4.1.12)(@vitest/coverage-v8@4.1.12)(@vitest/ui@4.1.12)(happy-dom@21.0.4)(jsdom@30.1.3(@noble/hashes@1.8.0))(vite@8.3.5(@types/node@20.19.43)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   '@vitest/utils@2.0.5':
     dependencies:

@@ -641,3 +641,59 @@
 .ws-part-name {
     white-space: nowrap;
 }
+
+/* A project model's tile while graphty-element draws its picture, or when it cannot: the cube. */
+.ws-gallery-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--cm-text-secondary);
+}
+
+/* The Load custom model dialog (node-models design 14.2). */
+
+/* Its file choosers and drop target: drawn as compact-mantine's file drop zone. */
+.ws-model-drop {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    border: 1px dashed var(--cm-border);
+    border-radius: var(--mantine-radius-sm);
+}
+
+.ws-model-drop[data-over] {
+    border-color: var(--mantine-primary-color-filled);
+    background: var(--mantine-primary-color-light);
+}
+
+/* The model drawn alone, 160 px square, on the panel's ground. */
+.ws-model-preview {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 160px;
+    height: 160px;
+    border: 1px solid var(--cm-border);
+    border-radius: var(--mantine-radius-sm);
+    background: var(--cm-bg-secondary);
+    color: var(--cm-text-secondary);
+}
+
+/* Files and Advanced: a chevron and a word that open their rows, as the selection pane's Advanced. */
+.ws-disclosure {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+}
+
+/* A part's answers sit under its name, in the name's column. */
+.ws-model-files .ws-part-row {
+    padding-left: 18px;
+}
+
+.ws-model-files .ws-part-row > :first-child {
+    margin-left: -18px;
+}

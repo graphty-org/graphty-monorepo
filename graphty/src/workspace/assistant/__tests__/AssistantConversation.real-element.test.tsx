@@ -860,6 +860,11 @@ describe("talking to the Assistant", () => {
             "graphty-element:not([data-start-page])",
         );
         assert.deepStrictEqual(await next?.listAiConversations(), []);
+        // The header counts the open chat once the panel has heard of it. A click is found by the
+        // switch's name, so it waits for the name a reader sees settled (#6661).
+        await waitFor(() => {
+            assert.strictEqual(chatsButton().getAttribute("aria-label"), "Chats, 1: New chat");
+        });
         await userEvent.click(chatsButton());
         const list = await screen.findByRole("list", { name: "Chats" });
         // Only the open, empty chat is listed.

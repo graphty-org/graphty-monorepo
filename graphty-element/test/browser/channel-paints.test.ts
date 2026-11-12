@@ -236,8 +236,8 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             return "CHANNEL PROBE WORDS";
         case "boolean":
             // The other state from the default: a switch that is on by default (`node.visible`)
-            // changes the picture only when it is turned off, and a bundle fans unless told not to.
-            return descriptor.default !== true && descriptor.channel !== "edge.fanned";
+            // changes the picture only when it is turned off (`edge.fanned` too: a bundle fans).
+            return descriptor.default !== true;
         case "enum": {
             const values = descriptor.values ?? [];
 

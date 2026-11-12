@@ -4568,6 +4568,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Edge Fanned",
         shortName: "Fanned",
         group: "line",
+        // Unset, a curved edge fans apart from its bundle, so that is what it draws unset.
+        default: true,
         accepts: "boolean",
         stylePath: "line.fanned",
         renderable: true,

@@ -755,8 +755,6 @@ describe("what a style editor needs to draw a row", () => {
         "edge.bends",
         // Unset, a bundle's curved edges are two node radii apart.
         "edge.fanSpacing",
-        // Unset, a bundle's curved edges fan apart.
-        "edge.fanned",
         // Unset, a curved edge keeps the element's own bow.
         "edge.arcRadius",
         // Unset, a curved edge has no support point, and the support's numbers have nothing to place.

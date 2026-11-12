@@ -874,6 +874,24 @@ function approvalMerged(held) {
 }
 
 /**
+ * What the deciding verdict does to the hold. The hold as the store has it now, not as the pick saw it: a re-run
+ * attempt keeps attempt 1's pick outputs, and another run may have held its commit since.
+ * @param cfg the store's settings
+ * @param env the environment (SHA, HELD)
+ * @param o.state this run's verdict
+ * @param o.decides whether the verdict decides (not a deferred attempt 1, not a failed pick)
+ * @returns `{ now, hold }`: the store's hold (heldNow) and holdAction's answer
+ */
+async function verdictHold(cfg, env, { state, decides }) {
+    const now = await heldNow(cfg, env.HELD);
+    if (!decides) return { now, hold: "none" };
+    // newer: the held commit is in the judged one's history, so an older commit's late verdict never replaces it
+    const newer = !!now.base && now.base !== env.SHA && ancestor(now.base, env.SHA);
+    const heldState = heldStateNow(now, state, newer);
+    return { now, hold: holdAction({ held: now.head, sha: env.SHA, state, heldState, newer }) };
+}
+
+/**
  * The held head's state as holdAction weighs it: a held green-images head whose approval merged is approved in all
  * but the store, so its promotion is due (master is read only when a newer green verdict could replace it).
  * @param now the hold the store has now (heldNow)
@@ -1292,15 +1310,8 @@ async function verdictMain(env) {
     if (cfg && red[0] !== "pick")
         await record(cfg, { sha: env.SHA, state: recorded, lane: red.join(",") || null, issue });
     if (env.RECORD) writeFileSync(env.RECORD, `${JSON.stringify({ ...facts, state, deferred: wait, attempt })}\n`);
-    // the hold as the store has it now, not as the pick saw it: a re-run attempt keeps attempt 1's pick outputs, and
-    // another run may have held its commit since
-    const now = await heldNow(cfg, env.HELD);
+    const { now, hold } = await verdictHold(cfg, env, { state, decides: !wait && red[0] !== "pick" });
     const held = now.head;
-    // newer: the held commit is in the judged one's history, so an older commit's late verdict never replaces it
-    const newer = !!now.base && now.base !== env.SHA && ancestor(now.base, env.SHA);
-    const decides = !wait && red[0] !== "pick";
-    const heldState = decides ? heldStateNow(now, state, newer) : now.state;
-    const hold = decides ? holdAction({ held, sha: env.SHA, state, heldState, newer }) : "none";
     const owner = heldLine(env.VERSION_HELD);
     console.log("::endgroup::");
     output({

@@ -950,7 +950,7 @@ export interface ChannelDescriptor {
     readonly feature?: "file-styles";
     /**
      * The label style field this channel sets on its own, on a channel that sets one field of a
-     * block of words' style (a label, a tooltip, an arrow caption): `"letterSize"` on
+     * block of words' style (a label, a tooltip, an arrow caption, an external label): `"letterSize"` on
      * `node.labelLetterSize`, `"sizePx"` on `edge.arrowHeadTextSize`. A style editor that draws a
      * label style's fields finds here the channel that varies one of them per node or edge. Absent
      * on every other channel.
@@ -5143,7 +5143,7 @@ function stepOf(descriptor: ChannelDescriptor): number | undefined {
     return descriptor.perWorldUnit !== undefined || descriptor.channel === "edge.patternCount" ? 1 : 0.1;
 }
 
-/** The label style field each caption or tooltip channel sets, by the suffix after its block's name. */
+/** The label style field each caption, tooltip or external label channel sets, by the suffix after its block's name. */
 const CAPTION_FIELD_OF_SUFFIX = {
     Size: "sizePx",
     Color: "color",
@@ -5155,6 +5155,7 @@ const CAPTION_FIELD_OF_SUFFIX = {
     Rotation: "rotation",
     OffsetX: "offsetX",
     OffsetY: "offsetY",
+    Location: "location",
 } as const satisfies Record<string, keyof LabelStyle>;
 
 /**
@@ -5169,7 +5170,7 @@ function labelFieldOfChannel(channel: Channel): keyof LabelStyle | undefined {
     }
 
     const match =
-        /^(?:node\.tooltip|edge\.arrow(?:Head|Tail)Text)(Size|Color|Background|LetterSize|Font|Weight|Opacity|Rotation|OffsetX|OffsetY)$/.exec(
+        /^(?:node\.tooltip|edge\.arrow(?:Head|Tail)Text|(?:node|edge)\.xlabel)(Size|Color|Background|LetterSize|Font|Weight|Opacity|Rotation|OffsetX|OffsetY|Location)$/.exec(
             channel,
         );
 

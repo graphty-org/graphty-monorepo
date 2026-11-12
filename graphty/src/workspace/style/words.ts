@@ -75,8 +75,10 @@ export const MODEL_CHANNELS: readonly Channel[] = [
 
 /**
  * One kind of text a Text list entry draws: its words, its look, and the look's three channels a
- * value can vary (size, text color, background). A label, a node's tooltip and an edge's two end
- * captions are the same entry, each on its own channels (tier3 design, section 2.3).
+ * value can vary (size, text color, background) where the kind has them. A label, a node's tooltip,
+ * an edge's two end captions and the extra label are the same entry, each on its own channels (tier3
+ * design, section 2.3); the extra label has no size, color or background channels of its own: its
+ * look sets them.
  */
 export interface TextKindSpec {
     /** Stable id. */
@@ -85,9 +87,9 @@ export interface TextKindSpec {
     readonly name: string;
     readonly words: Channel;
     readonly style: Channel;
-    readonly size: Channel;
-    readonly color: Channel;
-    readonly background: Channel;
+    readonly size?: Channel;
+    readonly color?: Channel;
+    readonly background?: Channel;
     /** The table drawn in place of its words (`<base>Table`), on a kind that has one. */
     readonly table?: Channel;
 }
@@ -115,15 +117,42 @@ function textKind(id: string, name: string, base: Channel, table = false): TextK
     };
 }
 
+/**
+ * The extra label (graphty-element's external label, Graphviz's `xlabel`): its words and its look,
+ * whose position and offsets also vary through channels of their own.
+ * @param base - its words channel.
+ * @returns the kind.
+ */
+function extraLabel(base: "node.xlabel" | "edge.xlabel"): TextKindSpec {
+    return { id: "xlabel", name: "Extra label", words: base, style: `${base}Style` };
+}
+
 /** The kinds of text each group's Text list adds, in its "+" menu's order. */
 export const TEXT_KINDS: Readonly<Record<Kind, readonly TextKindSpec[]>> = {
-    node: [textKind("label", "Label", "node.label", true), textKind("tooltip", "Tooltip", "node.tooltip")],
+    node: [
+        textKind("label", "Label", "node.label", true),
+        textKind("tooltip", "Tooltip", "node.tooltip"),
+        extraLabel("node.xlabel"),
+    ],
     edge: [
         textKind("label", "Label", "edge.label", true),
         textKind("head", "Label at target end", "edge.arrowHeadText"),
         textKind("tail", "Label at source end", "edge.arrowTailText"),
+        extraLabel("edge.xlabel"),
     ],
 };
+
+/**
+ * Every channel of one text kind: its words, its look, and its size, color, background and table
+ * where it has them.
+ * @param kind - the kind.
+ * @returns the channels.
+ */
+export function textKindChannels(kind: TextKindSpec): Channel[] {
+    return [kind.words, kind.style, kind.size, kind.color, kind.background, kind.table].filter(
+        (channel): channel is Channel => channel !== undefined,
+    );
+}
 
 /**
  * Every channel of a group's text kinds.
@@ -131,14 +160,7 @@ export const TEXT_KINDS: Readonly<Record<Kind, readonly TextKindSpec[]>> = {
  * @returns the channels.
  */
 function textChannels(kind: Kind): Channel[] {
-    return TEXT_KINDS[kind].flatMap((t) => [
-        t.words,
-        t.style,
-        t.size,
-        t.color,
-        t.background,
-        ...(t.table === undefined ? [] : [t.table]),
-    ]);
+    return TEXT_KINDS[kind].flatMap((t) => textKindChannels(t));
 }
 
 /**
@@ -888,16 +910,16 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelMinNodeScreenSize": "Label hidden on nodes smaller than",
     "node.labelTextAlign": "Label text align",
     "node.labelLocation": "Label position",
-    "node.xlabel": "Outside label",
-    "node.xlabelStyle": "Outside label style",
-    "node.xlabelLocation": "Outside label location",
-    "node.xlabelOffsetX": "Outside label offset x",
-    "node.xlabelOffsetY": "Outside label offset y",
-    "edge.xlabel": "Outside label",
-    "edge.xlabelStyle": "Outside label style",
-    "edge.xlabelLocation": "Outside label location",
-    "edge.xlabelOffsetX": "Outside label offset x",
-    "edge.xlabelOffsetY": "Outside label offset y",
+    "node.xlabel": "Extra label",
+    "node.xlabelStyle": "Extra label style",
+    "node.xlabelLocation": "Extra label position",
+    "node.xlabelOffsetX": "Extra label right",
+    "node.xlabelOffsetY": "Extra label down",
+    "edge.xlabel": "Extra label",
+    "edge.xlabelStyle": "Extra label style",
+    "edge.xlabelLocation": "Extra label position",
+    "edge.xlabelOffsetX": "Extra label right",
+    "edge.xlabelOffsetY": "Extra label down",
     "node.borderWaveAmplitude": "Border wave amplitude",
     "node.borderWavePeriod": "Border wave period",
     "node.outerBorderColor": "Outer border",

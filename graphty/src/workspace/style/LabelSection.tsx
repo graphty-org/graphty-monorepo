@@ -36,7 +36,7 @@ import {
 import { AddButton, type AddOption } from "./Section";
 import { focusLineNext, focusSectionNext, headerBottom, lineTarget } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
-import { failureWords, positionWord, takesBinding, TEXT_KINDS, type TextKindSpec } from "./words";
+import { failureWords, positionWord, takesBinding, TEXT_KINDS, textKindChannels, type TextKindSpec } from "./words";
 
 /** The width of the entry's pop-outs: the source list as wide as the panel's rows, the settings wider. */
 const LIST_WIDTH = 248;
@@ -63,6 +63,7 @@ const KIND_WORDS: Readonly<Record<string, string>> = {
     tooltip: "Tooltip",
     head: "At target",
     tail: "At source",
+    xlabel: "Extra",
 };
 
 /** Where a label can sit, in the order the position select lists them. */
@@ -106,22 +107,6 @@ async function removeEntry(
             await removeLine(session, layer, ...held);
         }
     }
-}
-
-/**
- * A text kind's channels, for removing its entry.
- * @param kind - the kind.
- * @returns the channels.
- */
-function channelsOf(kind: TextKindSpec): Channel[] {
-    return [
-        kind.words,
-        kind.style,
-        kind.size,
-        kind.color,
-        kind.background,
-        ...(kind.table === undefined ? [] : [kind.table]),
-    ];
 }
 
 /**
@@ -201,7 +186,8 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
     };
     const options: AddOption[] = kinds.flatMap((kind) => {
         if (!hasEntry(kind)) {
-            if (picking === kind.id || typing === kind.id) {
+            // A kind an experiment the element has off adds (the extra label) is not offered.
+            if (picking === kind.id || typing === kind.id || descriptorOf(session, target, kind.words) === undefined) {
                 return [];
             }
             // A node or edge label can also start as a card (a row of one layer only).
@@ -231,12 +217,12 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
         const style = styleOf(styleLine);
         let write: Promise<unknown>;
         if (part === "size") {
-            const size = descriptorOf(session, target, kind.size);
+            const size = kind.size === undefined ? undefined : descriptorOf(session, target, kind.size);
             if (size === undefined) {
                 return;
             }
-            focusLineNext(session, kind.size);
-            write = writeIn(ctx, kind.size, { value: startFor(ctx, size) });
+            focusLineNext(session, size.channel);
+            write = writeIn(ctx, size.channel, { value: startFor(ctx, size) });
         } else {
             const patch: Partial<LabelStyle> =
                 part === "look"
@@ -375,7 +361,7 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                                     size="sm"
                                     aria-label={`Remove ${noun} from every row`}
                                     onClick={() => {
-                                        Promise.all(channelsOf(kind).map((c) => many.clear(c))).catch(fail);
+                                        Promise.all(textKindChannels(kind).map((c) => many.clear(c))).catch(fail);
                                     }}
                                 >
                                     <GLYPHS.remove size={14} aria-hidden />
@@ -623,7 +609,11 @@ function partsOf(ctx: RowContext, kind: TextKindSpec): AddOption[] {
     if (style.look === undefined) {
         parts.push({ key: `${kind.id}:look`, label: "Look" });
     }
-    if (lineIn(ctx, kind.size) === undefined && descriptorOf(ctx.session, ctx.side, kind.size) !== undefined) {
+    if (
+        kind.size !== undefined &&
+        lineIn(ctx, kind.size) === undefined &&
+        descriptorOf(ctx.session, ctx.side, kind.size) !== undefined
+    ) {
         parts.push({ key: `${kind.id}:size`, label: "Size" });
     }
     const location = fieldChannelOf(ctx.side, kind.words, "location");
@@ -695,7 +685,7 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
         value: look.id,
         label: look.id === lookId && edited ? `${look.plainName}, edited` : look.plainName,
     }));
-    const sizeDescriptor = descriptorOf(kind.size);
+    const sizeDescriptor = kind.size === undefined ? undefined : descriptorOf(kind.size);
     // The position varies by a value from its own line, as a setting varies from Label settings.
     const locationVary = vary("location");
     const addPart = (key: string): void => {
@@ -808,7 +798,7 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                             onClick={(event) => {
                                 // The minus goes with the entry: focus moves to the list's "+".
                                 focusSectionNext(session, event.currentTarget, kind.words);
-                                removeEntry(session, layers, channelsOf(kind)).catch(onFail);
+                                removeEntry(session, layers, textKindChannels(kind)).catch(onFail);
                             }}
                         >
                             <GLYPHS.remove size={14} aria-hidden />

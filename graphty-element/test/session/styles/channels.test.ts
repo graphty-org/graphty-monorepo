@@ -1218,6 +1218,9 @@ describe("labelField", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.tooltipBackground"].labelField, "background");
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowHeadTextSize"].labelField, "sizePx");
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.arrowTailTextRotation"].labelField, "rotation");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.xlabelLocation"].labelField, "location");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["edge.xlabelOffsetY"].labelField, "offsetY");
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.xlabelStyle"].labelField);
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.labelStyle"].labelField);
         assert.isUndefined(CHANNEL_DESCRIPTORS["edge.arrowHeadTextDistance"].labelField);
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.color"].labelField);

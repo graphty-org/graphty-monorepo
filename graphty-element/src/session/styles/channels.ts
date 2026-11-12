@@ -1456,6 +1456,9 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             shortName: `${end} caption distance`,
             group: "arrows",
             accepts: "number",
+            // A distance along the line from its node: below 0 is inside the node. The floor is
+            // also where a style editor starts a newly added distance.
+            min: 0,
             stylePath: `arrow${end}.textDistance`,
             renderable: true,
             caveat:

@@ -42,6 +42,10 @@
  * a published list naming the channel and saying plainly that nothing draws it. A consumer reads
  * that list instead of discovering the gap by writing a layer that does nothing. A channel in
  * that list which HAS started painting fails too, so the entry cannot outlive the gap.
+ *
+ * THE BATCHED PATH GETS A PASS OF ITS OWN, at the end of this file. The node prerequisites above
+ * write a label and a border, either of which keeps a row off the batch, so the measurements here
+ * are of object rows whatever the render path.
  */
 
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
@@ -51,12 +55,103 @@ import { UNPAINTED_CHANNELS } from "../../src/catalog/unreachable";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
 import { CHANNEL_DESCRIPTORS, type ChannelDescriptor } from "../../src/session/styles/channels";
+import { pixelsOverBar, readCanvas } from "../helpers/whole-canvas";
 
 /** Two nodes and the edge between them: enough for every channel, small enough to be quick. */
 const NODES = [{ id: "alpha" }, { id: "omega" }];
 
-/** The one edge, which every edge channel is measured on. */
-const EDGES = [{ src: "alpha", dst: "omega" }];
+/**
+ * The edge every edge channel is measured on, and a second one beside it: a bundle's spacing is
+ * drawn only between two edges. Straight, the two lie on one line and draw as one.
+ */
+const EDGES = [
+    { src: "alpha", dst: "omega" },
+    { src: "alpha", dst: "omega" },
+];
+
+/** A curved edge with a support point, at a unit that sets the circular layout's nodes 100 support units apart. */
+const SUPPORTED = { "edge.curvature": true, "edge.supportModel": "barnesHut", "edge.supportUnit": 0.32 };
+
+/**
+ * What a channel needs written before it has anything to change, in a layer of its own around its
+ * measurement: a bundle fans apart only when its edges are curved.
+ */
+const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> = {
+    "edge.fanSpacing": { "edge.curvature": true },
+    "edge.fanned": { "edge.curvature": true },
+    // An arc radius bends only a curved edge that does not fan out of its bundle, and a bend curve only a
+    // curved edge that has a bend to curve through: the table's own caveats say each ignores a straight edge.
+    "edge.arcRadius": { "edge.curvature": true, "edge.fanned": false },
+    "edge.bendCurve": { "edge.curvature": true, "edge.bends": "0.5,0.5" },
+    // A support point bends only a curved edge, and its numbers move only a support point there is. The nodes stand
+    // 32 scene units apart (scale 0.2 of the circular layout's 80), so a support unit of 0.32 puts them 100 units apart.
+    "edge.supportModel": { "edge.curvature": true },
+    "edge.supportSpringLength": SUPPORTED,
+    "edge.supportSpringConstant": SUPPORTED,
+    "edge.supportRepulsion": SUPPORTED,
+    "edge.supportCentralGravity": SUPPORTED,
+    "edge.supportUnit": SUPPORTED,
+    "edge.supportScale": SUPPORTED,
+    // An arc height raises only a raised route; every other layout draws edges straight.
+    "edge.arcHeight": { "edge.route": "arc" },
+    // A direction turns a gradient; with no second colour the fill is flat whichever way it runs.
+    "node.gradientDirection": { "node.gradientColor": "#00ff00" },
+    "node.gradientKind": { "node.gradientColor": "#00ff00" },
+    // Stops place colours, three of them so the middle one has somewhere to move.
+    "node.gradientStops": { "node.gradientColors": "#ff0000 #00ff00 #0000ff" },
+    // a radial gradient's middle and reach move only a radial gradient
+    "node.gradientCenterX": { "node.gradientColor": "#00ff00", "node.gradientKind": "radial" },
+    "node.gradientCenterY": { "node.gradientColor": "#00ff00", "node.gradientKind": "radial" },
+    "node.gradientRadius": { "node.gradientColor": "#00ff00", "node.gradientKind": "radial" },
+    // A wrap option changes only a label wider than its wrap width; the blank count only one with blanks.
+    "node.labelWrapEllipsis": { "node.labelWrapWidth": 0.05 },
+    "node.labelWrapAnywhere": { "node.labelWrapWidth": 0.05 },
+    "node.labelWrapSpaceCount": { "node.label": "a b c d e f g h", "node.labelWrapWidth": 3 },
+    "edge.labelWrapEllipsis": { "edge.labelWrapWidth": 0.05 },
+    "edge.labelWrapAnywhere": { "edge.labelWrapWidth": 0.05 },
+    "edge.labelWrapSpaceCount": { "edge.label": "a b c d e f g h", "edge.labelWrapWidth": 3 },
+    // A minimum screen size hides only a label drawn smaller than it: letters a pixel or two tall
+    // are, at this canvas and zoom, under the probe's 4 px.
+    "node.labelMinScreenSize": { "node.labelSize": 1 },
+    "edge.labelMinScreenSize": { "edge.labelSize": 1 },
+    // A wave's own swing and period shape only a sine-wave or zigzag line or border, and a period only
+    // a wave that has a swing of its own.
+    "edge.waveAmplitude": { "edge.style": "sinewave" },
+    "edge.wavePeriod": { "edge.style": "sinewave", "edge.waveAmplitude": 1 },
+    // A dash length shapes only a dashed line, a gap only a dashed or dotted one.
+    "edge.dashLength": { "edge.style": "dash" },
+    "edge.dashGap": { "edge.style": "dot" },
+    "node.borderWaveAmplitude": { "node.borderStyle": "zigzag", "node.borderWidth": 0.1 },
+    "node.borderWavePeriod": { "node.borderStyle": "zigzag", "node.borderWidth": 0.1, "node.borderWaveAmplitude": 1 },
+    // Where runs of different sizes meet changes only a line holding runs of different sizes.
+    "node.labelRunAlign": { "node.label": "a<size='300%'>M</size>" },
+    "edge.labelRunAlign": { "edge.label": "a<size='300%'>M</size>" },
+    // A node's further parts are outlined, and its lines drawn, in its border; a line's own width needs a line.
+    "node.shapeParts": { "node.shape": "polygon", "node.borderWidth": 0.1, "node.borderColor": "#000000" },
+    "node.shapeLines": { "node.shape": "rectangle", "node.borderWidth": 0.1, "node.borderColor": "#000000" },
+    "node.shapeLineWidth": { "node.shape": "rectangle", "node.borderColor": "#000000", "node.shapeLines": "-1,0 1,0" },
+    "node.shapeLineHaloColor": {
+        "node.shape": "rectangle",
+        "node.borderColor": "#000000",
+        "node.shapeLines": "-1,0 1,0",
+        "node.shapeLineHaloWidth": 0.2,
+    },
+    "node.shapeLineHaloWidth": {
+        "node.shape": "rectangle",
+        "node.borderColor": "#000000",
+        "node.shapeLines": "-1,0 1,0",
+        "node.shapeLineHaloColor": "#ff0000",
+    },
+    // An external label's place and look change only an external label there is: its words switch it on.
+    "node.xlabelStyle": { "node.xlabel": "OUT" },
+    "node.xlabelLocation": { "node.xlabel": "OUT" },
+    "node.xlabelOffsetX": { "node.xlabel": "OUT" },
+    "node.xlabelOffsetY": { "node.xlabel": "OUT" },
+    "edge.xlabelStyle": { "edge.xlabel": "OUT" },
+    "edge.xlabelLocation": { "edge.xlabel": "OUT" },
+    "edge.xlabelOffsetX": { "edge.xlabel": "OUT" },
+    "edge.xlabelOffsetY": { "edge.xlabel": "OUT" },
+};
 
 /** How wide the canvas is. */
 const WIDTH = 480;
@@ -104,9 +199,45 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             return descriptor.max === undefined ? low + 4 : low + (descriptor.max - low) * 0.35;
         }
         case "text":
+            // A route is text in a grammar of its own: one bend halfway along, half a length off.
+            if (descriptor.channel === "edge.bends") {
+                return "0.5,0.5";
+            }
+            // So is a port: the middle of the node's top, where an unported line never ends.
+            if (descriptor.channel === "edge.sourcePort" || descriptor.channel === "edge.targetPort") {
+                return "0,1";
+            }
+            // A gradient's colors and stops are lists of their own.
+            if (descriptor.channel === "node.gradientColors") {
+                return "#ff0000 #00ff00 #0000ff";
+            }
+            if (descriptor.channel === "node.gradientStops") {
+                return "0 0.1 1";
+            }
+            // A node's further parts are polygons beside it, and its lines polylines across it.
+            if (descriptor.channel === "node.shapeParts") {
+                return "1,-1 3,-1 2,1";
+            }
+            if (descriptor.channel === "node.shapeLines") {
+                return "-1,-1 1,1; -1,1 1,-1";
+            }
+            // and its further texts a JSON list of points and words
+            if (descriptor.channel === "node.shapeTexts") {
+                return '[[0, 0, "CHANNEL PROBE WORDS"]]';
+            }
+            // and its table label rows of cells
+            if (descriptor.channel === "node.labelTable") {
+                return '{"cellBorder":0.1,"rows":[{"cells":[{"lines":[{"text":"CHANNEL PROBE WORDS"}]}]}]}';
+            }
+            // an edge label's table, in the label's own units (its font size's)
+            if (descriptor.channel === "edge.labelTable") {
+                return '{"cellBorder":4,"cellPadding":8,"rows":[{"cells":[{"lines":[{"text":"CHANNEL PROBE WORDS"}]}]}]}';
+            }
             return "CHANNEL PROBE WORDS";
         case "boolean":
-            return true;
+            // The other state from the default: a switch that is on by default (`node.visible`)
+            // changes the picture only when it is turned off, and a bundle fans unless told not to.
+            return descriptor.default !== true && descriptor.channel !== "edge.fanned";
         case "enum": {
             const values = descriptor.values ?? [];
 
@@ -114,6 +245,9 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
         }
         case "labelStyle":
             return LABEL_PROBE;
+        case "shaderUses":
+            // An empty list draws the plain look on every build.
+            return [];
         default:
             return undefined;
     }
@@ -131,6 +265,8 @@ function describeMesh(mesh: Record<string, unknown>): string {
         String(mesh.name),
         String(mesh.isVisible),
         String(mesh.visibility),
+        // Which pass draws it: a label drawn over the whole graph is in a group of its own.
+        String(mesh.renderingGroupId),
         String(mesh.scaling),
         String(mesh.renderOutline),
         String(mesh.outlineWidth),
@@ -218,7 +354,10 @@ describe("every channel the table says is renderable", () => {
                     name: "channel probe prerequisites",
                     target: "node",
                     selector: { match: "everything" },
-                    set: { "node.label": "WORDS" },
+                    // A border to recolour and restyle: its colour and style draw nothing alone.
+                    // No halo: any halo channel switches the halo on alone, so one drawn here
+                    // would leave node.halo nothing to change.
+                    set: { "node.label": "WORDS", "node.borderWidth": 0.3 },
                 });
                 await session.styles.add({
                     name: "channel probe prerequisites",
@@ -240,6 +379,8 @@ describe("every channel the table says is renderable", () => {
                         // still has something to move.
                         "edge.arrowHeadText": "HEAD",
                         "edge.arrowTailText": "TAIL",
+                        // A band's width and opacity, likewise, need a color that draws one.
+                        "edge.bandColor": "#0077BB",
                     },
                 });
                 await operationQueueOf(graph).waitForCompletion();
@@ -297,6 +438,16 @@ describe("every channel the table says is renderable", () => {
                             `channel nothing can write is a channel nothing can test.`,
                     );
 
+                    const needs = PREREQUISITES[descriptor.channel];
+                    const prerequisite =
+                        needs === undefined
+                            ? null
+                            : await session.styles.add({
+                                  name: `probe prerequisites ${descriptor.channel}`,
+                                  target,
+                                  selector: { match: "everything" },
+                                  set: needs,
+                              });
                     const before = await read();
                     const layer: LayerSpec = {
                         name: `probe ${descriptor.channel}`,
@@ -310,6 +461,10 @@ describe("every channel the table says is renderable", () => {
                     await session.styles.remove(added.id);
 
                     const restored = await read();
+                    if (prerequisite !== null) {
+                        await session.styles.remove(prerequisite.id);
+                    }
+
                     const movedByWriting = pixelsMoved(before, after);
                     const painted = after.structure !== before.structure || movedByWriting > PIXEL_CHANGE;
                     const waiver = waived.get(descriptor.channel);
@@ -379,4 +534,77 @@ describe("every channel the table says is renderable", () => {
 
         assert.deepEqual(silent, [], `These waivers have an empty reason, which is the whole entry.`);
     });
+});
+
+describe("every node channel on a batched row", () => {
+    /** What a batch draws itself: each of these must keep its rows batched and change the picture. */
+    const DRAWN_BY_THE_BATCH = new Set([
+        "node.color",
+        "node.flat",
+        "node.meshDetail",
+        "node.shape",
+        "node.size",
+        "node.unlit",
+        "node.visible",
+        "node.wireframe",
+    ]);
+
+    let container: HTMLElement;
+    let graph: Graph;
+    let session: GraphSession;
+
+    beforeAll(async () => {
+        container = document.createElement("div");
+        container.style.width = `${String(WIDTH)}px`;
+        container.style.height = `${String(HEIGHT)}px`;
+        document.body.appendChild(container);
+        graph = new Graph(container);
+        graph.setRenderPath("batched");
+        await graph.init();
+        session = graph.getSession();
+
+        await graph.addNodes(NODES);
+        await graph.addEdges(EDGES);
+        await graph.setLayout("circular", { scale: 0.2 });
+        await operationQueueOf(graph).waitForCompletion();
+    });
+
+    afterAll(() => {
+        graph.dispose();
+        container.remove();
+    });
+
+    // Every channel, not only the list: one that joins the batch later is compared with no edit here.
+    for (const descriptor of Object.values(CHANNEL_DESCRIPTORS).filter(
+        (entry) => entry.target === "node" && entry.renderable,
+    )) {
+        it(`draws what the objects path draws: ${descriptor.channel}`, async () => {
+            const before = await readCanvas(graph);
+            assert.equal(graph.rowCounts.batchedNodes, NODES.length, "the last channel left its rows off the batch");
+
+            const added = await session.styles.add({
+                name: `probe ${descriptor.channel}`,
+                target: "node",
+                selector: { match: "everything" },
+                set: { [descriptor.channel]: probeFor(descriptor) },
+            });
+            const batched = await readCanvas(graph);
+            const { batchedNodes } = graph.rowCounts;
+
+            graph.setRenderPath("objects");
+            const objects = await readCanvas(graph);
+            graph.setRenderPath("batched");
+
+            await session.styles.remove(added.id);
+            const restored = await readCanvas(graph);
+
+            if (DRAWN_BY_THE_BATCH.has(descriptor.channel)) {
+                assert.equal(batchedNodes, NODES.length, `${descriptor.channel} took its rows off the batch`);
+                assert.isAbove(pixelsOverBar(before, batched), 0, `${descriptor.channel} changed nothing`);
+            }
+
+            assert.equal(pixelsOverBar(batched, objects), 0, `${descriptor.channel} differs between the paths`);
+            assert.equal(pixelsOverBar(before, restored), 0, `removing ${descriptor.channel} left the picture changed`);
+        });
+    }
 });

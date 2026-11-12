@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/graphty-org/brand/main/guide/on-white/png/graphty-cytoscape-extensions-lockup-color-on-light-800w.png" alt="graphty cytoscape-extensions" width="441">
+
 # @graphty/cytoscape-extensions
 
 Graph layouts and graph algorithms for [Cytoscape.js](https://js.cytoscape.org/) 3.x, added with one

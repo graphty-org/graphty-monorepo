@@ -37,6 +37,11 @@ interface CdpSender {
  */
 export async function releaseCoverageHeldPages(session: CdpSender): Promise<void> {
     await session.send("Profiler.enable");
+    // A background optimizing compile of a removed page's hot function holds that page until the
+    // job finishes, so a collection while it runs keeps the page, and the start below lists it
+    // again. Starting precise coverage deoptimizes everything, which first waits for every such
+    // job and drops it; it does nothing the stop and start below do not also do.
+    await session.send("Profiler.startPreciseCoverage", { callCount: true, detailed: true });
     await session.send("Profiler.stopPreciseCoverage");
     await session.send("HeapProfiler.collectGarbage");
     // The same switches @vitest/browser's own coverage start uses.

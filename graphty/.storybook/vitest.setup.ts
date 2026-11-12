@@ -15,15 +15,19 @@ import * as projectAnnotations from "./preview";
 type Send = (method: string, params?: Record<string, unknown>) => Promise<unknown>;
 
 /**
- * The middle of an element in the top page's viewport, where the protocol's input lands. The test
+ * The middle of an element's visible part, in the top page's viewport, where the protocol's input lands. The test
  * page runs in an iframe of the vitest page, possibly scaled to fit.
  * @param element - the element
  * @returns the point in the top page's CSS pixels
  */
 function middleOnPage(element: Element): { x: number; y: number } {
+    // The middle of the part on screen: the middle of an element taller than the window (a whole
+    // page) is below the fold, where no input lands.
     const rect = element.getBoundingClientRect();
-    const x = rect.left + rect.width / 2;
-    const y = rect.top + rect.height / 2;
+    const top = Math.max(rect.top, 0);
+    const left = Math.max(rect.left, 0);
+    const x = (left + Math.min(rect.right, window.innerWidth)) / 2;
+    const y = (top + Math.min(rect.bottom, window.innerHeight)) / 2;
     const frame = window.frameElement;
     if (frame === null) {
         return { x, y };
@@ -47,6 +51,15 @@ const realInput: RealInput = {
         await send("Input.dispatchDragEvent", { type: "dragEnter", ...at, data });
         await send("Input.dispatchDragEvent", { type: "dragOver", ...at, data });
     },
+    async wheel(element, deltaY) {
+        const send = (cdp() as unknown as { send: Send }).send.bind(cdp());
+        await send("Input.dispatchMouseEvent", { type: "mouseWheel", ...middleOnPage(element), deltaX: 0, deltaY });
+    },
 };
+
+// Draw on demand: a graph that never set `renderOnDemand` stops drawing once its picture is still,
+// instead of redrawing every frame in software (SwiftShader) for the whole test. Not the
+// consumer's default; a test that needs continuous frames sets `renderOnDemand = false`.
+(globalThis as { __GRAPHTY_TEST_RENDER_ON_DEMAND__?: boolean }).__GRAPHTY_TEST_RENDER_ON_DEMAND__ = true;
 
 setProjectAnnotations([projectAnnotations, { parameters: { realInput } }]);

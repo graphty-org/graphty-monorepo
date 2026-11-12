@@ -165,6 +165,7 @@ function usage() {
     }
 }
 function count(name) {
+    logUsage("press", { c: name });
     try {
         const all = usage();
         all[name] = (all[name] ?? 0) + 1;
@@ -173,17 +174,166 @@ function count(name) {
         // Not counted; nothing else depends on it.
     }
 }
+const controlName = (b) =>
+    b.dataset.count ??
+    (b.id ||
+        [...b.childNodes]
+            .filter((n) => n.nodeType === 3)
+            .map((n) => n.textContent)
+            .join("")
+            .trim() ||
+        "button");
 document.addEventListener(
     "click",
     (e) => {
         const b = e.target.closest?.("button, summary");
         if (b && b.isConnected) {
-            const words = [...b.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent);
-            count(b.dataset.count ?? (b.id || words.join("").trim() || "button"));
+            count(controlName(b));
         }
     },
     true,
 );
+
+// Usage events, only when the server's owner turned them on (`usage` in visual-review.config.json):
+// a timeline of how a review goes, sent to this page's own server and nowhere else, which appends
+// it to a file on its disk. Off, nothing is kept or sent. No image, no reason text, no token.
+const usageLog = {
+    on: null, // null until the server answers; then true or false
+    queue: [],
+    sending: false,
+    session: crypto.randomUUID(), // the page runs over HTTPS or on localhost, where crypto has it
+    last: 0, // when the last event was taken
+    settings: null, // the view settings as last logged
+    seen: new Set(), // the controls seen on screen in this session
+    itemAt: 0, // when the item on screen was shown
+    itemFile: null,
+    itemIndex: -1,
+    pointer: null,
+};
+const IDLE_MS = 60000;
+function logUsage(type, data = {}) {
+    if (usageLog.on === false) {
+        return;
+    }
+    const at = Date.now();
+    if (usageLog.last && at - usageLog.last > IDLE_MS) {
+        usageLog.queue.push({ type: "idle", at, s: usageLog.session, ms: at - usageLog.last });
+    }
+    usageLog.last = at;
+    usageLog.queue.push({ type, at, s: usageLog.session, ...data });
+    // Waiting on the server's answer (a token not pasted yet) keeps only the newest.
+    usageLog.queue.splice(0, usageLog.queue.length - 500);
+    if (usageLog.on) {
+        queueMicrotask(sendUsage);
+    }
+}
+async function sendUsage() {
+    if (usageLog.sending || usageLog.queue.length === 0) {
+        return;
+    }
+    usageLog.sending = true;
+    const events = usageLog.queue.splice(0, 100);
+    try {
+        // Not through api(): a refused token here must not ask for it again. The answer is read, so
+        // the request ends (a page test waits for the page's writes to end).
+        const res = await fetch("/api/usage", {
+            method: "POST",
+            headers: { "x-review-token": token, "content-type": "application/json" },
+            body: JSON.stringify({ events }),
+        });
+        await res.text();
+    } catch {
+        // Lost; usage is never worth a message.
+    } finally {
+        usageLog.sending = false;
+    }
+    if (usageLog.queue.length > 0) {
+        sendUsage();
+    }
+}
+// Asks the server once per token whether to log; until it answers, events wait in the queue.
+async function startUsage() {
+    try {
+        const res = await fetch("/api/usage-setting", { headers: { "x-review-token": token } });
+        if (res.status === 401) {
+            return; // asked again once a token is pasted
+        }
+        usageLog.on = res.ok && (await res.json()).on === true;
+    } catch {
+        usageLog.on = false;
+    }
+    if (usageLog.on) {
+        sendUsage();
+    } else {
+        usageLog.queue.length = 0;
+    }
+}
+// The view settings that changed since the last call, each as one event; and (logControls) the
+// controls on screen not seen before in this session, so the report can name those never pressed.
+function logSettings() {
+    if (usageLog.on === false) {
+        return;
+    }
+    const now = {
+        screen: state.screen,
+        view: state.view,
+        zoom: state.zoom,
+        showBox: state.showBox,
+        baselinePane: state.baselinePane,
+        focus: state.focus,
+        blink: state.blink,
+        spotFlash: state.spotFlash,
+        motion: state.motion,
+        filter: state.filter,
+        grouped: state.grouped,
+        gridSpot: state.gridSpot,
+        gridZoom: state.gridZoom,
+        shortcuts: state.shortcuts,
+    };
+    for (const [key, value] of Object.entries(now)) {
+        if (usageLog.settings && usageLog.settings[key] !== value) {
+            logUsage("set", { key, from: usageLog.settings[key], to: value });
+        }
+    }
+    usageLog.settings = now;
+    logControls();
+}
+function logControls() {
+    if (usageLog.on === false) {
+        return;
+    }
+    // Once the screen being drawn is in the document.
+    queueMicrotask(() => {
+        const fresh = new Set(
+            [...document.querySelectorAll("button, summary")]
+                .filter((b) => b.getClientRects().length > 0)
+                .map(controlName)
+                .filter((c) => !usageLog.seen.has(c)),
+        );
+        if (fresh.size > 0) {
+            fresh.forEach((c) => usageLog.seen.add(c));
+            logUsage("controls", { c: [...fresh] });
+        }
+    });
+}
+document.addEventListener(
+    "pointerdown",
+    (e) => {
+        if (e.pointerType !== usageLog.pointer) {
+            usageLog.pointer = e.pointerType;
+            logUsage("pointer", { p: e.pointerType });
+        }
+    },
+    true,
+);
+document.addEventListener("visibilitychange", () => logUsage(document.visibilityState));
+logUsage("load", {
+    w: innerWidth,
+    h: innerHeight,
+    dpr: devicePixelRatio,
+    coarse: globalThis.matchMedia?.("(pointer: coarse)").matches === true,
+    touch: navigator.maxTouchPoints ?? 0,
+});
 // A tap outside an open menu closes it, as a menu does.
 document.addEventListener("pointerdown", (e) => {
     for (const m of document.querySelectorAll("details.menu[open]")) {
@@ -235,6 +385,9 @@ function setBar(node = null) {
 // The same message again is not rewritten, so a screen reader does not read it again.
 function say(text, isError = false) {
     const shown = text === "" && running() ? finishing() : text;
+    if (isError && shown) {
+        logUsage("error", { m: shown.slice(0, 160) });
+    }
     elapsedLine.textContent = "";
     if (!isError && shown !== "" && statusLine.textContent === shown && alertLine.textContent === "") {
         return;
@@ -471,8 +624,13 @@ function sayBackground(text, extra = "") {
 // the button pressed seems to do nothing. Resolves true for `yes`, false for Cancel or Escape.
 // `onYes` runs inside the click on `yes` itself, for what a browser allows only there.
 // `unavailable` makes `yes` say why instead (inside the dialog, which a screen reader hears), and
-// `why` names the element of `message` explaining it; `focusYes` focuses `yes` (a retry).
-function ask(message, yes, { onYes = () => {}, label = null, unavailable = null, why = null, focusYes = false } = {}) {
+// `why` names the element of `message` explaining it; `focusYes` focuses `yes` (a retry). `other`
+// ({ label, onclick }) adds a third button, the primary one, that runs `onclick` and answers false.
+function ask(
+    message,
+    yes,
+    { onYes = () => {}, label = null, unavailable = null, why = null, focusYes = false, other = null } = {},
+) {
     // Focus on the box, not a button: the Enter that asked (in the reason box) must not answer it.
     const text = el("div", { class: "ask-text", id: "ask-text" }, message);
     const dialog = el("dialog", {
@@ -499,11 +657,26 @@ function ask(message, yes, { onYes = () => {}, label = null, unavailable = null,
             "p",
             { class: "actions" },
             el("button", { type: "button", onclick: answer("no") }, "Cancel"),
+            other
+                ? el(
+                      "button",
+                      {
+                          type: "button",
+                          class: "primary",
+                          id: "ask-other",
+                          onclick: () => {
+                              other.onclick();
+                              dialog.close("no");
+                          },
+                      },
+                      other.label,
+                  )
+                : null,
             el(
                 "button",
                 {
                     type: "button",
-                    class: "primary",
+                    class: other ? null : "primary",
                     id: "ask-yes",
                     "aria-disabled": unavailable ? "true" : null,
                     "aria-describedby": unavailable && why ? why : null,
@@ -751,6 +924,9 @@ const short = (sha) => (sha ? sha.slice(0, 10) : "none");
 const decisionOf = (item) => state.data?.decisions[item.file] ?? null;
 // A decision the owner took, not an accept the server took because the image was approved before.
 const firmDecision = (item) => (decisionOf(item)?.approvedBefore ? null : decisionOf(item));
+// A reject an earlier Finish posted: it stays in that Finish's record, and while the image is the one
+// rejected the owner can still change it here (Accept, Exclude or Undo); the next Finish commits that.
+const postedReject = (d) => d?.posted === true && d.decision === "reject";
 const day = (iso) => (iso ? String(iso).slice(0, 10) : "");
 const prName = (pr) => (pr === null ? "seed" : "#" + pr);
 const approvedText = (a) => `Approved before (${prName(a.pr)}, ${day(a.reviewedAt)})`;
@@ -762,14 +938,26 @@ const isLocal = () => state.target?.local === true;
 const scale = () => state.data?.results.scale ?? 1;
 // The default branch's name, as the server reports it.
 const branchName = (t = state.target) => t?.defaultBranch ?? state.list?.defaultBranch ?? "master";
+// The default branch's target: the held candidate (`serve --candidate next`) by its commit, the rolling renders
+// of one commit, else a seed.
+const masterLabel = (commit, t, rolling = Boolean(t?.rolling)) => {
+    if (!commit) {
+        return `${branchName(t)} seed`;
+    }
+    return `${branchName(t)} ${rolling ? "rolling" : "candidate"} ${commit.slice(0, 10)}`;
+};
 const labelOf = (t) => {
     if (t.local) {
         return "Local preview";
     }
-    return t.pr === null ? `${branchName(t)} seed` : `#${t.pr}`;
+    return t.pr === null ? masterLabel(t.candidate?.commit, t) : `#${t.pr}`;
 };
 const undecidedOf = (t) => t.projects.reduce((n, p) => n + p.undecided, 0);
 const finishedOf = (t) => t.projects.reduce((n, p) => n + (p.finished ?? 0), 0);
+const reviewableOf = (t) => t.projects.reduce((n, p) => n + p.reviewable, 0);
+const rejectedOf = (t) => t.projects.reduce((n, p) => n + (p.rejected ?? 0), 0);
+// "5 rejected, waiting for a fix": rejects an earlier Finish posted, never "nothing to decide".
+const rejectsText = (t) => (rejectedOf(t) > 0 ? `${rejectedOf(t)} rejected, waiting for a fix` : null);
 const draftKey = (item) => `${state.target.id}/${state.project}/${item.file}`;
 
 // Errors first, then components by their most urgent item, stories the same way within one, and
@@ -909,6 +1097,13 @@ function toggleOption(key) {
 
 // Takes a project's data from the server as the one on screen.
 function adopt(data, project) {
+    if (state.target?.id !== data.target.id) {
+        logUsage("target", { id: data.target.id, local: data.target.local === true });
+    }
+    if (state.target?.id !== data.target.id || state.project !== project) {
+        const p = data.target.projects.find((x) => x.project === project);
+        logUsage("project", { id: data.target.id, project, items: data.items.length, stale: p?.newer?.length ?? 0 });
+    }
     state.data = data;
     state.target = data.target;
     state.project = project;
@@ -936,6 +1131,7 @@ function counted(item, before, after, unpublished) {
 // The breadcrumb (on the grid and story screens: Visual review / target / project / Grid, or on the
 // grid the item last opened) and Finish.
 function drawHeader() {
+    logSettings();
     const onTargets = state.screen === "targets" || state.target === null;
     crumbs.hidden = onTargets;
     finishSlot.replaceChildren();
@@ -988,6 +1184,41 @@ function drawHeader() {
     if (!isLocal()) {
         finishSlot.append(...finishControl(state.target));
     }
+    watchPending();
+}
+
+// A pending push (the server's pendingPush): the capture is of a commit the pre-push gate is still
+// checking, not yet the pull request's head. Its images are decided as usual; Finish waits until that
+// commit is the head, and the header asks the server again every PENDING_POLL_MS meanwhile, so Finish
+// turns on by itself once the push lands.
+const PENDING_POLL_MS = 15000;
+let pendingTimer = null;
+const pendingText = (t) =>
+    `Pending push: these images are of ${t.pendingPush.slice(0, 10)}, which the gate is still checking. ` +
+    "Decide them now; Finish opens once it is pushed.";
+function watchPending() {
+    clearTimeout(pendingTimer);
+    pendingTimer = null;
+    const id = state.target?.id;
+    if (!state.target?.pendingPush || state.screen === "targets") {
+        return;
+    }
+    pendingTimer = setTimeout(async () => {
+        pendingTimer = null;
+        try {
+            const list = await api("/api/prs?cached=1");
+            const fresh = list.targets?.find((t) => t.id === id);
+            if (fresh && state.target?.id === id) {
+                state.list = list;
+                state.target = { ...state.target, pendingPush: fresh.pendingPush, headSha: fresh.headSha };
+                drawHeader();
+                return;
+            }
+        } catch {
+            // asked again below
+        }
+        watchPending();
+    }, PENDING_POLL_MS);
 }
 
 // Finish names its target and how many decisions it would publish. At 0 it is unavailable, and
@@ -996,9 +1227,16 @@ function drawHeader() {
 // reason's tail is only for wide windows and screen readers, so a narrow header keeps Finish whole.
 function finishControl(t) {
     const count = t.unpublished ?? 0;
-    const can = count > 0 && !running();
-    const why = count === 0 ? ["Nothing new", " to finish"] : null;
+    // Nothing new, but an earlier Finish's record waits for the passkey: Finish signs it.
+    const resign = count === 0 && t.resign === true && t.passkey?.required === true;
+    const pending = Boolean(t.pendingPush);
+    const can = (count > 0 || resign) && !running() && !pending;
+    let why = count === 0 && !resign ? ["Nothing new", " to finish"] : null;
+    if (pending) {
+        why = ["Pending push", `: ${t.pendingPush.slice(0, 10)} is not pushed yet`];
+    }
     return [
+        tallyLine(t),
         el(
             "button",
             {
@@ -1009,6 +1247,8 @@ function finishControl(t) {
                 onclick: (e) => {
                     if (can) {
                         finishTarget(t.id, e.currentTarget);
+                    } else if (pending) {
+                        say(pendingText(t));
                     } else {
                         say(running() ? "A Finish is running: wait for it to end." : "Nothing new to finish.");
                     }
@@ -1038,6 +1278,24 @@ toItemCrumb.addEventListener("click", () => backToItem());
 titleCrumb.addEventListener("click", () => showContext());
 document.getElementById("prev-project").addEventListener("click", () => stepProject(-1));
 document.getElementById("next-project").addEventListener("click", () => stepProject(1));
+
+// "93 of 110 decided -- 17 left", beside Finish: what is still undecided is never out of sight. A
+// narrow header keeps "17 left".
+function tallyLine(t) {
+    const total = reviewableOf(t);
+    if (total === 0) {
+        return null;
+    }
+    const left = undecidedOf(t);
+    const rejects = rejectsText(t);
+    return el(
+        "span",
+        { class: left > 0 || rejects ? "finish-tally left" : "finish-tally", "data-tally": t.id },
+        el("span", { class: "wide-only" }, `${total - left} of ${total} decided -- `),
+        `${left} left`,
+        rejects ? `, ${rejects}` : null,
+    );
+}
 
 // ---------------------------------------------------------------- screen: targets
 
@@ -1095,15 +1353,17 @@ async function followTargets(seq, ask) {
         const before = JSON.stringify([state.list?.targets ?? null, state.list?.inbox ?? null]);
         state.list = list;
         showCount(list.inbox);
-        const stale = list.targets && list.updatedAt !== null && list.now - list.updatedAt > 60000;
-        if (ask === "cached" && stale && !list.refreshing) {
-            ask = "refresh";
-            continue;
-        }
+        // Drawn before a stale list asks for a refresh: that answer is the same list, so it would
+        // never be drawn and the screen would stay an empty box until the list changed (#4111).
         if (JSON.stringify([list.targets ?? null, list.inbox ?? null]) === before) {
             drawListLine();
         } else {
             drawTargets();
+        }
+        const stale = list.targets && list.updatedAt !== null && list.now - list.updatedAt > 60000;
+        if (ask === "cached" && stale && !list.refreshing) {
+            ask = "refresh";
+            continue;
         }
         const net = networkLine(list.network, list.now);
         if (!list.targets) {
@@ -1199,6 +1459,7 @@ function drawTargets() {
             : state.list.inbox && el("h2", { class: "all-heading" }, "All pull requests"),
         ...targets.map(targetCard),
     );
+    logControls();
     if (running()) {
         drawFinishPanel();
     }
@@ -1217,6 +1478,17 @@ const ago = (from, now) => {
     }
     return m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
 };
+
+// An inbox row's count: the images to decide (of how many, once some are decided), or the decisions
+// ready to Finish.
+function inboxCount(r) {
+    if (r.undecided === 0) {
+        return `ready to Finish (${plural(r.unpublished, "decision")})`;
+    }
+    return r.decided > 0
+        ? `${r.undecided} of ${plural(r.undecided + r.decided, "image")} left`
+        : plural(r.undecided, "image");
+}
 
 // What is waiting for the owner, on top of the targets screen: the pull requests with images to
 // decide (fewest first; a row opens its first undecided image), those whose capture failed, and
@@ -1242,14 +1514,12 @@ function inboxView(inbox) {
                         openTarget(r.id, true);
                     },
                 },
-                el("strong", {}, `#${r.pr} `),
+                el("strong", {}, r.pr === null ? "" : `#${r.pr} `),
                 el("span", { class: "inbox-title" }, r.title),
                 el(
                     "span",
                     { class: "meta" },
-                    r.undecided > 0
-                        ? plural(r.undecided, "image")
-                        : `ready to Finish (${plural(r.unpublished, "decision")})`,
+                    inboxCount(r),
                     `, ${r.source}`,
                     r.complete ? "" : `, ${r.loaded} of ${plural(r.total, "project")} ready`,
                     `, ${ago(r.since, now)}`,
@@ -1260,7 +1530,7 @@ function inboxView(inbox) {
         el(
             "li",
             { class: "inbox-bad", "data-inbox": r.id },
-            el("strong", {}, `#${r.pr} `),
+            el("strong", {}, r.pr === null ? "" : `#${r.pr} `),
             el("span", { class: "inbox-title" }, r.title),
             el("span", { class: "meta" }, `${r.project}: ${r.reason}`),
             r.logUrl ? link(r.logUrl, "Job log") : null,
@@ -1268,7 +1538,9 @@ function inboxView(inbox) {
         );
     const groups = inbox.groups ?? [];
     const grouped = new Set(groups.flatMap((g) => g.ids));
-    const ready = inbox.ready.filter((r) => !grouped.has(r.id)).map(readyRow);
+    // The held candidate above everything: nightly waits on it.
+    const held = inbox.ready.filter((r) => r.pr === null).map(readyRow);
+    const ready = inbox.ready.filter((r) => r.pr !== null && !grouped.has(r.id)).map(readyRow);
     const notReady = inbox.notReady.filter((r) => !grouped.has(r.id)).map(badRow);
     const groupRows = groups.map((g) => {
         const rows = g.ids.map((id, n) => {
@@ -1281,7 +1553,12 @@ function inboxView(inbox) {
                 return badRow(bad);
             }
             // Only a member the server counted as done has nothing to decide; never guess it.
-            const said = { done: "nothing to decide", capturing: "still capturing", draft: "draft" }[g.states?.[n]];
+            const said = {
+                done: "nothing to decide",
+                rejected: "rejected, waiting for a fix",
+                capturing: "still capturing",
+                draft: "draft",
+            }[g.states?.[n]];
             return el("li", { class: "meta" }, `#${g.prs[n]}: ${said ?? "status unknown: reload the page"}`);
         });
         const first = g.ids.find((id) => inbox.ready.some((r) => r.id === id && r.undecided > 0));
@@ -1325,6 +1602,7 @@ function inboxView(inbox) {
     const readyCount = inbox.ready.length;
     const rest = [
         inbox.capturing > 0 ? `${inbox.capturing} capturing` : null,
+        inbox.rejected > 0 ? `${inbox.rejected} with rejects waiting for a fix` : null,
         inbox.done > 0 ? `${inbox.done} with nothing to decide` : null,
         inbox.drafts > 0 ? `${inbox.drafts} still a draft` : null,
     ].filter(Boolean);
@@ -1332,6 +1610,7 @@ function inboxView(inbox) {
         "section",
         { class: "inbox", "aria-label": "Waiting for you" },
         el("h2", {}, readyCount > 0 ? `Ready for you (${readyCount})` : "Nothing waiting for you"),
+        held.length > 0 ? el("ul", { class: "inbox-list" }, held) : null,
         groupRows.length > 0 ? el("ul", { class: "inbox-list" }, groupRows) : null,
         ready.length > 0 ? el("ul", { class: "inbox-list" }, ready) : null,
         notReady.length > 0 ? [el("h3", {}, "Not ready"), el("ul", { class: "inbox-list" }, notReady)] : null,
@@ -1568,7 +1847,7 @@ function targetHeading(t) {
     if (t.local) {
         return "Local preview ";
     }
-    return t.pr === null ? `${branchName(t)} seed` : `#${t.pr} `;
+    return t.pr === null ? `${masterLabel(t.candidate?.commit, t)} ` : `#${t.pr} `;
 }
 
 // A target card's title: a link to the pull request when there is one.
@@ -1713,6 +1992,10 @@ const PREVIEW_NOTE =
     "Captured on this computer from the pull request's head, before CI. Decide and Finish on it as on CI's " +
     "capture: CI checks it, and anything CI draws differently comes back to you.";
 
+const PENDING_NOTE =
+    "Captured on this computer from the commit the pre-push gate is checking, before it is pushed. Decide it " +
+    "now: a later capture with the same image keeps your decision. Finish opens once the commit is pushed.";
+
 function projectRow(t, p) {
     const results = Object.entries(p.counts)
         .filter(([s]) => REVIEWABLE.includes(s))
@@ -1729,7 +2012,10 @@ function projectRow(t, p) {
             p.acceptable || t.local || p.downloading || p.problem
                 ? null
                 : el("span", { class: "badge" }, "Reject only here: accept on a pull request"),
-            p.preview ? [" ", el("span", { class: "badge", title: PREVIEW_NOTE }, "local preview, CI pending")] : null,
+            p.preview && !p.pending
+                ? [" ", el("span", { class: "badge", title: PREVIEW_NOTE }, "local preview, CI pending")]
+                : null,
+            p.pending ? [" ", el("span", { class: "badge", title: PENDING_NOTE }, "pending push")] : null,
         ),
         el(
             "td",
@@ -1863,6 +2149,15 @@ async function openTarget(id, story) {
 
 // ---------------------------------------------------------------- screen: project grid
 
+// The wait box's count of a download: its artifacts, and its bytes once their size is known.
+function downloadDetail(d) {
+    if (!d) {
+        return "";
+    }
+    const bytes = d.bytes ? `, ${megabytes(d.bytesDone)} of ${megabytes(d.bytes)}` : "";
+    return `${d.done} of ${plural(d.total, "artifact")}${bytes}`;
+}
+
 // What the wait box says while a project's captures are still downloading.
 function downloadingView(project, data) {
     const t = data.target;
@@ -1873,9 +2168,7 @@ function downloadingView(project, data) {
         text:
             `CI run ${t.runId}'s captures are not on this computer yet. ${project}` +
             `${size ? ` (${megabytes(size)})` : ""} downloads first; the rest go on in the background.`,
-        detail: d
-            ? `${d.done} of ${plural(d.total, "artifact")}${d.bytes ? `, ${megabytes(d.bytesDone)} of ${megabytes(d.bytes)}` : ""}`
-            : "",
+        detail: downloadDetail(d),
         done: d?.done ?? null,
         total: d?.total ?? null,
         net: networkLine(data.network, data.now),
@@ -2140,15 +2433,15 @@ function tile(item) {
     return el("div", { class: "tile-box", "data-file": item.file }, button, decisionLine(item));
 }
 
-// A decision an earlier Finish published: a reject stays; an accept or exclusion is on the branch
-// until the next CI run, which no longer shows it.
+// A decision an earlier Finish published: a reject can still be changed; an accept or exclusion is on
+// the branch until the next CI run, which no longer shows it.
 const postedText = (d) =>
     d.decision === "reject"
-        ? "Posted by an earlier Finish: it stays."
+        ? "Rejected by an earlier Finish, waiting for a fix. Accept or Exclude replaces it."
         : "Finished: it is on the branch, and the next CI run no longer shows it.";
 
-// An item's decision, with its reason, and an Undo that clears it without opening the story. A
-// reject an earlier Finish already posted stays: it is shown, never undone from the grid.
+// An item's decision, with its reason, and an Undo that clears it without opening the story. An
+// accept or exclusion an earlier Finish already published stays: it is shown, never undone.
 function decisionLine(item) {
     const d = decisionOf(item);
     if (!d) {
@@ -2158,7 +2451,9 @@ function decisionLine(item) {
     // An accept taken as approved before has nothing to undo: Reject or Exclude replaces it.
     const fixed = d.approvedBefore && !d.posted;
     let after = null;
-    if (d.posted) {
+    if (postedReject(d)) {
+        after = [el("span", { class: "meta" }, postedText(d)), undoButton(item, d)];
+    } else if (d.posted) {
         after = el("span", { class: "meta" }, postedText(d));
     } else if (!fixed) {
         after = undoButton(item, d);
@@ -2275,8 +2570,45 @@ function showGrid() {
     const approvedItems = ordered(reviewable().filter((i) => decisionOf(i)?.approvedBefore));
     const visible = visibleItems().filter((i) => !decisionOf(i)?.approvedBefore);
     const noiseItems = visible.filter((i) => i.noise);
-    const { shown: clustered, rest } = clustersOf(visible.filter((i) => !i.noise));
-    const items = rest;
+    // Unchanged only on the second capture: not reviewable, but a timing race in the story.
+    const flakyItems = state.data.items.filter((i) => i.flaky && !REVIEWABLE.includes(i.status));
+    const { shown: clustered, rest: items } = clustersOf(visible.filter((i) => !i.noise));
+    const { errors, sections } = gridSections(items);
+    render(
+        isLocal()
+            ? el(
+                  "p",
+                  { class: "badge warn" },
+                  "Local preview: look only. Nothing can be decided here; only a CI capture of a pushed commit can.",
+              )
+            : null,
+        staleBanner(),
+        errors.length > 0 ? errorsGroup(errors) : null,
+        approvedItems.length > 0 ? approvedGroup(approvedItems) : null,
+        noiseItems.length > 0 ? noiseGroup(noiseItems) : null,
+        flakyItems.length > 0 ? flakyGroup(flakyItems) : null,
+        ...(items.length + clustered.length + noiseItems.length === 0
+            ? [el("p", { class: "empty" }, ...[emptyGridText()].flat())]
+            : [
+                  ...sections,
+                  clustered.length > 0 && items.length > 0
+                      ? el("h3", { class: "clusters-head" }, `Similar changes, ${plural(clustered.length, "group")}`)
+                      : null,
+                  ...clustered.map(clusterSection),
+              ]),
+    );
+    applyFind();
+    remember();
+    if (keep !== null) {
+        app.scrollTop = keep;
+        return;
+    }
+    // Back from a story: show where it is in the grid.
+    app.querySelector(".current")?.scrollIntoView({ block: "center" });
+}
+
+// The grid's items as error rows and component sections, each a story's tiles across its modes.
+function gridSections(items) {
     const errors = [];
     const groups = new Map(); // component -> story id -> [tile]
     for (const item of items) {
@@ -2313,83 +2645,86 @@ function showGrid() {
             ),
         ),
     );
-    let empty = "No stories match this filter.";
-    const left = isLocal() ? null : leftToReview(state.target, state.project);
-    const next = left ? projectAt(1) : null;
-    if (state.filter === "undecided") {
-        empty = isLocal() ? "Nothing here." : `Everything is decided. Finish ${labelOf(state.target)} when ready.`;
-        if (left) {
-            empty = [
-                `${left}.`,
-                next
-                    ? el(
-                          "button",
-                          { type: "button", onclick: () => openProject(state.target.id, next.project) },
-                          `Next project: ${next.project} (${next.undecided} undecided)`,
-                      )
-                    : null,
-            ];
-        }
-    }
-    render(
-        isLocal()
-            ? el(
-                  "p",
-                  { class: "badge warn" },
-                  "Local preview: look only. Nothing can be decided here; only a CI capture of a pushed commit can.",
-              )
-            : null,
-        staleBanner(),
-        errors.length > 0
-            ? el(
-                  "details",
-                  {
-                      class: "errors",
-                      open: loadOptions().showFailed === true,
-                      ontoggle: (e) => saveOptions({ showFailed: e.target.open }),
-                  },
-                  el("summary", {}, `${plural(errors.length, "failed capture")}: only Exclude applies`),
-                  el(
-                      "p",
-                      { class: "meta" },
-                      "An error is never accepted. Fix the story, re-run the visual job for a one-off timeout, " +
-                          "or exclude the story with a reason.",
-                  ),
-                  el("ol", { class: "error-list" }, errors),
-              )
-            : null,
-        approvedItems.length > 0
-            ? el(
-                  "details",
-                  { class: "group approved-before" },
-                  el(
-                      "summary",
-                      {},
-                      `Approved before (${approvedItems.length}): the same image you accepted for the same story on another pull request`,
-                  ),
-                  el("div", { class: "modes" }, approvedItems.map(tile)),
-              )
-            : null,
-        noiseItems.length > 0 ? noiseGroup(noiseItems) : null,
-        ...(items.length + clustered.length + noiseItems.length === 0
-            ? [el("p", { class: "empty" }, ...[empty].flat())]
-            : [
-                  ...sections,
-                  clustered.length > 0 && items.length > 0
-                      ? el("h3", { class: "clusters-head" }, `Similar changes, ${plural(clustered.length, "group")}`)
-                      : null,
-                  ...clustered.map(clusterSection),
-              ]),
-    );
-    applyFind();
-    remember();
-    if (keep !== null) {
-        app.scrollTop = keep;
-        return;
-    }
-    // Back from a story: show where it is in the grid.
-    app.querySelector(".current")?.scrollIntoView({ block: "center" });
+    return { errors, sections };
 }
+
+// What an empty grid says: under the undecided filter, what is left to do and where.
+function emptyGridText() {
+    if (state.filter !== "undecided") {
+        return "No stories match this filter.";
+    }
+    const left = isLocal() ? null : leftToReview(state.target, state.project);
+    if (left) {
+        const next = projectAt(1);
+        return [
+            `${left}.`,
+            next
+                ? el(
+                      "button",
+                      { type: "button", onclick: () => openProject(state.target.id, next.project) },
+                      `Next project: ${next.project} (${next.undecided} undecided)`,
+                  )
+                : null,
+        ];
+    }
+    if (isLocal()) {
+        return "Nothing here.";
+    }
+    const rejects = rejectsText(state.target);
+    return rejects
+        ? `Everything is decided; ${rejects}.`
+        : `Everything is decided. Finish ${labelOf(state.target)} when ready.`;
+}
+
+// The failed captures, folded: an error is never accepted, only excluded.
+const errorsGroup = (errors) =>
+    el(
+        "details",
+        {
+            class: "errors",
+            open: loadOptions().showFailed === true,
+            ontoggle: (e) => saveOptions({ showFailed: e.target.open }),
+        },
+        el("summary", {}, `${plural(errors.length, "failed capture")}: only Exclude applies`),
+        el(
+            "p",
+            { class: "meta" },
+            "An error is never accepted. Fix the story, re-run the visual job for a one-off timeout, " +
+                "or exclude the story with a reason.",
+        ),
+        el("ol", { class: "error-list" }, errors),
+    );
+
+// The flaky captures: the first shot differed from the baseline and the second matched, so the gate
+// counts them unchanged. Nothing to decide; listed so the race in the story is seen and fixed.
+const flakyGroup = (items) =>
+    el(
+        "details",
+        { class: "group flaky", open: true },
+        el(
+            "summary",
+            {},
+            `Flaky (${items.length}): unchanged only on the second capture, so the story has a timing race`,
+        ),
+        el(
+            "ul",
+            {},
+            items.map((i) => el("li", {}, itemName(i))),
+        ),
+    );
+
+// The accepts approved before, folded into a group of their own.
+const approvedGroup = (items) =>
+    el(
+        "details",
+        { class: "group approved-before" },
+        el(
+            "summary",
+            {},
+            `Approved before (${items.length}): the same image you accepted for the same story on another pull request`,
+        ),
+        el("div", { class: "modes" }, items.map(tile)),
+    );
 
 // The clusters of the grouped review as the grid shows them now: those with two or more items the
 // filter shows, and every other item (the outliers, shown first, one by one).
@@ -2531,6 +2866,13 @@ async function decideMany(items, decision, what) {
         say(err.message, true);
         return;
     }
+    logUsage("decide", {
+        project: state.project,
+        d: decision,
+        n: answer.files.length,
+        bulk: "cluster",
+        reasonLength: reason?.length ?? 0,
+    });
     for (const file of answer.files) {
         state.data.decisions[file] = { decision, reason, ...(decision === "accept" && { bulk: true }) };
     }
@@ -2815,6 +3157,7 @@ function goTo(value) {
     if (v === "") {
         return;
     }
+    logUsage("jump", { number: /^\d+$/.test(v) });
     const all = ordered(reviewable());
     if (/^\d+$/.test(v)) {
         const n = Number(v);
@@ -2865,12 +3208,12 @@ function available(item, d) {
     const open = !isLocal() && !state.ended;
     const acceptable = state.data.acceptable;
     // Approved before: Reject or Exclude replaces it; there is nothing to undo.
-    const firm = d && !(d.approvedBefore && !d.posted);
+    const firm = d && !(d.approvedBefore && !d.posted) && !postedReject(d);
     return {
-        accept: open && acceptable && !onlyExclude(item) && !d,
-        reject: open && !onlyExclude(item) && !firm,
+        accept: open && acceptable && !onlyExclude(item) && (!d || postedReject(d)),
+        reject: open && !onlyExclude(item) && !firm && !postedReject(d),
         exclude: open && acceptable && !firm,
-        undo: open && Boolean(d) && !d.posted && !d.approvedBefore,
+        undo: open && Boolean(d) && (!d.posted || postedReject(d)) && !d.approvedBefore,
     };
 }
 
@@ -2889,7 +3232,7 @@ function explanation(item, d) {
     if (d?.approvedBefore) {
         return (
             `${approvedText(d.approvedBefore)}: you accepted this exact image for this story there, so it is ` +
-            "accepted again, and the CI gate checks that approval. Reject or Exclude replaces it."
+            "accepted again, and your Finish signs it with the rest. Reject or Exclude replaces it."
         );
     }
     if (item.noise) {
@@ -2951,9 +3294,24 @@ function showStory() {
         return;
     }
     const focusId = barFocus();
+    const wasStory = state.screen === "story";
     state.screen = "story";
     state.index = Math.max(0, Math.min(state.index, items.length - 1));
     const item = items[state.index];
+    if (!wasStory || item.file !== usageLog.itemFile) {
+        logUsage("item", {
+            project: state.project,
+            file: item.file,
+            status: item.status,
+            i: state.index,
+            n: items.length,
+            pass: state.pass,
+            back: wasStory && state.index < usageLog.itemIndex,
+        });
+        usageLog.itemAt = performance.now();
+        usageLog.itemFile = item.file;
+        usageLog.itemIndex = state.index;
+    }
     if (item.file !== state.lastFile) {
         stageShown = null;
         appearedAt = Infinity;
@@ -3644,6 +4002,7 @@ function shown(stage, item) {
         }
         if (appearedAt === Infinity) {
             appearedAt = performance.now();
+            logUsage("drawn", { file: item.file, ms: Math.round(appearedAt - usageLog.itemAt) });
         }
         setTimeout(
             () => {
@@ -3854,7 +4213,10 @@ async function fillEnd(card, seq) {
     const waitingFor = others.filter((p) => p.downloading);
     const left = leftToReview(t, state.project);
     const offers = endOffers(t, here, next, left);
-    const verdict = left ? `${left}.` : `Every project of ${labelOf(t)} is decided.`;
+    let verdict = left ? `${left}.` : `Every project of ${labelOf(t)} is decided.`;
+    if (!left && rejectsText(t)) {
+        verdict = `Every project of ${labelOf(t)} is decided; ${rejectsText(t)}.`;
+    }
     card.replaceChildren(
         ...[
             el(
@@ -3925,7 +4287,8 @@ const endFinish = (t, primary) =>
             type: "button",
             class: primary ? "primary" : null,
             "aria-describedby": "end-heading",
-            onclick: (e) => finishTarget(t.id, e.currentTarget),
+            "aria-disabled": t.pendingPush ? "true" : null,
+            onclick: (e) => (t.pendingPush ? say(pendingText(t)) : finishTarget(t.id, e.currentTarget)),
         },
         `Finish ${labelOf(t)} (${t.unpublished})`,
     );
@@ -4024,6 +4387,7 @@ function move(step) {
     }
     const count = passItems().length;
     const at = state.index + step;
+    logUsage("move", { step });
     if (at >= count) {
         showEnd("");
         return;
@@ -4062,7 +4426,7 @@ function undoRefusal(item) {
     if (!firmDecision(item)) {
         return "Nothing to undo.";
     }
-    return before.posted ? postedText(before) : null;
+    return before.posted && !postedReject(before) ? postedText(before) : null;
 }
 
 // Why `decision` (null: Undo) cannot be taken on `item` now, or null when it can.
@@ -4072,7 +4436,11 @@ function refusal(decision, item, press) {
     }
     const before = decisionOf(item);
     const firm = firmDecision(item);
-    // No press reverses a decision: changing one is an explicit Undo first.
+    // No press reverses a decision: changing one is an explicit Undo first. A reject an earlier
+    // Finish posted is the exception: Accept or Exclude replaces it.
+    if (postedReject(before)) {
+        return decision === "reject" ? postedText(before) : null;
+    }
     if (before?.posted) {
         return postedText(before);
     }
@@ -4085,6 +4453,12 @@ function refusal(decision, item, press) {
     if (!state.data.acceptable && decision !== "reject") {
         return notSeeded();
     }
+    return tooSoon(decision, item, press);
+}
+
+// Why a press came too soon to count: Accept before its images loaded, or any press on an image
+// that only just appeared. Null when it can count.
+function tooSoon(decision, item, press) {
     if (decision === "accept" && stageShown !== item.file) {
         return "Loading images: Accept waits for them.";
     }
@@ -4191,6 +4565,16 @@ async function decide(decision, press = null) {
         clearTimeout(slow);
         saving = null;
     }
+    logUsage(decision === null ? "undo" : "decide", {
+        project: state.project,
+        file: item.file,
+        d: decision,
+        was: before?.decision ?? null,
+        ms: Math.round(performance.now() - usageLog.itemAt),
+        view: state.view,
+        zoom: state.zoom,
+        reasonLength: reason?.length ?? 0,
+    });
     rememberDecision(item, before, decision, reason);
     counted(item, before, decision, answer.unpublished);
     if (decision === null) {
@@ -4248,6 +4632,7 @@ async function undo(files, where, one = false) {
     } catch (err) {
         say(`Undid ${done} of ${files.length}, then: ${err.message}`, true);
     }
+    logUsage("undo", { project: state.project, n: done });
     try {
         await reload();
     } catch (err) {
@@ -4255,14 +4640,19 @@ async function undo(files, where, one = false) {
     }
     showGrid();
     if (done === files.length || stopped) {
-        say(
-            one
-                ? `Undid ${where}: undecided again.`
-                : stopped
-                  ? `Stopped: undid ${done} of ${plural(files.length, "decision")} of ${where}.`
-                  : `Undid ${plural(done, "decision")} of ${where}.`,
-        );
+        say(undoneMessage(done, files.length, where, one, stopped));
     }
+}
+
+// What an undo says once it ends: one item, a stopped run, or every decision it was asked to undo.
+function undoneMessage(done, total, where, one, stopped) {
+    if (one) {
+        return `Undid ${where}: undecided again.`;
+    }
+    if (stopped) {
+        return `Stopped: undid ${done} of ${plural(total, "decision")} of ${where}.`;
+    }
+    return `Undid ${plural(done, "decision")} of ${where}.`;
 }
 
 // A component's Undo N, or More > Undo all decisions: asks first, naming the count.
@@ -4328,6 +4718,13 @@ async function acceptAll(component) {
         say(err.message, true);
         return;
     }
+    logUsage("decide", {
+        project: state.project,
+        d: "accept",
+        n: answer.files.length,
+        bulk: "accept-all",
+        component,
+    });
     for (const file of answer.files) {
         state.data.decisions[file] = { decision: "accept", reason: null, bulk: true };
     }
@@ -4480,7 +4877,7 @@ async function updateTarget(t) {
 }
 
 const isUpdate = (job) => job?.kind === "update";
-const jobLabel = (job) => (job.pr === null ? `${branchName()} seed` : `#${job.pr}`);
+const jobLabel = (job) => (job.pr === null ? masterLabel(job.candidate, undefined, job.rolling) : `#${job.pr}`);
 
 // ---------------------------------------------------------------- Finish
 
@@ -4503,32 +4900,29 @@ function statusWhy(f) {
     return ` (${parts.filter(Boolean).join("; ")})`;
 }
 
-function sheet(t, f, prepared, notice) {
-    const label = labelOf(t);
+// The branch a default-branch Finish pushes: a candidate's or a rolling render's is replaced by each Finish, which
+// keeps its open pull request; a seed's is dated.
+function seedBranch(t) {
+    if (!t.candidate) {
+        return `visual/seed-${new Date().toISOString().slice(0, 10)}`;
+    }
+    return `visual/approve-${t.rolling ? "rolling-" : ""}${t.candidate.commit.slice(0, 12)}`;
+}
+
+// What a Finish commits and posts, as the sheet's first lines.
+function commitAndPostLines(t, f) {
     const seed = t.pr === null;
     const lines = [];
     const kinds = [
         f.accepts > 0 ? plural(f.accepts, "accept") : null,
         f.excludes > 0 ? plural(f.excludes, "exclusion") : null,
     ].filter(Boolean);
-    const legacy = f.legacy && f.legacy.files + f.legacy.records.length > 0 ? f.legacy : null;
-    if (legacy) {
-        // Approved in this pull request before passkeys existed: the gate counts those approvals
-        // for nothing until they are signed.
-        lines.push(
-            `Sign again ${plural(legacy.files, "file")} approved before passkeys, and remove ` +
-                `${plural(legacy.records.length, "unsigned review record")} from ${t.branch}: ` +
-                `${legacy.records.join(", ")}.`,
-        );
-    }
     if (kinds.length === 0) {
-        if (!legacy) {
-            lines.push(f.rejects > 0 ? "Nothing is committed: only rejects." : "Nothing is committed.");
-        }
+        lines.push(f.rejects > 0 ? "Nothing is committed: only rejects." : "Nothing is committed.");
     } else if (seed) {
-        const day = new Date().toISOString().slice(0, 10);
+        const branch = seedBranch(t);
         lines.push(
-            `Push visual/seed-${day} with ${kinds.join(" and ")} and open its pull request` +
+            `Push ${branch} with ${kinds.join(" and ")} and open its pull request` +
                 `${f.acceptNotes > 0 ? `, with ${plural(f.acceptNotes, "accept note")} in its description` : ""}.`,
         );
     } else {
@@ -4541,8 +4935,14 @@ function sheet(t, f, prepared, notice) {
     if (seed && f.rejects > 0) {
         lines.push(`Open one issue for ${plural(f.rejects, "reject")}.`);
     } else if (posts.length > 0) {
-        lines.push(`Post ${posts.join(" and ")} as a comment on ${label}.`);
+        lines.push(`Post ${posts.join(" and ")} as a comment on ${labelOf(t)}.`);
     }
+    return lines;
+}
+
+function sheet(t, f, prepared, notice) {
+    const label = labelOf(t);
+    const lines = commitAndPostLines(t, f);
     const why = statusWhy(f);
     lines.push(`Then set the commit status 'Visual review' to ${f.status.state}${why}.`);
     if (f.notOpened > 0) {
@@ -4550,12 +4950,12 @@ function sheet(t, f, prepared, notice) {
     }
     if (f.approvedBefore > 0) {
         lines.push(
-            `Approved before: ${f.approvedBefore}, the same images you accepted for the same stories elsewhere; the record names each earlier approval and the CI gate checks it.`,
+            `Approved before: ${f.approvedBefore}, the same images you accepted for the same stories elsewhere; the record names each earlier approval, and your passkey signs them with the rest.`,
         );
     }
     if (f.undecided.length > 0) {
         lines.push(
-            `Still undecided, left for a later round: ${f.undecided.map((p) => `${p.project} ${p.undecided}`).join(", ")}.`,
+            `Still undecided, and blocking the merge: ${f.undecided.map((p) => `${p.project} ${p.undecided}`).join(", ")}.`,
         );
     }
     if (f.unloaded.length > 0) {
@@ -4620,14 +5020,43 @@ function approvedList(t, items) {
 }
 
 // What the passkey does for this Finish, from POST /api/finish-prepare: once a passkey is known it
-// approves the whole record (rejects too); before that, accepts are not yet protected, and the
-// sheet says so. Rejects alone never wait for a passkey to be registered.
+// signs the decisions of every Finish that commits any, with one prompt; when nothing is rejected
+// or left undecided, that prompt signs the baselines the Finish leaves on the branch, which hold
+// the decisions. With nothing new to decide, it signs the
+// record of an earlier Finish that was pushed unsigned. Before a passkey is known, accepts are not
+// yet protected, and the sheet says so. Rejects alone never wait for a passkey to be registered.
 function passkeySentence(f, prepared) {
     if (prepared.error) {
         return el("p", { class: "error", id: "sheet-passkey" }, `Finish cannot be approved now: ${prepared.error}`);
     }
+    const blocked =
+        "the merge stays blocked until a Finish with every image decided and none rejected signs the baselines.";
+    const why = prepared.unsigned === "rejects" ? "something is rejected" : "images are still undecided";
+    if (prepared.required && prepared.resign) {
+        return el(
+            "p",
+            { class: "passkey" },
+            "Nothing new to decide: your passkey signs the decisions of the earlier Finish, which were pushed " +
+                `unsigned, so they count as approved before. The baselines are not signed: ${blocked}`,
+        );
+    }
+    if (prepared.required && prepared.tree) {
+        return el(
+            "p",
+            { class: "passkey" },
+            "Your passkey signs your decisions and the baselines this Finish leaves on the branch, in one " +
+                "prompt (Face ID or a security key).",
+        );
+    }
     if (prepared.required) {
-        return el("p", { class: "passkey" }, "Your passkey confirms this Finish (Face ID or a security key).");
+        return el(
+            "p",
+            { class: "warning", id: "sheet-unsigned" },
+            `Your passkey signs your decisions (Face ID or a security key). The baselines are not signed, because ${why}: ${blocked}`,
+        );
+    }
+    if (prepared.unsigned) {
+        return el("p", { class: "warning", id: "sheet-unsigned" }, `Nothing is signed, because ${why}: ${blocked}`);
     }
     if (f.accepts + f.excludes === 0) {
         return null;
@@ -4651,6 +5080,46 @@ function finishTitle(t, f, required, onlyRejects) {
     return onlyRejects ? `Post ${plural(f.rejects, "reject")} to ${labelOf(t)}` : `Finish ${labelOf(t)}`;
 }
 
+// Before a Finish: the last decision saved, and images left undecided confirmed. True to go on.
+async function readyToFinish(id) {
+    if (saving) {
+        sayBusy("Saving the last decision...");
+        await saving.catch(() => {});
+    }
+    return finishWithUndecided(id);
+}
+
+// Before a Finish that leaves images undecided: says so plainly, and offers the first of them. True
+// to go on with the Finish.
+async function finishWithUndecided(id) {
+    const t = state.target?.id === id ? state.target : state.list?.targets?.find((x) => x.id === id);
+    const left = t ? undecidedOf(t) : 0;
+    if (left === 0) {
+        return true;
+    }
+    let jump = false;
+    const go = await ask(
+        [
+            el("h2", { id: "undecided-title" }, `${plural(left, "image")} still undecided`),
+            el(
+                "p",
+                {},
+                `${plural(left, "image")} ${left === 1 ? "is" : "are"} still undecided; they will block the merge. ` +
+                    `${reviewableOf(t) - left} of ${reviewableOf(t)} are decided.`,
+            ),
+        ],
+        "Finish anyway",
+        { label: "undecided-title", other: { label: "Go to the first undecided", onclick: () => (jump = true) } },
+    );
+    if (jump) {
+        say("");
+        await openTarget(id, true);
+    } else if (!go) {
+        say("Finish cancelled: nothing was changed.");
+    }
+    return go;
+}
+
 async function finishTarget(id, button) {
     if (running()) {
         say("A Finish is running: wait for it to end.");
@@ -4663,118 +5132,170 @@ async function finishTarget(id, button) {
     };
     button.classList.add("busy");
     button.prepend(spinner());
-    if (saving) {
-        sayBusy("Saving the last decision...");
-        await saving.catch(() => {});
+    if (!(await readyToFinish(id))) {
+        reset();
+        return;
     }
-    let notice = "";
-    for (;;) {
-        let t;
-        let prepared;
-        try {
-            // The passkey's challenge is fetched before the sheet shows its button, so the button
-            // can start Face ID inside the tap. A refusal (a passkey for another host) is shown in
-            // the sheet, not thrown.
-            [t, prepared] = await Promise.all([
-                api(`/api/target/${encodeURIComponent(id)}?finish=1`),
-                api("/api/finish-prepare", { id }).catch((err) => {
-                    if (err.status === 409) {
-                        return { error: err.message };
-                    }
-                    throw err;
-                }),
-            ]);
-        } catch (err) {
-            reset();
-            say(`Finish not started: ${err.message}`, true);
-            return;
-        }
-        const f = t.finish;
-        const onlyRejects = f.accepts + f.excludes === 0 && f.acceptNotes === 0 && f.rejects > 0;
-        const commits = f.accepts + f.excludes > 0 || (f.legacy !== null && f.legacy !== undefined);
-        // When the server cannot prepare an approval the final button is unavailable, and the sheet
-        // says why.
-        let approval = null;
-        const go = await ask(sheet(t, f, prepared, notice), finishTitle(t, f, prepared.required, onlyRejects), {
-            label: "sheet-title",
-            unavailable: prepared.error ? "Finish cannot be approved now: see the sheet." : null,
-            why: "sheet-passkey",
-            focusYes: notice !== "",
-            onYes: () => (approval = prepared.required ? approve(prepared) : null),
-        });
-        if (!go) {
-            reset();
-            say("Finish cancelled: nothing was changed.");
-            return;
-        }
-        if (approval) {
-            sayBusy("Waiting for your passkey...");
-            try {
-                approval = await approval;
-            } catch (err) {
-                notice =
-                    err?.name === "NotAllowedError" || err?.name === "AbortError"
-                        ? "Passkey cancelled: nothing was changed."
-                        : passkeyFailure(err, t.passkey);
-                say(notice);
-                continue;
-            }
-        }
-        // Finish runs on the server and can take minutes; the page only starts it and then asks how
-        // it is going, so a dropped connection or a reload loses nothing.
-        sayBusy("Starting Finish...");
-        // A seed's accept notes go into its pull request's description: only rejects post anything.
-        const posts = t.pr === null ? f.rejects > 0 : f.rejects + f.acceptNotes > 0;
-        state.plan = { seed: t.pr === null, commits, posts, signed: Boolean(approval) };
-        try {
-            state.job = (
-                await api("/api/finish", {
-                    id,
-                    digest: f.digest,
-                    ...(approval ? { challenge: prepared.challenge, approval } : {}),
-                })
-            ).job;
-            break;
-        } catch (err) {
-            if (err.status === 409 && /Decisions changed/.test(err.message)) {
-                notice = err.message;
-                say(notice);
-                continue;
-            }
-            if (
-                (err.status === 400 || err.status === 403 || err.status === 409) &&
-                /passkey|approval/.test(err.message)
-            ) {
-                notice = `${err.message}. Nothing was changed.`;
-                say(notice);
-                continue;
-            }
-            // The request may have been lost after the server started it: ask before calling it failed.
-            state.job = await api("/api/finish-status")
-                .then((s) => s.job)
-                .catch(() => null);
-            if (!running() || state.job.target !== id) {
-                reset();
-                say(`Finish of ${labelOf(t)} failed: ${err.message}`, true);
-                return;
-            }
-            break;
-        }
+    let out = await finishAttempt(id, "");
+    while (out.retry !== undefined) {
+        say(out.retry);
+        out = await finishAttempt(id, out.retry);
+    }
+    if (!out.started) {
+        reset();
+        say(...out.stop);
+        return;
     }
     state.finishSeen = performance.now();
     showTargets();
     await watchFinish();
 }
 
+const FINISH_CANCELLED = { stop: ["Finish cancelled: nothing was changed."] };
+
+// One try at starting a Finish of target `id`: the sheet (with `notice`, why the last try did not
+// start), the passkey, then the start on the server. Answers `{ retry: notice }` to show the sheet
+// again, `{ stop: [message, isError] }` when it ended without starting, or `{ started: true }`.
+async function finishAttempt(id, notice) {
+    let t;
+    let prepared;
+    try {
+        [t, prepared] = await fetchFinish(id);
+    } catch (err) {
+        return { stop: [`Finish not started: ${err.message}`, true] };
+    }
+    const answer = await askToFinish(t, prepared, notice);
+    if (!answer.go) {
+        return FINISH_CANCELLED;
+    }
+    let approval = answer.approval;
+    if (approval) {
+        sayBusy("Waiting for your passkey...");
+        try {
+            approval = await approval;
+        } catch (err) {
+            return { retry: passkeyCancelled(err, t) };
+        }
+    }
+    // A Finish that does not sign the baselines signs its decisions into the accept commit (not
+    // pushed yet); one that does signs them with the baselines, which hold them.
+    if (approval && prepared.signs === "record") {
+        return (await signDecisions(id, prepared, approval)) ?? startFinish(id, t, prepared, null, true);
+    }
+    return startFinish(id, t, prepared, approval, false);
+}
+
+// The target with its Finish summary, and the server's preparation of the passkey approval. The
+// passkey's challenge is fetched before the sheet shows its button, so the button can start Face ID
+// inside the tap. A refusal (a passkey for another host) is shown in the sheet, not thrown.
+const fetchFinish = (id) =>
+    Promise.all([
+        api(`/api/target/${encodeURIComponent(id)}?finish=1`),
+        api("/api/finish-prepare", { id }).catch((err) => {
+            if (err.status === 409) {
+                return { error: err.message };
+            }
+            throw err;
+        }),
+    ]);
+
+// The Finish sheet. Resolves to whether the owner went on, and, when the Finish signs, the passkey's
+// approval (a promise: Face ID starts inside the press). When the server cannot prepare an approval
+// the final button is unavailable, and the sheet says why.
+async function askToFinish(t, prepared, notice) {
+    const f = t.finish;
+    const onlyRejects = f.accepts + f.excludes === 0 && f.acceptNotes === 0 && f.rejects > 0;
+    let approval = null;
+    const go = await ask(sheet(t, f, prepared, notice), finishTitle(t, f, prepared.required, onlyRejects), {
+        label: "sheet-title",
+        unavailable: prepared.error ? "Finish cannot be approved now: see the sheet." : null,
+        why: "sheet-passkey",
+        focusYes: notice !== "",
+        onYes: () => (approval = prepared.required ? approve(prepared) : null),
+    });
+    return { go, approval };
+}
+
+// Why a passkey approval failed, as the sheet says it.
+const passkeyCancelled = (err, t) =>
+    err?.name === "NotAllowedError" || err?.name === "AbortError"
+        ? "Passkey cancelled: nothing was changed."
+        : passkeyFailure(err, t.passkey);
+
+// Signs the decisions with the passkey's `approval`. Answers null when signed, else a finishAttempt
+// answer to show the sheet again.
+async function signDecisions(id, prepared, approval) {
+    sayBusy("Signing your decisions...");
+    try {
+        await api("/api/finish-prepare", { id, challenge: prepared.challenge, approval });
+        return null;
+    } catch (err) {
+        return { retry: `${err.message}. Nothing was changed.` };
+    }
+}
+
+// Starts the Finish on the server. It can take minutes there; the page only starts it and then asks
+// how it is going, so a dropped connection or a reload loses nothing.
+async function startFinish(id, t, prepared, approval, signedRecord) {
+    const f = t.finish;
+    sayBusy("Starting Finish...");
+    // A seed's accept notes go into its pull request's description: only rejects post anything.
+    const posts = t.pr === null ? f.rejects > 0 : f.rejects + f.acceptNotes > 0;
+    const commits = f.accepts + f.excludes > 0;
+    state.plan = { seed: t.pr === null, commits, posts, signed: Boolean(approval) || signedRecord };
+    try {
+        state.job = (
+            await api("/api/finish", {
+                id,
+                digest: f.digest,
+                ...(approval ? { challenge: prepared.challenge, approval } : {}),
+            })
+        ).job;
+        return { started: true };
+    } catch (err) {
+        return finishStartFailed(id, t, err);
+    }
+}
+
+// A refused or failed start: decisions changed or a refused approval shows the sheet again; any
+// other failure is checked against the server, which may have started it before the answer was lost.
+async function finishStartFailed(id, t, err) {
+    if (err.status === 409 && /Decisions changed/.test(err.message)) {
+        return { retry: err.message };
+    }
+    if ((err.status === 400 || err.status === 403 || err.status === 409) && /passkey|approval/.test(err.message)) {
+        return { retry: `${err.message}. Nothing was changed.` };
+    }
+    state.job = await api("/api/finish-status")
+        .then((s) => s.job)
+        .catch(() => null);
+    if (!running() || state.job.target !== id) {
+        return { stop: [`Finish of ${labelOf(t)} failed: ${err.message}`, true] };
+    }
+    return { started: true };
+}
+
 let watching = false;
 
 // Follows the running Finish to its end, then shows its result above the targets.
+// A Finish or an update from the default branch followed (also after a reload), and its end:
+// success or failure, and how long it was followed.
+function logJob(type) {
+    const job = state.job ?? {};
+    const end = type === "finish-end" && {
+        ok: job.error === null && !job.interrupted,
+        ms: Math.round(performance.now() - state.finishSeen),
+    };
+    logUsage(type, { id: job.target ?? null, kind: job.kind ?? "finish", ...end });
+}
+
 async function watchFinish() {
     if (watching) {
         return;
     }
     watching = true;
     state.finishSeen ??= performance.now();
+    logJob("finish-start");
     try {
         let spoken = "";
         while (running()) {
@@ -4798,6 +5319,7 @@ async function watchFinish() {
     } finally {
         watching = false;
     }
+    logJob("finish-end");
     state.finishSeen = null;
     say("");
     // The box closes on a Finish that worked: its result is the card on the targets screen. One
@@ -4884,7 +5406,7 @@ function drawFinishPanel() {
     const step = state.job.step ?? "";
     const now = steps.findIndex(([, , match]) => match.test(step));
     const count = /\((\d+) of (\d+) done\)/.exec(step);
-    const label = state.job.pr === null ? `${branchName()} seed` : `#${state.job.pr}`;
+    const label = jobLabel(state.job);
     const panel = el(
         "section",
         { class: "finish-panel", id: "finish-panel" },
@@ -4938,7 +5460,7 @@ function track(job) {
             interrupted: true,
             error:
                 `the server restarted while this Finish was at "${last.step}" and kept no record of it: check ` +
-                `whether ${last.branch ?? "the visual/seed-* branch"} on origin has its commit before pressing Finish again`,
+                `whether ${last.branch ?? "the visual/seed-* or visual/approve-* branch"} on origin has its commit before pressing Finish again`,
         };
     }
     state.job = !job && last?.interrupted ? last : job;
@@ -4954,7 +5476,38 @@ function commitLine(out, repo) {
         return el("p", {}, "No commit: nothing was accepted or excluded.");
     }
     const commit = repo ? link(`${repo}/commit/${out.commit}`, short(out.commit)) : short(out.commit);
+    if (out.resigned) {
+        return el("p", {}, "Signed the decisions of the earlier Finish: committed ", commit, ` to ${out.branch}.`);
+    }
+    if (out.alreadyFinished) {
+        return el(
+            "p",
+            {},
+            "Already finished: an earlier Finish committed these decisions as ",
+            commit,
+            ` to ${out.branch}.`,
+        );
+    }
     return el("p", {}, "Committed ", commit, ` to ${out.branch}.`);
+}
+
+// The commit status a Finish posted, or why posting it failed; none when it was already finished.
+function finishStatusLine(out) {
+    if (out.alreadyFinished || out.resigned) {
+        return [];
+    }
+    const counts = (out.status ?? "").replace(/^Reviewed: /, "").replace(" left undecided", " undecided");
+    return [
+        out.statusError
+            ? el("p", { class: "error" }, `The commit status failed: ${out.statusError}`)
+            : el("p", {}, `Commit status: ${out.state ?? "set"} -- ${counts}.`),
+    ];
+}
+
+// The target a job was about. A Finish of an earlier candidate is not about the one offered now.
+function jobTarget(job) {
+    const candidate = job.candidate ?? null;
+    return state.list?.targets?.find((x) => x.id === job.target && (x.candidate?.commit ?? null) === candidate);
 }
 
 function finishOutcome() {
@@ -4962,8 +5515,8 @@ function finishOutcome() {
     if (!job || job.running || state.dismissed === job.id) {
         return null;
     }
-    const label = job.pr === null ? `${branchName()} seed` : `#${job.pr}`;
-    const t = state.list?.targets?.find((x) => x.id === job.target);
+    const label = jobLabel(job);
+    const t = jobTarget(job);
     const dismiss = el(
         "button",
         {
@@ -5035,12 +5588,7 @@ function finishOutcome() {
             el("p", { class: "error" }, `The comment with the accept notes was not posted: ${out.commentError}`),
         );
     }
-    const counts = (out.status ?? "").replace(/^Reviewed: /, "").replace(" left undecided", " undecided");
-    parts.push(
-        out.statusError
-            ? el("p", { class: "error" }, `The commit status failed: ${out.statusError}`)
-            : el("p", {}, `Commit status: ${out.state ?? "set"} -- ${counts}.`),
-    );
+    parts.push(...finishStatusLine(out));
     const next = nextTarget(job.target);
     const offers = [
         next
@@ -5171,13 +5719,22 @@ function remember() {
 }
 
 // Reads the newest Finish once; a running one is followed on whatever screen opens.
+// Also asks whether to log usage: both run once a token is known.
 async function checkFinish() {
+    startUsage();
     try {
         track((await api("/api/finish-status")).job);
     } catch {
         return;
     }
     if (running()) {
+        // The screen may already be drawn from a list that answered first, with Finish offered:
+        // draw it again now that a Finish is known to run.
+        if (state.screen === "targets") {
+            drawTargets();
+        } else {
+            drawHeader();
+        }
         watchFinish();
     }
 }

@@ -7,7 +7,10 @@ name: Restricted CPU stress (weekly)
 #
 # Each test that fails or times out gets one issue in the flaky-test tracker's format (title, labels,
 # marker line `githerd-flaky-test: <package>/<file> > <test>`), marked "load-sensitive under restricted
-# CPU", not "proven flaky"; a later failure comments on the same issue. tools/restricted-cpu-stress.mjs
+# CPU", not "proven flaky"; a later failure comments on the same issue. Every browser and story shard runs
+# REPEATS times on the same commit, each repeat its own job under the same quota (issue #3390), so a race shows
+# as a test that failed in one repeat and passed in another; its issue says so ("Outcomes differed on the same
+# commit"). The screenshot capture is not repeated here. tools/restricted-cpu-stress.mjs
 # reads vitest's junit reports (vitest.ci-junit.mjs) and does the filing. A dispatch on any branch but
 # master, or with dry-run set, prints what it would file and writes nothing.
 
@@ -23,12 +26,17 @@ on:
 
 permissions:
     contents: read
+    id-token: write # the results store: each shard's record, kind stress (tools/results/run-group.mjs)
 
 concurrency:
     group: restricted-cpu-stress
     cancel-in-progress: true
 
 env:
+    # A failed Actions cache restore waits one minute here, not 10 (#5098; see ci.yml).
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
+    # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
+    FC_FONTATIONS: "1"
     # The restriction, calibrated once (2026-10-10) and recorded here. A cgroup v2 CPU quota on every
     # process of the shard: cpu.max "200000 100000" is 200 ms of CPU per 100 ms, two CPUs' worth of
     # time on the four-vCPU ubuntu-24.04 runner CI's test job uses. A quota, not `taskset`: vitest sizes
@@ -38,24 +46,28 @@ env:
     # failed. Half, not less: the dev machine's failures came from two or three gates sharing it, and
     # every vitest default timeout (5 s per test, 10 s per hook) is many times what a healthy test takes
     # on a CI runner, so a healthy suite is expected to pass at half speed; a tighter quota would mostly
-    # find the suite's startup limits. If a run finds more than tools/restricted-cpu-stress.mjs's
-    # MAX_FILED failing tests it files none and fails: the quota is too tight, loosen it here.
+    # find the suite's startup limits. A test file with more than tools/restricted-cpu-stress.mjs's
+    # MAX_FILED failing tests is reported as suite broken and none of its tests is filed; many such
+    # files mean the quota is too tight, loosen it here.
     CPU_MAX: "200000 100000"
+    # How often every browser and story shard (needs-browser in tools/ci-test-matrix.mjs) runs; other shards run once.
+    REPEATS: "3"
     RESTRICTION: "cgroup v2 cpu.max 200000 100000 (two CPUs of time for every process of the shard) on a four-vCPU ubuntu-24.04 GitHub-hosted runner"
 
 jobs:
     build:
         name: Build
         runs-on: ubuntu-24.04
+        timeout-minutes: 30
         outputs:
             test-matrix: ${{ steps.plan.outputs.test-matrix }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -70,7 +82,15 @@ jobs:
               id: plan
               run: |
                   all=$(pnpm exec nx show projects --json)
-                  node tools/ci-test-matrix.mjs "$all" "$all" | tee -a "$GITHUB_OUTPUT"
+                  out=$(node tools/ci-test-matrix.mjs "$all" "$all")
+                  # the Off configuration only: an On twin (flags "on") would stress and file the same tests again;
+                  # each browser and story shard REPEATS times (repeat 1..REPEATS), every other shard once
+                  matrix=$(sed -n 's/^test-matrix=//p' <<<"$out" | jq -c --argjson n "$REPEATS" '.include |= [.[] | select(.flags != "on") | . as $s | range(1; (if $s["needs-browser"] then $n else 1 end) + 1) | $s + {repeat: .}]')
+                  {
+                      grep -v -e '^test-matrix=' -e '^test-count=' <<<"$out"
+                      echo "test-matrix=$matrix"
+                      echo "test-count=$(jq '.include | length' <<<"$matrix")"
+                  } | tee -a "$GITHUB_OUTPUT"
 
             - name: Build all
               run: pnpm exec nx run-many -t build --parallel=3
@@ -78,7 +98,7 @@ jobs:
                   VITE_BASE_PATH: /
 
             - name: Upload all package builds
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: stress-build-packages
                   path: |
@@ -87,6 +107,7 @@ jobs:
                       graph-io/dist/
                       webgpu-graph-algorithms/dist/
                       graph-samples/dist/
+                      babylonjs-map/dist/
                       algorithms/dist/
                       layout/dist/
                       cytoscape-extensions/dist/
@@ -98,7 +119,7 @@ jobs:
 
     # The steps of ci.yml's test job, with the shard's command run inside the CPU quota.
     stress:
-        name: Restricted CPU (${{ matrix.shard }})
+        name: Restricted CPU (${{ matrix.shard }}, repeat ${{ matrix.repeat }})
         needs: build
         runs-on: ubuntu-24.04
         timeout-minutes: 240
@@ -106,14 +127,14 @@ jobs:
             fail-fast: false
             matrix: ${{ fromJSON(needs.build.outputs.test-matrix) }}
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
               with:
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v7
               with:
                   node-version: 22.x
                   cache: "pnpm"
@@ -124,28 +145,59 @@ jobs:
                   HUSKY: "0"
 
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: stress-build-packages
                   path: .
 
+            # The style fidelity scorecard compares the canvas with oracle PNGs held in Git LFS; without them every
+            # one of its tests fails and the run's cap files nothing (#3539). Same files ci.yml's test job pulls.
+            - name: Fetch the style fidelity oracle pictures from Git LFS
+              if: startsWith(matrix.shard, 'graphty-element-browser')
+              run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
+
+            # The Git LFS files a shard reads (its "lfs" in tools/ci-test-matrix.mjs), as ci.yml's test job pulls
+            # them: graph-io-storybook's fidelity stories draw the oracles' rasterized PNGs, and without this pull the
+            # checkout holds pointer text that fails to decode ("The source image cannot be decoded", #5443). Restored
+            # from ci.yml's cache when it has them; never saved here.
+            - name: Restore the Git LFS files the shard reads
+              if: matrix.lfs
+              uses: actions/cache/restore@v6
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-shard-${{ hashFiles('graph-io/test/fidelity/oracles/*.png') }}
+                  restore-keys: lfs-shard-
+
+            - name: Fetch the Git LFS files the shard reads
+              if: matrix.lfs
+              run: git lfs pull --include "${{ matrix.lfs }}"
+
             - name: Cache Playwright browsers
               if: matrix.needs-browser
-              uses: actions/cache@v4
+              uses: actions/cache@v6
               id: playwright-cache
               with:
                   path: ~/.cache/ms-playwright
-                  key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+                  key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
             - uses: ./.github/actions/drop-microsoft-apt-source
 
             - name: Install Playwright system packages
               if: matrix.needs-browser
               uses: ./.github/actions/playwright-system-deps
+              with:
+                  browsers: ${{ matrix.browsers || 'chromium' }}
 
             - name: Install Playwright browsers
               if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit != 'true'
               run: pnpm exec playwright install chromium
+
+            # The graphty-element lifecycle shard launches Firefox and WebKit too (matrix.browsers). A
+            # cache hit may hold only Chromium, so this runs on every such job; a browser already
+            # installed is skipped.
+            - name: Install Playwright's other browsers
+              if: matrix.browsers
+              run: pnpm exec playwright install ${{ matrix.browsers }}
 
             - name: Install Mesa lavapipe
               if: matrix.needs-lavapipe
@@ -171,6 +223,7 @@ jobs:
             # process it starts (vitest workers, Chromium, Dawn) share it. A failing shard does not stop
             # the run: the junit reports below are the result.
             - name: Run tests under the CPU quota
+              id: tests
               continue-on-error: true
               run: |
                   [ "$(stat -fc %T /sys/fs/cgroup)" = cgroup2fs ] || { echo "::error::no cgroup v2 on this runner"; exit 1; }
@@ -185,12 +238,23 @@ jobs:
                   exit "$status"
               env:
                   TEST_COMMAND: ${{ matrix.test-command }}
+                  # keeps each repeat's results-store record apart (tools/results/run-group.mjs baseId)
+                  RESULTS_REPEAT: ${{ matrix.repeat }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+
+            # continue-on-error makes the job and the step above conclude success either way, so this step is the
+            # only trace of a failure the jobs API shows: the pipeline health collector (stressRunState in
+            # tools/pipeline-health/src/collector/parse.ts) reads it by name. Keep the name in step with STRESS_FOUND there.
+            - name: Tests failed under the CPU quota
+              if: steps.tests.outcome == 'failure'
+              run: echo "::warning::tests failed in shard ${{ matrix.shard }} (repeat ${{ matrix.repeat }}) under the CPU quota"
 
             - name: Upload the junit reports
               if: always()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
-                  name: junit-${{ matrix.shard }}
+                  name: junit-${{ matrix.shard }}-r${{ matrix.repeat }}
                   path: test-results/junit-*.xml
                   if-no-files-found: warn
                   retention-days: 14
@@ -200,18 +264,19 @@ jobs:
         needs: [build, stress]
         if: always() && needs.build.result == 'success'
         runs-on: ubuntu-24.04
+        timeout-minutes: 15
         permissions:
             contents: read
             issues: write
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v7
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22.x
 
             - name: Download the junit reports
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   pattern: junit-*
                   path: junit

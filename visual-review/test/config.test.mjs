@@ -10,11 +10,11 @@ beforeAll(isolateGit);
 
 const CI = readFileSync(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
 
-// The `visual` job's matrix: "- project: <name>" followed by "artifact: <name>".
-function visualMatrix() {
-    const job = CI.slice(CI.indexOf("\n    visual:\n"));
+// The `story-tests` job's matrix: the projects whose story tests take the captures ("- project: <name>").
+function storyTestProjects() {
+    const job = CI.slice(CI.indexOf("\n    story-tests:\n"));
     const include = job.slice(job.indexOf("include:"), job.indexOf("steps:"));
-    return Object.fromEntries([...include.matchAll(/- project: (\S+)\s+artifact: (\S+)/g)].map((m) => [m[1], m[2]]));
+    return [...new Set([...include.matchAll(/- project: (\S+)/g)].map((m) => m[1]))];
 }
 
 // The `build` job alone, so a matching download step in a later job cannot stand in for its upload.
@@ -24,16 +24,14 @@ function buildJob() {
 }
 
 describe("the monorepo's visual-review.config.json", () => {
-    it("lists exactly the projects the CI visual job captures", () => {
-        expect(Object.keys(visualMatrix()).sort()).toEqual(Object.keys(CONFIG.projects).sort());
+    it("lists exactly the projects the CI story tests capture", () => {
+        expect(storyTestProjects().sort()).toEqual(Object.keys(CONFIG.projects).sort());
     });
 
-    it("points each project at the Storybook the build job uploads, where the visual job puts it", () => {
-        for (const [name, artifact] of Object.entries(visualMatrix())) {
-            const dir = CONFIG.projects[name].storybook;
-            expect(dir).toBe(`${name}/storybook-static`);
+    it("points each project at a Storybook the build job uploads", () => {
+        for (const dir of Object.values(CONFIG.projects).map((p) => p.storybook)) {
             expect(buildJob()).toMatch(
-                new RegExp(`uses: actions/upload-artifact@v4\\s+with:\\s+name: ${artifact}\\s+path: ${dir}/`),
+                new RegExp(`uses: actions/upload-artifact@v7\\s+with:\\s+name: \\S+\\s+path: ${dir}/`),
             );
         }
     });
@@ -51,11 +49,16 @@ describe("normalizeConfig", () => {
             defaultBranch: "main",
             workflow: "visual-review.yml",
             baselines: "visual-baselines",
+            approvals: "visual-review-approvals",
             workDir: ".visual-review",
             commitPrefix: "test",
             issueLabels: ["bug"],
             fontconfig: null,
             updateCheck: null,
+            candidates: null,
+            rolling: null,
+            usage: false,
+            ignoreBranches: [],
             projects: {
                 web: {
                     storybook: "storybook-static",
@@ -75,6 +78,11 @@ describe("normalizeConfig", () => {
         expect(c.projects.g.waitFor).toEqual({ selector: "my-el", method: "ready", failOnConsole: null });
     });
 
+    it("keeps the rolling command the master rolling target is listed with", () => {
+        const c = normalizeConfig({ rolling: "node list.mjs", projects: { a: { storybook: "s" } } });
+        expect(c.rolling).toBe("node list.mjs");
+    });
+
     it("keeps the fontconfig file capture draws with", () => {
         const c = normalizeConfig({ fontconfig: "fonts/fonts.conf", projects: { a: { storybook: "s" } } });
         expect(c.fontconfig).toBe("fonts/fonts.conf");
@@ -85,6 +93,8 @@ describe("normalizeConfig", () => {
         [{ fontconfig: "../fonts.conf", projects: { a: { storybook: "s" } } }, /fontconfig must be/],
         [{ fontconfig: 1, projects: { a: { storybook: "s" } } }, /fontconfig must be/],
         [{ updateCheck: " ", projects: { a: { storybook: "s" } } }, /updateCheck must be/],
+        [{ candidates: " ", projects: { a: { storybook: "s" } } }, /candidates must be a shell command/],
+        [{ rolling: 1, projects: { a: { storybook: "s" } } }, /rolling must be a shell command/],
         [{}, /projects must name/],
         [{ projects: {} }, /projects must name/],
         [{ projects: { "a b": { storybook: "s" } } }, /project id/],
@@ -92,11 +102,17 @@ describe("normalizeConfig", () => {
         [{ projects: { a: { storybook: "../elsewhere" } } }, /storybook must be/],
         [{ projects: { a: { storybook: "/abs" } } }, /storybook must be/],
         [{ baselines: "../up", projects: { a: { storybook: "s" } } }, /baselines must be a path/],
+        [
+            { approvals: "visual-baselines/approvals", projects: { a: { storybook: "s" } } },
+            /approvals must be a directory outside/,
+        ],
         [{ projects: { a: { storybook: "s", workers: 0 } } }, /workers/],
         [{ projects: { a: { storybook: "s", gate: false } } }, /gate is not a setting/],
         [{ projects: { a: { storybook: "s", waitFor: { selector: "x" } } } }, /waitFor needs/],
         [{ defaultBranch: "", projects: { a: { storybook: "s" } } }, /defaultBranch must be/],
         [{ issueLabels: "bug", projects: { a: { storybook: "s" } } }, /issueLabels/],
+        [{ ignoreBranches: "dependabot/", projects: { a: { storybook: "s" } } }, /ignoreBranches/],
+        [{ ignoreBranches: [""], projects: { a: { storybook: "s" } } }, /ignoreBranches/],
     ])("refuses %j", (raw, message) => {
         expect(() => normalizeConfig(raw)).toThrow(message);
     });

@@ -1,20 +1,13 @@
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { workerShare } from "../tools/test-slots.mjs";
-import { ciReporters } from "../vitest.ci-junit.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
+import { baseTest } from "../vitest.base.mjs";
 
-export default defineConfig({
+const config = defineConfig({
     test: {
-        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
-        globalSetup: ["../tools/test-slots.mjs"],
-        // At most this run's share of the cores for the Node projects (tools/test-slots.mjs); browser
-        // projects keep their own maxWorkers or fileParallelism.
-        maxWorkers: workerShare(),
+        ...baseTest({ reporters: ["verbose"] }),
         globals: true,
-        testTimeout: 30000,
-        hookTimeout: 30000,
-        reporters: ["verbose", ...ciReporters()],
         coverage: {
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],
@@ -78,3 +71,6 @@ export default defineConfig({
         ],
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

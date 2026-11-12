@@ -57,6 +57,93 @@ function numericColumn(graph: SampleGraph, name: string): TypedArrayData {
     return column;
 }
 
+/** One variant of {@link WeightSpec}. */
+type SpecOf<K extends WeightSpec["kind"]> = Extract<WeightSpec, { readonly kind: K }>;
+
+/**
+ * Uniform weights in [min, max).
+ * @param spec - the distribution
+ * @param stream - the weights stream
+ * @param out - receives one weight per edge
+ */
+function uniformWeights(spec: SpecOf<"uniform">, stream: RandomStream, out: Float32Array): void {
+    const min = spec.min ?? 0;
+    const max = spec.max ?? 1;
+    if (!(Number.isFinite(min) && Number.isFinite(max) && min <= max)) {
+        throw new RangeError(`weights: uniform needs finite min <= max, got ${min} and ${max}`);
+    }
+    for (let e = 0; e < out.length; e++) {
+        out[e] = min + (max - min) * stream.nextFloat();
+    }
+}
+
+/**
+ * Integer weights in [min, max].
+ * @param spec - the distribution
+ * @param stream - the weights stream
+ * @param out - receives one weight per edge
+ */
+function integerWeights(spec: SpecOf<"integer">, stream: RandomStream, out: Float32Array): void {
+    const { min, max } = spec;
+    if (!(Number.isSafeInteger(min) && Number.isSafeInteger(max) && min <= max)) {
+        throw new RangeError(`weights: integer needs integers min <= max, got ${min} and ${max}`);
+    }
+    for (let e = 0; e < out.length; e++) {
+        out[e] = min + stream.nextBelow(max - min + 1);
+    }
+}
+
+/**
+ * Exponential weights, -mean ln(1 - u).
+ * @param spec - the distribution
+ * @param stream - the weights stream
+ * @param out - receives one weight per edge
+ */
+function exponentialWeights(spec: SpecOf<"exponential">, stream: RandomStream, out: Float32Array): void {
+    const mean = spec.mean ?? 1;
+    if (!(mean > 0 && Number.isFinite(mean))) {
+        throw new RangeError(`weights: exponential needs a positive mean, got ${mean}`);
+    }
+    for (let e = 0; e < out.length; e++) {
+        out[e] = -mean * detLog(1 - stream.nextFloat());
+    }
+}
+
+/**
+ * The distance between the endpoints' `x`, `y` (and `z`, when present) node columns.
+ * @param graph - the graph
+ * @param out - receives one weight per edge
+ */
+function euclideanWeights(graph: SampleGraph, out: Float32Array): void {
+    const { src, dst } = graph;
+    const x = numericColumn(graph, "x");
+    const y = numericColumn(graph, "y");
+    const z = graph.nodeColumns?.z === undefined ? null : numericColumn(graph, "z");
+    for (let e = 0; e < out.length; e++) {
+        const dx = x[src[e]] - x[dst[e]];
+        const dy = y[src[e]] - y[dst[e]];
+        const dz = z === null ? 0 : z[src[e]] - z[dst[e]];
+        out[e] = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+}
+
+/**
+ * Weights combined from a numeric node column's endpoint values.
+ * @param graph - the graph
+ * @param spec - the column and the rule
+ * @param out - receives one weight per edge
+ */
+function columnWeights(graph: SampleGraph, spec: SpecOf<"column">, out: Float32Array): void {
+    const { src, dst } = graph;
+    const values = numericColumn(graph, spec.column);
+    const combine = spec.combine ?? "sum";
+    for (let e = 0; e < out.length; e++) {
+        const a = values[src[e]];
+        const b = values[dst[e]];
+        out[e] = combineValues(combine, a, b);
+    }
+}
+
 /**
  * The weight of every edge under `spec`.
  * @param graph - the graph
@@ -65,63 +152,23 @@ function numericColumn(graph: SampleGraph, name: string): TypedArrayData {
  * @returns one weight per edge
  */
 function drawWeights(graph: SampleGraph, spec: WeightSpec, seed: number): Float32Array<ArrayBuffer> {
-    const m = graph.src.length;
-    const out = new Float32Array(m);
-    const { src, dst } = graph;
+    const out = new Float32Array(graph.src.length);
     const stream = new RandomStream(seed, "weights", 0);
     switch (spec.kind) {
-        case "uniform": {
-            const min = spec.min ?? 0;
-            const max = spec.max ?? 1;
-            if (!(Number.isFinite(min) && Number.isFinite(max) && min <= max)) {
-                throw new RangeError(`weights: uniform needs finite min <= max, got ${min} and ${max}`);
-            }
-            for (let e = 0; e < m; e++) {
-                out[e] = min + (max - min) * stream.nextFloat();
-            }
+        case "uniform":
+            uniformWeights(spec, stream, out);
             break;
-        }
-        case "integer": {
-            const { min, max } = spec;
-            if (!(Number.isSafeInteger(min) && Number.isSafeInteger(max) && min <= max)) {
-                throw new RangeError(`weights: integer needs integers min <= max, got ${min} and ${max}`);
-            }
-            for (let e = 0; e < m; e++) {
-                out[e] = min + stream.nextBelow(max - min + 1);
-            }
+        case "integer":
+            integerWeights(spec, stream, out);
             break;
-        }
-        case "exponential": {
-            const mean = spec.mean ?? 1;
-            if (!(mean > 0 && Number.isFinite(mean))) {
-                throw new RangeError(`weights: exponential needs a positive mean, got ${mean}`);
-            }
-            for (let e = 0; e < m; e++) {
-                out[e] = -mean * detLog(1 - stream.nextFloat());
-            }
+        case "exponential":
+            exponentialWeights(spec, stream, out);
             break;
-        }
-        case "euclidean": {
-            const x = numericColumn(graph, "x");
-            const y = numericColumn(graph, "y");
-            const z = graph.nodeColumns?.z === undefined ? null : numericColumn(graph, "z");
-            for (let e = 0; e < m; e++) {
-                const dx = x[src[e]] - x[dst[e]];
-                const dy = y[src[e]] - y[dst[e]];
-                const dz = z === null ? 0 : z[src[e]] - z[dst[e]];
-                out[e] = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            }
+        case "euclidean":
+            euclideanWeights(graph, out);
             break;
-        }
-        default: {
-            const values = numericColumn(graph, spec.column);
-            const combine = spec.combine ?? "sum";
-            for (let e = 0; e < m; e++) {
-                const a = values[src[e]];
-                const b = values[dst[e]];
-                out[e] = combineValues(combine, a, b);
-            }
-        }
+        default:
+            columnWeights(graph, spec, out);
     }
     return out;
 }

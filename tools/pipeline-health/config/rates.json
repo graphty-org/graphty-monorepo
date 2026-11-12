@@ -1,0 +1,26 @@
+{
+    "$comment": "Money rates for the Costs page (design/ci/health-dashboard.md section 7), with the date each was checked. A missing rate (null) shows NO DATA, never zero. Fixed monthly lines are spread over the days of the month.",
+    "t4": {
+        "$comment": "machine.dev T4: minutes rounded up plus one for boot, times the tenancy's rate. Checked 2026-10-25.",
+        "bootMin": 1,
+        "usdPerMin": { "on_demand": 0.018, "spot": 0.0045 }
+    },
+    "llm": {
+        "$comment": "CI's Gemini spend, as tools/llm-spend.mjs counts it: a job's logged cost when its step 'LLM regression cost: <usd> USD' names one (release.yml from 2026-10-29; bisect.yml llm-lane points and cut-off runs from #5062), else a flat 0.94 USD per paid step (kept: it prices only steps from before their cost was logged, which ran before caching) (measured 2026-10-12 as 194 calls at 0.00485 USD, tmp/ai-cost/report.md; October 2026 averaged 189 calls a release run, 375 for the one bisect point). A paid step is release.yml's LLM regression step, or the test step of a point of a bisect of the llm lane (run name 'Bisect (llm lane)'; legacyBisectRuns lists the one from before the name said so), with a PAID conclusion. Local runs with the same key are not counted. Checked 2026-10-29.",
+        "step": "LLM regression tests",
+        "bisectStep": "Run the failing files",
+        "legacyBisectRuns": [40492117633],
+        "usdPerPaidStep": 0.94,
+        "paidConclusions": ["success", "failure", "cancelled"]
+    },
+    "fixedMonthly": {
+        "$comment": "github: Team, 2 seats (checked 2026-10-25). cloudflare: Workers Paid plan (checked 2026-10-25). sentry: plan price not recorded yet.",
+        "github": { "usd": 8 },
+        "cloudflare": { "usd": 5 },
+        "sentry": null
+    },
+    "actionsListPrice": {
+        "$comment": "List-price value of Actions minutes, never money (free for this public repository). Checked 2026-10-25.",
+        "usdPerMin": { "linux": 0.006, "windows": 0.01, "macos": 0.062 }
+    }
+}

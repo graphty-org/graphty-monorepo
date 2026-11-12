@@ -16,7 +16,7 @@ import { assert, describe, it } from "vitest";
 import { DOOR_ROOTS } from "../../src/session/commands/doors";
 import { assertScalesLinearly } from "../helpers/cost";
 import { API_DIR, publicMethods } from "./api-methods";
-import { COUNTED_WORK_TESTS, NOT_YET_COVERED, NOT_YET_COVERED_ISSUE } from "./counted-work";
+import { COUNTED_WORK_TESTS, NOT_YET_COVERED, NOT_YET_COVERED_ISSUE, REGISTRATIONS } from "./counted-work";
 import { MUTATING, READ_ONLY } from "./method-classes";
 
 const PACKAGE_DIR = path.resolve(API_DIR, "..");
@@ -98,12 +98,17 @@ describe("cost coverage", () => {
         assert.deepEqual(
             uncovered,
             [],
-            "write a counted-work test with assertScalesLinearly (test/helpers/cost.ts) and register it in " +
-                "test/cost-coverage/counted-work.ts",
+            "write a counted-work test with assertScalesLinearly (test/helpers/cost.ts) and register it in a " +
+                "<name>.counted-work.ts next to it (see test/cost-coverage/counted-work.ts)",
         );
     });
 
     it("registers only mutating methods, in gating test files that exist", () => {
+        for (const [module, registration] of Object.entries(REGISTRATIONS)) {
+            assert.isString(registration.file, `${module} names its test file`);
+            assert.isNotEmpty(registration.methods, `${module} names the methods it covers`);
+        }
+
         for (const [method, files] of Object.entries(COUNTED_WORK_TESTS)) {
             assert.isTrue(mutating.has(method), `${method} is a mutating method in the reports`);
             assert.isNotEmpty(files, method);
@@ -120,12 +125,12 @@ describe("cost coverage", () => {
         assert.deepEqual(
             NOT_YET_COVERED.filter((m) => COUNTED_WORK_TESTS[m] !== undefined),
             [],
-            "covered now: delete it from NOT_YET_COVERED",
+            "covered now: delete its file from test/cost-coverage/not-yet-covered/",
         );
         assert.deepEqual(
             NOT_YET_COVERED.filter((m) => !mutating.has(m)),
             [],
-            "not a mutating method in the reports: delete it from NOT_YET_COVERED",
+            "not a mutating method in the reports: delete its file from test/cost-coverage/not-yet-covered/",
         );
         assert.strictEqual(new Set(NOT_YET_COVERED).size, NOT_YET_COVERED.length, "no duplicates");
     });

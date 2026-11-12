@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
@@ -56,14 +56,14 @@ const CLOSENESS_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
  * the estimate; multiply by `k / n` for an estimate of the exact value.
  */
 export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptions> {
-    static namespace = "graphty";
-    static type = "closeness";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "closeness";
     /** Computes over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = closenessOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = closenessOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         k: {
             type: "integer",
             default: null,

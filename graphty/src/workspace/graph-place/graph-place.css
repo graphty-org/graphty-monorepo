@@ -18,6 +18,10 @@
     font-size: 11px;
 }
 
+.ws-graph-title:hover {
+    background: var(--cm-bg-hover);
+}
+
 .ws-graph-title-prefix {
     color: var(--cm-text-secondary);
     font-size: inherit;
@@ -38,10 +42,23 @@
 }
 
 .ws-find-list {
-    max-height: 320px;
     margin: 4px -8px 0;
-    overflow-y: auto;
     border-bottom: 1px solid var(--cm-border);
+}
+
+/* Scrolling stops only where an option row's bottom meets the list's edge, so the edge never
+   cuts a row or leaves a heading alone under it. */
+.ws-find-viewport {
+    scroll-snap-type: y mandatory;
+}
+
+.ws-find-viewport [role="option"] {
+    scroll-snap-align: end;
+}
+
+/* The top is a stop too, so a list scrolled back to its start shows its first row whole. */
+.ws-find-viewport [role="listbox"] > :first-child {
+    scroll-snap-align: start;
 }
 
 .ws-find-heading {
@@ -51,29 +68,41 @@
     font-weight: 550;
 }
 
+.ws-find-heading-count {
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+}
+
 .ws-find-empty {
     padding: 6px 8px 0;
 }
 
-.ws-paint-tree {
+.ws-find-refusal {
+    /* Starts where the gray hint does. */
+    padding: 6px 8px 0;
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+}
+
+.ws-find-example {
+    display: block;
+    overflow-wrap: anywhere;
+}
+
+.ws-nowrap {
+    white-space: nowrap;
+}
+
+.ws-mono {
+    font-family: var(--mantine-font-family-monospace);
+}
+
+/* The tree takes the room the find list and the footer leave and scrolls inside it, so a long
+   list never runs under Graph settings. */
+.ws-graph-place > .cm-tree {
     flex: 1 1 auto;
     min-height: 0;
-}
-
-.ws-paint-swatch {
-    display: inline-block;
-    width: 24px;
-    height: 8px;
-    margin-inline-end: 6px;
-    border-radius: 2px;
-    vertical-align: middle;
-}
-
-.ws-paint-count {
-    margin-inline-end: 4px;
-    color: var(--cm-text-secondary);
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
+    overflow-y: auto;
 }
 
 .ws-graph-footer {
@@ -82,4 +111,92 @@
     border-top: 1px solid var(--cm-border);
     color: var(--cm-text-secondary);
     font-size: 11px;
+}
+
+/* A rule offered as an option is set like every rule the box quotes. */
+.ws-find-rule .cm-result-name {
+    font-family: var(--mantine-font-family-monospace);
+}
+
+/* The style tree's title line with its "+", and its footer (tier 3 design section 2.1). */
+.ws-style-tree-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 8px 2px 16px;
+}
+
+.ws-style-tree-title {
+    color: var(--cm-text-secondary);
+    font-size: 11px;
+    font-weight: 550;
+}
+
+.ws-style-tree-foot {
+    flex: none;
+    border-top: 1px solid var(--cm-border);
+}
+
+.ws-style-tree-foot-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 16px;
+    font-size: 11px;
+}
+
+.ws-style-tree-foot-row:hover {
+    background: var(--cm-bg-hover);
+}
+
+/* A layer row's glyph is what it paints: a dot for nodes, a line for edges, both side by side. */
+.ws-row-marks {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+}
+
+/* A layer row painted over by the layers above: a whole glyph, explained by its tooltip. */
+.ws-row-over {
+    display: inline-flex;
+    align-items: center;
+    color: var(--cm-text-secondary);
+}
+
+/* A layer row whose run is out of date: the mark, then the count. */
+.ws-row-stale {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* A group layer's row: the color it paints its group, and how many nodes the group holds. */
+.ws-row-swatch {
+    display: block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 20%);
+}
+.ws-row-count {
+    color: var(--cm-text-secondary);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.ws-row-pin {
+    display: inline-flex;
+    align-items: center;
+    color: var(--cm-text-secondary);
+}
+
+/* A locked row's panel: a native disabled fieldset, drawn as nothing. */
+.ws-row-fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
 }

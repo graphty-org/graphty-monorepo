@@ -1,3 +1,162 @@
+## 0.6.68 (2026-11-10)
+
+### 🚀 Features
+
+- **graphty-element:** fill the row table on the card from the layout's drawn ring ([#3248](https://github.com/graphty-org/graphty-monorepo/issues/3248))
+- **webgpu-graph-algorithms:** write a layout's drawn positions into a ring on the device ([#3248](https://github.com/graphty-org/graphty-monorepo/issues/3248))
+- **graphty-element:** share the WebGPU device between renderer and layout ([#3248](https://github.com/graphty-org/graphty-monorepo/issues/3248))
+- **layout:** add a cluster force that pulls communities together ([#3257](https://github.com/graphty-org/graphty-monorepo/issues/3257))
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** adopt a device that has no adapterInfo ([#3248](https://github.com/graphty-org/graphty-monorepo/issues/3248))
+- **tools:** stop a hung test run before the CI job limit and name what hung ([#5845](https://github.com/graphty-org/graphty-monorepo/issues/5845), [#5816](https://github.com/graphty-org/graphty-monorepo/issues/5816))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.5.1
+- Updated algorithms to 3.4.21
+- Updated layout to 2.7.0
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
+## 0.6.67 (2026-11-09)
+
+### 🚀 Features
+
+- **layout:** add a collision force to the force simulations ([#3256](https://github.com/graphty-org/graphty-monorepo/issues/3256))
+
+### 🩹 Fixes
+
+- **layout:** clamp an ARF tick only once the run proves unstable ([#3255](https://github.com/graphty-org/graphty-monorepo/issues/3255))
+- **layout:** stop force layouts throwing nodes away after a pin and leaving ARF nodes stuck ([#3255](https://github.com/graphty-org/graphty-monorepo/issues/3255))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.5.0
+- Updated algorithms to 3.4.20
+- Updated layout to 2.6.0
+
+## 0.6.66 (2026-11-02)
+
+### 🩹 Fixes
+
+- **graphty-element:** keep lint type checks inside the worktree ([#5296](https://github.com/graphty-org/graphty-monorepo/issues/5296))
+- **webgpu-graph-algorithms:** let each model write the live count, not the simulation ([#3075](https://github.com/graphty-org/graphty-monorepo/issues/3075))
+- **layout:** make a group held at its members' box inert in the simulation layouts ([#3075](https://github.com/graphty-org/graphty-monorepo/issues/3075))
+
+### 🔥 Performance
+
+- **webgpu-graph-algorithms:** mask inert neighbours in attraction instead of branching ([#5539](https://github.com/graphty-org/graphty-monorepo/issues/5539))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.12
+- Updated algorithms to 3.4.19
+- Updated layout to 2.5.15
+
+## 0.6.65 (2026-11-01)
+
+### 🩹 Fixes
+
+- **workspace:** shrink CLAUDE.md files and move area rules to where they apply ([#3304](https://github.com/graphty-org/graphty-monorepo/issues/3304), [#1607](https://github.com/graphty-org/graphty-monorepo/issues/1607), [#1591](https://github.com/graphty-org/graphty-monorepo/issues/1591), [#1595](https://github.com/graphty-org/graphty-monorepo/issues/1595), [#1741](https://github.com/graphty-org/graphty-monorepo/issues/1741))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.11
+- Updated algorithms to 3.4.18
+- Updated layout to 2.5.14
+
+## 0.6.64 (2026-10-31)
+
+### 🩹 Fixes
+
+- let dependency bumps pass and keep their failures out of the flaky readings ([#4147](https://github.com/graphty-org/graphty-monorepo/issues/4147))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.10
+- Updated algorithms to 3.4.17
+- Updated layout to 2.5.13
+
+## 0.6.63 (2026-10-29)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.9
+- Updated algorithms to 3.4.16
+- Updated layout to 2.5.12
+
+## 0.6.62 (2026-10-28)
+
+### 🚀 Features
+
+- **ci:** pull request rules and quarantine issues from the results store ([#3388](https://github.com/graphty-org/graphty-monorepo/issues/3388))
+
+### 🩹 Fixes
+
+- **ci:** preset FC_FONTATIONS for every Chromium launch; one shared vitest base ([#3787](https://github.com/graphty-org/graphty-monorepo/issues/3787))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.8
+- Updated algorithms to 3.4.15
+- Updated layout to 2.5.11
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
+## 0.6.61 (2026-10-21)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.7
+- Updated algorithms to 3.4.14
+- Updated layout to 2.5.10
+
+## 0.6.60 (2026-10-20)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.6
+- Updated algorithms to 3.4.13
+- Updated layout to 2.5.9
+
+## 0.6.59 (2026-10-18)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.5
+- Updated algorithms to 3.4.12
+- Updated layout to 2.5.8
+
+## 0.6.58 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.4
+- Updated algorithms to 3.4.11
+- Updated layout to 2.5.7
+
+## 0.6.57 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.3
+- Updated algorithms to 3.4.10
+- Updated layout to 2.5.6
+
+## 0.6.56 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.2
+- Updated algorithms to 3.4.9
+- Updated layout to 2.5.5
+
 ## 0.6.55 (2026-10-15)
 
 ### 🧱 Updated Dependencies

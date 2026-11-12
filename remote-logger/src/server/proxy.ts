@@ -90,7 +90,7 @@ function findElement(node: Document | Element, tagName: string): Element | null 
     if (defaultTreeAdapter.isElementNode(node) && node.tagName === tagName) {
         return node;
     }
-    const children = node.childNodes ?? [];
+    const children = node.childNodes;
     for (const child of children) {
         if (defaultTreeAdapter.isElementNode(child)) {
             const found = findElement(child, tagName);
@@ -112,7 +112,7 @@ function stripIntegrityAttributes(node: Document | Element): void {
             node.attrs = node.attrs.filter((a) => a.name !== "integrity");
         }
     }
-    const children = node.childNodes ?? [];
+    const children = node.childNodes;
     for (const child of children) {
         if (defaultTreeAdapter.isElementNode(child)) {
             stripIntegrityAttributes(child);

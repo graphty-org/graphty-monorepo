@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
@@ -71,14 +71,16 @@ interface LeidenOptions extends Record<string, unknown> {
  *
  */
 export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
-    static namespace = "graphty";
-    static type = "leiden";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "leiden";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static readonly weightMeaning = "strength" as const;
     /** Groups over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = leidenOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = leidenOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         resolution: {
             type: "number",
             default: 1,
@@ -168,7 +170,7 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
             caveats: declaredCaveats({
                 method: "leiden",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "strength" },
+                ...this.weightCaveats(),
                 precision,
                 iterations: result.iterations,
                 facts: [caveat("community.resolution", { resolution })],

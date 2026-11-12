@@ -71,7 +71,7 @@ function digest(value: unknown): string {
         } else if (typeof v === "boolean") {
             mix(v ? 1 : 2);
         } else if (ArrayBuffer.isView(v)) {
-            for (const e of v as unknown as ArrayLike<number>) {
+            for (const e of v as unknown as Iterable<number>) {
                 walk(e);
             }
         } else if (typeof v === "object" && v !== null) {

@@ -1,5 +1,5 @@
 import Color from "colorjs.io";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * A record the element ingests: a node's or an edge's keys and values, as a reader yields them.
@@ -40,11 +40,21 @@ export const AdvancedColorStyle = z.discriminatedUnion("colorType", [
         colorType: z.literal("gradient"),
         direction: z.number().min(0).max(360),
         colors: z.array(ColorStyle),
+        /** Where each color sits, 0 to 1; left out, or not one per color, the colors are evenly spaced. */
+        stops: z.array(z.number().min(0).max(1)).optional(),
         opacity: z.number().min(0).max(1).optional(),
     }),
     z.strictObject({
         colorType: z.literal("radial-gradient"),
         colors: z.array(ColorStyle),
+        /** Where each color sits, 0 at the middle to 1; left out, or not one per color, evenly spaced. */
+        stops: z.array(z.number().min(0).max(1)).optional(),
+        /** Where the gradient's middle is across the node's box, 0 at its left side to 1 at its right; left out, 0.5. */
+        centerX: z.number().optional(),
+        /** Where the gradient's middle is down the node's box, 0 at its top to 1 at its bottom; left out, 0.5. */
+        centerY: z.number().optional(),
+        /** How far the gradient reaches from its middle, in halves of the node's side; left out, 1 (to its edge); 0, all the last color. */
+        radius: z.number().min(0).optional(),
         opacity: z.number().min(0).max(1).optional(),
     }),
 ]);
@@ -59,6 +69,15 @@ export const TextLocation = z.enum([
     "bottom",
     "bottom-left",
     "bottom-right",
+    // Inside the node against that side or in that corner, as a group's header label.
+    "inside-top",
+    "inside-bottom",
+    "inside-left",
+    "inside-right",
+    "inside-top-left",
+    "inside-top-right",
+    "inside-bottom-left",
+    "inside-bottom-right",
     "automatic",
 ]);
 

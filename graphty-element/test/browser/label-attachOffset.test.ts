@@ -1,5 +1,5 @@
-import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { MeshBuilder, NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { type AttachPosition, RichTextLabel } from "../../src/meshes/RichTextLabel";
 
@@ -22,6 +22,10 @@ describe("Label attachOffset Regression Tests", () => {
     beforeEach(() => {
         const engine = new NullEngine();
         scene = new Scene(engine);
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     describe("attachOffset configuration", () => {
@@ -321,6 +325,57 @@ describe("Label attachOffset Regression Tests", () => {
             const expectedDiff = 10; // Target moved by 10 in Y
             assert.approximately(labelY2 - labelY1, expectedDiff, 0.1, "Label should move by same amount as target");
 
+            label.dispose();
+        });
+    });
+
+    describe("inside positions", () => {
+        /**
+         * The label's drawn box in world units, after placing it inside a 10 x 4 box at the origin.
+         * @param position - Where inside the box.
+         * @returns The label's box.
+         */
+        function placedInside(position: AttachPosition): { min: Vector3; max: Vector3 } {
+            const box = MeshBuilder.CreatePlane("box", { width: 10, height: 4 }, scene);
+            const label = new RichTextLabel(scene, { text: "Open group", fontSize: 12 });
+            label.attachTo(box, position, 0);
+            const mesh = label.labelMesh;
+            assert.exists(mesh);
+            mesh.computeWorldMatrix(true);
+            const { minimumWorld, maximumWorld } = mesh.getBoundingInfo().boundingBox;
+
+            return { min: minimumWorld.clone(), max: maximumWorld.clone() };
+        }
+
+        test("puts a header label inside the box against its top-right corner, in front of it", () => {
+            const { min, max } = placedInside("inside-top-right");
+
+            assert.approximately(max.x, 5, 1e-6, "flush with the box's right side");
+            assert.approximately(max.y, 2, 1e-6, "flush with the box's top");
+            assert.isAbove(min.x, -5, "inside the box, not beside it");
+            assert.isBelow(max.z, 0, "in front of the box, toward the camera");
+        });
+
+        test("puts a label inside against the bottom-left corner", () => {
+            const { min } = placedInside("inside-bottom-left");
+
+            assert.approximately(min.x, -5, 1e-6);
+            assert.approximately(min.y, -2, 1e-6);
+        });
+
+        test("centres an inside-top label across the box", () => {
+            const { min, max } = placedInside("inside-top");
+
+            assert.approximately((min.x + max.x) / 2, 0, 1e-6);
+            assert.approximately(max.y, 2, 1e-6);
+        });
+
+        test("keeps a label on a point, which has no inside", () => {
+            const label = new RichTextLabel(scene, { text: "Test", fontSize: 12 });
+            label.attachTo(new Vector3(3, 4, 0), "inside-top", 0);
+
+            assert.approximately(label.labelMesh?.position.x ?? Number.NaN, 3, 1e-6);
+            assert.approximately(label.labelMesh?.position.y ?? Number.NaN, 4, 1e-6);
             label.dispose();
         });
     });

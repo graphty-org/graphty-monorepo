@@ -1,14 +1,14 @@
 /**
  * The force layouts with an accelerator attached, and a caption that says which path ran.
  *
- * Three stories, because "the GPU layout" is two different things to look at. Two of them attach
- * the deterministic fake accelerator, so the picture is the same picture on every machine and on
- * every run and a visual-regression service can hold a baseline for it. The third asks for a real
+ * Two stories, because "the GPU layout" is two different things to look at. One attaches the
+ * deterministic fake accelerator, so the picture is the same picture on every machine and on
+ * every run and a visual-regression service can hold a baseline for it. The other asks for a real
  * WebGPU device and is not snapshotted at all: on this file's own dev box it runs the real
  * kernels, on a machine with no device it reports `unavailable` and says why in the caption, and
  * either answer is correct -- which is exactly what makes it useless as a baseline.
  *
- * The caption is the point of all three. It is six lines of ordinary DOM listening to
+ * The caption is the point of both. It is six lines of ordinary DOM listening to
  * `graphty-capabilities-change`, the event the element mirrors from its acceleration controller,
  * and it is the whole of what a consumer writes to show whether hardware is in use. No probe, no
  * device object, no GPU type named anywhere.
@@ -152,14 +152,14 @@ const fakes = new WeakMap<Graphty, FakeAccelerator>();
 /**
  * Attaches the fake accelerator, set to compute the layout rather than to translate the graph.
  *
- * `computes: "layout"` IS WHAT MAKES THESE TWO STORIES SHOW ANYTHING. The fake's default batch
+ * `computes: "layout"` IS WHAT MAKES THE FAKE STORY SHOW ANYTHING. The fake's default batch
  * moves every unfixed node the same distance in the same direction, which is exact and is what
  * the unit tests assert on -- and is invisible here, because the element frames the camera on
  * whatever it is handed and a translated graph is the same picture in the same place. These
  * stories drew the seed scatter under a caption naming a layout, at any settle count, and the
  * distance everything moved was the one thing a reader could not see. Told to compute the layout
  * instead, the fake runs that layout's own simulation behind the accelerator seam, so the
- * arrangement on screen is ForceAtlas2's and Spring's, deterministic under the seed each story
+ * arrangement on screen is ForceAtlas2's, deterministic under the seed the story
  * names, and the batches the accelerator counted are the ones that produced it.
  *
  * Under visual capture the arrangement is spent as PRE-STEPS, off the frame clock; everywhere else it
@@ -185,7 +185,7 @@ function attachFake(element: Graphty): void {
  * @param builds - The counter this layout increments when its simulation is built.
  * @throws When the story attached no fake, or the fake built no simulation, or no batch landed.
  */
-function assertRanOnTheFake(canvasElement: HTMLElement, builds: "forceAtlas2" | "fruchtermanReingold"): void {
+function assertRanOnTheFake(canvasElement: HTMLElement, builds: "forceAtlas2"): void {
     const element = canvasElement.querySelector("graphty-element");
     const fake = element instanceof Graphty ? fakes.get(element) : undefined;
 
@@ -229,7 +229,7 @@ function publishedCaption(canvasElement: HTMLElement): string {
 }
 
 /**
- * The styling all three stories draw with.
+ * The styling both stories draw with.
  *
  * It sits here and is named in each story's `args` rather than on the meta, and the seed and the
  * settle beside it are written out in every story, so a reader who opens one story to ask whether
@@ -301,39 +301,6 @@ export const ForceAtlas2Fake: Story = {
         assertRanOnTheFake(canvasElement, "forceAtlas2");
         await assertDistinctArrangement(
             await drawn(canvasElement, "Layout/GPU ForceAtlas2 (fake accelerator)"),
-            FAKE_FAMILY,
-            FAKE_FAMILY_APART,
-        );
-    },
-};
-
-/**
- * Spring (Fruchterman-Reingold) on the same fake, so the second accelerated layout has a picture
- * of its own rather than being taken on trust from the first.
- */
-export const SpringFake: Story = {
-    name: "Spring (fake accelerator)",
-    // `preSteps` is Spring's own `iterations`, which this story leaves at its default of 50, and
-    // `stepMultiplier` keeps the animation outside a capture to 5 frames. See ForceAtlas2Fake
-    // above.
-    args: {
-        layout: "spring",
-        layoutConfig: { seed: 42 },
-        setup: storySetup({ ...STORY_STYLES, preSteps: 50, stepMultiplier: 10 }),
-    },
-    decorators: [acceleratedStory(attachFake)],
-    play: async ({ canvasElement }): Promise<void> => {
-        await waitForGraphSettled(canvasElement);
-
-        const caption = publishedCaption(canvasElement);
-
-        if (!caption.includes("active") && !caption.includes("idle")) {
-            throw new Error(`the fake accelerator was injected but the caption reads "${caption}"`);
-        }
-
-        assertRanOnTheFake(canvasElement, "fruchtermanReingold");
-        await assertDistinctArrangement(
-            await drawn(canvasElement, "Layout/GPU Spring (fake accelerator)"),
             FAKE_FAMILY,
             FAKE_FAMILY_APART,
         );

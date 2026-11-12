@@ -281,10 +281,10 @@ export const SE_TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; 
  * @returns the tolerance value and its basis row
  */
 export function seTolerance(id: string): { readonly value: number; readonly basis: string } {
-    const spec = SE_TOLERANCE_CAPS[id];
-    if (spec === undefined) {
+    if (!(id in SE_TOLERANCE_CAPS)) {
         throw new Error(`${id}: not a P5 spring tolerance id`);
     }
+    const spec = SE_TOLERANCE_CAPS[id];
     if (WRITE) {
         return { value: spec.cap, basis: spec.basis };
     }

@@ -24,6 +24,7 @@ describe("InputManager", () => {
 
     afterEach(() => {
         inputManager.dispose();
+        engine.dispose();
     });
 
     test("initializes with mock input system", async () => {

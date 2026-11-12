@@ -115,10 +115,16 @@ describe("compared with Cytoscape's built-in algorithms", () => {
         expect(ours.rank("#a")).toBeCloseTo(37 / 114, 12);
         expect(ours.rank("#b")).toBeCloseTo(20 / 114, 12);
         expect(ours.converged).toBe(true);
-        // Cytoscape adds the teleport (1 - d) / n to every column without scaling the links by d, then
-        // renormalises, so its dampingFactor d behaves as the standard damping 1 / (2 - d).
+        // Before 3.34.5, Cytoscape added the teleport (1 - d) / n to every column without scaling the links by d,
+        // then renormalised, so its dampingFactor d behaved as the standard damping 1 / (2 - d). 3.34.5 fixed that
+        // (upstream commit acaa3ad, "Apply the damping factor to the link term in pageRank()"), so from then on
+        // its d is the standard damping and needs no conversion.
+        const [major, minor, patch] = (cytoscape as unknown as { version: string }).version.split(".").map(Number);
+        const fixed = major > 3 || (major === 3 && (minor > 34 || (minor === 34 && patch >= 5)));
         const theirs = cy.elements().pageRank({ dampingFactor: 0.85, precision: 1e-14, iterations: 10000 });
-        const same = cy.elements().graphtyPageRank({ directed: true, dampingFactor: 1 / 1.15, tolerance: 1e-14 });
+        const same = cy
+            .elements()
+            .graphtyPageRank({ directed: true, dampingFactor: fixed ? 0.85 : 1 / 1.15, tolerance: 1e-14 });
         for (const n of cy.nodes()) {
             expect(same.rank(n)).toBeCloseTo(theirs.rank(n), 6);
         }
@@ -513,9 +519,9 @@ describe("communities and clustering", () => {
 
     it("teraHAC and hierarchicalClustering refuse more than maxNodes nodes with E_TOO_LARGE", () => {
         const e = graph(BARBELL).elements();
-        const refusal = expect.objectContaining({
+        const refusal: unknown = expect.objectContaining({
             code: "E_TOO_LARGE",
-            params: expect.objectContaining({ maxNodes: 5 }),
+            params: expect.objectContaining({ maxNodes: 5 }) as unknown,
         });
         expect(() => e.graphtyTeraHAC({ maxNodes: 5 })).toThrow(refusal);
         expect(() => e.graphtyHierarchicalClustering({ maxNodes: 5 })).toThrow(refusal);
@@ -683,6 +689,25 @@ describe("link prediction", () => {
         expect(e.graphtyEvaluateCommonNeighbors(held).auc).toBe(1);
         expect(e.graphtyEvaluateAdamicAdar(held).auc).toBe(1);
         expect(e.graphtyCompareAdamicAdarWithCommonNeighbors(held).commonNeighbors.auc).toBe(1);
+    });
+
+    it("predicts every ordered pair of a directed graph, whatever the node order (#961)", () => {
+        // Nodes a, b, c added in that order, arcs c -> b and b -> a: c reaches a through b.
+        const cy = cytoscape({
+            headless: true,
+            elements: [
+                ...["a", "b", "c"].map((id) => ({ data: { id } })),
+                { data: { id: "cb", source: "c", target: "b" } },
+                { data: { id: "ba", source: "b", target: "a" } },
+            ],
+        });
+        const e = cy.elements();
+        const pairs = (r: { source: { id(): string }; target: { id(): string } }[]): string[] =>
+            r.map((p) => `${p.source.id()}->${p.target.id()}`);
+        expect(pairs(e.graphtyCommonNeighborsPrediction({ directed: true }))).toEqual(["c->a"]);
+        expect(pairs(e.graphtyAdamicAdarPrediction({ directed: true }))).toEqual(["c->a"]);
+        expect(e.graphtyCommonNeighborsScore({ directed: true, source: "#c", target: "#a" })).toBe(1);
+        expect(pairs(e.graphtyTopCandidatesForNode({ directed: true, root: "#c" }))).toEqual(["c->a"]);
     });
 });
 
@@ -872,6 +897,13 @@ describe("library fixes found by the docs review", () => {
         expect(() => cy.graphtyKruskalMST((() => 1) as never)).toThrow(
             "graphtyKruskalMST: takes one options object; pass a weight function as { weight: fn }",
         );
+    });
+
+    it("refuses null options with its own message, synchronously and asynchronously", async () => {
+        const cy = graph(BARBELL);
+        const message = "graphtyPageRank: takes one options object; pass a weight function as { weight: fn }";
+        expect(() => cy.graphtyPageRank(null as never)).toThrow(message);
+        await expect(cy.graphtyPageRankAsync(null as never)).rejects.toThrow(message);
     });
 
     it("throws on a negative weight in Dijkstra and A*, which would otherwise hang or be wrong", async () => {

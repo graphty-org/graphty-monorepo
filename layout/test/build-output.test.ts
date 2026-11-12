@@ -2,9 +2,24 @@ import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 import { describe, expect, it } from "vitest";
 
+/** The package.json fields these tests read. */
+interface PackageJson {
+    main: string;
+    type: string;
+    types: string;
+    exports: Record<string, { import: string; types: string }>;
+    files: string[];
+}
+
+/** The tsconfig.json fields these tests read. */
+interface TsConfig {
+    extends?: string;
+    compilerOptions: { composite?: boolean; module?: string; target?: string; declaration?: boolean };
+}
+
 describe("Build Output Tests", () => {
     it("should have correct package.json configuration", () => {
-        const packageJson = JSON.parse(readFileSync(resolve("./package.json"), "utf-8"));
+        const packageJson = JSON.parse(readFileSync(resolve("./package.json"), "utf-8")) as PackageJson;
 
         // Check main entry point - now using the bundle
         // This fixes the npm package bug where dist/src/index.js had ES module import issues
@@ -26,7 +41,7 @@ describe("Build Output Tests", () => {
     });
 
     it("should have TypeScript configuration for ES modules", () => {
-        const tsconfig = JSON.parse(readFileSync(resolve("./tsconfig.json"), "utf-8"));
+        const tsconfig = JSON.parse(readFileSync(resolve("./tsconfig.json"), "utf-8")) as TsConfig;
 
         // Check that tsconfig extends base or has required settings
         // With extends pattern, settings come from base config

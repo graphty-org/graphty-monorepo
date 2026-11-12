@@ -49,6 +49,60 @@ function checkPolicy(name: string, value: string | undefined): void {
 }
 
 /**
+ * Relabel edge endpoints by a Fisher-Yates permutation of 0 .. n - 1 (for i = n - 1 down to 1,
+ * swap i with nextBelow(i + 1)) from stream (seed, permuteDomain, 0).
+ * @param n - the node count
+ * @param src - the sources, relabelled in place
+ * @param dst - the targets, relabelled in place
+ * @param seed - the resolved seed
+ * @param permuteDomain - the permutation's stream domain
+ */
+function permuteEdges(n: number, src: U32, dst: U32, seed: number, permuteDomain: string): void {
+    const perm = new Uint32Array(n);
+    for (let i = 0; i < n; i++) {
+        perm[i] = i;
+    }
+    const stream = new RandomStream(seed, permuteDomain, 0);
+    for (let i = n - 1; i > 0; i--) {
+        const j = stream.nextBelow(i + 1);
+        const t = perm[i];
+        perm[i] = perm[j];
+        perm[j] = t;
+    }
+    for (let e = 0; e < src.length; e++) {
+        src[e] = perm[src[e]];
+        dst[e] = perm[dst[e]];
+    }
+}
+
+/**
+ * Clear `keep` for every repeat of a pair (ordered when directed) after its first occurrence in
+ * edge order.
+ * @param src - the sources
+ * @param dst - the targets
+ * @param directed - whether pairs are ordered
+ * @param keep - 1 per kept edge, cleared here
+ */
+function dropRepeatedPairs(src: U32, dst: U32, directed: boolean, keep: Uint8Array): void {
+    const m = src.length;
+    const lo = directed ? src : src.map((u, e) => Math.min(u, dst[e]));
+    const hi = directed ? dst : src.map((u, e) => Math.max(u, dst[e]));
+    // ponytail: O(m log m) comparator sort of edge indices; a hash set if erasing 100M+ edges matters
+    const order = new Uint32Array(m);
+    for (let e = 0; e < m; e++) {
+        order[e] = e;
+    }
+    order.sort((a, b) => lo[a] - lo[b] || hi[a] - hi[b] || a - b);
+    for (let i = 1; i < m; i++) {
+        const a = order[i - 1];
+        const b = order[i];
+        if (lo[a] === lo[b] && hi[a] === hi[b]) {
+            keep[b] = 0;
+        }
+    }
+}
+
+/**
  * Apply `permute`, `selfLoops` and `multiEdges` to freshly sampled edges, then build the graph.
  * The permutation is a Fisher-Yates shuffle of 0 .. n - 1 (for i = n - 1 down to 1, swap i with
  * nextBelow(i + 1)) from stream (seed, permuteDomain, 0); node u becomes perm[u]. Erasing keeps
@@ -72,21 +126,7 @@ function finishRecursive(
     const directed = options.directed ?? true;
     const m = src.length;
     if (options.permute === true) {
-        const perm = new Uint32Array(n);
-        for (let i = 0; i < n; i++) {
-            perm[i] = i;
-        }
-        const stream = new RandomStream(seed, permuteDomain, 0);
-        for (let i = n - 1; i > 0; i--) {
-            const j = stream.nextBelow(i + 1);
-            const t = perm[i];
-            perm[i] = perm[j];
-            perm[j] = t;
-        }
-        for (let e = 0; e < m; e++) {
-            src[e] = perm[src[e]];
-            dst[e] = perm[dst[e]];
-        }
+        permuteEdges(n, src, dst, seed, permuteDomain);
     }
     const keep = new Uint8Array(m).fill(1);
     if (options.selfLoops === "erase") {
@@ -97,21 +137,7 @@ function finishRecursive(
         }
     }
     if (options.multiEdges === "erase") {
-        const lo = directed ? src : src.map((u, e) => Math.min(u, dst[e]));
-        const hi = directed ? dst : src.map((u, e) => Math.max(u, dst[e]));
-        // ponytail: O(m log m) comparator sort of edge indices; a hash set if erasing 100M+ edges matters
-        const order = new Uint32Array(m);
-        for (let e = 0; e < m; e++) {
-            order[e] = e;
-        }
-        order.sort((a, b) => lo[a] - lo[b] || hi[a] - hi[b] || a - b);
-        for (let i = 1; i < m; i++) {
-            const a = order[i - 1];
-            const b = order[i];
-            if (lo[a] === lo[b] && hi[a] === hi[b]) {
-                keep[b] = 0;
-            }
-        }
+        dropRepeatedPairs(src, dst, directed, keep);
     }
     const out = new EdgeBuffer(m);
     for (let e = 0; e < m; e++) {

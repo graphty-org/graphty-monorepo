@@ -35,6 +35,7 @@
  * 5621-5665).
  */
 
+import { siteTimeline } from "../siteConfig";
 import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "./sampleGraphs";
 
 /** A tag pill on a sample row. The four the spec names, and no others. @public */
@@ -234,10 +235,16 @@ export interface StartSample {
     readonly size: string;
     /** Where the element imports it from, under the app's base URL. */
     readonly url: string;
+    /** Its picture, for a sample with no graph-samples dataset to take one from. */
+    readonly picture?: string;
+    /** It is offered for watching change over time, so only with the timeline experiment on. */
+    readonly timed?: true;
 }
 
 /**
- * The four tier 1 samples, Les Miserables first. Each opens by URL through graphty-element's
+ * The tier 1 samples, Les Miserables first, then the timed ones: three real networks written by
+ * scripts/fetch-timeline-samples.ts and one synthetic, written by scripts/write-timeline-samples.ts
+ * (public/samples/SOURCES.md has their sources and licenses). Each opens by URL through graphty-element's
  * ordinary import, with nothing run.
  *
  * TEMPORARY WORKAROUND: the list of samples belongs in graphty-element, so every consumer can
@@ -279,4 +286,54 @@ export const START_SAMPLES: readonly StartSample[] = [
         size: "15 families",
         url: `${import.meta.env.BASE_URL}samples/florentine.gml`,
     },
+    {
+        id: "campus-contacts",
+        name: "Campus contacts",
+        sentence:
+            "Which of 615 university students were near each other, hour by hour for one week. Good for watching groups gather by day and scatter at night.",
+        size: "615 nodes, 8,142 edges",
+        url: `${import.meta.env.BASE_URL}samples/campus-contacts.json`,
+        picture: `${import.meta.env.BASE_URL}samples/campus-contacts.webp`,
+        timed: true,
+    },
+    {
+        id: "graph-research",
+        name: "Graph researchers",
+        sentence:
+            "Who wrote papers together in the Journal of Graph Algorithms and Applications from 1997 on. Good for watching a research community grow.",
+        size: "549 nodes, 2,084 edges",
+        url: `${import.meta.env.BASE_URL}samples/graph-research.json`,
+        picture: `${import.meta.env.BASE_URL}samples/graph-research.webp`,
+        timed: true,
+    },
+    {
+        id: "marvel-films",
+        name: "Marvel films",
+        sentence:
+            "The Marvel Cinematic Universe films from 2008 on and the actors cast in two or more of them. Good for watching a franchise build up film by film.",
+        size: "210 nodes, 582 edges",
+        url: `${import.meta.env.BASE_URL}samples/marvel-films.json`,
+        picture: `${import.meta.env.BASE_URL}samples/marvel-films.webp`,
+        timed: true,
+    },
+    {
+        id: "paper-citations",
+        name: "Paper citations",
+        sentence:
+            "Papers from 1995 to 2024 and the older papers they cite, each with its year. Good for watching a field grow year by year.",
+        size: "159 nodes, 453 edges",
+        url: `${import.meta.env.BASE_URL}samples/paper-citations.json`,
+        picture: `${import.meta.env.BASE_URL}samples/paper-citations.webp`,
+        timed: true,
+    },
 ];
+
+/**
+ * The samples this site offers: the timed ones only with the timeline experiment on. The start
+ * page's library, the Samples dialog and the main menu all list these (workspace/start/sampleLibrary.ts).
+ * @param timeline - whether the timeline experiment is on; the site's setting by default.
+ * @returns the samples, in order.
+ */
+export function offeredSamples(timeline: boolean = siteTimeline()): readonly StartSample[] {
+    return START_SAMPLES.filter((sample) => sample.timed !== true || timeline);
+}

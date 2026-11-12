@@ -45,6 +45,13 @@ openInput.addEventListener("change", () => {
   [save report](#saving-without-a-download), whose `leftOut` lists a run still computing, which
   the file does not hold. It rejects only as `project.save()` does, with `E_BAD_COMMAND` for an
   `extensions` name or value it cannot store.
+- **`element.downloadGraph(format, options)`** hands the reader a copy instead of saving: it
+  writes the graph as `exportGraph(format, options)` does and downloads it as
+  `<project name><the format's first extension>`, such as `Pioneers.graphml`. Pass
+  `downloadGraph("graphty")` for a copy of the project file. It never changes `dirty` -- a copy
+  is not a save -- which is the one difference from `downloadProject`, which always does. It
+  takes `{ fileName }` too, and resolves to the export, whose `lossNotes` list what the format
+  could not hold.
 - **`project.open(file)`** takes the `File` (or any `Blob`), its bytes, or its text. It never
   takes a URL: nothing is fetched. Opening a project replaces what the session holds and starts a
   fresh undo history. It also opens any data file, so one "Open..." button serves both (see
@@ -85,6 +92,8 @@ opens as above. Any other file -- CSV, GraphML, GML, GEXF, DOT, Pajek, JSON grap
 into a [load draft](./load-preview), as `session.data.prepare` reads it, and the report says
 `opened: "graph"` and carries the `draft`. Nothing is in the graph until you load it, so the
 reader can check the columns first, and the unsaved-changes check does not apply.
+For a graph file, `draft.load()` loads what `session.data.import` of the same file loads, and
+also labels the nodes with the file's `label` field ([load draft](./load-preview)).
 
 ```typescript
 const report = await project.open(file, { discard: true });
@@ -92,7 +101,9 @@ if (report.opened === "graph") await report.draft?.load(); // or show report.dra
 ```
 
 A data file no format reads is refused with `E_UNKNOWN_FORMAT`, and one its format cannot read
-with `E_PARSE_FAILED`, as `prepare` refuses them. Text handed over without a `File` is read by its
+with `E_PARSE_FAILED`, as `prepare` refuses them. The other way round, a project file handed to
+`data.import` or `data.prepare` is refused with `E_PROJECT_FILE_AS_DATA` (`details`:
+`{ kind, use: "project.open" }`) rather than loaded as an empty graph. Text handed over without a `File` is read by its
 content; pass `{ fileName }` so its extension names the format.
 
 ## Saving without a download
@@ -106,6 +117,16 @@ report.bytes; // the file's size
 report.written; // the members in the file, such as "graphty-data" (see "The file")
 report.leftOut; // what is not in it: a run still computing, as { code: "W_RUN_PENDING", params: { id } }
 ```
+
+### What a save leaves out
+
+| Code                    | Params        | What was left out                                                                                                                                                       |
+| ----------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `W_RUN_PENDING`         | `id`          | A run still computing                                                                                                                                                   |
+| `W_SOURCE_URL_REDACTED` | `id`, `names` | Values whose names mark a credential (`api_key`, `token`, `X-Goog-Signature`, ...) from a load's URL, or from a network load's endpoint, next-page link or REST mapping |
+
+A save never writes a credential: a network load records only the name of the credential slot it
+used, and the reader's own machine keeps the credential (`element.credentials`).
 
 Store `text` wherever you keep files. Two options shape the file:
 
@@ -153,6 +174,37 @@ const handle = await window.showSaveFilePicker({
 
 Both come from `@graphty/graphty-element/session`, which loads in Node, and from the main entry.
 
+## Keeping projects in the browser
+
+Where there is no file system to save to -- a tablet, a kiosk -- keep projects in the browser's
+own storage (IndexedDB) with `browserProjects`:
+
+```typescript
+import { browserProjects } from "@graphty/graphty-element/session";
+
+const stored = await browserProjects.save(element.session); // { id, name, savedAt, nodes, edges }
+const file = await browserProjects.get(stored.id);
+if (file) await element.session.project.open(file, { discard: true });
+```
+
+- **`save(session, { id })`** stores the whole project, exactly as `project.save()` writes it.
+  `dirty` clears only once the browser has committed the write, so a failed write leaves the
+  project dirty. Pass the `id` of a stored project to replace it; without one, every save is a new
+  entry.
+- **`list()`** returns every stored project, newest first, as `{ id, name, savedAt, nodes, edges }`:
+  `savedAt` is milliseconds since the epoch and `name` is null for an unnamed project. It never
+  reads a project's contents, so it stays quick however large the projects are.
+- **`get(id)`** returns the project as a `File` named by `projectFileName`, ready for
+  `project.open`, or `undefined` when nothing is stored under that id. **`remove(id)`** deletes one.
+- **`persisted()`** resolves true when the browser has promised to keep this site's storage, and
+  false when it has not or cannot say. Browsers may clear storage that is not kept -- Safari does
+  after seven days without a visit -- so when it is false, tell your reader to save a copy of any
+  project they need with `downloadProject`. The first `save` asks the browser to keep the storage.
+
+Every method except `persisted` rejects with a `GraphtyError`: `E_UNSUPPORTED` when the browser
+has no usable IndexedDB (and always in Node), and `E_TOO_LARGE` from `save` when the site's
+storage is full. The projects live in the database `graphty-projects`, one per origin.
+
 ## The name and unsaved changes
 
 ```typescript
@@ -166,6 +218,11 @@ A file with no name of its own takes the file's name without `.graphty.json`.
 `dirty` follows the undo history: undoing back to the point of the last save makes it false again.
 The selection and your extensions never set it.
 
+The first `data.import` into a new session -- one with no undo history that was never saved or
+opened -- is where the project starts, so a graph read from a sample or a file leaves `dirty`
+false and a page can leave it without asking. The import is still an undoable step: undoing it
+sets `dirty`. Every later import sets it, like any other change.
+
 ## What did not come back
 
 Opening never fails half way through. A part that cannot be restored is left out and listed in
@@ -173,16 +230,23 @@ Opening never fails half way through. A part that cannot be restored is left out
 skipped, not that the open failed; the open failed only if `open` threw. `slice` is the slice of
 the project the problem is about, one of the `report.restored` values below:
 
-| Code                    | Params                   | What happened                                                           |
-| ----------------------- | ------------------------ | ----------------------------------------------------------------------- |
-| `E_UNKNOWN_ALGORITHM`   | `slice`, `id`            | A run's algorithm is not registered here; the run is left out           |
-| `E_UNKNOWN_LAYOUT`      | `slice`                  | The layout is not registered here; the positions still come back        |
-| `E_UNKNOWN_ATTRIBUTE`   | `slice`, `id`, `needs`   | A style layer reads something nothing answers; it is added switched off |
-| `W_DATA_DIFFERS`        | `slice`, `id`            | The data was edited by hand; the run's per-edge values are left out     |
-| `W_UNKNOWN_KIND`        | `index`, `kind`          | A member this release does not read; skipped                            |
-| `E_UNSUPPORTED_VERSION` | `index`, `kind`, `found` | A member written by a newer release; skipped                            |
-| `E_UNSUPPORTED`         | `kind` (and `index`)     | A member this kind of open does not apply; skipped                      |
-| `E_BAD_DOCUMENT`        | `index`                  | A malformed member; skipped                                             |
+| Code                             | Params                            | What happened                                                                                                                              |
+| -------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `E_UNKNOWN_ALGORITHM`            | `slice`, `id`                     | A run's algorithm is not registered here; the run is left out                                                                              |
+| `E_UNKNOWN_LAYOUT`               | `slice`                           | The layout is not registered here; the positions still come back                                                                           |
+| `E_UNKNOWN_ATTRIBUTE`            | `slice`, `id`, `needs`            | A style layer reads something nothing answers; it is added switched off                                                                    |
+| `W_DATA_DIFFERS`                 | `slice`, `id`                     | The data was edited by hand; the run's per-edge values are left out                                                                        |
+| `W_FILTER_CONDITION_SKIPPED`     | `slice`, `id`                     | A saved filter condition this release cannot read; the filter is read from the file's steps instead                                        |
+| `W_FILTER_CONDITIONS_UNREADABLE` | `slice`, `version`                | The saved filter conditions are of a version this release cannot read; the filter is read from the file's steps instead                    |
+| `W_FILTER_STEPS_DIFFER`          | `slice`                           | The file's steps and conditions disagree, as when a tool that knows only steps edited it; the conditions win and the steps edit is dropped |
+| `W_UNKNOWN_KIND`                 | `index`, `kind`                   | A member this release does not read; skipped                                                                                               |
+| `E_UNSUPPORTED_VERSION`          | `index`, `kind`, `found`          | A member written by a newer release; skipped                                                                                               |
+| `E_UNSUPPORTED`                  | `kind` (and `index`)              | A member this kind of open does not apply; skipped                                                                                         |
+| `E_BAD_DOCUMENT`                 | `index`                           | A malformed member; skipped                                                                                                                |
+| `W_VERSION_UPGRADED`             | `kind`, `found`, `version`        | A member of an older version, read and upgraded; a save writes the new one                                                                 |
+| `W_SOURCE_STEPS_IGNORED`         | `kind`, `pointer`, `graph`        | The loads member says to rebuild the graph, but the file holds it; the held graph opened                                                   |
+| `W_SOURCE_UNREGISTERED`          | `kind`, `pointer`, `id`, `source` | A load from a network source this release lacks: its nodes are there, it cannot run                                                        |
+| `W_UNKNOWN_KIND`                 | `kind`, `pointer`, `found`        | A load of a kind this release does not know: kept, never run                                                                               |
 
 Any other code (such as `E_BAD_SELECTOR` for a style layer) means a slice could not be
 restored for that reason, with `slice`, and `id` when it is about one item; a note that was
@@ -203,9 +267,12 @@ refuses the whole file.
 | `"runs"`                                                    | `graphty-results`     |
 | `"styles"`                                                  | `graphty-style`       |
 | `"notes"`                                                   | `graphty-notes`       |
+| `"attributes"`, `"valueLabels"`                             | `graphty-session`     |
 
 `config` is the settings, `arrangement` where each node stands, `pins` the pinned nodes,
-`visibility` the filter and time window, `sets` the kept sets, and `views` the saved camera views.
+`visibility` the filter, the filter conditions and the time window, `sets` the kept sets, `views` the saved camera views,
+`attributes` the declared columns and `valueLabels` the names given to values
+(`data.setValueLabel`).
 Both lists may gain values in a minor release; leave out a code you do not know.
 
 A file that cannot be opened at all is refused with a `GraphtyError`, and the session is left as
@@ -239,15 +306,20 @@ anything and without asking about unsaved changes. That step sets `dirty`, like 
 
 You need this section only to read or write the file yourself. A graphty document (`kind: "graphty-document"`, version 1) whose members are:
 
-| Member                | Holds                                                                                                 |
-| --------------------- | ----------------------------------------------------------------------------------------------------- |
-| `graphty-data`        | the nodes and edges, embedded in the `node-link` JSON dialect, and the `source` they were loaded from |
-| `graphty-session`     | the settings, layout, filter and time window, sets and named views                                    |
-| `graphty-arrangement` | each placed node's id and position, and the pinned nodes                                              |
-| `graphty-results`     | each finished run: what ran, its fields, and its values as columns                                    |
-| `graphty-style`       | the style layers                                                                                      |
-| `graphty-notes`       | the notes                                                                                             |
-| `graphty-view-state`  | the selection; never needed to open the file                                                          |
+| Member                | Holds                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `graphty-data`        | the nodes and edges, embedded in the `node-link` JSON dialect, and the `source` and `sources` they were loaded from |
+| `graphty-session`     | the settings, layout, filter and time window, sets and named views                                                  |
+| `graphty-arrangement` | each placed node's id and position, and the pinned nodes                                                            |
+| `graphty-results`     | each finished run: what ran, its fields, and its values as columns                                                  |
+| `graphty-style`       | the style layers                                                                                                    |
+| `graphty-notes`       | the notes                                                                                                           |
+| `graphty-view-state`  | the selection; never needed to open the file                                                                        |
+| `graphty-sources`     | every load still in the graph: a file, a URL, a network source or a sample, with its options                        |
+
+Each node and edge record a load supplied lists that load's id in the reserved column
+`_source.loads` (`["s1", "s2/x1"]`: load `s1`, and the first expansion of `s2`), which
+`data.sourcesOf` reads back.
 
 The data member's graph carries the node-link `directed` key once something settled the
 graph's direction (the file it was loaded from, or `data.directed`), so an undirected graph

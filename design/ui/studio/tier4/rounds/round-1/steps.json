@@ -1,0 +1,78 @@
+{
+ "tasks": [
+  {
+   "task": "T61",
+   "path": {
+    "A": 7,
+    "B": 7
+   },
+   "sessions": [
+    "r1-s01 A S 16 steps",
+    "r1-s02 B SD 16 steps",
+    "r1-s03 A SD 22 steps",
+    "r1-s04 B S 12 steps"
+   ],
+   "keyboard": [
+    "r1-s27 47 steps"
+   ],
+   "medianOver": 9,
+   "holds": false,
+   "why": "median 9 steps over the path (limit 3)"
+  },
+  {
+   "task": "T62",
+   "path": {
+    "A": 5,
+    "B": 5
+   },
+   "sessions": [
+    "r1-s05 A S 5 steps",
+    "r1-s06 B S 6 steps",
+    "r1-s07 A S 5 steps",
+    "r1-s08 B P 4 steps"
+   ],
+   "keyboard": [],
+   "medianOver": 0,
+   "holds": true,
+   "why": "median 0 steps over the path (limit 3)"
+  },
+  {
+   "task": "T65",
+   "path": {
+    "A": 14,
+    "B": 13
+   },
+   "sessions": [
+    "r1-s09 A S 20 steps",
+    "r1-s10 B S 16 steps",
+    "r1-s11 A S 14 steps",
+    "r1-s12 B S 19 steps"
+   ],
+   "keyboard": [
+    "r1-s28 35 steps"
+   ],
+   "medianOver": 4.5,
+   "holds": false,
+   "why": "median 4.5 steps over the path (limit 3)"
+  },
+  {
+   "task": "T67",
+   "path": {
+    "A": 3,
+    "B": 4
+   },
+   "sessions": [
+    "r1-s13 A S 7 steps",
+    "r1-s14 B S 7 steps",
+    "r1-s15 A SD 7 steps",
+    "r1-s16 B S 6 steps"
+   ],
+   "keyboard": [],
+   "medianOver": 3.5,
+   "holds": false,
+   "why": "median 3.5 steps over the path (limit 3)"
+  }
+ ],
+ "problems": [],
+ "holds": false
+}

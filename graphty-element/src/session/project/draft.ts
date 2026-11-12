@@ -21,21 +21,34 @@
 
 import type { CameraState } from "../../camera/types";
 import type { MeasurementDeclaration, RunId, SetId } from "../../catalog/types";
+import { isPlainObject } from "../../utils/isPlainObject";
 import { retentionOf } from "../results/RunResult";
 import { recordBytes } from "../sets/prepare";
 import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
+import { ownRows } from "../styles/tree";
 import { mergeRowPatches, type RowPatch, rowPatchBytes } from "./arrangement";
 import type { TouchedIds } from "./graphOps";
 import type { Counted } from "./History";
-import type { LayoutChoice, NoteEntry, ProjectState, RunEntry, VisibilityState } from "./state";
+import type { LayoutChoice, NoteEntry, ProjectShaderEntry, ProjectState, RunEntry, VisibilityState } from "./state";
 import { strictStateEnabled, strictViolation } from "./strict";
 
 /** Stands for "the key had no value": a map key that was not there. */
 export const ABSENT: unique symbol = Symbol("absent");
 
 /** The slices a draft writes by value. */
-type ValueSlice = "config" | "layout" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes";
+type ValueSlice =
+    | "config"
+    | "layout"
+    | "runs"
+    | "styles"
+    | "visibility"
+    | "sets"
+    | "views"
+    | "notes"
+    | "attributes"
+    | "valueLabels"
+    | "shaders";
 
 /** One key a patch wrote: what it held before, and what the patch left in it. */
 interface PatchEntry {
@@ -104,7 +117,7 @@ function sameValue(left: unknown, right: unknown): boolean {
         return left.length === right.length && left.every((member, at) => sameValue(member, right[at]));
     }
 
-    if (!isPlainRecord(left) || !isPlainRecord(right)) {
+    if (!isPlainObject(left) || !isPlainObject(right)) {
         return false;
     }
 
@@ -113,20 +126,6 @@ function sameValue(left: unknown, right: unknown): boolean {
         keys.length === Object.keys(right).length &&
         keys.every((key) => Object.hasOwn(right, key) && sameValue(left[key], right[key]))
     );
-}
-
-/**
- * Whether a value is a plain object: `{...}` or one made with a null prototype.
- * @param value - The value.
- * @returns True when it is.
- */
-function isPlainRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-    if (typeof value !== "object" || value === null) {
-        return false;
-    }
-
-    const proto: unknown = Object.getPrototypeOf(value);
-    return proto === Object.prototype || proto === null;
 }
 
 /**
@@ -142,7 +141,12 @@ function wroteNothing(entry: PatchEntry): boolean {
 
     const prior = entry.prior as readonly CompiledLayer[];
     const next = entry.next as readonly CompiledLayer[];
-    return prior.length === next.length && prior.every((layer, at) => sameValue(layer.layer, next[at].layer));
+    // The style tree rides on the stack: a tree verb changes it and no layer.
+    return (
+        prior.length === next.length &&
+        prior.every((layer, at) => sameValue(layer.layer, next[at].layer)) &&
+        sameValue(ownRows(prior), ownRows(next))
+    );
 }
 
 /**
@@ -327,6 +331,8 @@ export interface Draft {
     readonly views: KeyedWriter<string, CameraState>;
     readonly notes: KeyedWriter<string, NoteEntry>;
     readonly attributes: KeyedWriter<string, MeasurementDeclaration>;
+    readonly valueLabels: KeyedWriter<string, string>;
+    readonly shaders: KeyedWriter<string, ProjectShaderEntry>;
     readonly visibility: {
         set<K extends keyof VisibilityState>(key: K, value: VisibilityState[K]): void;
     };
@@ -340,6 +346,11 @@ export interface Draft {
      * @param rows - The rows, with their prior and new values.
      */
     arrange(rows: RowPatch): void;
+    /**
+     * Whether it has changed anything yet: a value, an op-log write or arranged rows.
+     * @returns True once it has.
+     */
+    written(): boolean;
     /** Close the draft and hand back what it recorded. */
     seal(): Patch;
     /**
@@ -429,6 +440,8 @@ export function createProjectStore(
         views: state.views as Map<string, unknown>,
         notes: state.notes as Map<string, unknown>,
         attributes: state.attributes as Map<string, unknown>,
+        valueLabels: state.valueLabels as Map<string, unknown>,
+        shaders: state.shaders as Map<string, unknown>,
     };
     /** Which open draft holds each key, by `slice/key`. */
     const owners = new Map<string, OpenDraft>();
@@ -589,6 +602,8 @@ export function createProjectStore(
                 views: keyed(draft, "views"),
                 notes: keyed(draft, "notes"),
                 attributes: keyed(draft, "attributes"),
+                valueLabels: keyed(draft, "valueLabels"),
+                shaders: keyed(draft, "shaders"),
                 visibility: {
                     set: (key, value) => {
                         write(draft, "visibility", key, value);
@@ -608,6 +623,7 @@ export function createProjectStore(
 
                     draft.rows = draft.rows === null ? rows : mergeRowPatches(draft.rows, rows);
                 },
+                written: () => draft.entries.size > 0 || draft.log.length > 0 || draft.rows !== null,
                 seal,
                 rollback() {
                     const patch = seal();

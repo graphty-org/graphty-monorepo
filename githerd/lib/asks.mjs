@@ -1134,7 +1134,9 @@ function githerdWatches(job) {
  * `minutes` from a job's claim, one message per session through Claude Code's session messaging,
  * listing every job of that session that is due. The session answers with `githerd_expect` once
  * per job, which records `job.status`. A job whose listed question the session heard and left
- * unanswered until the next one is due goes back to the queue; jobs it answered are kept. Nothing
+ * unanswered until the next one is due goes back to the queue; jobs it answered are kept. A job whose
+ * session shows its own activity since the cadence started (`progress`: a githerd tool call, a push,
+ * a push-queue ticket, a growing transcript) is not asked: the activity is the answer. Nothing
  * else here ends a claim, and elapsed time alone never does. A job githerd itself is watching for
  * (blocked, parked, or waiting on something but a local task) is not asked about, and any question
  * it had pending is dropped, so it is never released for silence. A session githerd may not
@@ -1367,6 +1369,14 @@ function dueJobs(state, now, minutes, lines) {
         const ask = job.statusAsk;
         // A cadence, how often to ask: never a deadline on the work.
         if (now.getTime() - askedSince(job) < minutes * MINUTE) continue;
+        const seen = progress(state, job);
+        if (seen) {
+            // The session's own activity answers the question, so it is not woken to say so.
+            job.statusAsk = null;
+            job.statusSeen = { at: now.toISOString(), evidence: seen };
+            lines.push({ kind: "status-seen", job: job.id, session, evidence: seen });
+            continue;
+        }
         const answered = job.status?.at >= ask?.at;
         if (ask?.heard && !answered) {
             const reason = `no answer to the status question of ${ask.at}`;
@@ -1385,7 +1395,36 @@ function dueJobs(state, now, minutes, lines) {
  * @param {any} job the job
  * @returns {number} the time, in ms
  */
-const askedSince = (job) => Date.parse(job.statusAsk?.at ?? job.claim?.at ?? job.stateSince);
+const askedSince = (job) =>
+    Math.max(
+        Date.parse(job.statusSeen?.at ?? "") || 0,
+        Date.parse(job.statusAsk?.at ?? job.claim?.at ?? job.stateSince),
+    );
+
+/**
+ * What shows the session holding `job` at work since the status question's cadence last started
+ * (its last question or last counted activity, else the claim) and since its last answer, or null:
+ * a githerd tool call (`state.sessions[<id>].calledAt`), a push it made (`state.prActivity`), a push
+ * of its in the push queue now (`state.pushTickets`), or its transcript or a subagent's growing
+ * (`state.transcripts[<id>].grewAt`). Any of them counts as the answer (design 8.2), so a working
+ * session is not woken, at the cost of rewriting its whole context, only to say it is working. The
+ * answer itself is no evidence: its tool call has the answer's own time.
+ * @param {any} state the daemon state
+ * @param {any} job the held job
+ * @returns {string | null} the evidence
+ */
+function progress(state, job) {
+    const id = job.holder.session;
+    const since = new Date(askedSince(job)).toISOString();
+    const after = (/** @type {string | undefined} */ at) =>
+        Boolean(at) && /** @type {string} */ (at) > since && /** @type {string} */ (at) > (job.status?.at ?? "");
+    if (after(state.sessions?.[id]?.calledAt)) return "called a githerd tool";
+    if ((state.pushTickets ?? []).some((/** @type {{session: string | null}} */ t) => t.session === id))
+        return "has a push in the push queue";
+    const pushed = Object.values(state.prActivity ?? {}).some((/** @type {any} */ a) => after(a.pushed?.[id]));
+    if (pushed) return "pushed";
+    return after(state.transcripts?.[id]?.grewAt) ? "its transcript grew" : null;
+}
 
 /**
  * Sends one session the status question for its due jobs and the broken pull requests it owns (a

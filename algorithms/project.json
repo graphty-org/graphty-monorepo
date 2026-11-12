@@ -74,6 +74,9 @@
                 "cwd": "algorithms"
             },
             "dependsOn": ["build"]
+        },
+        "build-storybook": {
+            "dependsOn": ["^build", "build"]
         }
     }
 }

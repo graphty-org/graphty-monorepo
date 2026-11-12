@@ -1,0 +1,2037 @@
+/**
+ * What graphty-element DREW, read off the Babylon.js scene graph behind a mounted element: mesh
+ * bounding boxes projected through the active camera, the colors in the materials and the
+ * per-instance color buffers, the effect layers that outline or glow a mesh, the label planes and
+ * the edge line batches. Test code only: it reaches renderer internals (private fields of Node,
+ * Edge, the line batches and Babylon's effect layers) that no consumer can, so nothing here is an
+ * API. Each internal read is a candidate for a public "drawn" read-back; see
+ * `DRAWN_API_CANDIDATES`.
+ *
+ * Every length is in render pixels (the canvas's drawing buffer; CSS pixels at a device pixel
+ * ratio of 1). The comparer turns them into reference units with the one scale it fits on node
+ * centers.
+ */
+import {
+    AbstractMesh,
+    type Camera,
+    Color3,
+    InstancedMesh,
+    type Material,
+    Mesh,
+    type Scene,
+    ShaderMaterial,
+    StandardMaterial,
+    Vector3,
+} from "@babylonjs/core";
+
+import type { NodeStyleConfig } from "../../src/config/NodeStyle";
+import type { Edge, EdgeCapEnd } from "../../src/Edge";
+import type { Graph } from "../../src/Graph";
+import type { AnnotationMeshMetadata } from "../../src/meshes/AnnotationMeshes";
+import type { ArrowCap, ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
+import { JOIN_FLOATS_PER_PIECE } from "../../src/meshes/edgeJoinShader";
+import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
+import { readLabelTable } from "../../src/meshes/labelTable";
+import { pointLists } from "../../src/meshes/nodeDecoration";
+import type { NodeDecorationPiece } from "../../src/meshes/NodeDecorationMesh";
+import { NodeMesh } from "../../src/meshes/NodeMesh";
+import { projectedVertices } from "../../src/meshes/NodeShapeGeometry";
+import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
+import { PatternedLineRenderer } from "../../src/meshes/PatternedLineRenderer";
+import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel";
+import { type LineOptions, measureLine } from "../../src/meshes/RichTextParser";
+import { pixelsPerUnit } from "../../src/meshes/screenSize";
+import { convexHull, isFlatShape, piecesThickness, type WaveShape } from "../../src/meshes/shapeOutlines";
+import type { Node } from "../../src/Node";
+import { FIGURE_FILLS, twiceArea } from "./oracle/primitives";
+import { spansAlongCenters } from "./pattern-spans";
+
+/**
+ * Drawn values a third-party consumer cannot read through the public API today, so cannot check
+ * the way this harness does. Candidates for a public read-back, not added here.
+ */
+export const DRAWN_API_CANDIDATES: readonly string[] = [
+    "a node's drawn screen box (width and height), not one radius (nodeScreenPosition)",
+    "a node's drawn fill color, its instance color multiplied into its material",
+    "whether an outline or glow is drawn around a node, its color and its reach in pixels",
+    "a node's drawn border ring: its color, its width in pixels and its line style",
+    "a label's drawn font height in pixels, color, place relative to its node and whether the node hides it",
+    "an edge's drawn kind (flat line, screen-space line, curve, pattern), thickness in pixels and path",
+    "the arrowheads drawn at each end of an edge and their size in pixels",
+    "drawing order (view depth) of nodes",
+];
+
+/** A box on screen in render pixels, y down, with its nearest and farthest view depth. */
+export interface ScreenBox {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+    near: number;
+    far: number;
+}
+
+/** The end cap at the other end of its line. */
+const OTHER_END: Readonly<Record<string, "arrowHead" | "arrowTail">> = {
+    arrowHead: "arrowTail",
+    arrowTail: "arrowHead",
+};
+
+/** The cap that points the other way along its line, for a cap read at the other end (`ArrowStyle.position`). */
+const POINTS_BACK: Readonly<Record<string, string>> = {
+    normal: "inverted",
+    inverted: "normal",
+    // a vee turned round is no crow's foot: it has no tine along its line
+    vee: "inverted-vee",
+    crow: "vee",
+};
+
+/**
+ * A cap's name with its type turned to the one pointing the other way along its line (`POINTS_BACK`).
+ * @param name - the cap's name, its type within it
+ * @returns the name
+ */
+function pointingBack(name: string): string {
+    const type = Object.keys(POINTS_BACK).find((t) => name.includes(t));
+    return type === undefined ? name : name.replace(type, POINTS_BACK[type]);
+}
+
+/** Projects world points to render pixels through the active camera. */
+export class Projector {
+    readonly width: number;
+    readonly height: number;
+    private readonly scene: Scene;
+    private readonly camera: Camera;
+
+    constructor(scene: Scene) {
+        const camera = scene.activeCamera;
+        if (camera === null) {
+            throw new Error("the scene has no active camera");
+        }
+        this.scene = scene;
+        this.camera = camera;
+        this.width = scene.getEngine().getRenderWidth();
+        this.height = scene.getEngine().getRenderHeight();
+    }
+
+    /**
+     * A world point on screen.
+     * @param p - the point
+     * @returns render pixels, the view depth (larger is farther) and the clip w
+     */
+    point(p: Vector3): { x: number; y: number; depth: number; w: number } {
+        const view = this.scene.getViewMatrix();
+        const vp = view.multiply(this.scene.getProjectionMatrix());
+        const { m } = vp;
+        const w = p.x * m[3] + p.y * m[7] + p.z * m[11] + m[15];
+        const clip = Vector3.TransformCoordinates(p, vp);
+        const v = view.m;
+        return {
+            x: (clip.x + 1) * 0.5 * this.width,
+            y: (1 - clip.y) * 0.5 * this.height,
+            depth: p.x * v[2] + p.y * v[6] + p.z * v[10] + v[14],
+            w,
+        };
+    }
+
+    /**
+     * A mesh's world bounding box (its eight local corners through its world matrix) on screen.
+     * @param mesh - the mesh
+     * @returns the screen box
+     */
+    box(mesh: AbstractMesh): ScreenBox {
+        const world = mesh.computeWorldMatrix(true);
+        const { minimum: a, maximum: b } = mesh.getBoundingInfo().boundingBox;
+        const out: ScreenBox = {
+            x0: Infinity,
+            y0: Infinity,
+            x1: -Infinity,
+            y1: -Infinity,
+            near: Infinity,
+            far: -Infinity,
+        };
+        for (const x of [a.x, b.x]) {
+            for (const y of [a.y, b.y]) {
+                for (const z of [a.z, b.z]) {
+                    const s = this.point(Vector3.TransformCoordinates(new Vector3(x, y, z), world));
+                    out.x0 = Math.min(out.x0, s.x);
+                    out.x1 = Math.max(out.x1, s.x);
+                    out.y0 = Math.min(out.y0, s.y);
+                    out.y1 = Math.max(out.y1, s.y);
+                    out.near = Math.min(out.near, s.depth);
+                    out.far = Math.max(out.far, s.depth);
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Pixels per world unit at a point, across the screen: one unit along the camera's up axis.
+     * @param at - the world point
+     * @returns pixels
+     */
+    pxPerWorld(at: Vector3): number {
+        const up = this.camera.getDirection(Vector3.Up());
+        const a = this.point(at);
+        const b = this.point(at.add(up));
+        return Math.hypot(b.x - a.x, b.y - a.y);
+    }
+}
+
+const hex = (c: { r: number; g: number; b: number }): string =>
+    `#${[c.r, c.g, c.b]
+        .map((v) =>
+            Math.round(Math.min(1, Math.max(0, v)) * 255)
+                .toString(16)
+                .padStart(2, "0"),
+        )
+        .join("")}`;
+
+let colorContext: CanvasRenderingContext2D | null = null;
+
+/**
+ * A CSS color as the browser parses it, as `#rrggbb` and an alpha.
+ * @param css - any CSS color
+ * @returns the color and alpha
+ */
+export function cssColor(css: string): { hex: string; alpha: number } {
+    colorContext ??= document.createElement("canvas").getContext("2d");
+    if (colorContext === null) {
+        return { hex: "#000000", alpha: 1 };
+    }
+    colorContext.fillStyle = "#000000";
+    colorContext.fillStyle = css;
+    const v = colorContext.fillStyle;
+    if (v.startsWith("#")) {
+        return { hex: v.toLowerCase(), alpha: 1 };
+    }
+    const m = /rgba?\(([^)]+)\)/.exec(v);
+    const [r, g, b, a] = (m?.[1] ?? "0,0,0,1").split(",").map(Number);
+    return { hex: hex({ r: r / 255, g: g / 255, b: b / 255 }), alpha: Number.isFinite(a) ? a : 1 };
+}
+
+/** The renderer's own internals this reader takes, typed for test code. */
+interface EdgeInternals {
+    lineBatch: EdgeLineBatch | null;
+    lineSlots: number[];
+    outlineBatch: EdgeLineBatch | null;
+    outlineSlots: number[];
+    haloBands: { kind: "underlay" | "overlay"; batch: EdgeLineBatch; slots: number[] }[];
+    lineIsCurve: boolean;
+    drawnStyle: {
+        line?: { bezier?: boolean; gradient?: { kind?: string } };
+        arrowHead?: { gap?: number; position?: number };
+        arrowTail?: { gap?: number; position?: number };
+    } | null;
+}
+interface PatternInternals {
+    width: number;
+    color: string;
+    opacity: number;
+    wave: WaveShape | undefined;
+}
+interface NodeInternals {
+    border: AbstractMesh | null;
+    outerBorder: AbstractMesh | null;
+    drawnStyle: NodeStyleConfig | null;
+    decorationPieces: readonly NodeDecorationPiece[];
+    tableTexts: readonly unknown[] | null;
+    shadow: readonly AbstractMesh[];
+    underlay: AbstractMesh | null;
+    overlay: AbstractMesh | null;
+}
+
+/** A piece a node draws over its face, on screen: a body piece with its fill. */
+interface ScreenPiece {
+    kind: "shape" | "image" | "body";
+    box: ScreenBox;
+    fill?: NodeDecorationPiece["fill"];
+}
+
+/**
+ * The label of a node that draws it as a table (`shape.labelTable`), whose words are drawn in its cells, the last of
+ * its further texts, as Graphviz's scene records them: the cells' words in order, one line each, in a box round them
+ * all, in the first cell's font and color.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the label, or null for a node whose label is not a table
+ */
+function readTableLabel(node: Node, p: Projector): DrawnLabel | null {
+    const count = (node as unknown as NodeInternals).tableTexts?.length ?? 0;
+    const cells = count === 0 ? [] : node.shapeTextLabels.slice(-count).flatMap((l) => readLabel(l, p) ?? []);
+    const [first] = cells;
+    if (first === undefined) {
+        return null;
+    }
+    const edge = (key: keyof ScreenBox, pick: (...v: number[]) => number): number =>
+        pick(...cells.map((c) => c.box[key]));
+    return {
+        ...first,
+        text: cells.map((c) => c.text).join("\n"),
+        box: {
+            x0: edge("x0", Math.min),
+            y0: edge("y0", Math.min),
+            x1: edge("x1", Math.max),
+            y1: edge("y1", Math.max),
+            near: edge("near", Math.min),
+            far: edge("far", Math.max),
+        },
+        textBox: null,
+        lineCount: cells.reduce((sum, c) => sum + c.lineCount, 0),
+        tall: cells.flatMap((c) => c.tall ?? c.text.split("\n").map(() => true)),
+        background: null,
+    };
+}
+
+/**
+ * What a node draws over its face (its pie slices, stripes and image), each piece's screen box.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the pieces
+ */
+function readPieces(node: Node, p: Projector): ScreenPiece[] {
+    const pieces = (node as unknown as NodeInternals).decorationPieces;
+    if (pieces.length === 0 || !node.mesh.isEnabled()) {
+        return [];
+    }
+    const world = node.mesh.computeWorldMatrix(true);
+    const z = 0;
+    return pieces.map((piece) => {
+        const { x0, y0, x1, y1 } = piece.box;
+        const corners = [
+            [x0, y0],
+            [x1, y0],
+            [x0, y1],
+            [x1, y1],
+        ].map(([x, y]) => p.point(Vector3.TransformCoordinates(new Vector3(x, y, z), world)));
+        return {
+            kind: piece.kind,
+            ...(piece.fill === undefined ? {} : { fill: piece.fill }),
+            box: {
+                x0: Math.min(...corners.map((c) => c.x)),
+                x1: Math.max(...corners.map((c) => c.x)),
+                y0: Math.min(...corners.map((c) => c.y)),
+                y1: Math.max(...corners.map((c) => c.y)),
+                near: Math.min(...corners.map((c) => c.depth)),
+                far: Math.max(...corners.map((c) => c.depth)),
+            },
+        };
+    });
+}
+interface LabelInternals {
+    actualDimensions: { width: number; height: number };
+    /** The area inside the borders (the background), in label units. */
+    contentArea: { x: number; y: number; width: number; height: number };
+    /** The words' own extent, in label units. */
+    textSize: { width: number; height: number };
+    options: {
+        textAlign?: string;
+        marginLeft?: number;
+        marginTop?: number;
+        backgroundPadding?: number;
+        backgroundColor?: unknown;
+        cornerRadius?: number;
+        borders?: { width: number; color?: string }[];
+        textOutline?: boolean;
+        textOutlineColor?: string;
+        textOutlineWidth?: number;
+        lineHeight?: number;
+        runAlign?: LineOptions["runAlign"];
+    };
+}
+interface BlurInternals {
+    _kernel?: number;
+}
+interface EffectLayerInternals {
+    _thinEffectLayer?: EffectLayerInternals;
+    _options?: { mainTextureRatio?: number; blurTextureSizeRatio?: number; blurHorizontalSize?: number };
+    _horizontalBlurPostprocess?: BlurInternals;
+    _horizontalBlurPostprocess2?: BlurInternals;
+    _meshes?: Record<number, { color?: Color3 } | undefined>;
+    innerGlow?: boolean;
+    hasMesh?: (mesh: AbstractMesh) => boolean;
+    blurKernelSize?: number;
+}
+
+/** A layer drawn around (and, with an inner glow, over the rim of) the meshes it includes. */
+interface Ring {
+    kind: "outline" | "glow";
+    /** How far the blurred stroke reaches from the mesh's edge, in render pixels. */
+    reachPx: number;
+    /** Whether it also draws inward over the mesh's rim (the highlight layer's inner glow). */
+    inner: boolean;
+    color: (source: AbstractMesh) => string | null;
+    has: (source: AbstractMesh) => boolean;
+}
+
+/**
+ * Babylon's best blur kernel for a requested size (ThinBlurPostProcess._nearestBestKernel), used
+ * when the post-process's own chosen kernel cannot be read.
+ * @param ideal - the requested kernel
+ * @returns the kernel in texels
+ */
+function nearestBestKernel(ideal: number): number {
+    const v = Math.round(ideal);
+    for (const k of [v, v - 1, v + 1, v - 2, v + 2]) {
+        if (k % 2 !== 0 && Math.floor(k / 2) % 2 === 0 && k > 0) {
+            return Math.max(k, 3);
+        }
+    }
+    return Math.max(v, 3);
+}
+
+/**
+ * The outline (highlight layer) and glow (glow layer) the scene draws, with their reach in render
+ * pixels: half the blur kernel, in texels of the blur texture, times how many render pixels one
+ * of its texels covers. The highlight layer's stroke shows wherever the blurred mask is above
+ * zero, so the reach is the drawn stroke width; the glow layer's widest blur is its half-size
+ * second pass.
+ * @param scene - the scene
+ * @param width - the render width
+ * @returns the rings
+ */
+function ringsOf(scene: Scene, width: number): Ring[] {
+    const meta = (scene.metadata ?? {}) as {
+        highlightLayer?: EffectLayerInternals;
+        glowLayer?: EffectLayerInternals;
+        glowColors?: Map<number, Color3>;
+    };
+    const rings: Ring[] = [];
+    const hl = meta.highlightLayer;
+    if (hl && scene.effectLayers.includes(hl as never)) {
+        const thin = hl._thinEffectLayer ?? hl;
+        const o = thin._options ?? {};
+        const kernel = thin._horizontalBlurPostprocess?._kernel ?? nearestBestKernel((o.blurHorizontalSize ?? 1) / 2);
+        const texel = 1 / ((o.mainTextureRatio ?? 0.5) * (o.blurTextureSizeRatio ?? 0.5));
+        rings.push({
+            kind: "outline",
+            reachPx: ((kernel - 1) / 2) * texel,
+            inner: hl.innerGlow !== false,
+            has: (m) => hl.hasMesh?.(m) === true,
+            color: (m) => {
+                const c = thin._meshes?.[m.uniqueId]?.color;
+                return c ? hex(c) : null;
+            },
+        });
+    }
+    const glow = meta.glowLayer;
+    if (glow && scene.effectLayers.includes(glow as never)) {
+        const thin = glow._thinEffectLayer ?? glow;
+        const o = thin._options ?? {};
+        const kernel = thin._horizontalBlurPostprocess2?._kernel ?? nearestBestKernel(glow.blurKernelSize ?? 32);
+        const mainWidth = width * (o.mainTextureRatio ?? 0.5);
+        const texel = width / Math.max(1, Math.floor(mainWidth / 2));
+        rings.push({
+            kind: "glow",
+            reachPx: ((kernel - 1) / 2) * texel,
+            inner: true,
+            has: (m) => glow.hasMesh?.(m) === true,
+            color: (m) => {
+                const c = meta.glowColors?.get(m.uniqueId);
+                return c ? hex(c) : null;
+            },
+        });
+    }
+    return rings;
+}
+
+/**
+ * The color a material draws: its emissive color when lighting is off (every 2D mesh), else its
+ * diffuse; for a shader material, its `color` vector. Alpha is the material's own.
+ * @param material - the material
+ * @returns the color, or null when it carries none this reader knows
+ */
+function materialColor(material: Material | null): { rgb: Color3; alpha: number; texture: boolean } | null {
+    if (material instanceof StandardMaterial) {
+        return {
+            rgb: material.disableLighting ? material.emissiveColor : material.diffuseColor,
+            alpha: material.alpha,
+            texture: material.diffuseTexture !== null || material.emissiveTexture !== null,
+        };
+    }
+    if (material instanceof ShaderMaterial) {
+        const v = (material as unknown as { _vectors3?: Record<string, Vector3> })._vectors3?.color;
+        const opacity = (material as unknown as { _floats?: Record<string, number> })._floats?.opacity ?? 1;
+        return v ? { rgb: new Color3(v.x, v.y, v.z), alpha: material.alpha * opacity, texture: false } : null;
+    }
+    return null;
+}
+
+/**
+ * The color and opacity a line batch draws one slot in, for a batch that keeps them per slot.
+ * @param batch - the batch
+ * @param slot - the slot
+ * @returns its color and opacity as {@link materialColor} reads a material's, or null when the material holds them
+ */
+function slotColor(batch: EdgeLineBatch, slot: number): { rgb: Color3; alpha: number; texture: boolean } | null {
+    const rgba = batch.colorOf(slot);
+    return rgba === null ? null : { rgb: new Color3(rgba[0], rgba[1], rgba[2]), alpha: rgba[3], texture: false };
+}
+
+const runsText = (runs: readonly (readonly TextSegment[])[]): string =>
+    runs.map((line) => line.map((run) => run.text).join("")).join("\n");
+
+/** What a label drew. */
+export interface DrawnLabel {
+    text: string;
+    box: ScreenBox;
+    fontPx: number;
+    color: string;
+    enabled: boolean;
+    /** Drawn in a later rendering group, over everything in the graph (depth cleared). */
+    onTop: boolean;
+    /** The first run's font family, CSS weight (400 normal, 700 bold) and style. */
+    family: string;
+    weight: number;
+    style: string;
+    /** Degrees, clockwise on screen, of the label plane's x axis. */
+    rotation: number;
+    /** The words' own box on screen (the plane less its margins, padding and borders), or null when not read. */
+    textBox: { x0: number; y0: number; x1: number; y1: number } | null;
+    /** The words' opacity: their color's alpha times the plane's. */
+    opacity: number;
+    /**
+     * A label shown only while its node is drawn at least `min` px across (`minNodeScreenSize`, sigma's
+     * labelRenderedSizeThreshold): the node's size across on screen now, and whether that rule alone hides it.
+     */
+    nodeSizeRule?: { acrossPx: number; min: number; hidden: boolean };
+    /** How many lines the words are drawn on. */
+    lineCount: number;
+    /**
+     * For each line of `text`, whether it is drawn a line tall: a blank line holding no run takes no height (one
+     * after the last words always, one before or between them unless the label keeps blank lines). Unset, every line.
+     */
+    tall?: readonly boolean[];
+    /** How the lines are aligned. */
+    align: "start" | "middle" | "end";
+    /** The outline stroked round the letters, its width outside them on screen, or null. */
+    outline: { color: string; opacity: number; width: number } | null;
+    /** The outlines of the cells of the table the label is laid out as (`label.table`), on screen; empty for none. */
+    cells?: { x0: number; y0: number; x1: number; y1: number }[];
+    /** The box drawn behind the words, or null when none shows. */
+    background: {
+        box: { x0: number; y0: number; x1: number; y1: number };
+        color: string | null;
+        opacity: number;
+        rounded: boolean;
+        border: { color: string; opacity: number; width: number } | null;
+    } | null;
+}
+
+/**
+ * A CSS font weight as a number.
+ * @param weight - "normal", "bold", "600", ...
+ * @returns the numeric weight
+ */
+export function cssWeight(weight: string | undefined): number {
+    if (weight === undefined || weight === "normal") {
+        return 400;
+    }
+    if (weight === "bold") {
+        return 700;
+    }
+    if (weight === "bolder") {
+        return 900;
+    }
+    if (weight === "lighter") {
+        return 300;
+    }
+    const n = Number(weight);
+    return Number.isFinite(n) ? n : 400;
+}
+
+/**
+ * A label's node-size rule as drawn (`RichTextLabel.tooSmall`'s second half): its node's size across on screen, the
+ * least that shows the label, and whether the rule alone hides it now (the mesh otherwise shown).
+ * @param label - the label
+ * @returns `{ nodeSizeRule }`, or nothing for a label under no such rule
+ */
+function nodeSizeRuleOf(label: RichTextLabel): Pick<DrawnLabel, "nodeSizeRule"> {
+    const { minNodeScreenSize: min, attachTo } = (
+        label as unknown as { options: { minNodeScreenSize?: number; attachTo?: unknown } }
+    ).options;
+    const mesh = label.labelMesh;
+    const camera = mesh?.getScene().activeCamera;
+    if (min === undefined || min <= 0 || !(attachTo instanceof AbstractMesh) || !mesh || !camera) {
+        return {};
+    }
+    const { extendSizeWorld, centerWorld } = attachTo.getBoundingInfo().boundingBox;
+    const acrossPx = 2 * Math.min(extendSizeWorld.x, extendSizeWorld.y) * pixelsPerUnit(camera, centerWorld);
+    const hidden = acrossPx < min && mesh.isEnabled() && mesh.isVisible && mesh.visibility === 0;
+    return { nodeSizeRule: { acrossPx, min, hidden } };
+}
+
+/**
+ * The leading a label's line height adds above its first line and below its last, in label units.
+ * @param label - the label
+ * @param opt - its options
+ * @returns the leading above and below
+ */
+function leadingOf(label: RichTextLabel, opt: LabelInternals["options"]): [number, number] {
+    const ctx = document.createElement("canvas").getContext("2d");
+    const lines = label.textRuns;
+    const lineHeight = opt.lineHeight ?? 1;
+    if (ctx === null || lines.length === 0 || !(lineHeight > 0)) {
+        return [0, 0];
+    }
+    // measured as the label measured them (RichTextLabel._calculateDimensions)
+    ctx.textRendering = "geometricPrecision";
+    const options: LineOptions = {
+        lineHeight,
+        textOutline: opt.textOutline === true,
+        textOutlineWidth: opt.textOutlineWidth ?? 0,
+        runAlign: opt.runAlign,
+    };
+    const half = (line: readonly TextSegment[]): number =>
+        (measureLine(ctx, [...line], options).lineBox * (1 - 1 / lineHeight)) / 2;
+    return [half(lines[0]), half(lines[lines.length - 1])];
+}
+
+/**
+ * A label as drawn: its words, its plane on screen, the font height in pixels (the run's font
+ * size in texture pixels times screen pixels per texture pixel of the plane) and its color.
+ * @param label - the label
+ * @param p - the projector
+ * @returns the drawn label, or null when it has no mesh
+ */
+export function readLabel(label: RichTextLabel | null | undefined, p: Projector): DrawnLabel | null {
+    const mesh = label?.labelMesh;
+    if (!label || !mesh || mesh.isDisposed()) {
+        return null;
+    }
+    const box = p.box(mesh);
+    const textureHeight = (label as unknown as LabelInternals).actualDimensions.height;
+    const run = label.textRuns[0]?.[0];
+    const material = materialColor(mesh.material);
+    const world = mesh.computeWorldMatrix(true);
+    const o = p.point(Vector3.TransformCoordinates(Vector3.Zero(), world));
+    const x = p.point(Vector3.TransformCoordinates(new Vector3(1, 0, 0), world));
+    // the plane's own height on screen, along its y axis: a turned label's box is taller than its letters
+    const half = mesh.getBoundingInfo().boundingBox.extendSize.y;
+    const top = p.point(Vector3.TransformCoordinates(new Vector3(0, half, 0), world));
+    const bottom = p.point(Vector3.TransformCoordinates(new Vector3(0, -half, 0), world));
+    const planePx = Math.hypot(top.x - bottom.x, top.y - bottom.y);
+    const fontPx = run && textureHeight > 0 ? (run.style.size * planePx) / textureHeight : 0;
+    const inner = label as unknown as LabelInternals;
+    const dims = inner.actualDimensions;
+    const opt = inner.options;
+    // a rectangle in label units (x right, y down from the plane's top left) on screen, through the plane's matrix
+    const ext = mesh.getBoundingInfo().boundingBox.extendSize;
+    const onScreen = (
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+    ): { x0: number; y0: number; x1: number; y1: number } => {
+        const pts = [
+            [x, y],
+            [x + w, y],
+            [x, y + h],
+            [x + w, y + h],
+        ].map(([u, v]) =>
+            p.point(
+                Vector3.TransformCoordinates(
+                    new Vector3((u / dims.width - 0.5) * 2 * ext.x, (0.5 - v / dims.height) * 2 * ext.y, 0),
+                    world,
+                ),
+            ),
+        );
+        return {
+            x0: Math.min(...pts.map((q) => q.x)),
+            y0: Math.min(...pts.map((q) => q.y)),
+            x1: Math.max(...pts.map((q) => q.x)),
+            y1: Math.max(...pts.map((q) => q.y)),
+        };
+    };
+    const known = dims.width > 0 && dims.height > 0 && inner.contentArea !== undefined && inner.textSize !== undefined;
+    const pad = opt.backgroundPadding ?? 0;
+    // the lines' font boxes, without the leading above the first and below the last: an SVG text's box (the oracle's)
+    // is its font's ascent plus descent, and a reader sees no line's leading (#5322: a DOT label read 1.2 times as
+    // tall as Graphviz's and reached into the glyph above it)
+    const [leadAbove, leadBelow] = known ? leadingOf(label, opt) : [0, 0];
+    const textBox = known
+        ? onScreen(
+              // where the words start: a box wider than they are holds them to one side or its middle
+              label.textBounds.left * dims.width,
+              inner.contentArea.y + (opt.marginTop ?? 0) + pad + leadAbove,
+              inner.textSize.width,
+              inner.textSize.height - leadAbove - leadBelow,
+          )
+        : null;
+    // screen pixels per label unit, along the plane's height
+    const unitPx = dims.height > 0 ? planePx / dims.height : 0;
+    const textColor = cssColor(run?.style.color ?? "#000000");
+    const planeAlpha = (material?.alpha ?? 1) * mesh.visibility;
+    const bgCss = typeof opt.backgroundColor === "string" ? cssColor(opt.backgroundColor) : null;
+    const border = (opt.borders ?? []).find((b) => b.width > 0);
+    const borderCss = border === undefined ? null : cssColor(border.color ?? "#000000");
+    const outlineCss = opt.textOutline === true ? cssColor(opt.textOutlineColor ?? "#000000") : null;
+    const lineCount = label.textRuns.filter((line) => line.some((r) => r.text.trim() !== "")).length;
+    const align = ({ left: "start", right: "end" } as const)[opt.textAlign as "left" | "right"] ?? "middle";
+    return {
+        text: runsText(label.textRuns),
+        box,
+        fontPx,
+        color: cssColor(run?.style.color ?? "#000000").hex,
+        enabled: mesh.isEnabled() && mesh.isVisible && mesh.visibility > 0 && (material === null || material.alpha > 0),
+        onTop: mesh.renderingGroupId > 0,
+        family: run?.style.font ?? "",
+        weight: cssWeight(run?.style.weight),
+        style: run?.style.style ?? "normal",
+        rotation: (Math.atan2(x.y - o.y, x.x - o.x) * 180) / Math.PI,
+        textBox,
+        opacity: textColor.alpha * planeAlpha,
+        ...nodeSizeRuleOf(label),
+        lineCount,
+        tall: label.textRuns.map((line) => line.length > 0),
+        align,
+        cells: label.tableFrames.map((f) => onScreen(f.x, f.y, f.width, f.height)),
+        outline:
+            outlineCss === null || outlineCss.alpha <= 0 || !((opt.textOutlineWidth ?? 0) > 0)
+                ? null
+                : {
+                      color: outlineCss.hex,
+                      opacity: outlineCss.alpha * planeAlpha,
+                      width: (opt.textOutlineWidth ?? 0) * unitPx,
+                  },
+        background:
+            !known || ((bgCss === null || bgCss.alpha <= 0) && borderCss === null)
+                ? null
+                : {
+                      box: onScreen(0, 0, dims.width, dims.height),
+                      color: bgCss !== null && bgCss.alpha > 0 ? bgCss.hex : null,
+                      opacity: (bgCss?.alpha ?? 0) * planeAlpha,
+                      rounded: (opt.cornerRadius ?? 0) > 0,
+                      border:
+                          border === undefined || borderCss === null
+                              ? null
+                              : {
+                                    color: borderCss.hex,
+                                    opacity: borderCss.alpha * planeAlpha,
+                                    width: border.width * unitPx,
+                                },
+                  },
+    };
+}
+
+/** What a node drew. */
+export interface DrawnNode {
+    x: number;
+    y: number;
+    box: ScreenBox;
+    meshName: string;
+    /** The shape the mesh was built as (the node's own record of it). */
+    shapeType: string | undefined;
+    /** A polygon's corners as it was built (`shape.points`), else undefined. */
+    polygon: string | undefined;
+    /** The fill color as drawn (material times instance color), before any precedence rule. */
+    fillDrawn: string | null;
+    fillOpacity: number;
+    /** The fill is a texture (a gradient ramp), not one flat color. */
+    gradient: boolean;
+    /**
+     * The ramp the texture is painted with, as the node's style asked its renderer for it (NodeMesh paints its stops
+     * evenly, a linear one along `direction` degrees on the upright texture, clockwise from +x on screen), or null.
+     */
+    ramp: {
+        kind: "linear" | "radial";
+        colors: string[];
+        direction: number | null;
+        stops?: number[];
+        /** A radial ramp's middle, in fractions of the node's box, when its style moves it. */
+        center?: [number, number];
+    } | null;
+    instanceColor: boolean;
+    visible: boolean;
+    /**
+     * Whether the node is drawn at all, its fill aside: an unfilled group region (fill opacity 0)
+     * still draws its outline and its label.
+     */
+    shown: boolean;
+    ring: { kind: Ring["kind"]; color: string | null; reachPx: number; inner: boolean } | null;
+    /** How far the node's border position drew its fill in from its size, per side, in screen pixels. */
+    insetPx: number;
+    /** The border ring drawn outside the fill, or null when the node has none. */
+    border: DrawnBorder | null;
+    /** Where a table label's background is the node's body, its cells' outline, else null. */
+    tableOutline?: DrawnBorder | null;
+    /**
+     * Where the node also draws an outer ring (`outer`), its own border ring at the fill, else null: `border` and the
+     * box are then the outer ring's.
+     */
+    innerBorder?: DrawnBorder | null;
+    /** The outer ring (Cytoscape.js's outline) and how far its inner edge is out from the fill, or null for none. */
+    outer?: { border: DrawnBorder; gapPx: number; ringsPx?: number } | null;
+    /**
+     * Where the node's face has a dent (Pajek's man, woman and cross, a star), the edges of its outline on screen, in
+     * render pixels, as the oracle's side reads a figure (`figureOf`); absent for any other shape, a solid's included.
+     */
+    figure?: [Xy, Xy][];
+    /** What the node draws over its face: its pie slices, stripes and image, each piece's screen box. */
+    pieces: { kind: "shape" | "image"; box: ScreenBox; fill?: string }[];
+    /** The shadow drawn beneath the node (`shadow`), out to the edge of its soft edge, its screen box; absent for none. */
+    shadow?: ScreenBox;
+    /** The filled shapes drawn beneath and over the node (`underlay`, `overlay`), each its screen box and color. */
+    halos?: { box: ScreenBox; fill: string }[];
+    /** The image a node with no body draws as itself (vis-network's image nodes), its screen box; absent for none. */
+    picture?: ScreenBox;
+    /** A picture graph-io drew for what a program draws piece by piece over a node: its box and its URL. */
+    svgPicture?: { box: ScreenBox; src: string };
+    /** The closed line it draws over its face that is no outline of its own (`readInnerLine`), its box; absent for none. */
+    faceLine?: ScreenBox;
+    label: DrawnLabel | null;
+    /**
+     * The label of a node that draws it as a table (`shape.labelTable`), read off the table's cells, or null for
+     * none; the cells are also among its `texts`.
+     */
+    tableLabel?: DrawnLabel | null;
+    /** The further texts it draws over its face (`shape.texts`). */
+    texts?: DrawnLabel[];
+    /**
+     * A node with no body (shape "none") that asks for no image: it draws only its label and its glyph, as a program
+     * draws a text-only or an icon-only node (vis-network's `text` and `icon` shapes).
+     */
+    faceless?: boolean;
+    /** The character or short text the node draws over its face, and its color, or null for none. */
+    glyph?: { text: string; color: string | null } | null;
+}
+
+/** A node's border ring as drawn. */
+export interface DrawnBorder {
+    color: string | null;
+    /** How far the ring reaches past the node's outline, in render pixels. */
+    widthPx: number;
+    /**
+     * A zigzag or sine wave with a swing of its own: how thick its waving line is, in render pixels (as an outline
+     * painted as a fill is read); null for any other border.
+     */
+    lineWidthPx?: number | null;
+    /** The line style the ring was built in (the node's own record of it). */
+    style: string;
+    /** Whether its width is in screen pixels at every zoom (`border.screenWidth`), not a length. */
+    screen: boolean;
+    /** The opacity it is drawn at: its material's alpha times the ring's visibility. */
+    opacity: number;
+}
+
+/**
+ * The outline a table label's cells draw (in the border's color, as wide as their border), which an SVG drawing
+ * reads as the node's outline where the table's background is its body (a program's scene keeps the node's own
+ * border apart).
+ * @param node - the node
+ * @param p - the projector
+ * @returns the outline, or null when the cells draw none
+ */
+function readTableOutline(node: Node, p: Projector): DrawnBorder | null {
+    const { drawnStyle } = node as unknown as NodeInternals;
+    const shape = drawnStyle?.shape;
+    // the style as painted, before the table's lines are added: their width is the cells' border, as the node draws it
+    const table = readLabelTable(shape?.labelTable);
+    const width = shape?.lineWidth ?? table?.cellBorder ?? 0;
+    const color = drawnStyle?.border?.color;
+    if (table === null || !(width > 0) || typeof color !== "string") {
+        return null;
+    }
+    const css = cssColor(color);
+    const at = node.mesh.getAbsolutePosition();
+    return {
+        color: css.hex,
+        widthPx: width * NodeMesh.extentPerSize(shape) * p.pxPerWorld(at),
+        lineWidthPx: null,
+        style: "solid",
+        screen: false,
+        opacity: css.alpha * (drawnStyle?.border?.opacity ?? 1),
+    };
+}
+
+/**
+ * The closed line a node with no border draws over its face (`shape.lines`, a bevel's), in the border's color, and
+ * where it runs on screen. One that boxes half of the node or more is the outline a program's drawing of it shows; one
+ * that boxes less, as an outline of the node's own must not (`PART_OF_BODY`), is a mark on its face, which the oracle's
+ * reading leaves a stray.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the line, its box (its points' box on screen) and whether it is the node's outline, or null when the node
+ * draws no such line
+ */
+function readInnerLine(node: Node, p: Projector): { border: DrawnBorder; box: ScreenBox; outline: boolean } | null {
+    const { drawnStyle } = node as unknown as NodeInternals;
+    const shape = drawnStyle?.shape;
+    const lists = pointLists(shape?.lines);
+    const [first, last] = [lists[0]?.[0], lists[0]?.at(-1)];
+    const closed = lists.length === 1 && first !== undefined && first.join() === last?.join();
+    const width = shape?.lineWidth ?? 0;
+    const color = drawnStyle?.border?.color;
+    if (!closed || !(width > 0) || typeof color !== "string") {
+        return null;
+    }
+    const unitPx = NodeMesh.extentPerSize(shape) * p.pxPerWorld(node.mesh.getAbsolutePosition());
+    const box = p.box(node.mesh);
+    const [w, h] = [box.x1 - box.x0, box.y1 - box.y0];
+    const xs = lists[0].map((q) => (box.x0 + box.x1) / 2 + (q[0] * w) / 2 + q[1] * unitPx);
+    // a point's y runs up, the screen's down
+    const ys = lists[0].map((q) => (box.y0 + box.y1) / 2 - (q[2] * h) / 2 - q[3] * unitPx);
+    const at = { ...box, x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+    const css = cssColor(color);
+    return {
+        border: {
+            color: css.hex,
+            widthPx: width * unitPx,
+            lineWidthPx: null,
+            style: "solid",
+            screen: false,
+            opacity: css.alpha * (drawnStyle?.border?.opacity ?? 1),
+        },
+        box: at,
+        outline: (at.x1 - at.x0) * (at.y1 - at.y0) >= 0.5 * w * h,
+    };
+}
+
+/**
+ * A node's border ring: its material's color, and its width as drawn on screen, not the width its style asked for, so
+ * a ring drawn wider than asked reads wider (issue #5364): its band against the fill's sides (`ringBandPx`), or a
+ * solid ring's thickness where that is more (`bandThicknessPx`).
+ * @param node - the node
+ * @param p - the projector
+ * @returns the drawn border, or null when none is drawn
+ */
+function readBorder(node: Node, p: Projector): DrawnBorder | null {
+    const { border, drawnStyle } = node as unknown as NodeInternals;
+    if (border === null || border.isDisposed() || !border.isEnabled() || !border.isVisible) {
+        return null;
+    }
+    const at = node.mesh.getAbsolutePosition();
+    const source = border instanceof InstancedMesh ? border.sourceMesh : border;
+    const style = drawnStyle?.border?.style ?? "solid";
+    // a zigzag or sine wave with a swing of its own is a line its width thick waving round the node: as thick as the
+    // ring it drew, read as an outline drawn as a fill is (twice its area over its edges)
+    const waved = NodeMesh.waveOf(drawnStyle?.border, 1) !== undefined && (style === "zigzag" || style === "sinewave");
+    const lineWidthPx = waved ? frontThickness(source) * Math.abs(border.absoluteScaling.x) * p.pxPerWorld(at) : null;
+    const material = materialColor(source.material);
+    return {
+        color: material ? hex(material.rgb) : null,
+        widthPx: drawnWidthPx(node, border, waved || MARK_RINGS.has(style) ? "marks" : style, p),
+        lineWidthPx,
+        style,
+        screen: drawnStyle?.border?.screenWidth !== undefined,
+        opacity: (material?.alpha ?? 1) * border.visibility,
+    };
+}
+
+/**
+ * How wide a node's border ring is drawn on screen.
+ * @param node - the node
+ * @param ring - its border ring
+ * @param style - its line style, or "marks" for a ring of marks swinging past their band
+ * @param p - the projector
+ * @returns the width in render pixels
+ */
+function drawnWidthPx(node: Node, ring: AbstractMesh, style: string, p: Projector): number {
+    if (style === "marks") {
+        return markRingPx(node, ring, p);
+    }
+    const shape = (node as unknown as NodeInternals).drawnStyle?.shape?.type ?? "";
+    const sided = ringBandPx(node.mesh, ring, isFlatShape(shape), p);
+    // a fill drawn in to a point (a centered border wider than its node) has no sides: the ring reaches from its middle
+    const span = (b: ScreenBox): number => Math.min(b.x1 - b.x0, b.y1 - b.y0);
+    const band = sided > 0 ? sided : Math.max(0, (span(p.box(ring)) - span(p.box(node.mesh))) / 2);
+    // a solid ring is also as thick as its area over its edges: what a fill too small to have sides to measure against
+    // leaves (a node of no size, all ring); a corner too sharp to mitre in full takes area from it, so the larger
+    return style === "solid" ? Math.max(band, bandThicknessPx(ring, p)) : band;
+}
+
+/** Border styles drawn as a chain of marks round the node (arrows), which reach past or fall short of their band. */
+const MARK_RINGS: ReadonlySet<string> = new Set(["contiguous-arrow", "separate-arrow"]);
+
+/**
+ * The width of a ring drawn as marks that swing past their band (a wave with a swing of its own, a chain of arrows),
+ * whose drawn band is not its width: the width it was built at, times how much larger it is drawn than its node.
+ * ponytail: reads the ring's own scale, not its marks; measure the marks' band when a gate needs it.
+ * @param node - the node
+ * @param ring - its border ring, drawn in the node's frame
+ * @param p - the projector
+ * @returns the width in render pixels
+ */
+function markRingPx(node: Node, ring: AbstractMesh, p: Projector): number {
+    const at = node.mesh.getAbsolutePosition();
+    const o = p.point(at);
+    const x = p.point(at.add(new Vector3(node.borderReach * Math.abs(ring.scaling.x), 0, 0)));
+    return Math.hypot(x.x - o.x, x.y - o.y);
+}
+
+type Xy = readonly [number, number];
+type Xyz = readonly [number, number, number];
+
+/** One side of a fill's outline on screen, and its outward unit normal. */
+interface ScreenSide {
+    a: Xy;
+    b: Xy;
+    n: Xy;
+}
+
+/**
+ * How wide a border ring is drawn, on screen, measured square to the sides of the fill it rings (issue #5364): points
+ * along the ring's inner and outer edges are each placed against the side of the fill they are nearest, as how far out
+ * of the fill they are (negative inside it), and a side's band runs from the innermost of its points to the outermost.
+ * The ring's width is the median band over the fill's length. Not along one direction, and not the ring's box against
+ * the fill's: a pointed outline's mitred corners reach further than the ring's width along their own direction, never
+ * square to a side, so a point beyond the ends of the sides near it is left out, and a spike one odd corner throws out
+ * is not the ring's width. A ring drawn over the fill, or clear of it, is as wide as its own band; one drawn wider
+ * than asked reads wider.
+ * @param fill - the node's own mesh
+ * @param ring - its border ring
+ * @param flat - whether the node is a flat shape (its outline is its fill's front face), not a solid (its outline is
+ *     the hull of its vertices seen along z, as `NodeMesh.solidOutline` rings it)
+ * @param p - the projector
+ * @returns the width in render pixels, 0 when the fill has no outline
+ */
+function ringBandPx(fill: AbstractMesh, ring: AbstractMesh, flat: boolean, p: Projector): number {
+    const sides = fillSides(fill, flat, p);
+    const bands = new Map<ScreenSide, { out: number; in: number }>();
+    for (const q of edgeSamples(ring, p)) {
+        const at = nearestSide(q, sides);
+        if (at !== null) {
+            const band = bands.get(at.side) ?? { out: -Infinity, in: Infinity };
+            band.out = Math.max(band.out, at.out);
+            band.in = Math.min(band.in, at.out);
+            bands.set(at.side, band);
+        }
+    }
+    // the median over the fill's length: a spike one odd corner throws out is not the ring's width
+    const widths = [...bands]
+        .map(([side, band]) => ({
+            width: band.out - band.in,
+            length: Math.hypot(side.b[0] - side.a[0], side.b[1] - side.a[1]),
+        }))
+        .sort((x, y) => x.width - y.width);
+    const half = widths.reduce((sum, w) => sum + w.length, 0) / 2;
+    let run = 0;
+    for (const w of widths) {
+        run += w.length;
+        if (run >= half) {
+            return w.width;
+        }
+    }
+    return 0;
+}
+
+/**
+ * Points along a slab's front-face outline on screen, a pixel or less apart: the inner and outer edges of a ring, so
+ * that a long straight side of the fill is measured along its length, not only at its corners.
+ * @param mesh - the slab
+ * @param p - the projector
+ * @returns the points
+ */
+function edgeSamples(mesh: AbstractMesh, p: Projector): Xy[] {
+    const { boundary } = frontFace(sourceOf(mesh));
+    const out: Xy[] = [];
+    for (const { a, b } of boundary) {
+        const [sa, sb] = onScreen(mesh, [a, b], p);
+        const steps = Math.min(4096, Math.max(1, Math.ceil(Math.hypot(sb[0] - sa[0], sb[1] - sa[1]))));
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            out.push([sa[0] + t * (sb[0] - sa[0]), sa[1] + t * (sb[1] - sa[1])]);
+        }
+    }
+    return out;
+}
+
+/**
+ * The side of a fill a point is nearest, and how far out of the fill it is, square to that side (negative inside it);
+ * null when it is nearest a corner, beyond the ends of every side near it (a mitre's point), or the fill has no sides.
+ * @param q - the point, on screen
+ * @param sides - the fill's sides, on screen
+ * @returns the side and the distance, or null
+ */
+function nearestSide(q: Xy, sides: readonly ScreenSide[]): { side: ScreenSide; out: number } | null {
+    let best = Infinity;
+    let found: { side: ScreenSide; out: number } | null = null;
+    for (const side of sides) {
+        const { a, b, n } = side;
+        const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+        const along = ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / (dx * dx + dy * dy);
+        const t = Math.max(0, Math.min(1, along));
+        const far = Math.hypot(q[0] - a[0] - t * dx, q[1] - a[1] - t * dy);
+        if (far < best) {
+            best = far;
+            found = along === t ? { side, out: (q[0] - a[0]) * n[0] + (q[1] - a[1]) * n[1] } : null;
+        }
+    }
+    return found;
+}
+
+/**
+ * A fill's outline on screen, side by side, each with its outward normal: a flat shape's front-face edges no other
+ * triangle of it shares, a solid's convex hull seen along z.
+ * @param fill - the node's own mesh
+ * @param flat - whether it is a flat shape
+ * @param p - the projector
+ * @returns the sides
+ */
+function fillSides(fill: AbstractMesh, flat: boolean, p: Projector): ScreenSide[] {
+    const source = sourceOf(fill);
+    let local: { a: Xyz; b: Xyz; inward: Xyz }[];
+    if (flat) {
+        local = frontFace(source).boundary;
+    } else {
+        const hull = convexHull(source instanceof Mesh ? projectedVertices(source) : []);
+        const mid: Xyz = [
+            hull.reduce((sum, h) => sum + h[0], 0) / Math.max(1, hull.length),
+            hull.reduce((sum, h) => sum + h[1], 0) / Math.max(1, hull.length),
+            0,
+        ];
+        local = hull.map((h, i) => {
+            const next = hull[(i + 1) % hull.length];
+            return { a: [h[0], h[1], 0], b: [next[0], next[1], 0], inward: mid };
+        });
+    }
+    return local.flatMap(({ a, b, inward }) => {
+        const [sa, sb, sc] = onScreen(fill, [a, b, inward], p);
+        const length = Math.hypot(sb[0] - sa[0], sb[1] - sa[1]);
+        if (length < 1e-9) {
+            return [];
+        }
+        const n: [number, number] = [-(sb[1] - sa[1]) / length, (sb[0] - sa[0]) / length];
+        const flip = (sc[0] - sa[0]) * n[0] + (sc[1] - sa[1]) * n[1] > 0 ? -1 : 1;
+        return [{ a: sa, b: sb, n: [n[0] * flip, n[1] * flip] as const }];
+    });
+}
+
+/**
+ * The mesh whose vertices an instance draws.
+ * @param mesh - a mesh or an instance
+ * @returns its source mesh
+ */
+function sourceOf(mesh: AbstractMesh): AbstractMesh {
+    return mesh instanceof InstancedMesh ? mesh.sourceMesh : mesh;
+}
+
+/**
+ * Points in a mesh's own units through its world matrix onto the screen.
+ * @param mesh - the mesh (an instance places its source's vertices)
+ * @param points - the points
+ * @param p - the projector
+ * @returns the screen points, in render pixels
+ */
+function onScreen(mesh: AbstractMesh, points: readonly Xyz[], p: Projector): Xy[] {
+    const world = mesh.computeWorldMatrix(true);
+    return points.map((q) => {
+        const s = p.point(Vector3.TransformCoordinates(new Vector3(q[0], q[1], q[2]), world));
+        return [s.x, s.y] as const;
+    });
+}
+
+/**
+ * A slab's front face (its triangles at its nearest z, as `SlabBuilder` builds a flat shape or a ring): its area, its
+ * distinct vertices, and its outline, each edge no other front triangle shares with the triangle's third corner,
+ * which lies inside it.
+ * @param mesh - the slab
+ * @returns the face, empty for a mesh with no faces
+ */
+function frontFace(mesh: AbstractMesh): {
+    area: number;
+    points: Xyz[];
+    triangles: [Xyz, Xyz, Xyz][];
+    boundary: { a: Xyz; b: Xyz; inward: Xyz }[];
+} {
+    const positions = mesh.getVerticesData("position");
+    const indices = mesh.getIndices();
+    if (positions === null || indices === null || indices.length === 0) {
+        return { area: 0, points: [], triangles: [], boundary: [] };
+    }
+    const at = (i: number): Xyz => [positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]];
+    let front = Infinity;
+    for (let i = 2; i < positions.length; i += 3) {
+        front = Math.min(front, positions[i]);
+    }
+    let area = 0;
+    const triangles: [Xyz, Xyz, Xyz][] = [];
+    const points = new Map<string, Xyz>();
+    const edges = new Map<string, { a: Xyz; b: Xyz; inward: Xyz; uses: number }>();
+    const keyOf = (q: Xyz): string => `${q[0].toFixed(5)},${q[1].toFixed(5)}`;
+    for (let t = 0; t + 2 < indices.length; t += 3) {
+        const tri = [at(indices[t]), at(indices[t + 1]), at(indices[t + 2])];
+        if (tri.some((q) => Math.abs(q[2] - front) > 1e-9)) {
+            continue;
+        }
+        const [a, b, c] = tri;
+        triangles.push([a, b, c]);
+        area += Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2;
+        for (const [u, v, w] of [
+            [a, b, c],
+            [b, c, a],
+            [c, a, b],
+        ]) {
+            points.set(keyOf(u), u);
+            const k = [keyOf(u), keyOf(v)].sort().join("|");
+            const e = edges.get(k) ?? { a: u, b: v, inward: w, uses: 0 };
+            e.uses++;
+            edges.set(k, e);
+        }
+    }
+    const boundary = [...edges.values()].filter((e) => e.uses === 1);
+    return { area, points: [...points.values()], triangles, boundary };
+}
+
+/** Each node mesh's front outline where it has a dent, in its own units; null where it has none (`readFigure`). */
+const figureEdges = new WeakMap<AbstractMesh, { a: Xyz; b: Xyz }[] | null>();
+
+/**
+ * A node's figure on screen (`DrawnNode.figure`): the edges of its front face's outline, where that face fills under
+ * `FIGURE_FILLS` of its convex hull, as the oracle's side tells a figure (`figureOf`).
+ * @param mesh - the node's mesh
+ * @param p - the projector
+ * @returns the edges in render pixels, or undefined for a shape with no dent
+ */
+function readFigure(mesh: AbstractMesh, p: Projector): [Xy, Xy][] | undefined {
+    const source = sourceOf(mesh);
+    let edges = figureEdges.get(source);
+    if (edges === undefined) {
+        const { area, points, boundary } = frontFace(source);
+        // a dent as `dented` tells one, by the area the face's triangles cover (its edges come in no order)
+        const hull = convexHull(points.map((q) => [q[0], q[1]] as const));
+        edges = area > 0 && 2 * area < FIGURE_FILLS * twiceArea(hull) ? boundary : null;
+        figureEdges.set(source, edges);
+    }
+    return edges?.map((e) => {
+        const [a, b] = onScreen(mesh, [e.a, e.b], p);
+        return [a, b];
+    });
+}
+
+/**
+ * How thick the band a ring's front face draws is on screen: twice its area over the length of its edges, both measured
+ * on screen. A band of one width all round, the ring's own offset of the fill's outline, is exactly that width
+ * whatever the outline's shape (a mitred corner adds as much area as it adds edge), and wherever it lies against the
+ * fill: drawn over it, clear of it, or around a fill too small to have sides.
+ * @param mesh - a ring built by `ringSlab`
+ * @param p - the projector
+ * @returns the thickness in render pixels, or 0
+ */
+function bandThicknessPx(mesh: AbstractMesh, p: Projector): number {
+    const { triangles, boundary } = frontFace(sourceOf(mesh));
+    let area = 0;
+    for (const tri of triangles) {
+        const [a, b, c] = onScreen(mesh, tri, p);
+        area += Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1])) / 2;
+    }
+    let outline = 0;
+    for (const e of boundary) {
+        const [a, b] = onScreen(mesh, [e.a, e.b], p);
+        outline += Math.hypot(b[0] - a[0], b[1] - a[1]);
+    }
+    return outline > 0 ? (2 * area) / outline : 0;
+}
+
+/**
+ * How thick the line a slab's front face draws is: twice the face's area over the length of its outline (each piece's
+ * edges that no other triangle of it shares), in the slab's own units.
+ * @param mesh - a slab built by `ringSlab`
+ * @returns the thickness, or 0
+ */
+function frontThickness(mesh: AbstractMesh): number {
+    const { area, boundary } = frontFace(mesh);
+    const outline = boundary.reduce((sum, e) => sum + Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]), 0);
+    return outline > 0 ? (2 * area) / outline : 0;
+}
+
+/**
+ * A node's outer border ring (`outerBorder`): its color, width and style, how far the outermost ring's inner edge is
+ * out from the node's fill, and how far out the rings inside it reach (`ringsPx`, 0 for one ring), in screen pixels;
+ * null when none is drawn. A program reads every outline but the outermost as the node's own.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the ring and its gap, or null
+ */
+function readOuterBorder(node: Node, p: Projector): { border: DrawnBorder; gapPx: number; ringsPx: number } | null {
+    const { outerBorder, drawnStyle } = node as unknown as NodeInternals;
+    const style = drawnStyle?.outerBorder;
+    if (outerBorder === null || outerBorder.isDisposed() || !outerBorder.isEnabled() || style === undefined) {
+        return null;
+    }
+    const perSize = NodeMesh.extentPerSize(drawnStyle?.shape);
+    const count = style.count ?? 1;
+    const offset = Math.max(0, style.offset ?? 0);
+    const width = style.width ?? 0;
+    const at = node.mesh.getAbsolutePosition();
+    const o = p.point(at);
+    const px = (world: number): number => {
+        const x = p.point(at.add(new Vector3(world, 0, 0)));
+        return Math.hypot(x.x - o.x, x.y - o.y);
+    };
+    const source = outerBorder instanceof InstancedMesh ? outerBorder.sourceMesh : outerBorder;
+    const material = materialColor(source.material);
+    return {
+        border: {
+            color: material ? hex(material.rgb) : null,
+            widthPx: px((style.width ?? 0) * perSize),
+            style: style.style ?? "solid",
+            screen: false,
+            opacity: (material?.alpha ?? 1) * outerBorder.visibility,
+        },
+        // out to the outermost ring's inner edge (`count` rings, each the offset beyond the one before)
+        gapPx: px(node.borderReach + (offset * count + width * (count - 1)) * perSize),
+        ringsPx: px((offset + width) * (count - 1) * perSize),
+    };
+}
+
+/**
+ * The screen box of the shadow drawn beneath a node: its outermost layer, out to where its soft edge ends.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the box, or null for a node that draws no shadow
+ */
+function readShadow(node: Node, p: Projector): ScreenBox | null {
+    const [outer] = (node as unknown as NodeInternals).shadow;
+    return outer === undefined ? null : meshBox(outer, p);
+}
+
+/**
+ * The filled shapes drawn beneath (`underlay`) and over (`overlay`) a node, each its screen box and color: shapes of
+ * their own round the node, as Cytoscape.js draws them.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the shapes, none for a node that draws neither
+ */
+function readHalos(node: Node, p: Projector): { box: ScreenBox; fill: string }[] {
+    const { underlay, overlay } = node as unknown as NodeInternals;
+    return [underlay, overlay].flatMap((mesh) => {
+        const box = mesh === null ? null : meshBox(mesh, p);
+        const material = mesh instanceof InstancedMesh ? mesh.sourceMesh.material : null;
+        return box === null || !(material instanceof StandardMaterial)
+            ? []
+            : [{ box, fill: hex(material.emissiveColor) }];
+    });
+}
+
+/**
+ * The screen box of a flat mesh drawn beside a node, from its world bounds in the plane.
+ * @param mesh - the mesh
+ * @param p - the projector
+ * @returns the box, or null for a mesh not drawn
+ */
+function meshBox(mesh: AbstractMesh, p: Projector): ScreenBox | null {
+    if (mesh.isDisposed() || !mesh.isEnabled()) {
+        return null;
+    }
+    mesh.computeWorldMatrix(true);
+    const { minimumWorld: min, maximumWorld: max } = mesh.getBoundingInfo().boundingBox;
+    const corners = [
+        p.point(new Vector3(min.x, min.y, min.z)),
+        p.point(new Vector3(max.x, min.y, min.z)),
+        p.point(new Vector3(min.x, max.y, min.z)),
+        p.point(new Vector3(max.x, max.y, min.z)),
+    ];
+    return {
+        x0: Math.min(...corners.map((c) => c.x)),
+        x1: Math.max(...corners.map((c) => c.x)),
+        y0: Math.min(...corners.map((c) => c.y)),
+        y1: Math.max(...corners.map((c) => c.y)),
+        near: Math.min(...corners.map((c) => c.depth)),
+        far: Math.max(...corners.map((c) => c.depth)),
+    };
+}
+
+/**
+ * How far a node's border position drew its fill in from its size, in screen pixels, whether or not the border
+ * itself is shown (`NodeMesh.borderFit`): nothing for a border outside the size, half the ring for one centered on
+ * it, the ring for one inside it, half the ring for one inside it at opacity 0.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the inset on each side
+ */
+function readInset(node: Node, p: Projector): number {
+    const { drawnStyle } = node as unknown as NodeInternals;
+    const border = drawnStyle?.border;
+    const shape = drawnStyle?.shape;
+    const { inset } = NodeMesh.borderFit(
+        shape,
+        border,
+        NodeMesh.extentsOf(shape ?? {}, Math.max(shape?.size ?? node.size, 1e-3)),
+    );
+    if (inset <= 0) {
+        return 0;
+    }
+    const at = node.mesh.getAbsolutePosition();
+    const o = p.point(at);
+    const x = p.point(at.add(new Vector3(inset, 0, 0)));
+    return Math.hypot(x.x - o.x, x.y - o.y);
+}
+
+/**
+ * The gradient a node's style fills it with: its kind, its colors as `#rrggbb` and a linear one's direction.
+ * @param node - the node
+ * @returns the ramp, or null when the node's style holds no gradient
+ */
+function rampOf(node: Node): DrawnNode["ramp"] {
+    const color = (node as unknown as NodeInternals).drawnStyle?.texture?.color as
+        | {
+              colorType?: string;
+              colors?: unknown[];
+              direction?: unknown;
+              stops?: unknown[];
+              radius?: unknown;
+              centerX?: unknown;
+              centerY?: unknown;
+          }
+        | undefined;
+    if (color?.colorType !== "gradient" && color?.colorType !== "radial-gradient") {
+        return null;
+    }
+    const colors = (color.colors ?? []).flatMap((c) => (typeof c === "string" ? [c.toLowerCase()] : []));
+    const written =
+        color.stops?.length === colors.length && color.stops.every((t) => typeof t === "number") ? color.stops : null;
+    // a radial gradient reaching `radius` halves of the node's side: its stops, in halves of the side as the oracle's
+    // picture is read
+    const radius = color.colorType === "radial-gradient" && typeof color.radius === "number" ? color.radius : 1;
+    const last = Math.max(colors.length - 1, 1);
+    const stops = radius === 1 ? written : (written ?? colors.map((_, i) => i / last)).map((t) => t * radius);
+    return colors.length === 0
+        ? null
+        : {
+              kind: color.colorType === "gradient" ? "linear" : "radial",
+              colors,
+              direction: color.colorType === "gradient" && typeof color.direction === "number" ? color.direction : null,
+              ...(stops === null ? {} : { stops }),
+              ...(typeof color.centerX === "number" || typeof color.centerY === "number"
+                  ? { center: [Number(color.centerX ?? 0.5), Number(color.centerY ?? 0.5)] as [number, number] }
+                  : {}),
+          };
+}
+
+/**
+ * Reads one node off the scene graph.
+ * @param node - the node
+ * @param p - the projector
+ * @param rings - the scene's outline and glow layers
+ * @returns the drawn node
+ */
+export function readNode(node: Node, p: Projector, rings: readonly Ring[]): DrawnNode {
+    const { mesh } = node;
+    const source: AbstractMesh = mesh instanceof InstancedMesh ? mesh.sourceMesh : mesh;
+    const box = p.box(mesh);
+    const center = p.point(mesh.getAbsolutePosition());
+    const base = materialColor(source.material);
+    const buffer =
+        (source as Mesh).instancedBuffers?.color !== undefined
+            ? (mesh.instancedBuffers?.color as { r: number; g: number; b: number } | undefined)
+            : undefined;
+    // a node with no body (shape "none") is a mesh of no faces: its fill is drawn at opacity 0
+    const faces = source instanceof Mesh ? source.getTotalIndices() > 0 : true;
+    const rgb = base ? new Color3(base.rgb.r, base.rgb.g, base.rgb.b) : null;
+    if (rgb && buffer) {
+        rgb.multiplyInPlace(new Color3(buffer.r, buffer.g, buffer.b));
+    }
+    // A gradient is a ramp texture over a white material: its fill as drawn is where the ramp
+    // starts, the color the oracle side reads as a gradient's `color` too.
+    const ramp = base?.texture === true ? rampOf(node) : null;
+    const ring = rings
+        .filter((r) => r.has(source))
+        .map((r) => ({ kind: r.kind, color: r.color(source), reachPx: r.reachPx, inner: r.inner }))
+        .sort((a, b) => b.reachPx - a.reachPx)[0];
+    const outer = readOuterBorder(node, p);
+    const { drawnStyle } = node as unknown as NodeInternals;
+    // a node with an outer border (Cytoscape.js's outline) shows that ring as its outline: the node is drawn out to
+    // its inner edge, past the border and the gap, and the ring is its stroke
+    const own = readBorder(node, p);
+    const inner = readInnerLine(node, p);
+    const border = outer?.border ?? own ?? (inner?.outline === true ? inner.border : null);
+    const grow = outer?.gapPx ?? 0;
+    // A node whose fill is transparent (Graphviz's default, unfilled shape) still draws its outline.
+    const ownFace = (mesh.isVisible && source.visibility > 0) || border !== null;
+    const pieces = readPieces(node, p);
+    // a table label's background on a node that draws no face of its own (Graphviz's `shape=none` round a `<TABLE
+    // BGCOLOR>`) is the node's body, as the program's filled table is its node: drawn in the table's box and color
+    const tableBody =
+        ownFace || (node as unknown as NodeInternals).tableTexts === null
+            ? []
+            : pieces.filter((piece) => piece.kind === "body" && piece.fill !== undefined);
+    const imagePiece = pieces.find((piece) => piece.kind === "image");
+    // a node drawn as its picture alone, with no fill and no border (yEd's image and SVG nodes), is drawn all the same
+    const shown = ownFace || tableBody.length > 0 || imagePiece !== undefined;
+    // a node with no body draws nothing of its own but what is over its face: drawn as its image (vis-network's
+    // image nodes)
+    const picture = faces ? undefined : imagePiece;
+    const imageSrc = drawnStyle?.image?.src ?? "";
+    // the further pieces of its body (`shape.parts`) are the node, as a program draws a glyph of several pieces
+    const body = pieces.filter((piece) => piece.kind === "body").map((piece) => piece.box);
+    const drawnOwn: ScreenBox = picture?.box ?? {
+        ...box,
+        x0: box.x0 - grow,
+        y0: box.y0 - grow,
+        x1: box.x1 + grow,
+        y1: box.y1 + grow,
+    };
+    const drawnBox = [...(tableBody.length > 0 ? [] : [drawnOwn]), ...body].reduce(
+        (a: ScreenBox, b: ScreenBox): ScreenBox => ({
+            ...a,
+            x0: Math.min(a.x0, b.x0),
+            y0: Math.min(a.y0, b.y0),
+            x1: Math.max(a.x1, b.x1),
+            y1: Math.max(a.y1, b.y1),
+        }),
+    );
+    // its outline is the table's cells' outlines (`shape.lines`), drawn in its border's color, as the program's is
+    const tableOutline = tableBody.length > 0 ? readTableOutline(node, p) : null;
+    const tableFill =
+        tableBody[0]?.fill === undefined
+            ? null
+            : { hex: hex(new Color3(...tableBody[0].fill.rgb)), opacity: tableBody[0].fill.opacity };
+    // a body drawn off its position (a glyph above its baseline, in pieces) is placed by its box, as a program's is
+    const offCenter = body.length > 0 || drawnStyle?.shape?.stretchPoints === false;
+    const placedBy = picture?.box ?? (offCenter ? drawnBox : null);
+    const figure = faces ? readFigure(mesh, p) : undefined;
+    const shadow = readShadow(node, p);
+    return {
+        x: placedBy === null ? center.x : (placedBy.x0 + placedBy.x1) / 2,
+        y: placedBy === null ? center.y : (placedBy.y0 + placedBy.y1) / 2,
+        box: drawnBox,
+        meshName: source.name,
+        shapeType: node.shapeType,
+        polygon: (node as unknown as NodeInternals).drawnStyle?.shape?.points,
+        fillDrawn: tableFill?.hex ?? ramp?.colors[0] ?? (rgb ? hex(rgb) : null),
+        fillOpacity: tableFill?.opacity ?? (faces ? (base?.alpha ?? 1) * source.visibility : 0),
+        gradient: base?.texture === true,
+        ramp,
+        instanceColor: buffer !== undefined,
+        visible: node.getRenderState() === "visible" && mesh.isEnabled() && shown,
+        shown: node.getRenderState() === "visible" && mesh.isEnabled(),
+        ring: ring ?? null,
+        insetPx: readInset(node, p),
+        border,
+        tableOutline,
+        innerBorder: outer === null ? null : own,
+        outer,
+        label: readLabel(node.label, p),
+        tableLabel: readTableLabel(node, p),
+        // the further texts, and the external label beside the node (Graphviz's xlabel), each a text of the node
+        texts: [...node.shapeTextLabels, ...(node.xlabelLabel === undefined ? [] : [node.xlabelLabel])].flatMap((l) => {
+            const read = readLabel(l, p);
+            return read === null ? [] : [read];
+        }),
+        // the image of a node with no body is the node itself
+        ...(picture === undefined ? {} : { picture: picture.box }),
+        ...(imagePiece !== undefined && imageSrc.includes("data-node-drawing")
+            ? { svgPicture: { box: imagePiece.box, src: imageSrc } }
+            : {}),
+        ...(figure === undefined ? {} : { figure }),
+        ...(shadow === null ? {} : { shadow }),
+        halos: readHalos(node, p),
+        ...(inner === null || inner.outline || own !== null || outer !== null ? {} : { faceLine: inner.box }),
+        pieces: pieces
+            .filter((piece) => piece !== picture && piece.kind !== "body")
+            .map((piece) => ({
+                kind: piece.kind as "shape" | "image",
+                box: piece.box,
+                ...(piece.fill === undefined
+                    ? {}
+                    : { fill: hex({ r: piece.fill.rgb[0], g: piece.fill.rgb[1], b: piece.fill.rgb[2] }) }),
+            })),
+        // its only picture its glyph, where it asks for no image (an image node that drew none is still a node)
+        faceless: drawnStyle?.shape?.type === "none" && (drawnStyle.image?.src ?? "") === "",
+        glyph:
+            typeof drawnStyle?.glyph?.text === "string" && drawnStyle.glyph.text !== ""
+                ? {
+                      text: drawnStyle.glyph.text,
+                      color: drawnStyle.glyph.color === undefined ? null : cssColor(drawnStyle.glyph.color).hex,
+                  }
+                : null,
+    };
+}
+
+/** What an edge drew. */
+export interface DrawnEdge {
+    kind: "line-2d" | "screen-line" | "curve" | "pattern" | "other";
+    /** False when the session's visibility hides the edge (a file's hidden edge): its meshes are off. */
+    shown: boolean;
+    /** The path on screen, source end first. */
+    points: [number, number][];
+    /**
+     * Where the line itself ends on screen, source end first, where `points` runs on to an end cap's tip: the line
+     * stops short of a cap by its length. Absent for a line not read so.
+     */
+    lineEnds?: [[number, number], [number, number]];
+    thicknessPx: number;
+    /** Its thickness is its line's screen floor (`line.minScreenWidth`): the same pixels on screen at every zoom. */
+    screenFloored?: boolean;
+    color: string | null;
+    opacity: number;
+    pattern: string | null;
+    /**
+     * A dashed or dotted line's elements as drawn, in screen pixels along the line: each element's length and the gap
+     * after it, alternating, from the drawing's own geometry (a pattern element's outline, a joined line's element length
+     * and spacing); null for a line drawn whole or a pattern whose pieces are not read.
+     */
+    dashPx: number[] | null;
+    /**
+     * The band drawn under the line (`line.outline`): its color, opacity, whole width in pixels and the pattern it is
+     * drawn in (a joined line's "dash" or "dot"; absent, solid); null for none.
+     */
+    outline: { color: string; opacity: number; width: number; pattern?: string } | null;
+    /** The band drawn over the line (`line.overlay`): its color, opacity and whole width in pixels; null for none. */
+    overlay?: { color: string; opacity: number; width: number } | null;
+    caps: {
+        end: EdgeCapEnd;
+        name: string;
+        sizePx: number;
+        /** A flat cap's drawn outline on screen (its geometry under its slot), or null for a billboard. */
+        outline: [number, number][] | null;
+        /** Its drawn color (its billboard slot's, or its batch's material), or null where none is read. */
+        color: string | null;
+        /** The opacity it is drawn at: 0 is a cap that draws nothing. */
+        opacity: number;
+        /** How far off its node an end cap stands, in its own lengths (`ArrowStyle.gap`), the line stopping at it. */
+        gap?: number;
+        /** Where along its line an end cap is drawn (`ArrowStyle.position`): 0 at its own end; absent for a middle cap. */
+        position?: number;
+    }[];
+    label: DrawnLabel | null;
+    /** The texts at its ends (`edge.arrowTailText`, `edge.arrowHeadText`), tail first. */
+    endLabels: DrawnLabel[];
+    /** The gradient its line is painted in: the color of each piece drawn, source end first, or null for none. */
+    gradient: { kind: "linear" | "radial"; colors: readonly string[] } | null;
+}
+
+/**
+ * A line mesh's thickness on screen. A flat 2D line is a rectangle `lineWidth` world units wide
+ * (projected); a screen-space line's shader offsets each side by `width / 4` pixels over the clip
+ * w (CustomLineRenderer's vertex shader), so it is `width / 2` pixels wide in all.
+ * @param mesh - the batch mesh
+ * @param at - a world point on the line
+ * @param p - the projector
+ * @returns pixels
+ */
+function lineThickness(mesh: Mesh, at: Vector3, p: Projector): number {
+    const flat = (mesh.metadata as { lineWidth?: number } | null)?.lineWidth;
+    mesh.computeWorldMatrix(true);
+    const material = mesh.material as unknown as {
+        _floats?: Record<string, number>;
+        options?: { defines?: string[] };
+    } | null;
+    const min = screenFloorOf(mesh);
+    if (typeof flat === "number") {
+        return Math.max(flat * Math.abs(mesh.absoluteScaling.y) * p.pxPerWorld(at), min);
+    }
+    const width = material?._floats?.width;
+    if (typeof width !== "number") {
+        return 0;
+    }
+    // a line whose width is in world units (a joined line through bends drawn at the file's width), not pixels
+    const world = material?.options?.defines?.includes("#define WORLD_WIDTH") === true;
+    return Math.max(world ? width * p.pxPerWorld(at) : width / 2 / p.point(at).w, min);
+}
+
+/**
+ * The fewest pixels a line mesh is drawn wide: its join shader never draws it under `minWidth` (`line.minScreenWidth`).
+ * @param mesh - the batch mesh
+ * @returns pixels, 0 for no floor
+ */
+function screenFloorOf(mesh: Mesh): number {
+    return (mesh.material as unknown as { _floats?: Record<string, number> } | null)?._floats?.minWidth ?? 0;
+}
+
+/**
+ * A flat arrow cap's geometry on screen: its batch mesh's vertices through its slot's matrix and
+ * the mesh's world matrix. A billboarded cap is shaped by its shader, so it has none here.
+ * @param cap - the cap
+ * @param p - the projector
+ * @returns the screen points, or null
+ */
+function capOutline(cap: ArrowCap | null, p: Projector): [number, number][] | null {
+    const internals = cap as unknown as { batch: ArrowCapBatch | null; slot: number } | null;
+    const batch = internals?.batch;
+    if (cap === null || !batch || batch.billboarded || cap.isDisposed()) {
+        return null;
+    }
+    const positions = batch.mesh.getVerticesData("position");
+    if (positions === null) {
+        return null;
+    }
+    const m = batch.matrixOf(internals.slot).multiply(batch.mesh.computeWorldMatrix(true));
+    const out: [number, number][] = [];
+    for (let i = 0; i + 2 < positions.length; i += 3) {
+        const s = p.point(
+            Vector3.TransformCoordinates(new Vector3(positions[i], positions[i + 1], positions[i + 2]), m),
+        );
+        out.push([s.x, s.y]);
+    }
+    return out;
+}
+
+/**
+ * A joined line's dashes or dots on screen: each element is `elementLength` long along the line and the elements sit
+ * `spacing` apart centre to centre (the slot's spacing, `EdgeLineBatch`), so each gap is the spacing less the length.
+ * @param batch - the line's batch
+ * @param slots - the edge's slots in it
+ * @param pattern - the batch's pattern, or undefined for a solid line
+ * @param at - a world point on the line
+ * @param p - the projector
+ * @returns element and gap lengths in pixels, or null for a solid line
+ */
+function joinedDashes(
+    batch: EdgeLineBatch,
+    slots: readonly number[],
+    pattern: { kind: string; elementLength?: number } | undefined,
+    at: Vector3,
+    p: Projector,
+): number[] | null {
+    const floats = (batch as unknown as { slots?: Float32Array }).slots;
+    const length = pattern?.elementLength;
+    if (pattern === undefined || length === undefined || floats === undefined || slots.length === 0) {
+        return null;
+    }
+    const spacing = floats[slots[0] * JOIN_FLOATS_PER_PIECE + 13];
+    if (!(spacing > 0)) {
+        return null;
+    }
+    const k = p.pxPerWorld(at);
+    return [length * k, Math.max(0, spacing - length) * k];
+}
+
+/**
+ * A patterned line's elements on screen, from their own drawn outlines: each element's extent along the line and the
+ * gap to the next one, alternating, the last element's followed by the median gap. A billboarded element has no
+ * outline to read, and then nothing is read.
+ * @param elements - the pattern's elements, in order along the line
+ * @param p - the projector
+ * @returns element and gap lengths in pixels, or null
+ */
+function elementDashes(elements: readonly ArrowCap[], p: Projector): number[] | null {
+    const outlines = elements.map((el) => capOutline(el, p));
+    if (outlines.length < 2 || outlines.some((o) => o === null || o.length === 0)) {
+        return null;
+    }
+    const centers = elements.map((el) => {
+        const s = p.point(el.position);
+        return [s.x, s.y] as const;
+    });
+    // along the line as it was laid, its corners and curves too (issue #3102)
+    const spans = spansAlongCenters(centers, outlines as [number, number][][]);
+    if (spans === null) {
+        return null;
+    }
+    const pairs = spans.slice(0, -1).flatMap(([t0, t1], i) => [t1 - t0, spans[i + 1][0] - t1]);
+    // the last element too (a dash-dot of two elements is a dash and a dot), followed by the line's usual gap
+    const gaps = pairs.filter((_, i) => i % 2 === 1).sort((x, y) => x - y);
+    const [l0, l1] = spans[spans.length - 1];
+    return [...pairs, l1 - l0, gaps[Math.floor(gaps.length / 2)]];
+}
+
+/**
+ * The band drawn under an edge's line (`line.outline`), as drawn.
+ * @param internal - the edge's internals
+ * @param p - the projector
+ * @returns its color, opacity and whole width in pixels, or null for none
+ */
+function readOutline(internal: EdgeInternals, p: Projector): DrawnEdge["outline"] {
+    // the band drawn under the line: its outline, else its underlay (Cytoscape.js draws both as a wider stroke beneath)
+    const underlay = internal.haloBands.find((band) => band.kind === "underlay");
+    return internal.outlineBatch === null
+        ? readBand(underlay?.batch ?? null, underlay?.slots ?? [], p)
+        : readBand(internal.outlineBatch, internal.outlineSlots, p);
+}
+
+/**
+ * The band drawn over an edge's line (`line.overlay`), as drawn.
+ * @param internal - the edge's internals
+ * @param p - the projector
+ * @returns its color, opacity and whole width in pixels, or null for none
+ */
+function readOverlay(internal: EdgeInternals, p: Projector): DrawnEdge["overlay"] {
+    const overlay = internal.haloBands.find((band) => band.kind === "overlay");
+    return readBand(overlay?.batch ?? null, overlay?.slots ?? [], p);
+}
+
+/**
+ * A band drawn along an edge's line, as drawn.
+ * @param batch - the line batch it is drawn in, or null for none
+ * @param slots - its slots in the batch
+ * @param p - the projector
+ * @returns its color, opacity, whole width in pixels and pattern, or null for none
+ */
+function readBand(batch: EdgeLineBatch | null, slots: readonly number[], p: Projector): DrawnEdge["outline"] {
+    if (batch === null || batch.disposed || slots.length === 0 || !batch.mesh.isEnabled()) {
+        return null;
+    }
+    const [a, b] = batch.endsOf(slots[0]);
+    const mid = a.add(b).scale(0.5);
+    const own = slotColor(batch, slots[0]);
+    const m = own ?? materialColor(batch.mesh.material);
+    const meta = batch.mesh.metadata as {
+        lineOpacity?: number;
+        joinedLine?: boolean;
+        pattern?: { kind: string };
+    } | null;
+    // a joined line's shader draws its own opacity and never reads the mesh's visibility (as `readEdge` reads it)
+    const visibility = meta?.joinedLine === true ? 1 : batch.mesh.visibility;
+    const pattern = meta?.pattern?.kind;
+    return m === null
+        ? null
+        : {
+              color: hex(m.rgb),
+              opacity: (own?.alpha ?? meta?.lineOpacity ?? m.alpha) * visibility,
+              width: lineThickness(batch.mesh, mid, p),
+              ...(pattern === undefined ? {} : { pattern }),
+          };
+}
+
+/**
+ * Reads one edge off the scene graph.
+ * @param edge - the edge
+ * @param p - the projector
+ * @returns the drawn edge
+ */
+export function readEdge(edge: Edge, p: Projector): DrawnEdge {
+    const internal = edge as unknown as EdgeInternals;
+    const batch = internal.lineBatch;
+    let world: Vector3[] = [];
+    let kind: DrawnEdge["kind"] = "other";
+    let thicknessPx = 0;
+    let screenFloored = false;
+    let color: string | null = null;
+    let opacity = 1;
+    let pattern: string | null = null;
+    let dashPx: number[] | null = null;
+    if (batch !== null) {
+        const slots = internal.lineSlots;
+        const flat = (batch.mesh.metadata as { is2DLine?: boolean } | null)?.is2DLine === true;
+        const run = edge.drawnCurve;
+        if (run !== null) {
+            // a run of slots: a curve, straight segments through the line's bends, or a self-loop
+            // or a fanned parallel edge, which are arcs whatever the style
+            world = run;
+            const straight = flat ? "line-2d" : "screen-line";
+            kind = internal.drawnStyle?.line?.bezier === true || !internal.lineIsCurve ? "curve" : straight;
+        } else {
+            world = slots.length > 0 ? batch.endsOf(slots[0]) : [];
+            kind = flat ? "line-2d" : "screen-line";
+        }
+        const mid = world[Math.floor(world.length / 2)] ?? Vector3.Zero();
+        thicknessPx = lineThickness(batch.mesh, mid, p);
+        screenFloored = thicknessPx > 0 && thicknessPx <= screenFloorOf(batch.mesh);
+        // a batch keyed by shape draws each slot in its own color and opacity
+        const own = slots.length > 0 ? slotColor(batch, slots[0]) : null;
+        const m = own ?? materialColor(batch.mesh.material);
+        color = m ? hex(m.rgb) : null;
+        // A flat line's style opacity, not its material's alpha: a sub-pixel line is drawn one pixel
+        // wide with its alpha scaled by its width, the same ink as its own width at full opacity.
+        const meta = batch.mesh.metadata as {
+            lineOpacity?: number;
+            joinedLine?: boolean;
+            pattern?: { kind: string };
+        } | null;
+        // a dashed or dotted line through bends or round a loop is a joined line that draws its own pattern
+        pattern = meta?.pattern?.kind ?? null;
+        dashPx = joinedDashes(batch, slots, meta?.pattern, mid, p);
+        const styled = own?.alpha ?? meta?.lineOpacity;
+        // A joined line's shader draws its own `opacity` and never reads the mesh's visibility, which
+        // it sets only to be drawn in the transparent pass, so the visibility is not ink.
+        const visibility = meta?.joinedLine === true ? 1 : batch.mesh.visibility;
+        opacity = (styled ?? m?.alpha ?? 1) * visibility;
+    } else if (edge.mesh instanceof PatternedLineMesh) {
+        kind = "pattern";
+        const pm = edge.mesh;
+        const fields = pm as unknown as PatternInternals;
+        ({ pattern } = pm);
+        // a wave with a period of its own runs from end to end of what it drew, not from element to element
+        // a dash or dot pattern's line runs from where it was laid to its end, as a stroke's dashes do, not from its
+        // first element's middle to its last's: a wide dotted line's route started half a dot late, and one element
+        // on a line too short for two had no route at all (`pajek-synth-lines` 12 -> 13, 2 -> 3)
+        // and along the route it was laid on, its bends, curve or loop too (issue #3102)
+        world = pm.drawnRoute() ?? pm.elements.map((el: ArrowCap) => el.position);
+        const mid = world[Math.floor(world.length / 2)] ?? Vector3.Zero();
+        // a wave with a swing of its own is a line `width` thick waving across its path: as thick as the band one
+        // period of it draws, read as an outline drawn as a fill is (twice its area over its edges)
+        const thick =
+            fields.wave === undefined
+                ? fields.width
+                : piecesThickness([PatternedLineRenderer.wavePiece(pm.pattern, fields.width, fields.wave)]);
+        thicknessPx = thick * p.pxPerWorld(mid);
+        color = cssColor(fields.color).hex;
+        ({ opacity } = fields);
+        dashPx = elementDashes(pm.elements, p);
+    } else if ((edge as unknown as { pulled: { run: unknown[] | null } | null }).pulled?.run === null) {
+        // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centres
+        world = [edge.srcNode.drawnPosition, edge.dstNode.drawnPosition];
+    }
+    // An arrow is part of the edge as drawn: its tip, not the line it caps, is where the edge ends.
+    // The line stops short of a tip by the arrow's length, which on a short edge between two ports
+    // can turn it round; a route judged to the node center from there would not be the one drawn.
+    // A cap drawn part-way along its line (`ArrowStyle.position`) is no end: the line runs on past it to its node.
+    const tip = (cap: ArrowCap | null, position: number | undefined): Vector3 | null =>
+        cap !== null && !cap.isDisposed() && cap.visibility > 0 && !((position ?? 0) > 0) ? cap.position.clone() : null;
+    const tail = tip(edge.arrowTailCap, internal.drawnStyle?.arrowTail?.position);
+    const head = tip(edge.arrowCap, internal.drawnStyle?.arrowHead?.position);
+    const [lineFrom, lineTo] = [world.at(0), world.at(-1)];
+    if (world.length >= 2 && tail !== null) {
+        world = [tail, ...world.slice(1)];
+    }
+    if (world.length >= 2 && head !== null) {
+        world = [...world.slice(0, -1), head];
+    }
+    // the caps in the order drawnCaps lists them: each end cap followed by the row drawn behind it (`stack`)
+    const capObjects = [
+        edge.arrowCap,
+        ...edge.arrowHeadStackCaps,
+        edge.arrowTailCap,
+        ...edge.arrowTailStackCaps,
+        edge.arrowMiddleHeadCap,
+        edge.arrowMiddleTailCap,
+    ].filter((cap) => cap !== null && !cap.isDisposed());
+    const caps = edge.drawnCaps.map((c, k) => {
+        const cap = capObjects[k];
+        const at = cap?.position ?? Vector3.Zero();
+        // a billboard's color is its slot's; a flat cap's, its batch's material
+        const look = cap?.drawnAppearance?.colour ?? null;
+        const material = look === null ? materialColor(cap?.batchMesh?.material ?? null) : null;
+        const rgb = look ?? material?.rgb ?? null;
+        // an end cap drawn past the middle of its line (`ArrowStyle.position` above 0.5) sits at the other end, and is
+        // read there, as a reader of the drawing finds it (Pajek's `ap 1`: the head drawn at the source end)
+        const other = OTHER_END[c.end];
+        const own = c.end === "arrowHead" ? internal.drawnStyle?.arrowHead : internal.drawnStyle?.arrowTail;
+        const across = other !== undefined && (own?.position ?? 0) > 0.5;
+        return {
+            end: across ? other : c.end,
+            // read there, it points back along its line: a head's triangle into the line from its source end
+            name: across ? pointingBack(c.name) : c.name,
+            sizePx: c.span * p.pxPerWorld(at),
+            outline: capOutline(cap, p),
+            color: rgb === null ? null : hex(rgb),
+            opacity: c.visibility * (material?.alpha ?? 1),
+            gap:
+                (c.end === "arrowHead" ? internal.drawnStyle?.arrowHead?.gap : undefined) ??
+                (c.end === "arrowTail" ? internal.drawnStyle?.arrowTail?.gap : undefined) ??
+                0,
+            ...(own === undefined || other === undefined ? {} : { position: own.position ?? 0 }),
+        };
+    });
+    const screenOf = (v: Vector3): [number, number] => {
+        const s = p.point(v);
+        return [s.x, s.y];
+    };
+    return {
+        kind,
+        shown: edge.isRenderVisible(),
+        points: world.map(screenOf),
+        ...(lineFrom === undefined || lineTo === undefined || world.length < 2
+            ? {}
+            : { lineEnds: [screenOf(lineFrom), screenOf(lineTo)] as [[number, number], [number, number]] }),
+        thicknessPx,
+        ...(screenFloored ? { screenFloored } : {}),
+        color,
+        opacity,
+        pattern,
+        dashPx,
+        outline: readOutline(internal, p),
+        overlay: readOverlay(internal, p),
+        caps,
+        label: readLabel(edge.label, p),
+        endLabels: [edge.arrowTailText, edge.arrowHeadText].flatMap((l) => {
+            const read = readLabel(l, p);
+            return read === null ? [] : [read];
+        }),
+        gradient:
+            edge.drawnGradient.length === 0
+                ? null
+                : {
+                      kind: internal.drawnStyle?.line?.gradient?.kind === "radial" ? "radial" : "linear",
+                      colors: edge.drawnGradient,
+                  },
+    };
+}
+
+/** One file annotation as drawn: its kind, its text and the screen box of its geometry. */
+export interface DrawnAnnotation {
+    kind: "shape" | "text" | "arrow" | "image";
+    text?: string;
+    box: ScreenBox;
+    /** An arrow's heads, each one's screen box. */
+    heads?: ScreenBox[];
+    /** A piece over a node's face: its color. */
+    fill?: string;
+}
+
+/**
+ * Reads the file annotations off the scene: the meshes whose metadata names an annotation.
+ * @param scene - the scene
+ * @param p - the projector
+ * @returns the annotations
+ */
+export function readAnnotations(scene: Scene, p: Projector): DrawnAnnotation[] {
+    return scene.meshes.flatMap((mesh) => {
+        const a = (mesh.metadata as Partial<AnnotationMeshMetadata> | null)?.annotation;
+        if (a === undefined || !mesh.isEnabled()) {
+            return [];
+        }
+        const { z } = mesh.getAbsolutePosition();
+        const onScreen = (b: { x0: number; y0: number; x1: number; y1: number }): ScreenBox => {
+            const corners = [p.point(new Vector3(b.x0, b.y0, z)), p.point(new Vector3(b.x1, b.y1, z))];
+            return {
+                x0: Math.min(...corners.map((c) => c.x)),
+                x1: Math.max(...corners.map((c) => c.x)),
+                y0: Math.min(...corners.map((c) => c.y)),
+                y1: Math.max(...corners.map((c) => c.y)),
+                near: Math.min(...corners.map((c) => c.depth)),
+                far: Math.max(...corners.map((c) => c.depth)),
+            };
+        };
+        return [
+            {
+                kind: a.kind,
+                ...(a.text === undefined ? {} : { text: a.text }),
+                box: onScreen(a.box),
+                ...(a.heads === undefined ? {} : { heads: a.heads.map(onScreen) }),
+            },
+        ];
+    });
+}
+
+/** Everything drawn, keyed by node and edge id. */
+export interface DrawnGraph {
+    nodes: Map<string, DrawnNode>;
+    edges: Map<string, DrawnEdge>;
+    /** The file annotations drawn beside the graph. */
+    annotations: DrawnAnnotation[];
+    /** The clear color, and its alpha: below 1 the page behind the canvas shows through. */
+    background: { hex: string; alpha: number };
+    width: number;
+    height: number;
+}
+
+/**
+ * Reads the whole drawn graph. Call after a stable frame.
+ * @param graph - the element's graph (`element.graph`)
+ * @returns what was drawn
+ */
+export function readDrawn(graph: Graph): DrawnGraph {
+    const scene = graph.getScene();
+    const p = new Projector(scene);
+    const rings = ringsOf(scene, p.width);
+    const dm = graph.getDataManager();
+    const nodes = new Map<string, DrawnNode>();
+    for (const [id, node] of dm.nodes) {
+        nodes.set(String(id), readNode(node, p, rings));
+    }
+    const edges = new Map<string, DrawnEdge>();
+    for (const [id, edge] of dm.edges) {
+        edges.set(id, readEdge(edge, p));
+    }
+    // what a node draws over its face is drawn beside the node's own shape, as a file annotation is
+    // and so is the shadow it draws beneath itself, a picture of its own as a program's soft shadow is
+    const shown = [...nodes.values()].filter((n) => n.shown);
+    const pieces = [
+        ...shown.flatMap((n) => n.pieces),
+        ...shown.flatMap((n) => (n.shadow === undefined ? [] : [{ kind: "image" as const, box: n.shadow }])),
+        // and so are the shapes it draws beneath and over itself (Cytoscape.js's underlay and overlay)
+        ...shown.flatMap((n) => (n.halos ?? []).map((h) => ({ kind: "shape" as const, ...h }))),
+    ];
+    return {
+        nodes,
+        edges,
+        annotations: [...readAnnotations(scene, p), ...pieces],
+        background: { hex: hex(scene.clearColor), alpha: scene.clearColor.a },
+        width: p.width,
+        height: p.height,
+    };
+}

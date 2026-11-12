@@ -39,7 +39,7 @@
  * is why the all-pairs sweep has its own key rather than a switch on shortest-path.
  */
 
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { AStarAlgorithm } from "../algorithms/AStarAlgorithm";
 import { BellmanFordAlgorithm } from "../algorithms/BellmanFordAlgorithm";
@@ -153,6 +153,10 @@ interface MetricValue {
      * naming a unit for one would be inventing a measurement.
      */
     unit?: string;
+    /** The fixed range the measure defines, such as 0 to 1 for a share. */
+    domain?: FieldDescriptor["domain"];
+    /** `"lower"` when a smaller value counts as more, as a distance does. */
+    polarity?: FieldDescriptor["polarity"];
 }
 
 /**
@@ -173,9 +177,18 @@ function metricFields(kind: "node" | "edge", value: MetricValue): readonly Field
             kind,
             type: value.type ?? "number",
             ...(value.unit === undefined ? {} : { unit: value.unit }),
+            ...(value.domain === undefined ? {} : { domain: value.domain }),
+            ...(value.polarity === undefined ? {} : { polarity: value.polarity }),
         }),
-        field({ name: "rank", plainName: "Rank", technicalName: "rank", kind, type: "integer" }),
-        field({ name: "percentile", plainName: "Percentile", technicalName: "percentile", kind, type: "number" }),
+        field({ name: "rank", plainName: "Rank", technicalName: "rank", kind, type: "integer", polarity: "lower" }),
+        field({
+            name: "percentile",
+            plainName: "Percentile",
+            technicalName: "percentile",
+            kind,
+            type: "number",
+            domain: { min: 0, max: 1 },
+        }),
         field({ name: "min", plainName: "Lowest", technicalName: "min", kind: "graph", type: "number" }),
         field({ name: "max", plainName: "Highest", technicalName: "max", kind: "graph", type: "number" }),
         field({ name: "median", plainName: "Middle", technicalName: "median", kind: "graph", type: "number" }),
@@ -245,6 +258,8 @@ function communityFields(plainName: string, withModularity: boolean): readonly F
             kind: "node",
             type: "integer",
             measurement: "categorical",
+            // A re-run may number the same groups differently.
+            unstable: true,
         }),
         field({
             name: "groupSize",
@@ -320,10 +335,15 @@ interface AlgorithmOptionsSource {
  * The class's Zod schema is the single source of truth for every option it already has; this
  * table adds names and costs, never option definitions.
  * @param algorithm - The registered algorithm class to read.
+ * @param overrides - Descriptor fields a Zod schema cannot express, by option name: that a string
+ * names an edge attribute, or that an option is accepted only for compatibility and is `internal`.
  * @returns The class's option descriptors, in declaration order.
  */
-function optionsOf(algorithm: AlgorithmOptionsSource): readonly OptionDescriptor[] {
-    return optionsFromZod(algorithm.getZodOptionsSchema());
+function optionsOf(
+    algorithm: AlgorithmOptionsSource,
+    overrides: Readonly<Record<string, Partial<OptionDescriptor>>> = {},
+): readonly OptionDescriptor[] {
+    return optionsFromZod(algorithm.getZodOptionsSchema(), { overrides });
 }
 
 /**
@@ -371,6 +391,7 @@ const shortestPathEngineOptions = defineOptions({
                 "Which engine computes the paths. Left unset, the element uses Dijkstra when every weight is zero or above and Bellman-Ford when any weight is negative.",
             advanced: true,
             group: "engine",
+            choiceLabels: { dijkstra: "Dijkstra", "bellman-ford": "Bellman-Ford" },
         },
     },
 });
@@ -391,6 +412,20 @@ const componentStrengthOptions = defineOptions({
 // The table
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * The `weight` option every algorithm with a weighted form takes: absent, the weight the graph was
+ * loaded with; null, none; an edge column's name, or `{ attribute, meaning }`, that column for this
+ * run. A weight whose meaning the algorithm does not read is left unread (`caveats.weightSkipped`).
+ */
+const WEIGHT_OPTION: OptionDescriptor = {
+    name: "weight",
+    plainName: "Weight",
+    technicalName: "weight",
+    type: "attribute",
+    on: "edge",
+    description: "The edge column read as the weight. Absent: the weight the graph was loaded with; null: none.",
+};
+
 /** The built-in descriptors as written, before what is read from the classes is added. */
 const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
     {
@@ -399,6 +434,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         technicalName: "Degree centrality",
         description: "Counts how many edges each node has, incoming, outgoing and in total.",
         category: "centrality",
+        keywords: ["connections", "links", "neighbors"],
         shape: "node-metric",
         fields: [
             ...metricFields("node", {
@@ -413,6 +449,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 technicalName: "inDegree",
                 kind: "node",
                 type: "integer",
+                directedOnly: true,
             }),
             field({
                 name: "outDegree",
@@ -420,6 +457,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 technicalName: "outDegree",
                 kind: "node",
                 type: "integer",
+                directedOnly: true,
             }),
         ],
         options: optionsOf(DegreeAlgorithm),
@@ -434,6 +472,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         description:
             "Scores a node by how many of the shortest paths between other nodes run through it, which is what finds the bridges.",
         category: "centrality",
+        keywords: ["bridges", "brokers", "gatekeepers"],
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Bridging", technicalName: "betweenness" }),
         options: optionsOf(BetweennessCentralityAlgorithm),
@@ -475,9 +514,13 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         technicalName: "PageRank",
         description: "Ranks a node by the influence that flows into it from the nodes that point at it.",
         category: "centrality",
+        keywords: ["influence", "importance"],
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Influence", technicalName: "PageRank score" }),
-        options: optionsOf(PageRankAlgorithm),
+        options: optionsOf(PageRankAlgorithm, {
+            weight: { type: "attribute", on: "edge" },
+            useDelta: { internal: true },
+        }),
         costClass: "iterative",
         complexity: "O(k(n + m))",
         legacyKeys: [{ key: "pagerank" }],
@@ -540,9 +583,10 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         description:
             "Groups nodes into communities by repeatedly merging the groups whose merger tightens the partition the most.",
         category: "community",
+        keywords: ["communities", "clusters", "groups"],
         shape: "community",
         fields: communityFields("Community", true),
-        options: optionsOf(LouvainAlgorithm),
+        options: optionsOf(LouvainAlgorithm, { useOptimized: { internal: true } }),
         costClass: "iterative",
         complexity: "O(k(n + m))",
         legacyKeys: [{ key: "louvain" }],
@@ -656,6 +700,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         description:
             "Finds the cheapest route from one node to another, and how far every reachable node is from the source.",
         category: "path",
+        keywords: ["route", "distance", "path between"],
         shape: "path",
         fields: [
             field({
@@ -678,6 +723,8 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 technicalName: "distance",
                 kind: "node",
                 type: "number",
+                polarity: "lower",
+                missing: "unreached",
             }),
             field({
                 name: "onPath",
@@ -704,7 +751,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
             HAS_NEGATIVE_CYCLE,
         ],
         options: mergeOptions(
-            optionsOf(DijkstraAlgorithm),
+            optionsOf(DijkstraAlgorithm, { bidirectional: { internal: true } }),
             optionsOf(BellmanFordAlgorithm),
             optionsFromZod(shortestPathEngineOptions),
         ),
@@ -783,7 +830,11 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "path",
         shape: "node-metric",
         fields: [
-            ...metricFields("node", { plainName: "Distance to the furthest node", technicalName: "eccentricity" }),
+            ...metricFields("node", {
+                plainName: "Distance to the furthest node",
+                technicalName: "eccentricity",
+                polarity: "lower",
+            }),
             field({
                 name: "diameter",
                 plainName: "Widest distance",
@@ -811,6 +862,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         technicalName: "Breadth-first search",
         description: "Walks outwards from one node a level at a time, recording how many steps away each node is.",
         category: "path",
+        keywords: ["hops", "steps", "reachable"],
         shape: "layered-grouping",
         fields: [
             field({
@@ -820,6 +872,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 kind: "node",
                 type: "integer",
                 measurement: "categorical",
+                missing: "unreached",
             }),
             field({
                 name: "levelSize",
@@ -995,6 +1048,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         description:
             "Peels the graph layer by layer and gives each node the depth of the most tightly knit core it belongs to: a node of depth k has at least k neighbors inside that core.",
         category: "structure",
+        keywords: ["core", "dense center"],
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Core depth", technicalName: "core number", type: "integer" }),
         options: optionsOf(KCoreAlgorithm),
@@ -1011,7 +1065,11 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "structure",
         shape: "node-metric",
         fields: [
-            ...metricFields("node", { plainName: "How tightly knit", technicalName: "local clustering coefficient" }),
+            ...metricFields("node", {
+                plainName: "How tightly knit",
+                technicalName: "local clustering coefficient",
+                domain: { min: 0, max: 1 },
+            }),
             field({
                 name: "triangles",
                 plainName: "Triangles",
@@ -1064,7 +1122,10 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
 ];
 
 /** Every built-in class, by the 1.10 key its `static type` carries, for what the table derives from them. */
-const CLASSES: ReadonlyMap<string, { readonly scopeInput?: string }> = new Map(
+const CLASSES: ReadonlyMap<
+    string,
+    { readonly scopeInput?: string; readonly weightMeaning: AlgorithmDescriptor["weightMeaning"] }
+> = new Map(
     [
         AStarAlgorithm,
         BellmanFordAlgorithm,
@@ -1110,12 +1171,19 @@ const CLASSES: ReadonlyMap<string, { readonly scopeInput?: string }> = new Map(
  * `scopeInput` is read from the classes rather than written here, so it cannot disagree with what
  * a run computes over: a folded key computes over its scope only when every class behind it does.
  */
-export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = AUTHORED_ALGORITHMS.map((descriptor) => ({
-    ...descriptor,
-    scopeInput: descriptor.legacyKeys.every((legacy) => CLASSES.get(legacy.key)?.scopeInput === "subgraph")
-        ? "subgraph"
-        : "none",
-}));
+export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = AUTHORED_ALGORITHMS.map((descriptor) => {
+    // Every class behind a folded key reads the same meaning (both shortest-path engines read a distance).
+    const weightMeaning = CLASSES.get(descriptor.legacyKeys[0].key)?.weightMeaning ?? null;
+
+    return {
+        ...descriptor,
+        options: weightMeaning === null ? descriptor.options : [...descriptor.options, WEIGHT_OPTION],
+        weightMeaning,
+        scopeInput: descriptor.legacyKeys.every((legacy) => CLASSES.get(legacy.key)?.scopeInput === "subgraph")
+            ? "subgraph"
+            : "none",
+    };
+});
 
 // ---------------------------------------------------------------------------------------------
 // Lookups
@@ -1128,6 +1196,44 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = AUTHOR
  */
 export function algorithmByKey(key: string): BuiltInAlgorithmDescriptor | undefined {
     return BUILT_IN_ALGORITHMS.find((descriptor) => descriptor.key === key);
+}
+
+/**
+ * The catalog key a name means: its own key, any case, `_` for `-`, a `graphty:` prefix, or a
+ * legacy key (`dijkstra` is `shortest-path` with `method: "dijkstra"`).
+ * @param name - The name, as the model wrote it.
+ * @param algorithms - The algorithms to look in.
+ * @returns The key and the parameters the legacy key implies, or undefined.
+ */
+export function algorithmKeyOf(
+    name: string,
+    algorithms: readonly AlgorithmDescriptor[],
+): { key: string; params: Readonly<Record<string, unknown>> } | undefined {
+    const bare = name.trim().replace(/^graphty:/i, "");
+    const lower = bare.toLowerCase().replaceAll("_", "-");
+    const direct = algorithms.find((entry) => entry.key === bare || entry.key.toLowerCase() === lower);
+    if (direct !== undefined) {
+        return { key: direct.key, params: {} };
+    }
+
+    const legacy = algorithmByLegacyKey(lower) ?? algorithmByLegacyKey(lower.replaceAll("-", ""));
+    return legacy === undefined ? undefined : { key: legacy.descriptor.key, params: legacy.params };
+}
+
+/**
+ * The built-in algorithm an assistant's tool call runs, however the model spelled its name.
+ * @param tool - The call's tool.
+ * @param args - The call's arguments.
+ * @returns The descriptor, or undefined when the call runs none.
+ * @experimental assistant
+ */
+export function calledAlgorithm(
+    tool: string,
+    args: Readonly<Record<string, unknown>> | undefined,
+): BuiltInAlgorithmDescriptor | undefined {
+    const name = tool === "run_algorithm" ? args?.name : undefined;
+    const found = typeof name === "string" ? algorithmKeyOf(name, BUILT_IN_ALGORITHMS) : undefined;
+    return found === undefined ? undefined : algorithmByKey(found.key);
 }
 
 /** Where a 1.10 key ended up: the descriptor that replaced it, and the parameters it needs. */

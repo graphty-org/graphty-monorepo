@@ -1,0 +1,12 @@
+# pantries.csv joined with deliveries.csv, then a Data source filter card (switched to Filter to) that keeps what came from pantries.csv (P13 left out), the state T66 leaves
+--click Open a file
+--upload pantries.csv
+--click Data
+--click Add source
+--click File...
+--upload deliveries.csv
+--click role=button:Join
+--click Add filter
+--click Data source
+--click role=checkbox:pantries.csv
+--click role=radio:Filter to

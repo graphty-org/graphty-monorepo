@@ -536,10 +536,14 @@ export class EventManager implements Manager {
             case "data-loading-complete":
             case "zoom-to-fit-complete":
             case "graph-frame-stable":
+            case "graph-first-frame":
             case "elements-removed":
             case "selection-changed":
             case "graph-started":
             case "layout-changed":
+            case "layout-warning":
+            case "limits-warning":
+            case "basemap-status":
             case "operation-cancelled":
             case "stats-update":
             case "input-enabled-changed":
@@ -567,7 +571,20 @@ export class EventManager implements Manager {
             case "ai-stream-tool-result":
             case "ai-voice-start":
             case "ai-voice-transcript":
-            case "ai-voice-end": {
+            case "ai-voice-end":
+            case "ai-voice-level":
+            case "ai-voice-support-change":
+            case "ai-speech-start":
+            case "ai-speech-end":
+            case "ai-approval-requested":
+            case "ai-export-ready":
+            case "ai-conversation-changed":
+            case "ai-pending-resolved":
+            case "ai-question-asked":
+            case "ai-agent-start":
+            case "ai-agent-end":
+            case "ai-hosted-tool-result":
+            case "ai-capability-unavailable": {
                 // The ai-* events travel on the graph observable too (see AiManager), so the
                 // element's DOM forwarder delivers them as well.
                 const observer = this.graphObservable.add((event) => {

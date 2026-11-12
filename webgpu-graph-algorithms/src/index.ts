@@ -139,6 +139,7 @@ export type {
     AdapterSummary,
     DeviceCheck,
     DeviceCheckMismatch,
+    FromOptions,
     GpuCaps,
     GpuContextOptions,
     LimitPolicy,
@@ -152,6 +153,8 @@ export type {
 // ==================== types: layouts (P3; the P5 stats and trace records; the P4 calibration records)
 export type {
     CalibrateOptions,
+    DrawnOutput,
+    DrawnTransform,
     ForceAtlas2Stats,
     ForceAtlas2TraceRecord,
     FruchtermanReingoldStats,
@@ -165,6 +168,8 @@ export type {
     SpringElectricalTraceRecord,
 } from "./types/layout.js";
 export type {
+    ClusterOptions,
+    CollisionOptions,
     CommonLayoutOptions,
     ForceAtlas2Options,
     FruchtermanReingoldOptions,

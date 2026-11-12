@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -37,13 +37,23 @@ const manifest = JSON.parse(readFileSync(resolve(PACKAGE_ROOT, "package.json"), 
  */
 const MODULE_ENTRIES: readonly { subpath: string; source: string; output: string }[] = [
     { subpath: ".", source: "index.ts", output: "graphty" },
-    ...["session", "schema", "catalog", "commands", "extend", "format", "logging", "react", "webgpu", "ai"].map(
-        (name) => ({
-            subpath: `./${name}`,
-            source: `${name}.ts`,
-            output: name,
-        }),
-    ),
+    ...[
+        "session",
+        "schema",
+        "catalog",
+        "commands",
+        "extend",
+        "format",
+        "logging",
+        "react",
+        "webgpu",
+        "ai",
+        "credentials",
+    ].map((name) => ({
+        subpath: `./${name}`,
+        source: `${name}.ts`,
+        output: name,
+    })),
 ];
 
 /**
@@ -87,6 +97,15 @@ const REGISTRATION_MODULES = [
  * only a production build (a static Storybook, a visual-review capture) shows it.
  */
 const SOURCE_ENTRY_MODULES = ["./index.ts", "./src/graphty-element.ts"];
+
+/**
+ * The guide's example files (docs/examples/), which stories run as the reader would. A plugin
+ * example registers itself when it is imported -- `defineAlgorithm(...)`, `definePalette(...)` --
+ * and exports nothing, so a build told it is pure emits an empty chunk for it: the built
+ * Storybook's simple-tier algorithm and palette stories then ran with nothing registered (#5201).
+ * Not published, so it changes nothing for a consumer.
+ */
+const DOC_EXAMPLE_MODULES = ["./docs/examples/**/*.ts"];
 
 /**
  * Names that mean three incompatible things across this package and its siblings, so no barrel
@@ -235,7 +254,7 @@ describe("what the package promises about side effects and size", () => {
     it("declares a side effect for every published file that has one, and for nothing else", () => {
         assert.deepEqual(
             [...manifest.sideEffects].sort(),
-            [...SIDE_EFFECTFUL, ...REGISTRATION_MODULES, ...SOURCE_ENTRY_MODULES].sort(),
+            [...SIDE_EFFECTFUL, ...REGISTRATION_MODULES, ...SOURCE_ENTRY_MODULES, ...DOC_EXAMPLE_MODULES].sort(),
         );
     });
 
@@ -298,6 +317,26 @@ describe("the sibling packages", () => {
         // `>=0.6.0 <1.0.0` this line used to pin said the same thing by hand and had to be edited
         // every time the requirement moved.
         assert.strictEqual(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"], "workspace:^");
+    });
+
+    it("takes Graphviz as an optional peer that only the Graphviz Worker imports", () => {
+        assert.isDefined(manifest.peerDependencies["@hpcc-js/wasm-graphviz"]);
+        assert.isTrue(manifest.peerDependenciesMeta["@hpcc-js/wasm-graphviz"]?.optional);
+        assert.isUndefined(manifest.dependencies["@hpcc-js/wasm-graphviz"]);
+        const importers = readdirSync(resolve(PACKAGE_ROOT, "src"), { recursive: true, encoding: "utf8" })
+            .filter((file) => file.endsWith(".ts"))
+            .filter((file) =>
+                /from "@hpcc-js\/wasm-graphviz"|import\("@hpcc-js\/wasm-graphviz"\)/.test(
+                    readFileSync(resolve(PACKAGE_ROOT, "src", file), "utf8"),
+                ),
+            );
+        assert.deepEqual(importers, ["layout/graphviz/loader.ts"]);
+    });
+
+    it("leaves Graphviz out of ./bundle", () => {
+        const bundle = resolve(PACKAGE_ROOT, "dist/graphty.bundle.js");
+        // Graphviz's own entry points, which only its library code defines.
+        assert.notMatch(readFileSync(bundle, "utf8"), /CGraphviz|graphvizlib/);
     });
 
     it.each(MODULE_ENTRIES)("$subpath re-exports no name that means three different things", ({ source }) => {

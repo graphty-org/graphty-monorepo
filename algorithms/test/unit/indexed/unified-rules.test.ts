@@ -93,8 +93,8 @@ describe("one weight rule", () => {
             ["closenessCentrality", (s, o) => closenessCentrality(s, o).scores],
         ];
         for (const [name, run] of runs) {
-            expect([...run(directed, {})], name).toEqual([...run(directed, { weighted: true })]);
-            expect([...run(directed, { weighted: false })], name).toEqual([...run(directedPlain, {})]);
+            expect(Array.from(run(directed, {})), name).toEqual(Array.from(run(directed, { weighted: true })));
+            expect(Array.from(run(directed, { weighted: false })), name).toEqual(Array.from(run(directedPlain, {})));
             expect(l1(run(directed, {}), run(directedPlain, {})), name).toBeGreaterThan(1e-3);
         }
     });

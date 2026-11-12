@@ -34,6 +34,9 @@ const HOOK_ORDER: readonly DerivedSlice[] = [
     "arrangement",
     "config",
     "attributes",
+    "valueLabels",
+    // Before styles, whose layers name a pasted shader by id.
+    "shaders",
     "runs",
     // After runs, which a set may read; before styles and visibility, which read sets.
     "sets",
@@ -63,7 +66,7 @@ interface Pass {
 }
 
 /** The keyed slices: the maps and the set a pass copies key by key. */
-type KeyedSlice = "pins" | "config" | "runs" | "sets" | "views" | "notes" | "attributes";
+type KeyedSlice = "pins" | "config" | "runs" | "sets" | "views" | "notes" | "attributes" | "valueLabels" | "shaders";
 
 /** A copy of every keyed slice, owned by the lane and written by nothing else. */
 type Copies = { [S in KeyedSlice]: Map<unknown, unknown> | Set<unknown> };
@@ -82,6 +85,8 @@ function copyAll(state: ProjectState): Copies {
         views: new Map(state.views),
         notes: new Map(state.notes),
         attributes: new Map(state.attributes),
+        valueLabels: new Map(state.valueLabels),
+        shaders: new Map(state.shaders),
     };
 }
 
@@ -199,9 +204,19 @@ export class DerivationLane {
     /**
      * Told at the end of every pass, after its hooks have brought the picture up to date: the one
      * place every change to project state passes on its way to the screen, so a renderer that
-     * skips frames while nothing changes is told here that something did.
+     * skips frames while nothing changes is told here that something did, and which keys of which
+     * slices the pass derived.
      */
-    passEnded: (() => void) | null = null;
+    passEnded: ((dirty: ReadonlyMap<DerivedSlice, ReadonlySet<string>>) => void) | null = null;
+    /**
+     * Told when the lane goes idle -- its last pass has ended and none waits -- with every slice
+     * the passes since it last went idle derived, whatever scheduled them: a commit, or a touch
+     * with no commit behind it (a deferred repaint, an import's end). Called synchronously once the
+     * last pass's promise has resolved, before the reactions to it run.
+     */
+    drained: ((slices: ReadonlySet<DerivedSlice>) => void) | null = null;
+    /** The slices derived since the lane last went idle. */
+    private sinceIdle = new Set<DerivedSlice>();
     /** What the running pass, or the last one, catches up with. */
     private passCauseValue: HistoryCause = "command";
 
@@ -334,6 +349,15 @@ export class DerivationLane {
     }
 
     /**
+     * Whether a pass is running or waiting to run: {@link DerivationLane.settled} asked without
+     * waiting, for a renderer that has to decide inside a frame.
+     * @returns True until the picture has caught up with every change made so far.
+     */
+    get deriving(): boolean {
+        return this.current !== null || this.next !== null;
+    }
+
+    /**
      * Stop deriving, for a session's `dispose()`: no pass starts after this, the pass running
      * calls no further hook, and whatever awaits a pass is released. A hook run after its
      * session was disposed would read a store that is already gone.
@@ -380,36 +404,81 @@ export class DerivationLane {
 
             for (const slice of HOOK_ORDER) {
                 const keys = dirty.get(slice);
-                for (const hook of keys === undefined ? [] : [...(this.hooks.get(slice) ?? [])]) {
+                for (const hook of this.hooksFor(slice, keys)) {
                     if (this.closed) {
                         break;
                     }
                     await this.call(hook, target, keys ?? new Set());
                 }
 
-                if (slice === "arrangement" && this.restores === restores) {
-                    this.restoringFlag = false;
-                }
+                this.endSlice(slice, restores);
             }
 
             this.show(target, copies, before, dirty);
-            // Checked once the picture has caught up with live state: a pass that another will
-            // follow draws a target that writes made since have already moved past.
-            if (this.afterPass !== null && this.next === null) {
-                try {
-                    this.afterPass(this.state);
-                } catch (error) {
-                    this.onError(error);
-                }
-            }
+            this.checkAfterPass();
 
             this.current = null;
             try {
-                this.passEnded?.();
+                this.passEnded?.(dirty);
             } catch (error) {
                 this.onError(error);
             }
             pass.resolve();
+            dirty.forEach((_, slice) => this.sinceIdle.add(slice));
+        }
+
+        this.idle();
+    }
+
+    /**
+     * The hooks a pass calls for one slice, copied so a hook that registers another does not
+     * change this pass: none when the slice is not dirty.
+     * @param slice - The slice.
+     * @param keys - The slice's dirty keys, undefined when it is clean.
+     * @returns The hooks.
+     */
+    private hooksFor(slice: DerivedSlice, keys: ReadonlySet<string> | undefined): DeriveHook[] {
+        return keys === undefined ? [] : [...(this.hooks.get(slice) ?? [])];
+    }
+
+    /**
+     * After a slice's hooks: the arrangement ends the restore this pass began with, unless another
+     * restore began since.
+     * @param slice - The slice whose hooks ran.
+     * @param restores - The restore count when the pass began.
+     */
+    private endSlice(slice: DerivedSlice, restores: number): void {
+        if (slice === "arrangement" && this.restores === restores) {
+            this.restoringFlag = false;
+        }
+    }
+
+    /**
+     * Checked once the picture has caught up with live state: a pass that another will follow
+     * draws a target that writes made since have already moved past.
+     */
+    private checkAfterPass(): void {
+        if (this.afterPass !== null && this.next === null) {
+            try {
+                this.afterPass(this.state);
+            } catch (error) {
+                this.onError(error);
+            }
+        }
+    }
+
+    /** Tell `drained` the slices derived since the lane last went idle. */
+    private idle(): void {
+        const slices = this.sinceIdle;
+        this.sinceIdle = new Set();
+        if (this.closed || slices.size === 0) {
+            return;
+        }
+
+        try {
+            this.drained?.(slices);
+        } catch (error) {
+            this.onError(error);
         }
     }
 

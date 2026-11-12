@@ -1,8 +1,8 @@
 {
     "mcpServers": {
-        "githerd": {
+        "pipeline-health": {
             "command": "node",
-            "args": ["${HOME}/.githerd/graphty-org_graphty-monorepo/current/bin/githerd-mcp.mjs"]
+            "args": ["tools/pipeline-health/mcp/start.mjs"]
         }
     }
 }

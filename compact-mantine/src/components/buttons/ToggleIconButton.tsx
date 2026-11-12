@@ -18,8 +18,14 @@ export interface ToggleIconButtonProps
     defaultChecked?: boolean;
     /** Called with the new state when the toggle flips. */
     onChange?: (checked: boolean) => void;
-    /** The accessible name, and the tooltip text. */
+    /** The accessible name, and the tooltip text unless `tooltip` gives other words. */
     label: string;
+    /**
+     * The tooltip's words when they differ from the accessible name: a row's eye can say "Turn
+     * this layer off" while its name keeps the row's own name, so a list of eyes stays tellable
+     * apart by a screen reader. @default label
+     */
+    tooltip?: string;
     /** The glyph. */
     icon: ReactNode;
     /** The glyph drawn while on, for a `swap` toggle (eye / eye closed). */
@@ -67,6 +73,7 @@ export const ToggleIconButton = forwardRef<HTMLButtonElement, ToggleIconButtonPr
         defaultChecked,
         onChange,
         label,
+        tooltip,
         icon,
         checkedIcon,
         variant = "fill",
@@ -135,5 +142,5 @@ export const ToggleIconButton = forwardRef<HTMLButtonElement, ToggleIconButtonPr
         </ActionIcon>
     );
 
-    return withTooltip ? <Tooltip label={label}>{button}</Tooltip> : button;
+    return withTooltip ? <Tooltip label={tooltip ?? label}>{button}</Tooltip> : button;
 });

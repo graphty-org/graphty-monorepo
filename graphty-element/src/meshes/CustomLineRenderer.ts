@@ -1,6 +1,8 @@
 import {
     Color3,
+    Constants,
     Effect,
+    type IShaderMaterialOptions,
     Mesh,
     MeshBuilder,
     Scene,
@@ -11,7 +13,207 @@ import {
     VertexData,
 } from "@babylonjs/core";
 
+import {
+    EDGE_JOIN_FRAGMENT_SHADER,
+    EDGE_JOIN_VERTEX_SHADER,
+    EDGE_MITER_LIMIT,
+    EDGE_STATIC_ATTRIBUTES,
+    JOIN_TEMPLATE_INDICES,
+    JOIN_TEMPLATE_POSITIONS,
+} from "./edgeJoinShader";
+import type { EdgeAgeState } from "./FrameRoster";
 import { PerSceneMaterials } from "./PerSceneMaterials";
+
+/** The define a line fading by age is compiled with. */
+const AGED_DEFINE = "#define EDGE_AGED";
+
+/**
+ * Add or remove what fading by age adds to a line material's options.
+ * @param options - The options, changed in place.
+ * @param aged - Whether the line fades by age.
+ * @param blends - Whether it blends without fading by age.
+ */
+function agedOptions(options: IShaderMaterialOptions, aged: boolean, blends: boolean): void {
+    const without = <T>(list: T[], item: T): void => {
+        const at = list.indexOf(item);
+        if (at !== -1) {
+            list.splice(at, 1);
+        }
+    };
+    const toggle = <T>(list: T[], item: T): void => {
+        without(list, item);
+        if (aged) {
+            list.push(item);
+        }
+    };
+    toggle(options.defines, AGED_DEFINE);
+    toggle(options.attributes, "edgeAge");
+    toggle(options.uniforms, "edgeAgeWindow");
+    options.needAlphaBlending = aged || blends;
+}
+
+/** A line's fade by its length on screen, in CSS pixels; see `line.fade`. */
+export interface EdgeFade {
+    /** The length up to which the line does not fade. */
+    readonly start: number;
+    /** The length from which it draws at `opacity` times its own. */
+    readonly end: number;
+    /** What the fade multiplies the line's opacity by at `end`. */
+    readonly opacity: number;
+}
+
+/** How a joined line mesh looks; see {@link CustomLineRenderer.createJoinedLineMesh}. */
+export interface JoinedLineOptions {
+    /** The line's width: screen width (the 3D line's own scale), or world units with `worldWidth`. */
+    width: number;
+    /** Hex colour. */
+    color: string;
+    /** Opacity 0-1; default 1. */
+    opacity?: number;
+    /** Whether `width` is in world units, so the line zooms with the graph (2D, and patterns). */
+    worldWidth?: boolean;
+    /** The fewest screen pixels wide the line is drawn at any zoom (`line.minScreenWidth`); default 0. */
+    minScreenWidth?: number;
+    /**
+     * Fade by the edge's length on screen (`line.fade`, `EDGE_FADE`), read from the whole edge's
+     * length, which only a widened batch carries; so it implies `widened`.
+     */
+    fade?: EdgeFade | undefined;
+    /** Draw without alpha blending (`line.blending` false): every fragment at full strength. */
+    opaque?: boolean | undefined;
+    /** A dashed or dotted line: its element's length along the line (world units), its kind, count and gap. */
+    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined; gap?: number | undefined };
+    /**
+     * Whether its slots carry the static values a taper or a shader reads (`EDGE_WIDENED`). A
+     * plain line leaves it out and draws exactly as before.
+     */
+    widened?: boolean;
+    /**
+     * A shader drawn on the line (`EDGE_SHADED`): its name, the text of its fragment stage (the
+     * join fragment with the shader runtime's definitions after it) and what that declares.
+     * Implies `widened`.
+     *
+     * The text goes to Babylon inline, never through a shader store: the module that writes it
+     * loads lazily, and on a page where that gave it a second copy of Babylon, its store is not
+     * the engine's, which is the one the compile reads (issue #5894).
+     */
+    program?: {
+        readonly name: string;
+        readonly fragment: string;
+        readonly uniforms: readonly string[];
+        readonly samplers: readonly string[];
+        readonly uniformBuffers: readonly string[];
+    };
+    /** How it blends: straight alpha over (the default), premultiplied over, or added. */
+    blend?: "combine" | "premultiplied" | "add";
+    /**
+     * Read each piece's ends from the row table by `gl_VertexID` (`EDGE_PULLED`, `PulledLineBatch`)
+     * instead of from per-piece attributes. A plain line only: not with `widened`, a `program`,
+     * a `fade` or a `pattern`.
+     */
+    pulled?: boolean;
+    /** With `pulled`, read each piece as a point of a lone curve's cut path (`EDGE_PULLED_CURVE`). */
+    pulledCurve?: boolean;
+    /** With `pulled` and no `pulledCurve`, draw each piece's rectangle alone (`EDGE_PULLED_LEAN`). */
+    pulledLean?: boolean;
+}
+
+/**
+ * The defines the join shader is compiled with for one look.
+ * @param options - The look.
+ * @param widened - Whether its batch is widened.
+ * @returns The defines.
+ */
+function joinedLineDefines(options: JoinedLineOptions, widened: boolean): string[] {
+    return [
+        ...(options.worldWidth === true ? ["#define WORLD_WIDTH"] : []),
+        ...(widened ? ["#define EDGE_WIDENED"] : []),
+        ...(options.program === undefined ? [] : ["#define EDGE_SHADED"]),
+        ...(options.fade === undefined ? [] : ["#define EDGE_FADE"]),
+        ...(options.opaque === true ? ["#define EDGE_OPAQUE"] : []),
+        ...(options.pulled === true ? ["#define EDGE_PULLED"] : []),
+        ...(options.pulled === true && options.pulledCurve === true ? ["#define EDGE_PULLED_CURVE"] : []),
+        ...(options.pulled === true && options.pulledCurve !== true && options.pulledLean === true
+            ? ["#define EDGE_PULLED_LEAN"]
+            : []),
+        ...(drawsSlotColor(options, widened) ? ["#define EDGE_SLOT_COLOR"] : []),
+    ];
+}
+
+/**
+ * What a joined line's mesh says about how its batch draws it (`EdgeLineMeta`).
+ * @param options - The look.
+ * @param widened - Whether its batch is widened.
+ * @param color - The look's color.
+ * @returns The metadata.
+ */
+function joinedLineMeta(options: JoinedLineOptions, widened: boolean, color: Color3): Record<string, unknown> {
+    const { pattern } = options;
+    const opaque = options.opaque === true;
+    return {
+        joinedLine: true,
+        pattern: pattern
+            ? { kind: pattern.kind, elementLength: pattern.elementLength, count: pattern.count, gap: pattern.gap }
+            : undefined,
+        ...(widened ? { widened: true } : {}),
+        ...(opaque ? { opaque: true } : {}),
+        // What a new slot is drawn in until its edge writes its own (`EdgeLineBatch.setColor`).
+        ...(drawsSlotColor(options, widened)
+            ? { color: [color.r, color.g, color.b, opaque ? 1 : (options.opacity ?? 1)] as const }
+            : {}),
+    };
+}
+
+/**
+ * Whether a look's batch reads each piece's color and opacity from its slot (`edgeJoinShader`'s
+ * `EDGE_SLOT_COLOR`) rather than from the material: every joined line but a widened or pulled one.
+ * @param options - The look.
+ * @param widened - Whether its batch is widened.
+ * @returns True when the color is per slot.
+ */
+function drawsSlotColor(options: JoinedLineOptions, widened: boolean): boolean {
+    return !widened && options.pulled !== true;
+}
+
+/**
+ * The attributes the join shader reads for one look. A pulled line reads none: `gl_VertexID`
+ * names its piece and corner.
+ * @param options - The look.
+ * @param widened - Whether its batch is widened.
+ * @returns The attribute names.
+ */
+function joinedLineAttributes(options: JoinedLineOptions, widened: boolean): string[] {
+    if (options.pulled === true) {
+        return [];
+    }
+
+    return [
+        "position",
+        "pPrev2",
+        "pPrev",
+        "pA",
+        "pB",
+        "pNext",
+        "pNext2",
+        "run",
+        "edgeHidden",
+        ...(drawsSlotColor(options, widened) ? ["edgeColor"] : []),
+        ...(widened ? ["runTotal", ...EDGE_STATIC_ATTRIBUTES] : []),
+    ];
+}
+
+/**
+ * The textures the join shader itself reads for one look: a pulled line's row and edge tables.
+ * @param options - The look.
+ * @returns The sampler names.
+ */
+function joinedLineSamplers(options: JoinedLineOptions): string[] {
+    if (options.pulled !== true) {
+        return [];
+    }
+
+    return options.pulledCurve === true ? ["rowPosition", "edgeRows", "edgeRoutes"] : ["rowPosition", "edgeRows"];
+}
 
 interface LineGeometry {
     positions: number[]; // Vertex positions (center line)
@@ -57,17 +259,45 @@ interface CustomLineOptions {
 export class CustomLineRenderer {
     private static shadersRegistered = false;
 
+    /** The line materials that write the age uniform as they bind. */
+    private static readonly ageBound = new WeakSet<ShaderMaterial>();
+
     /**
      * Every line material, grouped by scene, each scene's group given that scene's render size
      * once per frame. See {@link PerSceneMaterials} for the defect (issue #45).
      */
     private static readonly resolutionTracked = new PerSceneMaterials((scene, materials) => {
         const engine = scene.getEngine();
-        const resolution = new Vector2(engine.getRenderWidth(), engine.getRenderHeight());
+        // In CSS pixels, so a line keeps its width in CSS pixels at any `pixelRatio`, and over
+        // the capture's pixel scale, so a capture drawn larger than the canvas keeps it too.
+        const css = engine.getHardwareScalingLevel();
+        const scale = CustomLineRenderer.pixelScales.get(scene) ?? 1;
+        const resolution = new Vector2(
+            (engine.getRenderWidth() * css) / scale,
+            (engine.getRenderHeight() * css) / scale,
+        );
         for (const material of materials) {
             material.setVector2("resolution", resolution);
         }
     });
+
+    /** Output pixels per canvas pixel, for a scene drawn larger than its canvas (a capture). */
+    private static readonly pixelScales = new WeakMap<Scene, number>();
+
+    /**
+     * Draw a scene's lines as wide, relative to the picture, as on its canvas while it is drawn
+     * at another size: a line width is in pixels, so a 4x capture would otherwise draw every line
+     * a quarter as thick.
+     * @param scene - The scene being drawn larger.
+     * @param scale - Output pixels per canvas pixel; 1 puts it back.
+     */
+    static setPixelScale(scene: Scene, scale: number): void {
+        if (scale === 1) {
+            this.pixelScales.delete(scene);
+        } else {
+            this.pixelScales.set(scene, scale);
+        }
+    }
 
     /**
      * Number of line materials receiving per-frame resolution updates.
@@ -91,9 +321,10 @@ export class CustomLineRenderer {
         // 1. The global BABYLON loaded via <script> tag
         // 2. The ES module import from @babylonjs/core
         // We need to register in both because ShaderMaterial might use either one
-        const globalShaderStore =
-            typeof window !== "undefined" &&
-            (window as typeof globalThis & { BABYLON?: { Effect: typeof Effect } }).BABYLON?.Effect.ShadersStore;
+        // `unknown` first: babylonjs-gltf2interface (a dependency of @babylonjs/loaders) declares a
+        // global `BABYLON` namespace of glTF types, which this shape does not overlap.
+        const globalShaderStore = (globalThis as unknown as { BABYLON?: { Effect: typeof Effect } }).BABYLON?.Effect
+            .ShadersStore;
         const moduleShaderStore = Effect.ShadersStore;
 
         // Vertex Shader: Screen-space width expansion
@@ -107,7 +338,7 @@ precision highp float;
 attribute vec3 position;      // Actual vertex position (start or end of segment)
 attribute vec3 direction;     // Segment direction vector (full length from start to end)
 attribute float side;         // -1 or +1 for left/right
-attribute float distance;     // Distance along line (for patterns)
+attribute float lineDistance; // Distance along line (for patterns)
 attribute vec2 uv;
 attribute vec3 segmentStart;  // Segment start position (for consistent perpendicular)
 attribute vec3 segmentEnd;    // Segment end position (for consistent perpendicular)
@@ -122,6 +353,7 @@ uniform float width;
 varying vec2 vUV;
 varying float vDistance;
 varying float vWorldSpaceLineWidth;  // World-space line width for circular dots
+varying float vCoverage;  // How much of the one pixel a sub-pixel line is widened to it covers
 
 // Instance support - BabylonJS include provides finalWorld matrix
 #include<instancesDeclaration>
@@ -164,7 +396,19 @@ void main() {
     // camera alike. The perspective divide supplies the 1 / w, so the clip-space offset carries
     // none: the line thins with distance exactly as a node does, and no more. Dividing by the
     // resolution turns the pixel-space direction into NDC; half the width goes to each side.
-    vec2 offset = perpendicular * side * width * 0.5 * projection[1][1] * resolution.y / resolution;
+    //
+    // A LINE THINNER THAN ONE PIXEL IS DRAWN ONE PIXEL WIDE AND FAINTER, the way a canvas or SVG
+    // renderer draws a hairline: its stroke covers a fraction of each pixel it crosses, and
+    // antialiasing paints that fraction. Rasterized at its own width, a sub-pixel triangle covers
+    // a pixel centre only here and there, and the line breaks into dots. Under one pixel, the
+    // offset grows to one pixel and the fragment's alpha takes the fraction it stands for. A
+    // line of one pixel or more is untouched, and a width of 0 still draws nothing.
+    float pxPerWorld = projection[1][1] * resolution.y * 0.5 / vertexClip.w;
+    float drawnPx = width * pxPerWorld;
+    bool subPixel = drawnPx > 0.0 && drawnPx < 1.0;
+    float grow = subPixel ? 1.0 / drawnPx : 1.0;
+    vCoverage = subPixel ? drawnPx : 1.0;
+    vec2 offset = perpendicular * side * width * 0.5 * projection[1][1] * resolution.y / resolution * grow;
 
     // Apply offset in clip space
     gl_Position = vertexClip;
@@ -174,7 +418,7 @@ void main() {
 
     // Pass to fragment shader
     vUV = uv;
-    vDistance = distance;
+    vDistance = lineDistance;
 }
 `;
         // Register in both stores
@@ -193,6 +437,7 @@ precision highp float;
 varying vec2 vUV;
 varying float vDistance;
 varying float vWorldSpaceLineWidth;  // World-space line width for patterns
+varying float vCoverage;
 
 // Uniforms
 uniform vec3 color;
@@ -203,7 +448,7 @@ void main() {
     // CustomLineRenderer only renders solid lines.
 
     // Simple solid line rendering
-    gl_FragColor = vec4(color, opacity);
+    gl_FragColor = vec4(color, opacity * vCoverage);
 }
 `;
         // Register in both stores
@@ -266,7 +511,179 @@ void main(void) {
             globalShaderStore.circularDotFragmentShader = circularDotFragmentShaderCode;
         }
 
+        moduleShaderStore.edgeJoinVertexShader = EDGE_JOIN_VERTEX_SHADER;
+        moduleShaderStore.edgeJoinFragmentShader = EDGE_JOIN_FRAGMENT_SHADER;
+        if (globalShaderStore) {
+            globalShaderStore.edgeJoinVertexShader = EDGE_JOIN_VERTEX_SHADER;
+            globalShaderStore.edgeJoinFragmentShader = EDGE_JOIN_FRAGMENT_SHADER;
+        }
+
         this.shadersRegistered = true;
+    }
+
+    /**
+     * The mesh a batch of joined lines is drawn from: one instance per straight piece, joined to
+     * its neighbours at every corner by `edgeJoinShader`. `EdgeLineBatch` supplies the instances.
+     * A piece with no neighbours is the same rectangle the line renderer always drew, at the same
+     * width, so a straight edge looks exactly as it did.
+     * @param options - Width, colour, opacity, the width's unit and a dash or dot pattern.
+     * @param scene - The scene it is drawn in.
+     * @returns The template mesh with its material, marked `joinedLine` for `EdgeLineBatch`.
+     */
+    static createJoinedLineMesh(options: JoinedLineOptions, scene: Scene): Mesh {
+        this.registerShaders();
+
+        const mesh = new Mesh("joined-line", scene);
+        const vertexData = new VertexData();
+        vertexData.positions = [...JOIN_TEMPLATE_POSITIONS];
+        vertexData.indices = [...JOIN_TEMPLATE_INDICES];
+        vertexData.applyToMesh(mesh);
+
+        const { program, fade } = options;
+        const opaque = options.opaque === true;
+        const pulledTranslucent = options.pulled === true && (options.opacity ?? 1) < 1;
+        const widened = options.widened === true || program !== undefined || fade !== undefined;
+        const defines = joinedLineDefines(options, widened);
+        const material = new ShaderMaterial(
+            "joinedLineMaterial",
+            scene,
+            program === undefined
+                ? { vertex: "edgeJoin", fragment: "edgeJoin" }
+                : { vertex: "edgeJoin", fragmentSource: program.fragment, spectorName: program.name },
+            {
+                attributes: joinedLineAttributes(options, widened),
+                uniforms: [
+                    "world",
+                    "viewProjection",
+                    "projection",
+                    "resolution",
+                    "fragmentSize",
+                    "width",
+                    "minWidth",
+                    "miterLimit",
+                    "color",
+                    "opacity",
+                    "pattern",
+                    ...(widened ? ["edgeReach"] : []),
+                    ...(fade === undefined ? [] : ["edgeFade"]),
+                    ...(program?.uniforms ?? []),
+                ],
+                samplers: [...joinedLineSamplers(options), ...(program?.samplers ?? [])],
+                uniformBuffers: [...(program?.uniformBuffers ?? [])],
+                defines,
+                // A faded line is translucent whatever its opacity: in the opaque pass it would
+                // write depth, and hide what is drawn behind it after it. A pulled translucent
+                // batch is too: its pieces carry their own opacity, so its mesh's visibility
+                // cannot put it in the transparent pass.
+                ...(opaque || !(program !== undefined || fade !== undefined || pulledTranslucent)
+                    ? {}
+                    : { needAlphaBlending: true }),
+            },
+        );
+        if (widened) {
+            material.setFloat("edgeReach", 1);
+        }
+
+        if (fade !== undefined) {
+            material.setVector3("edgeFade", new Vector3(fade.start, fade.end, fade.opacity));
+        }
+
+        // The pixels the viewport being drawn holds, read as each draw binds -- the canvas, a
+        // capture's larger target or one eye's half -- so the fragment shader can snap to the
+        // pixel it draws (edgeJoinShader). Set on the effect just bound, which a ShaderMaterial
+        // keeps on the submesh, not on the material, where a value would reach the shader one
+        // draw late.
+        material.onBindObservable.add((drawn) => {
+            const engine = scene.getEngine();
+            const viewport = scene.activeCamera?.viewport;
+            drawn.subMeshes[0]?.effect?.setFloat2(
+                "fragmentSize",
+                engine.getRenderWidth() * (viewport?.width ?? 1),
+                engine.getRenderHeight() * (viewport?.height ?? 1),
+            );
+        });
+
+        const opacity = options.opacity ?? 1;
+        const colorObj = Color3.FromHexString(options.color);
+        material.setVector3("color", new Vector3(colorObj.r, colorObj.g, colorObj.b));
+        material.setFloat("width", options.width);
+        material.setFloat("minWidth", options.minScreenWidth ?? 0);
+        material.setFloat("opacity", opacity);
+        material.setFloat("miterLimit", EDGE_MITER_LIMIT);
+        const { pattern } = options;
+        // (element length, kind: 0 solid, 1 dash, 2 dot, half the width), read by the fragment shader.
+        const kind = pattern?.kind === "dash" ? 1 : 2;
+        material.setVector3(
+            "pattern",
+            pattern ? new Vector3(pattern.elementLength, kind, options.width / 2) : Vector3.Zero(),
+        );
+        // See create (issue #2894).
+        material.blockDirtyMechanism = true;
+        material.backFaceCulling = false;
+        this.resolutionTracked.add(material);
+        mesh.material = material;
+
+        // A translucent line is drawn in the transparent pass, as every line renderer before this
+        // one put it there; an opaque one blends in place, so a sub-pixel line's coverage shows.
+        // A pulled batch's mesh is shared by every edge in it, each with its own opacity in its
+        // piece (EDGE_PULLED), so the first edge's opacity must not become the whole mesh's: an
+        // opacity of 0 would stop Babylon drawing the mesh at all.
+        if (opacity < 1 && !opaque && options.pulled !== true) {
+            mesh.visibility = opacity;
+        }
+
+        mesh.alwaysSelectAsActiveMesh = true;
+        if (!opaque) {
+            this.blendInPlace(mesh, options.blend);
+        }
+
+        mesh.metadata = joinedLineMeta(options, widened, colorObj);
+
+        return mesh;
+    }
+
+    /**
+     * Switch a joined line's material to or from fading by age (`EDGE_AGED`), in place: the define,
+     * the `edgeAge` attribute, the `edgeAgeWindow` uniform, and alpha blending, without which a
+     * faded line writes depth in the opaque pass and hides what is drawn after it. The next draw
+     * compiles the new program unless {@link CustomLineRenderer.warmAged} already has.
+     * @param mesh - A mesh from {@link CustomLineRenderer.createJoinedLineMesh}.
+     * @param aged - Whether it fades by age.
+     * @param state - The scene's fade by age, whose window the uniform carries.
+     */
+    static setAged(mesh: Mesh, aged: boolean, state: EdgeAgeState): void {
+        const material = mesh.material as ShaderMaterial;
+        if (aged && !this.ageBound.has(material)) {
+            this.ageBound.add(material);
+            material.onBindObservable.add((drawn) => {
+                const [from, to, fade] = state.window;
+                drawn.subMeshes[0]?.effect?.setFloat3("edgeAgeWindow", from, to, fade);
+            });
+        }
+
+        const blends = (mesh.metadata as { blends?: boolean } | null)?.blends;
+        const before = blends ?? material.options.needAlphaBlending;
+        mesh.metadata = { ...(mesh.metadata as object), blends: before };
+        agedOptions(material.options, aged, before);
+    }
+
+    /**
+     * Compile the program {@link CustomLineRenderer.setAged} would switch a line to, on a copy of its
+     * material, so the switch draws at once: Babylon draws nothing with a material while its new
+     * program compiles, and keeps a compiled program for every material that asks for it again.
+     * @param mesh - The line's mesh.
+     * @param aged - The look to compile.
+     * @returns Settles once it compiled; rejects if it failed.
+     */
+    static async warmAged(mesh: Mesh, aged: boolean): Promise<void> {
+        const material = mesh.material as ShaderMaterial;
+        const probe = material.clone(`${material.name}-aged`);
+        agedOptions(probe.options, aged, false);
+        try {
+            await probe.forceCompilationAsync(mesh, { useInstances: mesh.hasThinInstances });
+        } finally {
+            probe.dispose();
+        }
     }
 
     /**
@@ -601,6 +1018,33 @@ void main(void) {
     }
 
     /**
+     * Blend a line over what is already drawn, in whichever pass draws it.
+     *
+     * A sub-pixel line is drawn one pixel wide at a fraction of its opacity (the vertex shader),
+     * and that fraction only shows if the fragment blends. An opaque line stays in the opaque
+     * pass, where Babylon draws with blending off, so this turns blending on for this mesh's own
+     * draw and off again after it. Moving the line to the transparent pass instead would reorder
+     * it against labels and every other transparent mesh. A fragment of alpha 1 -- every line of
+     * one pixel or more at full opacity -- blends to exactly the colour it wrote before.
+     * @param mesh - The line mesh.
+     * @param blend - Straight alpha over (a line, a surface), premultiplied over or added (an effect).
+     */
+    private static blendInPlace(mesh: Mesh, blend: JoinedLineOptions["blend"] = "combine"): void {
+        const engine = mesh.getScene().getEngine();
+        const mode = {
+            combine: Constants.ALPHA_COMBINE,
+            premultiplied: Constants.ALPHA_PREMULTIPLIED,
+            add: Constants.ALPHA_ONEONE,
+        }[blend];
+        mesh.onBeforeBindObservable.add(() => {
+            engine.setAlphaMode(mode, true);
+        });
+        mesh.onAfterRenderObservable.add(() => {
+            engine.setAlphaMode(Constants.ALPHA_DISABLE, true);
+        });
+    }
+
+    /**
      * Create a custom line mesh
      * @param options - Line configuration
      * @param scene - Babylon.js scene
@@ -627,7 +1071,7 @@ void main(void) {
         // These map to the attribute locations in the shader
         mesh.setVerticesData("direction", geometry.directions, false, 3);
         mesh.setVerticesData("side", geometry.sides, false, 1);
-        mesh.setVerticesData("distance", geometry.distances, false, 1);
+        mesh.setVerticesData("lineDistance", geometry.distances, false, 1);
         mesh.setVerticesData("segmentStart", geometry.segmentStarts, false, 3);
         mesh.setVerticesData("segmentEnd", geometry.segmentEnds, false, 3);
 
@@ -646,7 +1090,7 @@ void main(void) {
                 fragment: "customLine",
             },
             {
-                attributes: ["position", "direction", "side", "distance", "uv", "segmentStart", "segmentEnd"],
+                attributes: ["position", "direction", "side", "lineDistance", "uv", "segmentStart", "segmentEnd"],
                 uniforms: [
                     "world", // Required for Babylon.js to bind the matrix, even though instancesDeclaration also declares it
                     "viewProjection",
@@ -678,6 +1122,11 @@ void main(void) {
         // Register material for its own scene's resolution updates
         this.resolutionTracked.add(shaderMaterial);
 
+        // Blocked for the material's life, as in FilledArrowRenderer.applyShader: a ShaderMaterial
+        // re-derives its defines on every readiness check, and everything set on it later is a
+        // uniform. Unblocked, the setter below walks every mesh in the scene, so a line in a new
+        // colour cost the size of the graph (issue #2894).
+        shaderMaterial.blockDirtyMechanism = true;
         // Disable backface culling for double-sided rendering
         shaderMaterial.backFaceCulling = false;
 
@@ -687,6 +1136,7 @@ void main(void) {
         // Line meshes can have incorrect bounding boxes due to screen-space expansion,
         // causing frustum culling to incorrectly hide lines that are actually on screen
         mesh.alwaysSelectAsActiveMesh = true;
+        this.blendInPlace(mesh);
 
         return mesh;
     }
@@ -754,7 +1204,7 @@ void main(void) {
         // Set custom attributes
         mesh.setVerticesData("direction", geometry.directions, false, 3);
         mesh.setVerticesData("side", geometry.sides, false, 1);
-        mesh.setVerticesData("distance", geometry.distances, false, 1);
+        mesh.setVerticesData("lineDistance", geometry.distances, false, 1);
         mesh.setVerticesData("segmentStart", geometry.segmentStarts, false, 3);
         mesh.setVerticesData("segmentEnd", geometry.segmentEnds, false, 3);
 
@@ -767,7 +1217,7 @@ void main(void) {
                 fragment: "customLine",
             },
             {
-                attributes: ["position", "direction", "side", "distance", "uv", "segmentStart", "segmentEnd"],
+                attributes: ["position", "direction", "side", "lineDistance", "uv", "segmentStart", "segmentEnd"],
                 uniforms: [
                     "world", // Required for Babylon.js to bind the matrix, even though instancesDeclaration also declares it
                     "viewProjection",
@@ -795,6 +1245,8 @@ void main(void) {
         // Register material for its own scene's resolution updates
         this.resolutionTracked.add(shaderMaterial);
 
+        // See create (issue #2894).
+        shaderMaterial.blockDirtyMechanism = true;
         shaderMaterial.backFaceCulling = false;
         mesh.material = shaderMaterial;
 
@@ -802,6 +1254,7 @@ void main(void) {
         // Line meshes can have incorrect bounding boxes due to screen-space expansion,
         // causing frustum culling to incorrectly hide lines that are actually on screen
         mesh.alwaysSelectAsActiveMesh = true;
+        this.blendInPlace(mesh);
 
         return mesh;
     }

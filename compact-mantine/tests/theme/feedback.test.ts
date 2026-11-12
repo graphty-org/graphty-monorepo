@@ -15,9 +15,10 @@ describe("feedbackComponentExtensions", () => {
         expect(feedbackComponentExtensions.RingProgress).toBeDefined();
     });
 
-    it("exports exactly 3 feedback components", () => {
+    it("exports exactly 4 feedback components", () => {
         const components = Object.keys(feedbackComponentExtensions);
-        expect(components).toHaveLength(3);
+        expect(components).toHaveLength(4);
+        expect(components).toContain("Alert");
         expect(components).toContain("Loader");
         expect(components).toContain("Progress");
         expect(components).toContain("RingProgress");

@@ -8,6 +8,7 @@ import { type ActivationHandlerWithMeta, getActivationMeta } from "../../types/e
 import { liveRegionProps, type LiveSetting } from "../../utils/live-region";
 import { type Direction, inlineX, useDirection } from "../../utils/rtl";
 import { RankChip } from "./DataRow";
+import { BRUSH_ROW_HEIGHT, HistogramBrush, type HistogramBrushProps, placeOf } from "./HistogramBrush";
 import { holdsSomething, TrailingSlot } from "./TrailingSlot";
 
 // Accessibility, for all three rows in this file. There is no ARIA Authoring
@@ -56,6 +57,12 @@ const BASELINE_HEIGHT = 1;
  * 64px block.
  */
 const AXIS_ROW_HEIGHT = 16;
+
+/**
+ * How far above a histogram row's bottom its drawing ends: the axis line and the gap over it. A
+ * control laid over the bars (the ramp editor) stops this far from the bottom.
+ */
+export const HISTOGRAM_AXIS_INSET = AXIS_ROW_HEIGHT + CHART_GAP;
 
 /**
  * The gap between two bars of a histogram.
@@ -146,6 +153,36 @@ export interface HistogramBin {
     count: number;
     /** Draws this bar in the accent color, for the bin the reader has selected or the one being explained. */
     highlighted?: boolean;
+    /**
+     * A CSS color to paint this bar, such as what a color mapping gives the values in it, so the
+     * chart is also a picture of the mapping. `highlighted` wins over it.
+     */
+    paint?: string;
+    /**
+     * Draws this bar lighter, for a bin outside the range the reader chose: it differs from a
+     * highlighted bar in lightness (3:1 or more), not in hue alone.
+     */
+    dimmed?: boolean;
+    /**
+     * A second, larger count drawn as a pale bar behind this one, such as the whole data's count
+     * behind what the other filters leave: the gap between them is what a filter took away.
+     */
+    ghost?: number;
+    /**
+     * Where this bin starts on the brush's scale. With a brush, bars are placed by it. A bin whose
+     * `from` equals its `to` holds one value and is drawn a brush step wide, centered on it.
+     */
+    from?: number;
+    /** Where this bin ends on the brush's scale. */
+    to?: number;
+}
+
+/** A line drawn over a histogram's bars, one value per bin, such as a selection's own activity. */
+export interface HistogramOverlay {
+    /** The line's accessible name. */
+    label: string;
+    /** One value per bin, scaled over its own largest. */
+    values: number[];
 }
 
 /**
@@ -199,6 +236,22 @@ export interface HistogramRowProps {
     live?: LiveSetting;
     /** The 24px trailing slot: an advanced settings button, a reset control, or nothing. */
     trailing?: React.ReactNode;
+    /**
+     * A range brush on the bars' own scale: two thumbs under the plot and a body over it that
+     * moves both ends. A click on a bar outside the range moves the range there. With a brush,
+     * bins that give `from` and `to` are placed on its scale, so a thumb sits on its bin's edge.
+     * When a bin holds one value, the bars' scale reaches half a step past each end so the end
+     * bars are whole, and a thumb at the brush's `min` or `max` sits on their outer edge.
+     */
+    brush?: HistogramBrushProps;
+    /** A line over the bars, such as the selection's activity, named for assistive technology. */
+    overlay?: HistogramOverlay;
+    /**
+     * Whether the visually hidden table of every bin's count follows the drawing (the default).
+     * Set it false where the chart sits before its controls and the table is placed after them, so
+     * a screen reader reaches the first control without reading every bin.
+     */
+    valueTable?: boolean;
 }
 
 /**
@@ -320,7 +373,7 @@ export interface MetricRowProps {
     onClick?: ActivationHandlerWithMeta;
     /** Called on a double click, for opening the metric rather than selecting it. */
     onDoubleClick?: React.MouseEventHandler<HTMLDivElement>;
-    /** Called on a right click or a long press, for a context menu of your own. */
+    /** Called on a right click (a `contextmenu` event), for a context menu of your own. Wrap the row in ContextMenu to open one on a touch-and-hold too. */
     onContextMenu?: React.MouseEventHandler<HTMLDivElement>;
     /** Called when the row takes focus. Forwarded untouched. */
     onFocus?: React.FocusEventHandler<HTMLDivElement>;
@@ -423,7 +476,7 @@ interface ChartValueTableProps {
  * @param props.testId - Identifies the table in tests
  * @returns The visually hidden table of values
  */
-function ChartValueTable({ caption, rows, testId }: Readonly<ChartValueTableProps>): React.JSX.Element {
+export function ChartValueTable({ caption, rows, testId }: Readonly<ChartValueTableProps>): React.JSX.Element {
     // The table IS the visually hidden element rather than sitting inside one:
     // a table nested in Mantine's VisuallyHidden span would be invalid markup,
     // and a server-rendered page would come back from the browser's parser with
@@ -541,6 +594,9 @@ function useAxisIds(): AxisIds {
  * @param props.busy - Whether the chart is still being worked out by something that finishes later
  * @param props.live - How urgently a screen reader announces the chart when it changes on its own
  * @param props.trailing - The 24px trailing slot: an advanced settings button, a reset control, or nothing
+ * @param props.brush - A range brush on the bars' scale
+ * @param props.overlay - A line over the bars, such as the selection's activity
+ * @param props.valueTable - Whether the table of every bin's count follows the drawing (the default)
  * @returns The histogram row
  * @example
  * ```tsx
@@ -564,6 +620,9 @@ export function HistogramRow({
     busy,
     live,
     trailing,
+    brush,
+    overlay,
+    valueTable = true,
 }: HistogramRowProps): React.JSX.Element {
     useCompactStyles();
     const formatNumber = useNumberFormatter();
@@ -571,8 +630,42 @@ export function HistogramRow({
 
     // A bar is its count over the tallest bin's, so the tallest bar fills the
     // plot and the chart never needs a y axis. Nothing below zero raises it: a
-    // count is a count.
-    const tallest = bins.reduce((highest, bin) => Math.max(highest, bin.count, 0), 0);
+    // count is a count. A ghost behind a bar counts toward the tallest too.
+    const tallest = bins.reduce((highest, bin) => Math.max(highest, bin.count, bin.ghost ?? 0, 0), 0);
+    // With a brush, a bin that says where it lies is placed on the brush's scale.
+    const placed = brush !== undefined && bins.every((bin) => bin.from !== undefined && bin.to !== undefined);
+    // A one-value bin is a step wide, centered on its value, so the bars' scale reaches half a step
+    // past the brush's ends: the end bars are whole, and the thumbs' track still spans the plot.
+    const half = placed && brush !== undefined && bins.some((bin) => bin.from === bin.to) ? brush.step / 2 : 0;
+    const scale = { min: (brush?.min ?? 0) - half, max: (brush?.max ?? 0) + half };
+    const spanOf = (bin: HistogramBin): [number, number] =>
+        bin.from === bin.to ? [(bin.from ?? 0) - half, (bin.to ?? 0) + half] : [bin.from ?? 0, bin.to ?? 0];
+    const placement = (bin: HistogramBin): React.CSSProperties => {
+        if (!placed) {
+            return { flex: "1 1 0", minWidth: 0 };
+        }
+
+        const [from, to] = spanOf(bin);
+        const left = placeOf(from, scale);
+        const width = placeOf(to, scale) - left;
+        return {
+            position: "absolute",
+            bottom: 0,
+            left: `calc(${String(left)}% + ${String(BAR_GAP / 2)}px)`,
+            width: `max(1px, calc(${String(width)}% - ${String(BAR_GAP)}px))`,
+        };
+    };
+    const centerOf = (bin: HistogramBin, index: number): number =>
+        placed
+            ? (placeOf(spanOf(bin)[0], scale) + placeOf(spanOf(bin)[1], scale)) / 2
+            : ((index + 0.5) / Math.max(1, bins.length)) * FULL_PERCENT;
+    const shareOf = (count: number): number => (tallest === 0 ? 0 : (Math.max(0, count) / tallest) * FULL_PERCENT);
+    const plotRow: React.CSSProperties = placed
+        ? { position: "absolute", inset: 0 }
+        : { position: "absolute", inset: 0, display: "flex", alignItems: "flex-end", gap: BAR_GAP };
+    const ghosts = bins.some((bin) => bin.ghost !== undefined);
+    const ranged = bins.some((bin) => bin.dimmed === true);
+    const overlayTop = overlay === undefined ? 0 : Math.max(0, ...overlay.values);
 
     const valueRows = bins.map((bin, index) => ({
         id: `${bin.label}-${String(index)}`,
@@ -582,6 +675,30 @@ export function HistogramRow({
         // to zero would hide the defect that produced it.
         value: formatNumber.format(bin.count),
     }));
+
+    /**
+     * A click on a bar outside the brush's range moves the range to start at that bar.
+     * @param event - The click.
+     */
+    const jump = (event: React.MouseEvent<HTMLElement>): void => {
+        if (brush === undefined) {
+            return;
+        }
+
+        const box = event.currentTarget.getBoundingClientRect();
+        const at = scale.min + ((event.clientX - box.left) / Math.max(1, box.width)) * (scale.max - scale.min);
+        if (at >= brush.value[0] && at < brush.value[1]) {
+            return;
+        }
+
+        const hit = bins.find(
+            (bin) => bin.from !== undefined && bin.to !== undefined && at >= spanOf(bin)[0] && at < spanOf(bin)[1],
+        );
+        const start = hit?.from ?? at;
+        const width = brush.value[1] - brush.value[0];
+        const from = Math.max(brush.min, Math.min(brush.max - width, start));
+        brush.onChangeEnd?.([from, from + width]);
+    };
 
     return (
         <Box
@@ -593,7 +710,10 @@ export function HistogramRow({
                 // at the top of a two-pitch chart rather than floating in it.
                 alignItems: "flex-start",
                 gap: PANEL_GRID.TRAIL_GAP,
-                height: PANEL_GRID.HISTOGRAM_HEIGHT,
+                height:
+                    brush === undefined
+                        ? PANEL_GRID.HISTOGRAM_HEIGHT
+                        : PANEL_GRID.HISTOGRAM_HEIGHT + BRUSH_ROW_HEIGHT + CHART_GAP,
             }}
         >
             <Box
@@ -634,44 +754,115 @@ export function HistogramRow({
                 >
                     <Box
                         data-testid="histogram-plot"
+                        onClick={brush === undefined ? undefined : jump}
                         style={{
                             flex: "1 1 auto",
                             minHeight: 0,
-                            display: "flex",
-                            alignItems: "flex-end",
-                            gap: BAR_GAP,
+                            position: "relative",
+                            ...(placed ? {} : { display: "flex", alignItems: "flex-end", gap: BAR_GAP }),
                         }}
                     >
+                        {ghosts && (
+                            <Box aria-hidden="true" style={{ ...plotRow, pointerEvents: "none" }}>
+                                {bins.map((bin, index) => (
+                                    <Box
+                                        key={`ghost-${bin.label}-${String(index)}`}
+                                        data-testid="histogram-ghost"
+                                        className="cm-histogram-ghost"
+                                        style={{
+                                            ...placement(bin),
+                                            height: `${String(shareOf(bin.ghost ?? 0))}%`,
+                                            borderRadius: BAR_RADIUS,
+                                        }}
+                                    />
+                                ))}
+                            </Box>
+                        )}
                         {bins.map((bin, index) => {
                             const count = Math.max(0, bin.count);
-                            const share = tallest === 0 ? 0 : (count / tallest) * FULL_PERCENT;
                             const highlighted = bin.highlighted === true;
+                            const dimmed = bin.dimmed === true && !highlighted;
+                            let background = bin.paint ?? MARK_INK;
+                            if (highlighted) {
+                                // Beside dimmed bars, the darker step keeps 3:1 between the two.
+                                background = ranged ? "var(--cm-histogram-in)" : PANEL_INK.ACCENT_GRAPHIC;
+                            } else if (dimmed) {
+                                background = "var(--cm-histogram-dim)";
+                            }
 
                             return (
                                 <Box
                                     key={`${bin.label}-${String(index)}`}
                                     data-testid="histogram-bar"
+                                    className="cm-histogram-bar"
                                     data-highlighted={highlighted ? "true" : "false"}
+                                    data-dimmed={dimmed ? "true" : undefined}
+                                    data-painted={bin.paint !== undefined && !highlighted ? "true" : undefined}
                                     // One mark of a drawing, not a picture of its
                                     // own. The title stays: it is the tooltip a
                                     // sighted reader hovers for.
                                     aria-hidden="true"
                                     title={bin.label}
                                     style={{
-                                        flex: "1 1 0",
-                                        minWidth: 0,
-                                        height: `${String(share)}%`,
+                                        ...placement(bin),
+                                        ...(ghosts && !placed ? { position: "relative", zIndex: 1 } : {}),
+                                        ...(placed ? { zIndex: 1 } : {}),
+                                        height: `${String(shareOf(bin.count))}%`,
                                         minHeight: count > 0 ? MIN_BAR_HEIGHT : 0,
-                                        background: highlighted ? PANEL_INK.ACCENT : MARK_INK,
+                                        background,
                                         borderRadius: BAR_RADIUS,
                                     }}
                                 />
                             );
                         })}
+                        {overlay !== undefined && overlay.values.length > 0 && (
+                            <svg // NOSONAR(S6819): an inline SVG drawing named by aria-label; an <img> cannot hold it
+                                data-testid="histogram-overlay"
+                                role="img"
+                                aria-label={overlay.label}
+                                viewBox={`0 0 ${String(SPARKLINE_VIEWBOX)} ${String(SPARKLINE_VIEWBOX)}`}
+                                preserveAspectRatio="none"
+                                style={{
+                                    position: "absolute",
+                                    inset: 0,
+                                    width: "100%",
+                                    height: "100%",
+                                    zIndex: 2,
+                                    pointerEvents: "none",
+                                    overflow: "visible",
+                                }}
+                            >
+                                <polyline
+                                    fill="none"
+                                    stroke="var(--cm-border-strong)"
+                                    strokeWidth={1.5}
+                                    vectorEffect="non-scaling-stroke"
+                                    points={overlay.values
+                                        .map((value, index) => {
+                                            const bin = bins[index] as HistogramBin | undefined;
+                                            const x = bin === undefined ? 0 : centerOf(bin, index);
+                                            const y =
+                                                SPARKLINE_VIEWBOX -
+                                                (overlayTop === 0
+                                                    ? 0
+                                                    : (Math.max(0, value) / overlayTop) * SPARKLINE_VIEWBOX);
+                                            return `${String(x)},${String(y)}`;
+                                        })
+                                        .join(" ")}
+                                />
+                            </svg>
+                        )}
                     </Box>
 
                     <ChartBaseline />
                 </Box>
+
+                {brush !== undefined && (
+                    <HistogramBrush
+                        brush={brush}
+                        plotHeight={`${String(PANEL_GRID.HISTOGRAM_HEIGHT - AXIS_ROW_HEIGHT - CHART_GAP)}px`}
+                    />
+                )}
 
                 <Box
                     data-testid="chart-axis"
@@ -693,7 +884,7 @@ export function HistogramRow({
                 </Box>
             </Box>
 
-            <ChartValueTable caption={label} rows={valueRows} testId="histogram-values" />
+            {valueTable && <ChartValueTable caption={label} rows={valueRows} testId="histogram-values" />}
 
             {holdsSomething(trailing) && <TrailingSlot>{trailing}</TrailingSlot>}
         </Box>
@@ -860,7 +1051,7 @@ export function SparklineRow({
  * @param props.live - How urgently a screen reader announces the row when it changes on its own
  * @param props.onClick - Called when the row is activated, with the event and whether it came from a pointer or the keyboard
  * @param props.onDoubleClick - Called on a double click
- * @param props.onContextMenu - Called on a right click or a long press
+ * @param props.onContextMenu - Called on a right click (a `contextmenu` event)
  * @param props.onFocus - Called when the row takes focus
  * @param props.onBlur - Called when the row loses focus
  * @returns The metric row
@@ -999,7 +1190,7 @@ export function MetricRow({
                     // announce "98%" for a value that is a 98th percentile. The
                     // role is taken by the track above instead.
                     withAria={false}
-                    color={PANEL_INK.ACCENT}
+                    color={PANEL_INK.ACCENT_GRAPHIC}
                     // The fill runs from the inline start because the track is a
                     // flex row, which follows the text direction; nothing here is
                     // anchored to the left edge.

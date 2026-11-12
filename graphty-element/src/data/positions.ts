@@ -172,10 +172,14 @@ export class ElementPositions {
         return this.changeCount;
     }
 
-    /** Say that coordinates were written straight into the lent array. */
-    moved(): void {
-        this.moves++;
-        this.changeCount++;
+    /**
+     * Say that coordinates were written straight into the lent array.
+     * @param written - how many rows were written
+     * @param changed - how many of them now hold something else
+     */
+    moved(written = 1, changed = written): void {
+        this.moves += written;
+        this.changeCount += changed;
     }
 
     /**

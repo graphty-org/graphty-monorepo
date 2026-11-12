@@ -112,16 +112,12 @@ describe("Reverse proxy", () => {
     });
 
     afterEach(async () => {
-        if (dualServer) {
-            await dualServer.shutdown();
-        }
-        if (target) {
-            await new Promise<void>((resolve) => {
-                target.server.close(() => {
-                    resolve();
-                });
+        await dualServer.shutdown();
+        await new Promise<void>((resolve) => {
+            target.server.close(() => {
+                resolve();
             });
-        }
+        });
     });
 
     test("proxies HTML and injects remote-logger script", async () => {
@@ -231,7 +227,7 @@ describe("Reverse proxy", () => {
         });
 
         expect(res.status).toBe(200);
-        const headers = JSON.parse(res.body);
+        const headers = JSON.parse(res.body) as Record<string, string>;
         expect(headers["user-agent"]).toContain("Chrome");
         expect(headers["user-agent"]).not.toContain("TestBot");
     });

@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pr": 3079,
+  "subject": {
+    "builtMerge": "f41088ba0fdfaab8c333965c2826d90f01e4f558",
+    "head": "a5eda0419637ef5a68a6d7841297e8b01034e5a9",
+    "runId": 38868801631,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "f41088ba0fdfaab8c333965c2826d90f01e4f558"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/compact-mantine/foundations-color--panel-ink.dark.png",
+      "from": "22e370eec4c544919c20bb0a39be286b69b789081e3e309c5c1c5a8c671c62b4",
+      "to": "bd7dab0407a11e32e93c580344d56ae1ca703fde6b709bccdd2318155f8b4c50",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/foundations-color--panel-ink.light.png",
+      "from": "ba2f2be18fe16a8b88956c13539ee8212930c305c7fca36cb05ac444aab14ef1",
+      "to": "4cf3fa98e4606fc61470d0933538dbc90a7d7f6ca16f02f7cbcf49a0aa8665f1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/foundations-color--tokens.dark.png",
+      "from": "3f815afc4f324aa87d0d0e9b7b444a904c47c93895a9d23af9ebefc1215c0227",
+      "to": "08b275ec1aab7d34515c02af36d2faa1c11dc841c3bb64f7d6a19e0a4f1ed7be",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/foundations-color--tokens.light.png",
+      "from": "df29debdc338c98151295fda9fad322721a9ec801bff76ab5eb0993613b37297",
+      "to": "2572c71f6cf9ad852b47b2cf83670fd7791851da8874fab4c48508af2f57ec2c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-project--recent-missing.dark.png",
+      "from": "39512ac5c893254af08bf5faa19151f414ffb4a6ee73a5f906a2137c473b6ea5",
+      "to": "5ae8a3e704e7a63919ee1dbf3802c803523a09aa5af89f83eabe2acaa101bf3f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-project--recent-missing.light.png",
+      "from": "1ebce3e428e212d59694e1b6f7a74b8ab2f8205514bdc20220e47dc679e41871",
+      "to": "8d8d27dc941ce361dbde691dbc9707bb4f229daa2eea73996806caafbdfdfc36",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-16T14:14:52.293Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiaXVNNFV0S2lrY2JOMW5ZWmM2V2dPb011WmNHTXd4QlJpb3JaY2dOMUhRWSIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEUCICNilyhl8em2MvQ7Hfb1_s05EYnaDKAv3fgvAc1THf_3AiEAyyKqza2YLJ4DAccqBYwQEsjEi4APUneSUJXor3G0yuw"
+  }
+}

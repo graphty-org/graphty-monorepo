@@ -1,7 +1,7 @@
 /**
  * @file Project state: the fixed list of slices that make up a project, and nothing else.
  *
- * Everything a project file would save lives in one of the eleven slices below, and a change to a
+ * Everything a project file would save lives in one of the slices below, and a change to a
  * slice is undoable. Anything outside them (camera, hover, selection, a run still computing) is
  * exempt. See design/undo/undo-design.md section 3.
  *
@@ -12,7 +12,16 @@
  */
 
 import type { CameraState } from "../../camera/types";
-import type { EdgeId, LayoutId, MeasurementDeclaration, NodeId, RunId, Scope, SetId } from "../../catalog/types";
+import type {
+    EdgeId,
+    FilterCondition,
+    LayoutId,
+    MeasurementDeclaration,
+    NodeId,
+    RunId,
+    Scope,
+    SetId,
+} from "../../catalog/types";
 import type { Note, NoteId, NoteStatus } from "../notes/types";
 import type { AlgorithmRunCommand } from "../planning";
 import type { RunResult } from "../results/types";
@@ -20,7 +29,7 @@ import type { RunPainting, RunRecord } from "../runs/types";
 import type { HeldCaptures } from "../sets/captures";
 import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
-import type { RuleTree, TimeWindow } from "../visibility/filter";
+import type { RuleTree, TimePlayback, TimeWindow } from "../visibility/filter";
 
 /** One node or edge record as the graph holds it: the attributes it arrived with. */
 export type GraphRecord = Readonly<Record<string | number, unknown>>;
@@ -121,6 +130,13 @@ export interface VisibilityState {
     readonly filter: RuleTree | null;
     readonly window: TimeWindow | null;
     readonly showContext: boolean;
+    /**
+     * The filter conditions, in the order they were added. The steps API is a view of the keep
+     * and exclude ones (`visibility/conditions.ts`).
+     */
+    readonly conditions: readonly FilterCondition[];
+    /** How `session.time` moves windows, or null for every default. */
+    readonly playback?: TimePlayback | null;
 }
 
 /** One note, as the `notes` slice keeps it: the record, and where it was opened from. */
@@ -160,6 +176,20 @@ export interface ProjectState {
     readonly notes: ReadonlyMap<NoteId, NoteEntry>;
     /** What columns were declared to measure, by `<kind>:<name>`. */
     readonly attributes: ReadonlyMap<string, MeasurementDeclaration>;
+    /** The names given to values, by `valueLabelKey(path, value)`. */
+    readonly valueLabels: ReadonlyMap<string, string>;
+    /**
+     * The shaders pasted into the project or carried in by a file, by their namespaced id: the
+     * shader text, verbatim (design/rendering/shader-styles.md section 4.5). Whether one may run
+     * is the session's, not the project's, so it is not here.
+     */
+    readonly shaders: ReadonlyMap<string, ProjectShaderEntry>;
+}
+
+/** One shader the project holds: its text, as it was pasted or loaded. */
+export interface ProjectShaderEntry {
+    /** The shader text (section 4.1 of the shader design), verbatim. */
+    readonly text: string;
 }
 
 /** A counter that only ever increases, so a value it issued never names two different things. */
@@ -194,10 +224,14 @@ export function createProjectState(init: Partial<ProjectState> = {}): ProjectSta
         arrangement: init.arrangement ?? null,
         runs: new Map(init.runs),
         styles: init.styles ?? Object.freeze([]),
-        visibility: init.visibility ?? Object.freeze({ filter: null, window: null, showContext: false }),
+        visibility:
+            init.visibility ??
+            Object.freeze({ filter: null, window: null, showContext: false, conditions: Object.freeze([]) }),
         sets: new Map(init.sets),
         views: new Map(init.views),
         notes: new Map(init.notes),
         attributes: new Map(init.attributes),
+        valueLabels: new Map(init.valueLabels),
+        shaders: new Map(init.shaders),
     };
 }

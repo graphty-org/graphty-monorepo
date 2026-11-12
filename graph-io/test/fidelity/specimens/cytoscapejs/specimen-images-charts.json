@@ -1,0 +1,2538 @@
+{
+    "elements": {
+        "nodes": [
+            {
+                "data": {
+                    "id": "anchor-nw"
+                },
+                "position": {
+                    "x": 20,
+                    "y": 20
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "anchor-ne"
+                },
+                "position": {
+                    "x": 1180,
+                    "y": 20
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "anchor-sw"
+                },
+                "position": {
+                    "x": 20,
+                    "y": 880
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "anchor-se"
+                },
+                "position": {
+                    "x": 1180,
+                    "y": 880
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "cap-default",
+                    "label": "default"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "default"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-image",
+                    "label": "background-image=quadrants.svg"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-image"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-image-png",
+                    "label": "background-image=checker.png"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-image-png"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-fit-none",
+                    "label": "background-fit=none"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-fit-none"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-fit-contain",
+                    "label": "background-fit=contain"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-fit-contain"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-fit-cover",
+                    "label": "background-fit=cover"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-fit-cover"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-repeat-repeat",
+                    "label": "background-repeat=repeat"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-repeat-repeat"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-repeat-repeat-x",
+                    "label": "background-repeat=repeat-x"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-repeat-repeat-x"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-repeat-repeat-y",
+                    "label": "background-repeat=repeat-y"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-repeat-repeat-y"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-repeat-no-repeat",
+                    "label": "background-repeat=no-repeat"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-repeat-no-repeat"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-clip-none",
+                    "label": "background-clip=none"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-clip-none"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-clip-node",
+                    "label": "background-clip=node"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-clip-node"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-image-containment-inside",
+                    "label": "background-image-containment=inside"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-image-containment-inside"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-image-containment-over",
+                    "label": "background-image-containment=over"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-image-containment-over"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-image-smoothing-yes",
+                    "label": "background-image-smoothing=yes"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-image-smoothing-yes"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-image-smoothing-no",
+                    "label": "background-image-smoothing=no"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-image-smoothing-no"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-image-crossorigin-anonymous",
+                    "label": "background-image-crossorigin=anonymous"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-image-crossorigin-anonymous"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-image-crossorigin-use-credentials",
+                    "label": "background-image-crossorigin=use-credentials"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-image-crossorigin-use-credentials"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-image-crossorigin-null",
+                    "label": "background-image-crossorigin=null"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-image-crossorigin-null"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-image-opacity-0-4",
+                    "label": "background-image-opacity=0.4"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-image-opacity-0-4"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-width-auto",
+                    "label": "background-width=auto"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-width-auto"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-width-30",
+                    "label": "background-width=30"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-width-30"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-width-50pct",
+                    "label": "background-width=50%"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-width-50pct"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-height-auto",
+                    "label": "background-height=auto"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-height-auto"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-height-30",
+                    "label": "background-height=30"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-height-30"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-width-relative-to-inner",
+                    "label": "background-width-relative-to=inner"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-width-relative-to-inner"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-width-relative-to-include-padding",
+                    "label": "background-width-relative-to=include-padding"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-width-relative-to-include-padding"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-height-relative-to-inner",
+                    "label": "background-height-relative-to=inner"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-height-relative-to-inner"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-height-relative-to-include-padding",
+                    "label": "background-height-relative-to=include-padding"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-height-relative-to-include-padding"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-position-x-0pct",
+                    "label": "background-position-x=0%"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-position-x-0pct"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-position-x-100pct",
+                    "label": "background-position-x=100%"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-position-x-100pct"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-position-y-0pct",
+                    "label": "background-position-y=0%"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-position-y-0pct"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-position-y-100pct",
+                    "label": "background-position-y=100%"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-position-y-100pct"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-offset-x-8",
+                    "label": "background-offset-x=8"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-offset-x-8"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-offset-y-8",
+                    "label": "background-offset-y=8"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-offset-y-8"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-image-two-layers",
+                    "label": "background-image=two layers"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-image-two-layers"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-background-image-on-rectangle",
+                    "label": "background-image on rectangle"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "background-image-on-rectangle"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-pie-16-slices",
+                    "label": "pie-1..16-background-color/size"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "pie-16-slices"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-pie-three-slices",
+                    "label": "pie 30% 50% 20%"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "pie-three-slices"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-pie-partial",
+                    "label": "pie-1-background-size=40%"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "pie-partial"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-pie-size-60pct",
+                    "label": "pie-size=60%"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "pie-size-60pct"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-pie-hole-50pct",
+                    "label": "pie-hole=50%"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "pie-hole-50pct"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-pie-start-angle-90deg",
+                    "label": "pie-start-angle=90deg"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "pie-start-angle-90deg"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-pie-background-opacity-0-4",
+                    "label": "pie-1..16-background-opacity=0.4"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "pie-background-opacity-0-4"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-pie-on-rectangle",
+                    "label": "pie on rectangle"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "pie-on-rectangle"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-stripe-16",
+                    "label": "stripe-1..16-background-color/size"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "stripe-16"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-stripe-three",
+                    "label": "stripe 30% 50% 20%"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "stripe-three"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-stripe-direction-horizontal",
+                    "label": "stripe-direction=horizontal"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "stripe-direction-horizontal"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-stripe-direction-vertical",
+                    "label": "stripe-direction=vertical"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "stripe-direction-vertical"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-stripe-size-60pct",
+                    "label": "stripe-size=60%"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "stripe-size-60pct"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-stripe-background-opacity-0-4",
+                    "label": "stripe-1..16-background-opacity=0.4"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "stripe-background-opacity-0-4"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            }
+        ],
+        "edges": []
+    },
+    "style": [
+        {
+            "selector": "node",
+            "style": {
+                "shape": "ellipse",
+                "width": "36px",
+                "height": "36px",
+                "background-color": "rgb(200,200,200)",
+                "background-opacity": "1",
+                "border-color": "rgb(80,80,80)",
+                "border-width": "1px",
+                "border-style": "solid",
+                "border-opacity": "1",
+                "label": "",
+                "color": "rgb(0,0,0)",
+                "font-family": "DejaVu Sans",
+                "font-size": "10px",
+                "font-style": "normal",
+                "font-weight": "normal",
+                "text-valign": "center",
+                "text-halign": "center",
+                "opacity": "1"
+            }
+        },
+        {
+            "selector": "node:parent",
+            "style": {
+                "shape": "rectangle",
+                "padding": "10px",
+                "background-color": "rgb(238,238,238)",
+                "border-color": "rgb(80,80,80)",
+                "border-width": "1px",
+                "text-valign": "top",
+                "text-halign": "center"
+            }
+        },
+        {
+            "selector": "edge",
+            "style": {
+                "width": "1.5px",
+                "line-color": "rgb(80,80,80)",
+                "line-style": "solid",
+                "line-opacity": "1",
+                "curve-style": "straight",
+                "source-arrow-shape": "none",
+                "target-arrow-shape": "none",
+                "mid-source-arrow-shape": "none",
+                "mid-target-arrow-shape": "none",
+                "source-arrow-color": "rgb(80,80,80)",
+                "target-arrow-color": "rgb(80,80,80)",
+                "mid-source-arrow-color": "rgb(80,80,80)",
+                "mid-target-arrow-color": "rgb(80,80,80)",
+                "arrow-scale": "1",
+                "label": "",
+                "color": "rgb(0,0,0)",
+                "font-family": "DejaVu Sans",
+                "font-size": "10px",
+                "opacity": "1"
+            }
+        },
+        {
+            "selector": "node.end",
+            "style": {
+                "width": "8px",
+                "height": "8px"
+            }
+        },
+        {
+            "selector": "node.child",
+            "style": {
+                "width": "14px",
+                "height": "14px"
+            }
+        },
+        {
+            "selector": "node.anchor",
+            "style": {
+                "width": "6px",
+                "height": "6px"
+            }
+        },
+        {
+            "selector": "node.cap",
+            "style": {
+                "width": "1px",
+                "height": "1px",
+                "background-opacity": "0",
+                "border-width": "0px",
+                "label": "data(label)",
+                "font-size": "9px",
+                "text-valign": "bottom",
+                "text-halign": "center",
+                "text-wrap": "wrap",
+                "text-max-width": "104px",
+                "text-overflow-wrap": "anywhere"
+            }
+        },
+        {
+            "selector": "#background-image",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E"
+            }
+        },
+        {
+            "selector": "#background-image-png",
+            "style": {
+                "background-image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAGUlEQVR4nGP4f53BvG4HhESw/l9nYMApAwCqshoZGilQewAAAABJRU5ErkJggg==",
+                "background-fit": "cover"
+            }
+        },
+        {
+            "selector": "#background-fit-none",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-fit": "none"
+            }
+        },
+        {
+            "selector": "#background-fit-contain",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-fit": "contain"
+            }
+        },
+        {
+            "selector": "#background-fit-cover",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-fit": "cover"
+            }
+        },
+        {
+            "selector": "#background-repeat-repeat",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-width": "12px",
+                "background-height": "12px",
+                "background-repeat": "repeat"
+            }
+        },
+        {
+            "selector": "#background-repeat-repeat-x",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-width": "12px",
+                "background-height": "12px",
+                "background-repeat": "repeat-x"
+            }
+        },
+        {
+            "selector": "#background-repeat-repeat-y",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-width": "12px",
+                "background-height": "12px",
+                "background-repeat": "repeat-y"
+            }
+        },
+        {
+            "selector": "#background-repeat-no-repeat",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-width": "12px",
+                "background-height": "12px",
+                "background-repeat": "no-repeat"
+            }
+        },
+        {
+            "selector": "#background-clip-none",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-width": "50px",
+                "background-height": "50px",
+                "background-clip": "none"
+            }
+        },
+        {
+            "selector": "#background-clip-node",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-width": "50px",
+                "background-height": "50px",
+                "background-clip": "node"
+            }
+        },
+        {
+            "selector": "#background-image-containment-inside",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-fit": "contain",
+                "padding": "8px",
+                "background-image-containment": "inside"
+            }
+        },
+        {
+            "selector": "#background-image-containment-over",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-fit": "contain",
+                "padding": "8px",
+                "background-image-containment": "over"
+            }
+        },
+        {
+            "selector": "#background-image-smoothing-yes",
+            "style": {
+                "background-image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAGUlEQVR4nGP4f53BvG4HhESw/l9nYMApAwCqshoZGilQewAAAABJRU5ErkJggg==",
+                "background-fit": "cover",
+                "background-image-smoothing": "yes"
+            }
+        },
+        {
+            "selector": "#background-image-smoothing-no",
+            "style": {
+                "background-image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAGUlEQVR4nGP4f53BvG4HhESw/l9nYMApAwCqshoZGilQewAAAABJRU5ErkJggg==",
+                "background-fit": "cover",
+                "background-image-smoothing": "no"
+            }
+        },
+        {
+            "selector": "#background-image-crossorigin-anonymous",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-image-crossorigin": "anonymous"
+            }
+        },
+        {
+            "selector": "#background-image-crossorigin-use-credentials",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-image-crossorigin": "use-credentials"
+            }
+        },
+        {
+            "selector": "#background-image-crossorigin-null",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-image-crossorigin": "null"
+            }
+        },
+        {
+            "selector": "#background-image-opacity-0-4",
+            "style": {
+                "background-image-opacity": "0.4",
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E"
+            }
+        },
+        {
+            "selector": "#background-width-auto",
+            "style": {
+                "background-width": "auto",
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%226%22%20viewBox%3D%220%200%2012%206%22%3E%3Crect%20width%3D%226%22%20height%3D%226%22%20fill%3D%22%23984ea3%22%2F%3E%3Crect%20x%3D%226%22%20width%3D%226%22%20height%3D%226%22%20fill%3D%22%23ff7f00%22%2F%3E%3C%2Fsvg%3E"
+            }
+        },
+        {
+            "selector": "#background-width-30",
+            "style": {
+                "background-width": "30px",
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E"
+            }
+        },
+        {
+            "selector": "#background-width-50pct",
+            "style": {
+                "background-width": "50%",
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E"
+            }
+        },
+        {
+            "selector": "#background-height-auto",
+            "style": {
+                "background-height": "auto",
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%226%22%20viewBox%3D%220%200%2012%206%22%3E%3Crect%20width%3D%226%22%20height%3D%226%22%20fill%3D%22%23984ea3%22%2F%3E%3Crect%20x%3D%226%22%20width%3D%226%22%20height%3D%226%22%20fill%3D%22%23ff7f00%22%2F%3E%3C%2Fsvg%3E"
+            }
+        },
+        {
+            "selector": "#background-height-30",
+            "style": {
+                "background-height": "30px",
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E"
+            }
+        },
+        {
+            "selector": "#background-width-relative-to-inner",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-width": "100%",
+                "padding": "8px",
+                "background-width-relative-to": "inner"
+            }
+        },
+        {
+            "selector": "#background-width-relative-to-include-padding",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-width": "100%",
+                "padding": "8px",
+                "background-width-relative-to": "include-padding"
+            }
+        },
+        {
+            "selector": "#background-height-relative-to-inner",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-height": "100%",
+                "padding": "8px",
+                "background-height-relative-to": "inner"
+            }
+        },
+        {
+            "selector": "#background-height-relative-to-include-padding",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-height": "100%",
+                "padding": "8px",
+                "background-height-relative-to": "include-padding"
+            }
+        },
+        {
+            "selector": "#background-position-x-0pct",
+            "style": {
+                "background-position-x": "0%",
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E"
+            }
+        },
+        {
+            "selector": "#background-position-x-100pct",
+            "style": {
+                "background-position-x": "100%",
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E"
+            }
+        },
+        {
+            "selector": "#background-position-y-0pct",
+            "style": {
+                "background-position-y": "0%",
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E"
+            }
+        },
+        {
+            "selector": "#background-position-y-100pct",
+            "style": {
+                "background-position-y": "100%",
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E"
+            }
+        },
+        {
+            "selector": "#background-offset-x-8",
+            "style": {
+                "background-offset-x": "8px",
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E"
+            }
+        },
+        {
+            "selector": "#background-offset-y-8",
+            "style": {
+                "background-offset-y": "8px",
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E"
+            }
+        },
+        {
+            "selector": "#background-image-two-layers",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%226%22%20viewBox%3D%220%200%2012%206%22%3E%3Crect%20width%3D%226%22%20height%3D%226%22%20fill%3D%22%23984ea3%22%2F%3E%3Crect%20x%3D%226%22%20width%3D%226%22%20height%3D%226%22%20fill%3D%22%23ff7f00%22%2F%3E%3C%2Fsvg%3E",
+                "background-fit": "none contain"
+            }
+        },
+        {
+            "selector": "#background-image-on-rectangle",
+            "style": {
+                "background-image": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23e41a1c%22%2F%3E%3Crect%20x%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23377eb8%22%2F%3E%3Crect%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%234daf4a%22%2F%3E%3Crect%20x%3D%2212%22%20y%3D%2212%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22%23ffd700%22%2F%3E%3C%2Fsvg%3E",
+                "background-fit": "cover",
+                "shape": "rectangle"
+            }
+        },
+        {
+            "selector": "#pie-16-slices",
+            "style": {
+                "pie-1-background-color": "rgb(228,26,28)",
+                "pie-1-background-size": "6.25%",
+                "pie-2-background-color": "rgb(55,126,184)",
+                "pie-2-background-size": "6.25%",
+                "pie-3-background-color": "rgb(77,175,74)",
+                "pie-3-background-size": "6.25%",
+                "pie-4-background-color": "rgb(152,78,163)",
+                "pie-4-background-size": "6.25%",
+                "pie-5-background-color": "rgb(255,127,0)",
+                "pie-5-background-size": "6.25%",
+                "pie-6-background-color": "rgb(255,255,51)",
+                "pie-6-background-size": "6.25%",
+                "pie-7-background-color": "rgb(166,86,40)",
+                "pie-7-background-size": "6.25%",
+                "pie-8-background-color": "rgb(247,129,191)",
+                "pie-8-background-size": "6.25%",
+                "pie-9-background-color": "rgb(153,153,153)",
+                "pie-9-background-size": "6.25%",
+                "pie-10-background-color": "rgb(102,194,165)",
+                "pie-10-background-size": "6.25%",
+                "pie-11-background-color": "rgb(252,141,98)",
+                "pie-11-background-size": "6.25%",
+                "pie-12-background-color": "rgb(141,160,203)",
+                "pie-12-background-size": "6.25%",
+                "pie-13-background-color": "rgb(231,138,195)",
+                "pie-13-background-size": "6.25%",
+                "pie-14-background-color": "rgb(166,216,84)",
+                "pie-14-background-size": "6.25%",
+                "pie-15-background-color": "rgb(255,217,47)",
+                "pie-15-background-size": "6.25%",
+                "pie-16-background-color": "rgb(27,158,119)",
+                "pie-16-background-size": "6.25%"
+            }
+        },
+        {
+            "selector": "#pie-three-slices",
+            "style": {
+                "pie-1-background-color": "rgb(228,26,28)",
+                "pie-1-background-size": "30%",
+                "pie-2-background-color": "rgb(55,126,184)",
+                "pie-2-background-size": "50%",
+                "pie-3-background-color": "rgb(77,175,74)",
+                "pie-3-background-size": "20%"
+            }
+        },
+        {
+            "selector": "#pie-partial",
+            "style": {
+                "pie-1-background-color": "rgb(228,26,28)",
+                "pie-1-background-size": "40%"
+            }
+        },
+        {
+            "selector": "#pie-size-60pct",
+            "style": {
+                "pie-size": "60%",
+                "pie-1-background-color": "rgb(228,26,28)",
+                "pie-1-background-size": "30%",
+                "pie-2-background-color": "rgb(55,126,184)",
+                "pie-2-background-size": "50%",
+                "pie-3-background-color": "rgb(77,175,74)",
+                "pie-3-background-size": "20%"
+            }
+        },
+        {
+            "selector": "#pie-hole-50pct",
+            "style": {
+                "pie-hole": "50%",
+                "pie-1-background-color": "rgb(228,26,28)",
+                "pie-1-background-size": "30%",
+                "pie-2-background-color": "rgb(55,126,184)",
+                "pie-2-background-size": "50%",
+                "pie-3-background-color": "rgb(77,175,74)",
+                "pie-3-background-size": "20%"
+            }
+        },
+        {
+            "selector": "#pie-start-angle-90deg",
+            "style": {
+                "pie-start-angle": "90deg",
+                "pie-1-background-color": "rgb(228,26,28)",
+                "pie-1-background-size": "30%",
+                "pie-2-background-color": "rgb(55,126,184)",
+                "pie-2-background-size": "50%",
+                "pie-3-background-color": "rgb(77,175,74)",
+                "pie-3-background-size": "20%"
+            }
+        },
+        {
+            "selector": "#pie-background-opacity-0-4",
+            "style": {
+                "pie-1-background-opacity": "0.4",
+                "pie-1-background-color": "rgb(228,26,28)",
+                "pie-1-background-size": "6.25%",
+                "pie-2-background-opacity": "0.4",
+                "pie-2-background-color": "rgb(55,126,184)",
+                "pie-2-background-size": "6.25%",
+                "pie-3-background-opacity": "0.4",
+                "pie-3-background-color": "rgb(77,175,74)",
+                "pie-3-background-size": "6.25%",
+                "pie-4-background-opacity": "0.4",
+                "pie-4-background-color": "rgb(152,78,163)",
+                "pie-4-background-size": "6.25%",
+                "pie-5-background-opacity": "0.4",
+                "pie-5-background-color": "rgb(255,127,0)",
+                "pie-5-background-size": "6.25%",
+                "pie-6-background-opacity": "0.4",
+                "pie-6-background-color": "rgb(255,255,51)",
+                "pie-6-background-size": "6.25%",
+                "pie-7-background-opacity": "0.4",
+                "pie-7-background-color": "rgb(166,86,40)",
+                "pie-7-background-size": "6.25%",
+                "pie-8-background-opacity": "0.4",
+                "pie-8-background-color": "rgb(247,129,191)",
+                "pie-8-background-size": "6.25%",
+                "pie-9-background-opacity": "0.4",
+                "pie-9-background-color": "rgb(153,153,153)",
+                "pie-9-background-size": "6.25%",
+                "pie-10-background-opacity": "0.4",
+                "pie-10-background-color": "rgb(102,194,165)",
+                "pie-10-background-size": "6.25%",
+                "pie-11-background-opacity": "0.4",
+                "pie-11-background-color": "rgb(252,141,98)",
+                "pie-11-background-size": "6.25%",
+                "pie-12-background-opacity": "0.4",
+                "pie-12-background-color": "rgb(141,160,203)",
+                "pie-12-background-size": "6.25%",
+                "pie-13-background-opacity": "0.4",
+                "pie-13-background-color": "rgb(231,138,195)",
+                "pie-13-background-size": "6.25%",
+                "pie-14-background-opacity": "0.4",
+                "pie-14-background-color": "rgb(166,216,84)",
+                "pie-14-background-size": "6.25%",
+                "pie-15-background-opacity": "0.4",
+                "pie-15-background-color": "rgb(255,217,47)",
+                "pie-15-background-size": "6.25%",
+                "pie-16-background-opacity": "0.4",
+                "pie-16-background-color": "rgb(27,158,119)",
+                "pie-16-background-size": "6.25%"
+            }
+        },
+        {
+            "selector": "#pie-on-rectangle",
+            "style": {
+                "shape": "rectangle",
+                "pie-1-background-color": "rgb(228,26,28)",
+                "pie-1-background-size": "30%",
+                "pie-2-background-color": "rgb(55,126,184)",
+                "pie-2-background-size": "50%",
+                "pie-3-background-color": "rgb(77,175,74)",
+                "pie-3-background-size": "20%"
+            }
+        },
+        {
+            "selector": "#stripe-16",
+            "style": {
+                "stripe-1-background-color": "rgb(228,26,28)",
+                "stripe-1-background-size": "6.25%",
+                "stripe-2-background-color": "rgb(55,126,184)",
+                "stripe-2-background-size": "6.25%",
+                "stripe-3-background-color": "rgb(77,175,74)",
+                "stripe-3-background-size": "6.25%",
+                "stripe-4-background-color": "rgb(152,78,163)",
+                "stripe-4-background-size": "6.25%",
+                "stripe-5-background-color": "rgb(255,127,0)",
+                "stripe-5-background-size": "6.25%",
+                "stripe-6-background-color": "rgb(255,255,51)",
+                "stripe-6-background-size": "6.25%",
+                "stripe-7-background-color": "rgb(166,86,40)",
+                "stripe-7-background-size": "6.25%",
+                "stripe-8-background-color": "rgb(247,129,191)",
+                "stripe-8-background-size": "6.25%",
+                "stripe-9-background-color": "rgb(153,153,153)",
+                "stripe-9-background-size": "6.25%",
+                "stripe-10-background-color": "rgb(102,194,165)",
+                "stripe-10-background-size": "6.25%",
+                "stripe-11-background-color": "rgb(252,141,98)",
+                "stripe-11-background-size": "6.25%",
+                "stripe-12-background-color": "rgb(141,160,203)",
+                "stripe-12-background-size": "6.25%",
+                "stripe-13-background-color": "rgb(231,138,195)",
+                "stripe-13-background-size": "6.25%",
+                "stripe-14-background-color": "rgb(166,216,84)",
+                "stripe-14-background-size": "6.25%",
+                "stripe-15-background-color": "rgb(255,217,47)",
+                "stripe-15-background-size": "6.25%",
+                "stripe-16-background-color": "rgb(27,158,119)",
+                "stripe-16-background-size": "6.25%"
+            }
+        },
+        {
+            "selector": "#stripe-three",
+            "style": {
+                "stripe-1-background-color": "rgb(228,26,28)",
+                "stripe-1-background-size": "30%",
+                "stripe-2-background-color": "rgb(55,126,184)",
+                "stripe-2-background-size": "50%",
+                "stripe-3-background-color": "rgb(77,175,74)",
+                "stripe-3-background-size": "20%"
+            }
+        },
+        {
+            "selector": "#stripe-direction-horizontal",
+            "style": {
+                "stripe-1-background-color": "rgb(228,26,28)",
+                "stripe-1-background-size": "30%",
+                "stripe-2-background-color": "rgb(55,126,184)",
+                "stripe-2-background-size": "50%",
+                "stripe-3-background-color": "rgb(77,175,74)",
+                "stripe-3-background-size": "20%",
+                "stripe-direction": "horizontal"
+            }
+        },
+        {
+            "selector": "#stripe-direction-vertical",
+            "style": {
+                "stripe-1-background-color": "rgb(228,26,28)",
+                "stripe-1-background-size": "30%",
+                "stripe-2-background-color": "rgb(55,126,184)",
+                "stripe-2-background-size": "50%",
+                "stripe-3-background-color": "rgb(77,175,74)",
+                "stripe-3-background-size": "20%",
+                "stripe-direction": "vertical"
+            }
+        },
+        {
+            "selector": "#stripe-size-60pct",
+            "style": {
+                "stripe-size": "60%",
+                "stripe-1-background-color": "rgb(228,26,28)",
+                "stripe-1-background-size": "30%",
+                "stripe-2-background-color": "rgb(55,126,184)",
+                "stripe-2-background-size": "50%",
+                "stripe-3-background-color": "rgb(77,175,74)",
+                "stripe-3-background-size": "20%"
+            }
+        },
+        {
+            "selector": "#stripe-background-opacity-0-4",
+            "style": {
+                "stripe-1-background-opacity": "0.4",
+                "stripe-1-background-color": "rgb(228,26,28)",
+                "stripe-1-background-size": "6.25%",
+                "stripe-2-background-opacity": "0.4",
+                "stripe-2-background-color": "rgb(55,126,184)",
+                "stripe-2-background-size": "6.25%",
+                "stripe-3-background-opacity": "0.4",
+                "stripe-3-background-color": "rgb(77,175,74)",
+                "stripe-3-background-size": "6.25%",
+                "stripe-4-background-opacity": "0.4",
+                "stripe-4-background-color": "rgb(152,78,163)",
+                "stripe-4-background-size": "6.25%",
+                "stripe-5-background-opacity": "0.4",
+                "stripe-5-background-color": "rgb(255,127,0)",
+                "stripe-5-background-size": "6.25%",
+                "stripe-6-background-opacity": "0.4",
+                "stripe-6-background-color": "rgb(255,255,51)",
+                "stripe-6-background-size": "6.25%",
+                "stripe-7-background-opacity": "0.4",
+                "stripe-7-background-color": "rgb(166,86,40)",
+                "stripe-7-background-size": "6.25%",
+                "stripe-8-background-opacity": "0.4",
+                "stripe-8-background-color": "rgb(247,129,191)",
+                "stripe-8-background-size": "6.25%",
+                "stripe-9-background-opacity": "0.4",
+                "stripe-9-background-color": "rgb(153,153,153)",
+                "stripe-9-background-size": "6.25%",
+                "stripe-10-background-opacity": "0.4",
+                "stripe-10-background-color": "rgb(102,194,165)",
+                "stripe-10-background-size": "6.25%",
+                "stripe-11-background-opacity": "0.4",
+                "stripe-11-background-color": "rgb(252,141,98)",
+                "stripe-11-background-size": "6.25%",
+                "stripe-12-background-opacity": "0.4",
+                "stripe-12-background-color": "rgb(141,160,203)",
+                "stripe-12-background-size": "6.25%",
+                "stripe-13-background-opacity": "0.4",
+                "stripe-13-background-color": "rgb(231,138,195)",
+                "stripe-13-background-size": "6.25%",
+                "stripe-14-background-opacity": "0.4",
+                "stripe-14-background-color": "rgb(166,216,84)",
+                "stripe-14-background-size": "6.25%",
+                "stripe-15-background-opacity": "0.4",
+                "stripe-15-background-color": "rgb(255,217,47)",
+                "stripe-15-background-size": "6.25%",
+                "stripe-16-background-opacity": "0.4",
+                "stripe-16-background-color": "rgb(27,158,119)",
+                "stripe-16-background-size": "6.25%"
+            }
+        }
+    ],
+    "zoom": 1e-50,
+    "pan": {
+        "x": 0.5,
+        "y": 0.5
+    },
+    "data": {
+        "sheet": "specimen-images-charts",
+        "about": "Cytoscape.js style specimen sheet specimen-images-charts: one setting per element, caption nodes cap-<id> name it; written by graph-io/test/fidelity/generators/specimens/cytoscapejs.mjs with cy.json() of Cytoscape.js 3.34.3"
+    }
+}

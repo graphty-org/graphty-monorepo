@@ -1,10 +1,9 @@
 /**
  * @file `node.sizeMode` draws every shape at one extent (issue #2495).
  *
- * A node's size used to be handed to each shape's mesh builder as its own scale, so shapes of one
- * size were drawn at different extents: a size-1 octahedron is 2.83 across where a size-1 sphere
- * is 1. `node.sizeMode: "diameter"` makes the size the largest width, height or depth of the
- * drawn shape, the same for every shape. "scale", the default, keeps the old drawing.
+ * Under "scale", the default, every shape at one size is drawn the same width across the view.
+ * `node.sizeMode: "diameter"` makes the size the largest width, height or depth of the drawn
+ * shape, the same for every shape, including those deepest front to back.
  *
  * The extent is read on screen: every vertex of a node's mesh is projected through the camera,
  * which gives the drawn width and height in pixels. The view is 2D, so the camera is orthographic

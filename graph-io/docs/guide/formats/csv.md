@@ -290,6 +290,23 @@ What a saved file can hold (the [capabilities](./index.md#what-the-capabilities-
 | [`graphAttributes`](./index.md#graphattributes) | no                           |
 | [`positions`](./index.md#positions)             | no                           |
 | [`viz`](./index.md#viz)                         | no                           |
+| [`styles`](./index.md#styles)                   | none                         |
+
+<!-- generated:end -->
+
+## Styles
+
+CSV has no styles. A `color` or `size` column is data like any other column, and an import with
+`styles: true` returns `styles: null`. A save with styles writes none of them and keeps no rules
+for graphty: every property is a `W_STYLE_NOT_WRITTEN` note, and the rules a
+`W_STYLE_RULES_NOT_KEPT` note. See [Styles](../styles.md).
+
+<!-- generated:begin styles:csv -->
+
+|               |                                                                           |
+| ------------- | ------------------------------------------------------------------------- |
+| Reads styles  | no: the format has no styles                                              |
+| Writes styles | no: every style is lost (`W_STYLE_NOT_WRITTEN`, `W_STYLE_RULES_NOT_KEPT`) |
 
 <!-- generated:end -->
 

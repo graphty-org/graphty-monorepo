@@ -24,8 +24,8 @@
  *
  * WHAT "UNREACHABLE" MEANS HERE, precisely: no style channel can make this field take a value the
  * author chose. A field the painter writes to a fixed value of its own is unreachable --
- * `texture.color.colorType` is pinned to "solid" on every node so that the per-instance colour
- * can show, which is exactly why a gradient node fill cannot survive the paint path.
+ * `texture.color.value` is pinned to a neutral white on every node so that the per-instance colour
+ * can show.
  *
  * WHAT IT IS NOT. It is not a list of bugs and not a roadmap. Some entries are deliberate and
  * permanent: a label's world position is computed by the renderer and a layer has no business
@@ -106,25 +106,22 @@ export const WAIVER_OWNER_UNASSIGNED = "unassigned -- no person has taken this y
 export const WAIVER_EXPIRY_UNSET = "2026-12-21";
 
 /**
- * How far ahead a defect waiver may be parked, in days.
- *
- * A year and a bit: long enough for a defect that genuinely waits on a release, short enough that
- * every defect in this file is read by a person at least once a year.
- */
-export const WAIVER_HORIZON_DAYS = 400;
-
-/**
- * A defect waiver nobody has taken yet.
- *
- * Every defect in this file is written through this helper today, which is exactly the state the
- * owner is being asked to correct: read the reason, decide who owns it, and give it a date that
- * reflects a real plan instead of a placeholder.
+ * A defect waiver nobody has taken yet: read the reason, decide who owns it, and give it a date
+ * that reflects a real plan instead of the placeholder.
  * @param reason - What is broken, and what a consumer meets because of it.
  * @returns The waiver, carrying the placeholder owner and the placeholder expiry.
  */
 function unownedDefect(reason: string): DefectWaiver {
     return { kind: "defect", reason, owner: WAIVER_OWNER_UNASSIGNED, expires: WAIVER_EXPIRY_UNSET };
 }
+
+/**
+ * How far ahead a defect waiver may be parked, in days.
+ *
+ * A year and a bit: long enough for a defect that genuinely waits on a release, short enough that
+ * every defect in this file is read by a person at least once a year.
+ */
+export const WAIVER_HORIZON_DAYS = 400;
 
 /** One style field a consumer cannot reach, why, and whether that is a decision or a defect. */
 export type UnreachableStyleField = Waiver & {
@@ -205,6 +202,26 @@ const LABEL_RESIDUE: Readonly<Record<string, string>> = {
         "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
         "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
         "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.stops":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.centerX":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.centerY":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.radius":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
     "backgroundColor.opacity":
         "The panel behind a label takes a plain colour from the vocabulary's `background`, which " +
         "carries its own alpha when it is written as `#rrggbbaa`.",
@@ -231,6 +248,17 @@ function namedBlockOf(
 }
 
 /**
+ * A label block's table (`table`), published only for an edge's own label (`edge.labelTable`), where it is waived for
+ * every other block.
+ */
+const TABLE_RESIDUE: Readonly<Record<string, string>> = {
+    table:
+        "A label laid out as a table of cells is published for an edge's own label (`edge.labelTable`), as a " +
+        "node's is through `node.labelTable` on its shape. A table for a node's label block, a tooltip, an " +
+        "external label or an arrow's caption has no file format behind it that draws one.",
+};
+
+/**
  * Every declared style field no style channel can change, with the reason for each and whether
  * that reason is a decision or a defect.
  *
@@ -255,47 +283,13 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
             "label. This is the one case the package already handled honestly.",
     },
     {
-        ...unownedDefect(
-            "The source mesh's material is painted a neutral solid so that each node's own " +
-                "instance colour can show -- one material per colour would be one source mesh " +
-                "per colour, fifty thousand of them for a continuous ramp. So the paint path " +
-                'pins this to "solid" on every node and no channel can choose otherwise, ' +
-                "which is why a gradient node fill cannot survive a repaint even though " +
-                "`NodeMesh` still builds one. Register row 24, which is open: a channel " +
-                "carrying an advanced colour, or the renderer branch deleted.",
-        ),
-        target: "node",
-        path: "texture.color.colorType",
-    },
-    {
-        ...unownedDefect(
-            "Pinned to a neutral white by the paint path, for the same reason as " +
-                "`texture.color.colorType`: the colour a reader sees is written into the node's " +
-                "own instance, beside the style, through the `node.color` channel. Register " +
-                "row 24.",
-        ),
+        reason:
+            "Pinned to a neutral white by the paint path: one material per colour would be one " +
+            "source mesh per colour, so the colour a reader sees is written into the node's own " +
+            "instance, beside the style, through the `node.color` channel.",
+        kind: "by-design",
         target: "node",
         path: "texture.color.value",
-    },
-    {
-        ...unownedDefect(
-            "The colour stops of a gradient node fill. `NodeMesh.createMaterial` builds linear " +
-                "and radial gradients and tests cover them, and no channel reaches any of it " +
-                "because the paint path overwrites the whole colour with a neutral solid. " +
-                "Register row 24: publish a channel carrying an advanced colour, or delete the " +
-                "renderer branch.",
-        ),
-        target: "node",
-        path: "texture.color.colors",
-    },
-    {
-        ...unownedDefect(
-            "Which way a gradient node fill runs. Unreachable for the same reason as " +
-                "`texture.color.colors`: the paint path replaces the colour with a neutral " +
-                "solid before the material is built. Register row 24.",
-        ),
-        target: "node",
-        path: "texture.color.direction",
     },
     ...namedBlockOf("node", "label", LABEL_RESIDUE),
 
@@ -304,11 +298,16 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
     // label leaves, for the same reasons. The whole block used to be waived here as a defect: the
     // renderer read every field of it and only the words had a door.
     ...namedBlockOf("node", "tooltip", LABEL_RESIDUE),
+    // A node's external label: its words, its place and its appearance are channels, so what is left is the same
+    // leaves a label leaves, for the same reasons.
+    ...namedBlockOf("node", "xlabel", LABEL_RESIDUE),
 
     // ------------------------------------------------------------------------------------------
     // Edges
     // ------------------------------------------------------------------------------------------
     ...namedBlockOf("edge", "label", LABEL_RESIDUE),
+    // An edge's external label: its words, its place and its appearance are channels, as the node's.
+    ...namedBlockOf("edge", "xlabel", LABEL_RESIDUE),
 
     // A caption at each end of an edge, published as four channels -- the words and the
     // appearance at each end -- so what is left is the same sixteen leaves a label leaves, for
@@ -316,6 +315,14 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
     // caption and no channel could ask for one.
     ...namedBlockOf("edge", "arrowHead.text", LABEL_RESIDUE),
     ...namedBlockOf("edge", "arrowTail.text", LABEL_RESIDUE),
+    ...[
+        ["node", "label"],
+        ["node", "tooltip"],
+        ["node", "xlabel"],
+        ["edge", "xlabel"],
+        ["edge", "arrowHead.text"],
+        ["edge", "arrowTail.text"],
+    ].flatMap(([target, prefix]) => namedBlockOf(target as "node" | "edge", prefix, TABLE_RESIDUE)),
 ];
 
 /**
@@ -332,6 +339,18 @@ export type UnpaintedChannel = Waiver & {
     /** The channel's name. */
     readonly channel: Channel;
 };
+
+/** The channels that size a group round its members, which only a graph holding a group can show. */
+const GROUP_SIZING_CHANNELS: readonly Channel[] = [
+    "node.groupPadding",
+    "node.groupPaddingRatio",
+    "node.groupPaddingOf",
+    "node.groupMinWidth",
+    "node.groupMinHeight",
+    "node.groupMinWidthBiasLeft",
+    "node.groupMinHeightBiasTop",
+    "node.groupIncludeLabels",
+];
 
 /**
  * Every channel published as renderable that `test/browser/channel-paints.test.ts` could not see
@@ -377,6 +396,51 @@ export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
             "hovers a node with a real pointer, reads the tooltip mesh the element built, and " +
             "requires the typeface, the panel colour and the size a layer asked for to be the " +
             "ones drawn.",
+    },
+    ...GROUP_SIZING_CHANNELS.map((channel): UnpaintedChannel => ({
+        kind: "by-design",
+        channel,
+        reason:
+            "A GROUP IS SIZED BY IT, so this waiver is about the reading and not about the capability. " +
+            "The channel sizes a group drawn round its members -- a node a file names as the parent of " +
+            "others -- and the gate's graph holds no group, so there is nothing for it to resize. " +
+            "`test/browser/groups-follow-members.test.ts` is where it is proved: it reads a Cytoscape.js " +
+            "file whose compound parents set a padding, a minimum width and a bias, and requires each " +
+            "group's box to be the size Cytoscape.js draws.",
+    })),
+    ...(["node.tooltipSize", "node.tooltipColor", "node.tooltipBackground"] as const).map(
+        (channel): UnpaintedChannel => ({
+            kind: "by-design",
+            channel,
+            reason:
+                "A NODE TOOLTIP IS DRAWN and this look reaches it, so this waiver is about the " +
+                "reading, as for `node.tooltipStyle` above: the tooltip is hover-only and this " +
+                "gate paints into a RESTING scene. `test/browser/node-tooltip-style-draws.test.ts` " +
+                "hovers a node with a real pointer and requires the size and the panel colour " +
+                "these channels write to be the ones drawn.",
+        }),
+    ),
+    ...(["node.shaders", "edge.shaders"] as const).map((channel): UnpaintedChannel => ({
+        channel,
+        ...unownedDefect(
+            "THE ELEMENT SHIPS NO SHADER PRESET YET, so the only value this gate can write to these " +
+                'channels on every build is `"none"` (or an empty map), which draws the plain look. ' +
+                "A registered or pasted shader draws: node surfaces, sprites and effects " +
+                "(test/browser/shaders/node-drawing.test.ts) and edge surfaces and effects " +
+                "(test/browser/shaders/edge-drawing.test.ts). " +
+                "The presets are later packages of design/rendering/shader-styles.md (section 8, P1 " +
+                "to P6); once one ships, this gate can write it and this waiver goes.",
+        ),
+    })),
+    {
+        channel: "edge.lift",
+        kind: "by-design",
+        reason:
+            "A LIFT RISES OUT OF A FLAT LAYOUT'S PLANE, so it draws only for a flat layout in the 3D " +
+            "view, and this gate's scene is a 3D layout. Anywhere else the edge is drawn flat and " +
+            "`styles.counts(id).undrawn` reports `edge.lift-needs-flat-layout`. " +
+            "`test/browser/shaders/edge-drawing.test.ts` draws and picks a lifted edge on a flat " +
+            "layout in 3D.",
     },
 ];
 

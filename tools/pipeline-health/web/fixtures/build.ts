@@ -1,0 +1,2535 @@
+/**
+ * Writes the page's fixtures, web/fixtures/*.json, from the typed data below, so the type checker
+ * proves every fixture conforms to src/contract.ts.
+ *
+ * Run: node_modules/.bin/tsx tools/pipeline-health/web/fixtures/build.ts
+ *
+ * The data is the pipeline's real incidents of 2026-10-25 as the page would have shown them at
+ * 23:30 UTC (design/ci/health-dashboard/mockup.html), numbers rounded and some filled in. The
+ * `gray` scenario adds what the incident day did not have: a NO DATA category, a NO DATA member with
+ * its reason and a partial window. Fixture mode draws a FIXTURE DATA banner over all of it.
+ */
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import type { IssueItem } from "../../src/model/items.js";
+import { issuesPage, issuesSummary } from "../../src/views/issue-sections.js";
+import type {
+    CategoryStatus,
+    ChannelOutcome,
+    ChannelTile,
+    Cmp,
+    Episode,
+    Fact,
+    IssueRange,
+    Member,
+    MemberRef,
+    OverviewResponse,
+    PageResponse,
+    Range,
+    Section,
+    SectionResponse,
+    Sla,
+    SlowRange,
+    SourceAge,
+    Spark,
+    TableRow,
+    TestHistoryResponse,
+    TreeNode,
+    Unit,
+    Value,
+} from "../src/contract";
+
+/**
+ * A GitHub Actions expression, `${{ body }}`, as a workflow file spells it.
+ * @param body - the expression inside the braces
+ * @returns the expression with its braces
+ */
+const ghExpr = (body: string): string => ["$", "{{ ", body, " }}"].join("");
+
+// HEALTH_FIXTURES_OUT writes elsewhere; test/web/fixtures.test.ts uses it to compare with the committed files.
+const OUT = process.env.HEALTH_FIXTURES_OUT ?? dirname(fileURLToPath(import.meta.url));
+const GEN = "2026-10-25T23:30:00Z";
+
+/**
+ * A time on 2026-10-25 ("19:20"), or another day of October ("10-24 19:25").
+ * @param s - The time, "HH:MM" or "MM-DD HH:MM".
+ * @returns The time as an ISO string in UTC.
+ */
+function t(s: string): string {
+    const m = /^(?:(\d\d)-(\d\d) )?(\d\d):(\d\d)$/.exec(s);
+    if (!m) {
+        throw new Error(`bad time ${s}`);
+    }
+    const [, mo = "10", d = "25", h, mi] = m;
+    return `2026-${mo}-${d}T${h}:${mi}:00Z`;
+}
+
+const f = (code: string, params?: Fact["params"]): Fact => (params ? { code, params } : { code });
+const num = (n: number, unit?: Unit): Value => (unit ? { n, unit } : { n });
+const cmp = (op: Cmp["op"], n: number, unit?: Cmp["unit"]): Cmp => (unit ? { op, n, unit } : { op, n });
+
+// ---------------------------------------------------------------- sparklines
+
+function ramp(a: number, b: number, n: number): number[] {
+    return Array.from({ length: n }, (_, i) => +(a + ((b - a) * i) / Math.max(1, n - 1)).toFixed(2));
+}
+const flat = (v: number, n: number): number[] => new Array<number>(n).fill(v);
+const nulls = (n: number): null[] => new Array<null>(n).fill(null);
+
+/** A sparkline point's mark: yellow, red, or none. */
+type Mark = "warn" | "bad" | null;
+
+/**
+ * Green when the target holds, red when the red comparison holds, yellow between.
+ * @param v - The value to judge, or null when there is none.
+ * @param sla - The target and red comparisons to judge it against.
+ * @returns null when the target holds, "bad" when the red comparison holds, else "warn".
+ */
+function judge(v: number | null, sla: Sla): Mark {
+    if (v === null || !("op" in sla.target)) {
+        return null;
+    }
+    const holds = (c: Cmp): boolean => {
+        switch (c.op) {
+            case "<=":
+                return v <= c.n;
+            case "<":
+                return v < c.n;
+            case ">=":
+                return v >= c.n;
+            case ">":
+                return v > c.n;
+            default:
+                return v === c.n;
+        }
+    };
+    if (holds(sla.target)) {
+        return null;
+    }
+    return sla.red && "op" in sla.red && holds(sla.red) ? "bad" : "warn";
+}
+
+function spark(ctx: (number | null)[], trend: (number | null)[], sla: Sla | null, target?: number): Spark {
+    if (ctx.length !== 18 || trend.length !== 24) {
+        throw new Error(`spark needs 18 + 24, got ${ctx.length} + ${trend.length}`);
+    }
+    const tgt = target ?? (sla && "op" in sla.target ? sla.target.n : undefined);
+    return {
+        step: "15m",
+        ctx,
+        trend,
+        breach: trend.map((v) => (sla ? judge(v, sla) : null)),
+        ...(tgt === undefined ? {} : { target: tgt }),
+    };
+}
+
+// ---------------------------------------------------------------- members
+
+type M = Omit<Member, "state" | "window" | "sla" | "link"> & Partial<Pick<Member, "state" | "window" | "sla" | "link">>;
+function member(m: M): Member {
+    const out: Member = { state: "ok", window: "now", sla: null, link: "/", ...m };
+    // A 7- or 28-day member is judged like any other: its state is its value against its SLA.
+    if (out.state !== "slow") {
+        return out;
+    }
+    const v = out.value && "n" in out.value ? (out.value.n ?? null) : null;
+    return { ...out, state: (out.sla && judge(v, out.sla)) || "ok" };
+}
+
+const SLA = {
+    redNow: { target: cmp("==", 0), red: f("sla.red_now") } satisfies Sla,
+    greenTime: { target: cmp(">=", 92, "pct"), red: cmp("<", 75, "pct") } satisfies Sla,
+    sameCheck: { target: cmp("<=", 1), red: cmp(">=", 3) } satisfies Sla,
+    untested: { target: cmp("<=", 7, "h"), red: cmp(">", 13, "h") } satisfies Sla,
+    reverts: { target: cmp("<", 5, "pct"), red: cmp(">", 10, "pct") } satisfies Sla,
+    prCaused: { target: cmp("<", 5, "pct") } satisfies Sla,
+    ttm: { target: cmp("<=", 60, "min"), red: cmp(">", 180, "min"), needs6h: true } satisfies Sla,
+    openPrs: { target: cmp("<=", 15), red: cmp(">", 25) } satisfies Sla,
+    age24: { target: cmp("<", 24, "h"), red: cmp(">", 72, "h") } satisfies Sla,
+    mergeRatio: { target: cmp(">=", 0.9, "ratio"), red: cmp("<", 0.7, "ratio"), needs6h: true } satisfies Sla,
+    greenStuck: { target: cmp("==", 0), red: cmp(">=", 2) } satisfies Sla,
+    armedLong: { target: cmp("<=", 1), red: cmp(">=", 4) } satisfies Sla,
+    wait: { target: cmp("<=", 5, "min"), red: cmp(">", 15, "min") } satisfies Sla,
+    saturated: { target: cmp("==", 0, "min"), red: cmp(">=", 15, "min") } satisfies Sla,
+    firstAttempt: { target: cmp(">=", 85, "pct"), red: cmp("<", 70, "pct"), needs6h: true } satisfies Sla,
+    hangs: { target: cmp("==", 0), red: cmp(">=", 2) } satisfies Sla,
+    prDuration: { target: cmp("<=", 1, "x"), red: cmp(">", 2, "x"), needs6h: true } satisfies Sla,
+    bins: { target: cmp("<=", 10, "pct"), red: cmp(">", 25, "pct"), needs6h: true } satisfies Sla,
+    reruns: { target: cmp("<", 5, "pct"), red: cmp(">", 15, "pct"), needs6h: true } satisfies Sla,
+    shardsOver: { target: cmp("==", 0), red: cmp(">=", 3) } satisfies Sla,
+    runnerMinutes: { target: cmp("<=", 400, "min"), red: cmp(">", 600, "min") } satisfies Sla,
+    blocked: { target: cmp("==", 0), red: f("sla.blocked") } satisfies Sla,
+    noIssue: { target: cmp("==", 0), red: cmp(">=", 3) } satisfies Sla,
+    flakeRate: { target: cmp("<", 2, "per1000"), red: cmp(">", 10, "per1000"), needs6h: true } satisfies Sla,
+    netNew: { target: cmp("<=", 0), red: cmp(">", 3) } satisfies Sla,
+    detected: { target: cmp("<=", 3, "d"), red: cmp(">", 7, "d") } satisfies Sla,
+    lanes: { target: cmp("==", 0), red: f("sla.lanes_open", { h: 6 }) } satisfies Sla,
+    workflows: { target: cmp("==", 0), red: f("sla.failed_in_a_row", { runs: 3 }) } satisfies Sla,
+    skipped: { target: f("sla.word", { word: "no" }) } satisfies Sla,
+    tagged: { target: cmp("==", 0), red: f("sla.after", { min: 30 }) } satisfies Sla,
+    trainPass: { target: cmp(">=", 90, "pct"), red: cmp("<", 75, "pct") } satisfies Sla,
+    stress: { target: f("sla.passed_and_filed"), red: f("sla.filing_failed") } satisfies Sla,
+    pastAge: { target: cmp("==", 0), red: f("sla.past_2x") } satisfies Sla,
+    thin: { target: cmp("==", 0), red: f("sla.under_pct", { pct: 20 }), needs6h: true } satisfies Sla,
+    collector: { target: cmp("<=", 10, "min"), red: cmp(">", 20, "min") } satisfies Sla,
+    appRate: { target: cmp(">", 50, "pct"), red: cmp("<", 20, "pct") } satisfies Sla,
+    writeBudget: { target: cmp("<", 50, "pct"), red: cmp(">", 90, "pct") } satisfies Sla,
+    spend: { target: cmp("<=", 300, "usd"), red: cmp(">", 360, "usd") } satisfies Sla,
+    localVsCi: { target: cmp("<", 2, "pct"), red: cmp(">", 5, "pct") } satisfies Sla,
+    localTime: { target: cmp("<=", 1.5, "x"), red: cmp(">", 3, "x") } satisfies Sla,
+    slotWaits: { target: cmp("<=", 2, "min"), red: cmp(">", 10, "min") } satisfies Sla,
+    channels: { target: f("sla.canary_age", { h: 6 }) } satisfies Sla,
+};
+
+// Master
+const greenTime = member({
+    id: "master.green_time",
+    window: "1h",
+    state: "bad",
+    value: num(40, "pct"),
+    value6h: num(49, "pct"),
+    sla: SLA.greenTime,
+    spark: spark(
+        flat(100, 18),
+        [...flat(100, 8), 92, 72, 52, 33, 22, 21, 21, 20, ...flat(20, 4), 25, 35, 45, 55],
+        SLA.greenTime,
+    ),
+    note: f("master.green_time.def"),
+    link: "/master/red",
+});
+const masterMembers: Member[] = [
+    member({
+        id: "master.red_now",
+        value: num(0, "min"),
+        sla: SLA.redNow,
+        spark: spark(
+            flat(0, 18),
+            [...flat(0, 8), ...ramp(5, 115, 12), 85, 50, 20, 0],
+            { target: cmp("<", 15, "min"), red: cmp(">=", 15, "min") },
+            0,
+        ),
+        note: f("master.red_now.note", { green_since: t("23:06"), queued_min: 68 }),
+        link: "/master/red",
+    }),
+    greenTime,
+    member({
+        id: "master.same_check",
+        state: "bad",
+        value: num(5),
+        sla: SLA.sameCheck,
+        spark: spark(flat(0, 18), [...ramp(0.3, 1.8, 6), ...ramp(2.4, 5, 7), ...flat(5, 11)], SLA.sameCheck),
+        link: "/master/shared",
+    }),
+    member({
+        id: "master.full_run_verdict",
+        value: { word: "passed" },
+        sla: { target: f("sla.word", { word: "passed" }) },
+        note: f("master.verdict.note", { lane: "ci", sha: "a870943ef", at: t("10-24 18:15") }),
+        link: "/releases/lanes",
+    }),
+    member({
+        id: "master.untested_age",
+        value: num(6.8, "h"),
+        sla: SLA.untested,
+        spark: spark([...flat(0, 16), 0.4, 1.7], ramp(1.9, 6.8, 24), SLA.untested, 7),
+        note: f("master.untested.note", { attempt: t("18:00"), sha: "1fa254bf3" }),
+        link: "/releases/trains",
+    }),
+    member({
+        id: "master.reverts",
+        window: "7d",
+        state: "slow",
+        value: { n: 0, of: 41 },
+        sla: SLA.reverts,
+        link: "/master",
+    }),
+];
+
+// Pull requests
+const ttm = member({
+    id: "pull-requests.time_to_merge",
+    window: "1h6h",
+    state: "few",
+    value: null,
+    value6h: num(74, "min"),
+    n: 2,
+    minN: 5,
+    sla: SLA.ttm,
+    spark: spark(
+        [...nulls(16), 48, 55],
+        [56, 57, 58, 59, 61, 63, 65, 68, 69, 67, 66, 65, 65, 67, 69, 71, 72, 73, 74, 75, 76, 77, 78, 78],
+        SLA.ttm,
+    ),
+    link: "/pull-requests",
+});
+const prMembers: Member[] = [
+    ttm,
+    member({
+        id: "pull-requests.open",
+        value: num(14),
+        sla: SLA.openPrs,
+        spark: spark([...nulls(16), 6, 10], ramp(10.2, 15.8, 13).concat(ramp(15.7, 14, 5), flat(14, 6)), SLA.openPrs),
+        link: "/pull-requests",
+    }),
+    member({ id: "pull-requests.oldest_open", value: num(6.1, "h"), sla: SLA.age24, link: "/pull-requests" }),
+    member({
+        id: "pull-requests.merge_ratio",
+        window: "1h6h",
+        state: "few",
+        value: null,
+        value6h: num(0.64, "ratio"),
+        n: 3,
+        minN: 5,
+        sla: SLA.mergeRatio,
+        link: "/pull-requests",
+    }),
+    member({
+        id: "pull-requests.caused_failures",
+        window: "7d",
+        state: "slow",
+        value: { n: 9, of: 112 },
+        sla: SLA.prCaused,
+        link: "/pull-requests",
+    }),
+    member({ id: "pull-requests.automerge_green_stuck", value: num(0), sla: SLA.greenStuck, link: "/pull-requests" }),
+    member({ id: "pull-requests.automerge_armed_long", value: num(1), sla: SLA.armedLong, link: "/pull-requests" }),
+    member({
+        id: "pull-requests.screenshot_backlog",
+        value: num(2.1, "h"),
+        sla: SLA.age24,
+        link: "/pull-requests/owner",
+    }),
+];
+
+// CI and Runners
+const runnerWait = member({
+    id: "ci.runner_wait",
+    window: "1h",
+    state: "bad",
+    value: num(31, "min"),
+    value6h: num(24, "min"),
+    n: 168,
+    minN: 20,
+    sla: SLA.wait,
+    spark: spark([...flat(1.5, 16), 2.4, 4.5], [...ramp(5.4, 14, 7), ...ramp(15.5, 31, 17)], SLA.wait),
+    link: "/ci/runners",
+});
+const longestQueued = member({
+    id: "ci.longest_queued",
+    state: "bad",
+    value: num(68, "min"),
+    sla: SLA.wait,
+    spark: spark([...flat(0.5, 16), 1.8, 4.5], [...ramp(6, 14, 7), ...ramp(16, 68, 17)], SLA.wait),
+    note: f("ci.longest_queued.note"),
+    link: "/ci/runners",
+});
+const saturated = member({
+    id: "ci.saturated",
+    window: "1h",
+    state: "bad",
+    value: num(60, "min"),
+    value6h: { n: 4.2, unit: "h" },
+    sla: SLA.saturated,
+    spark: spark(
+        flat(0, 18),
+        [...flat(0, 7), 9, ...flat(15, 16)],
+        { target: cmp("==", 0, "min"), red: cmp(">=", 4, "min") },
+        0,
+    ),
+    link: "/ci/runners",
+});
+const notAssigned = member({
+    id: "ci.not_assigned",
+    value: num(0, "min"),
+    sla: SLA.saturated,
+    link: "https://www.githubstatus.com/",
+});
+const superseded = member({
+    id: "ci.superseded",
+    state: "info",
+    value: num(2),
+    sla: null,
+    link: "/ci/runners/superseded",
+});
+const ciMembers: Member[] = [
+    { ...runnerWait, note: f("ci.runner_wait.def") },
+    longestQueued,
+    member({
+        id: "ci.first_attempt",
+        window: "1h6h",
+        state: "bad",
+        value: num(55, "pct"),
+        value6h: num(63, "pct"),
+        n: 11,
+        minN: 8,
+        sla: SLA.firstAttempt,
+        spark: spark(
+            [...nulls(16), 100, 84],
+            [83, 80, 77, 74, 70, 65, 59, 53, 49, 48, 47, 45, 45, 47, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59],
+            SLA.firstAttempt,
+        ),
+        link: "/ci/causes",
+    }),
+    saturated,
+    notAssigned,
+    member({
+        id: "ci.hangs",
+        window: "1h",
+        value: num(0),
+        value6h: num(6),
+        sla: SLA.hangs,
+        spark: spark(
+            flat(0, 18),
+            [0, 0, 0, 0, 0.1, 0.3, 0.5, 0.7, 1.2, 2, 2.8, 3.6, 3.5, 2.5, 1.5, 0.5, 0, 0, 0, 0, 0, 0, 0, 0],
+            { target: cmp("<", 0.8), red: cmp(">=", 0.8) },
+            0,
+        ),
+        cleared: t("20:42"),
+        link: "/master/red",
+    }),
+    member({
+        id: "ci.pr_duration",
+        window: "1h6h",
+        value: num(0.9, "x"),
+        value6h: num(1, "x"),
+        n: 6,
+        minN: 5,
+        sla: SLA.prDuration,
+        spark: spark(
+            [...nulls(16), 0.85, 0.85],
+            [
+                0.86, 0.88, 0.9, 0.92, 0.93, 0.93, 0.93, 0.93, 0.94, 0.96, 0.98, 1, 1, 0.98, 0.96, 0.94, 0.93, 0.93,
+                0.93, 0.93, 0.93, 0.93, 0.93, 0.93,
+            ],
+            SLA.prDuration,
+        ),
+        link: "/ci",
+    }),
+    member({
+        id: "ci.shards_over",
+        window: "7d",
+        state: "slow",
+        value: num(1),
+        sla: SLA.shardsOver,
+        link: "/ci/shards",
+    }),
+    member({
+        id: "ci.runner_minutes",
+        window: "7d",
+        state: "slow",
+        value: num(387, "min"),
+        n: 146,
+        minN: 10,
+        sla: SLA.runnerMinutes,
+        link: "/ci/runner-minutes",
+    }),
+    member({
+        id: "ci.bins_over",
+        window: "1h6h",
+        value: num(6, "pct"),
+        value6h: num(7, "pct"),
+        n: 34,
+        minN: 10,
+        sla: SLA.bins,
+        link: "/ci/shards",
+    }),
+    superseded,
+    member({
+        id: "ci.reruns",
+        window: "1h6h",
+        value: num(4.1, "pct"),
+        value6h: num(3.8, "pct"),
+        n: 49,
+        minN: 10,
+        sla: SLA.reruns,
+        link: "/ci",
+    }),
+];
+ciMembers.push(
+    member({
+        id: "ci.chronic_jobs",
+        state: "bad",
+        value: num(1),
+        sla: { target: cmp("<=", 0), red: f("sla.any_no_issue") },
+        link: "/ci/chronic",
+    }),
+    member({
+        id: "ci.bench_regressions",
+        value: num(0),
+        sla: { target: cmp("<=", 0), red: cmp(">=", 3) },
+        link: "/ci/benchmarks",
+    }),
+    // Rolling screenshot capture (design/visual-testing/early-capture.md, plan step 6).
+    member({
+        id: "ci.screenshot_set_age",
+        window: "7d",
+        state: "slow",
+        value: num(2.4, "h"),
+        sla: { target: cmp("<=", 6, "h"), red: cmp(">", 12, "h") },
+        link: "/ci",
+    }),
+    ...(
+        [
+            ["ci.slice_base_budget", 41],
+            ["ci.slice_idle_budget", 63],
+            ["ci.slice_idle_hour_budget", 24],
+        ] as const
+    ).map(([id, pct]) =>
+        member({
+            id,
+            window: "7d",
+            state: "slow",
+            value: num(pct, "pct"),
+            sla: { target: cmp("<=", 100, "pct"), red: cmp(">", 125, "pct") },
+            link: "/ci",
+        }),
+    ),
+    ...(["ci.slice_contended", "ci.slice_queue_wait"] as const).map((id) =>
+        member({
+            id,
+            window: "7d",
+            state: "slow",
+            value: num(id === "ci.slice_contended" ? 5 : 0, "min"),
+            sla: { target: cmp("<=", 35, "min"), red: cmp(">", 105, "min") },
+            link: "/ci/runners",
+        }),
+    ),
+);
+const runnerMembers: Member[] = [runnerWait, longestQueued, saturated, notAssigned, superseded];
+
+// Flaky tests
+const flakeRate = member({
+    id: "flaky.flake_rate",
+    window: "1h6h",
+    value: num(1.4, "per1000"),
+    value6h: num(1.2, "per1000"),
+    n: 2140,
+    minN: 125,
+    covered6h: { h: 2.8, of: 6 },
+    sla: SLA.flakeRate,
+    spark: spark(
+        nulls(18),
+        [...nulls(10), 0.9, 0.9, 1, 1.15, 1.3, 1.45, 1.46, 1.33, 1.2, 1.1, 1.1, 1.2, 1.33, 1.4],
+        SLA.flakeRate,
+    ),
+    note: f("flaky.flake_rate.note", { since: t("20:42") }),
+    link: "/flaky/hotspots",
+});
+const flakyMembers: Member[] = [
+    member({
+        id: "flaky.blocked",
+        state: "bad",
+        value: num(3),
+        sla: SLA.blocked,
+        spark: spark(
+            flat(0, 18),
+            [
+                0, 0, 0, 0, 0.1, 0.3, 0.5, 0.7, 0.9, 1.1, 1.3, 1.5, 1.6, 1.6, 1.6, 1.6, 1.7, 1.9, 2.1, 2.3, 2.4, 2.4,
+                2.4, 2.4,
+            ].map((v) => Math.round(v * 1.25 * 10) / 10),
+            { target: cmp("==", 0), red: cmp(">=", 2.1) },
+            0,
+        ),
+        link: "/flaky/hotspots",
+    }),
+    member({ id: "flaky.no_issue", state: "warn", value: num(2), sla: SLA.noIssue, link: "/flaky/hotspots" }),
+    flakeRate,
+    member({
+        id: "flaky.net_new",
+        window: "7d",
+        state: "slow",
+        value: { n: 2, signed: true },
+        sla: SLA.netNew,
+        note: f("flaky.net_new.note", { added: 4, resolved: 2 }),
+        link: "/flaky",
+    }),
+    member({
+        id: "flaky.detected_to_fixed",
+        window: "28d",
+        state: "slow",
+        value: num(1.5, "d"),
+        n: 2,
+        sla: SLA.detected,
+        link: "/flaky",
+    }),
+    member({
+        id: "data-sources.stress_run",
+        state: "bad",
+        value: { word: "filed", n: 0 },
+        sla: SLA.stress,
+        link: "/flaky/stress",
+    }),
+];
+
+// Releases
+const lanesRed = member({
+    id: "releases.lanes_red",
+    state: "bad",
+    value: num(2),
+    sla: SLA.lanes,
+    spark: spark(flat(2, 18), flat(2, 24), { target: cmp("==", 0), red: cmp(">=", 1) }, 0),
+    link: "/releases/lanes",
+});
+const releaseMembers: Member[] = [
+    lanesRed,
+    member({
+        id: "releases.review_wait",
+        value: num(0, "h"),
+        sla: { target: cmp("<", 6, "h") },
+        link: "/releases/lanes",
+    }),
+    member({
+        id: "releases.workflows_failing",
+        state: "bad",
+        value: num(1),
+        sla: SLA.workflows,
+        spark: spark(flat(0, 18), ramp(0.02, 1, 24), { target: cmp("<", 0.1), red: cmp(">=", 0.1) }, 0),
+        note: f("releases.workflows.note", { workflow: "promote.yml", runs: 131 }),
+        fixWaitsOwner: 3577,
+        link: "/releases/workflows",
+    }),
+    member({
+        id: "releases.train_skipped",
+        state: "warn",
+        value: { word: "yes" },
+        sla: SLA.skipped,
+        note: f("releases.skipped.note", { attempt: t("18:00"), sha: "1fa254bf3" }),
+        link: "/releases/trains",
+    }),
+    member({ id: "releases.tagged_not_npm", value: num(0), sla: SLA.tagged, link: "/releases" }),
+    member({
+        id: "releases.train_first_pass",
+        window: "7d",
+        state: "slow",
+        value: { n: 1, of: 3 },
+        n: 3,
+        sla: SLA.trainPass,
+        link: "/releases/trains",
+    }),
+    member({
+        id: "releases.channels",
+        state: "notsetup",
+        value: null,
+        sla: SLA.channels,
+        reason: f("unblock.channels", { issue: 3418 }),
+        link: "/data-sources/not-set-up",
+    }),
+    member({
+        id: "releases.review_lag",
+        window: "7d",
+        state: "slow",
+        value: num(3.5, "h"),
+        n: 6,
+        minN: 3,
+        sla: { target: cmp("<=", 6, "h"), red: cmp(">", 24, "h") },
+        link: "/releases",
+    }),
+    member({
+        id: "releases.slots_unreviewed",
+        window: "7d",
+        state: "slow",
+        value: num(50, "pct"),
+        n: 4,
+        minN: 3,
+        sla: { target: cmp("<=", 25, "pct"), red: cmp(">", 75, "pct") },
+        link: "/releases/trains",
+    }),
+    member({
+        id: "releases.green_clean",
+        window: "7d",
+        state: "slow",
+        value: num(17, "pct"),
+        n: 6,
+        minN: 3,
+        sla: { target: cmp(">=", 50, "pct"), red: cmp("<", 25, "pct") },
+        link: "/releases/trains",
+    }),
+    member({
+        id: "releases.nightly_promotions",
+        window: "7d",
+        state: "slow",
+        value: num(1.3),
+        sla: { target: cmp(">=", 2), red: cmp("<", 1) },
+        link: "/releases",
+    }),
+];
+
+// Costs (members carried for agents; the page draws the money table)
+const spend = member({
+    id: "costs.spend",
+    value: num(229, "usd"),
+    sla: SLA.spend,
+    spark: spark(ramp(232, 230, 18), flat(230, 24), SLA.spend),
+    link: "/costs",
+});
+const costMembers: Member[] = [
+    spend,
+    member({
+        id: "costs.t4",
+        value: num(160, "usd"),
+        sla: { target: cmp("<=", 180, "usd"), red: cmp(">", 200, "usd") },
+        link: "/costs",
+    }),
+    member({
+        id: "costs.llm",
+        value: num(29, "usd"),
+        sla: { target: cmp("<=", 60, "usd"), red: cmp(">", 75, "usd") },
+        link: "/costs",
+    }),
+    member({
+        id: "costs.aws",
+        value: num(0.62, "usd"),
+        sla: { target: cmp("<=", 8, "usd"), red: cmp(">", 10, "usd") },
+        link: "/costs",
+    }),
+    member({
+        id: "costs.cloudflare_usage",
+        state: "notsetup",
+        value: null,
+        sla: { target: cmp("<", 50, "pct"), red: cmp(">", 90, "pct") },
+        reason: f("unblock.cloudflare_token"),
+        link: "/data-sources/not-set-up",
+    }),
+    member({
+        id: "costs.sentry_usage",
+        state: "notsetup",
+        value: null,
+        sla: { target: cmp("<", 80, "pct"), red: cmp(">", 100, "pct") },
+        reason: f("unblock.sentry_token"),
+        link: "/data-sources/not-set-up",
+    }),
+];
+
+// Data sources
+const dataMembers: Member[] = [
+    member({
+        id: "data-sources.past_age",
+        value: num(0),
+        sla: SLA.pastAge,
+        note: f("data.past_age.note", { judged: 8, idle: 1, notsetup: 3 }),
+        link: "/data-sources/sources",
+    }),
+    member({
+        id: "data-sources.thin",
+        window: "1h6h",
+        value: num(0),
+        value6h: num(0),
+        n: 9,
+        minN: 3,
+        sla: SLA.thin,
+        link: "/data-sources/sources",
+    }),
+    member({
+        id: "data-sources.collector",
+        value: { n: 2, unit: "min", ago: true },
+        sla: SLA.collector,
+        link: "/data-sources/sources",
+    }),
+    member({ id: "data-sources.app_rate", value: num(94, "pct"), sla: SLA.appRate, link: "/data-sources/sources" }),
+    member({
+        id: "data-sources.write_budget",
+        value: num(7, "pct"),
+        sla: SLA.writeBudget,
+        note: f("data.write_budget.note", { limit: 300000 }),
+        link: "/data-sources/sources",
+    }),
+];
+
+// Local runs
+const localMembers: Member[] = [
+    member({
+        id: "local-runs.local_vs_ci",
+        window: "1h",
+        state: "idle",
+        value: null,
+        n: 0,
+        sla: SLA.localVsCi,
+        spark: spark(nulls(18), nulls(24), SLA.localVsCi),
+        link: "/ci/local-runs",
+    }),
+    member({
+        id: "local-runs.shard_time",
+        window: "1h",
+        state: "idle",
+        value: null,
+        n: 0,
+        sla: SLA.localTime,
+        link: "/ci/local-runs",
+    }),
+    member({
+        id: "local-runs.slot_waits",
+        window: "1h",
+        state: "idle",
+        value: null,
+        n: 0,
+        sla: SLA.slotWaits,
+        link: "/ci/local-runs",
+    }),
+];
+
+// ---------------------------------------------------------------- status
+
+const ref = (m: Member, fact?: Fact): MemberRef => ({
+    member: m.id,
+    state: m.state,
+    value: m.value,
+    ...(fact ? { fact } : {}),
+});
+const byId = (list: Member[], id: Member["id"]): Member => {
+    const m = list.find((x) => x.id === id);
+    if (!m) {
+        throw new Error(`no member ${id}`);
+    }
+    return m;
+};
+
+const categories: CategoryStatus[] = [
+    {
+        id: "master",
+        state: "bad",
+        setBy: ref(
+            byId(masterMembers, "master.same_check"),
+            f("short.same_check", { prs: 5, check: "Test (graphty-*)" }),
+        ),
+        others: [ref(greenTime)],
+        headline: greenTime,
+        driver: byId(masterMembers, "master.same_check"),
+    },
+    { id: "pull-requests", state: "ok", others: [], headline: ttm },
+    {
+        id: "ci",
+        state: "bad",
+        setBy: ref(runnerWait),
+        others: [ref(longestQueued), ref(saturated), ref(byId(ciMembers, "ci.first_attempt"))],
+        headline: runnerWait,
+    },
+    {
+        id: "flaky",
+        state: "bad",
+        setBy: ref(byId(flakyMembers, "flaky.blocked"), f("short.blocked", { prs: 3 })),
+        others: [
+            ref(byId(flakyMembers, "data-sources.stress_run"), f("short.stress_filed", { filed: 0, failures: 27 })),
+            ref(byId(flakyMembers, "flaky.no_issue"), f("short.no_issue", { tests: 2 })),
+        ],
+        headline: flakeRate,
+        driver: byId(flakyMembers, "flaky.blocked"),
+    },
+    {
+        id: "releases",
+        state: "bad",
+        setBy: ref(lanesRed, f("short.lanes_red", { lanes: ["audit", "t4"] })),
+        others: [
+            ref(byId(releaseMembers, "releases.workflows_failing")),
+            ref(byId(releaseMembers, "releases.train_first_pass")),
+            ref(byId(releaseMembers, "releases.green_clean")),
+            ref(byId(releaseMembers, "releases.train_skipped")),
+            ref(byId(releaseMembers, "releases.slots_unreviewed")),
+            ref(byId(releaseMembers, "releases.nightly_promotions")),
+        ],
+        headline: lanesRed,
+    },
+    { id: "costs", state: "ok", others: [], headline: spend },
+    {
+        id: "data-sources",
+        state: "bad",
+        setBy: { member: "data-sources.sources_not_ok", state: "bad", value: { n: 1, of: 8 } },
+        others: [],
+        headline: member({
+            id: "data-sources.sources_not_ok",
+            state: "bad",
+            value: { n: 1, of: 8 },
+            sla: { target: cmp("==", 0), red: cmp(">=", 1) },
+            spark: spark([...flat(0, 9), ...flat(1, 9)], flat(1, 24), { target: cmp("==", 0), red: cmp(">=", 1) }, 0),
+            link: "/data-sources",
+        }),
+    },
+];
+
+const episodes: Episode[] = [
+    {
+        id: "e1",
+        category: "master",
+        member: "master.same_check",
+        worst: "bad",
+        start: t("18:03"),
+        end: null,
+        fact: f("ep.shared_check", { check: "Test (graphty-*)", prs: 5, suspects: [3495, 3496, 3497] }),
+        link: "/master/shared",
+    },
+    {
+        id: "e2",
+        category: "ci",
+        member: "ci.saturated",
+        worst: "bad",
+        start: t("19:20"),
+        end: null,
+        fact: f("ep.saturated", { running: 57, limit: 60, queued: 235, master_queued_min: 68 }),
+        link: "/ci/runners",
+    },
+    {
+        id: "e3",
+        category: "flaky",
+        member: "flaky.blocked",
+        worst: "bad",
+        start: t("19:01"),
+        end: null,
+        fact: f("ep.flaky_held", { prs: 3, tests: ["Football conference picker", "Find no-match line"] }),
+        link: "/flaky/hotspots",
+    },
+    {
+        id: "e4",
+        category: "releases",
+        member: "releases.lanes_red",
+        worst: "bad",
+        start: t("10-24 19:25"),
+        end: null,
+        fact: f("ep.lanes_red", { lanes: ["audit", "t4"], sha: "a870943ef", shadow: true }),
+        link: "/releases/lanes",
+    },
+    {
+        id: "e5",
+        category: "releases",
+        member: "releases.workflows_failing",
+        worst: "bad",
+        start: t("18:03"),
+        end: null,
+        fact: f("ep.workflow_failing", { workflow: "promote.yml", runs: 131, fix: 3577, fix_waits_owner: true }),
+        link: "/releases/workflows",
+    },
+    {
+        id: "e6",
+        category: "releases",
+        member: "releases.train_skipped",
+        worst: "warn",
+        start: t("18:00"),
+        end: null,
+        fact: f("ep.train_skipped", { attempt: t("18:00"), sha: "1fa254bf3" }),
+        link: "/releases/trains",
+    },
+    {
+        id: "e7",
+        category: "flaky",
+        member: "data-sources.stress_run",
+        worst: "bad",
+        start: t("08:42"),
+        end: null,
+        fact: f("ep.stress_filing", { filed: 0, failures: 27, cap: 25 }),
+        link: "/flaky/stress",
+    },
+    {
+        id: "e8",
+        category: "master",
+        member: "master.red_now",
+        worst: "bad",
+        start: t("20:01"),
+        end: t("23:06"),
+        fact: f("ep.no_green", { h: 3.1, builds: 11, step: "Upload source maps to Sentry" }),
+        link: "/master/red",
+    },
+    {
+        id: "e9",
+        category: "master",
+        member: "master.same_check",
+        worst: "warn",
+        start: t("19:48"),
+        end: t("20:20"),
+        fact: f("ep.aggregator_alone", { check: "All Checks Pass", prs: 2, signature: "Argument list too long" }),
+        link: "/master/shared",
+    },
+    {
+        id: "e10",
+        category: "master",
+        member: "master.same_check",
+        worst: "warn",
+        start: t("20:15"),
+        end: t("20:52"),
+        fact: f("ep.shared_check", { check: "Checks", step: "Figma lock", prs: 3, suspects: [] }),
+        link: "/master/shared",
+    },
+];
+
+const sources: SourceAge[] = [
+    { id: "collector", lastWrite: t("23:28"), limitS: 900, state: "ok" },
+    { id: "ci-results", lastWrite: t("23:26"), limitS: 7200, state: "ok" },
+    { id: "ci-timings", lastWrite: t("23:26"), limitS: 7200, state: "ok" },
+    { id: "releases", lastWrite: t("18:24"), limitS: 25200, state: "ok" },
+    { id: "npm", lastWrite: t("22:52"), limitS: 10800, state: "ok" },
+    { id: "stress", lastWrite: t("09:30"), limitS: 691200, state: "bad" },
+    { id: "hosts", lastWrite: t("04:30"), limitS: 108000, state: "ok" },
+    { id: "billing", lastWrite: t("13:30"), limitS: 129600, state: "ok" },
+    { id: "flaky-feed", lastWrite: null, limitS: null, state: "notsetup" },
+    { id: "local", lastWrite: t("14:30"), limitS: null, state: "idle" },
+];
+
+// ---------------------------------------------------------------- release channels
+
+/**
+ * Attempts from a string of outcomes, oldest first ("o" ok, "x" failed, "h" held, "c" cancelled), every `everyMin`.
+ * @param spec - The outcomes, one letter each, oldest first.
+ * @param last - The time of the newest attempt, as t() reads it.
+ * @param everyMin - The minutes between attempts.
+ * @param run - The run number of the oldest attempt; later ones count up.
+ * @returns The attempts, oldest first.
+ */
+function attempts(spec: string, last: string, everyMin: number, run: number): ChannelTile["attempts"] {
+    const OUT: Record<string, ChannelOutcome> = { o: "ok", x: "bad", h: "held", c: "cancelled" };
+    const end = Date.parse(t(last));
+    return Array.from(spec).map((c, i) => ({
+        at: new Date(end - (spec.length - 1 - i) * everyMin * 60_000).toISOString(),
+        outcome: OUT[c],
+        run: run + i,
+    }));
+}
+
+const channels: ChannelTile[] = [
+    {
+        id: "canary",
+        state: "ok",
+        sha: "3f2a91c0d5e4b7a8c9d0e1f2a3b4c5d6e7f8a9b0",
+        at: t("22:48"),
+        attempts: attempts("oooooooooooxoo", "22:48", 25, 40245000001),
+        link: "/releases",
+    },
+    {
+        id: "nightly",
+        state: "warn",
+        sha: "9c41d07e2b8a6f3c1d5e7a9b0c2d4e6f8a1b3c5d",
+        at: t("12:41"),
+        attempts: attempts("ooxoohoooh", "18:24", 360, 40240000001),
+        link: "/releases",
+    },
+    {
+        id: "production",
+        state: "ok",
+        sha: "b7e03a1f9d2c4e6a8b0c1d3e5f7a9b2c4d6e8f0a",
+        at: t("10-22 17:05"),
+        attempts: attempts("ocxo", "10-22 17:05", 1440, 40200000001),
+        link: "/releases",
+    },
+];
+
+const overview: OverviewResponse = {
+    page: "overview",
+    range: "1h",
+    generated: GEN,
+    categories,
+    episodes,
+    sources,
+    channels,
+};
+
+// ---------------------------------------------------------------- sections
+
+const cell = {
+    name: (v: string, bold?: boolean) => (bold ? { t: "name" as const, v, bold } : { t: "name" as const, v }),
+    sub: (main: TableRow["cells"][string], sub: TableRow["cells"][string]) => ({ t: "sub" as const, main, sub }),
+    fact: (code: string, params?: Fact["params"]) => ({ t: "fact" as const, fact: f(code, params) }),
+    prs: (...ns: number[]) => ({
+        t: "list" as const,
+        items: ns.map((n) => ({ t: "pr" as const, n })),
+        sep: "space" as const,
+    }),
+    time: (s: string) => ({ t: "time" as const, at: t(s) }),
+    span: (a: string, b: string | null) => ({ t: "span" as const, start: t(a), end: b ? t(b) : null }),
+    bad: (c: TableRow["cells"][string]) => ({ t: "mark" as const, state: "bad" as const, cell: c }),
+    warn: (c: TableRow["cells"][string]) => ({ t: "mark" as const, state: "warn" as const, cell: c }),
+};
+
+const masterSections: Section[] = [
+    {
+        kind: "strip",
+        id: "red",
+        from: t("17:30"),
+        to: GEN,
+        spans: [
+            { start: t("17:30"), end: t("18:02"), state: "green" },
+            { start: t("18:02"), end: t("18:54"), state: "gray" },
+            { start: t("18:54"), end: t("20:01"), state: "green" },
+            { start: t("20:01"), end: t("23:06"), state: "red" },
+            { start: t("23:06"), end: GEN, state: "green" },
+        ],
+    },
+    {
+        kind: "table",
+        id: "red-spans",
+        rows: [
+            {
+                cells: {
+                    span: cell.sub(
+                        cell.bad({ t: "span", start: t("20:01"), end: t("23:06") }),
+                        cell.fact("master.span.cleared", { h: 3.1, cleared: t("23:06") }),
+                    ),
+                    builds: cell.sub(
+                        cell.fact("master.builds.cancelled", { n: 11 }),
+                        cell.fact("master.builds.passed", { sha: "bfc880719", at: t("23:06") }),
+                    ),
+                    cause: cell.fact("cause.step_hang", {
+                        job: "Build",
+                        step: "Upload source maps to Sentry",
+                        from: t("19:47"),
+                        to: t("21:50"),
+                        timeouts: 6,
+                        timeout_min: 12,
+                        guard_pr: 3561,
+                        guard_at: t("21:14"),
+                    }),
+                    fix: {
+                        t: "list",
+                        sep: "line",
+                        items: [
+                            cell.fact("fix.merged", { pr: 3559, at: t("21:08") }),
+                            cell.fact("fix.open", { pr: 3570 }),
+                        ],
+                    },
+                },
+            },
+            {
+                past: true,
+                cells: {
+                    span: cell.sub(cell.span("18:02", "18:54"), cell.fact("master.span.gray")),
+                    builds: cell.fact("master.builds.by_hand", { n: 10 }),
+                    cause: cell.fact("cause.cancelled_by_hand", { at: t("18:54") }),
+                    fix: { t: "none" },
+                },
+            },
+        ],
+    },
+    {
+        kind: "table",
+        id: "shared",
+        rows: [
+            {
+                cells: {
+                    check: cell.sub(
+                        cell.bad(cell.name("Test (graphty-*)", true)),
+                        cell.fact("check.family", { bins: 5 }),
+                    ),
+                    prs: cell.prs(3567, 3500, 3498, 3550, 3511),
+                    since: cell.time("18:03"),
+                    suspects: {
+                        t: "list",
+                        sep: "line",
+                        items: [
+                            cell.fact("suspect", { pr: 3495, title: "draw on demand in test browsers" }),
+                            cell.prs(3496, 3497),
+                        ],
+                    },
+                    issue: {
+                        t: "list",
+                        sep: "line",
+                        items: [cell.fact("fix.issue_open", { issue: 3572 }), cell.fact("fix.open", { pr: 3573 })],
+                    },
+                },
+            },
+            {
+                past: true,
+                cells: {
+                    check: cell.sub(cell.name("All Checks Pass", true), cell.fact("check.failed_alone")),
+                    prs: cell.prs(3514, 3508),
+                    since: cell.span("19:48", "20:20"),
+                    suspects: cell.fact("cause.signature", { signature: "Argument list too long" }),
+                    issue: cell.fact("fix.merged", { pr: 3552, at: t("20:20") }),
+                },
+            },
+            {
+                past: true,
+                cells: {
+                    check: cell.sub(cell.name("Checks", true), cell.name("Figma lock")),
+                    prs: cell.prs(3550),
+                    since: cell.span("20:15", "20:52"),
+                    suspects: cell.fact("cause.unknown"),
+                    issue: {
+                        t: "list",
+                        sep: "comma",
+                        items: [
+                            cell.fact("fix.merged", { pr: 3556, at: t("20:52") }),
+                            cell.fact("fix.merged", { pr: 3557, at: t("20:52") }),
+                        ],
+                    },
+                },
+            },
+        ],
+    },
+];
+
+const prSections: Section[] = [
+    {
+        kind: "bars",
+        id: "time",
+        widened: { from: "1h", to: "6h", n: 2, nTo: 9 },
+        groups: [
+            {
+                items: [
+                    { label: { t: "label", code: "stage.runners" }, n: 21, unit: "min" },
+                    { label: { t: "label", code: "stage.checks" }, n: 18, unit: "min" },
+                    { label: { t: "label", code: "stage.red" }, n: 9, unit: "min" },
+                    { label: { t: "label", code: "stage.merging" }, n: 4, unit: "min" },
+                ],
+            },
+        ],
+    },
+    {
+        kind: "table",
+        id: "owner",
+        rows: [
+            {
+                cells: {
+                    pr: {
+                        t: "list",
+                        sep: "space",
+                        items: [{ t: "pr", n: 3577 }, cell.name("fix(ci): promote.yml sets WORK in a step")],
+                    },
+                    why: {
+                        t: "list",
+                        sep: "comma",
+                        items: [
+                            cell.fact("owner.why", { paths: [".github/"] }),
+                            cell.bad(
+                                cell.fact("owner.fixes", {
+                                    member: "releases.workflows_failing",
+                                    workflow: "promote.yml",
+                                }),
+                            ),
+                        ],
+                    },
+                    waiting: { t: "dur", s: 2640 },
+                },
+            },
+            {
+                cells: {
+                    pr: {
+                        t: "list",
+                        sep: "space",
+                        items: [{ t: "pr", n: 3576 }, cell.name("fix(visual-review): scroll the body")],
+                    },
+                    why: cell.fact("owner.why", { paths: ["visual-review"] }),
+                    waiting: { t: "dur", s: 3300 },
+                },
+            },
+            {
+                cells: {
+                    pr: {
+                        t: "list",
+                        sep: "space",
+                        items: [{ t: "pr", n: 3565 }, cell.name("ci(visual-review): quarantine unstable story tests")],
+                    },
+                    why: cell.fact("owner.why", { paths: ["visual-review", ".github/"] }),
+                    waiting: { t: "dur", s: 6840 },
+                },
+            },
+        ],
+    },
+];
+
+function shardsSection(range: SlowRange, runKind: "full" | "pr-bins"): Section {
+    const k = range === "28d" ? 1.03 : 1;
+    const s = (min: number): number => Math.round(min * 60 * k);
+    if (runKind === "pr-bins") {
+        return {
+            kind: "shards",
+            id: "shards",
+            range,
+            runKind,
+            rows: [
+                {
+                    shard: "graphty-element-browser",
+                    runs: 212,
+                    minRuns: 5,
+                    medianS: s(7.4),
+                    p90S: s(8.6),
+                    budgetS: 480,
+                },
+                { shard: "graphty", runs: 188, minRuns: 5, medianS: s(6.9), p90S: s(7.8), budgetS: 480 },
+                {
+                    shard: "graphty-element-storybook",
+                    runs: 160,
+                    minRuns: 5,
+                    medianS: s(6.1),
+                    p90S: s(7.2),
+                    budgetS: 480,
+                },
+            ],
+            more: { count: 9, allWithin: true },
+        };
+    }
+    return {
+        kind: "shards",
+        id: "shards",
+        range,
+        runKind,
+        rows: [
+            {
+                shard: "graphty-element-browser-3",
+                runs: range === "28d" ? 38 : 11,
+                minRuns: 5,
+                medianS: s(15.6),
+                p90S: s(18.2),
+                budgetS: 900,
+                files: [
+                    { file: "test/browser/edges/EdgeMesh.test.ts", medianS: s(3.1), p90S: s(3.6), share: 20 },
+                    { file: "test/browser/layout/ForceLayout.test.ts", medianS: s(2.4), p90S: s(2.9), share: 15 },
+                    { file: "test/browser/xr/XRSession.test.ts", medianS: s(2.2), p90S: s(3.4), share: 14 },
+                ],
+                moreFiles: 31,
+            },
+            {
+                shard: "graphty-element-storybook-2",
+                runs: 11,
+                minRuns: 5,
+                medianS: s(13.8),
+                p90S: s(16.9),
+                budgetS: 900,
+            },
+            { shard: "graphty-element-browser-1", runs: 11, minRuns: 5, medianS: s(12.9), p90S: s(14.1), budgetS: 900 },
+            { shard: "graphty-1", runs: 11, minRuns: 5, medianS: s(11.2), p90S: s(12.5), budgetS: 900 },
+            { shard: "graphty-storybook", runs: 11, minRuns: 5, medianS: s(10.1), p90S: s(11.7), budgetS: 900 },
+            {
+                shard: "compact-mantine",
+                group: "small-browser",
+                runs: 11,
+                minRuns: 5,
+                medianS: s(6.2),
+                p90S: s(7),
+                budgetS: 900,
+            },
+            { shard: "graphty-element-lifecycle", runs: 4, minRuns: 5, medianS: s(9.1), p90S: s(10.2), budgetS: 900 },
+        ],
+        more: { count: 29, allWithin: true },
+    };
+}
+
+const ciSections: Section[] = [
+    {
+        kind: "bars",
+        id: "causes",
+        sub: f("ci.causes.sub", { suites: 5 }),
+        groups: [
+            {
+                items: [
+                    { label: { t: "label", code: "cause.shared_check" }, n: 3, unit: "count", tone: "bad" },
+                    { label: { t: "label", code: "cause.shared_aggregator" }, n: 0, unit: "count", tone: "bad" },
+                    { label: { t: "label", code: "cause.change" }, n: 1, unit: "count" },
+                    { label: { t: "label", code: "cause.flaky" }, n: 1, unit: "count" },
+                    { label: { t: "label", code: "cause.infrastructure" }, n: 0, unit: "count" },
+                ],
+            },
+        ],
+    },
+    {
+        kind: "table",
+        id: "runner-minutes",
+        sub: f("runner_minutes.sub", { day: 83, week: 146 }),
+        rows: (
+            [
+                ["pr", 398, 291, 33046, 42474],
+                ["master", 28, 20, 2285, 2974],
+                ["full", 33, 33, 2777, 4857],
+                ["other", 52, 39, 4313, 5706],
+                ["total", 511, 387, 42421, 56546],
+            ] as const
+        ).map(([k, day, week, dayMin, weekMin]) => ({
+            cells: {
+                kind: { t: "label", code: `load.${k}` },
+                day: { t: "num", n: day, unit: "min" },
+                week: { t: "num", n: week, unit: "min" },
+                dayMin: { t: "num", n: dayMin, unit: "min" },
+                weekMin: { t: "num", n: weekMin, unit: "min" },
+            },
+            ...(k === "total" ? { total: true } : {}),
+        })),
+    },
+    shardsSection("7d", "full"),
+    {
+        kind: "table",
+        id: "chronic",
+        rows: [
+            {
+                cells: {
+                    job: cell.sub(cell.name("CI / Performance Benchmarks"), cell.name("release.yml")),
+                    failed: { t: "num", n: 7, of: 10 },
+                    rate: { t: "num", n: 70, unit: "pct" },
+                    pass: { t: "ago", at: t("10-24 12:31") },
+                    issue: cell.bad(cell.fact("ci.no_issue")),
+                },
+            },
+        ],
+    },
+    {
+        kind: "table",
+        id: "non-gating",
+        rows: (
+            [
+                ["Performance Benchmarks", 14, 10],
+                [`Story tests (${ghExpr("matrix.name || matrix.project")})`, 212, 9],
+                ["Visual report", 160, 0],
+                ["Flaky screenshots", 0, 0],
+            ] as const
+        ).map(([job, n, failed]) => {
+            const rate = { t: "num" as const, n: n ? Math.round(((n - failed) / n) * 100) : 0, unit: "pct" as const };
+            const shown = failed * 2 >= n ? cell.bad(rate) : rate;
+            return {
+                cells: {
+                    job: cell.name(job),
+                    runs: { t: "num", n },
+                    failed: { t: "num", n: failed },
+                    rate: n === 0 ? { t: "none" } : shown,
+                },
+                ...(n ? {} : { past: true }),
+            };
+        }),
+    },
+    {
+        kind: "table",
+        id: "benchmarks",
+        rows: (
+            [
+                ["algorithms: PageRank n=10000", [41, 40, 42, 41, 43, 40, 41, 42, 41, 40, 52, 53, 51], 1.27],
+                ["algorithms: Dijkstra n=10000", [18, 18, 19, 18, 17, 18, 18, 19, 18, 18, 18, 19, 18], 1],
+            ] as const
+        ).map(([benchmark, v, ratio]) => ({
+            cells: {
+                benchmark: cell.name(benchmark),
+                latest: { t: "num", n: v.at(-1) ?? 0, unit: "ms" },
+                ratio: ratio > 1.2 ? cell.bad({ t: "num", n: ratio, unit: "x" }) : { t: "num", n: ratio, unit: "x" },
+                spark: { t: "spark", spark: { step: "1d", ctx: [], trend: [...v], breach: v.map(() => null) } },
+                runs: { t: "num", n: v.length },
+            },
+        })),
+    },
+];
+
+const QUEUED = [
+    12, 14, 15, 17, 18, 22, 26, 30, 34, 43, 52, 60, 69, 80, 91, 102, 113, 126, 139, 152, 165, 177, 189, 201, 235,
+];
+const runnerSections: Section[] = [
+    {
+        kind: "jobs",
+        id: "jobs",
+        step: "15m",
+        start: t("17:30"),
+        running: [...ramp(32, 52, 13).map(Math.round), 53, 54, 55, 56, ...flat(57, 8)],
+        queued: QUEUED,
+        limit: 60,
+        peak: { n: 58, at: t("22:40") },
+    },
+    {
+        kind: "bars",
+        id: "holders",
+        notes: [
+            f("runners.queued_runs", { runs: 5, workflow: "CI", event: "push", since: t("22:22") }),
+            f("runners.one_repo", { repo: "graphty-monorepo", h: 6 }),
+        ],
+        groups: [
+            {
+                head: f("runners.running_now", { jobs: 57 }),
+                items: [
+                    { label: cell.name("CI, pull_request"), detail: cell.name("test shards"), n: 47, unit: "jobs" },
+                    { label: cell.name("CodeQL"), n: 4, unit: "jobs" },
+                    {
+                        label: cell.name("Hosts, pull_request"),
+                        detail: cell.fact("runners.macos", { jobs: 1 }),
+                        n: 3,
+                        unit: "jobs",
+                    },
+                    { label: cell.name("PR Integrity, pull_request"), n: 2, unit: "jobs" },
+                    { label: cell.name("CI, push to master"), n: 1, unit: "jobs" },
+                ],
+            },
+            {
+                head: f("runners.queued_now", { jobs: 235 }),
+                items: [
+                    { label: cell.name("CI, pull_request"), n: 214, unit: "jobs" },
+                    { label: cell.name("PR Integrity"), n: 9, unit: "jobs" },
+                    { label: cell.name("CodeQL"), n: 6, unit: "jobs" },
+                    { label: cell.name("PR Title, PR Issue Link"), n: 6, unit: "jobs" },
+                ],
+            },
+        ],
+    },
+    {
+        kind: "table",
+        id: "superseded",
+        rows: [
+            {
+                cells: {
+                    run: cell.name("PR Integrity"),
+                    pr: { t: "pr", n: 3498 },
+                    newer: { t: "ago", at: t("22:49") },
+                },
+            },
+            { cells: { run: cell.name("CodeQL"), pr: { t: "pr", n: 3571 }, newer: { t: "ago", at: t("23:18") } } },
+        ],
+    },
+];
+
+function hotspots(range: SlowRange): Section {
+    const k = range === "28d" ? 3 : 1;
+    const node = (n: Omit<TreeNode, "quarantined"> & { quarantined?: number }): TreeNode => ({
+        quarantined: 0,
+        ...n,
+        events: n.events * k,
+    });
+    return {
+        kind: "tree",
+        id: "hotspots",
+        range,
+        quiet: 13,
+        nodes: [
+            node({
+                level: "family",
+                name: "graphty screenshots",
+                tags: [f("tag.screenshots")],
+                distinct: 2,
+                events: 9,
+                per1000: 31,
+                prsHeld: 3,
+                children: [
+                    node({
+                        level: "file",
+                        name: "src/components/style/StylePanel.stories.tsx",
+                        distinct: 1,
+                        events: 6,
+                        per1000: 48,
+                        prsHeld: 2,
+                        children: [
+                            node({
+                                level: "test",
+                                name: "Football conference: Which nodes picker",
+                                tags: [f("tag.unstable"), f("tag.issue", { issue: 3521 })],
+                                distinct: 1,
+                                events: 6,
+                                per1000: 48,
+                                prsHeld: 2,
+                                link: "/flaky/test?file=src%2Fcomponents%2Fstyle%2FStylePanel.stories.tsx&test=Football%20conference%3A%20Which%20nodes%20picker",
+                            }),
+                        ],
+                    }),
+                    node({
+                        level: "file",
+                        name: "src/components/find/FindBox.stories.tsx",
+                        distinct: 1,
+                        events: 3,
+                        per1000: 22,
+                        prsHeld: 1,
+                        children: [
+                            node({
+                                level: "test",
+                                name: "Find: no-match line",
+                                tags: [f("tag.unstable"), f("tag.issue", { issue: 3553 })],
+                                distinct: 1,
+                                events: 3,
+                                per1000: 22,
+                                prsHeld: 1,
+                                link: "/flaky/test?file=src%2Fcomponents%2Ffind%2FFindBox.stories.tsx&test=Find%3A%20no-match%20line",
+                            }),
+                        ],
+                    }),
+                ],
+            }),
+            node({ level: "family", name: "graphty", distinct: 2, events: 7, per1000: 2.2, prsHeld: 0 }),
+            node({
+                level: "family",
+                name: "graphty-element-browser",
+                distinct: 2,
+                events: 4,
+                per1000: 1.1,
+                prsHeld: 0,
+            }),
+            node({
+                level: "family",
+                name: "compact-mantine screenshots",
+                tags: [f("tag.screenshots")],
+                distinct: 1,
+                events: 3,
+                per1000: 12,
+                prsHeld: 0,
+            }),
+            node({
+                level: "group",
+                name: "small-browser",
+                tags: [f("tag.job_group", { shards: 6 })],
+                distinct: 1,
+                events: 2,
+                per1000: 0.6,
+                prsHeld: 0,
+            }),
+            node({
+                level: "family",
+                name: "webgpu-graph-algorithms-node",
+                tags: [f("tag.gpu")],
+                distinct: 1,
+                events: 1,
+                per1000: 0.5,
+                prsHeld: 0,
+            }),
+        ],
+    };
+}
+
+const flakySections: Section[] = [
+    hotspots("7d"),
+    { kind: "empty", id: "quarantine", fact: f("flaky.quarantine.empty") },
+];
+
+const releaseSections: Section[] = [
+    {
+        kind: "table",
+        id: "lanes",
+        sub: f("releases.lanes.sub", { sha: "a870943ef", run: 40119894804, at: t("10-24 18:15") }),
+        rows: [
+            {
+                cells: {
+                    lane: cell.name("audit"),
+                    result: cell.bad(cell.fact("lane.failed")),
+                    since: cell.time("10-24 18:45"),
+                    job: cell.fact("lane.job", { job: "Security audit", s: 20 }),
+                },
+            },
+            {
+                cells: {
+                    lane: cell.name("t4"),
+                    result: cell.bad(cell.fact("lane.failed")),
+                    since: cell.time("10-24 19:25"),
+                    job: cell.fact("lane.job", { job: "T4 GPU / Test (NVIDIA T4)", s: 2340 }),
+                },
+            },
+            {
+                cells: {
+                    lane: cell.name("ci"),
+                    result: cell.fact("lane.passed"),
+                    since: { t: "none" },
+                    job: cell.fact("lane.jobs", { workflow: "CI", jobs: 25 }),
+                },
+            },
+            {
+                cells: {
+                    lane: cell.name("hosts"),
+                    result: cell.fact("lane.passed"),
+                    since: { t: "none" },
+                    job: cell.name("Metal on macOS, D3D12 on Windows"),
+                },
+            },
+            {
+                cells: {
+                    lane: cell.name("autosave_macos"),
+                    result: cell.fact("lane.passed"),
+                    since: { t: "none" },
+                    job: cell.name("Work protection (macOS)"),
+                },
+            },
+            {
+                cells: {
+                    lane: cell.name("llm"),
+                    result: cell.fact("lane.passed"),
+                    since: { t: "none" },
+                    job: cell.fact("lane.job_cost", { job: "LLM regression", s: 600, usd: 0.94 }),
+                },
+            },
+            {
+                past: true,
+                cells: {
+                    lane: cell.name("version, land, publish"),
+                    result: cell.fact("lane.skipped"),
+                    since: { t: "none" },
+                    job: cell.fact("lane.shadow"),
+                },
+            },
+        ],
+    },
+    {
+        kind: "table",
+        id: "trains",
+        rows: [
+            {
+                cells: {
+                    attempt: cell.time("18:00"),
+                    candidate: { t: "sha", v: "1fa254bf3" },
+                    lanes: cell.warn(cell.fact("train.untested")),
+                },
+            },
+            {
+                past: true,
+                cells: {
+                    attempt: {
+                        t: "list",
+                        sep: "comma",
+                        items: [cell.time("12:00"), cell.time("06:00"), cell.time("00:00")],
+                    },
+                    candidate: { t: "sha", v: "a870943ef" },
+                    lanes: cell.fact("train.nothing_new"),
+                },
+            },
+            {
+                cells: {
+                    attempt: cell.time("10-24 18:15"),
+                    candidate: { t: "sha", v: "a870943ef" },
+                    lanes: cell.bad(cell.fact("train.tested_failed", { lanes: ["audit", "t4"] })),
+                    nightly: cell.fact("train.not_promoted"),
+                },
+            },
+            {
+                past: true,
+                cells: {
+                    attempt: {
+                        t: "list",
+                        sep: "comma",
+                        items: [cell.time("10-24 18:00"), cell.time("10-24 12:00"), cell.time("10-24 06:00")],
+                    },
+                    candidate: {
+                        t: "list",
+                        sep: "comma",
+                        items: [
+                            { t: "sha", v: "a870943ef" },
+                            { t: "sha", v: "77154dddc" },
+                        ],
+                    },
+                    lanes: cell.fact("train.nothing_new"),
+                },
+            },
+            {
+                cells: {
+                    attempt: cell.time("10-24 00:00"),
+                    candidate: { t: "sha", v: "77154dddc" },
+                    lanes: cell.fact("train.failed_before", { job: "Pick the release candidate" }),
+                },
+            },
+        ],
+    },
+    {
+        kind: "table",
+        id: "workflows",
+        rows: [
+            {
+                cells: {
+                    workflow: cell.name("promote.yml"),
+                    runs: {
+                        t: "list",
+                        sep: "comma",
+                        items: [
+                            cell.bad(cell.fact("wf.failed_of", { failed: 24, runs: 24 })),
+                            cell.fact("wf.in_a_row", { n: 131 }),
+                        ],
+                    },
+                    since: cell.fact("wf.since_merge", { at: t("18:03"), pr: 3511 }),
+                    cause: cell.fact("cause.workflow_error", {
+                        detail: "WORK read from the runner context in job env",
+                        fix: 3577,
+                        waits_owner_s: 2640,
+                    }),
+                },
+            },
+            {
+                past: true,
+                cells: {
+                    workflow: cell.name("release-watch.yml"),
+                    runs: { t: "num", n: 0 },
+                    since: { t: "none" },
+                    cause: { t: "none" },
+                },
+            },
+        ],
+    },
+];
+
+function moneySpark(a: number, b: number): Spark {
+    return { step: "1d", ctx: [], trend: ramp(a, b, 28), breach: nulls(28) };
+}
+function costSections(range: SlowRange): Section[] {
+    const d = range === "7d" ? 7 : 28;
+    const sp = (a: number, b: number): Spark => {
+        const s = moneySpark(a, b);
+        return { ...s, trend: s.trend.slice(-d), breach: s.breach.slice(-d) };
+    };
+    const line = (
+        code: string,
+        rate: Fact | null,
+        projected: number,
+        so: number | null,
+        budget: number | null,
+        spark?: Spark,
+        state?: TableRow["cells"][string],
+    ): TableRow => ({
+        cells: {
+            line: rate ? cell.sub({ t: "label", code }, { t: "fact", fact: rate }) : { t: "label", code },
+            projected: { t: "num", n: projected, unit: "usd", bold: true },
+            sofar: so === null ? cell.fact("cost.flat") : { t: "budget", so, budget, unit: "usd" },
+            spark: spark ? { t: "spark", spark } : { t: "none" },
+            state: state ?? { t: "none" },
+        },
+    });
+    return [
+        {
+            kind: "table",
+            id: "money",
+            sub: f("costs.money.sub", { month_end: "2026-10-31" }),
+            rows: [
+                line("cost.t4", f("cost.t4.rate", { usd_min: 0.018, boot_min: 1 }), 160, 129, 200, sp(150, 160)),
+                line("cost.llm", f("cost.llm.rate", { usd: 0.94 }), 29, 23, 60, sp(29, 29)),
+                line("cost.sentry", f("cost.plan"), 26, null, null),
+                line("cost.github", f("cost.github.plan", { seats: 2 }), 8, null, null),
+                line("cost.cloudflare", f("cost.cloudflare.plan"), 5, null, null),
+                line("cost.aws", f("cost.aws.credits", { usd: 119.38 }), 0.77, 0.62, 10),
+                {
+                    total: true,
+                    cells: {
+                        line: { t: "label", code: "cost.total" },
+                        projected: { t: "num", n: 229, unit: "usd", bold: true },
+                        sofar: { t: "budget", so: 185, budget: 300, unit: "usd" },
+                        spark: { t: "none" },
+                        state: { t: "none" },
+                    },
+                },
+                {
+                    past: true,
+                    cells: {
+                        line: cell.sub({ t: "label", code: "cost.sentry_usage" }, cell.fact("cost.usage.events")),
+                        projected: { t: "none" },
+                        sofar: { t: "none" },
+                        spark: { t: "none" },
+                        state: { t: "state", state: "notsetup", link: "/data-sources/not-set-up" },
+                    },
+                },
+                {
+                    past: true,
+                    cells: {
+                        line: cell.sub({ t: "label", code: "cost.cloudflare_usage" }, cell.fact("cost.usage.requests")),
+                        projected: { t: "none" },
+                        sofar: { t: "none" },
+                        spark: { t: "none" },
+                        state: { t: "state", state: "notsetup", link: "/data-sources/not-set-up" },
+                    },
+                },
+            ],
+        },
+        {
+            kind: "table",
+            id: "unit",
+            rows: [
+                {
+                    cells: {
+                        measure: { t: "label", code: "unit.train" },
+                        value: { t: "num", n: 0.92, unit: "usd", bold: true },
+                        note: cell.fact("unit.train.note", { days: d }),
+                    },
+                },
+                {
+                    cells: {
+                        measure: { t: "label", code: "unit.pr_value" },
+                        value: { t: "num", n: 2.4, unit: "usd", bold: true },
+                        note: cell.fact("unit.pr_value.note"),
+                    },
+                },
+            ],
+        },
+        {
+            kind: "bars",
+            id: "by-workflow",
+            groups: [
+                {
+                    head: f("costs.money_by_workflow"),
+                    items: [
+                        { label: cell.name("release.yml (with gpu.yml)"), n: 140.3, unit: "usd" },
+                        { label: cell.name("release.yml, LLM step"), n: 23.4, unit: "usd" },
+                        { label: cell.name("gpu-weekly-paired.yml"), n: 11.3, unit: "usd" },
+                        { label: cell.name("gpu-rerun-on-runner-loss.yml"), n: 2.1, unit: "usd" },
+                    ],
+                },
+                {
+                    head: f("costs.value_by_workflow"),
+                    items: [
+                        { label: cell.name("ci.yml"), n: 2310, unit: "usd", tone: "value" },
+                        { label: cell.name("release.yml"), n: 1240, unit: "usd", tone: "value" },
+                        { label: cell.name("CodeQL"), n: 412, unit: "usd", tone: "value" },
+                        { label: cell.name("hosts.yml"), n: 182, unit: "usd", tone: "value" },
+                        { label: cell.name("work-protection-macos.yml"), n: 141, unit: "usd", tone: "value" },
+                    ],
+                },
+            ],
+        },
+    ];
+}
+
+type SrcCell = TableRow["cells"][string];
+
+/** A row of the Data sources table; a cell left out is empty. */
+interface SrcRow {
+    /** The source's label code; its description is `<code>.what`. */
+    code: string;
+    /** When it last wrote, "HH:MM". */
+    write: string;
+    limit?: SrcCell;
+    volume?: SrcCell;
+    error?: SrcCell;
+    state?: SrcCell;
+    /** True when the row is past (folded). */
+    past?: boolean;
+}
+
+/**
+ * A row of the Data sources table.
+ * @param r - The row's source, last write and cells.
+ * @returns The row.
+ */
+function srcRow(r: SrcRow): TableRow {
+    return {
+        ...(r.past ? { past: r.past } : {}),
+        cells: {
+            source: cell.sub({ t: "label", code: r.code }, { t: "fact", fact: f(`${r.code}.what`) }),
+            write: { t: "ago", at: t(r.write) },
+            limit: r.limit ?? none,
+            volume: r.volume ?? none,
+            error: r.error ?? none,
+            state: r.state ?? none,
+        },
+    };
+}
+const none = { t: "none" } as const;
+const dataSections: Section[] = [
+    {
+        kind: "table",
+        id: "stress",
+        sub: f("data.stress.sub", { workflow: "restricted-cpu-stress.yml" }),
+        rows: [
+            {
+                cells: {
+                    run: { t: "list", sep: "comma", items: [cell.time("08:42"), { t: "run", id: 40177689577 }] },
+                    result: cell.bad(
+                        cell.fact("stress.filing_failed", {
+                            step: "File the load-sensitive tests",
+                            failures: 27,
+                            cap: 25,
+                            file: "oracle-scorecard.test.ts",
+                            cause: "Git LFS pictures missing",
+                        }),
+                    ),
+                    filed: cell.fact("stress.filed_tracked", { filed: 0, issue: 3539 }),
+                },
+            },
+            {
+                past: true,
+                cells: {
+                    run: cell.time("10-18 08:19"),
+                    result: cell.fact("stress.found_nothing"),
+                    filed: { t: "num", n: 0 },
+                },
+            },
+            {
+                past: true,
+                cells: {
+                    run: cell.time("10-11 10:18"),
+                    result: cell.fact("stress.found_nothing"),
+                    filed: { t: "num", n: 0 },
+                },
+            },
+        ],
+    },
+    {
+        kind: "table",
+        id: "sources",
+        rows: [
+            srcRow({
+                code: "source.collector",
+                write: "23:28",
+                limit: { t: "dur", s: 900 },
+                volume: { t: "num", n: 100, unit: "pct" },
+            }),
+            srcRow({
+                code: "source.ci-results",
+                write: "23:26",
+                limit: cell.fact("source.limit_runs", { h: 2 }),
+                volume: cell.fact("source.since_no_history", { since: t("20:42") }),
+            }),
+            srcRow({
+                code: "source.ci-timings",
+                write: "23:26",
+                limit: cell.fact("source.limit_runs", { h: 2 }),
+                volume: { t: "num", n: 96, unit: "pct" },
+            }),
+            srcRow({
+                code: "source.releases",
+                write: "18:24",
+                limit: { t: "dur", s: 25200 },
+                volume: cell.fact("source.trains", { got: 4, of: 4 }),
+            }),
+            srcRow({ code: "source.npm", write: "22:52", limit: { t: "dur", s: 10800 } }),
+            srcRow({
+                code: "source.stress",
+                write: "09:30",
+                limit: { t: "dur", s: 691200 },
+                error: cell.fact("source.error.filing"),
+                state: { t: "state", state: "bad" },
+            }),
+            srcRow({ code: "source.hosts", write: "04:30", limit: { t: "dur", s: 108000 } }),
+            srcRow({ code: "source.billing", write: "13:30", limit: { t: "dur", s: 129600 } }),
+            srcRow({
+                code: "source.local",
+                write: "14:30",
+                volume: cell.fact("source.no_local_gate", { since: t("10-25 00:00") }),
+                state: { t: "state", state: "idle" },
+                past: true,
+            }),
+        ],
+    },
+    {
+        kind: "table",
+        id: "not-set-up",
+        rows: [
+            {
+                cells: {
+                    member: cell.sub({ t: "label", code: "cost.sentry_usage" }, cell.fact("cost.usage.events")),
+                    on: { t: "label", code: "page.costs" },
+                    unblock: cell.fact("unblock.sentry_token"),
+                },
+            },
+            {
+                cells: {
+                    member: cell.sub({ t: "label", code: "cost.cloudflare_usage" }, cell.fact("cost.usage.requests")),
+                    on: { t: "label", code: "page.costs" },
+                    unblock: cell.fact("unblock.cloudflare_token"),
+                },
+            },
+            {
+                cells: {
+                    member: cell.sub(
+                        { t: "label", code: "member.releases.channels" },
+                        cell.fact("notsetup.channels.what"),
+                    ),
+                    on: { t: "label", code: "page.releases" },
+                    unblock: cell.fact("unblock.channels", { issue: 3418 }),
+                },
+            },
+            {
+                cells: {
+                    member: cell.sub({ t: "label", code: "source.flaky-feed" }, cell.fact("notsetup.flaky_feed.what")),
+                    on: { t: "label", code: "page.flaky" },
+                    unblock: cell.fact("unblock.flaky_feed"),
+                },
+            },
+        ],
+    },
+];
+
+// ---------------------------------------------------------------- pages
+
+const page = (p: Omit<PageResponse, "generated" | "range"> & { range?: PageResponse["range"] }): PageResponse => ({
+    generated: GEN,
+    range: "1h",
+    ...p,
+});
+const cat = (id: CategoryStatus["id"]): CategoryStatus => categories.find((c) => c.id === id) as CategoryStatus;
+const head = (id: CategoryStatus["id"]): Pick<CategoryStatus, "state" | "setBy" | "others"> => ({
+    state: cat(id).state,
+    ...(cat(id).setBy ? { setBy: cat(id).setBy } : {}),
+    others: cat(id).others,
+});
+
+const pages: PageResponse[] = [
+    page({
+        page: "master",
+        ...head("master"),
+        notes: [f("master.note.queued", { builds: 5, oldest_min: 68 })],
+        members: masterMembers,
+        sections: masterSections,
+    }),
+    page({
+        page: "pull-requests",
+        ...head("pull-requests"),
+        notes: [f("prs.note.few", { merged: 2, created: 3 }), f("prs.note.owner")],
+        members: prMembers,
+        sections: prSections,
+    }),
+    page({
+        page: "ci",
+        ...head("ci"),
+        notes: [f("ci.note.hangs_cleared", { h6: 6 })],
+        members: ciMembers,
+        sections: ciSections,
+    }),
+    page({
+        page: "runners",
+        ...head("ci"),
+        notes: [f("runners.note.master_queued", { builds: 5, oldest_min: 68 })],
+        members: runnerMembers,
+        sections: runnerSections,
+    }),
+    page({
+        page: "local-runs",
+        state: "idle",
+        others: [],
+        notes: [f("local.note.idle", { since: "2026-10-25" })],
+        members: localMembers,
+        sections: [
+            { kind: "empty", id: "runs", fact: f("section.no_events") },
+            { kind: "empty", id: "shard-time", fact: f("section.no_events") },
+        ],
+    }),
+    page({
+        page: "flaky",
+        ...head("flaky"),
+        notes: [f("flaky.note.judged_again", { since: t("20:42") })],
+        // Every flaky source (design 4.4): CI's rerun rate is shown here too, judged on CI.
+        members: [...flakyMembers, byId(ciMembers, "ci.reruns")],
+        sections: [...flakySections, ...dataSections.filter((s) => s.id === "stress")],
+    }),
+    page({
+        page: "releases",
+        ...head("releases"),
+        notes: [f("releases.note.shadow")],
+        members: releaseMembers,
+        sections: releaseSections,
+    }),
+    page({
+        page: "data-sources",
+        ...head("data-sources"),
+        notes: [f("data.note.notsetup", { n: 4 })],
+        members: dataMembers,
+        sections: dataSections.filter((s) => s.id !== "stress"),
+    }),
+];
+
+// ---------------------------------------------------------------- ranges
+
+/**
+ * The hourly mean of four 15-minute buckets.
+ * @param v - The 15-minute values; null where a bucket has none.
+ * @returns One value per hour, null when the hour has no values.
+ */
+function hourly(v: (number | null)[]): (number | null)[] {
+    const out: (number | null)[] = [];
+    for (let i = 0; i < v.length; i += 4) {
+        const xs = v.slice(i, i + 4).filter((x): x is number => x !== null);
+        out.push(xs.length ? +(xs.reduce((a, b) => a + b, 0) / xs.length).toFixed(2) : null);
+    }
+    return out;
+}
+function worst(b: Mark[]): Mark[] {
+    const out: Mark[] = [];
+    for (let i = 0; i < b.length; i += 4) {
+        const xs = new Set(b.slice(i, i + 4));
+        if (xs.has("bad")) {
+            out.push("bad");
+        } else if (xs.has("warn")) {
+            out.push("warn");
+        } else {
+            out.push(null);
+        }
+    }
+    return out;
+}
+function sparkFor(s: Spark | undefined, range: Range): Spark | undefined {
+    if (!s || range !== "24h" || s.step !== "15m") {
+        return s;
+    }
+    return {
+        ...s,
+        step: "1h",
+        ctx: [],
+        trend: [...s.ctx, ...hourly(s.trend)],
+        breach: [...s.ctx.map(() => null), ...worst(s.breach)],
+    };
+}
+/**
+ * A member at range 6 h or 24 h: a 1 h member shows its trend value (fixtures hold no 24 h values).
+ * @param m - The member as the 1 h fixture holds it.
+ * @param range - The range to show it at.
+ * @returns The member as that range would show it.
+ */
+function memberFor(m: Member, range: Range): Member {
+    const spark = sparkFor(m.spark, range);
+    const out: Member = { ...m, ...(spark ? { spark } : {}) };
+    if (range === "1h" || (m.window !== "1h" && m.window !== "1h6h")) {
+        return out;
+    }
+    const covered = m.covered6h;
+    return {
+        ...out,
+        value: m.value6h ?? m.value,
+        ...(m.n !== undefined && m.minN !== undefined ? { n: Math.max(m.n, m.minN) * 6 } : {}),
+        ...(covered ? { covered } : {}),
+    };
+}
+function sectionFor(s: Section, range: Range): Section {
+    if (s.kind === "strip" && range === "24h") {
+        return {
+            ...s,
+            from: "2026-10-24T23:30:00Z",
+            spans: [{ start: "2026-10-24T23:30:00Z", end: s.spans[0].end, state: "green" }, ...s.spans.slice(1)],
+        };
+    }
+    if (s.kind === "jobs" && range === "24h") {
+        return {
+            ...s,
+            step: "1h",
+            start: "2026-10-24T23:30:00Z",
+            running: [...flat(6, 9), 8, 14, 20, 26, 30, 32, 34, 36, 38, 44, 50, 54, 57, 57, 57, 57],
+            queued: [...flat(0, 9), 1, 2, 4, 6, 8, 10, 12, 14, 18, 34, 69, 113, 165, 201, 235, 235],
+        };
+    }
+    if (s.widened && range !== "1h") {
+        const { widened: _w, ...rest } = s;
+        return rest;
+    }
+    return s;
+}
+
+function write(name: string, body: unknown): void {
+    const file = join(OUT, `${name}.json`);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, `${JSON.stringify(body, null, 1)}\n`);
+}
+
+const RANGES: Range[] = ["1h", "6h", "24h"];
+write("status", { generated: GEN, categories, episodes, sources });
+for (const range of RANGES) {
+    write(`overview.${range}`, {
+        ...overview,
+        range,
+        categories: categories.map((c) => ({ ...c, headline: memberFor(c.headline, range) })),
+        issues: issuesSummary(fixtureIssues(), Date.parse(GEN)),
+    } satisfies OverviewResponse);
+    for (const p of pages) {
+        write(`${p.page}.${range}`, {
+            ...p,
+            range,
+            members: p.members.map((m) => memberFor(m, range)),
+            sections: p.sections.map((s) => sectionFor(s, range)),
+        } satisfies PageResponse);
+    }
+}
+// The 7 d runner history (runners/jobs): its last 3 hours here, a quiet night giving way to a merge burst.
+write("runners.jobs.7d", {
+    page: "runners",
+    range: "7d",
+    generated: GEN,
+    section: {
+        kind: "jobs",
+        id: "jobs",
+        step: "15m",
+        start: "2026-10-24T20:30:00Z",
+        running: [4, 2, 0, 0, 0, 6, 9, 24, 41, 57, 57, 52],
+        queued: [0, 0, 0, 0, 0, 0, 0, 0, 12, 30, 18, 4],
+        runningMax: [6, 4, 2, 0, null, 8, 12, 30, 52, 60, 60, 57],
+        queuedMax: [0, 0, 0, 0, null, 0, 0, 3, 26, 79, 40, 18],
+        longestQueuedMs: [0, 0, 0, 0, null, 0, 0, 40_000, 260_000, 610_000, 540_000, 120_000],
+        saturatedMs: [0, 0, 0, 0, null, 0, 0, 0, 0, 600_000, 900_000, 300_000],
+        limit: 60,
+        peak: { n: 60, at: "2026-10-24T22:45:00Z" },
+    },
+} satisfies SectionResponse);
+for (const range of ["7d", "28d"] as SlowRange[]) {
+    write(
+        `costs.${range}`,
+        page({
+            page: "costs",
+            range,
+            ...head("costs"),
+            notes: [f("costs.note.notsetup")],
+            members: costMembers,
+            sections: costSections(range),
+        }),
+    );
+    for (const runKind of ["full", "pr-bins"] as const) {
+        write(`ci.shards.${runKind}.${range}`, {
+            page: "ci",
+            range,
+            generated: GEN,
+            section: shardsSection(range, runKind),
+        } satisfies SectionResponse);
+    }
+    write(`flaky.hotspots.${range}`, {
+        page: "flaky",
+        range,
+        generated: GEN,
+        section: hotspots(range),
+    } satisfies SectionResponse);
+}
+
+const history: TestHistoryResponse = {
+    generated: GEN,
+    range: "7d",
+    file: "src/components/style/StylePanel.stories.tsx",
+    test: "Football conference: Which nodes picker",
+    family: "graphty screenshots",
+    issue: 3521,
+    events: [
+        {
+            at: t("23:02"),
+            kind: "pr",
+            pr: 3567,
+            run: 40241100231,
+            attempt: 1,
+            sha: "4be1c09a2",
+            outcome: "flaky",
+            signature: "capture differs from baseline: 1.9% of pixels",
+        },
+        {
+            at: t("21:40"),
+            kind: "pr",
+            pr: 3500,
+            run: 40236620114,
+            attempt: 1,
+            sha: "c81a7d2f0",
+            outcome: "flaky",
+            signature: "capture differs from baseline: 2.2% of pixels",
+        },
+        {
+            at: t("20:15"),
+            kind: "pr",
+            pr: 3498,
+            run: 40231955310,
+            attempt: 2,
+            sha: "9e0f21b44",
+            outcome: "failed-rerun",
+            signature: "capture differs from baseline: 2.0% of pixels",
+        },
+        {
+            at: t("19:01"),
+            kind: "pr",
+            pr: 3498,
+            run: 40227001876,
+            attempt: 1,
+            sha: "9e0f21b44",
+            outcome: "flaky",
+            signature: "capture differs from baseline: 1.7% of pixels",
+        },
+        { at: t("10-24 18:15"), kind: "full", run: 40119894804, attempt: 1, sha: "a870943ef", outcome: "passed" },
+    ],
+};
+write("test-history", history);
+
+// ---------------------------------------------------------------- Issues
+
+/**
+ * The repository's issues as they stood on 2026-11-01 (tmp/health-issues/plan.md), scaled to this fixture's day:
+ * 2,903 issues since 2026-03-05, 2,343 of them opened in the last 28 days, and 510 open, of which 130 bugs (16
+ * critical, 33 high, 42 medium, 41 low) and 262 enhancements. Times and closes are drawn from a seeded generator, so
+ * the file is the same on every build, and the page is built by the backend's own issuesPage().
+ * @returns every issue
+ */
+function fixtureIssues(): IssueItem[] {
+    let seed = 20261101;
+    const rnd = (): number => {
+        seed = (seed + 0x6d2b79f5) | 0; // NOSONAR(S7767): wraps to int32 (mulberry32), which Math.trunc does not
+        let x = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+        return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    };
+    const now = Date.parse(GEN);
+    const recent = now - 28 * 86_400_000;
+    const first = Date.parse("2026-03-05T09:00:00Z");
+    // [type, how many, priority weights critical/high/medium/low/none, open: by priority or in all]
+    const kinds: [string, number, number[], number[] | number][] = [
+        ["bug", 1300, [30, 25, 25, 20, 0], [16, 33, 42, 41, 0]],
+        ["enhancement", 1100, [2, 20, 40, 37, 1], [2, 40, 120, 99, 1]],
+        ["documentation", 120, [0, 20, 40, 40, 0], 25],
+        ["research", 90, [0, 20, 40, 40, 0], 30],
+        ["infrastructure", 150, [5, 30, 40, 25, 0], 40],
+        ["tracking", 60, [0, 30, 40, 30, 0], 12],
+        ["sonarqube", 40, [0, 0, 50, 50, 0], 6],
+        ["dead-links", 10, [0, 0, 50, 50, 0], 1],
+        ["ci-budget", 8, [0, 50, 50, 0, 0], 0],
+        ["intermittent", 20, [50, 50, 0, 0, 0], 2],
+        ["", 5, [0, 0, 50, 50, 0], 2],
+    ];
+    const prios = ["critical", "high", "medium", "low", ""];
+    const pick = (w: number[]): number => {
+        let u = rnd() * w.reduce((a, x) => a + x, 0);
+        return Math.max(
+            0,
+            w.findIndex((x) => (u -= x) < 0),
+        );
+    };
+    const specs = kinds.flatMap(([type, n, w]) => Array.from({ length: n }, () => ({ type, prio: pick(w) })));
+    // Shuffle, then the first 560 are the old ones, rising toward the 28 days; the rest fill the 28 days.
+    for (let i = specs.length - 1; i > 0; i--) {
+        const j = Math.floor(rnd() * (i + 1));
+        [specs[i], specs[j]] = [specs[j], specs[i]];
+    }
+    const issues = specs.map((sp, i): IssueItem & { prio: number; type: string } => {
+        const at = i < 560 ? first + (recent - first) * Math.sqrt(rnd()) : recent + (now - recent) * rnd();
+        const labels = [sp.type, sp.prio < 4 ? `priority:${prios[sp.prio]}` : "", "effort:medium"].filter(Boolean);
+        return {
+            kind: "issue",
+            id: "",
+            attempt: 1,
+            repo: "graphty-org/graphty-monorepo",
+            number: 0,
+            labels,
+            createdAt: Math.round(at),
+            ...sp,
+        };
+    });
+    issues.sort((a, b) => a.createdAt - b.createdAt);
+    const open = new Set<IssueItem>();
+    for (const [type, , , want] of kinds) {
+        const mine = issues.filter((i) => i.type === type);
+        const groups =
+            typeof want === "number"
+                ? [[mine, want] as const]
+                : want.map((n, p) => [mine.filter((i) => i.prio === p), n] as const);
+        for (const [pool, n] of groups) {
+            // Open issues lean recent: drawn from the newest half of their pool when it is large enough.
+            const from = pool.slice(pool.length > 4 * n ? Math.floor(pool.length / 2) : 0);
+            while ([...from].filter((i) => open.has(i)).length < n) {
+                open.add(from[Math.floor(rnd() * from.length)]);
+            }
+        }
+    }
+    const statuses = ["in-progress", "blocked", "needs-decision", "needs-info"];
+    const titles = [
+        "Flaky: graphty-element-browser layout story",
+        "Full run red: ci on",
+        "Load-sensitive test in",
+        "Style panel loses",
+        "Release held: publish failed on",
+        "Airline sample renders",
+        "Shard over budget:",
+        "Dataset download fails in",
+    ];
+    return issues.map(({ prio: _p, type: _t, ...i }, k) => {
+        const number = 1 + k * 2;
+        const base = {
+            ...i,
+            id: `graphty-org/graphty-monorepo#${number}`,
+            number,
+            title: `${titles[k % titles.length]} #${number}`,
+        };
+        if (open.has(issues[k])) {
+            const status = rnd() < 0.3 ? [statuses[Math.floor(rnd() * statuses.length)]] : [];
+            return { ...base, labels: [...i.labels, ...status] };
+        }
+        // Closed after an exponential wait (bugs sooner), or, when that would be after now, at a uniform time before it.
+        const wait = -Math.log(1 - rnd()) * (i.labels.includes("bug") ? 2 : 6) * 86_400_000;
+        const closedAt = i.createdAt + wait < now ? i.createdAt + wait : i.createdAt + (now - i.createdAt) * rnd();
+        const reason = ["completed", "not_planned", "duplicate"][pick([84, 14, 2])];
+        return { ...base, closedAt: Math.round(closedAt), stateReason: reason };
+    });
+}
+{
+    const issues = fixtureIssues();
+    const open = issues.filter((i) => i.closedAt === undefined).length;
+    for (const range of ["1h", "6h", "1d", "7d", "28d", "all"] as IssueRange[]) {
+        write(`issues.${range}`, issuesPage(issues, range, Date.parse(GEN), open) satisfies PageResponse);
+    }
+}
+
+// ---------------------------------------------------------------- the gray scenario
+
+const grayCosts: CategoryStatus = {
+    id: "costs",
+    state: "nodata",
+    setBy: { member: "costs.spend", state: "nodata", value: null, fact: f("short.nodata", { reason: "billing_late" }) },
+    others: [],
+    headline: member({
+        id: "costs.spend",
+        state: "nodata",
+        value: null,
+        sla: SLA.spend,
+        reason: f("nodata.source_late", { source: "billing", h: 41 }),
+        spark: spark(ramp(232, 230, 18), [...flat(230, 6), ...nulls(18)], SLA.spend),
+        link: "/costs",
+    }),
+};
+const grayPrs: CategoryStatus = {
+    ...cat("pull-requests"),
+    state: "ok",
+    headline: { ...ttm, state: "partial", covered: { h: 0.4, of: 1 } },
+};
+const grayStatus = {
+    generated: GEN,
+    categories: categories.map((c) => {
+        if (c.id === "costs") {
+            return grayCosts;
+        }
+        return c.id === "pull-requests" ? grayPrs : c;
+    }),
+    episodes,
+    sources: sources.map((s) =>
+        s.id === "billing" ? { ...s, lastWrite: "2026-10-24T06:30:00Z", state: "nodata" as const } : s,
+    ),
+};
+write("gray/status", grayStatus);
+for (const range of RANGES) {
+    write(`gray/overview.${range}`, {
+        ...grayStatus,
+        page: "overview",
+        range,
+        categories: grayStatus.categories.map((c) => ({ ...c, headline: memberFor(c.headline, range) })),
+        channels: [
+            channels[0],
+            { id: "nightly", state: "nodata", sha: null, at: null, attempts: [], link: "/releases" },
+            channels[2],
+        ],
+    } satisfies OverviewResponse);
+}
+for (const range of ["7d", "28d"] as SlowRange[]) {
+    const secs = costSections(range).map((s) =>
+        s.kind === "table" && s.id === "money"
+            ? {
+                  ...s,
+                  rows: s.rows.map((r) =>
+                      r.cells.line.t === "sub" &&
+                      r.cells.line.main.t === "label" &&
+                      r.cells.line.main.code === "cost.aws"
+                          ? {
+                                ...r,
+                                cells: {
+                                    ...r.cells,
+                                    projected: none,
+                                    sofar: none,
+                                    state: { t: "state" as const, state: "nodata" as const },
+                                },
+                            }
+                          : r,
+                  ),
+              }
+            : s,
+    );
+    write(
+        `gray/costs.${range}`,
+        page({
+            page: "costs",
+            range,
+            state: "nodata",
+            setBy: grayCosts.setBy,
+            others: [],
+            notes: [f("costs.note.nodata", { source: "billing", h: 41 })],
+            members: costMembers.map((m) =>
+                m.id === "costs.aws" || m.id === "costs.spend"
+                    ? {
+                          ...m,
+                          state: "nodata",
+                          value: null,
+                          reason: f("nodata.token_rejected", { since: t("10-24 06:30") }),
+                      }
+                    : m,
+            ),
+            sections: secs,
+        }),
+    );
+}
+for (const range of RANGES) {
+    const p = pages.find((x) => x.page === "data-sources") as PageResponse;
+    write(`gray/data-sources.${range}`, {
+        ...p,
+        range,
+        members: p.members.map((m): Member => {
+            if (m.id === "data-sources.app_rate") {
+                return {
+                    ...m,
+                    state: "nodata",
+                    value: null,
+                    reason: f("nodata.token_rejected", { since: t("10-24 06:30") }),
+                };
+            }
+            if (m.id === "data-sources.thin") {
+                return { ...m, state: "partial", value: null, covered: { h: 0.4, of: 1 } };
+            }
+            return memberFor(m, range);
+        }),
+    } satisfies PageResponse);
+}
+
+process.stdout.write(`fixtures written to ${OUT}\n`);

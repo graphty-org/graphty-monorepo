@@ -60,13 +60,14 @@ export async function readBaseline(path) {
  *     whether anti-aliased pixels count as changed
  * @returns {{ status: "unchanged" | "changed", baseline: string, capture: string,
  *     size: number[] | null, baselineSize: number[] | null, changedPixels: number,
- *     bbox: number[] | null }} sizes are [width, height]
+ *     bbox: number[] | null, exact: boolean }} sizes are [width, height]; `exact` is whether every
+ *     RGBA byte of the capture is the baseline's, which equal bytes imply and the threshold ignores
  */
 export function compareImages(baseline, capture, { threshold, includeAA }) {
     const hashes = { baseline: sha256(baseline), capture: sha256(capture) };
     if (hashes.baseline === hashes.capture) {
         const size = pngSize(capture);
-        return { status: "unchanged", ...hashes, size, baselineSize: size, changedPixels: 0, bbox: null };
+        return { status: "unchanged", ...hashes, size, baselineSize: size, changedPixels: 0, bbox: null, exact: true };
     }
     const a = PNG.sync.read(baseline);
     const b = PNG.sync.read(capture);
@@ -78,6 +79,7 @@ export function compareImages(baseline, capture, { threshold, includeAA }) {
         baselineSize: [a.width, a.height],
         changedPixels,
         bbox,
+        exact: a.width === b.width && a.height === b.height && a.data.equals(b.data),
     };
 }
 
@@ -158,15 +160,29 @@ function crop(img, w, h) {
  * `moved` says the baseline is another story id's, named in the project's renames.json: a story
  * that only moved (same image, new id) is `moved` rather than `unchanged`, so it still needs an
  * accept, which writes its baseline under the new name.
+ *
+ * Decoding and comparing a capture costs seconds of CPU for a tall story, so nothing is compared
+ * twice: `firstResult`, the result of the caller's earlier classify of the same baseline and first
+ * capture, stands for that comparison, and a second capture with the first one's bytes takes the
+ * first one's comparison (the same bytes compare the same).
  * @param {{ baseline: Buffer | null, first: Buffer | null, second?: Buffer | null,
- *     reference?: Buffer | null, threshold: number, includeAA: boolean, moved?: boolean }} input
- *     `first` is null when the story is gone
+ *     reference?: Buffer | null, threshold: number, includeAA: boolean, moved?: boolean,
+ *     firstResult?: object | null }} input `first` is null when the story is gone
  * @returns {{ status: "unchanged" | "moved" | "changed" | "new" | "unseeded" | "removed" | "unstable", flaky: boolean,
  *     baseline: string | null, capture: string | null, size: number[] | null,
  *     baselineSize: number[] | null, changedPixels: number | null, bbox: number[] | null }}
  *     `capture` is the hash of the capture the status describes: the second one when flaky
  */
-export function classify({ baseline, first, second = null, reference = null, threshold, includeAA, moved = false }) {
+export function classify({
+    baseline,
+    first,
+    second = null,
+    reference = null,
+    threshold,
+    includeAA,
+    moved = false,
+    firstResult = null,
+}) {
     const options = { threshold, includeAA };
     const matched = (r, flaky) => ({ ...r, status: moved ? "moved" : "unchanged", flaky });
     const none = { flaky: false, size: null, baselineSize: null, changedPixels: null, bbox: null };
@@ -183,14 +199,14 @@ export function classify({ baseline, first, second = null, reference = null, thr
         }
         return { status, ...none, baseline: null, capture: sha256(first), size: pngSize(first) };
     }
-    const vsFirst = compareImages(baseline, first, options);
+    const vsFirst = firstResult ?? compareImages(baseline, first, options);
     if (vsFirst.status === "unchanged") {
         return matched(vsFirst, false);
     }
     if (second === null) {
         return { ...vsFirst, flaky: false };
     }
-    const vsSecond = compareImages(baseline, second, options);
+    const vsSecond = Buffer.compare(second, first) === 0 ? vsFirst : compareImages(baseline, second, options);
     if (vsSecond.status === "unchanged") {
         return matched(vsSecond, true);
     }

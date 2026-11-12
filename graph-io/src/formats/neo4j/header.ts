@@ -11,6 +11,8 @@
 
 import { GraphFormatError } from "@graphty/graph-format";
 
+import { itemAt } from "../../common/text.js";
+
 /**
  * The structural field types and the marker for a property column.
  * @category Plugin helpers
@@ -104,8 +106,8 @@ export function parseHeaderField(text: string): HeaderField {
         throw headerError(text, "not a neo4j header cell");
     }
     const name = m[1].trim();
-    const rawType = m[2] === undefined ? null : m[2].trim();
-    const space = m[3] === undefined ? null : m[3].trim();
+    const rawType = itemAt(m, 2)?.trim() ?? null;
+    const space = itemAt(m, 3)?.trim() ?? null;
     const options = parseOptions(text, m[4]);
     if (rawType === null) {
         return untypedField(text, name, space, options);

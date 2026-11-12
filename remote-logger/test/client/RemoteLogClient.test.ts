@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, type MockInstance, test, vi } from "vitest";
 
 import { createRemoteLogClient, RemoteLogClient } from "../../src/client/RemoteLogClient.js";
+import type { LogEntry } from "../../src/client/types.js";
+
+/** The JSON body RemoteLogClient posts to /log. */
+interface SentBody {
+    sessionId: string;
+    logs: LogEntry[];
+    projectMarker?: string;
+    worktreePath?: string;
+}
 
 describe("RemoteLogClient", () => {
     let fetchSpy: MockInstance;
@@ -66,7 +75,7 @@ describe("RemoteLogClient", () => {
 
             expect(fetchSpy).toHaveBeenCalledOnce();
             const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-            const body = JSON.parse(options.body as string);
+            const body = JSON.parse(options.body as string) as SentBody;
 
             expect(body.logs).toHaveLength(1);
             expect(body.logs[0]).toEqual({
@@ -87,7 +96,7 @@ describe("RemoteLogClient", () => {
             await vi.advanceTimersByTimeAsync(100);
 
             const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-            const body = JSON.parse(options.body as string);
+            const body = JSON.parse(options.body as string) as SentBody;
 
             expect(body.logs[0].data).toEqual({ userId: 123, action: "click" });
         });
@@ -103,7 +112,7 @@ describe("RemoteLogClient", () => {
             await vi.advanceTimersByTimeAsync(100);
 
             const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-            const body = JSON.parse(options.body as string);
+            const body = JSON.parse(options.body as string) as SentBody;
 
             expect(body.logs[0]).not.toHaveProperty("data");
         });
@@ -143,7 +152,7 @@ describe("RemoteLogClient", () => {
 
             expect(fetchSpy).toHaveBeenCalledOnce();
             const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-            const body = JSON.parse(options.body as string);
+            const body = JSON.parse(options.body as string) as SentBody;
 
             expect(body.logs).toHaveLength(3);
             expect(body.logs[0].message).toBe("Message 1");
@@ -183,7 +192,7 @@ describe("RemoteLogClient", () => {
             // Should send both messages in one batch
             expect(fetchSpy).toHaveBeenCalledOnce();
             const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-            const body = JSON.parse(options.body as string);
+            const body = JSON.parse(options.body as string) as SentBody;
             expect(body.logs).toHaveLength(2);
         });
 
@@ -397,7 +406,7 @@ describe("RemoteLogClient", () => {
             await vi.advanceTimersByTimeAsync(100);
 
             const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-            const body = JSON.parse(options.body as string);
+            const body = JSON.parse(options.body as string) as SentBody;
 
             expect(body.sessionId).toBe(client.sessionId);
         });
@@ -484,7 +493,7 @@ describe("RemoteLogClient", () => {
 
             expect(fetchSpy).toHaveBeenCalledOnce();
             const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-            const body = JSON.parse(options.body as string);
+            const body = JSON.parse(options.body as string) as SentBody;
 
             // Only the first message should have been sent
             expect(body.logs).toHaveLength(1);
@@ -516,12 +525,12 @@ describe("RemoteLogClient", () => {
             expect(fetchSpy).toHaveBeenCalledTimes(2);
 
             // First batch had frame 1
-            const body1 = JSON.parse((fetchSpy.mock.calls[0] as [string, RequestInit])[1].body as string);
+            const body1 = JSON.parse((fetchSpy.mock.calls[0] as [string, RequestInit])[1].body as string) as SentBody;
             expect(body1.logs).toHaveLength(1);
             expect(body1.logs[0].message).toBe("render frame 1");
 
             // Second batch had frame 3 (frame 2 was throttled)
-            const body2 = JSON.parse((fetchSpy.mock.calls[1] as [string, RequestInit])[1].body as string);
+            const body2 = JSON.parse((fetchSpy.mock.calls[1] as [string, RequestInit])[1].body as string) as SentBody;
             expect(body2.logs).toHaveLength(1);
             expect(body2.logs[0].message).toBe("render frame 3");
         });
@@ -541,7 +550,7 @@ describe("RemoteLogClient", () => {
             await vi.advanceTimersByTimeAsync(100);
 
             const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-            const body = JSON.parse(options.body as string);
+            const body = JSON.parse(options.body as string) as SentBody;
 
             expect(body.logs).toHaveLength(3);
         });
@@ -567,7 +576,7 @@ describe("RemoteLogClient", () => {
             await vi.advanceTimersByTimeAsync(100);
 
             const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-            const body = JSON.parse(options.body as string);
+            const body = JSON.parse(options.body as string) as SentBody;
 
             expect(body.logs).toHaveLength(2);
             expect(body.logs[0].message).toBe("render frame 1");
@@ -588,7 +597,7 @@ describe("RemoteLogClient", () => {
             await vi.advanceTimersByTimeAsync(100);
 
             const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-            const body = JSON.parse(options.body as string);
+            const body = JSON.parse(options.body as string) as SentBody;
 
             expect(body.logs).toHaveLength(3);
         });
@@ -610,7 +619,7 @@ describe("RemoteLogClient", () => {
             await vi.advanceTimersByTimeAsync(100);
 
             const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-            const body = JSON.parse(options.body as string);
+            const body = JSON.parse(options.body as string) as SentBody;
 
             // "frame rendered" matches ^frame
             // "mouse moved" matches ^mouse (different pattern key)
@@ -631,7 +640,7 @@ describe("RemoteLogClient", () => {
 
             expect(fetchSpy).toHaveBeenCalledOnce();
             const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-            const body = JSON.parse(options.body as string);
+            const body = JSON.parse(options.body as string) as SentBody;
 
             expect(body.projectMarker).toBe("my-project");
         });
@@ -648,7 +657,7 @@ describe("RemoteLogClient", () => {
 
             expect(fetchSpy).toHaveBeenCalledOnce();
             const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-            const body = JSON.parse(options.body as string);
+            const body = JSON.parse(options.body as string) as SentBody;
 
             expect(body.worktreePath).toBe("/home/user/.worktrees/remote-logging");
         });
@@ -665,7 +674,7 @@ describe("RemoteLogClient", () => {
             await vi.advanceTimersByTimeAsync(100);
 
             const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-            const body = JSON.parse(options.body as string);
+            const body = JSON.parse(options.body as string) as SentBody;
 
             expect(body.projectMarker).toBe("my-project");
             expect(body.worktreePath).toBe("/home/user/.worktrees/remote-logging");
@@ -681,7 +690,7 @@ describe("RemoteLogClient", () => {
             await vi.advanceTimersByTimeAsync(100);
 
             const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-            const body = JSON.parse(options.body as string);
+            const body = JSON.parse(options.body as string) as SentBody;
 
             expect(body).not.toHaveProperty("projectMarker");
             expect(body).not.toHaveProperty("worktreePath");
@@ -701,7 +710,7 @@ describe("RemoteLogClient", () => {
                 await vi.advanceTimersByTimeAsync(100);
 
                 const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-                const body = JSON.parse(options.body as string);
+                const body = JSON.parse(options.body as string) as SentBody;
 
                 expect(body.projectMarker).toBe("global-marker");
             } finally {
@@ -724,7 +733,7 @@ describe("RemoteLogClient", () => {
                 await vi.advanceTimersByTimeAsync(100);
 
                 const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-                const body = JSON.parse(options.body as string);
+                const body = JSON.parse(options.body as string) as SentBody;
 
                 expect(body.worktreePath).toBe("/path/from/global");
             } finally {
@@ -748,7 +757,7 @@ describe("RemoteLogClient", () => {
                 await vi.advanceTimersByTimeAsync(100);
 
                 const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-                const body = JSON.parse(options.body as string);
+                const body = JSON.parse(options.body as string) as SentBody;
 
                 expect(body.projectMarker).toBe("explicit-marker");
             } finally {
@@ -772,7 +781,7 @@ describe("RemoteLogClient", () => {
                 await vi.advanceTimersByTimeAsync(100);
 
                 const [, options] = fetchSpy.mock.calls[0] as [string, RequestInit];
-                const body = JSON.parse(options.body as string);
+                const body = JSON.parse(options.body as string) as SentBody;
 
                 expect(body.worktreePath).toBe("/path/explicit");
             } finally {

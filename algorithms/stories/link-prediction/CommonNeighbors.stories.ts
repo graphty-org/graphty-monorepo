@@ -289,12 +289,9 @@ export const CommonNeighbors: Story = {
         const predictButton = canvas.getByRole("button", { name: /predict links/i });
         await userEvent.click(predictButton);
 
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("potential");
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("potential");
+        });
     },
 };

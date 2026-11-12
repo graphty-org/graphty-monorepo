@@ -1,8 +1,7 @@
 import { MantineProvider } from "@mantine/core";
 import { cleanup, render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { CompactColorInput } from "../../src/components/CompactColorInput";
 import { InfoCircle } from "../../src/components/InfoCircle";
@@ -123,7 +122,7 @@ const KINDS: Kind[] = [
     {
         name: "the color input's picker",
         ui: <CompactColorInput color="#336699" defaultColor="#336699" label="Fill" />,
-        open: () => clickTrigger(/^Pick Fill color$/),
+        open: () => clickTrigger(/^Pick fill color$/),
     },
     {
         name: "an info circle's bubble",

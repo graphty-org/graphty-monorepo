@@ -11,7 +11,7 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import type { Graphty } from "../../index.js";
@@ -20,12 +20,15 @@ import type { RenderManager } from "../../src/managers/RenderManager";
 import { drawnFrames } from "../helpers/drawn-frames";
 import {
     click,
+    doubleClick,
     drag,
     hover,
     nextFrame,
     pinch,
     type Point,
+    rightClick,
     touchDrag,
+    twist,
     wheel,
     withDevicePixelRatio,
 } from "../helpers/real-input";
@@ -97,6 +100,29 @@ function at(element: Graphty, id: string): Point {
 }
 
 /**
+ * A corner of the canvas, 30 pixels in, that no node is drawn over, read from the nodes' public
+ * screen bounds: after the camera moves, a fixed spot such as `EMPTY` can land on a node.
+ * @param element - The element.
+ * @returns The spot.
+ */
+function emptyCorner(element: Graphty): Point {
+    const corners: Point[] = [
+        { x: 30, y: 30 },
+        { x: WIDTH - 30, y: 30 },
+        { x: 30, y: HEIGHT - 30 },
+        { x: WIDTH - 30, y: HEIGHT - 30 },
+    ];
+    const spot = corners.find((p) =>
+        NODES.every(({ id }) => {
+            const b = element.nodeScreenPosition(id)?.bounds;
+            return !b || p.x < b.left || p.x > b.right || p.y < b.top || p.y > b.bottom;
+        }),
+    );
+    assert.isDefined(spot, "a corner of the canvas is empty");
+    return spot;
+}
+
+/**
  * How far apart nodes a and b are drawn, on screen or not: how zoomed in the view is.
  * @param element - The element.
  * @returns The distance in CSS pixels.
@@ -130,6 +156,46 @@ async function applied(element: Graphty): Promise<void> {
     await element.waitForStableFrame();
 }
 
+/**
+ * The frame as drawn, in device pixels, bottom row first.
+ * @param element - The element.
+ * @returns RGBA bytes.
+ */
+async function readCanvas(element: Graphty): Promise<Uint8Array> {
+    const { engine } = element.graph;
+    element.graph.scene.render();
+    return (await engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight())) as unknown as Uint8Array;
+}
+
+/**
+ * How strongly the selection gold (#FFD700) shows around a point: the largest red-over-blue
+ * excess in a square there. The canvas, the nodes and the edges are all near-gray.
+ * @param element - The element.
+ * @param pixels - The frame from {@link readCanvas}.
+ * @param center - The point, CSS pixels from the element's top-left corner.
+ * @param half - Half the square's side, CSS pixels.
+ * @returns The excess, 0-255.
+ */
+function gold(element: Graphty, pixels: Uint8Array, center: Point, half: number): number {
+    const { engine } = element.graph;
+    const width = engine.getRenderWidth();
+    const height = engine.getRenderHeight();
+    const scale = width / WIDTH;
+    let best = 0;
+    for (let dy = -half; dy <= half; dy++) {
+        for (let dx = -half; dx <= half; dx++) {
+            const x = Math.round((center.x + dx) * scale);
+            const y = height - 1 - Math.round((center.y + dy) * scale);
+            if (x < 0 || y < 0 || x >= width || y >= height) {
+                continue;
+            }
+            const o = (y * width + x) * 4;
+            best = Math.max(best, pixels[o] - pixels[o + 2]);
+        }
+    }
+    return best;
+}
+
 describe("the mouse", () => {
     it("a drag across empty canvas turns the 3D camera", async () => {
         const element = await mounted("3d");
@@ -154,6 +220,39 @@ describe("the mouse", () => {
         assert.closeTo(end.y - start.y, -30, 2, "the node moved up with the pointer");
     });
 
+    for (const viewMode of ["2d", "3d"] as const) {
+        it(`with zoomToPointer, the wheel in ${viewMode} keeps the node under the pointer under it`, async () => {
+            const element = await mounted(viewMode);
+            element.zoomToPointer = true;
+            const start = at(element, "a");
+            const gap = spread(element);
+
+            for (let notch = 0; notch < 3; notch++) {
+                await wheel(element, start, -100);
+            }
+            await applied(element);
+
+            assert.isAbove(spread(element), gap * 1.2, "scrolling up zoomed in");
+            const end = at(element, "a");
+            assert.isBelow(Math.hypot(end.x - start.x, end.y - start.y), 3, "node a stayed under the pointer");
+        });
+    }
+
+    it("without zoomToPointer, the wheel zooms toward the center and the node off center moves", async () => {
+        const element = await mounted("2d");
+        const start = at(element, "a");
+
+        for (let notch = 0; notch < 3; notch++) {
+            await wheel(element, start, -100);
+        }
+        await applied(element);
+
+        // Drawn or not: it may slide off the canvas.
+        const end = element.nodeScreenPosition("a");
+        assert.isDefined(end);
+        assert.isAbove(Math.hypot(end.x - start.x, end.y - start.y), 10, "node a slid away from the pointer");
+    });
+
     it("the wheel zooms the 2D view", async () => {
         const element = await mounted("2d");
         const gap = spread(element);
@@ -163,6 +262,35 @@ describe("the mouse", () => {
 
         assert.isAbove(spread(element), gap, "scrolling up zoomed in");
     });
+
+    for (const viewMode of ["2d", "3d"] as const) {
+        it(`three wheel turns out in ${viewMode} zoom out as far as three turns in zoom in`, async () => {
+            const element = await mounted(viewMode);
+            element.zoomToPointer = true;
+            const point = at(element, "a");
+            // In 3D, nodes a and b are off the plane through the pivot (node c lifts the graph's
+            // center), so their spread on screen is not in proportion to the zoom: read the
+            // camera's distance instead.
+            const zoom = (): number =>
+                viewMode === "3d" ? 1 / (element.getCameraState().cameraDistance ?? Number.NaN) : spread(element);
+            const turns = async (deltaY: number): Promise<number> => {
+                for (let notch = 0; notch < 3; notch++) {
+                    await wheel(element, point, deltaY);
+                }
+                await applied(element);
+                return zoom();
+            };
+
+            const start = zoom();
+            const zoomedIn = await turns(-100);
+            const back = await turns(100);
+            const zoomedOut = await turns(100);
+
+            assert.isAbove(zoomedIn, start * 1.2, "three turns in zoomed in");
+            assert.closeTo(back / start, 1, 0.01, "three turns out undid three turns in");
+            assert.closeTo(start / zoomedOut, zoomedIn / start, 0.01, "out shrank the drawing as much as in grew it");
+        });
+    }
 
     describe.each(["2d", "3d"] as const)("in %s", (viewMode) => {
         it("a click on a node selects it and does not pin it", async () => {
@@ -179,6 +307,119 @@ describe("the mouse", () => {
             assert.isNull(element.getSelectedNode(), "a click on empty canvas clears the selection");
         });
 
+        it("a click that changes the selection switches a select condition off, and undo switches it back on", async () => {
+            const element = await mounted(viewMode);
+            const { session } = element;
+            await session.visibility.addCondition({ id: "hub", effect: "select", rule: { kind: "degree", min: 2 } });
+            assert.sameMembers([...session.selection.nodes], ["a"], "the condition selected the hub");
+
+            await click(element, at(element, "b"));
+            await applied(element);
+            await vi.waitFor(() => {
+                assert.isFalse(session.visibility.conditions[0]?.on, "the reader's click switched the condition off");
+            });
+            assert.sameMembers([...session.selection.nodes], ["b"], "the reader's selection stands");
+
+            await session.undo();
+            assert.isTrue(session.visibility.conditions[0]?.on);
+            assert.sameMembers([...session.selection.nodes], ["a"], "undo selects the condition's matches again");
+        });
+
+        it("Shift-click adds a node to the selection, a plain click replaces it", async () => {
+            const element = await mounted(viewMode);
+
+            await click(element, at(element, "a"));
+            await click(element, at(element, "b"), { shift: true });
+            await applied(element);
+            assert.sameMembers([...element.session.selection.nodes], ["a", "b"], "Shift-click added b to a");
+
+            await click(element, at(element, "c"));
+            await applied(element);
+            assert.sameMembers([...element.session.selection.nodes], ["c"], "a plain click replaced the selection");
+
+            await click(element, at(element, "a"), { shift: true });
+            await click(element, at(element, "c"));
+            await applied(element);
+            assert.sameMembers(
+                [...element.session.selection.nodes],
+                ["c"],
+                "a plain click on a node already selected leaves only that node",
+            );
+
+            const from = at(element, "a");
+            const to = { x: from.x + 50, y: from.y + 40 };
+            await drag(element, from, to, 8, undefined, { shift: true });
+            await applied(element);
+            const now = at(element, "a");
+            assert.closeTo(now.x, to.x, 3, "a drag with Shift held still moves the node");
+            assert.closeTo(now.y, to.y, 3);
+        });
+
+        it("a click on empty canvas is published, with or without a selection", async () => {
+            const element = await mounted(viewMode);
+            let heard = 0;
+            let where = { x: 0, y: 0, secondary: false };
+            const stop = element.session.on("canvas:empty-click", (at) => {
+                heard++;
+                where = at;
+            });
+            cleanups.push(stop);
+
+            await click(element, EMPTY);
+            await applied(element);
+            assert.strictEqual(heard, 1, "a click with nothing selected is heard");
+            assert.closeTo(where.x, EMPTY.x, 1, "and says where it landed");
+            assert.closeTo(where.y, EMPTY.y, 1);
+
+            await click(element, at(element, "b"));
+            await applied(element);
+            assert.strictEqual(heard, 1, "a click on a node is not an empty click");
+
+            await click(element, EMPTY);
+            await applied(element);
+            assert.strictEqual(heard, 2, "a click that clears a selection is heard too");
+            assert.isFalse(where.secondary, "a left click is not a secondary one");
+
+            await rightClick(element, EMPTY);
+            await applied(element);
+            assert.strictEqual(heard, 3, "a right-click on empty canvas is heard");
+            assert.isTrue(where.secondary, "and says it was a secondary click");
+        });
+
+        it("a click on a node is published, also on the node already selected", async () => {
+            const element = await mounted(viewMode);
+            const heard: unknown[] = [];
+            cleanups.push(
+                element.session.on("canvas:element-click", (target) => {
+                    heard.push(target);
+                }),
+            );
+
+            await click(element, at(element, "b"));
+            await applied(element);
+            await click(element, at(element, "b"));
+            await applied(element);
+            assert.deepStrictEqual(heard, [{ node: "b" }, { node: "b" }], "both clicks on b are heard");
+            assert.sameMembers([...element.session.selection.nodes], ["b"]);
+
+            await click(element, EMPTY);
+            await applied(element);
+            assert.strictEqual(heard.length, 2, "a click on empty canvas is not an element click");
+        });
+
+        it("a right-click 3 pixels off a tie selects the tie", async () => {
+            const element = await mounted(viewMode);
+            const a = at(element, "a");
+            const b = at(element, "b");
+
+            // The tie a-b runs level between the two nodes; the pointer is 3 pixels below its middle.
+            await rightClick(element, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 + 3 });
+            await applied(element);
+
+            assert.lengthOf(element.session.selection.edges, 1, "the tie is selected");
+            assert.isEmpty(element.session.selection.nodes, "no node is selected");
+        });
+
         it("dragging a node moves it to the pointer and pins it there", async () => {
             const element = await mounted(viewMode);
             const from = at(element, "c");
@@ -191,6 +432,65 @@ describe("the mouse", () => {
             assert.closeTo(now.x, to.x, 3, "the node followed the pointer across");
             assert.closeTo(now.y, to.y, 3, "the node followed the pointer down");
             assert.isTrue(element.isPinned("c"), "a node the pointer placed is pinned");
+        });
+
+        it("a double-click on a node asks the layout behaviour for its neighbourhood", async () => {
+            const element = await mounted(viewMode);
+            const asked: unknown[] = [];
+            element.graph.setLayoutBehavior({
+                fetchEdges: (node: { id: unknown }) => {
+                    asked.push(node.id);
+                    return new Set([{ source: "b", target: "x" }]);
+                },
+                fetchNodes: () => [{ id: "x" }],
+            });
+
+            const point = at(element, "b");
+            // One doubleClick, not two awaited clicks: the second press must carry a click count of two.
+            await doubleClick(element, point);
+            await vi.waitFor(() => {
+                assert.isDefined(element.getNode("x"), "the fetched neighbour was added");
+            });
+
+            assert.deepStrictEqual(asked, ["b"], "the node under the pointer was expanded, once");
+        });
+
+        it("a wheel turn on two axes reaches input:wheel once", async () => {
+            const element = await mounted(viewMode);
+            let wheels = 0;
+            element.addEventListener("input:wheel", () => {
+                wheels++;
+            });
+
+            // A trackpad turn: Babylon raises one POINTERWHEEL per changed axis (issue #2937)
+            await wheel(element, EMPTY, 100, 10);
+            await applied(element);
+
+            assert.strictEqual(wheels, 1, "one wheel turn is one input:wheel");
+        });
+
+        it("a selected node's halo follows it while it is dragged, before the button is released", async () => {
+            const element = await mounted(viewMode);
+            const from = at(element, "b");
+            await click(element, from);
+            await applied(element);
+            assert.strictEqual(element.getSelectedNode()?.id, "b");
+
+            // Straight up, away from the edge a-b, so the old spot is bare canvas once b leaves.
+            const to = { x: from.x, y: from.y - 80 };
+            let atOld = Number.NaN;
+            let atNew = Number.NaN;
+            await drag(element, from, to, 8, async () => {
+                await drawnFrames(element.graph.getScene(), 2);
+                const radius = element.nodeScreenPosition("b")?.radius ?? 0;
+                const pixels = await readCanvas(element);
+                atOld = gold(element, pixels, from, 2);
+                // The ring lies past the node's edge, so look over a square just wider than it.
+                atNew = gold(element, pixels, at(element, "b"), radius * 1.6);
+            });
+
+            assert.isAbove(atNew, 40, "the halo rings the node where the pointer holds it");
+            assert.isBelow(atOld, 20, "no halo is left behind where the drag began");
         });
 
         it("pointing at a node reports the hover", async () => {
@@ -219,6 +519,25 @@ describe("the 2D view", () => {
         for (const { id } of NODES) {
             assert.closeTo(element.getNode(id)?.getPosition().z ?? Number.NaN, 0, 1e-6, `node ${id} is on the plane`);
         }
+    });
+
+    it("viewRotation turns the drawing counterclockwise, framed, and a finger still drags it along", async () => {
+        const element = await mounted("2d");
+        await element.session.config.set({ viewRotation: 90 });
+        await applied(element);
+
+        // Unturned, b is right of a; a quarter turn counterclockwise puts b straight above a.
+        const a = at(element, "a");
+        const b = at(element, "b");
+        assert.closeTo(b.x - a.x, 0, 2, "a and b stand one above the other");
+        assert.isBelow(b.y - a.y, -20, "b is above a");
+        assert.closeTo(element.getCameraState().rotation ?? Number.NaN, Math.PI / 2, 1e-6);
+
+        await touchDrag(element, EMPTY, { x: EMPTY.x + 40, y: EMPTY.y - 80 });
+        await applied(element);
+        const moved = at(element, "a");
+        assert.closeTo(moved.x - a.x, 40, 3, "the turned drawing followed the finger across");
+        assert.closeTo(moved.y - a.y, -80, 3, "the turned drawing followed the finger up");
     });
 });
 
@@ -351,6 +670,68 @@ describe("the keyboard", () => {
         assert.strictEqual(element.session.history.position, position, "and redone");
     });
 
+    for (const key of ["w", "="]) {
+        it(`each tap of "${key}" zooms the 3D view in`, async () => {
+            const element = await mounted("3d");
+            await click(element, EMPTY);
+            const gap = spread(element);
+            const input = (element.graph.camera as unknown as { inputs: Map<string, { busy: boolean }> }).inputs.get(
+                "orbit",
+            );
+            assert.isDefined(input);
+            // A tap is down and up before the next frame, but the browser can deliver the key-up
+            // many frames late, and every frame the key is held zooms on, until the camera reaches
+            // its nearest distance and a tap has nothing left to zoom (issue #6405). So the render
+            // loop is held from the key-down until the key-up arrives: the keys are real input,
+            // only the clock is stopped, as `hold` stops it.
+            const { canvas } = element.graph;
+            const { renderManager } = element.graph as unknown as { renderManager: RenderManager };
+            let releaseFrames = (): void => undefined;
+            const down = (): void => {
+                releaseFrames = renderManager.holdFrames();
+            };
+            const up = (): void => {
+                releaseFrames();
+            };
+            canvas.addEventListener("keydown", down);
+            canvas.addEventListener("keyup", up);
+            cleanups.push(() => {
+                releaseFrames();
+                canvas.removeEventListener("keydown", down);
+                canvas.removeEventListener("keyup", up);
+            });
+            // A tap zooms over the frames it owes; the stable frame does not wait for the reader's
+            // own camera moves, so wait until the input says it is done.
+            const tapped = async (): Promise<void> => {
+                await userEvent.keyboard(key);
+                while (input.busy) {
+                    await nextFrame();
+                }
+
+                await applied(element);
+            };
+
+            // A tap: down and up before the next frame, which a key read once a frame never saw.
+            await tapped();
+            const once = spread(element);
+            await tapped();
+
+            assert.isAbove(once, gap * 1.05, "the first tap zoomed in");
+            assert.isAbove(spread(element), once * 1.05, "and so did the second");
+        });
+    }
+
+    it("a tap of = zooms the 2D view in", async () => {
+        const element = await mounted("2d");
+        await click(element, EMPTY);
+        const gap = spread(element);
+
+        await userEvent.keyboard("=");
+        await applied(element);
+
+        assert.isAbove(spread(element), gap, "the tap zoomed in");
+    });
+
     it("holding an arrow key turns the 3D camera", async () => {
         const element = await mounted("3d");
         await click(element, EMPTY);
@@ -421,9 +802,13 @@ describe("the keyboard", () => {
         assert.closeTo((sign * Math.log(after / before)) / heldFrames, 0.02, 0.0004, "log zoom per frame held");
     });
 
-    // W and S move the camera by the same fraction of its distance every frame they are held, so
-    // the zoom is as quick far out as close in: 0.985 per frame, tenfold over the 157 frames A or
-    // D take to spin half a turn.
+    // W and S zoom like every other camera key moves: by the same fraction of the distance every
+    // frame they are on, from the first frame to the last, so the zoom is as quick far out as close
+    // in: 0.985 per frame, tenfold over the 157 frames A or D take to spin half a turn. They once
+    // jumped a whole wheel notch (10%) on the press and then sat still for 8 frames before zooming
+    // smoothly (issue #3315). userEvent holds a key with one keydown and no auto-repeats, as macOS
+    // does for a held letter (press and hold shows the accent menu), so the zoom must come from the
+    // frames, not repeats.
     describe.each([
         ["close in", 6],
         ["far out", 600],
@@ -431,19 +816,63 @@ describe("the keyboard", () => {
         it.each([
             ["W", 0.985],
             ["S", 1 / 0.985],
-        ])("%s changes the 3D camera's distance by a factor of %f per frame", async (key, perFrame) => {
+        ])("%s zooms by a factor of %f every frame held, the first frame included", async (key, perFrame) => {
             const element = await mounted("3d");
             await element.setCameraState({ cameraDistance: start });
             await click(element, EMPTY);
+            const distance = (): number => element.getCameraState().cameraDistance ?? Number.NaN;
+            let repeats = 0;
+            const countRepeats = (evt: KeyboardEvent): void => {
+                repeats += evt.repeat ? 1 : 0;
+            };
+            element.graph.canvas.addEventListener("keydown", countRepeats);
+            cleanups.push(() => {
+                element.graph.canvas.removeEventListener("keydown", countRepeats);
+            });
 
-            const before = element.getCameraState().cameraDistance ?? Number.NaN;
+            const before = distance();
             assert.closeTo(before, start, 1e-6, "the camera starts at the distance set");
 
-            const heldFrames = 10;
-            await hold(element, key.toLowerCase(), "orbit", heldFrames);
+            const heldFrames = 40;
+            const distances = [before];
+            await hold(element, key.toLowerCase(), "orbit", heldFrames, () => distances.push(distance()));
+
+            assert.strictEqual(repeats, 0, "the key was held with no auto-repeat");
+            for (let frame = 1; frame <= heldFrames; frame++) {
+                assert.closeTo(
+                    distances[frame] / distances[frame - 1],
+                    perFrame,
+                    1e-9,
+                    `zoomed in held frame ${String(frame)}: no jump on the press, no pause after it`,
+                );
+            }
+
+            const after = distance();
+            assert.closeTo(after / before, perFrame ** heldFrames, 1e-9, "a factor a frame, nothing more");
+
+            // Let go, the camera stays where it is however many frames follow
+            const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get(
+                "orbit",
+            );
+            for (let frame = 0; frame < 20; frame++) {
+                input?.update();
+            }
+            assert.strictEqual(distance(), after, "the zoom stopped when the key was let go");
+        });
+
+        it.each([
+            ["W", 0.985],
+            ["S", 1 / 0.985],
+        ])("a short press of %s zooms over a tap's 8 frames, as an arrow turns", async (key, perFrame) => {
+            const element = await mounted("3d");
+            await element.setCameraState({ cameraDistance: start });
+            await click(element, EMPTY);
+            const before = element.getCameraState().cameraDistance ?? Number.NaN;
+
+            await hold(element, key.toLowerCase(), "orbit", 3);
 
             const after = element.getCameraState().cameraDistance ?? Number.NaN;
-            assert.closeTo(after / before, perFrame ** heldFrames, 1e-9, "one factor per frame held");
+            assert.closeTo(after / before, perFrame ** 8, 1e-9, "8 frames of zoom");
         });
     });
 });
@@ -481,6 +910,25 @@ describe("touch", () => {
         assert.isAbove(spread(element), gap * 1.5, "the drawing grew with the fingers");
     });
 
+    it("turning two fingers turns the 2D view with them, and the camera reports the turn", async () => {
+        const element = await mounted("2d");
+        // The way from node a to node b on screen, in degrees clockwise (screen y runs down).
+        const heading = (): number => {
+            const a = at(element, "a");
+            const b = at(element, "b");
+            return (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+        };
+        const before = heading();
+        assert.closeTo(element.getCameraState().rotation ?? Number.NaN, 0, 1e-9, "the view starts unturned");
+
+        await twist(element, { x: WIDTH / 2, y: HEIGHT / 2 }, 120, 40);
+        await applied(element);
+
+        assert.closeTo(heading() - before, 40, 4, "the drawing turned clockwise with the fingers");
+        // The camera reports the drawing's turn counterclockwise, in radians: 40 degrees clockwise is -40.
+        assert.closeTo(element.getCameraState().rotation ?? Number.NaN, (-40 * Math.PI) / 180, 0.07);
+    });
+
     it("spreading two fingers zooms the 3D view in", async () => {
         const element = await mounted("3d");
         const gap = spread(element);
@@ -489,6 +937,92 @@ describe("touch", () => {
         await applied(element);
 
         assert.isAbove(spread(element), gap, "the drawing grew with the fingers");
+    });
+});
+
+describe("the input:* events", () => {
+    /** Every `input:*` event the element sends, with the type of each field `src/events.ts` declares. */
+    const DECLARED: Record<string, Record<string, "number" | "string" | "boolean">> = {
+        "input:pointer-down": { x: "number", y: "number" },
+        "input:pointer-move": { x: "number", y: "number" },
+        "input:pointer-up": { x: "number", y: "number" },
+        "input:wheel": { deltaX: "number", deltaY: "number", deltaZ: "number", deltaMode: "number" },
+        "input:key-down": {
+            key: "string",
+            code: "string",
+            ctrlKey: "boolean",
+            shiftKey: "boolean",
+            altKey: "boolean",
+            metaKey: "boolean",
+        },
+        "input:key-up": {
+            key: "string",
+            code: "string",
+            ctrlKey: "boolean",
+            shiftKey: "boolean",
+            altKey: "boolean",
+            metaKey: "boolean",
+        },
+        "input:touch-start": {},
+        "input:touch-move": {},
+        "input:touch-end": {},
+        "input:undo": {},
+        "input:redo": {},
+        "input:select-all": {},
+    };
+
+    it("carry each field as the plain value their declared types promise (issue #2976)", async () => {
+        const element = await mounted("2d");
+        const seen = new Map<string, Record<string, unknown>[]>();
+        for (const name of Object.keys(DECLARED)) {
+            const listener = (event: Event): void => {
+                const list = seen.get(name) ?? [];
+                list.push((event as CustomEvent<Record<string, unknown>>).detail);
+                seen.set(name, list);
+            };
+            element.addEventListener(name, listener);
+            cleanups.push(() => {
+                element.removeEventListener(name, listener);
+            });
+        }
+
+        await hover(element, EMPTY);
+        await click(element, EMPTY);
+        await wheel(element, EMPTY, 100, 10);
+        await userEvent.keyboard("q");
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await userEvent.keyboard("{Control>}y{/Control}");
+        await userEvent.keyboard("{Control>}a{/Control}");
+        await touchDrag(element, EMPTY, { x: EMPTY.x + 20, y: EMPTY.y - 20 }, 2);
+        await applied(element);
+
+        for (const [name, fields] of Object.entries(DECLARED)) {
+            const details = seen.get(name) ?? [];
+            assert.isNotEmpty(details, `${name} was sent`);
+            for (const detail of details) {
+                for (const [field, type] of Object.entries(fields)) {
+                    assert.strictEqual(typeof detail[field], type, `${name} ${field} is a ${type}`);
+                }
+            }
+        }
+
+        const wheels = seen.get("input:wheel") ?? [];
+        assert.strictEqual(wheels[0]?.deltaY, 100, "input:wheel deltaY is the turn's");
+        const keys = (seen.get("input:key-down") ?? []).map((detail) => detail.key);
+        assert.include(keys, "q", "input:key-down key is the key pressed");
+        for (const name of ["input:touch-start", "input:touch-move"]) {
+            for (const detail of seen.get(name) ?? []) {
+                for (const touch of detail.array as Record<string, unknown>[]) {
+                    assert.strictEqual(typeof touch.x, "number", `${name} touch x is a number`);
+                    assert.strictEqual(typeof touch.y, "number", `${name} touch y is a number`);
+                }
+            }
+        }
+        for (const detail of seen.get("input:touch-end") ?? []) {
+            for (const touch of detail.array as Record<string, unknown>[]) {
+                assert.strictEqual(typeof touch.value, "number", "input:touch-end holds each touch id");
+            }
+        }
     });
 });
 
@@ -566,13 +1100,36 @@ describe("the selection as the camera's pivot", () => {
 
         const before = at(element, "c");
         const unturned = camera(element);
-        await drag(element, EMPTY, { x: EMPTY.x + 120, y: EMPTY.y - 40 });
+        // The pivot's glide brings node a down over `EMPTY`, so the drag starts where no node is
+        const from = emptyCorner(element);
+        await drag(element, from, {
+            x: from.x + (from.x < WIDTH / 2 ? 120 : -120),
+            y: from.y + (from.y < HEIGHT / 2 ? 40 : -40),
+        });
         await applied(element);
 
         assert.notStrictEqual(camera(element), unturned, "the camera turned");
         const after = at(element, "c");
         assert.closeTo(after.x, before.x, 1, "the node stayed put across");
         assert.closeTo(after.y, before.y, 1, "the node stayed put down");
+    });
+
+    it("a stable frame after a re-frame waits for the glide back to the selection", async () => {
+        const element = await mounted("3d");
+        element.layoutBehavior = { camera: { pivotOnSelection: true } };
+        await click(element, at(element, "c"));
+        await applied(element);
+
+        // The framing puts the pivot on the graph's middle; the selection then takes it back.
+        element.zoomToFit();
+        await element.waitForStableFrame();
+
+        const { target } = element.getCameraState();
+        const c = meanOf(element, ["c"]);
+        assert.isDefined(target);
+        assert.closeTo(target.x, c.x, 0.01, "the pivot is back on the node");
+        assert.closeTo(target.y, c.y, 0.01, "the pivot is back on the node");
+        assert.closeTo(target.z, c.z, 0.01, "the pivot is back on the node");
     });
 
     it("shift-clicking several nodes makes their mean position the 3D pivot", async () => {

@@ -370,6 +370,179 @@ Judgment calls a reviewer may still challenge: which alias each foreign arrow or
 rather than a coincidence (the planner's guards removed every coincidence found in 1,936 real and
 fixture files, and cannot prove none remain).
 
+## Round 5: judged against the programs' own drawings (2026-10-28)
+
+The sections above measured the prototype against the readers' own values. Since then the import has been judged
+against the drawings the real programs make of each file (the oracle SVGs in `graph-io/test/fidelity/oracles/`, compared
+by `graphty-element/test/fidelity/oracle/`). Round 5 first audited that comparator, then fixed the drawing problems it
+ranked worst. Counting only drawings made by each file's own program (stand-in drawings such as draw.io's for yEd files
+are not the judge):
+
+| measure                          | before round 5          | round-5 comparator, same drawing | after round 5          |
+| -------------------------------- | ----------------------- | -------------------------------- | ---------------------- |
+| real files: failing elements     | 3,597 of 32,574 (11.0%) | 2,879 (8.8%)                     | 2,491 of 32,512 (7.7%) |
+| real files: clean                | 23 of 80                | 20 of 80                         | 20 of 80               |
+| specimen pages: failing elements | 1,308 of 20,094 (6.5%)  | 1,049 (5.2%)                     | 800 (4.0%)             |
+| specimen pages: clean            | 261 of 377              | 261                              | 271                    |
+
+"After" is master with the comparator and arrowhead changes merged plus the four round-5 pull requests still open
+(dashed routes, label pairing, DOT table outlines, Cytoscape chart marks). The comparator step lowered the count by
+removing false failures (tiny-label boxes, Java's font for Calibri, Pajek's mid-line heads) and raised it where it
+newly sees real defects (uniformly small nodes and straight lines where the program draws its own layout), which is
+why three real files stopped being clean. The drawing changes then cut arrowhead length and width failures from about
+120 to 14 each, node outline failures from 74 to 12, Cytoscape chart marks by 54 per format, and label placement
+failures from 162 to 90. A Graphviz change that hands Graphviz the label-sized nodes would take DOT real files from
+1,074 to 646 failing elements; it waits on an owner decision about one sample.
+
+Still open and largest: Graphviz node positions (#4203), one vis-network file's line widths (#4268), Cytoscape chart
+axes (#4249), and labeled boxes drawn as dots on a computed layout (#3103).
+
+See `graph-io/test/fidelity/oracles/ISSUES.md`, section "Round 5", for every number, its cause and the pending decisions.
+
+## Round 6: the comparator's last blind spots, line widths, arrowheads and chart axes (2026-10-29)
+
+Round 6 closed the blind spots the round 5 comparator still had, then fixed the drawing problems it ranked worst.
+Counting only drawings made by each file's own program:
+
+| measure                          | before round 6         | round-6 comparator, same drawing | after round 6          |
+| -------------------------------- | ---------------------- | -------------------------------- | ---------------------- |
+| real files: failing elements     | 2,063 of 32,512 (6.3%) | 2,917 (9.0%)                     | 2,629 of 32,512 (8.1%) |
+| real files: clean                | 20 of 80               | 20 of 80                         | 20 of 80               |
+| specimen pages: failing elements | 800 of 20,094 (4.0%)   | 930 (4.6%)                       | 539 of 19,830 (2.7%)   |
+| specimen pages: clean            | 271 of 377             | 259                              | 260                    |
+
+"Before" is master after round 5 with the round 5 branches still open merged, the Graphviz label-size change among
+them. "After" is master with the round 6 comparator and the vis-network line widths merged, plus every round 6
+branch not yet on master: stacked arrowheads, Cytoscape chart axes, label shifts, one file scale and the full gate's
+records. Real files got worse in the count only because the comparator now judges three things it could not see: a
+GEXF file whose 867 nodes graphty's own layout packs 2.5 times as densely as Gephi, Pajek's part-way arrowheads (graphty
+puts the head a head length nearer the source), and node gradients and images that graphty draws plain or not at all.
+The drawing changes then took real files down by 288 and specimen pages by 391: one vis-network file's line widths
+(284 lines), Cytoscape chart axes and their words (96 marks per format) and Graphviz's stacked arrowheads (14).
+vis-network's bent lines, drawn straight on files graphty lays out itself, are fixed on a branch that waits on an
+owner decision about 14 elements it newly fails in the position-matched view.
+
+Still open and largest: a computed layout that ignores the file's node sizes and spacing (#3103, #3168), Graphviz
+node positions from graphty's WebAssembly Graphviz run (#4203), Pajek's part-way heads (#4514) and node gradients and
+images (#4515).
+
+See `graph-io/test/fidelity/oracles/ISSUES.md`, section "Round 6", for every number, its cause, the known failures
+added for the owner to accept and the pending decisions.
+
+## Round 7: yEd's and yEd Live's own drawings, and the first full gate in CI (2026-11-05)
+
+Until this round, yEd and yEd Live files were judged only against stand-ins: draw.io's, Cytoscape's or Graphviz's
+drawings of those files. On 2026-11-04 an AI agent operated yEd and yEd Live at the owner's direction and made the
+programs' own drawings for 72 of the 73 samples (43 yEd, 29 yEd Live). Round 7 is the first measurement against them.
+Since round 6 the comparator and the readers also changed, and the full comparison now runs in CI's 6-hour full run.
+
+Every number comes from one full run of the oracle comparison on master 2f8d99da15 (563 samples, NVIDIA path). The other
+programs first, on the same 457 samples round 6 counted:
+
+| measure                          | after round 6          | round-7 comparator, same drawing | after round 7          |
+| -------------------------------- | ---------------------- | -------------------------------- | ---------------------- |
+| real files: failing elements     | 2,629 of 32,512 (8.1%) | 2,167 (6.7%)                     | 1,828 of 32,478 (5.6%) |
+| real files: clean                | 20 of 80               | 25 of 80                         | 29 of 80               |
+| specimen pages: failing elements | 539 of 19,830 (2.7%)   | 519 (2.6%)                       | 265 of 19,830 (1.3%)   |
+| specimen pages: clean            | 260 of 377             | 261                              | 301                    |
+
+The middle column is round 6's drawings judged again by today's comparator, so only the last step is graphty drawing
+differently: 339 fewer failing elements on real files and 254 fewer on specimen pages. The other 462 on real files
+are the comparator reading the same drawings differently, mostly on Graphviz, Cytoscape.js and vis-network files. Its reading of the programs' drawings changed a little too: 34 fewer drawn things on real files.
+
+Failing elements per program and format, real files / specimen pages:
+
+| program           | format      | after round 6 | round-7 comparator, same drawing | after round 7 |
+| ----------------- | ----------- | ------------- | -------------------------------- | ------------- |
+| Gephi             | GEXF        | 894 / 2       | 889 / 2                          | 889 / 2       |
+| Graphviz          | DOT         | 637 / 217     | 398 / 164                        | 322 / 83      |
+| Cytoscape desktop | CX          | 342 / 47      | 350 / 55                         | 299 / 17      |
+| Cytoscape desktop | CX2         | 180 / 47      | 135 / 51                         | 94 / 17       |
+| Cytoscape desktop | XGMML       | 58 / 47       | 68 / 55                          | 34 / 17       |
+| Cytoscape desktop | session     | 57 / 47       | 69 / 55                          | 28 / 17       |
+| Pajek             | Pajek       | 198 / 35      | 147 / 35                         | 67 / 22       |
+| Cytoscape.js      | JSON        | 151 / -       | 50 / -                           | 40 / -        |
+| Cytoscape.js      | cytoscapejs | - / 66        | - / 68                           | - / 64        |
+| vis-network       | JSON        | 112 / -       | 61 / -                           | 55 / -        |
+| vis-network       | vis         | - / 20        | - / 23                           | - / 16        |
+| Graphviz          | GML         | - / 4         | - / 4                            | - / 3         |
+| OGDF              | GML         | - / 7         | - / 7                            | - / 7         |
+| Cytoscape.js      | cyjs        | 0 / -         | 0 / -                            | 0 / -         |
+| Gephi             | GML         | - / 0         | - / 0                            | - / 0         |
+
+Three drawing changes went the wrong way, all small and all recorded: `dot-real-crazy` 7 more failing elements,
+`pajek-synth-lines` 2 and `dot-real-linux-kernel` 1. GEXF did not move: 868 of its 889 are one file, `gexf-hsk-chars`,
+whose nodes are too large beside graphty's own layout's spacing. With `cx-radiation-bibliography` (188) and
+`cx-repro-unplaced-boxes` (24) that one property, node size beside spacing, is 1,080 of the 2,211 failures of an element
+and a property outside yEd. graphty lays these three files out itself, and the comparison draws them with graphty-element's
+neutral default for lengths; no open issue covers them.
+
+yEd and yEd Live have no earlier number to compare with. Round 6 left their stand-in drawings out of its counts, and
+a stand-in judges a different drawing, so nothing here is progress or regression. This is the first measurement:
+
+| program  | format  | real files: failing elements | clean   | specimen pages: failing elements | clean   |
+| -------- | ------- | ---------------------------- | ------- | -------------------------------- | ------- |
+| yEd      | GML     | 282 of 1,729 (16.3%)         | 1 of 7  | 120 of 563 (21.3%)               | 0 of 11 |
+| yEd      | GraphML | 687 of 1,683 (40.8%)         | 0 of 10 | 358 of 995 (36.0%)               | 0 of 15 |
+| yEd Live | GraphML | 79 of 439 (18.0%)            | 0 of 2  | 660 of 1,667 (39.6%)             | 2 of 27 |
+| all      |         | 1,048 of 3,851 (27.2%)       | 1 of 19 | 1,138 of 3,225 (35.3%)           | 2 of 53 |
+
+These rates are far worse than any other program's. The largest properties are marks graphty does not draw
+(`stray.present`: 464 on yEd, 351 on yEd Live), then label font, place and size, and node gradients. yEd Live read
+five sheets in compatibility mode, so those drawings show its fallback for the settings it rejected. The 34 samples
+counted nowhere are 27 sigma.js raster drawings, 6 GML sheets drawn by Cytoscape desktop as a stand-in, and the one yEd
+sheet below that is still draw.io's.
+
+How many failures are comparator limits, as far as the records say. Counting one element failing one property, there are
+4,917 failures, 2,211 outside yEd and 2,706 on yEd or yEd Live:
+
+- **12 are comparator limits**: the known-failure record says the reading is wrong and the two drawings agree (9 outside
+  yEd, 3 on yEd). 4 more on `pajek-synth-lines` are partly so: a misread head, and a real difference in its length.
+- **43 are suspected** by open issues but not settled: 39 dash readings on `gml-synthetic-coverage` (#5809) and 4 arrowhead
+  readings on `gml-specimen-arrows-p2` and `-p3` (#5846).
+- **245 are the reference, not the comparator**: the drawing really differs, because the oracle is native Graphviz 14.1.2
+  and graphty-element runs Graphviz 16.1.0 in WebAssembly with no fonts. A browser cannot reach them; 221 are on
+  `dot-real-siblings`.
+- **The records cannot say for 3,197**: 1,192 carry no reason, and 2,005 on yEd carry only "first judgment against the
+  program's real drawing". Nobody has sorted them by cause, so they count as real differences until someone does.
+
+The full gate and the floors are settled. The gate passes all 563 samples (1,170 keys counting the position-matched
+views) and the 28-sample scorecard every pull request runs passes. The 6-hour full run has run the gate since #4455:
+its four slices passed on run 41977564678, on a master 13 merges older than this measurement. Applying this run with
+`npm run fidelity:ratchet` changes neither record: no known failure comes off, no floor rises and no drop is accepted.
+89 rates sit below their floors, each under an accepted drop with its reason. The known failures list 15,137 entries, of
+which 6,377 name elements this run cannot measure and stay listed. Listing a failure keeps the gate useful; it does not
+accept the difference as right.
+
+What remains, with its issue:
+
+- **yEd's fractional line widths (#5787)**: 4 elements on yEd and 2 on yEd Live now fail, down from 198 and 2 on the
+  first judgment. The rule for a width such as 2.5 needs one more yEd drawing.
+- **yEd entity relationship, BPMN and 3D effect nodes (#5788)**, **yEd Live's BPMN and UML nodes (#5789)**: interior
+  lines, double lines, BPMN icons and yEd Live's UML sizes are still undrawn.
+- **The last stand-in (#5792)**: yEd refuses `yed-graphml-specimen-images-charts`, so its reference is still draw.io's.
+- **yEd gaps not sorted by cause (#5809)**: label backgrounds (97), annotation extras, routes and dashes.
+- **yEd's raised border (#5839)**, **yEd arrow ends (#5846)**, **an open head and one head's spacing (#5850)**.
+- **Label placement (#4247, #4456)**: open, with pull requests #5772 and #5884 open and both conflicting with master.
+- **Also open, outside this list**: node gradients and images (#4515; no gradient or picture failure remains outside yEd), and about
+  20 short vis-network edges that bend the other way at vis-network's own positions (#5708, on hold).
+
+Edge ends at a dented shape's box (#5793) is fixed and closed.
+
+What stands between this and closing #706 is less the list above than two things its text asks for:
+
+- **Cytoscape style files are not read.** #706 asks for vizmap XML and 2.x `vizmap.props`. graph-io reads
+  `session_vizmap.xml` inside a 3.x session and nothing else: a 2.x session's `session_vizmap.props` is detected and reported
+  as not imported, and there is no reader for a style file on its own. No issue tracks this yet.
+- **File styles are not on by default.** #706 asks for on by default with a way to switch off. graphty-element defaults to
+  `styles: "none"` and the graphty app turns them on; the design left that default as the owner's decision, and changing
+  it is a breaking change.
+
+The rest of #706 is met: one neutral representation saved in snapshots, graph-io filling it for each format that carries
+styles, and graphty-element turning it into style layers with a way to switch them off.
+
+See `graph-io/test/fidelity/oracles/ISSUES.md`, section "yEd's and yEd Live's own drawings", for how each drawing was made.
+
 ## Per-file results, second real-file collection
 
 "Rules" lists the rules per role and what the planner recovered ("by X": a discrete mapping on X;

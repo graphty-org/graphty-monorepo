@@ -724,13 +724,14 @@ function issueJobs(state, config, now, add, cancel) {
     const priorities = config.labels?.priorities ?? [];
     // As many queued issue jobs as the sessions githerd may invite have room for (`issueDemand`),
     // all made in this pass, so an issue every session passes on does not leave the others
-    // without work; a critical one never waits behind a lower one.
+    // without work; a critical one, or one the owner ordered, never waits for room.
     const room = issueDemand(state, config);
     const tried = new Set();
     for (;;) {
         const candidates = issueCandidates(state, config, now, deferred);
         const top = candidates[0];
-        if (!top || tried.has(top.number) || (queued >= room && priorities[top.priority] !== CRITICAL)) return;
+        const urgent = top && (priorities[top.priority] === CRITICAL || top.order !== null);
+        if (!top || tried.has(top.number) || (queued >= room && !urgent)) return;
         tried.add(top.number);
         addIssueJob(state, config, now, add, top, candidates);
         queued += 1;

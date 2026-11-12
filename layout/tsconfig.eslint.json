@@ -3,6 +3,11 @@
     "compilerOptions": {
         "composite": false,
         "noEmit": true,
+        // The tests run on Node, which has every ES2021 API (String.replaceAll)
+        "lib": ["ES2021", "DOM", "DOM.Iterable"],
+        // The monorepo root: test/story-graph-generators.test.ts imports algorithms/stories, and the
+        // package.json export map needs a root to resolve against
+        "rootDir": "..",
         // The tests import the source extensionless, as a bundler (Vitest) resolves it; tsconfig.json
         // checks src/ under nodenext, which is what keeps the published typings resolvable (issue #958)
         "module": "ES2020",

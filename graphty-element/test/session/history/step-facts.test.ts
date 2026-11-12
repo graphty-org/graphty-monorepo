@@ -9,13 +9,22 @@
  * here is a compile error too.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 
 import { COMMANDS } from "../../../commands";
+import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { CodedFact } from "../../../src/session/shared";
 import type { HistoryCode, HistoryStep } from "../../../src/session/types";
+import { fileStylesOn } from "../../helpers/file-styles-on";
 import { fixtureSession } from "./fixture-session";
 import { FIXTURES } from "./fixtures";
+
+fileStylesOn();
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 /** The undoable ops of the vocabulary. */
 type UndoableOp = {
@@ -27,7 +36,26 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "algo.run": ["algo.run"],
     "algo.legacy": ["algo.legacy"],
     "algo.remove": ["algo.remove"],
-    batch: ["batch", "data.replace-nodes", "data.replace-edges", "data.set", "layout.behavior"],
+    "algo.move": ["algo.move"],
+    batch: [
+        "batch",
+        "data.replace-nodes",
+        "data.replace-edges",
+        "data.set",
+        "layout.behavior",
+        "data.fix-issue",
+        "data.ignore-issue",
+        "data.ignore-issues",
+        "data.remove-source",
+        "data.replace-source",
+        "data.join",
+        "data.edit-join",
+        "data.set-role",
+        "data.set-type",
+        "data.rename-column",
+        "data.hide-columns",
+        "data.show-columns",
+    ],
     "data.apply": [
         "data.add-nodes",
         "data.add-edges",
@@ -37,9 +65,16 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
         "data.clear",
     ],
     "data.import": ["data.import"],
+    "data.issues": ["data.issues"],
+    "data.import-source": ["data.import-source"],
     "data.expand": ["data.expand"],
+    "data.source-expand": ["data.source-expand"],
+    "data.collapse": ["data.collapse"],
     "data.declare": ["data.declare"],
     "data.setSource": ["data.set-source"],
+    "data.label": ["data.label"],
+    "data.columns": ["data.columns"],
+    "data.setFileStyles": ["data.set-file-styles"],
     "style.patch": [
         "style.add-layer",
         "style.update-layer",
@@ -48,12 +83,38 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
         "style.remove-layers",
         "style.highlight",
         "style.fix-channel",
+        "style.add-folder",
+        "style.rename-row",
+        "style.move-row",
+        "style.pin-row",
+        "style.lock-row",
+        "style.hide-row",
+        "style.delete-row",
+        "style.restore-starting-rows",
     ],
     "style.encode": ["style.encode"],
     "style.template": ["style.template"],
+    "shader.set": ["shader.add", "shader.replace", "shader.remove"],
     "visibility.set": ["visibility.filter", "visibility.clear-filter"],
     "visibility.window": ["visibility.window", "visibility.clear-window"],
     "visibility.context": ["visibility.show-context", "visibility.hide-context"],
+    "visibility.playback": ["visibility.playback"],
+    "visibility.steps": [
+        "visibility.step-add",
+        "visibility.step-edit",
+        "visibility.step-on",
+        "visibility.step-off",
+        "visibility.step-remove",
+        "visibility.steps",
+    ],
+    "visibility.conditions": [
+        "visibility.condition-add",
+        "visibility.condition-edit",
+        "visibility.condition-on",
+        "visibility.condition-off",
+        "visibility.condition-remove",
+        "visibility.steps",
+    ],
     "set.create": ["set.create"],
     "set.rename": ["set.rename"],
     "set.redefine": ["set.redefine"],
@@ -79,6 +140,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "algo.run": ["algorithm"],
     "algo.legacy": ["algorithm"],
     "algo.remove": ["algorithm", "run"],
+    "algo.move": ["algorithm", "run"],
     "algo.batch": ["count", "label"],
     "algo.template": [],
     batch: ["label", "steps"],
@@ -87,16 +149,35 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "data.remove-nodes": ["count"],
     "data.remove-edges": ["count"],
     "data.edit": ["count", "target"],
+    "data.fix-issue": ["code", "count", "fix", "issue"],
+    "data.ignore-issue": ["ignored", "issue"],
+    "data.ignore-issues": ["ignored", "issues"],
+    "data.issues": [],
     "data.clear": [],
     "data.set": [],
     "data.replace-nodes": [],
     "data.replace-edges": [],
     "data.import": ["name", "type"],
+    "data.import-source": ["name", "source"],
     "data.expand": ["node"],
+    "data.source-expand": ["edges", "nodes", "seeds"],
+    "data.collapse": ["node", "nodes"],
     "data.declare": ["column", "kind"],
     "data.set-source": ["name"],
+    "data.remove-source": ["key", "name"],
+    "data.replace-source": ["added", "changed", "key", "name", "removed"],
+    "data.join": ["key", "matched", "name", "shape"],
+    "data.edit-join": ["key", "matched", "name", "shape"],
+    "data.label": ["label", "path", "value"],
+    "data.set-role": ["column", "kind", "role"],
+    "data.set-type": ["column", "fails", "kind", "type"],
+    "data.rename-column": ["column", "kind", "name"],
+    "data.hide-columns": ["count"],
+    "data.show-columns": ["count"],
+    "data.columns": [],
+    "data.set-file-styles": ["loads"],
     "style.add-layer": ["layer"],
-    "style.update-layer": ["layer"],
+    "style.update-layer": ["channels", "layer"],
     "style.remove-layer": ["layer"],
     "style.move-layer": ["layer"],
     "style.remove-layers": ["count"],
@@ -104,13 +185,38 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "style.fix-channel": ["channel", "layer"],
     "style.encode": ["channel", "run"],
     "style.template": [],
+    "shader.add": ["id", "layer"],
+    "shader.replace": ["id"],
+    "shader.remove": ["id"],
     "style.suggested": ["algorithms"],
+    "style.add-folder": ["name"],
+    "style.rename-row": ["name", "row"],
+    "style.move-row": ["row"],
+    "style.pin-row": ["pin", "row"],
+    "style.lock-row": ["locked", "row"],
+    "style.hide-row": ["hidden", "row"],
+    "style.delete-row": ["row"],
+    "style.restore-starting-rows": [],
     "visibility.filter": ["kind"],
     "visibility.clear-filter": [],
     "visibility.window": [],
     "visibility.clear-window": [],
     "visibility.show-context": [],
     "visibility.hide-context": [],
+    "visibility.step-add": ["id"],
+    "visibility.step-edit": ["id"],
+    "visibility.step-on": ["id"],
+    "visibility.step-off": ["id"],
+    "visibility.step-remove": ["id"],
+    "visibility.condition-add": ["effect", "id"],
+    "visibility.condition-edit": ["effect", "id", "previousEffect"],
+    "visibility.condition-on": ["effect", "id"],
+    "visibility.condition-off": ["effect", "id"],
+    "visibility.condition-remove": ["effect", "id"],
+    "visibility.steps": [],
+    "visibility.playback": [],
+    "time.field": ["column"],
+    "time.clear-field": [],
     "set.create": ["name"],
     "set.rename": ["name", "set"],
     "set.redefine": ["set"],
@@ -233,6 +339,24 @@ describe("history step facts", () => {
             assertDocumented(fact, fact.code);
         }
 
+        session.dispose();
+    });
+
+    it("names the channels a layer update changes", async () => {
+        const session = await fixtureSession();
+        const layer = await session.styles.add({
+            name: "Mine",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        await session.styles.update(layer.id, { set: { "node.color": "#ff0000", "node.size": 2 } });
+        const sized = topOf(session.history.steps, session.history.position).fact;
+        await session.styles.update(layer.id, { name: "Renamed" });
+        const renamed = topOf(session.history.steps, session.history.position).fact;
+
+        assert.deepEqual(sized, { code: "style.update-layer", params: { layer: "Mine", channels: ["node.size"] } });
+        assert.deepEqual(renamed, { code: "style.update-layer", params: { layer: "Mine", channels: [] } });
         session.dispose();
     });
 

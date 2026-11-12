@@ -15,7 +15,7 @@ import { CM_TYPE } from "../tokens";
 const BADGE_TOKENS: Record<string, Record<string, string>> = {
     outline: { "--badge-bg": "transparent", "--badge-color": "var(--cm-text)" },
     filled: { "--badge-bg": "var(--cm-bg-brand)", "--badge-color": "var(--cm-text-onbrand)" },
-    light: { "--badge-bg": "var(--cm-bg-selected)", "--badge-color": "var(--cm-text-brand)" },
+    light: { "--badge-bg": "var(--cm-bg-selected)", "--badge-color": "var(--cm-text-onselected)" },
 };
 
 /** The Text sizes that are a Figma type role: sm is body, xs is caption (spec 2.3). */
@@ -119,7 +119,12 @@ export const displayComponentExtensions = {
             root: {
                 ...compactVarsForSize(compactIndicatorScale, props?.size),
                 ...(props?.radius === undefined ? { "--indicator-radius": "100%" } : {}),
-                ...(props?.color ? {} : { "--indicator-color": "var(--cm-bg-brand)" }),
+                ...(props?.color
+                    ? {}
+                    : {
+                          "--indicator-color": "var(--cm-bg-brand)",
+                          "--indicator-text-color": "var(--cm-text-onbrand)",
+                      }),
             },
         }),
     }),

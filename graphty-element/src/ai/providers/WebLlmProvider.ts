@@ -4,10 +4,9 @@
  * @module ai/providers/WebLlmProvider
  */
 
-import { asSchema } from "ai";
-
 import { aiProviderDescriptor } from "../../catalog/ai";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { toolJsonSchema } from "../engine/jsonSchema";
 import type {
     LlmProvider,
     LlmResponse,
@@ -150,6 +149,37 @@ interface OpenAiResponse {
         };
     }[];
     usage?: OpenAiUsage;
+}
+
+/**
+ * Report each named tool call of one streamed delta: collect it and hand it to the callbacks.
+ * @param toolCallsArray - The delta's tool calls, if any.
+ * @param toolCalls - The calls collected so far.
+ * @param callbacks - Streaming callbacks for text and tool calls.
+ */
+function emitToolCalls(
+    toolCallsArray: OpenAiToolCall[] | undefined,
+    toolCalls: ToolCall[],
+    callbacks: StreamCallbacks,
+): void {
+    if (!toolCallsArray) {
+        return;
+    }
+
+    for (const tc of toolCallsArray) {
+        if (tc.function?.name) {
+            const toolCall: ToolCall = {
+                id: tc.id ?? `call_${Date.now()}`,
+                name: tc.function.name,
+                arguments:
+                    typeof tc.function.arguments === "string"
+                        ? (JSON.parse(tc.function.arguments) as Record<string, unknown>)
+                        : (tc.function.arguments ?? {}),
+            };
+            toolCalls.push(toolCall);
+            callbacks.onToolCall(toolCall.name, toolCall.arguments);
+        }
+    }
 }
 
 /**
@@ -528,23 +558,7 @@ export class WebLlmProvider implements LlmProvider {
                 }
 
                 // Handle tool calls (snake_case from OpenAI API)
-                const toolCallsArray = delta.tool_calls;
-                if (toolCallsArray) {
-                    for (const tc of toolCallsArray) {
-                        if (tc.function?.name) {
-                            const toolCall: ToolCall = {
-                                id: tc.id ?? `call_${Date.now()}`,
-                                name: tc.function.name,
-                                arguments:
-                                    typeof tc.function.arguments === "string"
-                                        ? (JSON.parse(tc.function.arguments) as Record<string, unknown>)
-                                        : (tc.function.arguments ?? {}),
-                            };
-                            toolCalls.push(toolCall);
-                            callbacks.onToolCall(toolCall.name, toolCall.arguments);
-                        }
-                    }
-                }
+                emitToolCalls(delta.tool_calls, toolCalls, callbacks);
             }
 
             callbacks.onComplete({
@@ -687,7 +701,7 @@ export class WebLlmProvider implements LlmProvider {
                 name: t.name,
                 description: t.description,
                 // WebLLM writes the tools into the model's prompt as JSON, so it needs JSON Schema, not Zod
-                parameters: asSchema(t.parameters).jsonSchema,
+                parameters: toolJsonSchema(t.parameters),
             },
         }));
     }

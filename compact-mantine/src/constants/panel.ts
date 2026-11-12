@@ -92,7 +92,7 @@ export const PANEL_GRID = {
 export const PANEL_INK = {
     /** primary text: a field's value, a row's name (#000000e5 / #fff) */
     VALUE: "var(--cm-text)",
-    /** secondary text: glyph labels, unit suffixes, legends (#00000080 / #ffffffb2) */
+    /** secondary text: glyph labels, unit suffixes, legends (#00000080 / #ffffffb2; #0000008c light in the AA mode) */
     CHROME: "var(--cm-text-secondary)",
     /** reading prose (secondary text) */
     PROSE: "var(--cm-text-secondary)",
@@ -116,13 +116,21 @@ export const PANEL_INK = {
     DIVIDER: "var(--cm-border)",
     /** a filled accent surface: primary button, checked box (#0d99ff / #0c8ce9) */
     ACCENT: "var(--cm-bg-brand)",
-    /** text and glyphs on the accent (#fff) */
+    /** text and glyphs on the accent (#fff; ink on the graphty lime) */
     ON_ACCENT: "var(--cm-text-onbrand)",
-    /** warning (#ffcd29 / #f3c11b) */
+    /**
+     * an accent graphic that has to be seen on the panel: a status dot, a meter's fill, a
+     * highlighted bar, a stroke (= ACCENT, except where the accent fill is too light to read as
+     * a graphic: the graphty olive #588300 on light)
+     */
+    ACCENT_GRAPHIC: "var(--cm-graphic-brand)",
+    /** the white label on the danger, success and inverse fills, which no accent changes */
+    ON_SOLID: "var(--cm-text-onsolid)",
+    /** a warning fill, dot or glyph (#ffcd29 / #f3c11b); text uses WARNING_TEXT */
     WARNING: "var(--cm-bg-warning)",
-    /** success (#14ae5c / #198f51) */
+    /** a success fill or dot (#14ae5c / #198f51); text and glyphs use SUCCESS_TEXT */
     SUCCESS: "var(--cm-bg-success)",
-    /** danger (#f24822 / #e03e1a) */
+    /** a danger fill, dot or glyph (#f24822 / #e03e1a); text uses DANGER_TEXT */
     DANGER: "var(--cm-bg-danger)",
     /** a row, tab or tool under the pointer (#f5f5f5 / #383838) */
     HOVER: "var(--cm-bg-hover)",
@@ -136,6 +144,12 @@ export const PANEL_INK = {
     SELECTED_HOVER: "var(--cm-bg-selected-hover)",
     /** the children of a selected item (#f2f9ff / #32394d) */
     SELECTED_SECONDARY: "var(--cm-bg-selected-secondary)",
+    /** danger text: an error message, a destructive verb (#dc3412 / #fca397; #c4381c light in the AA mode). DANGER is a fill */
+    DANGER_TEXT: "var(--cm-text-danger)",
+    /** warning text (#b86200 / #f7d15f; #a65900 light in the AA mode). WARNING is a fill */
+    WARNING_TEXT: "var(--cm-text-warning)",
+    /** success text and glyphs: a passed check's tick (#009951 / #7cd797; #008043 light in the AA mode). SUCCESS is a fill */
+    SUCCESS_TEXT: "var(--cm-text-success)",
     /** links and brand text (#007be5 / #7cc4f8) */
     BRAND_TEXT: "var(--cm-text-brand)",
     /** tertiary glyphs (#0000004d / #ffffff66) */
@@ -146,11 +160,11 @@ export const PANEL_INK = {
     TRANSLUCENT: "var(--cm-border-translucent)",
     /** a stronger translucent edge: checkbox, switch track (#00000033 / #ffffff33) */
     TRANSLUCENT_STRONG: "var(--cm-border-translucent-strong)",
-    /** the dark menu surface, the same in both schemes (#1e1e1e) */
+    /** the menu surface: inside a menu it follows the page (#fff / #1e1e1e), elsewhere #1e1e1e */
     MENU: "var(--cm-bg-menu)",
-    /** text on the menu (#fff) */
+    /** text on the menu: inside a menu #000000e5 / #fff, elsewhere #fff */
     ON_MENU: "var(--cm-text-menu)",
-    /** secondary text on the menu: shortcuts (#ffffffb2) */
+    /** secondary text on the menu, shortcuts: inside a menu #00000080 / #ffffffb2 (#0000008c light in the AA mode), elsewhere #ffffffb2 */
     ON_MENU_SECONDARY: "var(--cm-text-menu-secondary)",
     /** component (purple) text (#8638e5 / #d1a8ff) */
     COMPONENT: "var(--cm-text-component)",

@@ -1335,6 +1335,77 @@
                     this.enableHandTracking();
                 }
 
+                /**
+                 * Whether an input source is a tracked hand rather than a physical controller: hands
+                 * have specific profiles and no traditional motion controller.
+                 * @param {object} inputSource The XR input source
+                 * @returns {boolean} Truthy for a hand
+                 */
+                isHandInputSource(inputSource) {
+                    return (
+                        inputSource &&
+                        inputSource.profiles &&
+                        inputSource.profiles.some((p) => p.includes("hand") || p.includes("generic-trigger-touchpad"))
+                    );
+                }
+
+                /**
+                 * Forget the gesture state of one hand and the two-hand state, so a new input source
+                 * starts from nothing.
+                 * @param {string} handedness "left" or "right"
+                 */
+                resetGestureState(handedness) {
+                    if (handedness === "left") {
+                        this.previousLeftHand = null;
+                    } else {
+                        this.previousRightHand = null;
+                    }
+                    this.previousDistance = null;
+                    this.previousDirection = null;
+                }
+
+                /**
+                 * Remove (after running its cleanup) every other controller of this handedness, so a
+                 * switch of input source leaves no stale reference behind.
+                 * @param {string} handedness "left" or "right"
+                 * @param {string} uniqueId The controller being added
+                 */
+                clearOtherControllers(handedness, uniqueId) {
+                    if (!DEBUG_FLAGS.ENABLE_SAFETY_CLEANUP) {
+                        console.log(`🤲 SKIPPING SAFETY cleanup (DEBUG_FLAGS.ENABLE_SAFETY_CLEANUP=false)`);
+                        return;
+                    }
+
+                    for (const [existingId, entry] of this.controllers) {
+                        if (entry.handedness === handedness && existingId !== uniqueId) {
+                            console.log(
+                                `🤲 Clearing old ${handedness} controller ${existingId} before adding ${uniqueId}`,
+                            );
+
+                            // MUST call cleanup BEFORE deleting from map to prevent race condition
+                            this.runControllerCleanup(existingId);
+
+                            this.controllers.delete(existingId);
+                        }
+                    }
+                }
+
+                /**
+                 * Run and forget a controller's cleanup (observer removal), if it has one.
+                 * @param {string} existingId The controller to clean up
+                 */
+                runControllerCleanup(existingId) {
+                    if (this.controllerCleanup && this.controllerCleanup.has(existingId)) {
+                        console.log(`🤲 Running proactive cleanup for ${existingId}`);
+                        try {
+                            this.controllerCleanup.get(existingId)();
+                        } catch (e) {
+                            console.warn(`⚠️ Error in proactive cleanup for ${existingId}:`, e.message);
+                        }
+                        this.controllerCleanup.delete(existingId);
+                    }
+                }
+
                 setupController(controller) {
                     const handedness = controller.inputSource.handedness;
                     if (handedness !== "left" && handedness !== "right") return;
@@ -1349,11 +1420,7 @@
 
                     // Detect if this is a hand input (not a physical controller)
                     // Hands have specific profiles and don't have traditional motion controllers
-                    const inputSource = controller.inputSource;
-                    const isHandInput =
-                        inputSource &&
-                        inputSource.profiles &&
-                        inputSource.profiles.some((p) => p.includes("hand") || p.includes("generic-trigger-touchpad"));
+                    const isHandInput = this.isHandInputSource(controller.inputSource);
 
                     // GUARD 1: If hand tracking is disabled, ignore ALL hand inputs
                     // This completely avoids the Babylon.js circular parent bug
@@ -1370,39 +1437,10 @@
                     // This prevents stale references when switching input sources
                     // CRITICAL: Must also call cleanup to remove observers!
                     // Can be disabled via DEBUG_FLAGS to test Hypothesis 3 (race condition)
-                    if (DEBUG_FLAGS.ENABLE_SAFETY_CLEANUP) {
-                        for (const [existingId, entry] of this.controllers) {
-                            if (entry.handedness === handedness && existingId !== uniqueId) {
-                                console.log(
-                                    `🤲 Clearing old ${handedness} controller ${existingId} before adding ${uniqueId}`,
-                                );
-
-                                // MUST call cleanup BEFORE deleting from map to prevent race condition
-                                if (this.controllerCleanup && this.controllerCleanup.has(existingId)) {
-                                    console.log(`🤲 Running proactive cleanup for ${existingId}`);
-                                    try {
-                                        this.controllerCleanup.get(existingId)();
-                                    } catch (e) {
-                                        console.warn(`⚠️ Error in proactive cleanup for ${existingId}:`, e.message);
-                                    }
-                                    this.controllerCleanup.delete(existingId);
-                                }
-
-                                this.controllers.delete(existingId);
-                            }
-                        }
-                    } else {
-                        console.log(`🤲 SKIPPING SAFETY cleanup (DEBUG_FLAGS.ENABLE_SAFETY_CLEANUP=false)`);
-                    }
+                    this.clearOtherControllers(handedness, uniqueId);
 
                     // Reset gesture state when input source changes to prevent stale data
-                    if (handedness === "left") {
-                        this.previousLeftHand = null;
-                    } else {
-                        this.previousRightHand = null;
-                    }
-                    this.previousDistance = null;
-                    this.previousDirection = null;
+                    this.resetGestureState(handedness);
 
                     const inputType = isHandInput ? "hand" : "controller";
                     console.log(
@@ -1522,7 +1560,16 @@
                  * Priority: Controller trigger first, then hand tracking
                  */
                 getHandState(handedness) {
-                    // PATH 1: Try controller trigger first
+                    return this.controllerHandState(handedness) ?? this.trackedHandState(handedness);
+                }
+
+                /**
+                 * PATH 1: the hand state from a physical controller's trigger.
+                 * @param {string} handedness "left" or "right"
+                 * @returns {object | null} The pinching state, or null when the controller is missing,
+                 * disposed or not pinching
+                 */
+                controllerHandState(handedness) {
                     // Find controller by handedness (Map is keyed by uniqueId, not handedness)
                     let controller = null;
                     for (const [, entry] of this.controllers) {
@@ -1534,86 +1581,107 @@
 
                     // Defensive: Check controller is still valid (not disposed)
                     // Also check grip position is valid (not disposed or NaN)
-                    if (controller?.grip && controller?.motionController) {
-                        try {
-                            const gripPos = controller.grip.position;
-                            // Verify position is valid (not disposed)
-                            if (
-                                !gripPos ||
-                                !Number.isFinite(gripPos.x) ||
-                                !Number.isFinite(gripPos.y) ||
-                                !Number.isFinite(gripPos.z)
-                            ) {
-                                // Controller grip is invalid, skip to hand tracking
-                            } else {
-                                const trigger = controller.motionController.getComponent("xr-standard-trigger");
-                                if (trigger) {
-                                    // Use trigger.pressed OR value > 0.5 for pinching
-                                    const isPinching = trigger.pressed || trigger.value > 0.5;
-                                    if (isPinching) {
-                                        return {
-                                            position: gripPos.clone(),
-                                            rotation:
-                                                controller.grip.rotationQuaternion?.clone() ||
-                                                BABYLON.Quaternion.Identity(),
-                                            pinching: true,
-                                            pinchStrength: trigger.value ?? 0,
-                                        };
-                                    }
-                                }
-                            }
-                        } catch (e) {
-                            // Controller is likely disposed, fall through to hand tracking
-                        }
+                    if (!(controller?.grip && controller?.motionController)) {
+                        return null;
                     }
 
-                    // PATH 2: Try hand tracking
-                    if (this.handTrackingFeature) {
-                        try {
-                            const hand = this.handTrackingFeature.getHandByHandedness(handedness);
-                            if (hand) {
-                                const wrist = hand.getJointMesh(BABYLON.WebXRHandJoint.WRIST);
-                                const thumbTip = hand.getJointMesh(BABYLON.WebXRHandJoint.THUMB_TIP);
-                                const indexTip = hand.getJointMesh(BABYLON.WebXRHandJoint.INDEX_FINGER_TIP);
-
-                                if (wrist && thumbTip && indexTip) {
-                                    // Defensive: Check positions are valid
-                                    if (!wrist.position || !thumbTip.position || !indexTip.position) {
-                                        return null;
-                                    }
-                                    if (!Number.isFinite(wrist.position.x) || !Number.isFinite(thumbTip.position.x)) {
-                                        return null;
-                                    }
-
-                                    const pinchDist = BABYLON.Vector3.Distance(thumbTip.position, indexTip.position);
-
-                                    // Hysteresis: different thresholds for start vs stop
-                                    const wasP = this.wasPinching[handedness];
-                                    const isP = wasP
-                                        ? pinchDist < this.PINCH_RELEASE_THRESHOLD // Already pinching - use looser threshold
-                                        : pinchDist < this.PINCH_THRESHOLD; // Not pinching - use tighter threshold
-                                    this.wasPinching[handedness] = isP;
-
-                                    if (isP) {
-                                        return {
-                                            position: wrist.position.clone(),
-                                            rotation:
-                                                wrist.rotationQuaternion?.clone() || BABYLON.Quaternion.Identity(),
-                                            pinching: true,
-                                            pinchStrength: Math.max(0, 1 - pinchDist / this.PINCH_THRESHOLD),
-                                        };
-                                    }
-                                }
-                            }
-                        } catch (e) {
-                            // Log hand tracking errors (throttled)
-                            if (this.frameCount % 60 === 1) {
-                                console.warn(`⚠️ Hand tracking access error (${handedness}):`, e.message);
-                            }
+                    try {
+                        const gripPos = controller.grip.position;
+                        // Verify position is valid (not disposed); if not, skip to hand tracking
+                        if (
+                            !gripPos ||
+                            !Number.isFinite(gripPos.x) ||
+                            !Number.isFinite(gripPos.y) ||
+                            !Number.isFinite(gripPos.z)
+                        ) {
+                            return null;
                         }
+
+                        const trigger = controller.motionController.getComponent("xr-standard-trigger");
+                        // Use trigger.pressed OR value > 0.5 for pinching
+                        if (!trigger || !(trigger.pressed || trigger.value > 0.5)) {
+                            return null;
+                        }
+
+                        return {
+                            position: gripPos.clone(),
+                            rotation: controller.grip.rotationQuaternion?.clone() || BABYLON.Quaternion.Identity(),
+                            pinching: true,
+                            pinchStrength: trigger.value ?? 0,
+                        };
+                    } catch (e) {
+                        // Controller is likely disposed, fall through to hand tracking
+                        return null;
+                    }
+                }
+
+                /**
+                 * PATH 2: the hand state from hand tracking.
+                 * @param {string} handedness "left" or "right"
+                 * @returns {object | null} The pinching state, or null when there is no tracked hand or
+                 * it is not pinching
+                 */
+                trackedHandState(handedness) {
+                    if (!this.handTrackingFeature) {
+                        return null;
                     }
 
-                    return null;
+                    try {
+                        const hand = this.handTrackingFeature.getHandByHandedness(handedness);
+                        return hand ? this.pinchFromHand(hand, handedness) : null;
+                    } catch (e) {
+                        // Log hand tracking errors (throttled)
+                        if (this.frameCount % 60 === 1) {
+                            console.warn(`⚠️ Hand tracking access error (${handedness}):`, e.message);
+                        }
+                        return null;
+                    }
+                }
+
+                /**
+                 * Read a pinch from a tracked hand's joints, with hysteresis between starting and
+                 * stopping a pinch.
+                 * @param {object} hand The tracked hand
+                 * @param {string} handedness "left" or "right"
+                 * @returns {object | null} The pinching state, or null when the joints are missing,
+                 * invalid or not pinching
+                 */
+                pinchFromHand(hand, handedness) {
+                    const wrist = hand.getJointMesh(BABYLON.WebXRHandJoint.WRIST);
+                    const thumbTip = hand.getJointMesh(BABYLON.WebXRHandJoint.THUMB_TIP);
+                    const indexTip = hand.getJointMesh(BABYLON.WebXRHandJoint.INDEX_FINGER_TIP);
+
+                    if (!(wrist && thumbTip && indexTip)) {
+                        return null;
+                    }
+
+                    // Defensive: Check positions are valid
+                    if (!wrist.position || !thumbTip.position || !indexTip.position) {
+                        return null;
+                    }
+                    if (!Number.isFinite(wrist.position.x) || !Number.isFinite(thumbTip.position.x)) {
+                        return null;
+                    }
+
+                    const pinchDist = BABYLON.Vector3.Distance(thumbTip.position, indexTip.position);
+
+                    // Hysteresis: different thresholds for start vs stop
+                    const wasP = this.wasPinching[handedness];
+                    const isP = wasP
+                        ? pinchDist < this.PINCH_RELEASE_THRESHOLD // Already pinching - use looser threshold
+                        : pinchDist < this.PINCH_THRESHOLD; // Not pinching - use tighter threshold
+                    this.wasPinching[handedness] = isP;
+
+                    if (!isP) {
+                        return null;
+                    }
+
+                    return {
+                        position: wrist.position.clone(),
+                        rotation: wrist.rotationQuaternion?.clone() || BABYLON.Quaternion.Identity(),
+                        pinching: true,
+                        pinchStrength: Math.max(0, 1 - pinchDist / this.PINCH_THRESHOLD),
+                    };
                 }
 
                 /**
@@ -2031,28 +2099,46 @@
                     }
 
                     if (controller) {
-                        // Get pointer ray for raycasting
-                        const ray = new BABYLON.Ray(BABYLON.Vector3.Zero(), BABYLON.Vector3.Forward());
-                        controller.getWorldPointerRayToRef(ray);
-
-                        // Get grip position for positioning dragged objects
-                        let gripPosition;
-                        let gripRotation;
-
-                        if (controller.grip) {
-                            gripPosition = controller.grip.position.clone();
-                            gripRotation = controller.grip.rotationQuaternion?.clone() || BABYLON.Quaternion.Identity();
-                        } else if (controller.pointer) {
-                            gripPosition = controller.pointer.position.clone();
-                            gripRotation =
-                                controller.pointer.rotationQuaternion?.clone() || BABYLON.Quaternion.Identity();
-                        } else {
-                            return null;
-                        }
-
-                        return { ray, gripPosition, gripRotation };
+                        return this.controllerTransform(controller);
                     }
 
+                    return this.trackedHandTransform(handedness);
+                }
+
+                /**
+                 * The pointer ray and grip of a physical controller.
+                 * @param {object} controller The XR controller
+                 * @returns {object | null} The ray and grip, or null when it has neither grip nor pointer
+                 */
+                controllerTransform(controller) {
+                    // Get pointer ray for raycasting
+                    const ray = new BABYLON.Ray(BABYLON.Vector3.Zero(), BABYLON.Vector3.Forward());
+                    controller.getWorldPointerRayToRef(ray);
+
+                    // Get grip position for positioning dragged objects
+                    let gripPosition;
+                    let gripRotation;
+
+                    if (controller.grip) {
+                        gripPosition = controller.grip.position.clone();
+                        gripRotation = controller.grip.rotationQuaternion?.clone() || BABYLON.Quaternion.Identity();
+                    } else if (controller.pointer) {
+                        gripPosition = controller.pointer.position.clone();
+                        gripRotation = controller.pointer.rotationQuaternion?.clone() || BABYLON.Quaternion.Identity();
+                    } else {
+                        return null;
+                    }
+
+                    return { ray, gripPosition, gripRotation };
+                }
+
+                /**
+                 * The pointing ray and grip of a tracked hand: a ray from index knuckle to index tip,
+                 * with the wrist as the grip.
+                 * @param {string} handedness "left" or "right"
+                 * @returns {object | null} The ray and grip, or null when no hand is tracked
+                 */
+                trackedHandTransform(handedness) {
                     // Try hand tracking - use wrist as grip position
                     if (this.gestureHandler?.handTrackingFeature) {
                         try {

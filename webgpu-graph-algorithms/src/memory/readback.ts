@@ -262,7 +262,8 @@ export class Readback {
      * @returns its entry
      */
     private borrowedEntry(slot: StagingSlot): SlotEntry {
-        const entry = this.ring[slot.index];
+        // a slot from another ring, or a forged one, can index past the end
+        const entry = this.ring[slot.index] as SlotEntry | undefined;
         if (entry?.slot !== slot || !entry.borrowed) {
             throw invalid("slot", slot.index, "a slot borrowed from this ring and not yet returned");
         }
@@ -274,7 +275,7 @@ export class Readback {
      * @param entry - the slot's entry (no map pending)
      */
     private finishReturn(entry: SlotEntry): void {
-        const state: string | undefined = entry.slot.buffer.mapState;
+        const state: unknown = entry.slot.buffer.mapState;
         const mapped = state === undefined ? entry.mapped : state !== "unmapped";
         if (mapped) {
             entry.slot.buffer.unmap();

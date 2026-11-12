@@ -183,6 +183,80 @@ function identityError(message: string, details: Readonly<Record<string, unknown
     return invariantViolation("I5", message, details);
 }
 
+/** The resolved edge permutations and edge count of a CSR input. */
+interface ResolvedPerms {
+    readonly arcToEdge: U32 | null;
+    readonly edgeToArc: U32 | null;
+    readonly edgeCount: number;
+}
+
+/**
+ * The permutations of a directed input: edgeCount must equal the arc count; an absent or identity
+ * arcToEdge drops both arrays (edgeToArc must then be the identity too), else a missing edgeToArc is
+ * derived.
+ * @param input - the input
+ * @param arcCount - the arc count
+ * @param level - the validation level ("none" skips the edgeToArc identity check)
+ * @returns the resolved permutations
+ */
+function resolveDirectedPerms(input: CsrInput, arcCount: number, level: ValidationLevel): ResolvedPerms {
+    const arcToEdge: U32 | null = input.arcToEdge ?? null;
+    const edgeToArc: U32 | null = input.edgeToArc ?? null;
+    const edgeCount = input.edgeCount ?? arcCount;
+    if (edgeCount !== arcCount) {
+        throw invariantViolation("I6", `directed input has arcCount ${arcCount} but edgeCount ${edgeCount}`, {
+            arcCount,
+            edgeCount,
+        });
+    }
+    // decided from the supplied array at every level (O(m)): a flag claim never drops an array
+    const identity = arcToEdge === null || (arcToEdge.length === arcCount && isIdentity(arcToEdge));
+    if (!identity) {
+        return { arcToEdge, edgeToArc: edgeToArc ?? deriveEdgeToArc(arcToEdge, edgeCount), edgeCount };
+    }
+    if (edgeToArc !== null && level !== "none" && (edgeToArc.length !== edgeCount || !isIdentity(edgeToArc))) {
+        throw identityError("arcToEdge is the identity but edgeToArc is not", {
+            array: "edgeToArc",
+            found: edgeToArc.length,
+            expected: edgeCount,
+        });
+    }
+    return { arcToEdge: null, edgeToArc: null, edgeCount };
+}
+
+/**
+ * The permutations of an undirected input: arcToEdge is required, edgeCount defaults to
+ * max(arcToEdge) + 1 and a missing edgeToArc is derived.
+ * @param input - the input
+ * @returns the resolved permutations
+ */
+function resolveUndirectedPerms(input: CsrInput): ResolvedPerms {
+    const arcToEdge: U32 | null = input.arcToEdge ?? null;
+    if (arcToEdge === null) {
+        throw identityError("an undirected input must supply arcToEdge", {
+            array: "arcToEdge",
+            reason: "missing arcToEdge",
+        });
+    }
+    const edgeCount = input.edgeCount ?? maxValue(arcToEdge) + 1;
+    return { arcToEdge, edgeToArc: input.edgeToArc ?? deriveEdgeToArc(arcToEdge, edgeCount), edgeCount };
+}
+
+/**
+ * The largest value of a u32 array, or -1 for an empty one.
+ * @param array - the array
+ * @returns the maximum
+ */
+function maxValue(array: U32): number {
+    let max = -1;
+    for (let a = 0; a < array.length; a++) {
+        if (array[a] > max) {
+            max = array[a];
+        }
+    }
+    return max;
+}
+
 /**
  * Resolve the optional core arrays and counts (design section 8.1). For a directed input an absent
  * `arcToEdge` is the identity and a supplied one that happens to be the identity is dropped (the
@@ -198,53 +272,9 @@ function resolveCore(input: CsrInput, level: ValidationLevel): ResolvedCore {
     const arcCount = colIdx.length;
     const weights = input.weights ?? null;
     const selfLoopCount = countLoopArcs(rowPtr, colIdx, nodeCount);
-    let arcToEdge: U32 | null = input.arcToEdge ?? null;
-    let edgeToArc: U32 | null = input.edgeToArc ?? null;
-    let edgeCount: number;
-    if (directed) {
-        edgeCount = input.edgeCount ?? arcCount;
-        if (edgeCount !== arcCount) {
-            throw invariantViolation("I6", `directed input has arcCount ${arcCount} but edgeCount ${edgeCount}`, {
-                arcCount,
-                edgeCount,
-            });
-        }
-        // decided from the supplied array at every level (O(m)): a flag claim never drops an array
-        const identity = arcToEdge === null || (arcToEdge.length === arcCount && isIdentity(arcToEdge));
-        if (identity) {
-            if (edgeToArc !== null && level !== "none" && (edgeToArc.length !== edgeCount || !isIdentity(edgeToArc))) {
-                throw identityError("arcToEdge is the identity but edgeToArc is not", {
-                    array: "edgeToArc",
-                    found: edgeToArc.length,
-                    expected: edgeCount,
-                });
-            }
-            arcToEdge = null;
-            edgeToArc = null;
-        } else if (edgeToArc === null) {
-            edgeToArc = deriveEdgeToArc(arcToEdge as U32, edgeCount);
-        }
-    } else {
-        if (arcToEdge === null) {
-            throw identityError("an undirected input must supply arcToEdge", {
-                array: "arcToEdge",
-                reason: "missing arcToEdge",
-            });
-        }
-        const { edgeCount: given } = input;
-        if (given === undefined) {
-            let max = -1;
-            for (let a = 0; a < arcToEdge.length; a++) {
-                if (arcToEdge[a] > max) {
-                    max = arcToEdge[a];
-                }
-            }
-            edgeCount = max + 1;
-        } else {
-            edgeCount = given;
-        }
-        edgeToArc ??= deriveEdgeToArc(arcToEdge, edgeCount);
-    }
+    const { arcToEdge, edgeToArc, edgeCount } = directed
+        ? resolveDirectedPerms(input, arcCount, level)
+        : resolveUndirectedPerms(input);
     return { rowPtr, colIdx, weights, arcToEdge, edgeToArc, edgeCount, arcCount, selfLoopCount };
 }
 
@@ -702,20 +732,7 @@ export function fromCsr(input: CsrInput, options: FromCsrOptions = {}): GraphSna
     // flags (design sections 3.8, 8.1 and 9.5): "full" computes them and verifies the claims (I9);
     // "structure" and "none" trust every claimed flag and compute only the unclaimed ones
     const trustClaims = level !== "full";
-    let flags: SnapshotFlags;
-    if (trustClaims && fullyClaimed(claims)) {
-        flags = applyClaims(
-            {
-                ...claims,
-                weighted: core.weights !== null,
-                arcToEdgeIsIdentity: directed && core.arcToEdge === null,
-            },
-            claims,
-        );
-    } else {
-        const computed = flagsOf(directed, nodeCount, core, resolved.selfLoopCount);
-        flags = trustClaims ? applyClaims(computed, claims) : computed;
-    }
+    const flags = resolveFlags(input, core, resolved.selfLoopCount, trustClaims);
 
     const parts: SnapshotParts = {
         label: null,
@@ -743,25 +760,7 @@ export function fromCsr(input: CsrInput, options: FromCsrOptions = {}): GraphSna
     const candidate = createSnapshot(parts);
 
     if (sortRows && !rowsSorted(candidate)) {
-        // unsorted rows: check what can be checked without sorted rows, then rebuild
-        if (level !== "none") {
-            validateStructure(candidate);
-        }
-        if (level === "full") {
-            orderIndependentFullChecks(candidate);
-        }
-        const rebuiltParts = rebuildSorted(candidate, parts);
-        const rebuilt = createSnapshot({
-            ...rebuiltParts,
-            flags: trustClaims ? applyClaims(rebuiltParts.flags, claims) : rebuiltParts.flags,
-        });
-        if (level === "full") {
-            if (!directed) {
-                compareRows(candidate, rebuilt);
-            }
-            verifyClaims(claims, rebuilt.flags);
-        }
-        return rebuilt;
+        return rebuildUnsorted(candidate, parts, level, claims);
     }
     if (level === "structure") {
         validateStructure(candidate);
@@ -770,6 +769,68 @@ export function fromCsr(input: CsrInput, options: FromCsrOptions = {}): GraphSna
         verifyClaims(claims, candidate.flags);
     }
     return candidate;
+}
+
+/**
+ * The flags of an adopted core: "full" computes them (and verifies the claims later, I9);
+ * "structure" and "none" trust every claimed flag and compute only the unclaimed ones, skipping the
+ * computation entirely when every flag is claimed.
+ * @param input - the input (directed, nodeCount and the claims)
+ * @param core - the adopted or copied core arrays
+ * @param selfLoopCount - the number of loop arcs
+ * @param trustClaims - whether the level trusts claimed flags
+ * @returns the flags to store
+ */
+function resolveFlags(input: CsrInput, core: CoreArrays, selfLoopCount: number, trustClaims: boolean): SnapshotFlags {
+    const { directed, nodeCount, flags: claims } = input;
+    if (trustClaims && fullyClaimed(claims)) {
+        return applyClaims(
+            {
+                ...claims,
+                weighted: core.weights !== null,
+                arcToEdgeIsIdentity: directed && core.arcToEdge === null,
+            },
+            claims,
+        );
+    }
+    const computed = flagsOf(directed, nodeCount, core, selfLoopCount);
+    return trustClaims ? applyClaims(computed, claims) : computed;
+}
+
+/**
+ * Rebuild a candidate with unsorted rows through the freeze pipeline: check what can be checked
+ * without sorted rows first, then (under "full") compare the rows and verify the claims on the
+ * rebuilt snapshot.
+ * @param candidate - the snapshot over the adopted, unsorted rows
+ * @param parts - the candidate's parts
+ * @param level - the validation level
+ * @param claims - the caller's flag claims, or undefined
+ * @returns the rebuilt snapshot
+ */
+function rebuildUnsorted(
+    candidate: GraphSnapshot,
+    parts: SnapshotParts,
+    level: ValidationLevel,
+    claims: FlagClaims | undefined,
+): GraphSnapshot {
+    if (level !== "none") {
+        validateStructure(candidate);
+    }
+    if (level === "full") {
+        orderIndependentFullChecks(candidate);
+    }
+    const rebuiltParts = rebuildSorted(candidate, parts);
+    const rebuilt = createSnapshot({
+        ...rebuiltParts,
+        flags: level !== "full" ? applyClaims(rebuiltParts.flags, claims) : rebuiltParts.flags,
+    });
+    if (level === "full") {
+        if (!parts.directed) {
+            compareRows(candidate, rebuilt);
+        }
+        verifyClaims(claims, rebuilt.flags);
+    }
+    return rebuilt;
 }
 
 /** The flags that describe which arrays are PRESENT; they are never taken from a claim (I9 at every level). */

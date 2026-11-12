@@ -303,7 +303,10 @@ export class StatsManager implements Manager {
 
         // Engine instrumentation
         this.babylonInstrumentation = new EngineInstrumentation(engine);
-        this.babylonInstrumentation.captureGPUFrameTime = true;
+        // Never on WebGPU: on a device with "timestamp-query", which a shared device has, Babylon's
+        // frame timing leaves the queue's maps unanswered, the layout's readback among them. On a
+        // WebGPU device without the feature it measures nothing.
+        this.babylonInstrumentation.captureGPUFrameTime = !engine.isWebGPU;
         this.babylonInstrumentation.captureShaderCompilationTime = true;
     }
 

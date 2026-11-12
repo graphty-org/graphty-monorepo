@@ -8,6 +8,7 @@ as the record.
 |---|---|
 | `research/figma.md` | Figma's principles, object model, vocabulary and surfaces, with a verdict on what transfers |
 | `research/graph-analysis.md`, `research/graph-tools.md` | the visualization and network-science literature; how other graph tools model the same concepts |
+| `research/cosmos-gl.md` | how cosmos.gl and Cosmograph draw and lay out a million points, compared with graphty-element and webgpu-graph-algorithms, and the rendering techniques worth borrowing |
 | `research/design-method.md` | the methods the documents follow and the review checklist |
 | `research/graphty-today.md` | what graphty-element publishes today, what exists only in the app, measured behavior |
 | `research/color-checks.md`, `research/scale-measurements.md` | contrast and palette measurements; size, stability and quotient measurements |

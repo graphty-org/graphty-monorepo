@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { kCoreDecomposition } from "../../../src/indexed/k-core.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
+import type { KCoreResult } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { undirectedFixtures } from "./port-fixtures.js";
 

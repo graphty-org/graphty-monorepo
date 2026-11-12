@@ -1,5 +1,9 @@
 # CI/CD, testing and release plan for the graphty monorepo
 
+> Status: Deprecated 2026-10-21 by design/ci/fast-pipeline.md (issue #3262). Its pull request, merge queue, landing and deploy parts are replaced; sections 7, 9, 10, 11, 12 and 13 (the GPU, macOS and Windows lanes, flaky tests, the release train and ad hoc release, keeping master green, runner capacity and API budget) remain in force.
+
+> PARTLY SUPERSEDED 2026-10-18 by design/ci/golden-local.md: do not follow its pull request, merge queue and Mergify sections; sections 10 and 11 (the release train and the ad hoc release) are current.
+
 Status: adopted by the owner on 2026-10-04, as written, with two choices made explicit: the
 visual-review gate accepts a merge-queue batch (section 6), and releases go out on a release
 train (section 10), plus an ad hoc release for anything that cannot wait for the next train (section 11).
@@ -349,6 +353,11 @@ paid once.
 | macOS Metal + WebKit, hosts.yml                             | path-matching PRs, advisory                                                                                 | no          | none (no push trigger) | nightly full                                                              | yes, full scope, called on the candidate |
 | Windows D3D12 WARP, hosts.yml                               | the existing 15-minute `windows-scan-questions` scope, advisory                                             | no          | none (no push trigger) | nightly full                                                              | yes, full scope, called on the candidate |
 
+Since 2026-10-23 (`design/ci/ci-full-testing.md`, issue #3316) the full ci.yml suite, the software-GPU lanes
+included, also runs on golden's newest commits as CI verification (`golden-verify.yml`, once `verify.mjs backend
+ci` is set); it uses no T4 and no macOS runner, and its runner use is governed by section 13's 10-minute
+queue threshold.
+
 **The T4 runs only in the pre-push gate (locally) and on the release train (owner decision,
 2026-10-06).** Running it once per GPU-affecting pull request and again per GPU-affecting
 master commit cost a paid run on most merges, and the machine.dev balance ran out twice in the
@@ -450,9 +459,27 @@ The project's rule: a failing test is never called flaky without finding its cau
 the four red-master events were "flaky" UI tests that turned out to be real races. The policy
 must therefore be enforced by automation, because agents will otherwise re-run until green.
 
-1. **No automatic retries anywhere.** Vitest has none configured today; keep it that way.
-   Mergify `max_checks_retries: 0` and `skip_intermediate_results: false`. Retrying hides
-   exactly the races that were real bugs here.
+**Changed 2026-10-22: automatic retry and quarantine.** The owner decided ("keep it") that the
+pre-push gate and CI run every test shard through `tools/test-quarantine.mjs`, on by default
+(`GRAPHTY_TEST_QUARANTINE=0` switches it off for debugging). This replaces rules 1 and 3 as they were
+written (no automatic retries; quarantine only with the owner's yes):
+
+- **Retry once.** When only tests failed (not a crash, an unhandled error or coverage), the failed
+  test files run once more, at most 5 files. A test that fails on the retry too fails the shard.
+- **Quarantine automatically.** A test that fails and then passes on the same inputs (in that retry,
+  or in two gate runs of the shard with the same input key) is flaky: it does not fail the shard, it
+  is quarantined, and it gets one issue labeled `bug`, `priority:high`, `effort:medium`. A
+  quarantined test still runs, and every failure let through is printed loudly (`[FLAKY]`,
+  `[QUARANTINED]`).
+- **Exits.** An entry leaves when its issue closes, after 20 consecutive passing gate runs, or 14
+  days after it was added.
+
+The cause must still be found: the issue is real work, and "timing" is not an accepted conclusion
+without the mechanism. Verification and the cut never excuse a quarantined failure.
+
+1. **One automatic retry, of the failed test files only.** Vitest has no retries configured;
+   keep it that way. The single retry is the quarantine wrapper's, and its only effect is to
+   tell a flaky test (quarantined, with an issue) from a consistent failure (blocks).
 2. **A queue failure that bisection does not reproduce is a non-deterministic failure.** A
    workflow then does three things:
     - opens (or adds to) an issue labeled `bug`, `priority:high`, `effort:medium`, named for
@@ -462,8 +489,8 @@ must therefore be enforced by automation, because agents will otherwise re-run u
       innocent and is re-queued, and the issue says so;
     - lets the issue go to an agent to find the mechanism. "Timing" is not an accepted
       conclusion without the mechanism.
-3. **Quarantine only with the owner's yes.** A quarantine needs an issue, an expiry of 14 days
-   at most, and the test still runs and reports, so it can be watched. This is the PyTorch
+3. **Quarantine is automatic (owner's decision, 2026-10-22).** A quarantine needs an issue, an
+   expiry of 14 days at most, and the test still runs and reports, so it can be watched. This is the PyTorch
    DISABLED-issue model with Datadog's expiry. Three kinds of test are never quarantined: GPU
    correctness tests, the visual gate, and any test whose failure would allow a silent
    CPU-for-GPU substitution.

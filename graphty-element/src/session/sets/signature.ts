@@ -7,6 +7,7 @@
  * The parts name the other inputs the definition reads, and nothing else:
  *
  * - `"visible"` and `"selection"`: the mask objects and their versions;
+ * - a `state` leaf: the session's state revision, which moves when any element's state does;
  * - `{ where }` and a rule over a query: the attribute revision of every top-level field its
  *   compiled paths read, and the execution token of every run whose results they read;
  * - `{ set }`: the identity of the saved record it names, or an explicit absent marker, and the
@@ -29,7 +30,16 @@
  */
 
 import { runIdOfRef } from "../../catalog/sets/canonical";
-import type { Query, RuleTree, Scope, ScopeId, SetDefinition, SetId } from "../../catalog/types";
+import type {
+    Query,
+    RuleTree,
+    Scope,
+    ScopeId,
+    SetDefinition,
+    SetId,
+    StepReference,
+    UnionLeaf,
+} from "../../catalog/types";
 import { dependencyOf } from "./dependencies";
 import type { EdgeSeeds, ResolveContext } from "./resolve";
 
@@ -107,6 +117,7 @@ function partsFor(context: ResolveContext, memo: SignatureMemo | undefined): Map
         identityOf(storeOf(context)),
         context.snapshot.serial,
         context.tick.value,
+        context.stateRevision?.() ?? 0,
         context.saved === undefined ? 0 : identityOf(context.saved),
         context.sets === undefined ? 0 : identityOf(context.sets.list()),
     ].join(":");
@@ -238,6 +249,25 @@ function contentPart(
 }
 
 /**
+ * A part in brackets, or null when it cannot be enumerated.
+ * @param part - The part.
+ * @param open - What opens it.
+ * @returns The bracketed part, or null.
+ */
+function wrapped(part: string | null, open: string): string | null {
+    return part === null ? null : `${open}${part})`;
+}
+
+/**
+ * The part of a `state` leaf: the session's state revision.
+ * @param context - What the resolution reads.
+ * @returns The part.
+ */
+function statePart(context: ResolveContext): string {
+    return `st${String(context.stateRevision?.() ?? "-")}`;
+}
+
+/**
  * The part of a rule's `where`: a query's paths, or each leaf's inputs in tree order.
  * @param where - The query or tree.
  * @param context - What the resolution reads.
@@ -259,44 +289,38 @@ function rulePart(
     switch (where.kind) {
         case "expression":
             return queryPart(where.where, context);
-        case "edges": {
-            const part =
-                context.edgeRevisions === undefined ? null : queryPart(where.where, context, context.edgeRevisions);
-            return part === null ? null : `e${part}`;
-        }
+        case "edges":
+            return edgesPart(where.where, context);
         case "range":
-        case "categories": {
-            const dependency = dependencyOf(where.attribute);
-            if ("run" in dependency) {
-                const token = context.executionOf?.(dependency.run);
-                return context.executionOf === undefined ? null : `r${JSON.stringify(dependency.run)}=${token ?? "-"}`;
-            }
-
-            return context.revisions === undefined
-                ? null
-                : `a${JSON.stringify(dependency.field)}=${context.revisions.of(dependency.field)}`;
+        case "categories":
+        case "text": {
+            const read = where.kind === "text" ? where.reads : where.attribute;
+            // Ids: the serial and the key say it all. The topology "ends" reads is keyed by the
+            // serial, as for the topology leaves.
+            return read === "id" ? "t" : pathPart(read, context);
         }
-        case "item": {
+        case "item":
             // Follow or hold, the members move exactly when the run's current execution does.
-            const run = String(runIdOfRef(where.item.result));
-            return context.executionOf === undefined
-                ? null
-                : `r${JSON.stringify(run)}=${context.executionOf(run) ?? "-"}`;
+            return runPart(String(runIdOfRef(where.item.result)), context);
+        case "threshold":
+        case "by-size":
+            return pathPart(where.path, context);
+        case "union":
+            return unionPart(where, context, parts, seen);
+        case "hops":
+        case "touching":
+        case "nonempty": {
+            return wrapped(referencePart(where.of, context, parts, seen), "t(");
         }
-        case "threshold": {
-            const dependency = dependencyOf(where.path);
-            if ("run" in dependency) {
-                return context.executionOf === undefined
-                    ? null
-                    : `r${JSON.stringify(dependency.run)}=${context.executionOf(dependency.run) ?? "-"}`;
-            }
-
-            // A data threshold ranks whichever half carries the field: both revisions key it.
-            const { revisions, edgeRevisions } = context;
-            return revisions === undefined || edgeRevisions === undefined
-                ? null
-                : `a${JSON.stringify(dependency.field)}=${revisions.of(dependency.field)}.${edgeRevisions.of(dependency.field)}`;
+        case "same-value": {
+            const path = pathPart(where.path, context);
+            const part = referencePart(where.as, context, parts, seen);
+            return path === null || part === null ? null : `${path}(${part})`;
         }
+        case "measure":
+            // ponytail: a measure's run is found by definition, so nothing keys it; it is never
+            // cached. Key it on the run it finds if a measure step shows up hot.
+            return null;
         case "degree":
         case "component":
         case "neighborhood":
@@ -305,30 +329,157 @@ function rulePart(
         case "repeated-edge":
             // Topology and ids: the serial and the key say it all.
             return "t";
+        case "state":
+            return statePart(context);
+        case "source":
+            // ponytail: what a load supplied moves with no revision to key it on, so it is never
+            // cached; give provenance a revision if a source rule shows up hot.
+            return null;
         case "member": {
-            const part = scopePart(where.of, context, parts, seen);
-            return part === null ? null : `(${part})`;
+            return wrapped(scopePart(where.of, context, parts, seen), "(");
         }
         case "all":
         case "any":
         case "not": {
-            const operands = where.kind === "not" ? [where.of] : where.of;
-            const inner: string[] = [];
-            for (const operand of operands) {
-                const part = rulePart(operand, context, parts, seen);
-                if (part === null) {
-                    return null;
-                }
-
-                inner.push(part);
+            // A filter condition's load (`withinSources`, conditions.ts) reads provenance: never cached.
+            if ("withinSources" in where) {
+                return null;
             }
 
-            return `${where.kind}[${inner.join(";")}]`;
+            const inner = operandParts(where.kind === "not" ? [where.of] : where.of, context, parts, seen);
+            return inner === null ? null : `${where.kind}[${inner.join(";")}]`;
         }
         default:
             // An unknown leaf makes its definition opaque, which resolves to nothing.
             return `x${loose.kind}`;
     }
+}
+
+/**
+ * The part of a step's reference: a scope's, the live focus's node, or nothing for `"so-far"`
+ * (the parts of the steps before it say it all).
+ * @param reference - The reference.
+ * @param context - What the resolution reads.
+ * @param parts - The epoch memo, or null.
+ * @param seen - The ids followed so far.
+ * @returns The part, or null.
+ */
+function referencePart(
+    reference: StepReference | undefined,
+    context: ResolveContext,
+    parts: Map<unknown, string | null> | null,
+    seen: Set<ScopeId>,
+): string | null {
+    if (reference === undefined || reference === "so-far") {
+        return "-";
+    }
+
+    if (reference === "hovered-or-selected") {
+        return `f${JSON.stringify(context.focus?.() ?? null)}`;
+    }
+
+    return scopePart(reference, context, parts, seen);
+}
+
+/**
+ * The part of a `union` leaf: the base's, then every step's rule in order.
+ * @param leaf - The leaf.
+ * @param context - What the resolution reads.
+ * @param parts - The epoch memo, or null.
+ * @param seen - The ids followed so far.
+ * @returns The part, or null when some step's inputs cannot be enumerated.
+ */
+function unionPart(
+    leaf: UnionLeaf,
+    context: ResolveContext,
+    parts: Map<unknown, string | null> | null,
+    seen: Set<ScopeId>,
+): string | null {
+    // What a load supplied has no revision to key on (as a "source" leaf): never cached.
+    if (leaf.sources !== undefined) {
+        return null;
+    }
+
+    const base = leaf.within === "visible" ? scopePart("visible", context, parts, seen) : "g";
+    const inner = operandParts(
+        leaf.branches.flatMap((branch) => branch.steps.map((step) => step.rule)),
+        context,
+        parts,
+        seen,
+    );
+
+    return base === null || inner === null ? null : `u(${base})[${inner.join(";")}]`;
+}
+
+/**
+ * The part of an "edges" leaf: its query's paths over the edges' revisions.
+ * @param query - The leaf's query.
+ * @param context - What the resolution reads.
+ * @returns The part, or null when the edges' revisions are not tracked.
+ */
+function edgesPart(query: Query, context: ResolveContext): string | null {
+    if (context.edgeRevisions === undefined) {
+        return null;
+    }
+
+    const part = queryPart(query, context, context.edgeRevisions);
+    return part === null ? null : `e${part}`;
+}
+
+/**
+ * The parts of a combinator's operands, in order.
+ * @param operands - The operands.
+ * @param context - What the resolution reads.
+ * @param parts - The epoch memo, or null.
+ * @param seen - The ids followed so far.
+ * @returns The parts, or null when some operand's inputs cannot be enumerated.
+ */
+function operandParts(
+    operands: readonly RuleTree[],
+    context: ResolveContext,
+    parts: Map<unknown, string | null> | null,
+    seen: Set<ScopeId>,
+): string[] | null {
+    const inner: string[] = [];
+    for (const operand of operands) {
+        const part = rulePart(operand, context, parts, seen);
+        if (part === null) {
+            return null;
+        }
+
+        inner.push(part);
+    }
+
+    return inner;
+}
+
+/**
+ * The part of a leaf that reads a path: the run's current execution for a result path, else both
+ * revisions of the field, because the leaf reads whichever half carries it.
+ * @param path - The path the leaf reads.
+ * @param context - What the resolution reads.
+ * @returns The part, or null when the context cannot key it.
+ */
+function pathPart(path: string, context: ResolveContext): string | null {
+    const dependency = dependencyOf(path);
+    if ("run" in dependency) {
+        return runPart(dependency.run, context);
+    }
+
+    const { revisions, edgeRevisions } = context;
+    return revisions === undefined || edgeRevisions === undefined
+        ? null
+        : `a${JSON.stringify(dependency.field)}=${revisions.of(dependency.field)}.${edgeRevisions.of(dependency.field)}`;
+}
+
+/**
+ * The part of a leaf that reads a run: its current execution.
+ * @param run - The run.
+ * @param context - What the resolution reads.
+ * @returns The part, or null when the context cannot say which execution is current.
+ */
+function runPart(run: string, context: ResolveContext): string | null {
+    return context.executionOf === undefined ? null : `r${JSON.stringify(run)}=${context.executionOf(run) ?? "-"}`;
 }
 
 /**

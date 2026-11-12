@@ -117,14 +117,35 @@ describe("estimateCost: the synchronous answer", () => {
 
     it("uses the pair term for a heavy algorithm", () => {
         const estimate = estimateCost({
-            algorithm: "girvan-newman",
-            descriptor: algorithmByKey("girvan-newman"),
+            algorithm: "markov-clustering",
+            descriptor: algorithmByKey("markov-clustering"),
             statistics: statistics(),
         });
 
         assert.equal(estimate.costClass, "heavy");
         assert.closeTo(estimate.seconds, (1000 * 4000) / DEFAULT_COST_RATES.heavyPairsPerSecond, 1e-12);
         assert.include(estimate.basis, "n * m");
+    });
+
+    it("charges Girvan-Newman a betweenness pass per round, up to its round bound", () => {
+        const estimate = estimateCost({
+            algorithm: "girvan-newman",
+            descriptor: algorithmByKey("girvan-newman"),
+            statistics: statistics({ nodeCount: 4000 }),
+        });
+        // The default bound is 1,000 rounds, each one edge betweenness over n = 4,000, m = 4,000.
+        const round = (4000 * (4000 + 4000)) / (11 * DEFAULT_COST_RATES.heavyPairsPerSecond);
+
+        assert.equal(estimate.costClass, "heavy");
+        assert.closeTo(estimate.seconds, 1000 * round, 1e-6);
+        assert.isAbove(estimate.seconds, 60, "minutes, never the 6 seconds one round would take");
+        const capped = estimateCost({
+            algorithm: "girvan-newman",
+            descriptor: algorithmByKey("girvan-newman"),
+            statistics: statistics({ nodeCount: 4000 }),
+            params: { maxIterations: 3 },
+        });
+        assert.closeTo(capped.seconds, 3 * round, 1e-9);
     });
 
     it("charges betweenness one BFS per source rather than the class' pair term", () => {
@@ -182,6 +203,39 @@ describe("estimateCost: the synchronous answer", () => {
         assert.include(estimate.basis, "m=350,000");
         assert.include(estimate.basis, "n + m");
         assert.include(estimate.basis, "has not been calibrated");
+    });
+
+    it("gives the same basis as facts with no words", () => {
+        const estimate = estimateCost({
+            algorithm: "degree",
+            descriptor: algorithmByKey("degree"),
+            statistics: statistics({ nodeCount: 70000, edgeCount: 350000 }),
+        });
+
+        assert.deepEqual(estimate.basisFacts, {
+            nodes: 70000,
+            edges: 350000,
+            sizesScaled: false,
+            term: "algorithm",
+            iterations: estimate.basisFacts.iterations,
+            iterationsAssumed: false,
+            sample: null,
+            derivationSeconds: 0,
+            provenance: { code: "cost.built-in", params: { calibratedAt: null } },
+        });
+    });
+
+    it("gives the sample and the refusal as facts", () => {
+        const input = {
+            algorithm: "closeness",
+            descriptor: algorithmByKey("closeness"),
+            statistics: statistics({ nodeCount: 10000, edgeCount: 50000 }),
+        };
+        assert.strictEqual(estimateCost({ ...input, params: { k: 100 } }).basisFacts.sample, 100);
+
+        const unknown = estimateCost({ algorithm: "acme:missing", descriptor: undefined, statistics: statistics() });
+        assert.strictEqual(unknown.basisFacts.provenance.code, "cost.refused");
+        assert.isNull(unknown.basisFacts.term);
     });
 });
 
@@ -460,6 +514,23 @@ describe("estimateCost: whether it can run on this graph at all", () => {
         assert.isFalse(estimate.available);
         assert.include(estimate.reason ?? "", "undirected");
         assert.include(estimate.basis, estimate.reason ?? "");
+        assert.deepStrictEqual(estimate.refusal, {
+            code: "algorithm.needs-undirected",
+            params: { algorithm: "kruskal" },
+        });
+    });
+
+    it("refuses a directed algorithm on an undirected graph, as a code", () => {
+        const estimate = estimateCost({
+            algorithm: "acme:test",
+            descriptor: descriptor({ requires: { directed: true } }),
+            statistics: statistics({ directedness: "undirected" }),
+        });
+
+        assert.deepStrictEqual(estimate.refusal, {
+            code: "algorithm.needs-directed",
+            params: { algorithm: "acme:test" },
+        });
     });
 
     it("offers the same algorithm on an undirected graph", () => {
@@ -492,6 +563,10 @@ describe("estimateCost: whether it can run on this graph at all", () => {
 
         assert.isFalse(estimate.available);
         assert.include(estimate.reason ?? "", "weights");
+        assert.deepStrictEqual(estimate.refusal, {
+            code: "algorithm.needs-weighted",
+            params: { algorithm: "acme:test" },
+        });
     });
 
     it("refuses an algorithm that needs one piece on a graph in several, and counts them", () => {
@@ -512,6 +587,10 @@ describe("estimateCost: whether it can run on this graph at all", () => {
 
         assert.isFalse(estimate.available);
         assert.include(estimate.reason ?? "", "4,000 pieces");
+        assert.deepStrictEqual(estimate.refusal, {
+            code: "algorithm.needs-connected",
+            params: { algorithm: "acme:test", pieces: 4000 },
+        });
     });
 
     it("refuses an accelerator-only algorithm until one is attached", () => {
@@ -526,6 +605,11 @@ describe("estimateCost: whether it can run on this graph at all", () => {
 
         assert.isFalse(without.available);
         assert.include(without.reason ?? "", "accelerator");
+        assert.deepStrictEqual(without.refusal, {
+            code: "algorithm.needs-accelerator",
+            params: { algorithm: "acme:test" },
+        });
+        assert.isUndefined(withGpu.refusal);
         assert.isTrue(withGpu.available);
     });
 });

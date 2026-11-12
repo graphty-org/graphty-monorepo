@@ -444,12 +444,9 @@ export const Isomorphism: Story = {
         const checkButton = canvas.getByRole("button", { name: /check isomorphism/i });
         await userEvent.click(checkButton);
 
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText.toLowerCase()).toMatch(/isomorphic/);
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText.toLowerCase()).toMatch(/isomorphic/);
+        });
     },
 };

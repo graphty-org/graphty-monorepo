@@ -1,0 +1,95 @@
+{
+    "page": "ci",
+    "range": "28d",
+    "generated": "2026-10-25T23:30:00Z",
+    "section": {
+        "kind": "shards",
+        "id": "shards",
+        "range": "28d",
+        "runKind": "full",
+        "rows": [
+            {
+                "shard": "graphty-element-browser-3",
+                "runs": 38,
+                "minRuns": 5,
+                "medianS": 964,
+                "p90S": 1125,
+                "budgetS": 900,
+                "files": [
+                    {
+                        "file": "test/browser/edges/EdgeMesh.test.ts",
+                        "medianS": 192,
+                        "p90S": 222,
+                        "share": 20
+                    },
+                    {
+                        "file": "test/browser/layout/ForceLayout.test.ts",
+                        "medianS": 148,
+                        "p90S": 179,
+                        "share": 15
+                    },
+                    {
+                        "file": "test/browser/xr/XRSession.test.ts",
+                        "medianS": 136,
+                        "p90S": 210,
+                        "share": 14
+                    }
+                ],
+                "moreFiles": 31
+            },
+            {
+                "shard": "graphty-element-storybook-2",
+                "runs": 11,
+                "minRuns": 5,
+                "medianS": 853,
+                "p90S": 1044,
+                "budgetS": 900
+            },
+            {
+                "shard": "graphty-element-browser-1",
+                "runs": 11,
+                "minRuns": 5,
+                "medianS": 797,
+                "p90S": 871,
+                "budgetS": 900
+            },
+            {
+                "shard": "graphty-1",
+                "runs": 11,
+                "minRuns": 5,
+                "medianS": 692,
+                "p90S": 773,
+                "budgetS": 900
+            },
+            {
+                "shard": "graphty-storybook",
+                "runs": 11,
+                "minRuns": 5,
+                "medianS": 624,
+                "p90S": 723,
+                "budgetS": 900
+            },
+            {
+                "shard": "compact-mantine",
+                "group": "small-browser",
+                "runs": 11,
+                "minRuns": 5,
+                "medianS": 383,
+                "p90S": 433,
+                "budgetS": 900
+            },
+            {
+                "shard": "graphty-element-lifecycle",
+                "runs": 4,
+                "minRuns": 5,
+                "medianS": 562,
+                "p90S": 630,
+                "budgetS": 900
+            }
+        ],
+        "more": {
+            "count": 29,
+            "allWithin": true
+        }
+    }
+}

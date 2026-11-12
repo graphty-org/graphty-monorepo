@@ -53,6 +53,7 @@ import {
 } from "../../common/ontology-export.js";
 import { type ResolvedExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
+import { jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { type LossNote } from "../../types.js";
 import { dialectCapabilities, exponentIfUnsafe, isJsonObject } from "./dialect.js";
@@ -259,7 +260,7 @@ function json(value: unknown, nonfinite: { count: number }): string {
             .map(([k, v]) => `${JSON.stringify(k)}:${json(v, nonfinite)}`)
             .join(",")}}`;
     }
-    return JSON.stringify(value) ?? "null";
+    return jsonText(value) ?? "null";
 }
 
 /**
@@ -299,7 +300,7 @@ function propertyTexts(column: Column, i: number): string[] {
         return (v as readonly unknown[]).map((item) => textOf(item, column.child.dtype));
     }
     const nested = column.dtype === "json" || column.meta.components > 1;
-    return [nested ? (JSON.stringify(v) ?? "null") : textOf(v, column.dtype)];
+    return [nested ? (jsonText(v) ?? "null") : textOf(v, column.dtype)];
 }
 
 /**
@@ -910,7 +911,7 @@ class ObographsExport {
         }
         const xrefs = this.at("xref", i);
         if (Array.isArray(xrefs)) {
-            meta.xrefs = xrefs.map((val) => ({ val }));
+            meta.xrefs = xrefs.map((val: unknown) => ({ val }));
         }
         const synonyms = this.at("synonym", i);
         if (Array.isArray(synonyms)) {

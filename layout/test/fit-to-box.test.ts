@@ -48,7 +48,12 @@ describe("fitToBox", () => {
 });
 
 describe("arf scale and center", () => {
-    const s = fromEdgeArrays({ src: [0, 1, 2, 3], dst: [1, 2, 3, 0], nodeCount: 4, directed: false });
+    const s = fromEdgeArrays({
+        src: Uint32Array.of(0, 1, 2, 3),
+        dst: Uint32Array.of(1, 2, 3, 0),
+        nodeCount: 4,
+        directed: false,
+    });
 
     it("puts the farthest node 1 from the origin when neither is given, as every one-shot layout does", () => {
         const plain = arf(s, { seed: 3, maxIter: 50 });

@@ -56,7 +56,7 @@ const RAMP_MIN_WIDTH = 96;
 // Written "to right" and mirrored as a whole under right-to-left text, the same
 // way a caller's own gradient is. Flipping the keyword here as well would flip
 // the default gradient twice.
-const DEFAULT_GRADIENT = `linear-gradient(to right, ${PANEL_INK.SURFACE}, ${PANEL_INK.ACCENT})`;
+const DEFAULT_GRADIENT = `linear-gradient(to right, ${PANEL_INK.SURFACE}, ${PANEL_INK.ACCENT_GRAPHIC})`;
 
 /**
  * The transform a ramp applies between its two endpoints.

@@ -6,6 +6,8 @@
  * Colors, radii, type and shadows live in the CSS, keyed on these classes and written in
  * tokens; nothing here is a color.
  */
+import { capped } from "../../components/overlays/viewportCap";
+
 /**
  * CSS variables for the Menu dropdown. The row type is the foundation's cm-menu-row (11/16), and
  * Mantine reads --menu-item-fz nowhere else, so it is kept at 11px for anything that does.
@@ -17,7 +19,7 @@ export const compactMenuVars = {
     "--menu-item-fz": "11px",
 } as const;
 
-/** The Menu parts, pointed at the foundation's dark menu primitives and this package's rules. */
+/** The Menu parts, pointed at the foundation's menu primitives and this package's rules. */
 export const compactMenuClassNames = {
     dropdown: "cm-menu-surface cm-menu",
     item: "cm-menu-row cm-menu-item",
@@ -32,7 +34,8 @@ export const VIEWPORT_MARGIN = 6;
 
 /**
  * The size middleware's `apply`: clamp the floating element's height to what is left of the
- * viewport, so a long menu scrolls instead of running off the screen.
+ * viewport, so a long menu scrolls instead of running off the screen, and never above the visual
+ * viewport's cap (viewportCap.ts).
  * @param state - floating-ui's size state
  * @param state.availableHeight - the height left between the anchor and the viewport margin
  * @param state.elements - the floating elements
@@ -45,7 +48,7 @@ function clampMenuHeight({
     availableHeight: number;
     elements: { floating: HTMLElement };
 }): void {
-    elements.floating.style.maxHeight = `${Math.max(0, Math.floor(availableHeight))}px`;
+    elements.floating.style.maxHeight = capped(`${String(Math.max(0, Math.floor(availableHeight)))}px`);
 }
 
 /**

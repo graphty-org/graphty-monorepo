@@ -39,6 +39,14 @@ async function loadAndRemoveAPage(): Promise<void> {
     });
 
     frame.srcdoc = "<script>window.kept = Array.from({ length: 1000000 }, (_, i) => ({ i, f: () => i }));</script>";
+    // Out of mouse hit testing. Earlier test files leave the pointer wherever their real input put
+    // it, and a frame the pointer is over becomes its parent's blink::EventHandler
+    // last_mouse_move_event_subframe_, a strong pointer that removing the iframe does not clear
+    // and only the next mouse event replaces. Held that way, the page outlives every collection
+    // and this test fails with the whole page (about 72 MB) still in memory -- the failure of
+    // issue #2871 that two heap snapshots traced to that field. A frame with no pointer events is
+    // never a hit-test target, so it is never held there.
+    frame.style.pointerEvents = "none";
     document.body.append(frame);
     await loaded;
     frame.remove();

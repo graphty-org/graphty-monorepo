@@ -43,8 +43,20 @@ import { type ResolvedExportOptions, resolveExportOptions } from "../../common/o
 import { agree, plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
+import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
-import { EMPTY_LIST_TEXT, isGmlKey, LIST_START_MARKER, mangleGmlKey, ORIGINAL_ID_KEY } from "./syntax.js";
+import { GML_STYLE_CAPABILITIES, gmlStyledExport } from "./styles.js";
+import {
+    EMPTY_LIST_TEXT,
+    isGmlKey,
+    KEY_MANGLED_CODE,
+    LIST_START_MARKER,
+    mangleGmlKey,
+    ORIGINAL_ID_KEY,
+} from "./syntax.js";
+
+/** What the writer takes: the format's options, the common ones and the styles. */
+type GmlWriteOptions = GmlExportOptions & CommonExportOptions & ExporterStyleOptions;
 
 /**
  * The format-specific options of the GML exporter.
@@ -105,11 +117,7 @@ export const INVALID_KEY_CODE = "E_GML_INVALID_KEY";
  * @category Issue and loss codes
  */
 export const RESERVED_KEY_CODE = "E_GML_RESERVED_KEY";
-/**
- * Keys rewritten under sanitizeKeys "mangle".
- * @category Issue and loss codes
- */
-export const KEY_MANGLED_CODE = "W_GML_KEY_MANGLED";
+export { KEY_MANGLED_CODE } from "./syntax.js";
 /**
  * A position column with more than three components; x, y and z are written.
  * @category Issue and loss codes
@@ -230,7 +238,8 @@ interface WrittenColumn {
  */
 function planOf(snapshot: GraphSnapshot, options: (GmlExportOptions & CommonExportOptions) | undefined): GmlExportPlan {
     const common = resolveExportOptions(options);
-    const mode = options?.sanitizeKeys ?? "error";
+    // a JavaScript caller can pass any value
+    const mode: unknown = options?.sanitizeKeys ?? "error";
     if (mode !== "error" && mode !== "mangle") {
         throw new GraphFormatError(
             "E_UNSUPPORTED",
@@ -347,51 +356,93 @@ function selectColumns(
     const out: WrittenColumn[] = [];
     const columns = [...table].filter((c) => isWritten(c) && filter(c));
     const labelRole = labelRoleColumn(columns, label, used);
+    const scope: KeyScope = { used, reserved, label, plan, notes };
     for (const column of columns) {
         const preferred = column === labelRole ? "label" : preferredKey(column.meta);
-        let key = preferred;
-        const valid = isGmlKey(preferred);
         const taken = column !== labelRole && used.has(preferred);
-        if (!valid || taken) {
-            const code = valid ? RESERVED_KEY_CODE : INVALID_KEY_CODE;
-            let why = "is not a GML key";
-            if (valid) {
-                why = reserved.has(preferred) ? "collides with a structural GML key" : "repeats another column's key";
-            }
-            if (!plan.mangle) {
-                if (notes === null) {
-                    throw new GraphFormatError(
-                        "E_UNSUPPORTED",
-                        `${label} column "${column.meta.name}" ${why}; pass sanitizeKeys: "mangle" to rewrite it`,
-                        {
-                            reason: "gml key",
-                            column: column.meta.name,
-                            key: preferred,
-                        },
-                    );
-                }
-                notes.push(
-                    note(
-                        code,
-                        `${label} column "${column.meta.name}" ${why}; the save fails unless sanitizeKeys is "mangle"`,
-                        column.meta.name,
-                    ),
-                );
-                continue;
-            }
-            key = uniqueKey(valid ? preferred : mangleGmlKey(preferred), used);
-            notes?.push(
-                note(
-                    KEY_MANGLED_CODE,
-                    `${label} column "${column.meta.name}" is written as "${key}"`,
-                    column.meta.name,
-                ),
-            );
+        const key = isGmlKey(preferred) && !taken ? preferred : rewrittenKey(column, preferred, scope);
+        if (key === null) {
+            continue;
         }
         used.add(key);
         out.push({ column, key });
     }
     return out;
+}
+
+/** What selectColumns() resolves a rejected key against. */
+interface KeyScope {
+    readonly used: Set<string>;
+    readonly reserved: ReadonlySet<string>;
+    readonly label: string;
+    readonly plan: GmlExportPlan;
+    readonly notes: LossNote[] | null;
+}
+
+/**
+ * The key a column whose preferred key is invalid or taken is written under: a mangled unique key
+ * under mangle (noted), else null after noting (or throwing for) the rejected key.
+ * @param column - the column
+ * @param preferred - the key it asked for
+ * @param scope - the table's keys, plan and notes
+ * @returns the key, or null when the column is not written
+ */
+function rewrittenKey(column: Column, preferred: string, scope: KeyScope): string | null {
+    const valid = isGmlKey(preferred);
+    if (!scope.plan.mangle) {
+        rejectKey(column, preferred, valid, scope);
+        return null;
+    }
+    const key = uniqueKey(valid ? preferred : mangleGmlKey(preferred), scope.used);
+    scope.notes?.push(
+        note(KEY_MANGLED_CODE, `${scope.label} column "${column.meta.name}" is written as "${key}"`, column.meta.name),
+    );
+    return key;
+}
+
+/**
+ * Record a rejected key as a note, or throw when there is nowhere to record it.
+ * @param column - the column
+ * @param preferred - the key it asked for
+ * @param valid - whether the key is a GML key (so it was rejected for colliding)
+ * @param scope - the table's keys, plan and notes
+ */
+function rejectKey(column: Column, preferred: string, valid: boolean, scope: KeyScope): void {
+    const { label, notes } = scope;
+    const code = valid ? RESERVED_KEY_CODE : INVALID_KEY_CODE;
+    const why = keyProblem(preferred, valid, scope.reserved);
+    if (notes === null) {
+        throw new GraphFormatError(
+            "E_UNSUPPORTED",
+            `${label} column "${column.meta.name}" ${why}; pass sanitizeKeys: "mangle" to rewrite it`,
+            {
+                reason: "gml key",
+                column: column.meta.name,
+                key: preferred,
+            },
+        );
+    }
+    notes.push(
+        note(
+            code,
+            `${label} column "${column.meta.name}" ${why}; the save fails unless sanitizeKeys is "mangle"`,
+            column.meta.name,
+        ),
+    );
+}
+
+/**
+ * Why a key cannot be written as it is.
+ * @param preferred - the key
+ * @param valid - whether it is a GML key
+ * @param reserved - the structural keys of the table
+ * @returns the reason, as the end of a sentence about the column
+ */
+function keyProblem(preferred: string, valid: boolean, reserved: ReadonlySet<string>): string {
+    if (!valid) {
+        return "is not a GML key";
+    }
+    return reserved.has(preferred) ? "collides with a structural GML key" : "repeats another column's key";
 }
 
 /**
@@ -402,8 +453,10 @@ function selectColumns(
  */
 function uniqueKey(base: string, used: ReadonlySet<string>): string {
     let candidate = base;
-    for (let k = 2; used.has(candidate); k++) {
+    let k = 2;
+    while (used.has(candidate)) {
         candidate = `${base}_${k}`;
+        k++;
     }
     return candidate;
 }
@@ -562,35 +615,56 @@ function jsonStatsOf(column: Column): JsonStats | null {
     const stats: JsonStats = { numbers: 0, booleans: 0, nulls: 0, nestedArrays: 0, arrays: 0, invalidKeys: 0 };
     if (column.dtype === "json") {
         for (let r = 0; r < column.length; r++) {
-            if (!column.isSet(r)) {
-                continue;
-            }
-            const value = column.values[r];
-            const seen: SeenFlags = { numbers: false, booleans: false, nulls: false, nested: false };
-            if (Array.isArray(value)) {
-                stats.arrays++;
-                for (const item of value) {
-                    inspectJson(item, stats, true, seen);
-                }
-            } else {
-                inspectJson(value, stats, false, seen);
+            if (column.isSet(r)) {
+                inspectJsonCell(column.values[r], stats);
             }
         }
         return stats;
     }
     if (column.dtype === "list" && column.meta.itemDtype === "json") {
         for (let r = 0; r < column.length; r++) {
-            if (!column.isSet(r)) {
-                continue;
-            }
-            const seen: SeenFlags = { numbers: false, booleans: false, nulls: false, nested: false };
-            for (const item of column.sliceOf(r)) {
-                inspectJson(item, stats, true, seen);
+            if (column.isSet(r)) {
+                inspectJsonItems(column.sliceOf(r), stats, freshSeen());
             }
         }
         return stats;
     }
     return null;
+}
+
+/**
+ * Flags for one cell, nothing seen yet.
+ * @returns the flags
+ */
+function freshSeen(): SeenFlags {
+    return { numbers: false, booleans: false, nulls: false, nested: false };
+}
+
+/**
+ * Count one json cell: an array counts as an array and its items as array items.
+ * @param value - the cell value
+ * @param stats - the stats
+ */
+function inspectJsonCell(value: unknown, stats: JsonStats): void {
+    const seen = freshSeen();
+    if (Array.isArray(value)) {
+        stats.arrays++;
+        inspectJsonItems(value, stats, seen);
+    } else {
+        inspectJson(value, stats, false, seen);
+    }
+}
+
+/**
+ * Count the items of one cell's array.
+ * @param items - the items
+ * @param stats - the stats
+ * @param seen - the cell's flags
+ */
+function inspectJsonItems(items: Iterable<unknown>, stats: JsonStats, seen: SeenFlags): void {
+    for (const item of items) {
+        inspectJson(item, stats, true, seen);
+    }
 }
 
 /**
@@ -695,60 +769,88 @@ function graphicsNotes(snapshot: GraphSnapshot, notes: LossNote[]): void {
  */
 function reimportNotes(columns: readonly WrittenColumn[], domain: "node" | "edge", notes: LossNote[]): void {
     for (const { column, key } of columns) {
-        const { meta } = column;
-        const set = column.length - column.nullCount;
-        if (set === 0) {
-            notes.push(
-                note(
-                    LOSS.EMPTY_COLUMN,
-                    `${domain} column "${meta.name}" has no set cell and is not written: GML writes cells, never declarations`,
-                    meta.name,
-                    0,
-                ),
-            );
-            continue;
-        }
-        if (meta.role === null && (key === "label" || (domain === "edge" && (key === "id" || key === "key")))) {
-            notes.push(
-                note(
-                    LOSS.ROLE_ASSUMED,
-                    `${domain} column "${meta.name}" is written under "${key}" and reads back with the ${key === "label" ? "label" : key} role`,
-                    meta.name,
-                    set,
-                ),
-            );
-            continue;
-        }
-        if (column.dtype === "list" || !(column.dtype === "string" || column.dtype === "dict")) {
-            continue;
-        }
-        const heuristic = new DictHeuristic(DICT_SAMPLE_ROWS);
-        for (let r = 0; r < column.length && !heuristic.decided; r++) {
-            if (column.isSet(r)) {
-                heuristic.observe(column.value(r) as string);
-            }
-        }
-        const readsAsDict = heuristic.decide() === "dict";
-        if (column.dtype === "string" && readsAsDict) {
-            notes.push(
-                note(
-                    LOSS.STORAGE_CLASS,
-                    `${domain} column "${meta.name}" reads back as dict (low cardinality)`,
-                    meta.name,
-                    null,
-                ),
-            );
-        } else if (column.dtype === "dict" && !readsAsDict) {
-            notes.push(
-                note(
-                    LOSS.STORAGE_CLASS,
-                    `${domain} column "${meta.name}" reads back as string (cardinality too high for a dict)`,
-                    meta.name,
-                    null,
-                ),
-            );
+        const reimport = reimportNote(column, key, domain);
+        if (reimport !== null) {
+            notes.push(reimport);
         }
     }
+}
+
+/**
+ * What the importer changes about one written column on re-import, if anything.
+ * @param column - the column
+ * @param key - its key
+ * @param domain - node or edge
+ * @returns the note, or null
+ */
+function reimportNote(column: Column, key: string, domain: "node" | "edge"): LossNote | null {
+    const { meta } = column;
+    const set = column.length - column.nullCount;
+    if (set === 0) {
+        return note(
+            LOSS.EMPTY_COLUMN,
+            `${domain} column "${meta.name}" has no set cell and is not written: GML writes cells, never declarations`,
+            meta.name,
+            0,
+        );
+    }
+    if (meta.role === null && readsWithRole(key, domain)) {
+        return note(
+            LOSS.ROLE_ASSUMED,
+            `${domain} column "${meta.name}" is written under "${key}" and reads back with the ${key} role`,
+            meta.name,
+            set,
+        );
+    }
+    return storageClassNote(column, domain);
+}
+
+/**
+ * Whether a key gives a role-less column a role on re-import.
+ * @param key - the key
+ * @param domain - node or edge
+ * @returns true for label, and an edge's id or key
+ */
+function readsWithRole(key: string, domain: "node" | "edge"): boolean {
+    return key === "label" || (domain === "edge" && (key === "id" || key === "key"));
+}
+
+/**
+ * Whether the dictionary heuristic turns a string column into a dict on re-import, or a dict
+ * column into a string.
+ * @param column - the column
+ * @param domain - node or edge
+ * @returns the note, or null
+ */
+function storageClassNote(column: Column, domain: "node" | "edge"): LossNote | null {
+    if (column.dtype !== "string" && column.dtype !== "dict") {
+        return null;
+    }
+    const { meta } = column;
+    const heuristic = new DictHeuristic(DICT_SAMPLE_ROWS);
+    for (let r = 0; r < column.length && !heuristic.decided; r++) {
+        if (column.isSet(r)) {
+            heuristic.observe(column.value(r) as string);
+        }
+    }
+    const readsAsDict = heuristic.decide() === "dict";
+    if (column.dtype === "string" && readsAsDict) {
+        return note(
+            LOSS.STORAGE_CLASS,
+            `${domain} column "${meta.name}" reads back as dict (low cardinality)`,
+            meta.name,
+            null,
+        );
+    }
+    if (column.dtype === "dict" && !readsAsDict) {
+        return note(
+            LOSS.STORAGE_CLASS,
+            `${domain} column "${meta.name}" reads back as string (cardinality too high for a dict)`,
+            meta.name,
+            null,
+        );
+    }
+    return null;
 }
 
 /**
@@ -1297,8 +1399,36 @@ function originalIdText(id: NodeId): string {
  * @returns nothing
  */
 function* gmlParts(context: WriteContext): Generator<string, void, undefined> {
-    const { snapshot, plan, ids } = context;
-    const w = new GmlWriter(plan.mangle);
+    const { snapshot } = context;
+    const w = new GmlWriter(context.plan.mangle);
+    writeHeader(w, context);
+    yield w.take();
+    for (let i = 0; i < snapshot.nodeCount; i++) {
+        writeNode(w, context, i);
+        yield w.take();
+    }
+    const el = snapshot.edgeList();
+    const origin = snapshot.meta.weightOrigin;
+    const integerWeights = origin !== null && origin.type === "int";
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        if (context.foldPairs && context.folding.folded(e)) {
+            continue;
+        }
+        writeEdge(w, context, { el, e, integerWeights });
+        yield w.take();
+    }
+    w.raw("]");
+    yield w.take();
+}
+
+/**
+ * Write the document header and the graph's opening lines: creator, version, top-level keys,
+ * `graph [`, directed, multigraph and the graph keys.
+ * @param w - the writer
+ * @param context - the context
+ */
+function writeHeader(w: GmlWriter, context: WriteContext): void {
+    const { snapshot } = context;
     const { meta } = snapshot;
     if (meta.creator !== null) {
         w.line("", "Creator", quoteGmlString(meta.creator));
@@ -1306,74 +1436,86 @@ function* gmlParts(context: WriteContext): Generator<string, void, undefined> {
     if (meta.sourceFormat === "gml" && meta.sourceVersion !== null) {
         w.line("", "Version", versionText(meta.sourceVersion));
     }
-    for (const { column, key } of context.topColumns) {
-        if (column.isSet(0)) {
-            w.cell("", key, column, 0);
-        }
-    }
+    writeCells(w, "", context.topColumns, 0);
     w.raw("graph [");
     w.line("  ", "directed", context.writeDirected ? "1" : "0");
     const multigraph = meta.declaredMultigraph ?? (snapshot.flags.multigraph ? true : null);
     if (multigraph !== null) {
         w.line("  ", "multigraph", multigraph ? "1" : "0");
     }
-    for (const { column, key } of context.graphColumns) {
-        if (column.isSet(0)) {
-            w.cell("  ", key, column, 0);
+    writeCells(w, "  ", context.graphColumns, 0);
+}
+
+/**
+ * Write the set cells of one row of the written columns.
+ * @param w - the writer
+ * @param indent - the indentation
+ * @param columns - the written columns
+ * @param row - the row
+ */
+function writeCells(w: GmlWriter, indent: string, columns: readonly WrittenColumn[], row: number): void {
+    for (const { column, key } of columns) {
+        if (column.isSet(row)) {
+            w.cell(indent, key, column, row);
         }
     }
-    yield w.take();
-    for (let i = 0; i < snapshot.nodeCount; i++) {
-        w.raw("  node [");
-        w.line("    ", "id", formatInteger(ids.idAt(i) as number));
-        if (ids.isChanged(i)) {
-            w.line("    ", ORIGINAL_ID_KEY, originalIdText(ids.originalAt(i)));
-        } else if (context.originalIds?.isSet(i)) {
-            const original = context.originalIds.value(i);
-            if (typeof original === "string" || typeof original === "number") {
-                w.line("    ", ORIGINAL_ID_KEY, originalIdText(original));
-            }
+}
+
+/**
+ * Write one `node [ ... ]` block.
+ * @param w - the writer
+ * @param context - the context
+ * @param i - the node
+ */
+function writeNode(w: GmlWriter, context: WriteContext, i: number): void {
+    const { ids } = context;
+    w.raw("  node [");
+    w.line("    ", "id", formatInteger(ids.idAt(i) as number));
+    if (ids.isChanged(i)) {
+        w.line("    ", ORIGINAL_ID_KEY, originalIdText(ids.originalAt(i)));
+    } else if (context.originalIds?.isSet(i)) {
+        const original = context.originalIds.value(i);
+        if (typeof original === "string" || typeof original === "number") {
+            w.line("    ", ORIGINAL_ID_KEY, originalIdText(original));
         }
-        for (const { column, key } of context.nodeColumns) {
-            if (column.isSet(i)) {
-                w.cell("    ", key, column, i);
-            }
-        }
-        writeGraphics(w, context, i);
-        w.raw("  ]");
-        yield w.take();
     }
-    const el = snapshot.edgeList();
-    const origin = meta.weightOrigin;
-    const integerWeights = origin !== null && origin.type === "int";
-    for (let e = 0; e < snapshot.edgeCount; e++) {
-        if (context.foldPairs && context.folding.folded(e)) {
-            continue;
-        }
-        w.raw("  edge [");
-        w.line("    ", "source", formatInteger(ids.idAt(el.src[e]) as number));
-        w.line("    ", "target", formatInteger(ids.idAt(el.dst[e]) as number));
-        if (context.edgeIds?.isSet(e)) {
-            w.cell("    ", "id", context.edgeIds, e);
-        }
-        if (context.weights.isExplicit(e)) {
-            const weight = context.weights.value(e);
-            const text =
-                integerWeights && Number.isInteger(weight)
-                    ? formatInteger(weight)
-                    : formatGmlReal(weight, context.weights.dtype);
-            w.line("    ", plan.weightKey, text);
-        }
-        for (const { column, key } of context.edgeColumns) {
-            if (column.isSet(e)) {
-                w.cell("    ", key, column, e);
-            }
-        }
-        w.raw("  ]");
-        yield w.take();
+    writeCells(w, "    ", context.nodeColumns, i);
+    writeGraphics(w, context, i);
+    w.raw("  ]");
+}
+
+/** One edge to write: the edge list, the edge and whether weights are written as integers. */
+interface EdgeRow {
+    readonly el: ReturnType<GraphSnapshot["edgeList"]>;
+    readonly e: number;
+    readonly integerWeights: boolean;
+}
+
+/**
+ * Write one `edge [ ... ]` block.
+ * @param w - the writer
+ * @param context - the context
+ * @param row - the edge
+ */
+function writeEdge(w: GmlWriter, context: WriteContext, row: EdgeRow): void {
+    const { ids, plan } = context;
+    const { el, e, integerWeights } = row;
+    w.raw("  edge [");
+    w.line("    ", "source", formatInteger(ids.idAt(el.src[e]) as number));
+    w.line("    ", "target", formatInteger(ids.idAt(el.dst[e]) as number));
+    if (context.edgeIds?.isSet(e)) {
+        w.cell("    ", "id", context.edgeIds, e);
     }
-    w.raw("]");
-    yield w.take();
+    if (context.weights.isExplicit(e)) {
+        const weight = context.weights.value(e);
+        const text =
+            integerWeights && Number.isInteger(weight)
+                ? formatInteger(weight)
+                : formatGmlReal(weight, context.weights.dtype);
+        w.line("    ", plan.weightKey, text);
+    }
+    writeCells(w, "    ", context.edgeColumns, e);
+    w.raw("  ]");
 }
 
 /**
@@ -1425,7 +1567,21 @@ export const gmlExporter: GraphExporter<GmlExportOptions> = Object.freeze({
     format: "gml",
     options: Object.freeze(["sanitizeKeys", "weightKey"]),
     capabilities: GML_CAPABILITIES,
-    check,
+    styles: Object.freeze({ capabilities: GML_STYLE_CAPABILITIES }),
+    /**
+     * Pre-flight: the common capability notes, the GML-specific ones and, with styles, the values written as the
+     * nearest ones yEd's GML has.
+     * @param snapshot - the snapshot
+     * @param options - the options
+     * @returns the notes, empty when the export is exact
+     */
+    check(snapshot: GraphSnapshot, options?: GmlWriteOptions): readonly LossNote[] {
+        const styled = gmlStyledExport(snapshot, options?.styles);
+        if (styled === null) {
+            return check(snapshot, options);
+        }
+        return Object.freeze([...check(styled.snapshot, options), ...styled.notes]);
+    },
     /**
      * Write the snapshot as UTF-8 chunks; the context is resolved on the first pull, so the
      * errors check() announced surface from the iteration.
@@ -1433,7 +1589,7 @@ export const gmlExporter: GraphExporter<GmlExportOptions> = Object.freeze({
      * @param options - the options
      * @returns the chunks
      */
-    export(snapshot: GraphSnapshot, options?: GmlExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
+    export(snapshot: GraphSnapshot, options?: GmlWriteOptions): AsyncIterable<Uint8Array> {
         return encodeChunks(lazyParts(snapshot, options));
     },
     /**
@@ -1442,7 +1598,7 @@ export const gmlExporter: GraphExporter<GmlExportOptions> = Object.freeze({
      * @param options - the options
      * @returns the document
      */
-    exportToString(snapshot: GraphSnapshot, options?: GmlExportOptions & CommonExportOptions): Promise<string> {
+    exportToString(snapshot: GraphSnapshot, options?: GmlWriteOptions): Promise<string> {
         return joinText(lazyParts(snapshot, options));
     },
 });
@@ -1454,9 +1610,6 @@ export const gmlExporter: GraphExporter<GmlExportOptions> = Object.freeze({
  * @yields the parts
  * @returns nothing
  */
-function* lazyParts(
-    snapshot: GraphSnapshot,
-    options: (GmlExportOptions & CommonExportOptions) | undefined,
-): Generator<string, void, undefined> {
-    yield* gmlParts(contextOf(snapshot, options));
+function* lazyParts(snapshot: GraphSnapshot, options: GmlWriteOptions | undefined): Generator<string, void, undefined> {
+    yield* gmlParts(contextOf(gmlStyledExport(snapshot, options?.styles)?.snapshot ?? snapshot, options));
 }

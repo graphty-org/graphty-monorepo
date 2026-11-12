@@ -1,0 +1,26 @@
+{
+    "sample": "gml-specimen-labels-p8",
+    "file": "graph-io/test/fidelity/specimens/gml/specimen-labels-p8.gml",
+    "sha256": "e0fb1814235f40f96630ba1c345c471092b2b25c5b0fbfac466bec988459d836",
+    "program": "Graphviz",
+    "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
+    "engine": "neato -n2",
+    "command": "neato -n2 -Tsvg -Gsize=\"12.5,9.375!\" graphviz/<sheet>.gv (the DOT file gv2gml converted to the sheet)",
+    "standIn": false,
+    "source": "graph-io/test/fidelity/specimens/gml/graphviz/specimen-labels-p8.gv",
+    "warnings": [
+        "Warning: node '10', graph 'specimen-labels-p8' size too small for label",
+        "Warning: node '24', graph 'specimen-labels-p8' size too small for label"
+    ],
+    "canvas": {
+        "requested": "fit within 1200 x 900 px (size=\"12.5,9.375!\", 96 px per inch)",
+        "widthPt": 900,
+        "heightPt": 675,
+        "widthPx": 1200,
+        "heightPx": 900
+    },
+    "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
+    "date": "2026-10-19",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs gml-specimen-labels-p8 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gml-specimen-labels-p8.svg"
+}

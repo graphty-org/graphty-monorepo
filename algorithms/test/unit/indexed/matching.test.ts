@@ -1,4 +1,12 @@
-import { GraphBuilder, type GraphSnapshot, INVALID_INDEX, makeMask, maskSet, maskTest } from "@graphty/graph-format";
+import {
+    GraphBuilder,
+    type GraphSnapshot,
+    INVALID_INDEX,
+    makeMask,
+    maskSet,
+    maskTest,
+    type NodeMask,
+} from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { isBipartite } from "../../../src/indexed/bipartite.js";
@@ -9,7 +17,7 @@ import {
 } from "../../../src/indexed/matching.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
-import type { NodeId } from "../../helpers/legacy-types.js";
+import type { LegacyBipartiteMatchingResult, NodeId } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 
 /**
@@ -107,7 +115,7 @@ const fixtures: readonly { readonly name: string; readonly graph: () => Graph }[
 ];
 
 /** Every pair is joined by an arc (either direction), left to right, and no right node is used twice. */
-function assertValidMatching(s: GraphSnapshot, result: BipartiteMatchingResult, left: Uint32Array): void {
+function assertValidMatching(s: GraphSnapshot, result: BipartiteMatchingResult, left: NodeMask): void {
     const used = new Set<number>();
     let pairs = 0;
     for (let u = 0; u < s.nodeCount; u++) {
@@ -144,7 +152,7 @@ function pairsOf(s: GraphSnapshot, result: BipartiteMatchingResult): Map<NodeId,
     return new Map(pairs.sort(byKey));
 }
 
-function leftMaskOf(s: GraphSnapshot): Uint32Array {
+function leftMaskOf(s: GraphSnapshot): NodeMask {
     const { sides } = isBipartite(s);
     if (sides === null) {
         throw new Error("fixture is not bipartite");
@@ -167,7 +175,7 @@ function explicitSides(
     s: GraphSnapshot,
     leftIds: readonly NodeId[],
     rightIds: readonly NodeId[],
-): { left: Uint32Array; right: Uint32Array } {
+): { left: NodeMask; right: NodeMask } {
     const left = makeMask(s.nodeCount);
     const right = makeMask(s.nodeCount);
     for (const id of leftIds) {
@@ -251,7 +259,7 @@ describe("indexed.maximumBipartiteMatching", () => {
         }
         const s = checksummedSnapshot(directed);
         // legacy: maximumBipartiteMatching on an undirected graph with the same edges
-        expect(maximumBipartiteMatching(s).size).toBe((legacyResult() as BipartiteMatchingResult).size);
+        expect(maximumBipartiteMatching(s).size).toBe((legacyResult() as LegacyBipartiteMatchingResult).size);
         expect(maximumBipartiteMatching(s).size).toBe(3);
     });
 
@@ -306,7 +314,7 @@ describe("indexed.maximumBipartiteMatching", () => {
         }
         const s = b.freeze();
         expect(s.flags.multigraph).toBe(true);
-        expect(maximumBipartiteMatching(s).size).toBe((legacyResult() as BipartiteMatchingResult).size);
+        expect(maximumBipartiteMatching(s).size).toBe((legacyResult() as LegacyBipartiteMatchingResult).size);
     });
 
     it("uses explicit sides as given and never matches a node on neither side", () => {
@@ -323,7 +331,7 @@ describe("indexed.maximumBipartiteMatching", () => {
             maskSet(right, s.ids.indexOf(id), true);
         }
         const result = maximumBipartiteMatching(s, { left, right });
-        const legacy = legacyResult() as BipartiteMatchingResult;
+        const legacy = legacyResult() as LegacyBipartiteMatchingResult;
         expect(result.size).toBe(legacy.size);
         expect(result.size).toBe(2);
         expect(result.matching[s.ids.indexOf("a2")]).toBe(INVALID_INDEX);
@@ -345,7 +353,7 @@ describe("indexed.maximumBipartiteMatching", () => {
         g.addEdge("a", "b");
         g.addEdge("b", "c");
         g.addEdge("c", "a");
-        expect(() => legacyResult() as BipartiteMatchingResult).toThrow("Graph is not bipartite");
+        expect(() => legacyResult() as LegacyBipartiteMatchingResult).toThrow("Graph is not bipartite");
         expect(() => maximumBipartiteMatching(checksummedSnapshot(g))).toThrow("Graph is not bipartite");
     });
 
@@ -392,7 +400,7 @@ describe("indexed.greedyBipartiteMatching", () => {
             for (let i = 0; i < s.nodeCount; i++) {
                 (maskTest(left, i) ? leftNodes : rightNodes).add(i);
             }
-            const legacy = legacyResult() as BipartiteMatchingResult;
+            const legacy = legacyResult() as LegacyBipartiteMatchingResult;
             expect(result.size).toBe(legacy.size);
             for (let u = 0; u < s.nodeCount; u++) {
                 expect(result.matching[u]).toBe(legacy.matching.get(u) ?? INVALID_INDEX);

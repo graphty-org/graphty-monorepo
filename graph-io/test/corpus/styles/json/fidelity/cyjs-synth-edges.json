@@ -1,0 +1,1473 @@
+{
+ "elements": {
+  "nodes": [
+   {
+    "data": {
+     "id": "curve-bezier-s"
+    },
+    "position": {
+     "x": 0,
+     "y": 0
+    }
+   },
+   {
+    "data": {
+     "id": "curve-bezier-t"
+    },
+    "position": {
+     "x": 160,
+     "y": 20
+    }
+   },
+   {
+    "data": {
+     "id": "curve-unbundled-bezier-s"
+    },
+    "position": {
+     "x": 260,
+     "y": 0
+    }
+   },
+   {
+    "data": {
+     "id": "curve-unbundled-bezier-t"
+    },
+    "position": {
+     "x": 420,
+     "y": 20
+    }
+   },
+   {
+    "data": {
+     "id": "curve-segments-s"
+    },
+    "position": {
+     "x": 520,
+     "y": 0
+    }
+   },
+   {
+    "data": {
+     "id": "curve-segments-t"
+    },
+    "position": {
+     "x": 680,
+     "y": 20
+    }
+   },
+   {
+    "data": {
+     "id": "curve-taxi-s"
+    },
+    "position": {
+     "x": 0,
+     "y": 70
+    }
+   },
+   {
+    "data": {
+     "id": "curve-taxi-t"
+    },
+    "position": {
+     "x": 160,
+     "y": 90
+    }
+   },
+   {
+    "data": {
+     "id": "curve-round-taxi-s"
+    },
+    "position": {
+     "x": 260,
+     "y": 70
+    }
+   },
+   {
+    "data": {
+     "id": "curve-round-taxi-t"
+    },
+    "position": {
+     "x": 420,
+     "y": 90
+    }
+   },
+   {
+    "data": {
+     "id": "curve-round-segments-s"
+    },
+    "position": {
+     "x": 520,
+     "y": 70
+    }
+   },
+   {
+    "data": {
+     "id": "curve-round-segments-t"
+    },
+    "position": {
+     "x": 680,
+     "y": 90
+    }
+   },
+   {
+    "data": {
+     "id": "curve-straight-s"
+    },
+    "position": {
+     "x": 0,
+     "y": 140
+    }
+   },
+   {
+    "data": {
+     "id": "curve-straight-t"
+    },
+    "position": {
+     "x": 160,
+     "y": 160
+    }
+   },
+   {
+    "data": {
+     "id": "curve-straight-triangle-s"
+    },
+    "position": {
+     "x": 260,
+     "y": 140
+    }
+   },
+   {
+    "data": {
+     "id": "curve-straight-triangle-t"
+    },
+    "position": {
+     "x": 420,
+     "y": 160
+    }
+   },
+   {
+    "data": {
+     "id": "curve-haystack-s"
+    },
+    "position": {
+     "x": 520,
+     "y": 140
+    }
+   },
+   {
+    "data": {
+     "id": "curve-haystack-t"
+    },
+    "position": {
+     "x": 680,
+     "y": 160
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-tee-s"
+    },
+    "position": {
+     "x": 0,
+     "y": 210
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-tee-t"
+    },
+    "position": {
+     "x": 160,
+     "y": 230
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-triangle-s"
+    },
+    "position": {
+     "x": 260,
+     "y": 210
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-triangle-t"
+    },
+    "position": {
+     "x": 420,
+     "y": 230
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-triangle-tee-s"
+    },
+    "position": {
+     "x": 520,
+     "y": 210
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-triangle-tee-t"
+    },
+    "position": {
+     "x": 680,
+     "y": 230
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-circle-triangle-s"
+    },
+    "position": {
+     "x": 0,
+     "y": 280
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-circle-triangle-t"
+    },
+    "position": {
+     "x": 160,
+     "y": 300
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-triangle-cross-s"
+    },
+    "position": {
+     "x": 260,
+     "y": 280
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-triangle-cross-t"
+    },
+    "position": {
+     "x": 420,
+     "y": 300
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-triangle-backcurve-s"
+    },
+    "position": {
+     "x": 520,
+     "y": 280
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-triangle-backcurve-t"
+    },
+    "position": {
+     "x": 680,
+     "y": 300
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-vee-s"
+    },
+    "position": {
+     "x": 0,
+     "y": 350
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-vee-t"
+    },
+    "position": {
+     "x": 160,
+     "y": 370
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-square-s"
+    },
+    "position": {
+     "x": 260,
+     "y": 350
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-square-t"
+    },
+    "position": {
+     "x": 420,
+     "y": 370
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-circle-s"
+    },
+    "position": {
+     "x": 520,
+     "y": 350
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-circle-t"
+    },
+    "position": {
+     "x": 680,
+     "y": 370
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-diamond-s"
+    },
+    "position": {
+     "x": 0,
+     "y": 420
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-diamond-t"
+    },
+    "position": {
+     "x": 160,
+     "y": 440
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-chevron-s"
+    },
+    "position": {
+     "x": 260,
+     "y": 420
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-chevron-t"
+    },
+    "position": {
+     "x": 420,
+     "y": 440
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-hollow-s"
+    },
+    "position": {
+     "x": 520,
+     "y": 420
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-hollow-t"
+    },
+    "position": {
+     "x": 680,
+     "y": 440
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-mid-s"
+    },
+    "position": {
+     "x": 0,
+     "y": 490
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-mid-t"
+    },
+    "position": {
+     "x": 160,
+     "y": 510
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-small-s"
+    },
+    "position": {
+     "x": 260,
+     "y": 490
+    }
+   },
+   {
+    "data": {
+     "id": "arrow-small-t"
+    },
+    "position": {
+     "x": 420,
+     "y": 510
+    }
+   },
+   {
+    "data": {
+     "id": "dashed-s"
+    },
+    "position": {
+     "x": 520,
+     "y": 490
+    }
+   },
+   {
+    "data": {
+     "id": "dashed-t"
+    },
+    "position": {
+     "x": 680,
+     "y": 510
+    }
+   },
+   {
+    "data": {
+     "id": "dotted-s"
+    },
+    "position": {
+     "x": 0,
+     "y": 560
+    }
+   },
+   {
+    "data": {
+     "id": "dotted-t"
+    },
+    "position": {
+     "x": 160,
+     "y": 580
+    }
+   },
+   {
+    "data": {
+     "id": "thick-s"
+    },
+    "position": {
+     "x": 260,
+     "y": 560
+    }
+   },
+   {
+    "data": {
+     "id": "thick-t"
+    },
+    "position": {
+     "x": 420,
+     "y": 580
+    }
+   },
+   {
+    "data": {
+     "id": "hsl-s"
+    },
+    "position": {
+     "x": 520,
+     "y": 560
+    }
+   },
+   {
+    "data": {
+     "id": "hsl-t"
+    },
+    "position": {
+     "x": 680,
+     "y": 580
+    }
+   },
+   {
+    "data": {
+     "id": "opacity-s"
+    },
+    "position": {
+     "x": 0,
+     "y": 630
+    }
+   },
+   {
+    "data": {
+     "id": "opacity-t"
+    },
+    "position": {
+     "x": 160,
+     "y": 650
+    }
+   },
+   {
+    "data": {
+     "id": "line-opacity-s"
+    },
+    "position": {
+     "x": 260,
+     "y": 630
+    }
+   },
+   {
+    "data": {
+     "id": "line-opacity-t"
+    },
+    "position": {
+     "x": 420,
+     "y": 650
+    }
+   },
+   {
+    "data": {
+     "id": "gradient-s"
+    },
+    "position": {
+     "x": 520,
+     "y": 630
+    }
+   },
+   {
+    "data": {
+     "id": "gradient-t"
+    },
+    "position": {
+     "x": 680,
+     "y": 650
+    }
+   },
+   {
+    "data": {
+     "id": "label-s"
+    },
+    "position": {
+     "x": 0,
+     "y": 700
+    }
+   },
+   {
+    "data": {
+     "id": "label-t"
+    },
+    "position": {
+     "x": 160,
+     "y": 720
+    }
+   },
+   {
+    "data": {
+     "id": "label-auto-s"
+    },
+    "position": {
+     "x": 260,
+     "y": 700
+    }
+   },
+   {
+    "data": {
+     "id": "label-auto-t"
+    },
+    "position": {
+     "x": 420,
+     "y": 720
+    }
+   },
+   {
+    "data": {
+     "id": "label-ends-s"
+    },
+    "position": {
+     "x": 520,
+     "y": 700
+    }
+   },
+   {
+    "data": {
+     "id": "label-ends-t"
+    },
+    "position": {
+     "x": 680,
+     "y": 720
+    }
+   },
+   {
+    "data": {
+     "id": "label-margin-s"
+    },
+    "position": {
+     "x": 0,
+     "y": 770
+    }
+   },
+   {
+    "data": {
+     "id": "label-margin-t"
+    },
+    "position": {
+     "x": 160,
+     "y": 790
+    }
+   },
+   {
+    "data": {
+     "id": "hidden-s"
+    },
+    "position": {
+     "x": 260,
+     "y": 770
+    }
+   },
+   {
+    "data": {
+     "id": "hidden-t"
+    },
+    "position": {
+     "x": 420,
+     "y": 790
+    }
+   },
+   {
+    "data": {
+     "id": "none-s"
+    },
+    "position": {
+     "x": 520,
+     "y": 770
+    }
+   },
+   {
+    "data": {
+     "id": "none-t"
+    },
+    "position": {
+     "x": 680,
+     "y": 790
+    }
+   },
+   {
+    "data": {
+     "id": "z-s"
+    },
+    "position": {
+     "x": 0,
+     "y": 840
+    }
+   },
+   {
+    "data": {
+     "id": "z-t"
+    },
+    "position": {
+     "x": 160,
+     "y": 860
+    }
+   },
+   {
+    "data": {
+     "id": "mapped-w-s"
+    },
+    "position": {
+     "x": 260,
+     "y": 840
+    }
+   },
+   {
+    "data": {
+     "id": "mapped-w-t"
+    },
+    "position": {
+     "x": 420,
+     "y": 860
+    }
+   },
+   {
+    "data": {
+     "id": "loop"
+    },
+    "position": {
+     "x": 0,
+     "y": 910
+    }
+   },
+   {
+    "data": {
+     "id": "p1"
+    },
+    "position": {
+     "x": 260,
+     "y": 910
+    }
+   },
+   {
+    "data": {
+     "id": "p2"
+    },
+    "position": {
+     "x": 420,
+     "y": 910
+    }
+   },
+   {
+    "data": {
+     "id": "g0",
+     "label": "Group 0"
+    },
+    "classes": "grp grp0"
+   },
+   {
+    "data": {
+     "id": "g0m0",
+     "parent": "g0"
+    },
+    "position": {
+     "x": 0,
+     "y": 1070
+    }
+   },
+   {
+    "data": {
+     "id": "g0m1",
+     "parent": "g0"
+    },
+    "position": {
+     "x": 70,
+     "y": 1070
+    }
+   },
+   {
+    "data": {
+     "id": "g0m2",
+     "parent": "g0"
+    },
+    "position": {
+     "x": 140,
+     "y": 1070
+    }
+   },
+   {
+    "data": {
+     "id": "g0m3",
+     "parent": "g0"
+    },
+    "position": {
+     "x": 0,
+     "y": 1140
+    }
+   },
+   {
+    "data": {
+     "id": "g0m4",
+     "parent": "g0"
+    },
+    "position": {
+     "x": 70,
+     "y": 1140
+    }
+   },
+   {
+    "data": {
+     "id": "g1",
+     "label": "Group 1"
+    },
+    "classes": "grp grp1"
+   },
+   {
+    "data": {
+     "id": "g1m0",
+     "parent": "g1"
+    },
+    "position": {
+     "x": 600,
+     "y": 1070
+    }
+   },
+   {
+    "data": {
+     "id": "g1m1",
+     "parent": "g1"
+    },
+    "position": {
+     "x": 670,
+     "y": 1070
+    }
+   },
+   {
+    "data": {
+     "id": "g1m2",
+     "parent": "g1"
+    },
+    "position": {
+     "x": 740,
+     "y": 1070
+    }
+   },
+   {
+    "data": {
+     "id": "g1m3",
+     "parent": "g1"
+    },
+    "position": {
+     "x": 600,
+     "y": 1140
+    }
+   },
+   {
+    "data": {
+     "id": "g1m4",
+     "parent": "g1"
+    },
+    "position": {
+     "x": 670,
+     "y": 1140
+    }
+   },
+   {
+    "data": {
+     "id": "g2",
+     "label": "Group 2"
+    },
+    "classes": "grp grp2"
+   },
+   {
+    "data": {
+     "id": "g2m0",
+     "parent": "g2"
+    },
+    "position": {
+     "x": 1200,
+     "y": 1070
+    }
+   },
+   {
+    "data": {
+     "id": "g2m1",
+     "parent": "g2"
+    },
+    "position": {
+     "x": 1270,
+     "y": 1070
+    }
+   },
+   {
+    "data": {
+     "id": "g2m2",
+     "parent": "g2"
+    },
+    "position": {
+     "x": 1340,
+     "y": 1070
+    }
+   },
+   {
+    "data": {
+     "id": "g2m3",
+     "parent": "g2"
+    },
+    "position": {
+     "x": 1200,
+     "y": 1140
+    }
+   },
+   {
+    "data": {
+     "id": "g2m4",
+     "parent": "g2"
+    },
+    "position": {
+     "x": 1270,
+     "y": 1140
+    }
+   },
+   {
+    "data": {
+     "id": "g0inner",
+     "parent": "g0",
+     "label": "inner"
+    },
+    "classes": "grp inner"
+   },
+   {
+    "data": {
+     "id": "g0i0",
+     "parent": "g0inner"
+    },
+    "position": {
+     "x": 0,
+     "y": 1290
+    }
+   },
+   {
+    "data": {
+     "id": "g0i1",
+     "parent": "g0inner"
+    },
+    "position": {
+     "x": 50,
+     "y": 1290
+    }
+   },
+   {
+    "data": {
+     "id": "g0i2",
+     "parent": "g0inner"
+    },
+    "position": {
+     "x": 100,
+     "y": 1290
+    }
+   }
+  ],
+  "edges": [
+   {
+    "data": {
+     "id": "e0",
+     "source": "curve-bezier-s",
+     "target": "curve-bezier-t",
+     "lbl": "curve-bezier",
+     "w": 0
+    },
+    "classes": "curve-bezier"
+   },
+   {
+    "data": {
+     "id": "e1",
+     "source": "curve-unbundled-bezier-s",
+     "target": "curve-unbundled-bezier-t",
+     "lbl": "curve-unbundled-bezier",
+     "w": 1
+    },
+    "classes": "curve-unbundled-bezier"
+   },
+   {
+    "data": {
+     "id": "e2",
+     "source": "curve-segments-s",
+     "target": "curve-segments-t",
+     "lbl": "curve-segments",
+     "w": 2
+    },
+    "classes": "curve-segments"
+   },
+   {
+    "data": {
+     "id": "e3",
+     "source": "curve-taxi-s",
+     "target": "curve-taxi-t",
+     "lbl": "curve-taxi",
+     "w": 3
+    },
+    "classes": "curve-taxi"
+   },
+   {
+    "data": {
+     "id": "e4",
+     "source": "curve-round-taxi-s",
+     "target": "curve-round-taxi-t",
+     "lbl": "curve-round-taxi",
+     "w": 4
+    },
+    "classes": "curve-round-taxi"
+   },
+   {
+    "data": {
+     "id": "e5",
+     "source": "curve-round-segments-s",
+     "target": "curve-round-segments-t",
+     "lbl": "curve-round-segments",
+     "w": 5
+    },
+    "classes": "curve-round-segments"
+   },
+   {
+    "data": {
+     "id": "e6",
+     "source": "curve-straight-s",
+     "target": "curve-straight-t",
+     "lbl": "curve-straight",
+     "w": 6
+    },
+    "classes": "curve-straight"
+   },
+   {
+    "data": {
+     "id": "e7",
+     "source": "curve-straight-triangle-s",
+     "target": "curve-straight-triangle-t",
+     "lbl": "curve-straight-triangle",
+     "w": 7
+    },
+    "classes": "curve-straight-triangle"
+   },
+   {
+    "data": {
+     "id": "e8",
+     "source": "curve-haystack-s",
+     "target": "curve-haystack-t",
+     "lbl": "curve-haystack",
+     "w": 8
+    },
+    "classes": "curve-haystack"
+   },
+   {
+    "data": {
+     "id": "e9",
+     "source": "arrow-tee-s",
+     "target": "arrow-tee-t",
+     "lbl": "arrow-tee",
+     "w": 9
+    },
+    "classes": "arrow-tee"
+   },
+   {
+    "data": {
+     "id": "e10",
+     "source": "arrow-triangle-s",
+     "target": "arrow-triangle-t",
+     "lbl": "arrow-triangle",
+     "w": 10
+    },
+    "classes": "arrow-triangle"
+   },
+   {
+    "data": {
+     "id": "e11",
+     "source": "arrow-triangle-tee-s",
+     "target": "arrow-triangle-tee-t",
+     "lbl": "arrow-triangle-tee",
+     "w": 0
+    },
+    "classes": "arrow-triangle-tee"
+   },
+   {
+    "data": {
+     "id": "e12",
+     "source": "arrow-circle-triangle-s",
+     "target": "arrow-circle-triangle-t",
+     "lbl": "arrow-circle-triangle",
+     "w": 1
+    },
+    "classes": "arrow-circle-triangle"
+   },
+   {
+    "data": {
+     "id": "e13",
+     "source": "arrow-triangle-cross-s",
+     "target": "arrow-triangle-cross-t",
+     "lbl": "arrow-triangle-cross",
+     "w": 2
+    },
+    "classes": "arrow-triangle-cross"
+   },
+   {
+    "data": {
+     "id": "e14",
+     "source": "arrow-triangle-backcurve-s",
+     "target": "arrow-triangle-backcurve-t",
+     "lbl": "arrow-triangle-backcurve",
+     "w": 3
+    },
+    "classes": "arrow-triangle-backcurve"
+   },
+   {
+    "data": {
+     "id": "e15",
+     "source": "arrow-vee-s",
+     "target": "arrow-vee-t",
+     "lbl": "arrow-vee",
+     "w": 4
+    },
+    "classes": "arrow-vee"
+   },
+   {
+    "data": {
+     "id": "e16",
+     "source": "arrow-square-s",
+     "target": "arrow-square-t",
+     "lbl": "arrow-square",
+     "w": 5
+    },
+    "classes": "arrow-square"
+   },
+   {
+    "data": {
+     "id": "e17",
+     "source": "arrow-circle-s",
+     "target": "arrow-circle-t",
+     "lbl": "arrow-circle",
+     "w": 6
+    },
+    "classes": "arrow-circle"
+   },
+   {
+    "data": {
+     "id": "e18",
+     "source": "arrow-diamond-s",
+     "target": "arrow-diamond-t",
+     "lbl": "arrow-diamond",
+     "w": 7
+    },
+    "classes": "arrow-diamond"
+   },
+   {
+    "data": {
+     "id": "e19",
+     "source": "arrow-chevron-s",
+     "target": "arrow-chevron-t",
+     "lbl": "arrow-chevron",
+     "w": 8
+    },
+    "classes": "arrow-chevron"
+   },
+   {
+    "data": {
+     "id": "e20",
+     "source": "arrow-hollow-s",
+     "target": "arrow-hollow-t",
+     "lbl": "arrow-hollow",
+     "w": 9
+    },
+    "classes": "arrow-hollow"
+   },
+   {
+    "data": {
+     "id": "e21",
+     "source": "arrow-mid-s",
+     "target": "arrow-mid-t",
+     "lbl": "arrow-mid",
+     "w": 10
+    },
+    "classes": "arrow-mid"
+   },
+   {
+    "data": {
+     "id": "e22",
+     "source": "arrow-small-s",
+     "target": "arrow-small-t",
+     "lbl": "arrow-small",
+     "w": 0
+    },
+    "classes": "arrow-small"
+   },
+   {
+    "data": {
+     "id": "e23",
+     "source": "dashed-s",
+     "target": "dashed-t",
+     "lbl": "dashed",
+     "w": 1
+    },
+    "classes": "dashed"
+   },
+   {
+    "data": {
+     "id": "e24",
+     "source": "dotted-s",
+     "target": "dotted-t",
+     "lbl": "dotted",
+     "w": 2
+    },
+    "classes": "dotted"
+   },
+   {
+    "data": {
+     "id": "e25",
+     "source": "thick-s",
+     "target": "thick-t",
+     "lbl": "thick",
+     "w": 3
+    },
+    "classes": "thick"
+   },
+   {
+    "data": {
+     "id": "e26",
+     "source": "hsl-s",
+     "target": "hsl-t",
+     "lbl": "hsl",
+     "w": 4
+    },
+    "classes": "hsl"
+   },
+   {
+    "data": {
+     "id": "e27",
+     "source": "opacity-s",
+     "target": "opacity-t",
+     "lbl": "opacity",
+     "w": 5
+    },
+    "classes": "opacity"
+   },
+   {
+    "data": {
+     "id": "e28",
+     "source": "line-opacity-s",
+     "target": "line-opacity-t",
+     "lbl": "line-opacity",
+     "w": 6
+    },
+    "classes": "line-opacity"
+   },
+   {
+    "data": {
+     "id": "e29",
+     "source": "gradient-s",
+     "target": "gradient-t",
+     "lbl": "gradient",
+     "w": 7
+    },
+    "classes": "gradient"
+   },
+   {
+    "data": {
+     "id": "e30",
+     "source": "label-s",
+     "target": "label-t",
+     "lbl": "label",
+     "w": 8
+    },
+    "classes": "label"
+   },
+   {
+    "data": {
+     "id": "e31",
+     "source": "label-auto-s",
+     "target": "label-auto-t",
+     "lbl": "label-auto",
+     "w": 9
+    },
+    "classes": "label-auto"
+   },
+   {
+    "data": {
+     "id": "e32",
+     "source": "label-ends-s",
+     "target": "label-ends-t",
+     "lbl": "label-ends",
+     "w": 10
+    },
+    "classes": "label-ends"
+   },
+   {
+    "data": {
+     "id": "e33",
+     "source": "label-margin-s",
+     "target": "label-margin-t",
+     "lbl": "label-margin",
+     "w": 0
+    },
+    "classes": "label-margin"
+   },
+   {
+    "data": {
+     "id": "e34",
+     "source": "hidden-s",
+     "target": "hidden-t",
+     "lbl": "hidden",
+     "w": 1
+    },
+    "classes": "hidden"
+   },
+   {
+    "data": {
+     "id": "e35",
+     "source": "none-s",
+     "target": "none-t",
+     "lbl": "none",
+     "w": 2
+    },
+    "classes": "none"
+   },
+   {
+    "data": {
+     "id": "e36",
+     "source": "z-s",
+     "target": "z-t",
+     "lbl": "z",
+     "w": 3
+    },
+    "classes": "z"
+   },
+   {
+    "data": {
+     "id": "e37",
+     "source": "mapped-w-s",
+     "target": "mapped-w-t",
+     "lbl": "mapped-w",
+     "w": 4
+    },
+    "classes": "mapped-w"
+   },
+   {
+    "data": {
+     "id": "e38",
+     "source": "loop",
+     "target": "loop"
+    },
+    "classes": "loop"
+   },
+   {
+    "data": {
+     "id": "e39",
+     "source": "loop",
+     "target": "loop"
+    },
+    "classes": "loop2"
+   },
+   {
+    "data": {
+     "id": "e40",
+     "source": "p1",
+     "target": "p2",
+     "w": 0
+    },
+    "classes": "par"
+   },
+   {
+    "data": {
+     "id": "e41",
+     "source": "p1",
+     "target": "p2",
+     "w": 1
+    },
+    "classes": "par"
+   },
+   {
+    "data": {
+     "id": "e42",
+     "source": "p1",
+     "target": "p2",
+     "w": 2
+    },
+    "classes": "par"
+   },
+   {
+    "data": {
+     "id": "e43",
+     "source": "p1",
+     "target": "p2",
+     "w": 3
+    },
+    "classes": "par"
+   },
+   {
+    "data": {
+     "id": "e44",
+     "source": "g0m0",
+     "target": "g0m1"
+    },
+    "classes": "member"
+   },
+   {
+    "data": {
+     "id": "e45",
+     "source": "g0m1",
+     "target": "g0m2"
+    },
+    "classes": "member"
+   },
+   {
+    "data": {
+     "id": "e46",
+     "source": "g0m2",
+     "target": "g0m3"
+    },
+    "classes": "member"
+   },
+   {
+    "data": {
+     "id": "e47",
+     "source": "g0m3",
+     "target": "g0m4"
+    },
+    "classes": "member"
+   },
+   {
+    "data": {
+     "id": "e48",
+     "source": "g1m0",
+     "target": "g1m1"
+    },
+    "classes": "member"
+   },
+   {
+    "data": {
+     "id": "e49",
+     "source": "g1m1",
+     "target": "g1m2"
+    },
+    "classes": "member"
+   },
+   {
+    "data": {
+     "id": "e50",
+     "source": "g1m2",
+     "target": "g1m3"
+    },
+    "classes": "member"
+   },
+   {
+    "data": {
+     "id": "e51",
+     "source": "g1m3",
+     "target": "g1m4"
+    },
+    "classes": "member"
+   },
+   {
+    "data": {
+     "id": "e52",
+     "source": "g2m0",
+     "target": "g2m1"
+    },
+    "classes": "member"
+   },
+   {
+    "data": {
+     "id": "e53",
+     "source": "g2m1",
+     "target": "g2m2"
+    },
+    "classes": "member"
+   },
+   {
+    "data": {
+     "id": "e54",
+     "source": "g2m2",
+     "target": "g2m3"
+    },
+    "classes": "member"
+   },
+   {
+    "data": {
+     "id": "e55",
+     "source": "g2m3",
+     "target": "g2m4"
+    },
+    "classes": "member"
+   },
+   {
+    "data": {
+     "id": "e56",
+     "source": "g0m0",
+     "target": "g1m0"
+    },
+    "classes": "cross"
+   },
+   {
+    "data": {
+     "id": "e57",
+     "source": "g1",
+     "target": "g2"
+    },
+    "classes": "between"
+   }
+  ]
+ },
+ "style": "node { label: data(id); width: 24; height: 24; background-color: #9ecae1; font-size: 9; }\nedge { width: 2; line-color: #555; curve-style: bezier; }\nedge.curve-bezier { curve-style: bezier; }\nedge.curve-unbundled-bezier { curve-style: unbundled-bezier; control-point-distances: 40 -40; control-point-weights: 0.25 0.75; }\nedge.curve-segments { curve-style: segments; segment-distances: 30 -30; segment-weights: 0.3 0.7; }\nedge.curve-taxi { curve-style: taxi; taxi-direction: downward; taxi-turn: 50%; }\nedge.curve-round-taxi { curve-style: round-taxi; taxi-direction: horizontal; taxi-radius: 10; }\nedge.curve-round-segments { curve-style: round-segments; segment-distances: 30; segment-weights: 0.5; segment-radius: 10; }\nedge.curve-straight { curve-style: straight; }\nedge.curve-straight-triangle { curve-style: straight-triangle; }\nedge.curve-haystack { curve-style: haystack; haystack-radius: 0.5; }\nedge.arrow-tee { target-arrow-shape: tee; source-arrow-shape: tee; target-arrow-color: red; source-arrow-color: blue; }\nedge.arrow-triangle { target-arrow-shape: triangle; source-arrow-shape: triangle; target-arrow-color: red; source-arrow-color: blue; }\nedge.arrow-triangle-tee { target-arrow-shape: triangle-tee; source-arrow-shape: triangle-tee; target-arrow-color: red; source-arrow-color: blue; }\nedge.arrow-circle-triangle { target-arrow-shape: circle-triangle; source-arrow-shape: circle-triangle; target-arrow-color: red; source-arrow-color: blue; }\nedge.arrow-triangle-cross { target-arrow-shape: triangle-cross; source-arrow-shape: triangle-cross; target-arrow-color: red; source-arrow-color: blue; }\nedge.arrow-triangle-backcurve { target-arrow-shape: triangle-backcurve; source-arrow-shape: triangle-backcurve; target-arrow-color: red; source-arrow-color: blue; }\nedge.arrow-vee { target-arrow-shape: vee; source-arrow-shape: vee; target-arrow-color: red; source-arrow-color: blue; }\nedge.arrow-square { target-arrow-shape: square; source-arrow-shape: square; target-arrow-color: red; source-arrow-color: blue; }\nedge.arrow-circle { target-arrow-shape: circle; source-arrow-shape: circle; target-arrow-color: red; source-arrow-color: blue; }\nedge.arrow-diamond { target-arrow-shape: diamond; source-arrow-shape: diamond; target-arrow-color: red; source-arrow-color: blue; }\nedge.arrow-chevron { target-arrow-shape: chevron; source-arrow-shape: chevron; target-arrow-color: red; source-arrow-color: blue; }\nedge.arrow-hollow { target-arrow-shape: triangle; target-arrow-fill: hollow; arrow-scale: 2; }\nedge.arrow-mid { mid-target-arrow-shape: triangle; mid-source-arrow-shape: circle; }\nedge.arrow-small { target-arrow-shape: vee; arrow-scale: 0.5; }\nedge.dashed { line-style: dashed; line-dash-pattern: 8 4; width: 3; }\nedge.dotted { line-style: dotted; width: 4; }\nedge.thick { width: 10; line-color: rgba(200,0,0,0.5); }\nedge.hsl { line-color: hsl(200,80%,40%); width: 3; }\nedge.opacity { opacity: 0.3; width: 6; line-color: black; }\nedge.line-opacity { line-opacity: 0.5; width: 6; }\nedge.gradient { line-fill: linear-gradient; line-gradient-stop-colors: cyan magenta; width: 5; }\nedge.label { label: data(lbl); font-size: 12; color: #c00; }\nedge.label-auto { label: data(lbl); edge-text-rotation: autorotate; text-background-color: #ff0; text-background-opacity: 1; }\nedge.label-ends { source-label: src; target-label: tgt; source-text-offset: 20; target-text-offset: 20; }\nedge.label-margin { label: data(lbl); text-margin-y: -10; text-outline-width: 2; text-outline-color: #fff; }\nedge.hidden { visibility: hidden; }\nedge.none { display: none; }\nedge.z { z-index: 99; width: 8; line-color: orange; }\nedge.mapped-w { width: mapData(w, 0, 10, 1, 12); line-color: mapData(w, 0, 10, green, purple); }\nedge.loop { loop-direction: -45deg; loop-sweep: 30deg; line-color: #2ca02c; }\nedge.loop2 { loop-direction: 90deg; line-color: #d62728; }\nedge.par { control-point-step-size: 20; target-arrow-shape: triangle; }\n:parent { background-opacity: 0.2; padding: 15; label: data(label); text-valign: top; border-width: 2; }\nnode.grp0 { background-color: #1f77b4; shape: round-rectangle; border-style: dashed; }\nnode.grp1 { background-color: #ff7f0e; shape: barrel; }\nnode.grp2 { background-color: #2ca02c; border-color: #000; compound-sizing-wrt-labels: include; }\nnode.inner { background-color: #d62728; padding: 5; }\nedge.cross { line-color: purple; width: 3; target-arrow-shape: triangle; }\nedge.between { line-color: gray; width: 6; line-style: dashed; }\nnode:childless[id ^= 'g1'] { shape: hexagon; }"
+}

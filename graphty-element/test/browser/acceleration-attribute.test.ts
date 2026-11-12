@@ -18,7 +18,7 @@
  */
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, test, vi } from "vitest";
+import { afterAll, afterEach, assert, beforeAll, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import {
@@ -78,12 +78,9 @@ function yieldToEventLoop(): Promise<void> {
  * @param what - Named in the failure message when it never becomes true.
  */
 async function until(predicate: () => boolean, what: string): Promise<void> {
-    await vi.waitFor(
-        () => {
-            assert.isTrue(predicate(), `waiting for ${what}`);
-        },
-        { timeout: 3000 },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(predicate(), `waiting for ${what}`);
+    });
 }
 
 /**
@@ -170,6 +167,16 @@ async function mount(attributes: Record<string, string> = {}): Promise<Mounted> 
 
     return { element, container, events, bubbled };
 }
+
+// These tests count acceleration transitions. With WebXR present the element's one XR probe
+// also publishes a capabilities event, so the browser's WebXR is hidden here.
+beforeAll(() => {
+    Object.defineProperty(navigator, "xr", { value: undefined, configurable: true });
+});
+
+afterAll(() => {
+    Reflect.deleteProperty(navigator, "xr");
+});
 
 afterEach(async () => {
     while (containers.length > 0) {

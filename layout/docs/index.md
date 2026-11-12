@@ -1,8 +1,8 @@
 ---
+title: layout
 layout: home
 
 hero:
-    name: layout
     text: Graph Layouts
     tagline: 15 2D and 3D graph layouts over compact graph snapshots, ported from NetworkX, plus steppable force simulations
     actions:

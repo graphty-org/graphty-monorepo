@@ -71,8 +71,11 @@ export interface ArrangementEngine {
      *     False for a forward `positions.set`: the engine keeps running if it was.
      * @param wrote - Whether anything was written into the lane; when nothing was, every row the
      *     graph held before holds what it did, and only rows the graph just gained are new.
+     * @param byReader - Whether the reader asked for the restore (undo, redo, a history jump), so
+     *     the layout stays at rest; false for a rollback, which puts back what a failed or
+     *     overtaken command wrote and leaves a layout that was running free to run on.
      */
-    loadArrangement(restoring: boolean, wrote: boolean): void;
+    loadArrangement(restoring: boolean, wrote: boolean, byReader: boolean): void;
     /**
      * A node was pinned or released; the lane's pin byte is already written.
      * @param id - The node.
@@ -199,6 +202,8 @@ export class Arrangement {
     private written = false;
     private readonly ops: ArrangementOp[] = [];
     private readonly strict = strictStateEnabled();
+    /** Told each time a seal recorded where the lane came to rest: a layout at rest, a drag's end. */
+    readonly sealed = new Set<() => void>();
 
     /**
      * The arrangement over a dispatcher's state, lane and history.
@@ -228,7 +233,8 @@ export class Arrangement {
                 onPlane(source.positions.view(source.snapshot().nodeCount))
             ) {
                 source.positions.moved();
-                this.engine?.loadArrangement(this.lane.cause !== "command", false);
+                const { cause } = this.lane;
+                this.engine?.loadArrangement(cause !== "command", false, cause !== "command" && cause !== "rollback");
             }
         });
     }
@@ -288,6 +294,9 @@ export class Arrangement {
             const capture = this.capture();
             if (capture !== null) {
                 this.history.seal(capture);
+                for (const listener of this.sealed) {
+                    listener();
+                }
             }
         }
     }
@@ -538,55 +547,11 @@ export class Arrangement {
      * @param restoring - Whether a history call or a rollback queued them.
      */
     private apply(restoring: boolean): void {
+        const byReader = restoring && this.lane.cause !== "rollback";
         const ops = this.ops.splice(0);
         const { source } = this;
         if (source !== null && ops.length > 0) {
-            const snapshot = source.snapshot();
-            const lane = source.positions.view(snapshot.nodeCount);
-            // A capture restores every row it holds, so what came before it is overwritten.
-            let from = ops.length - 1;
-            while (from > 0 && !("capture" in ops[from])) {
-                from--;
-            }
-
-            let exact: ArrangementCapture | null = null;
-            // The rows a capture that is not whole, and the patches after it, write. Every other
-            // row was unplaced in the arrangement restored: it arrived after the capture and
-            // nothing the history holds placed it (a rest point seals a placement into the step
-            // that added the row or a later one), so it goes back to unplaced.
-            let covered: Uint8Array | null = null;
-            for (const op of ops.slice(from)) {
-                if ("capture" in op) {
-                    const whole =
-                        op.capture.token === this.state.graph.token && op.capture.ids.length === snapshot.nodeCount;
-                    covered = whole ? null : new Uint8Array(snapshot.nodeCount);
-                    writeCapture(op.capture, snapshot, lane, this.state.graph.token, covered);
-                    (this.state as { arrangement: ArrangementCapture | null }).arrangement = op.capture;
-                    exact = whole ? op.capture : null;
-                } else {
-                    writePatch(op.patch, op.forward, snapshot, lane, covered);
-                    exact = null;
-                }
-            }
-
-            if (covered !== null) {
-                covered.forEach((written, row) => {
-                    if (written === 0) {
-                        lane.fill(Number.NaN, POSITION_COMPONENTS * row, POSITION_COMPONENTS * row + 3);
-                    }
-                });
-            }
-
-            // A 2D position puts every node on the Z = 0 plane, whatever Z the history holds for it:
-            // the orthographic camera hides a Z, but a node's edges are drawn through it. The
-            // history keeps the Z, so returning to a 3D position brings it back.
-            if (this.flat && onPlane(lane)) {
-                exact = null;
-            }
-
-            source.positions.moved();
-            this.captured = source.positions.changes;
-            this.exact = exact;
+            this.writeOps(source, ops);
         }
 
         // The engine taking the lane may write it back unchanged; that is not a move. A layout
@@ -594,10 +559,58 @@ export class Arrangement {
         const atRest = !this.moved;
         const wrote = this.written || (source !== null && ops.length > 0);
         this.written = false;
-        this.engine?.loadArrangement(restoring, wrote);
+        this.engine?.loadArrangement(restoring, wrote, byReader);
         if (atRest) {
             this.captured = source?.positions.changes ?? 0;
         }
+    }
+
+    /**
+     * Write queued ops into the lane: from the last capture on, then every unwritten row of a
+     * partial capture back to unplaced.
+     * @param source - The lane's source.
+     * @param ops - The ops, in the order queued; not empty.
+     */
+    private writeOps(source: LaneSource, ops: readonly ArrangementOp[]): void {
+        const snapshot = source.snapshot();
+        const lane = source.positions.view(snapshot.nodeCount);
+        // A capture restores every row it holds, so what came before it is overwritten.
+        const from = lastCaptureAt(ops);
+
+        let exact: ArrangementCapture | null = null;
+        // The rows a capture that is not whole, and the patches after it, write. Every other
+        // row was unplaced in the arrangement restored: it arrived after the capture and
+        // nothing the history holds placed it (a rest point seals a placement into the step
+        // that added the row or a later one), so it goes back to unplaced.
+        let covered: Uint8Array | null = null;
+        for (const op of ops.slice(from)) {
+            if ("capture" in op) {
+                const whole =
+                    op.capture.token === this.state.graph.token && op.capture.ids.length === snapshot.nodeCount;
+                covered = whole ? null : new Uint8Array(snapshot.nodeCount);
+                writeCapture(op.capture, snapshot, lane, this.state.graph.token, covered);
+                (this.state as { arrangement: ArrangementCapture | null }).arrangement = op.capture;
+                exact = whole ? op.capture : null;
+            } else {
+                writePatch(op.patch, op.forward, snapshot, lane, covered);
+                exact = null;
+            }
+        }
+
+        if (covered !== null) {
+            unplaceUncovered(covered, lane);
+        }
+
+        // A 2D position puts every node on the Z = 0 plane, whatever Z the history holds for it:
+        // the orthographic camera hides a Z, but a node's edges are drawn through it. The
+        // history keeps the Z, so returning to a 3D position brings it back.
+        if (this.flat && onPlane(lane)) {
+            exact = null;
+        }
+
+        source.positions.moved();
+        this.captured = source.positions.changes;
+        this.exact = exact;
     }
 
     /**
@@ -702,6 +715,33 @@ function writeCapture(
                 capture.coords.subarray(POSITION_COMPONENTS * from, POSITION_COMPONENTS * from + 3),
                 POSITION_COMPONENTS * row,
             );
+        }
+    });
+}
+
+/**
+ * Where the last capture among queued ops is, or 0 when there is none after the first op.
+ * @param ops - The ops, in the order queued; not empty.
+ * @returns The index to write from.
+ */
+function lastCaptureAt(ops: readonly ArrangementOp[]): number {
+    let from = ops.length - 1;
+    while (from > 0 && !("capture" in ops[from])) {
+        from--;
+    }
+
+    return from;
+}
+
+/**
+ * Put every row a partial capture and the patches after it did not write back to unplaced.
+ * @param covered - One byte per row: nonzero for a row written.
+ * @param lane - The position lane.
+ */
+function unplaceUncovered(covered: Uint8Array, lane: Float32Array): void {
+    covered.forEach((written, row) => {
+        if (written === 0) {
+            lane.fill(Number.NaN, POSITION_COMPONENTS * row, POSITION_COMPONENTS * row + 3);
         }
     });
 }

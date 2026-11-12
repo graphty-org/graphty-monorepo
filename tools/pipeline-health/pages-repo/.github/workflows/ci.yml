@@ -1,0 +1,33 @@
+name: Check the published site
+
+# The site on gh-pages is pushed by graphty-monorepo's pipeline-health-pages.yml. This checks that what
+# GitHub Pages serves holds the page (index.html) and the custom domain (CNAME health.graphty.app).
+# A push to gh-pages runs gh-pages' own workflows (it has none), so this runs on main, daily and by hand.
+
+on:
+    push:
+        branches: [main]
+    schedule:
+        - cron: "17 6 * * *"
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: check-site
+    cancel-in-progress: true
+
+jobs:
+    check:
+        name: gh-pages holds index.html and CNAME
+        runs-on: ubuntu-24.04
+        timeout-minutes: 5
+        steps:
+            - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+              with: { ref: gh-pages }
+            - name: Check
+              run: |
+                  test -f index.html || { echo "::error::gh-pages has no index.html"; exit 1; }
+                  test "$(tr -d '[:space:]' < CNAME)" = health.graphty.app || { echo "::error::CNAME is not health.graphty.app"; exit 1; }
+                  echo "gh-pages holds index.html and CNAME health.graphty.app"

@@ -45,6 +45,7 @@ import {
     UNKNOWN_ENCODING_CODE,
     UNKNOWN_PARENT_CODE,
     UNKNOWN_XML_ATTRIBUTE_CODE,
+    XML_NESTING_CODE,
     XML_SYNTAX_CODE,
 } from "../../common/codes.js";
 
@@ -128,6 +129,17 @@ export const TARGET_PORT_COLUMN = "targetport";
 export const PARENT_COLUMN = "parent";
 
 /**
+ * The json node column that keeps the yFiles data of a node's `<port>` elements: one entry per port, its `name` and
+ * each of its yFiles values by its key's name (yEd Live's `PortLocationParameter` and `PortStyle`). Its `extra.portKeys`
+ * holds each key's yFiles type (its `yfiles.type` or `y:attr.uri`) by that name, so a save writes the ports back.
+ * @category Plugin helpers
+ */
+export const PORTS_COLUMN = "ports";
+
+/** The ports column's `extra` entry holding each port key's yFiles type by its name. */
+export const PORT_KEYS_EXTRA = "portKeys";
+
+/**
  * The bool node column marking the hub nodes synthesized for hyperedges under `hyperedges: "star"`.
  * @category Plugin helpers
  */
@@ -190,6 +202,8 @@ export const GRAPHML_ISSUE = Object.freeze({
     COLUMN_TYPE: COLUMN_TYPE_CODE,
     /** The input is not well-formed XML. The import stops. */
     XML_SYNTAX: XML_SYNTAX_CODE,
+    /** Elements are nested more than 100,000 deep. The import stops. */
+    XML_NESTING: XML_NESTING_CODE,
     /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
     /**
@@ -215,7 +229,7 @@ export const GRAPHML_ISSUE = Object.freeze({
     KEY_MISSING_ID: "E_GRAPHML_KEY_MISSING_ID",
     /** Two `<key>` elements with the same id. */
     DUPLICATE_KEY: DUPLICATE_KEY_CODE,
-    /** A key declared for hyperedges, ports or endpoints (never used). */
+    /** A key declared for hyperedges, ports or endpoints (never used), other than a yFiles port key. */
     KEY_DOMAIN_UNSUPPORTED: "W_GRAPHML_KEY_DOMAIN_UNSUPPORTED",
     /** A `<node>` without an id. */
     MISSING_ID: MISSING_ID_CODE,
@@ -245,6 +259,8 @@ export const GRAPHML_ISSUE = Object.freeze({
     HYPEREDGE_DATA_DROPPED: "W_GRAPHML_HYPEREDGE_DATA_DROPPED",
     /** Nested elements in the `<data>` of a typed (non-yfiles) key. */
     DATA_NESTED: "E_GRAPHML_DATA_NESTED",
+    /** Nested elements in the `<data>` of an untyped key; they are kept as their XML text. */
+    DATA_STRUCTURED: "W_GRAPHML_DATA_STRUCTURED",
     /** A `<node>` declared twice. */
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
     /** An edge id already used by another edge. */
@@ -275,7 +291,10 @@ export const GRAPHML_ISSUE = Object.freeze({
     HYPEREDGE_SKIPPED: "W_GRAPHML_HYPEREDGE_SKIPPED",
     /** An endpoint of a hyperedge without a node, or with an unknown type. */
     HYPEREDGE_ENDPOINT: "E_GRAPHML_HYPEREDGE_ENDPOINT",
-    /** `<port>` declarations (and their data) are not kept; sourceport / targetport edge attributes are. */
+    /**
+     * `<port>` declarations are not kept as ports; sourceport / targetport edge attributes are, and a port's yFiles
+     * data is kept in its node's `ports` column.
+     */
     PORT_DECLARATION: "W_GRAPHML_PORT_DECLARATION",
     /** A `sourceport` / `targetport` naming a port its node does not declare (once, with the count). */
     DANGLING_REFERENCE: DANGLING_REFERENCE_CODE,
@@ -369,6 +388,11 @@ export const GRAPHML_LOSS = Object.freeze({
     EDGE_ID_TEXT: "W_GRAPHML_EDGE_ID_TEXT",
     /** A `yfiles.*` graphics column that no longer matches its yFiles tree: only the tree is written. */
     YFILES_GRAPHICS_STALE: "W_GRAPHML_YFILES_GRAPHICS_STALE",
+    /**
+     * Port values of a node's `ports` column a save cannot write back as `<port>` data: a value under a name with no
+     * yFiles key type in the column's `extra.portKeys`, a value that is not an XML tree, or an entry with no name.
+     */
+    PORTS_DROPPED: "W_GRAPHML_PORTS_DROPPED",
     /** A yEd graphics value that is not valid XML; the save fails with E_COLUMN_TYPE. */
     YFILES_TREE: "E_GRAPHML_YFILES_TREE",
 });

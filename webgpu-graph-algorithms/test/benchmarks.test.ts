@@ -436,7 +436,9 @@ describe("scripts/bench-compare.js (contract 6.8; spec 10.4 T-13)", () => {
         expect(over.status).toBe(1);
 
         // A baseline written before minMs existed: the median alone decides, as it did before this rule.
-        const legacy = JSON.stringify([session([result("a", 10)])], (k, v) => (k === "minMs" ? undefined : v));
+        const legacy = JSON.stringify([session([result("a", 10)])], (k: string, v: unknown) =>
+            k === "minMs" ? undefined : v,
+        );
         const fallback = run({
             "gpu-report.json": quiet,
             [`benchmarks/results/${CLASS}.json`]: legacy,

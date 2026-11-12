@@ -1,33 +1,13 @@
-import { Matrix, NullEngine, Quaternion, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { NullEngine, Scene, ShaderMaterial, Vector3 } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
-import { EdgeLineBatch, segmentMatrixToRef } from "../../src/meshes/EdgeLineBatch";
+import { JOIN_TEMPLATE_POSITIONS } from "../../src/meshes/edgeJoinShader";
+import { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import { Simple2DLineRenderer } from "../../src/meshes/Simple2DLineRenderer";
 
-/**
- * The four corners the per-edge 2D line drew before it was batched: a unit rectangle in the XY
- * plane scaled to (length, width), turned about Z to the line's angle and put at its middle.
- * @param start - Where the line starts.
- * @param end - Where it ends.
- * @param width - How wide it is.
- * @returns The corners, in world units.
- */
-function perEdgeCorners(start: Vector3, end: Vector3, width: number): Vector3[] {
-    const direction = end.subtract(start);
-    const world = Matrix.Compose(
-        new Vector3(direction.length(), width, 1),
-        Quaternion.RotationAxis(Vector3.Forward(), Math.atan2(direction.y, direction.x)),
-        start.add(end).scale(0.5),
-    );
-
-    return [
-        [0.5, 0.5],
-        [0.5, -0.5],
-        [-0.5, -0.5],
-        [-0.5, 0.5],
-    ].map(([x, y]) => Vector3.TransformCoordinates(new Vector3(x, y, 0), world));
-}
-
+// What a 2D line draws on screen -- the rectangle of a straight edge, the joins of a bent one -- is
+// held by the pixels in test/browser/edge-corner-joins.test.ts. These hold what the batch is built
+// from and what a slot records.
 describe("Simple2DLineRenderer", () => {
     let scene: Scene;
 
@@ -35,79 +15,35 @@ describe("Simple2DLineRenderer", () => {
         scene = new Scene(new NullEngine());
     });
 
-    test("builds one rectangle with its own material, marked as a 2D line", () => {
-        const mesh = Simple2DLineRenderer.createBatchMesh(0.1, "#ff0000", 0.5, scene);
-
-        assert.strictEqual(mesh.getTotalVertices(), 4, "a rectangle");
-        assert.strictEqual(mesh.metadata?.is2DLine, true);
-        assert.isNotNull(mesh.material);
-        assert.strictEqual(mesh.material.alpha, 0.5, "the opacity is the material's");
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
-    // The batch places every 2D line with the 3D line's slot matrix. This holds that the corners
-    // it draws are the corners the per-edge mesh drew, for lines at every angle, so batching the
-    // 2D line moved no pixel.
-    for (const [name, end] of [
-        ["horizontal", new Vector3(3, 1, 0)],
-        ["vertical", new Vector3(1, 4, 0)],
-        ["diagonal", new Vector3(3, 3, 0)],
-        ["backwards", new Vector3(-2, -0.5, 0)],
-        ["straight down", new Vector3(1, -2, 0)],
-    ] as const) {
-        test(`a slot draws the per-edge rectangle for a ${name} line`, () => {
-            const start = new Vector3(1, 1, 0);
-            const width = 0.2;
-            const mesh = Simple2DLineRenderer.createBatchMesh(width, "#ff0000", 1, scene);
-            const slot = new Matrix();
-            segmentMatrixToRef(start, end, slot);
+    test("builds the joined line template, its width in world units, marked as a 2D line", () => {
+        const mesh = Simple2DLineRenderer.createBatchMesh(0.1, "#ff0000", 0.5, scene);
 
-            const positions = mesh.getVerticesData("position");
-            assert.isNotNull(positions);
-            const drawn = [0, 1, 2, 3].map((i) =>
-                Vector3.TransformCoordinates(Vector3.FromArray(positions, i * 3), slot),
-            );
+        assert.strictEqual(mesh.getTotalVertices(), JOIN_TEMPLATE_POSITIONS.length / 3);
+        assert.strictEqual(mesh.metadata?.is2DLine, true);
+        assert.strictEqual(mesh.metadata?.joinedLine, true);
+        assert.strictEqual(mesh.metadata?.lineWidth, 0.1);
+        assert.strictEqual(mesh.metadata?.lineOpacity, 0.5);
+        assert.instanceOf(mesh.material, ShaderMaterial);
+        assert.include(mesh.material.options.defines, "#define WORLD_WIDTH");
+        assert.strictEqual(mesh.visibility, 0.5, "a translucent line is drawn in the transparent pass");
+    });
 
-            for (const corner of perEdgeCorners(start, end, width)) {
-                assert.isTrue(
-                    drawn.some((point) => point.equalsWithEpsilon(corner, 1e-5)),
-                    `corner ${corner.toString()} is drawn; the slot drew ${drawn.map(String).join(" ")}`,
-                );
-            }
-        });
-    }
+    test("a slot records the ends it was placed at, and a straight line has no neighbours", () => {
+        const batch = new EdgeLineBatch(Simple2DLineRenderer.createBatchMesh(0.2, "#ff0000", 1, scene), scene);
+        const slot = batch.acquire();
+        const start = new Vector3(1, 1, 0);
+        const end = new Vector3(4, 5, 0);
+        batch.place(slot, start, end);
 
-    // The quad lies in XY and the camera looks down Z, so a Z on an endpoint must neither stretch
-    // the line past its nodes nor tilt the slot: tilted, a line running along Y collapses to nothing.
-    for (const [name, end] of [
-        ["diagonal", new Vector3(4, 5, 20)],
-        ["along Y", new Vector3(1, 4, 20)],
-    ] as const) {
-        test(`a Z on an endpoint leaves a ${name} line flat, as long as the XY distance`, () => {
-            const start = new Vector3(1, 1, 0);
-            const width = 0.2;
-            const batch = new EdgeLineBatch(Simple2DLineRenderer.createBatchMesh(width, "#ff0000", 1, scene), scene);
-            const slot = batch.acquire();
-            batch.place(slot, start, end);
-
-            assert.closeTo(batch.lengthOf(slot), Math.hypot(end.x - start.x, end.y - start.y), 1e-6);
-
-            const positions = batch.mesh.getVerticesData("position");
-            assert.isNotNull(positions);
-            const matrix = batch.mesh.thinInstanceGetWorldMatrices()[slot];
-            const drawn = [0, 1, 2, 3].map((i) =>
-                Vector3.TransformCoordinates(Vector3.FromArray(positions, i * 3), matrix),
-            );
-            const z = (start.z + end.z) / 2;
-            for (const corner of perEdgeCorners(
-                new Vector3(start.x, start.y, z),
-                new Vector3(end.x, end.y, z),
-                width,
-            )) {
-                assert.isTrue(
-                    drawn.some((point) => point.equalsWithEpsilon(corner, 1e-5)),
-                    `corner ${corner.toString()} is drawn; the slot drew ${drawn.map(String).join(" ")}`,
-                );
-            }
-        });
-    }
+        const [a, b] = batch.endsOf(slot);
+        assert.isTrue(a.equalsWithEpsilon(start, 1e-6));
+        assert.isTrue(b.equalsWithEpsilon(end, 1e-6));
+        assert.closeTo(batch.lengthOf(slot), 5, 1e-6);
+        assert.strictEqual(batch.drawnCount, 1);
+        assert.strictEqual(batch.mesh.forcedInstanceCount, 1, "one instance, not a thin instance");
+    });
 });

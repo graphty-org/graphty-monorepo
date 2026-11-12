@@ -14,9 +14,10 @@
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import type { GraphSelectionStyleInput } from "../src/config";
+import type { Graphty } from "../src/graphty-element";
 // Importing the module is what defines the <graphty-element> custom element, so this line is
 // load-bearing even though only the type is named.
-import { assertGraphLoaded, type Drawn, drawn, holds, renderedElement } from "./assertions";
+import { assertGraphLoaded, type Drawn, drawn, eventually, holds, renderedElement } from "./assertions";
 import { eventWaitingDecorator, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
 
 /** Five nodes, far enough apart that a halo around one is a halo around one. */
@@ -33,13 +34,12 @@ const EDGES = [
 /** The node every story selects, so the pictures differ only in the halo. */
 const SELECTED = "gamma";
 
-/** How long to leave for the halo to reach the frame after a selection or a restyle. */
-const SETTLE_MS = 400;
-
 /** What a story's args carry: the element's properties plus the highlight to set. */
 interface HighlightArgs {
     /** What a selected node should look like, or undefined to leave the element's own. */
     selectionStyle?: GraphSelectionStyleInput;
+    /** The shape every node is drawn in, or undefined for the element's own. */
+    shape?: "box";
 }
 
 /**
@@ -58,6 +58,16 @@ function render(args: HighlightArgs): Element {
 
     if (args.selectionStyle) {
         element.selectionStyle = args.selectionStyle;
+    }
+
+    if (args.shape) {
+        // Through a style layer, like any node appearance. Queued until the element is ready.
+        void element.session.styles.add({
+            name: `every node a ${args.shape}`,
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shape": args.shape },
+        });
     }
 
     element.nodeData = NODES;
@@ -102,7 +112,8 @@ async function selected(canvasElement: HTMLElement, story: string): Promise<Draw
     await assertGraphLoaded(scene, { nodes: 5, edges: 4 });
 
     scene.graph.selectNode(SELECTED);
-    await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+    // The halo reaches the frame: the picture once the selection has been drawn.
+    await scene.element.waitForStableFrame();
 
     return scene;
 }
@@ -140,7 +151,11 @@ function haloOnScreen(scene: Drawn): { color: string; alpha: number; clearance: 
     // MEASURED AGAINST THE NODE, never as a raw scaling number. The halo used to be drawn
     // smaller than the node it rings, so it was inside it and invisible -- and a scaling of 1.45
     // looked perfectly correct while that was true.
-    return { color: lit.emissiveColor.toHexString(), alpha: lit.alpha, clearance: of(mesh) / of(node.mesh) };
+    return {
+        color: lit.emissiveColor.toHexString(),
+        alpha: lit.alpha,
+        clearance: of(mesh) / of({ getBoundingInfo: () => node.drawnBoundingInfo }),
+    };
 }
 
 /**
@@ -223,8 +238,62 @@ export const RestyledWhileSelected: Story = {
 
         const element = await renderedElement(canvasElement, "RestyledWhileSelected: no <graphty-element> rendered");
         element.selectionStyle = { color: "#7CB342", scale: 2, opacity: 0.7 };
-        await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+        // The new style reaches the halo on a later pass, and the stable frame is the one that draws it.
+        await element.waitForStableFrame();
 
         await assertHalo(scene, { color: "#7CB342", alpha: 0.7, clearance: 2 });
+    },
+};
+
+/**
+ * A selected EDGE: the line keeps its own paint down the middle, with a solid band of the edge
+ * selection colour drawn behind it on both sides -- `edgeColor`, `edgeScale` and `edgeOpacity`,
+ * the edge's own three settings, because a pale see-through band beside a thin line vanishes.
+ */
+export const SelectedEdge: Story = {
+    render: (args: HighlightArgs) => {
+        const element = render(args) as Graphty;
+
+        // The edge into the node the other stories select, in place of that node.
+        element.addEventListener("graph-settled", () => {
+            const edge = [...element.graph.getDataManager().edges.values()].find(
+                (candidate) => candidate.srcId === "beta" && candidate.dstId === SELECTED,
+            );
+
+            if (edge) {
+                void element.graph.select({ nodes: [], edges: [edge.id] });
+            }
+        });
+
+        return element;
+    },
+    play: async ({ canvasElement }) => {
+        await waitForGraphSettled(canvasElement);
+        const element = await renderedElement(canvasElement, "SelectedEdge: no <graphty-element> rendered");
+        // The render function selects the edge once the graph has settled.
+        await eventually(() => element.session.selection.edges.length > 0, "SelectedEdge: the edge was never selected");
+        await element.waitForStableFrame();
+
+        const { selection } = element.session;
+        await holds(
+            selection.edges.length === 1 && selection.nodes.length === 0,
+            `SelectedEdge: the selection is ${String(selection.nodes.length)} nodes and ` +
+                `${String(selection.edges.length)} edges, not the one edge`,
+        );
+    },
+};
+
+/**
+ * The halo around a box: a larger box around the selected node, never a sphere behind it. The
+ * halo is the node's own shape scaled out, so a box's corners are ringed too (issue #2643).
+ */
+export const Box: Story = {
+    args: { shape: "box" },
+    play: async ({ canvasElement }) => {
+        const scene = await selected(canvasElement, "Box");
+
+        await holds(scene.graph.getNode(SELECTED)?.shapeType === "box", "Box: the selected node is drawn as a box");
+
+        await assertHalo(scene, { color: "#FFD700", alpha: 0.4, clearance: 1.45 });
     },
 };

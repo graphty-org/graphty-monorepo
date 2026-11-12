@@ -3100,6 +3100,8 @@ export type GraphMetaPatch = Loose<GraphMeta>;
 
 // column helpers
 export function gpuEligibility(dtype: Dtype): GpuEligibility;
+// the text grammar of section 5.1 for one untyped cell (no trimming); graph-io's text importers call it (I15)
+export function inferTextDtype(text: string): "bool" | "i32" | "f64" | "string";
 export function paddedU32View(data: U8): U32;
 export function remapColumn(column: Column, remap: U32, newLength: number): Column; // gathers data + validity; rewrites refersTo values; INVALID_INDEX in remap drops the row
 export function gatherColumn(column: Column, indexMap: U32): Column; // out[i] = column[indexMap[i]]

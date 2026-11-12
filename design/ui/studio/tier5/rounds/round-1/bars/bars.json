@@ -1,0 +1,1813 @@
+{
+ "build": "1e123d7d33eb graphty@0.8.92",
+ "scheme": "dark",
+ "measured": "2026-11-03T12:15:53.180Z",
+ "tier": "5",
+ "tags": [
+  "wcag2a",
+  "wcag2aa",
+  "wcag21aa",
+  "wcag22aa"
+ ],
+ "screens": {},
+ "wordsAtRest": {
+  "the graph at the start": {
+   "counted": "screen",
+   "words": 39,
+   "limit": 50,
+   "headings": [],
+   "text": "Graph Notes Settings Graph Style layers Hovered Selected Pinned Everything Graph settings nodes selected Selection Style Values Summary Nodes Edges joining these nodes Degree to of have a value of have a value Autosave saved WebGPU enabled Local only"
+  },
+  "style: a step pane": {
+   "counted": "workspace",
+   "words": 25,
+   "limit": 40,
+   "headings": [],
+   "text": "Which nodes Layer of Group colors Styled Table Clear Cancel Done Which nodes No match Fit PageRank Yes Yes Yes Yes No Condition Or Except"
+  },
+  "style: the Except switch on": {
+   "counted": "workspace",
+   "words": 29,
+   "limit": 40,
+   "headings": [],
+   "text": "Which nodes Layer of Group colors Styled Table Clear Cancel Done Which nodes All nodes Except No match Fit PageRank Yes Yes No Yes No Yes Condition Or Except"
+  },
+  "style: the read-only outline at rest": {
+   "counted": "screen",
+   "words": 57,
+   "limit": 50,
+   "headings": [],
+   "text": "Graph Data Notes Settings Graph Style layers Hovered Selected Pinned Layer PageRank Everything Graph settings Color PageRank Layer Node layer Style Values Node Edge not styled Style nodes Which nodes of Edit A All nodes Except or B Within hops of Shape Visibility Text Fill Shaders Edges not styled Edit edges Autosave saved WebGPU enabled Local only"
+  },
+  "filter: a step pane": {
+   "counted": "workspace",
+   "words": 21,
+   "limit": 40,
+   "headings": [],
+   "text": "Filters of Group colors Styled Table Clear Cancel Done No match Fit PageRank Yes Yes Yes Yes No Condition Or Except"
+  },
+  "filter: the Except switch on": {
+   "counted": "workspace",
+   "words": 27,
+   "limit": 40,
+   "headings": [],
+   "text": "Except Filters of Group colors Styled Table Clear Cancel Done Except All nodes Except No match Fit PageRank Yes Yes No Yes No Yes Condition Or Except"
+  },
+  "filter: the read-only outline at rest": {
+   "counted": "screen",
+   "words": 66,
+   "limit": 50,
+   "headings": [],
+   "text": "of nodes of edges Graph Data Notes Settings Data sources Attributes Filters Except of Edit A All nodes Except or B Within hops of Color PageRank full graph Graph From Style Values Overview Nodes showing of Edges showing of Full graph Nodes Edges Direction Undirected Density Components Degree Degree nodes node nodes nodes nodes nodes Lowest Median Mean Highest Transitivity Autosave saved WebGPU enabled Local only"
+  },
+  "50,000: the outline of a step with many values": {
+   "counted": "workspace",
+   "words": 22,
+   "limit": 40,
+   "headings": [],
+   "text": "Which nodes Layer of Group colors Styled Table Clear Cancel Done Which nodes values No match Fit Condition Or Except Uncheck more"
+  },
+  "50,000: the outline at rest": {
+   "counted": "screen",
+   "words": 67,
+   "limit": 50,
+   "headings": [],
+   "text": "Graph Notes Settings Graph Style layers Hovered Selected Pinned Layer Everything Graph settings Layer Node layer Style Values Node Edge not styled Style nodes Which nodes of Edit A values or B Within hops of or C Within hops of Selected or D Within hops of Hovered or selected Passes none Shape Visibility Text Fill Shaders Edges not styled Edit edges Autosave saved WebGPU enabled Local only"
+  },
+  "the graph at the start at 900x700": {
+   "counted": "screen",
+   "words": 39,
+   "limit": 50,
+   "headings": [],
+   "text": "Graph Notes Settings Graph Style layers Hovered Selected Pinned Everything Graph settings nodes selected Selection Style Values Summary Nodes Edges joining these nodes Degree to of have a value of have a value Autosave saved WebGPU enabled Local only"
+  },
+  "style: a step pane at 900x700": {
+   "counted": "workspace",
+   "words": 24,
+   "limit": 40,
+   "headings": [],
+   "text": "Which nodes Layer of Group colors Styled Table Clear Cancel Done Which nodes No match Fit PageRank Yes Yes Yes Yes Condition Or Except"
+  },
+  "style: the Except switch on at 900x700": {
+   "counted": "workspace",
+   "words": 27,
+   "limit": 40,
+   "headings": [],
+   "text": "Which nodes Layer of Group colors Styled Table Clear Cancel Done Which nodes All nodes Except No match Fit PageRank Yes Yes No Yes Condition Or Except"
+  },
+  "style: the read-only outline at rest at 900x700": {
+   "counted": "screen",
+   "words": 57,
+   "limit": 50,
+   "headings": [],
+   "text": "Graph Data Notes Settings Graph Style layers Hovered Selected Pinned Layer PageRank Everything Graph settings Color PageRank Layer Node layer Style Values Node Edge not styled Style nodes Which nodes of Edit A All nodes Except or B Within hops of Shape Visibility Text Fill Shaders Edges not styled Edit edges Autosave saved WebGPU enabled Local only"
+  },
+  "filter: a step pane at 900x700": {
+   "counted": "workspace",
+   "words": 19,
+   "limit": 40,
+   "headings": [],
+   "text": "Filters of Group colors Styled Table Clear Cancel Done No match Fit Yes Yes Yes Yes Condition Or Except"
+  },
+  "filter: the Except switch on at 900x700": {
+   "counted": "workspace",
+   "words": 24,
+   "limit": 40,
+   "headings": [],
+   "text": "Except Filters of Group colors Styled Table Clear Cancel Done Except All nodes Except No match Fit Yes Yes No Yes Condition Or Except"
+  },
+  "filter: the read-only outline at rest at 900x700": {
+   "counted": "screen",
+   "words": 66,
+   "limit": 50,
+   "headings": [],
+   "text": "of nodes of edges Graph Data Notes Settings Data sources Attributes Filters Except of Edit A All nodes Except or B Within hops of Color PageRank full graph Graph From Style Values Overview Nodes showing of Edges showing of Full graph Nodes Edges Direction Undirected Density Components Degree Degree nodes node nodes nodes nodes nodes Lowest Median Mean Highest Transitivity Autosave saved WebGPU enabled Local only"
+  },
+  "50,000: the outline of a step with many values at 900x700": {
+   "counted": "workspace",
+   "words": 22,
+   "limit": 40,
+   "headings": [],
+   "text": "Which nodes Layer of Group colors Styled Table Clear Cancel Done Which nodes values No match Fit Condition Or Except Uncheck more"
+  },
+  "50,000: the outline at rest at 900x700": {
+   "counted": "screen",
+   "words": 67,
+   "limit": 50,
+   "headings": [],
+   "text": "Graph Notes Settings Graph Style layers Hovered Selected Pinned Layer Everything Graph settings Layer Node layer Style Values Node Edge not styled Style nodes Which nodes of Edit A values or B Within hops of or C Within hops of Selected or D Within hops of Hovered or selected Passes none Shape Visibility Text Fill Shaders Edges not styled Edit edges Autosave saved WebGPU enabled Local only"
+  }
+ },
+ "tier2": {
+  "screens": {
+   "the graph at the start": [],
+   "style: a new rule, its picker open": [],
+   "style: a step pane": [],
+   "style: the Except switch on": [],
+   "style: an Or group, its picker open": [],
+   "style: the reference picker, closed": [],
+   "style: the reference picker, open": [],
+   "style: the reference picker, typed": [],
+   "style: the reference picker, a result chosen": [],
+   "style: Advanced with Edges where": [],
+   "style: No match": [],
+   "style: the matches strip's Group column": [],
+   "style: the read-only outline at rest": [],
+   "filter: a new rule, its picker open": [],
+   "filter: a step pane": [],
+   "filter: the Except switch on": [],
+   "filter: an Or group, its picker open": [],
+   "filter: the reference picker, closed": [],
+   "filter: the reference picker, open": [],
+   "filter: the reference picker, typed": [],
+   "filter: the reference picker, a result chosen": [],
+   "filter: Advanced with Edges where": [],
+   "filter: No match": [],
+   "filter: the matches strip's Group column": [],
+   "filter: the read-only outline at rest": [],
+   "50,000: the checklist": [],
+   "50,000: Check N": [],
+   "50,000: the outline of a step with many values": [],
+   "50,000: the reference picker, closed": [],
+   "50,000: the reference picker, open": [],
+   "50,000: the reference picker, typed": [],
+   "50,000: the reference picker, a result chosen": [],
+   "50,000: Selected (N)": [],
+   "50,000: Hovered or selected": [],
+   "50,000: the outline at rest": [],
+   "the graph at the start at 900x700": [],
+   "style: a new rule, its picker open at 900x700": [],
+   "style: a step pane at 900x700": [],
+   "style: the Except switch on at 900x700": [],
+   "style: an Or group, its picker open at 900x700": [],
+   "style: the reference picker, closed at 900x700": [],
+   "style: the reference picker, open at 900x700": [],
+   "style: the reference picker, typed at 900x700": [],
+   "style: the reference picker, a result chosen at 900x700": [],
+   "style: Advanced with Edges where at 900x700": [],
+   "style: No match at 900x700": [],
+   "style: the matches strip's Group column at 900x700": [],
+   "style: the read-only outline at rest at 900x700": [],
+   "filter: a new rule, its picker open at 900x700": [],
+   "filter: a step pane at 900x700": [],
+   "filter: the Except switch on at 900x700": [],
+   "filter: an Or group, its picker open at 900x700": [],
+   "filter: the reference picker, closed at 900x700": [],
+   "filter: the reference picker, open at 900x700": [],
+   "filter: the reference picker, typed at 900x700": [],
+   "filter: the reference picker, a result chosen at 900x700": [],
+   "filter: Advanced with Edges where at 900x700": [],
+   "filter: No match at 900x700": [],
+   "filter: the matches strip's Group column at 900x700": [],
+   "filter: the read-only outline at rest at 900x700": [],
+   "50,000: the checklist at 900x700": [],
+   "50,000: Check N at 900x700": [],
+   "50,000: the outline of a step with many values at 900x700": [],
+   "50,000: the reference picker, closed at 900x700": [],
+   "50,000: the reference picker, open at 900x700": [],
+   "50,000: the reference picker, typed at 900x700": [],
+   "50,000: the reference picker, a result chosen at 900x700": [],
+   "50,000: Selected (N) at 900x700": [],
+   "50,000: Hovered or selected at 900x700": [],
+   "50,000: the outline at rest at 900x700": []
+  },
+  "sharedNames": {
+   "the graph at the start": [],
+   "style: a new rule, its picker open": [],
+   "style: a step pane": [],
+   "style: the Except switch on": [],
+   "style: an Or group, its picker open": [],
+   "style: the reference picker, closed": [],
+   "style: the reference picker, open": [],
+   "style: the reference picker, typed": [],
+   "style: the reference picker, a result chosen": [],
+   "style: Advanced with Edges where": [],
+   "style: No match": [],
+   "style: the matches strip's Group column": [],
+   "style: the read-only outline at rest": [],
+   "filter: a new rule, its picker open": [],
+   "filter: a step pane": [
+    [
+     "checkbox \"Use role staff\"",
+     "checkbox \"Use role staff\""
+    ]
+   ],
+   "filter: the Except switch on": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: an Or group, its picker open": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: the reference picker, closed": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: the reference picker, open": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: the reference picker, typed": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: the reference picker, a result chosen": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: Advanced with Edges where": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: No match": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: the matches strip's Group column": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: the read-only outline at rest": [],
+   "50,000: the checklist": [],
+   "50,000: Check N": [],
+   "50,000: the outline of a step with many values": [],
+   "50,000: the reference picker, closed": [],
+   "50,000: the reference picker, open": [],
+   "50,000: the reference picker, typed": [],
+   "50,000: the reference picker, a result chosen": [],
+   "50,000: Selected (N)": [],
+   "50,000: Hovered or selected": [],
+   "50,000: the outline at rest": [],
+   "the graph at the start at 900x700": [],
+   "style: a new rule, its picker open at 900x700": [],
+   "style: a step pane at 900x700": [],
+   "style: the Except switch on at 900x700": [],
+   "style: an Or group, its picker open at 900x700": [],
+   "style: the reference picker, closed at 900x700": [],
+   "style: the reference picker, open at 900x700": [],
+   "style: the reference picker, typed at 900x700": [],
+   "style: the reference picker, a result chosen at 900x700": [],
+   "style: Advanced with Edges where at 900x700": [],
+   "style: No match at 900x700": [],
+   "style: the matches strip's Group column at 900x700": [],
+   "style: the read-only outline at rest at 900x700": [],
+   "filter: a new rule, its picker open at 900x700": [],
+   "filter: a step pane at 900x700": [
+    [
+     "checkbox \"Use role staff\"",
+     "checkbox \"Use role staff\""
+    ]
+   ],
+   "filter: the Except switch on at 900x700": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: an Or group, its picker open at 900x700": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: the reference picker, closed at 900x700": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: the reference picker, open at 900x700": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: the reference picker, typed at 900x700": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: the reference picker, a result chosen at 900x700": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: Advanced with Edges where at 900x700": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: No match at 900x700": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: the matches strip's Group column at 900x700": [
+    [
+     "checkbox \"Use Except role staff\"",
+     "checkbox \"Use Except role staff\""
+    ]
+   ],
+   "filter: the read-only outline at rest at 900x700": [],
+   "50,000: the checklist at 900x700": [],
+   "50,000: Check N at 900x700": [],
+   "50,000: the outline of a step with many values at 900x700": [],
+   "50,000: the reference picker, closed at 900x700": [],
+   "50,000: the reference picker, open at 900x700": [],
+   "50,000: the reference picker, typed at 900x700": [],
+   "50,000: the reference picker, a result chosen at 900x700": [],
+   "50,000: Selected (N) at 900x700": [],
+   "50,000: Hovered or selected at 900x700": [],
+   "50,000: the outline at rest at 900x700": []
+  },
+  "focusOnPage": {},
+  "typedWithNoClick": {},
+  "activeOptionInView": {},
+  "words": {}
+ },
+ "exceptions": [],
+ "walked": {
+  "screens": {
+   "1440x900": [
+    "the graph at the start",
+    "style: a new rule, its picker open",
+    "style: a step pane",
+    "style: the Except switch on",
+    "style: an Or group, its picker open",
+    "style: the reference picker, closed",
+    "style: the reference picker, open",
+    "style: the reference picker, typed",
+    "style: the reference picker, a result chosen",
+    "style: Advanced with Edges where",
+    "style: No match",
+    "style: the matches strip's Group column",
+    "style: the read-only outline at rest",
+    "the graph at the start",
+    "filter: a new rule, its picker open",
+    "filter: a step pane",
+    "filter: the Except switch on",
+    "filter: an Or group, its picker open",
+    "filter: the reference picker, closed",
+    "filter: the reference picker, open",
+    "filter: the reference picker, typed",
+    "filter: the reference picker, a result chosen",
+    "filter: Advanced with Edges where",
+    "filter: No match",
+    "filter: the matches strip's Group column",
+    "filter: the read-only outline at rest",
+    "the graph at the start",
+    "50,000: the checklist",
+    "50,000: Check N",
+    "50,000: the outline of a step with many values",
+    "50,000: the reference picker, closed",
+    "50,000: the reference picker, open",
+    "50,000: the reference picker, typed",
+    "50,000: the reference picker, a result chosen",
+    "50,000: Selected (N)",
+    "50,000: Hovered or selected",
+    "50,000: the outline at rest"
+   ],
+   "900x700": [
+    "the graph at the start",
+    "style: a new rule, its picker open",
+    "style: a step pane",
+    "style: the Except switch on",
+    "style: an Or group, its picker open",
+    "style: the reference picker, closed",
+    "style: the reference picker, open",
+    "style: the reference picker, typed",
+    "style: the reference picker, a result chosen",
+    "style: Advanced with Edges where",
+    "style: No match",
+    "style: the matches strip's Group column",
+    "style: the read-only outline at rest",
+    "the graph at the start",
+    "filter: a new rule, its picker open",
+    "filter: a step pane",
+    "filter: the Except switch on",
+    "filter: an Or group, its picker open",
+    "filter: the reference picker, closed",
+    "filter: the reference picker, open",
+    "filter: the reference picker, typed",
+    "filter: the reference picker, a result chosen",
+    "filter: Advanced with Edges where",
+    "filter: No match",
+    "filter: the matches strip's Group column",
+    "filter: the read-only outline at rest",
+    "the graph at the start",
+    "50,000: the checklist",
+    "50,000: Check N",
+    "50,000: the outline of a step with many values",
+    "50,000: the reference picker, closed",
+    "50,000: the reference picker, open",
+    "50,000: the reference picker, typed",
+    "50,000: the reference picker, a result chosen",
+    "50,000: Selected (N)",
+    "50,000: Hovered or selected",
+    "50,000: the outline at rest"
+   ]
+  },
+  "focus": {
+   "1440x900": [],
+   "900x700": []
+  },
+  "typed": {
+   "1440x900": [],
+   "900x700": []
+  },
+  "planted": {
+   "1440x900": [
+    "axe",
+    "shared names",
+    "focus",
+    "large lists",
+    "words at rest",
+    "axe",
+    "shared names",
+    "focus",
+    "large lists",
+    "words at rest",
+    "axe",
+    "shared names",
+    "focus",
+    "large lists",
+    "words at rest"
+   ],
+   "900x700": [
+    "axe",
+    "shared names",
+    "focus",
+    "large lists",
+    "words at rest",
+    "axe",
+    "shared names",
+    "focus",
+    "large lists",
+    "words at rest",
+    "axe",
+    "shared names",
+    "focus",
+    "large lists",
+    "words at rest"
+   ]
+  }
+ },
+ "bar10": {
+  "cut": {
+   "the graph at the start at 1440x900": [],
+   "style: a new rule, its picker open at 1440x900": [],
+   "style: a step pane at 1440x900": [],
+   "style: the Except switch on at 1440x900": [],
+   "style: an Or group, its picker open at 1440x900": [],
+   "style: the reference picker, closed at 1440x900": [],
+   "style: the reference picker, open at 1440x900": [],
+   "style: the reference picker, typed at 1440x900": [],
+   "style: the reference picker, a result chosen at 1440x900": [],
+   "style: Advanced with Edges where at 1440x900": [],
+   "style: No match at 1440x900": [],
+   "style: the matches strip's Group column at 1440x900": [],
+   "style: the read-only outline at rest at 1440x900": [],
+   "filter: a new rule, its picker open at 1440x900": [],
+   "filter: a step pane at 1440x900": [],
+   "filter: the Except switch on at 1440x900": [],
+   "filter: an Or group, its picker open at 1440x900": [],
+   "filter: the reference picker, closed at 1440x900": [],
+   "filter: the reference picker, open at 1440x900": [],
+   "filter: the reference picker, typed at 1440x900": [],
+   "filter: the reference picker, a result chosen at 1440x900": [],
+   "filter: Advanced with Edges where at 1440x900": [],
+   "filter: No match at 1440x900": [],
+   "filter: the matches strip's Group column at 1440x900": [],
+   "filter: the read-only outline at rest at 1440x900": [],
+   "50,000: the checklist at 1440x900": [],
+   "50,000: Check N at 1440x900": [],
+   "50,000: the outline of a step with many values at 1440x900": [],
+   "50,000: the reference picker, closed at 1440x900": [],
+   "50,000: the reference picker, open at 1440x900": [],
+   "50,000: the reference picker, typed at 1440x900": [],
+   "50,000: the reference picker, a result chosen at 1440x900": [],
+   "50,000: Selected (N) at 1440x900": [
+    {
+     "element": "p.mantine-focus-never in treeitem \"Within 2 hops of Selected (5,000), 5,485\"",
+     "text": "Selected (5,000)",
+     "readable": "name"
+    }
+   ],
+   "50,000: Hovered or selected at 1440x900": [
+    {
+     "element": "p.mantine-focus-never in treeitem \"Within 2 hops of Selected (5,000), 5,485\"",
+     "text": "Selected (5,000)",
+     "readable": "name"
+    },
+    {
+     "element": "p.mantine-focus-never in treeitem \"Within 2 hops of Hovered or selected, Pa\"",
+     "text": "Hovered or selected",
+     "readable": "name"
+    }
+   ],
+   "50,000: the outline at rest at 1440x900": [
+    {
+     "element": "p.mantine-focus-never in treeitem \"Within 2 hops of Selected (5,000), 5,485\"",
+     "text": "Selected (5,000)",
+     "readable": "name"
+    },
+    {
+     "element": "p.mantine-focus-never in treeitem \"Within 2 hops of Hovered or selected, Pa\"",
+     "text": "Hovered or selected",
+     "readable": "name"
+    }
+   ],
+   "the graph at the start at 900x700": [],
+   "style: a new rule, its picker open at 900x700": [],
+   "style: a step pane at 900x700": [],
+   "style: the Except switch on at 900x700": [],
+   "style: an Or group, its picker open at 900x700": [],
+   "style: the reference picker, closed at 900x700": [],
+   "style: the reference picker, open at 900x700": [],
+   "style: the reference picker, typed at 900x700": [],
+   "style: the reference picker, a result chosen at 900x700": [],
+   "style: Advanced with Edges where at 900x700": [],
+   "style: No match at 900x700": [],
+   "style: the matches strip's Group column at 900x700": [],
+   "style: the read-only outline at rest at 900x700": [],
+   "filter: a new rule, its picker open at 900x700": [],
+   "filter: a step pane at 900x700": [],
+   "filter: the Except switch on at 900x700": [
+    {
+     "element": "p#_r_10b_.mantine-focus-never",
+     "text": "Except role staff -- Filters",
+     "readable": null
+    }
+   ],
+   "filter: an Or group, its picker open at 900x700": [
+    {
+     "element": "p#_r_10b_.mantine-focus-never",
+     "text": "Except role staff -- Filters",
+     "readable": null
+    }
+   ],
+   "filter: the reference picker, closed at 900x700": [
+    {
+     "element": "p#_r_10b_.mantine-focus-never",
+     "text": "Except role staff -- Filters",
+     "readable": null
+    }
+   ],
+   "filter: the reference picker, open at 900x700": [
+    {
+     "element": "p#_r_10b_.mantine-focus-never",
+     "text": "Except role staff -- Filters",
+     "readable": null
+    }
+   ],
+   "filter: the reference picker, typed at 900x700": [
+    {
+     "element": "p#_r_10b_.mantine-focus-never",
+     "text": "Except role staff -- Filters",
+     "readable": null
+    }
+   ],
+   "filter: the reference picker, a result chosen at 900x700": [
+    {
+     "element": "p#_r_10b_.mantine-focus-never",
+     "text": "Except role staff -- Filters",
+     "readable": null
+    }
+   ],
+   "filter: Advanced with Edges where at 900x700": [
+    {
+     "element": "p#_r_10b_.mantine-focus-never",
+     "text": "Except role staff -- Filters",
+     "readable": null
+    }
+   ],
+   "filter: No match at 900x700": [
+    {
+     "element": "p#_r_10b_.mantine-focus-never",
+     "text": "Except role staff -- Filters",
+     "readable": null
+    }
+   ],
+   "filter: the matches strip's Group column at 900x700": [
+    {
+     "element": "p#_r_10b_.mantine-focus-never",
+     "text": "Except role staff -- Filters",
+     "readable": null
+    }
+   ],
+   "filter: the read-only outline at rest at 900x700": [],
+   "50,000: the checklist at 900x700": [
+    {
+     "element": "p#_r_oo_.mantine-focus-never",
+     "text": "Which nodes -- Layer 1",
+     "readable": null
+    }
+   ],
+   "50,000: Check N at 900x700": [
+    {
+     "element": "p#_r_oo_.mantine-focus-never",
+     "text": "Which nodes -- Layer 1",
+     "readable": null
+    }
+   ],
+   "50,000: the outline of a step with many values at 900x700": [
+    {
+     "element": "p#_r_oo_.mantine-focus-never",
+     "text": "Which nodes -- Layer 1",
+     "readable": null
+    }
+   ],
+   "50,000: the reference picker, closed at 900x700": [
+    {
+     "element": "p#_r_oo_.mantine-focus-never",
+     "text": "Which nodes -- Layer 1",
+     "readable": null
+    }
+   ],
+   "50,000: the reference picker, open at 900x700": [
+    {
+     "element": "p#_r_oo_.mantine-focus-never",
+     "text": "Which nodes -- Layer 1",
+     "readable": null
+    }
+   ],
+   "50,000: the reference picker, typed at 900x700": [
+    {
+     "element": "p#_r_oo_.mantine-focus-never",
+     "text": "Which nodes -- Layer 1",
+     "readable": null
+    }
+   ],
+   "50,000: the reference picker, a result chosen at 900x700": [
+    {
+     "element": "p#_r_oo_.mantine-focus-never",
+     "text": "Which nodes -- Layer 1",
+     "readable": null
+    }
+   ],
+   "50,000: Selected (N) at 900x700": [
+    {
+     "element": "p#_r_oo_.mantine-focus-never",
+     "text": "Which nodes -- Layer 1",
+     "readable": null
+    },
+    {
+     "element": "p.mantine-focus-never in treeitem \"Within 2 hops of Selected (5,000), 5,485\"",
+     "text": "Selected (5,000)",
+     "readable": "name"
+    }
+   ],
+   "50,000: Hovered or selected at 900x700": [
+    {
+     "element": "p#_r_oo_.mantine-focus-never",
+     "text": "Which nodes -- Layer 1",
+     "readable": null
+    },
+    {
+     "element": "p.mantine-focus-never in treeitem \"Within 2 hops of Selected (5,000), 5,485\"",
+     "text": "Selected (5,000)",
+     "readable": "name"
+    },
+    {
+     "element": "p.mantine-focus-never in treeitem \"Within 2 hops of Hovered or selected, Pa\"",
+     "text": "Hovered or selected",
+     "readable": "name"
+    }
+   ],
+   "50,000: the outline at rest at 900x700": [
+    {
+     "element": "p.mantine-focus-never in treeitem \"Within 2 hops of Selected (5,000), 5,485\"",
+     "text": "Selected (5,000)",
+     "readable": "name"
+    },
+    {
+     "element": "p.mantine-focus-never in treeitem \"Within 2 hops of Hovered or selected, Pa\"",
+     "text": "Hovered or selected",
+     "readable": "name"
+    }
+   ]
+  },
+  "raw": {
+   "the graph at the start at 1440x900": [],
+   "style: a new rule, its picker open at 1440x900": [],
+   "style: a step pane at 1440x900": [],
+   "style: the Except switch on at 1440x900": [],
+   "style: an Or group, its picker open at 1440x900": [],
+   "style: the reference picker, closed at 1440x900": [],
+   "style: the reference picker, open at 1440x900": [],
+   "style: the reference picker, typed at 1440x900": [],
+   "style: the reference picker, a result chosen at 1440x900": [],
+   "style: Advanced with Edges where at 1440x900": [],
+   "style: No match at 1440x900": [],
+   "style: the matches strip's Group column at 1440x900": [],
+   "style: the read-only outline at rest at 1440x900": [],
+   "filter: a new rule, its picker open at 1440x900": [],
+   "filter: a step pane at 1440x900": [],
+   "filter: the Except switch on at 1440x900": [],
+   "filter: an Or group, its picker open at 1440x900": [],
+   "filter: the reference picker, closed at 1440x900": [],
+   "filter: the reference picker, open at 1440x900": [],
+   "filter: the reference picker, typed at 1440x900": [],
+   "filter: the reference picker, a result chosen at 1440x900": [],
+   "filter: Advanced with Edges where at 1440x900": [],
+   "filter: No match at 1440x900": [],
+   "filter: the matches strip's Group column at 1440x900": [],
+   "filter: the read-only outline at rest at 1440x900": [],
+   "50,000: the checklist at 1440x900": [],
+   "50,000: Check N at 1440x900": [],
+   "50,000: the outline of a step with many values at 1440x900": [],
+   "50,000: the reference picker, closed at 1440x900": [],
+   "50,000: the reference picker, open at 1440x900": [],
+   "50,000: the reference picker, typed at 1440x900": [],
+   "50,000: the reference picker, a result chosen at 1440x900": [],
+   "50,000: Selected (N) at 1440x900": [],
+   "50,000: Hovered or selected at 1440x900": [],
+   "50,000: the outline at rest at 1440x900": [],
+   "the graph at the start at 900x700": [],
+   "style: a new rule, its picker open at 900x700": [],
+   "style: a step pane at 900x700": [],
+   "style: the Except switch on at 900x700": [],
+   "style: an Or group, its picker open at 900x700": [],
+   "style: the reference picker, closed at 900x700": [],
+   "style: the reference picker, open at 900x700": [],
+   "style: the reference picker, typed at 900x700": [],
+   "style: the reference picker, a result chosen at 900x700": [],
+   "style: Advanced with Edges where at 900x700": [],
+   "style: No match at 900x700": [],
+   "style: the matches strip's Group column at 900x700": [],
+   "style: the read-only outline at rest at 900x700": [],
+   "filter: a new rule, its picker open at 900x700": [],
+   "filter: a step pane at 900x700": [],
+   "filter: the Except switch on at 900x700": [],
+   "filter: an Or group, its picker open at 900x700": [],
+   "filter: the reference picker, closed at 900x700": [],
+   "filter: the reference picker, open at 900x700": [],
+   "filter: the reference picker, typed at 900x700": [],
+   "filter: the reference picker, a result chosen at 900x700": [],
+   "filter: Advanced with Edges where at 900x700": [],
+   "filter: No match at 900x700": [],
+   "filter: the matches strip's Group column at 900x700": [],
+   "filter: the read-only outline at rest at 900x700": [],
+   "50,000: the checklist at 900x700": [],
+   "50,000: Check N at 900x700": [],
+   "50,000: the outline of a step with many values at 900x700": [],
+   "50,000: the reference picker, closed at 900x700": [],
+   "50,000: the reference picker, open at 900x700": [],
+   "50,000: the reference picker, typed at 900x700": [],
+   "50,000: the reference picker, a result chosen at 900x700": [],
+   "50,000: Selected (N) at 900x700": [],
+   "50,000: Hovered or selected at 900x700": [],
+   "50,000: the outline at rest at 900x700": []
+  }
+ },
+ "largeLists": {
+  "the graph at the start": [
+   {
+    "list": "tree Style layers",
+    "items": 4,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: the checklist": [
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 2,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 15,
+    "holds": 50000,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "checklist dept values",
+    "items": 8,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: Check N": [
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 2,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 15,
+    "holds": 50000,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "checklist dept values",
+    "items": 8,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: the outline of a step with many values": [
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 2,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 15,
+    "holds": 35960,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "checklist dept values",
+    "items": 8,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: the reference picker, closed": [
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 15,
+    "holds": 35960,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: the reference picker, open": [
+   {
+    "list": "list References",
+    "items": 4,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 15,
+    "holds": 35960,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: the reference picker, typed": [
+   {
+    "list": "list References",
+    "items": 8,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 15,
+    "holds": 35960,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: the reference picker, a result chosen": [
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 15,
+    "holds": 35975,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: Selected (N)": [
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 7,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 15,
+    "holds": 37512,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: Hovered or selected": [
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 9,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 15,
+    "holds": 37512,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: the outline at rest": [
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 9,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   }
+  ],
+  "the graph at the start at 900x700": [
+   {
+    "list": "tree Style layers",
+    "items": 4,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: the checklist at 900x700": [
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 2,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 13,
+    "holds": 50000,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "checklist dept values",
+    "items": 8,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: Check N at 900x700": [
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 2,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 13,
+    "holds": 50000,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "checklist dept values",
+    "items": 8,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: the outline of a step with many values at 900x700": [
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 2,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 13,
+    "holds": 35960,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "checklist dept values",
+    "items": 8,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: the reference picker, closed at 900x700": [
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 13,
+    "holds": 35960,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: the reference picker, open at 900x700": [
+   {
+    "list": "list References",
+    "items": 4,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 13,
+    "holds": 35960,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: the reference picker, typed at 900x700": [
+   {
+    "list": "list References",
+    "items": 8,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 13,
+    "holds": 35960,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: the reference picker, a result chosen at 900x700": [
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 13,
+    "holds": 35975,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: Selected (N) at 900x700": [
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 7,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 13,
+    "holds": 37512,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: Hovered or selected at 900x700": [
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 1,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 9,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   },
+   {
+    "list": "table Nodes",
+    "items": 13,
+    "holds": 37512,
+    "judged": true,
+    "bounded": true,
+    "count": true,
+    "search": true,
+    "ok": true
+   }
+  ],
+  "50,000: the outline at rest at 900x700": [
+   {
+    "list": "tree Style layers",
+    "items": 5,
+    "judged": false,
+    "bounded": true,
+    "count": false,
+    "search": true,
+    "ok": true
+   },
+   {
+    "list": "tree Which nodes",
+    "items": 9,
+    "judged": false,
+    "bounded": true,
+    "count": true,
+    "search": false,
+    "ok": true
+   }
+  ]
+ },
+ "planted": {
+  "caught": [
+   "a clipped name: caught on \"the graph at the start at 1440x900\", span: \"Planted cut Northern Regional Distribution Center 01\"",
+   "an E_BAD_SELECTOR string: caught on \"the graph at the start at 1440x900\", p: code E_BAD_SELECTOR",
+   "an image with no text alternative: caught by axe on \"the graph at the start at 1440x900\"",
+   "two buttons called Planted twin: caught on \"the graph at the start at 1440x900\"",
+   "focus dropped to the page: caught on \"the graph at the start at 1440x900\"",
+   "a list of 2,000 with no count and no search: caught by the large-list check on \"the graph at the start at 1440x900\"",
+   "sixty words and a five-word heading: counted (111 words) on \"the graph at the start at 1440x900\"",
+   "a clipped name: caught on \"the graph at the start at 1440x900\", span: \"Planted cut Northern Regional Distribution Center 01\"",
+   "an E_BAD_SELECTOR string: caught on \"the graph at the start at 1440x900\", p: code E_BAD_SELECTOR",
+   "an image with no text alternative: caught by axe on \"the graph at the start at 1440x900\"",
+   "two buttons called Planted twin: caught on \"the graph at the start at 1440x900\"",
+   "focus dropped to the page: caught on \"the graph at the start at 1440x900\"",
+   "a list of 2,000 with no count and no search: caught by the large-list check on \"the graph at the start at 1440x900\"",
+   "sixty words and a five-word heading: counted (111 words) on \"the graph at the start at 1440x900\"",
+   "a clipped name: caught on \"the graph at the start at 1440x900\", span: \"Planted cut Northern Regional Distribution Center 01\"",
+   "an E_BAD_SELECTOR string: caught on \"the graph at the start at 1440x900\", p: code E_BAD_SELECTOR",
+   "an image with no text alternative: caught by axe on \"the graph at the start at 1440x900\"",
+   "two buttons called Planted twin: caught on \"the graph at the start at 1440x900\"",
+   "focus dropped to the page: caught on \"the graph at the start at 1440x900\"",
+   "a list of 2,000 with no count and no search: caught by the large-list check on \"the graph at the start at 1440x900\"",
+   "sixty words and a five-word heading: counted (104 words) on \"the graph at the start at 1440x900\"",
+   "\"While has nodes\" at 50,000 on the rejected build: caught by the large-list check (list Reference, 52 rendered)",
+   "a clipped name: caught on \"the graph at the start at 900x700\", span: \"Planted cut Northern Regional Distribution Center 01\"",
+   "an E_BAD_SELECTOR string: caught on \"the graph at the start at 900x700\", p: code E_BAD_SELECTOR",
+   "an image with no text alternative: caught by axe on \"the graph at the start at 900x700\"",
+   "two buttons called Planted twin: caught on \"the graph at the start at 900x700\"",
+   "focus dropped to the page: caught on \"the graph at the start at 900x700\"",
+   "a list of 2,000 with no count and no search: caught by the large-list check on \"the graph at the start at 900x700\"",
+   "sixty words and a five-word heading: counted (111 words) on \"the graph at the start at 900x700\"",
+   "a clipped name: caught on \"the graph at the start at 900x700\", span: \"Planted cut Northern Regional Distribution Center 01\"",
+   "an E_BAD_SELECTOR string: caught on \"the graph at the start at 900x700\", p: code E_BAD_SELECTOR",
+   "an image with no text alternative: caught by axe on \"the graph at the start at 900x700\"",
+   "two buttons called Planted twin: caught on \"the graph at the start at 900x700\"",
+   "focus dropped to the page: caught on \"the graph at the start at 900x700\"",
+   "a list of 2,000 with no count and no search: caught by the large-list check on \"the graph at the start at 900x700\"",
+   "sixty words and a five-word heading: counted (111 words) on \"the graph at the start at 900x700\"",
+   "a clipped name: caught on \"the graph at the start at 900x700\", span: \"Planted cut Northern Regional Distribution Center 01\"",
+   "an E_BAD_SELECTOR string: caught on \"the graph at the start at 900x700\", p: code E_BAD_SELECTOR",
+   "an image with no text alternative: caught by axe on \"the graph at the start at 900x700\"",
+   "two buttons called Planted twin: caught on \"the graph at the start at 900x700\"",
+   "focus dropped to the page: caught on \"the graph at the start at 900x700\"",
+   "a list of 2,000 with no count and no search: caught by the large-list check on \"the graph at the start at 900x700\"",
+   "sixty words and a five-word heading: counted (104 words) on \"the graph at the start at 900x700\""
+  ],
+  "missed": []
+ },
+ "weights": {
+  "problems": [],
+  "notFinished": [],
+  "runs": []
+ },
+ "untrusted": [],
+ "log": [
+  "ok   the graph at the start at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-1440x900/02.png)",
+  "ok   style: a new rule, its picker open at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-1440x900/03.png)",
+  "ok   style: a step pane at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-1440x900/04.png)",
+  "ok   style: the Except switch on at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-1440x900/05.png)",
+  "ok   style: an Or group, its picker open at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-1440x900/06.png)",
+  "ok   style: the reference picker, closed at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-1440x900/07.png)",
+  "ok   style: the reference picker, open at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-1440x900/08.png)",
+  "ok   style: the reference picker, typed at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-1440x900/09.png)",
+  "ok   style: the reference picker, a result chosen at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-1440x900/10.png)",
+  "ok   style: Advanced with Edges where at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-1440x900/11.png)",
+  "ok   style: No match at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-1440x900/12.png)",
+  "ok   style: the matches strip's Group column at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-1440x900/13.png)",
+  "ok   style: the read-only outline at rest at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-1440x900/14.png)",
+  "ok   the graph at the start at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-1440x900/02.png)",
+  "ok   filter: a new rule, its picker open at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-1440x900/03.png)",
+  "ok   filter: a step pane at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-1440x900/04.png)",
+  "ok   filter: the Except switch on at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-1440x900/05.png)",
+  "ok   filter: an Or group, its picker open at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-1440x900/06.png)",
+  "ok   filter: the reference picker, closed at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-1440x900/07.png)",
+  "ok   filter: the reference picker, open at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-1440x900/08.png)",
+  "ok   filter: the reference picker, typed at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-1440x900/09.png)",
+  "ok   filter: the reference picker, a result chosen at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-1440x900/10.png)",
+  "ok   filter: Advanced with Edges where at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-1440x900/11.png)",
+  "ok   filter: No match at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-1440x900/12.png)",
+  "ok   filter: the matches strip's Group column at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-1440x900/13.png)",
+  "ok   filter: the read-only outline at rest at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-1440x900/14.png)",
+  "ok   the graph at the start at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-1440x900/02.png)",
+  "ok   50,000: the checklist at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-1440x900/03.png)",
+  "ok   50,000: Check N at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-1440x900/04.png)",
+  "ok   50,000: the outline of a step with many values at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-1440x900/05.png)",
+  "ok   50,000: the reference picker, closed at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-1440x900/06.png)",
+  "ok   50,000: the reference picker, open at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-1440x900/07.png)",
+  "ok   50,000: the reference picker, typed at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-1440x900/08.png)",
+  "ok   50,000: the reference picker, a result chosen at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-1440x900/09.png)",
+  "ok   50,000: Selected (N) at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-1440x900/10.png)",
+  "ok   50,000: Hovered or selected at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-1440x900/11.png)",
+  "ok   50,000: the outline at rest at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-1440x900/12.png)",
+  "ok   --click Add a layer or a folder --click Layer --click Add a step: Keep --type While has --click role=option:While has nodes --expect Hovered or selected at 1440x900 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/rejected-1440x900/02.png)",
+  "ok   the graph at the start at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-900x700/02.png)",
+  "ok   style: a new rule, its picker open at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-900x700/03.png)",
+  "ok   style: a step pane at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-900x700/04.png)",
+  "ok   style: the Except switch on at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-900x700/05.png)",
+  "ok   style: an Or group, its picker open at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-900x700/06.png)",
+  "ok   style: the reference picker, closed at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-900x700/07.png)",
+  "ok   style: the reference picker, open at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-900x700/08.png)",
+  "ok   style: the reference picker, typed at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-900x700/09.png)",
+  "ok   style: the reference picker, a result chosen at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-900x700/10.png)",
+  "ok   style: Advanced with Edges where at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-900x700/11.png)",
+  "ok   style: No match at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-900x700/12.png)",
+  "ok   style: the matches strip's Group column at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-900x700/13.png)",
+  "ok   style: the read-only outline at rest at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/style-900x700/14.png)",
+  "ok   the graph at the start at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-900x700/02.png)",
+  "ok   filter: a new rule, its picker open at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-900x700/03.png)",
+  "ok   filter: a step pane at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-900x700/04.png)",
+  "ok   filter: the Except switch on at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-900x700/05.png)",
+  "ok   filter: an Or group, its picker open at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-900x700/06.png)",
+  "ok   filter: the reference picker, closed at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-900x700/07.png)",
+  "ok   filter: the reference picker, open at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-900x700/08.png)",
+  "ok   filter: the reference picker, typed at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-900x700/09.png)",
+  "ok   filter: the reference picker, a result chosen at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-900x700/10.png)",
+  "ok   filter: Advanced with Edges where at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-900x700/11.png)",
+  "ok   filter: No match at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-900x700/12.png)",
+  "ok   filter: the matches strip's Group column at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-900x700/13.png)",
+  "ok   filter: the read-only outline at rest at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/filter-900x700/14.png)",
+  "ok   the graph at the start at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-900x700/02.png)",
+  "ok   50,000: the checklist at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-900x700/03.png)",
+  "ok   50,000: Check N at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-900x700/04.png)",
+  "ok   50,000: the outline of a step with many values at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-900x700/05.png)",
+  "ok   50,000: the reference picker, closed at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-900x700/06.png)",
+  "ok   50,000: the reference picker, open at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-900x700/07.png)",
+  "ok   50,000: the reference picker, typed at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-900x700/08.png)",
+  "ok   50,000: the reference picker, a result chosen at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-900x700/09.png)",
+  "ok   50,000: Selected (N) at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-900x700/10.png)",
+  "ok   50,000: Hovered or selected at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-900x700/11.png)",
+  "ok   50,000: the outline at rest at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/bars/sessions/big-900x700/12.png)"
+ ]
+}

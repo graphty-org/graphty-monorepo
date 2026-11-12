@@ -1,4 +1,4 @@
-import { expandEdges, GraphBuilder, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
+import { expandEdges, type F32, GraphBuilder, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -718,7 +718,7 @@ describe("accelerated(acc)", () => {
             for (const options of [
                 { harmonic: true, sources: [0, 3] },
                 { harmonic: true, k: 2 },
-                { harmonic: true, normalization: "per-other-node" },
+                { harmonic: true, normalization: "per-other-node" as const },
             ]) {
                 expect((await dispatcher.closenessCentrality(s, options)).scores, JSON.stringify(options)).toEqual(
                     indexed.closenessCentrality(s, options).scores,
@@ -1273,7 +1273,7 @@ describe("accelerated(acc) routing for Katz and HITS", () => {
      * unless told `weighted: false`.
      */
     function deviceLike(calls: unknown[][]): AlgorithmAccelerator {
-        const scaled = (x: ArrayLike<number>, norm: "l2" | "sum"): Float32Array => {
+        const scaled = (x: ArrayLike<number>, norm: "l2" | "sum"): F32 => {
             let acc = 0;
             for (let i = 0; i < x.length; i++) {
                 acc += norm === "l2" ? x[i] * x[i] : Math.abs(x[i]);

@@ -35,8 +35,8 @@ const colors = {
 /** Maximum number of ports to try when scanning for available port */
 const MAX_PORT_SCAN_ATTEMPTS = 100;
 
-/** Maximum port number allowed (ports 9000-9099 per project guidelines) */
-const MAX_PORT_NUMBER = 9099;
+/** Highest port a scan may reach by default: the whole valid range */
+const MAX_PORT_NUMBER = 65535;
 
 /** Maximum retries for binding after EADDRINUSE during listen */
 const MAX_BIND_RETRIES = 10;
@@ -49,7 +49,7 @@ const MAX_BIND_RETRIES = 10;
  * @param startPort - Starting port to try
  * @param host - Host to bind to
  * @param quiet - Suppress output messages
- * @param maxPort - Maximum port number to scan up to (default: 9099)
+ * @param maxPort - Maximum port number to scan up to (default: 65535; the start port binds that port only)
  * @returns Promise resolving to bound server and actual port
  */
 async function tryBindWithRetry(
@@ -116,14 +116,26 @@ async function tryBindWithRetry(
 
     // Exhausted retries
     const errorMsg =
-        `Could not bind to any port after ${attempts} attempts. ` +
-        `Ports ${startPort}-${port - 1} are all in use or were claimed during bind.`;
+        startPort === maxPort
+            ? portInUseMessage(startPort, host)
+            : `Could not bind to any port after ${attempts} attempts. ` +
+              `Ports ${startPort}-${port - 1} are all in use or were claimed during bind.`;
 
     if (!quiet) {
         console.error(`${colors.red}${errorMsg}${colors.reset}`);
     }
 
     throw new Error(errorMsg);
+}
+
+/**
+ * The error for a port that must be bound exactly but is taken.
+ * @param port - The port that was asked for
+ * @param host - The host it was asked for on
+ * @returns The error message
+ */
+function portInUseMessage(port: number, host: string): string {
+    return `Port ${port} on ${host} is already in use. Stop whatever holds it or start the server on another port.`;
 }
 
 /**
@@ -158,7 +170,7 @@ async function isPortAvailable(port: number, host: string): Promise<boolean> {
  * @param basePort - Starting port number
  * @param host - Host to bind to
  * @param quiet - Suppress output messages
- * @param maxPort - Maximum port number to scan up to (default: 9099)
+ * @param maxPort - Maximum port number to scan up to (default: 65535; the start port binds that port only)
  * @returns Promise resolving to available port number
  * @throws Error if no available port found within MAX_PORT_SCAN_ATTEMPTS
  */
@@ -185,7 +197,7 @@ export async function findAvailablePort(
             return port;
         }
 
-        if (!quiet && attempts === 0) {
+        if (!quiet && attempts === 0 && maxPort > basePort) {
             // eslint-disable-next-line no-console
             console.log(
                 `${colors.yellow}Port ${port} is already in use, scanning for available port...${colors.reset}`,
@@ -198,9 +210,11 @@ export async function findAvailablePort(
 
     // No available port found
     const errorMsg =
-        `Could not find available port after ${attempts} attempts starting from ${basePort}. ` +
-        `Ports ${basePort}-${Math.min(port - 1, maxPort)} are all in use. ` +
-        `Try killing existing processes: pkill -f "remote-log-server"`;
+        basePort === maxPort
+            ? portInUseMessage(basePort, host)
+            : `Could not find available port after ${attempts} attempts starting from ${basePort}. ` +
+              `Ports ${basePort}-${Math.min(port - 1, maxPort)} are all in use. ` +
+              `Try killing existing processes: pkill -f "remote-log-server"`;
 
     if (!quiet) {
         console.error(`${colors.red}${errorMsg}${colors.reset}`);
@@ -235,7 +249,10 @@ export interface DualServerOptions {
     jsonlWriter?: JsonlWriter;
     /** Only serve /log POST and /health GET endpoints (default: false) */
     logReceiveOnly?: boolean;
-    /** Maximum port number to scan up to (default: 9099) */
+    /**
+     * Highest port to try when httpPort is in use (default: 65535). Set it to httpPort to bind
+     * that port only and fail when it is taken, as the CLI does for an explicit --port or PORT.
+     */
     maxPortNumber?: number;
 }
 

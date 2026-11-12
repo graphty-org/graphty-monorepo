@@ -42,9 +42,6 @@ const EDGES = [
     { src: "n12", dst: "n29" },
 ];
 
-/** How long the layout, the framing and the frame after them are given. */
-const STABLE_TIMEOUT_MS = 15000;
-
 /** How many frames to keep drawing after the element says the picture is final. */
 const TAIL_FRAMES = 24;
 
@@ -97,15 +94,21 @@ async function framesDrawn(graph: Graph, count: number): Promise<void> {
     });
 }
 
-/** Shader sources held back by {@link holdShadersBack}, and the way to let them through. */
+/** Shaders held back by {@link holdShadersBack}, and the way to let them through. */
 interface HeldShaders {
-    /** How many shader fetches are being held. */
+    /** How many shaders are being held. */
     readonly held: number;
     /** Let every held fetch, and every later one, through. */
     release: () => void;
     /** Settles once every fetch held so far has finished. */
     arrived: () => Promise<unknown>;
 }
+
+/**
+ * Where `engine.createEffect`'s positional form takes `extraInitializationsAsync`, counted in the
+ * arguments after the base name and the attribute names.
+ */
+const EXTRA_INITIALISATION_AT = 8;
 
 /** Where the camera is and where every node is, as one comparable value. */
 interface Picture {
@@ -157,13 +160,18 @@ describe("knowing the picture is final", () => {
     }
 
     /**
-     * Hold back every shader source this graph's engine fetches from now on, until released.
+     * Hold back every shader this graph's engine compiles from now on, until released.
      *
-     * Babylon fetches a shader's source with a dynamic `import()` the first time an effect needs
-     * a variant, through the `extraInitializationsAsync` step of `createEffect`. Holding that
-     * step stands in for a slow module server -- the pre-push gate, where the dev server shares a
-     * process with thousands of unit tests. Effects already compiled are cached and unaffected.
-     * @returns The held fetches, and the way to release them.
+     * Every effect Babylon creates runs an `extraInitializationsAsync` step, when it has one, before
+     * it compiles -- where a material fetches its shader source with a dynamic `import()`. This
+     * gives EVERY new effect such a step and holds it: a slow module server (the pre-push gate,
+     * where the dev server shares a process with thousands of unit tests), or a shader Babylon
+     * has not compiled yet, in one. It holds every effect, not only the ones that would import
+     * something, so the hold does not depend on what is already loaded: the element bundles the
+     * node shaders and tells Babylon so, and whether a material still imported used to depend on
+     * when the frame ran (issue #4241). Effects this engine already compiled are cached and
+     * unaffected.
+     * @returns The held effects, and the way to release them.
      */
     function holdShadersBack(): HeldShaders {
         const engine = graph.engine as unknown as {
@@ -176,27 +184,28 @@ describe("knowing the picture is final", () => {
         });
         const fetches: Promise<void>[] = [];
 
+        const hold = (initialise: (() => Promise<void>) | undefined) => (): Promise<void> => {
+            const fetch = gate.then(initialise);
+            fetches.push(fetch);
+
+            return fetch;
+        };
+
         engine.createEffect = (base, options, ...rest) => {
+            if (Array.isArray(options)) {
+                // The positional form: the step is the eleventh argument, after the attributes.
+                const positional = [...rest];
+                positional[EXTRA_INITIALISATION_AT] = hold(
+                    positional[EXTRA_INITIALISATION_AT] as (() => Promise<void>) | undefined,
+                );
+
+                return createEffect(base, options, ...positional);
+            }
+
             const initialise = (options as { extraInitializationsAsync?: () => Promise<void> } | null)
                 ?.extraInitializationsAsync;
 
-            if (initialise === undefined) {
-                return createEffect(base, options, ...rest);
-            }
-
-            return createEffect(
-                base,
-                {
-                    ...(options as object),
-                    extraInitializationsAsync: () => {
-                        const fetch = gate.then(initialise);
-                        fetches.push(fetch);
-
-                        return fetch;
-                    },
-                },
-                ...rest,
-            );
+            return createEffect(base, { ...(options as object), extraInitializationsAsync: hold(initialise) }, ...rest);
         };
 
         return {
@@ -227,7 +236,7 @@ describe("knowing the picture is final", () => {
         );
 
         shaders.release();
-        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.waitForStableFrame();
         const final = await histogram();
 
         await shaders.arrived();
@@ -243,6 +252,9 @@ describe("knowing the picture is final", () => {
         container.style.height = "300px";
         document.body.appendChild(container);
         graph = new Graph(container);
+        // Drawn every frame, not on demand: these tests keep drawing frames after the picture is
+        // called final to show nothing moves, and count the frames a wait drew.
+        await graph.setRenderSettings({ onDemand: false }, { skipQueue: true });
         await graph.init();
     });
 
@@ -267,7 +279,7 @@ describe("knowing the picture is final", () => {
 
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.waitForStableFrame();
 
         const drawnWhenFinal = drawn;
 
@@ -291,7 +303,7 @@ describe("knowing the picture is final", () => {
     it("resolves only once nothing moves again", async () => {
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.waitForStableFrame();
 
         const before = picture();
 
@@ -312,7 +324,7 @@ describe("knowing the picture is final", () => {
 
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.waitForStableFrame();
 
         assert.equal(announcements, 1, "one settlement, one announcement");
         assert.isTrue(
@@ -324,7 +336,7 @@ describe("knowing the picture is final", () => {
     it("does not call the picture final while a style edit is still waiting to be drawn", async () => {
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.waitForStableFrame();
 
         let drawn = 0;
 
@@ -348,10 +360,39 @@ describe("knowing the picture is final", () => {
             assert.isFalse(graph.isFrameStable, "the edit is not on screen yet, so the frame is not final");
         }
 
-        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.waitForStableFrame();
 
         assert.isFalse(graph.getStylePainter().hasPending, "the wait resolved with the edit still undrawn");
         assert.isAbove(drawn, drawnAtEdit, "a frame showing the edit was drawn before the wait resolved");
+    });
+
+    it("does not call the picture final while Babylon.js is still loading a picture", async () => {
+        await graph.addNodes(NODES);
+        await graph.addEdges(EDGES);
+        await graph.waitForStableFrame();
+
+        // What `new Texture(url)` does while a node's picture is on its way (#5344): the scene holds it as
+        // pending data until the picture loads or fails, and the frame drawn meanwhile leaves the picture out.
+        const scene = graph.getScene();
+        const picture = {};
+        scene.addPendingData(picture);
+        graph.getUpdateManager().meshesAdded();
+
+        assert.isFalse(graph.isFrameStable, "a picture is still loading, so the frame is not final");
+        let resolved = false;
+        const wait = graph.waitForStableFrame().then(() => {
+            resolved = true;
+        });
+        await new Promise<void>((done) => {
+            scene.onAfterRenderObservable.addOnce(() => {
+                done();
+            });
+        });
+        assert.isFalse(resolved, "the wait resolved while the picture was still loading");
+
+        scene.removePendingData(picture);
+        await wait;
+        assert.isTrue(graph.isFrameStable, "the picture landed and a frame showing it was drawn");
     });
 
     it("does not call the picture final while a mesh's shader is still arriving", async () => {
@@ -370,12 +411,9 @@ describe("knowing the picture is final", () => {
 
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await vi.waitFor(
-            () => {
-                assert.isTrue(graph.getUpdateManager().zoomToFitCompleted, "the camera was framed");
-            },
-            { timeout: STABLE_TIMEOUT_MS },
-        );
+        await vi.waitFor(() => {
+            assert.isTrue(graph.getUpdateManager().zoomToFitCompleted, "the camera was framed");
+        });
 
         const { final, later } = await finalAndLater(shaders, "the nodes");
 
@@ -397,7 +435,7 @@ describe("knowing the picture is final", () => {
         await graph.setLayout("circular");
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await graph.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await graph.waitForStableFrame();
 
         const shaders = holdShadersBack();
 
@@ -418,21 +456,45 @@ describe("knowing the picture is final", () => {
         );
     });
 
-    it("fails out loud rather than handing back a moving picture", async () => {
-        // Deliberately not awaited: the queue is busy, so a one millisecond wait cannot be
-        // satisfied honestly, and the only two answers are a rejection and a lie.
-        const loading = graph.addNodes(NODES);
-        let message = "";
-
+    /**
+     * Waits for the final frame with the wait's own limit on a fake clock, and runs the limit out
+     * at once. The test then decides when the time is up instead of a real deadline racing the
+     * machine, so it reads the same however busy the page is.
+     *
+     * The fake clock is in place only while `waitForStableFrame()` makes its limit and the limit is
+     * run out -- one synchronous stretch, so the only timer on it is the wait's own. Kept in place
+     * across the `await`, it also caught the timers the graph's own work made meanwhile -- a time
+     * slice of the load giving the thread back, the queue's poll -- and those never fire once the
+     * real clock returns, so on a busy machine the load never finished and the test hung (#6310).
+     * @returns The message of the rejection, or "resolved" when the wait was satisfied.
+     */
+    async function waitAndRunOutTheLimit(): Promise<string> {
+        let outcome: Promise<string>;
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
         try {
-            await graph.waitForStableFrame({ timeoutMs: 1 });
-            assert.fail("the wait resolved on a graph that was still loading");
-        } catch (error) {
-            message = error instanceof Error ? error.message : String(error);
+            outcome = graph.waitForStableFrame().then(
+                () => "resolved",
+                (error: unknown) => (error instanceof Error ? error.message : String(error)),
+            );
+            vi.runOnlyPendingTimers();
+            assert.strictEqual(vi.getTimerCount(), 0, "no timer is left on the fake clock to be lost");
+        } finally {
+            vi.useRealTimers();
         }
 
+        return outcome;
+    }
+
+    it("fails out loud rather than handing back a moving picture", async () => {
+        // Deliberately not awaited: the queue is busy, so a wait whose limit runs out now cannot
+        // be satisfied honestly, and the only two answers are a rejection and a lie.
+        const loading = graph.addNodes(NODES);
+
+        const message = await waitAndRunOutTheLimit();
+
+        assert.notStrictEqual(message, "resolved", "the wait resolved on a graph that was still loading");
         assert.include(message, "still changing", "the failure says the picture was not final");
-        assert.include(message, "1 ms", "the failure says how long it waited");
+        assert.include(message, "ms after waitForStableFrame() was called", "the failure says how long it waited");
 
         await loading;
     });
@@ -444,15 +506,10 @@ describe("knowing the picture is final", () => {
         // says the page stopped drawing.
         await graph.addNodes(NODES);
         graph.engine.stopRenderLoop();
-        let message = "";
 
-        try {
-            await graph.waitForStableFrame({ timeoutMs: 1 });
-            assert.fail("the wait resolved on a graph that never drew its picture");
-        } catch (error) {
-            message = error instanceof Error ? error.message : String(error);
-        }
+        const message = await waitAndRunOutTheLimit();
 
+        assert.notStrictEqual(message, "resolved", "the wait resolved on a graph that never drew its picture");
         assert.include(message, "0 frames were drawn while it waited", "the failure counts the frames drawn");
     });
 });

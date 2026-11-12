@@ -1,0 +1,147 @@
+/**
+ * The Samples dialog, as a reader reaches it from the Sources "+" of a project, without the
+ * element: its groups, its tiles with the start page's pictures and their sizes as chips, its
+ * search and its group filter. `open-doors.real-element.test.tsx` loads the fixtures from it.
+ */
+import { assert, describe, it } from "vitest";
+import { userEvent } from "vitest/browser";
+
+import { siteFeatures } from "../../../test/siteFeatures";
+import { render, screen, within } from "../../../test/test-utils";
+import { createWorkspaceStore } from "../../state/store";
+import { Workspace } from "../../Workspace";
+
+/**
+ * Opens an empty project on the Data place and the Samples dialog from its Sources "+".
+ * @returns the dialog.
+ */
+async function openSamples(): Promise<HTMLElement> {
+    render(<Workspace store={createWorkspaceStore({ project: { name: "Untitled", id: 1 }, place: "data" })} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /Samples/ }));
+    return screen.findByRole("dialog", { name: "Samples" });
+}
+
+/**
+ * The card of a sample in the dialog.
+ * @param dialog - the dialog.
+ * @param name - the sample's name, as the card's accessible name starts.
+ * @returns the tile's button.
+ */
+function tile(dialog: HTMLElement, name: string): HTMLElement {
+    const found = within(dialog)
+        .getAllByRole("button")
+        .find((button) => (button.getAttribute("aria-label") ?? "").startsWith(name));
+    if (found === undefined) {
+        throw new Error(`Samples lists no ${name}`);
+    }
+    return found;
+}
+
+describe("the Samples dialog", () => {
+    it("lists no timed sample with the timeline off", async () => {
+        await siteFeatures([]);
+        const off = await openSamples();
+        assert.throws(() => tile(off, "Paper citations"));
+        assert.isDefined(tile(off, "Les Miserables"));
+    });
+
+    it("lists the timed samples with the timeline on", async () => {
+        await siteFeatures(["timeline"]);
+        assert.isDefined(tile(await openSamples(), "Paper citations"));
+    });
+
+    it("groups every sample once, as tiles with the start page's pictures and their sizes", async () => {
+        const dialog = await openSamples();
+
+        const headings = within(dialog)
+            .getAllByRole("region")
+            .map((section) => section.getAttribute("aria-label"));
+        assert.includeMembers(headings, [
+            "Proteins",
+            "Supply chain",
+            "Door entries",
+            "Join",
+            "Samples",
+            "Network",
+            "Generated",
+        ]);
+        // Each file of a join walk says which walk it belongs to and where it comes in it.
+        const join = within(dialog).getByRole("region", { name: "Join" });
+        assert.include(tile(join, "people.csv").textContent, "Door entries 1 of 3");
+        assert.include(tile(join, "door-entries.csv").textContent, "Door entries 3 of 3");
+        assert.include(tile(join, "contracts-2024-09.csv").textContent, "Values onto edges 3 of 3");
+        // One network sample of each kind of source, between the samples and the generators, as
+        // the start page lists them.
+        assert.deepEqual(headings.slice(-3), ["Samples", "Network", "Generated"]);
+        const network = within(dialog).getByRole("region", { name: "Network" });
+        assert.deepEqual(
+            within(network)
+                .getAllByRole("button")
+                .map((button) => button.getAttribute("aria-label")),
+            [
+                "WikiPathways WP5483: NDEx",
+                "Neo4j demo: movies: Neo4j",
+                "UniProt: TP53's protein interactions: SPARQL endpoint",
+                "deps.dev: webpack 5.90.0: Web API",
+            ],
+        );
+        const names = within(dialog)
+            .getAllByRole("button")
+            .map((button) => button.getAttribute("aria-label") ?? "");
+        assert.lengthOf(
+            names.filter((name) => name.startsWith("Les Miserables")),
+            1,
+            "the app's own copy, not graph-samples' as well",
+        );
+        // The same picture the start page's tile shows.
+        const picture = tile(dialog, "Doubtful Sound dolphins").querySelector("img");
+        assert.match(picture?.src ?? "", /\/data\/graph-samples\/v1\/[a-z0-9-]+\.webp$/);
+        assert.include(tile(dialog, "Les Miserables").textContent, "77");
+        assert.include(tile(dialog, "Gene Ontology (go-basic)").textContent, "1.4 MB");
+        assert.include(tile(dialog, "auth-log.csv").textContent, "400 rows");
+    });
+
+    it("shows a picture that loads for every graph, dataset and generator, as the start page does", async () => {
+        const dialog = await openSamples();
+
+        const tiles = ["Samples", "Network", "Generated"].flatMap((group) =>
+            within(within(dialog).getByRole("region", { name: group })).getAllByRole("button"),
+        );
+        assert.isNotEmpty(tiles);
+        const missing = tiles.filter((each) => each.querySelector("img") === null).map((each) => each.ariaLabel);
+        assert.deepEqual(missing, [], "tiles with no picture");
+        const broken: string[] = [];
+        for (const each of tiles) {
+            const src = each.querySelector("img")?.src ?? "";
+            const response = await fetch(src);
+            if (!response.ok || !(response.headers.get("content-type") ?? "").startsWith("image/")) {
+                broken.push(`${each.textContent}: ${src}`);
+            }
+        }
+        assert.deepEqual(broken, [], "pictures that do not load");
+    });
+
+    it("narrows to what the search box names, and to one group", async () => {
+        const dialog = await openSamples();
+        const search = within(dialog).getByRole("searchbox", { name: "Search samples" });
+
+        await userEvent.type(search, "dolphin");
+        const sections = within(dialog).getAllByRole("region");
+        assert.deepEqual(
+            sections.map((section) => section.getAttribute("aria-label")),
+            ["Samples"],
+        );
+        await userEvent.clear(search);
+
+        await userEvent.click(within(within(dialog).getByRole("radiogroup", { name: "Group" })).getByText("Fraud"));
+        assert.deepEqual(
+            within(dialog)
+                .getAllByRole("region")
+                .map((section) => section.getAttribute("aria-label")),
+            ["Fraud"],
+        );
+        await userEvent.type(search, "zzz");
+        assert.isNotNull(within(dialog).getByText("No matches"));
+    });
+});

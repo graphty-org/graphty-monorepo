@@ -1,6 +1,8 @@
 /* The Data page (tier1-design.md section 2.10). Colors come only from compact-mantine's --cm-* tokens. */
 
-.dp {
+/* Not ".dp": the Data place's root has that name, and its flex column would stack these rows by
+   their content, so the footer would move whenever a row above it grew. */
+.dp-page {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto auto;
     height: 100%;
@@ -34,6 +36,9 @@
 .dp-main {
     min-height: 0;
     overflow: auto;
+    /* Keep the scrollbar's room even when nothing overflows, so the header row ("File settings")
+       does not shift left when the preview grows a scrollbar. */
+    scrollbar-gutter: stable;
 }
 
 .dp-roles {
@@ -51,9 +56,13 @@
     width: 160px;
 }
 
+.dp-nowrap {
+    white-space: nowrap;
+}
+
 .dp-auto {
     margin-inline-start: 4px;
-    color: var(--cm-text-menu-secondary);
+    color: var(--cm-text-secondary);
     font-size: 11px;
 }
 
@@ -65,10 +74,40 @@
     border-top: 1px solid var(--cm-border);
 }
 
+/* The Add page's line about edges the graph already holds, just above the footer's buttons. */
+.dp-repeats {
+    padding: 8px 16px 0;
+    border-top: 1px solid var(--cm-border);
+}
+
+.dp-repeats + .dp-footer {
+    border-top: none;
+}
+
 .dp-footer {
     display: flex;
     align-items: flex-end;
     gap: 12px;
     padding: 8px 16px 12px;
     border-top: 1px solid var(--cm-border);
+}
+
+/* An unmatched row's end that names no node: the value marked, then why. */
+.dp-missing-end {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--cm-text-danger);
+    font-weight: 600;
+}
+
+.dp-missing-words {
+    font-weight: 450;
+}
+
+/* Nothing read yet: the table's whole area is the drop area (the whole page takes a drop). */
+.dp-drop {
+    box-sizing: border-box;
+    height: 100%;
+    padding: 16px;
 }

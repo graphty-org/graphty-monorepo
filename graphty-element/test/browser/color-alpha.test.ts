@@ -4,8 +4,9 @@
  * THE RULE. Where the channel can draw transparency, the color's alpha is multiplied with the
  * channel's own opacity: a node filled `#ff000080` is drawn exactly as a node filled `#ff0000` at
  * opacity 128/255, and the same holds for an edge, an arrow cap and the selection halo. An arrow
- * with no color of its own follows its line's color, alpha included. A glow has no opacity, only
- * a strength, and it is additive, so its alpha fades the glow: `#ff000080` glows like `#800000`.
+ * with no color of its own follows its line's color, alpha included. A glow's alpha fades the
+ * glow; a glow is blended around the node rather than added, so no opaque color draws the same
+ * picture, and `glow-around-the-node.test.ts` checks that fade instead of a case here.
  * An outline cannot be drawn translucent at all -- Babylon's highlight layer pins the alpha of
  * every outline to 1 -- so an outline's alpha is ignored, the color is drawn opaque, and the
  * layer check says so with `W_ALPHA_IGNORED`.
@@ -46,7 +47,6 @@ interface AlphaCase {
 
 const CASES: readonly AlphaCase[] = [
     { target: "node", channel: "node.color", equivalent: { "node.color": "#ff0000", "node.opacity": HALF } },
-    { target: "node", channel: "node.glow", equivalent: { "node.glow": "#800000" } },
     { target: "node", channel: "node.outline", equivalent: { "node.outline": "#ff0000" } },
     {
         target: "edge",

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { katzCentrality } from "../../../src/indexed/katz.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
+import type { CentralityResult } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 

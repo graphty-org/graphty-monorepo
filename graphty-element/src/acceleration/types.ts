@@ -208,6 +208,12 @@ export interface AcceleratorFactoryOptions {
      * `"required"` it is: the consumer said "no CPU path", and a software device is a device.
      */
     readonly acceptSoftware?: boolean;
+    /**
+     * The device the renderer draws with, when a registration's `sharesDevice` said yes before
+     * the engine opened. Opaque here: only a backend knows what it is. The renderer owns it, so
+     * the accelerator neither destroys it nor treats its uncaptured errors as its own.
+     */
+    readonly device?: unknown;
 }
 
 /**
@@ -305,12 +311,29 @@ export interface WorkerCapability {
     readonly count: number;
 }
 
+/**
+ * Why an immersive mode cannot be entered.
+ *
+ * - `"no-webxr"`: the browser has no WebXR.
+ * - `"insecure-context"`: WebXR needs a secure (https) page.
+ * - `"unsupported"`: the browser has WebXR but no device for this mode, or did not answer in time.
+ * - `"webgpu-renderer"`: the graph draws through WebGPU, which WebXR cannot present.
+ * - `"disabled"`: the element's XR configuration switched this mode off.
+ * - `"probing"`: the element has not finished asking the browser yet.
+ */
+export type XrUnavailableReason =
+    "no-webxr" | "insecure-context" | "unsupported" | "webgpu-renderer" | "disabled" | "probing";
+
 /** Which immersive modes this host offers. */
 export interface XrCapability {
     /** Whether an immersive VR session can be entered. */
     readonly vr: boolean;
     /** Whether an immersive AR session can be entered. */
     readonly ar: boolean;
+    /** Why each mode cannot be entered, or null when it can. */
+    readonly reasons: { readonly vr: XrUnavailableReason | null; readonly ar: XrUnavailableReason | null };
+    /** The immersive session the graph is presenting now, or null. */
+    readonly active: "vr" | "ar" | null;
 }
 
 /** Which capture formats this host can produce. */

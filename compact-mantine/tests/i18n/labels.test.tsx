@@ -72,7 +72,7 @@ describe("useLabels", () => {
         expect(defaultLabels.opacity).toBe("Opacity");
         expect(defaultLabels.colorPanelTitle).toBe("Color");
         expect(defaultLabels.colorGenericName).toBe("color");
-        expect(defaultLabels.colorStops).toBe("Color Stops");
+        expect(defaultLabels.colorStops).toBe("Stops");
         expect(defaultLabels.addColorStop).toBe("Add color stop");
         expect(defaultLabels.direction).toBe("Direction");
         expect(defaultLabels.gradientDirection).toBe("Gradient direction");
@@ -87,8 +87,9 @@ describe("useLabels", () => {
         expect(defaultLabels.removeColorStop("2")).toBe("Remove color stop 2");
         expect(defaultLabels.editColorStop("2")).toBe("Edit stop 2 color");
         expect(defaultLabels.colorStopColor("2")).toBe("Stop 2 color");
-        expect(defaultLabels.pickColor("Fill")).toBe("Pick Fill color");
-        expect(defaultLabels.pickColor("Text color")).toBe("Pick Text color");
+        expect(defaultLabels.pickColor("Fill")).toBe("Pick fill color");
+        expect(defaultLabels.pickColor("Text color")).toBe("Pick text color");
+        expect(defaultLabels.pickColor("RGB")).toBe("Pick RGB color");
         expect(defaultLabels.colorValue("Fill")).toBe("Fill color");
         expect(defaultLabels.colorValue("Background Colour")).toBe("Background Colour");
         expect(defaultLabels.colorValue("Colorful")).toBe("Colorful color");

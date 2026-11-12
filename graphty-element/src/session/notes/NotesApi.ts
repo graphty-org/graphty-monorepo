@@ -128,6 +128,70 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
     let told = new Map(entries());
     let { position } = dispatcher.history;
     const beside = dispatcher.events.project;
+    /**
+     * Bring `told` up to date with the slice and say what it held before.
+     * @param written - the one note written, or undefined to compare the whole slice
+     * @returns what `told` held before, for the notes compared
+     */
+    const retell = (written: readonly NoteId[] | undefined): ReadonlyMap<NoteId, NoteEntry | undefined> => {
+        if (written === undefined) {
+            const was = told;
+            told = new Map(entries());
+            return was;
+        }
+
+        const was = new Map(written.map((id) => [id, told.get(id)]));
+        for (const id of written) {
+            const now = entries().get(id);
+            if (now === undefined) {
+                told.delete(id);
+            } else {
+                told.set(id, now);
+            }
+        }
+
+        return was;
+    };
+    /**
+     * Tell the listener about one note, when it changed.
+     * @param id - the note
+     * @param before - the note as last told, or undefined
+     * @param after - the note now, or undefined
+     * @param cause - what changed it
+     */
+    const tellOne = (
+        id: NoteId,
+        before: NoteEntry["note"] | undefined,
+        after: NoteEntry["note"] | undefined,
+        cause: NoteChange["cause"],
+    ): void => {
+        if (before === after) {
+            return;
+        }
+
+        const fields =
+            before === undefined || after === undefined
+                ? []
+                : (["text", "targets", "cites", "mediaType", "extensions", "done"] as const).filter(
+                      (field) => before[field] !== after[field],
+                  );
+        if (before !== undefined && after !== undefined && fields.length === 0) {
+            return;
+        }
+
+        const event: NoteChange = Object.freeze({
+            id,
+            change: changeOf(before, after),
+            fields: Object.freeze(fields),
+            note: after ?? null,
+            cause,
+        });
+        try {
+            dependencies.onChange(event);
+        } catch {
+            // A listener's failure is the listener's; the write has committed.
+        }
+    };
     dispatcher.events.project = (change) => {
         beside?.(change);
         if (!change.slices.includes("notes")) {
@@ -138,20 +202,7 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
         // (an undo, a redo, a restore, a rollback, a batch) compare the slice, in its own order.
         // ponytail: a batch of k notes still walks the slice once; order them by `told` to avoid it.
         const written = change.notes?.length === 1 ? change.notes : undefined;
-        let was: ReadonlyMap<NoteId, NoteEntry | undefined> = told;
-        if (written === undefined) {
-            told = new Map(entries());
-        } else {
-            was = new Map(written.map((id) => [id, told.get(id)]));
-            for (const id of written) {
-                const now = entries().get(id);
-                if (now === undefined) {
-                    told.delete(id);
-                } else {
-                    told.set(id, now);
-                }
-            }
-        }
+        const was = retell(written);
 
         const moved = dispatcher.history.position < position ? "undo" : "redo";
         ({ position } = dispatcher.history);
@@ -161,34 +212,7 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
 
         const cause = change.cause === "restore" ? moved : change.cause;
         for (const id of written ?? new Set([...was.keys(), ...told.keys()])) {
-            const before = was.get(id)?.note;
-            const after = told.get(id)?.note;
-            if (before === after) {
-                continue;
-            }
-
-            const fields =
-                before === undefined || after === undefined
-                    ? []
-                    : (["text", "targets", "cites", "mediaType", "extensions", "done"] as const).filter(
-                          (field) => before[field] !== after[field],
-                      );
-            if (before !== undefined && after !== undefined && fields.length === 0) {
-                continue;
-            }
-
-            const event: NoteChange = Object.freeze({
-                id,
-                change: changeOf(before, after),
-                fields: Object.freeze(fields),
-                note: after ?? null,
-                cause,
-            });
-            try {
-                dependencies.onChange(event);
-            } catch {
-                // A listener's failure is the listener's; the write has committed.
-            }
+            tellOne(id, was.get(id)?.note, told.get(id)?.note, cause);
         }
     };
 

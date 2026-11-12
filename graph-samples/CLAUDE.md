@@ -8,8 +8,13 @@ This file provides guidance to Claude Code when working with the @graphty/graph-
 random-graph generators, the deterministic classic families, and real datasets with ground truth.
 Every generated graph is a `SampleGraph` (typed arrays, structurally a graph-format
 `EdgeArraysInput`), so `fromEdgeArrays()` loads it in one call. No dataset's data is in the package
-(owner decision, 2026-10-14): every dataset is published on graphty.app and `fetchDataset(name)`
-(or a small dataset's subpath loader, the same call) downloads it as a `GraphSnapshot`.
+(owner decision, 2026-10-14): `fetchDataset(name)` (or a small dataset's subpath loader, the same
+call) downloads it as a `GraphSnapshot` from `DEFAULT_DATASET_BASE_URL`,
+`https://graphty.app/data/graph-samples/v1/`, or from `baseUrl`. Every channel's site (canary,
+nightly, graphty.app) serves its own build's datasets at `/data/graph-samples/v1/`, and the graphty
+app passes its channel's as `baseUrl`. graphty.app's copy is append-only, because every published
+version reads it: a production promotion adds new files and fails on a changed one
+(`tools/dataset-overlay.mjs`), so a content change needs a new name or a `v2` directory.
 
 The design, the determinism contract and the roadmap are in
 `design/graph-samples/graph-samples-design.md` in the monorepo.
@@ -50,6 +55,10 @@ npm run datasets:convert # re-create data/*.ts from the recorded sources (needs 
 npm run datasets:pack    # dist/data/v1/ and src/datasets/packed.ts (sizes, checksums) from data/; after a data change
 npm run datasets:hosted  # build public-data/v1/ and src/datasets/hosted.ts (needs unzip, graph-format/dist and a built graph-samples)
 ```
+
+### Test projects
+
+- Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
 
 ## The determinism contract (do not break it)
 

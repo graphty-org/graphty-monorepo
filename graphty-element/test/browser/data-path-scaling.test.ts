@@ -530,14 +530,36 @@ const CASES: readonly Case[] = [
     {
         methods: ["SessionDataApi.renameSource"],
         growth: "constant",
-        superlinear: 2734,
         prepare: async (element, size) => {
             await element.graph.getSession().data.import({ type: "json", config: { data: jsonOf(size) } });
             await settled(element.graph);
-            return () => element.graph.getSession().data.renameSource("Renamed");
+            // Settled too, so a repaint the rename defers to the derivation pass is counted (issue #2734).
+            return async () => {
+                await element.graph.getSession().data.renameSource("Renamed");
+                await settled(element.graph);
+            };
         },
         check: (element) => {
             assert.strictEqual(element.graph.getSession().data.source()?.name, "Renamed");
+        },
+    },
+    {
+        methods: ["SessionDataApi.removeSource"],
+        growth: "linear",
+        prepare: async (element, size) => {
+            const { data } = element.graph.getSession();
+            await data.import({ type: "json", config: { data: jsonOf(size) }, name: "first.json" });
+            // A second load naming the first half again and as many new nodes.
+            const second = JSON.stringify({ nodes: nodesOf(size, size / 2), edges: [] });
+            await data.import({ type: "json", config: { data: second }, name: "second.json" }, { mode: "merge" });
+            await settled(element.graph);
+            return async () => {
+                await data.removeSource(data.sources()[1].key);
+                await settled(element.graph);
+            };
+        },
+        check: (element, size) => {
+            assert.deepStrictEqual(drawn(element), { nodes: size, edges: size - 1 });
         },
     },
     {

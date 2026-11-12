@@ -564,7 +564,9 @@ describe("gmlImporter: ids", () => {
         expect(edges(snapshot)).toEqual(["a-7", "7-5"]);
         expect(column(snapshot, "nodes", "label")).toEqual(["a", "7", undefined]);
         expect(snapshot.nodes.require("label").meta.role).toBe("label");
-        expect(report.lossy).toEqual([{ code: ID_DROPPED_CODE, message: expect.any(String), column: null, count: 2 }]);
+        expect(report.lossy).toEqual([
+            { code: ID_DROPPED_CODE, message: expect.any(String) as unknown, column: null, count: 2 },
+        ]);
         expect(report.lossy[0].message).toContain("label");
     });
 

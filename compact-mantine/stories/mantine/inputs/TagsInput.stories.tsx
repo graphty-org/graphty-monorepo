@@ -7,7 +7,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
  * Mantine's `TagsInput`, themed as Figma's filled field with variable-pill shaped tags and the
- * dark list box for suggestions. Every prop is Mantine's: see
+ * list box for suggestions. Every prop is Mantine's: see
  * [TagsInput on mantine.dev](https://mantine.dev/core/tags-input/).
  *
  * Reach for TagsInput when the reader types their own values; for several values from a fixed

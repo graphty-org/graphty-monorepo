@@ -3,15 +3,7 @@ import { render, screen } from "@testing-library/react";
 import React, { type ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 
-import {
-    CompactColorInput,
-    compactTheme,
-    PopoutManager,
-    StyleNumberInput,
-    StyleSelect,
-    ToggleRow,
-    ToggleWithContent,
-} from "../../src";
+import { CompactColorInput, compactTheme, PanelField, PopoutManager, ToggleRow, ToggleWithContent } from "../../src";
 import { LabelsProvider } from "../../src/i18n";
 
 // What this file holds the line on, and the defect it was written for.
@@ -86,14 +78,15 @@ interface ReasonCase {
 
 const CASES: ReasonCase[] = [
     {
-        name: "StyleSelect",
+        name: "PanelField (select)",
         label: "Shape",
         reason: "Load data first",
         render: (props) => (
-            <StyleSelect
+            <PanelField
                 label="Shape"
+                kind="select"
                 defaultValue="sphere"
-                options={[
+                data={[
                     { value: "sphere", label: "Sphere" },
                     { value: "box", label: "Box" },
                 ]}
@@ -101,22 +94,26 @@ const CASES: ReasonCase[] = [
             />
         ),
         // The Select's input is a combobox (it opens a listbox).
-        described: () => screen.getByRole("combobox", { name: "Shape" }),
+        described: () => screen.getByRole("combobox", { name: /^Shape/ }),
+        enabledTitle: "Shape",
     },
     {
-        name: "StyleNumberInput",
+        name: "PanelField (number)",
         label: "Size",
         reason: "Load data first",
-        render: (props) => <StyleNumberInput label="Size" defaultValue={1} {...props} />,
+        // The arrow-key hint is its own aria-description; left out here so the description
+        // under test is only the reason.
+        render: (props) => <PanelField label="Size" kind="number" defaultValue={1} stepHint="" {...props} />,
         // A scrubbable number field is a spinbutton (spec 6.1), not a plain textbox.
-        described: () => screen.getByRole("spinbutton", { name: "Size" }),
+        described: () => screen.getByRole("spinbutton", { name: /^Size/ }),
+        enabledTitle: "Size",
     },
     {
         name: "CompactColorInput",
         label: "Fill",
         reason: "Load data first",
         render: (props) => <CompactColorInput label="Fill" defaultColor="#FF0000" {...props} />,
-        described: () => screen.getByRole("button", { name: "Pick Fill color" }),
+        described: () => screen.getByRole("button", { name: "Pick fill color" }),
     },
     {
         name: "ToggleRow",
@@ -132,7 +129,7 @@ const CASES: ReasonCase[] = [
         reason: "Glow is not drawn yet",
         render: (props) => (
             <ToggleWithContent label="Glow" {...props}>
-                <StyleNumberInput label="Strength" defaultValue={1} />
+                <PanelField label="Strength" kind="number" defaultValue={1} />
             </ToggleWithContent>
         ),
         described: () => screen.getByRole("checkbox", { name: "Glow" }),
@@ -232,7 +229,7 @@ describe("bound toggles", () => {
         const { container } = render(
             <TestWrapper>
                 <ToggleWithContent label="Glow" bound>
-                    <StyleNumberInput label="Strength" defaultValue={1} />
+                    <PanelField label="Strength" kind="number" defaultValue={1} />
                 </ToggleWithContent>
             </TestWrapper>,
         );
@@ -270,7 +267,7 @@ describe("bound toggles", () => {
         render(
             <TestWrapper>
                 <ToggleWithContent label="Glow" bound boundDescription="">
-                    <StyleNumberInput label="Strength" defaultValue={1} />
+                    <PanelField label="Strength" kind="number" defaultValue={1} />
                 </ToggleWithContent>
             </TestWrapper>,
         );

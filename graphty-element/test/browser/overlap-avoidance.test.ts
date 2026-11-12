@@ -3,7 +3,7 @@
  *
  * Two opt-in settings, both off by default:
  *
- * - `ngraph`'s `nodeGap` keeps every two nodes at least their drawn radii plus the gap apart, read
+ * - the force layouts' `nodeGap` keeps every two nodes at least their drawn radii plus the gap apart, read
  *   from each node's drawn size -- including a size a style gives the nodes after the layout
  *   came to rest. Off, nodes styled large overlap where the force layout puts them close.
  * - `layoutBehavior.labels.avoidNodesAndEdges` moves a label from the place its style puts it to
@@ -54,6 +54,8 @@ function star(): { nodes: { id: string }[]; edges: { src: string; dst: string }[
 
 async function settle(g: Graph): Promise<void> {
     await operationQueueOf(g).waitForCompletion();
+    // The frames draw every node at its size first: a nodeGap layout spends its pre-steps only then.
+    await g.waitForStableFrame();
     for (let frame = 0; frame < 4000 && !g.getLayoutManager().isSettled; frame++) {
         g.getLayoutManager().step();
     }
@@ -223,7 +225,163 @@ describe("ngraph's nodeGap keeps drawn nodes apart", () => {
 
         assert.deepEqual(overlappingPairs(g), []);
     });
+
+    it("moves nodes apart again when they grow after the frame loop stopped the layout at rest", async () => {
+        const g = await mount();
+        const { nodes, edges } = star();
+        await g.addNodes(nodes);
+        await g.addEdges(edges);
+        await g.setLayout("ngraph", { seed: 7, dim: 2, nodeGap: 1 });
+        await settle(g);
+        // A frame that finds the layout at rest stops stepping it.
+        for (let frame = 0; frame < 100 && g.getLayoutManager().running; frame++) {
+            g.scene.render();
+            await nextFrame();
+        }
+        assert.isFalse(g.getLayoutManager().running, "the frame loop stopped the settled layout");
+
+        await sizeEveryNode(g, 12);
+        assert.isTrue(g.getLayoutManager().running, "a node that grew starts the layout again");
+        await settle(g);
+
+        assert.deepEqual(overlappingPairs(g), []);
+    });
 });
+
+/** A graph too dense for its nodes: every node pulled toward a shared core, large enough to cover each other. */
+function dense(): { nodes: { id: string }[]; edges: { src: string; dst: string }[] } {
+    const nodes = Array.from({ length: 60 }, (_, i) => ({ id: `n${String(i)}` }));
+    const edges = nodes.flatMap((n, i) => [
+        { src: n.id, dst: nodes[(i + 1) % 60].id },
+        { src: n.id, dst: nodes[(i * 7 + 3) % 60].id },
+    ]);
+    return { nodes, edges };
+}
+
+const DENSE_SIZE = 16;
+
+describe.each([
+    ["spring", { seed: 7 }],
+    ["forceatlas2", { seed: 7 }],
+    ["d3", {}],
+])("%s's nodeGap keeps drawn nodes apart", (layout, options) => {
+    async function laidOut(size: number, gap: Record<string, unknown>, dim: 2 | 3 = 2, shape?: string): Promise<Graph> {
+        const g = await mount();
+        const { nodes, edges } = dense();
+        await g.addNodes(nodes);
+        await g.addEdges(edges);
+        await sizeEveryNode(g, size, shape);
+        await g.setLayout(layout, { ...options, dim, ...gap });
+        await settle(g);
+        return g;
+    }
+
+    it("lets large nodes overlap when nodeGap is unset, which is the default", async () => {
+        assert.isAbove(
+            overlappingPairs(await laidOut(DENSE_SIZE, {})).length,
+            0,
+            "the setup must reproduce the overlap",
+        );
+    });
+
+    it("draws no node inside another with nodeGap set", async () => {
+        assert.deepEqual(overlappingPairs(await laidOut(DENSE_SIZE, { nodeGap: 1 })), []);
+    });
+
+    it("keeps them apart in 3D too", async () => {
+        assert.deepEqual(overlappingPairs(await laidOut(DENSE_SIZE, { nodeGap: 1 }, 3)), []);
+    });
+
+    it("keeps box nodes apart at their corners", async () => {
+        assert.deepEqual(overlappingBoxes(await laidOut(DENSE_SIZE, { nodeGap: 1 }, 2, "box")), []);
+    });
+
+    it("moves nodes apart again when a style makes them larger after the layout came to rest", async () => {
+        const g = await laidOut(1, { nodeGap: 1 });
+        assert.isTrue(g.getLayoutManager().isSettled);
+
+        await sizeEveryNode(g, DENSE_SIZE);
+        assert.isFalse(g.getLayoutManager().isSettled, "a node that grew wakes the layout");
+        await settle(g);
+
+        assert.deepEqual(overlappingPairs(g), []);
+    });
+});
+
+describe.each([["spring"], ["forceatlas2"]])("%s's nodeGap in a graph too big for its radius", (layout) => {
+    it("publishes the graph wider instead of leaving its nodes on top of each other", async () => {
+        const g = await mount();
+        const { nodes, edges } = dense();
+        await g.addNodes(nodes);
+        await g.addEdges(edges);
+        await sizeEveryNode(g, 60);
+        await g.setLayout(layout, { seed: 7, dim: 2, nodeGap: 1 });
+        await settle(g);
+
+        assert.deepEqual(overlappingPairs(g), []);
+    });
+
+    it("keeps them apart as seen from the front with nodeGapFront", async () => {
+        const g = await mount();
+        const { nodes, edges } = dense();
+        await g.addNodes(nodes);
+        await g.addEdges(edges);
+        await sizeEveryNode(g, DENSE_SIZE);
+        await g.setLayout(layout, { seed: 7, dim: 3, nodeGap: 1, nodeGapFront: true });
+        await settle(g);
+
+        assert.deepEqual(overlappingPairs(g, true), []);
+    });
+});
+
+describe.each([["spring"], ["forceatlas2"], ["ngraph"], ["d3"]])(
+    "%s's nodeGap starts from the styled sizes",
+    (layout) => {
+        /**
+         * Lay the dense graph out with every node styled large, and read where the nodes ended up.
+         * @param drawFirst - Whether frames draw the style before the layout is set. Otherwise the style has arrived and no
+         *     frame has drawn it yet, which is where a load's own layout starts.
+         * @returns Each node's position.
+         */
+        async function positions(drawFirst: boolean): Promise<string[]> {
+            const g = await mount();
+            const { nodes, edges } = dense();
+            await g.addNodes(nodes);
+            await g.addEdges(edges);
+            // A static arrangement to start from, so the frames that draw the style move nothing.
+            await g.setLayout("random", { seed: 3, dim: 2 });
+            await settle(g);
+            if (drawFirst) {
+                await sizeEveryNode(g, DENSE_SIZE);
+            } else {
+                await g.getSession().styles.add({
+                    name: "big",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.size": DENSE_SIZE },
+                });
+            }
+
+            await g.setLayout(layout, { seed: 7, dim: 2, nodeGap: 1 });
+            await settle(g);
+            const engine = g.getLayoutManager().layoutEngine;
+            assert.isDefined(engine);
+            const placed = [...g.getDataManager().nodes.values()].map((node) => {
+                const { x, y } = engine.getNodePosition(node);
+                return `${x.toFixed(3)},${y.toFixed(3)}`;
+            });
+            g.dispose();
+            container?.remove();
+            graph = undefined;
+            return placed;
+        }
+
+        // Whether a frame fell between the style arriving and the layout starting decided the drawing (#6030).
+        it("draws the same whether or not a frame drew the style before the layout started", async () => {
+            assert.deepEqual(await positions(false), await positions(true));
+        });
+    },
+);
 
 interface Rect {
     left: number;

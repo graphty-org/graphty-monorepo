@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import { GraphtyError } from "../errors";
@@ -74,14 +74,16 @@ interface LouvainOptions extends Record<string, unknown> {
  * merging each group into one node and repeating.
  */
 export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
-    static namespace = "graphty";
-    static type = "louvain";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "louvain";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static readonly weightMeaning = "strength" as const;
     /** Groups over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = louvainOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = louvainOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         resolution: {
             type: "number",
             default: 1,
@@ -173,7 +175,7 @@ export class LouvainAlgorithm extends DeclaredAlgorithm<LouvainOptions> {
             caveats: declaredCaveats({
                 method: "louvain",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "strength" },
+                ...this.weightCaveats(),
                 precision,
                 facts: [caveat("community.resolution", { resolution })],
             }),

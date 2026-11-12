@@ -11,6 +11,7 @@ export {
     type JsonImportDialect,
     type JsonShapeMeta,
     jsonShapeOf,
+    sniffJsonDialect,
 } from "./dialect.js";
 export { JSON_LOSS, jsonCapabilities, jsonExporter, type JsonExportOptions } from "./exporter.js";
 export { JSON_ISSUE, jsonImporter, type JsonImportOptions } from "./importer.js";

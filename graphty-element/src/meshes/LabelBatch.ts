@@ -9,16 +9,18 @@
  * texture's GPU texture out of five lists by `indexOf`. A frame that draws or removes a label on
  * every node did that once per label, so N labels cost about N x N.
  */
-import type {
-    AbstractMesh,
-    BaseTexture,
-    DynamicTexture,
-    ImageProcessingConfiguration,
-    InternalTexture,
-    Observer,
-    Scene,
-    StandardMaterial,
-    UniformBuffer,
+import {
+    type AbstractMesh,
+    type BaseTexture,
+    Constants,
+    type DynamicTexture,
+    type ImageProcessingConfiguration,
+    type InternalTexture,
+    type Material,
+    type Observer,
+    type Scene,
+    type StandardMaterial,
+    type UniformBuffer,
 } from "@babylonjs/core";
 
 /** What one label owns in the scene: the three things its disposal hands back. */
@@ -65,13 +67,33 @@ export function buildMaterial<T>(scene: Scene, build: () => T): T {
  * @param material - A material no mesh has drawn yet.
  * @param setup - Writes its properties.
  */
-export function setUpQuietly(material: StandardMaterial, setup: () => void): void {
+export function setUpQuietly(material: Material, setup: () => void): void {
     material.blockDirtyMechanism = true;
     try {
         setup();
     } finally {
         // Read through a plain shape: the field is private, and its setter is what walks.
         (material as unknown as { _blockDirtyMechanism: boolean })._blockDirtyMechanism = false;
+    }
+}
+
+/**
+ * Unfreeze the material of a mesh that is the only one drawing with it, marking only that mesh's
+ * submeshes dirty. `Material.unfreeze` marks dirty by walking every submesh of every mesh in the
+ * scene for the ones drawn with the material, whatever `blockDirtyMechanism` says, so unfreezing
+ * one node's source material cost the size of the graph (issue #2894).
+ * @param mesh - The one mesh drawn with `material`: a node's source mesh, whose instances draw
+ * through it.
+ * @param material - Its material.
+ */
+export function unfreezeFor(mesh: AbstractMesh, material: Material): void {
+    const scene = mesh.getScene();
+    const { meshes } = scene;
+    scene.meshes = [mesh];
+    try {
+        material.unfreeze();
+    } finally {
+        scene.meshes = meshes;
     }
 }
 
@@ -89,6 +111,28 @@ export function giveAlphaQuietly(scene: Scene, texture: BaseTexture): void {
     } finally {
         scene.materials = materials;
     }
+}
+
+/**
+ * How a texture drawn on a 2D canvas with see-through parts (a label's words, an annotation) is
+ * blended: COLOR = SRC + (1 - SRC_ALPHA) DEST, for a texture uploaded with its colors already
+ * multiplied by their alpha ({@link uploadPremultiplied}).
+ *
+ * NOT `ALPHA_COMBINE` OVER A STRAIGHT-ALPHA UPLOAD. A canvas keeps no color where it is fully
+ * see-through, so a straight-alpha upload holds black there, and the smaller mip levels a label
+ * far from the camera is drawn from average that black into every letter's edge: white words on a
+ * light background were drawn as dark smudges, and dark words a third heavier than the program
+ * that wrote the file draws them. Averaged premultiplied, the edges keep the words' own color.
+ */
+export const PREMULTIPLIED_ALPHA_MODE = Constants.ALPHA_SRC_DSTONEMINUSSRCALPHA;
+
+/**
+ * Upload what was drawn on a dynamic texture's canvas with its colors multiplied by their alpha;
+ * draw it with {@link PREMULTIPLIED_ALPHA_MODE}.
+ * @param texture - The texture.
+ */
+export function uploadPremultiplied(texture: DynamicTexture): void {
+    texture.update(undefined, true);
 }
 
 /**

@@ -246,3 +246,16 @@ describe("keys", () => {
         expect(isGmlKey(mangleGmlKey(""))).toBe(true);
     });
 });
+
+describe("the OGDF creator check", () => {
+    it("finishes on a long comment banner of '#' characters", () => {
+        const banner = `${"#".repeat(200)}\n${"# ".repeat(150)}\n`;
+        const tokens = tokenizeGml(`${banner}graph [ node [ id 1 ] ]`);
+        expect(tokens.backslashEscapes).toBe(false);
+    });
+
+    it("finds the creator line after comments and whitespace", () => {
+        const tokens = tokenizeGml('### banner\n  # more\n\tCreator "ogdf::writeGML"\ngraph [ node [ id 1 ] ]');
+        expect(tokens.backslashEscapes).toBe(true);
+    });
+});

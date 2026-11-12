@@ -2,7 +2,10 @@
 layout: home
 
 hero:
-    name: Graphty
+    image:
+        light: /brand/graphty-lockup-stacked-color-on-light.svg
+        dark: /brand/graphty-lockup-stacked-color-on-dark.svg
+        alt: graphty
     text: Modular Graph Visualization Ecosystem
     tagline: A suite of TypeScript libraries for graph algorithms, layouts, and interactive visualization
     actions:

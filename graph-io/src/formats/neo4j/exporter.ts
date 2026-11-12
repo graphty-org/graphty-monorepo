@@ -41,6 +41,7 @@ import { isCanonicalIntegerText } from "../../common/ids.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { formatTemporal, type TemporalKind } from "../../common/temporal.js";
+import { jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
@@ -423,7 +424,8 @@ class ExportPlan {
                 this.fatalEdges = new GraphFormatError("E_DIRECTED", gen.message, { reason: "mixed direction" });
             }
             if ((gen.code === LOSS.POSITIONS || gen.code === LOSS.VIZ) && gen.column !== null) {
-                // written as a plain property (a point for a position); the role is what is lost
+                // written as a plain property (a point for a position); the role is what is lost. Deprecated for
+                // the style roles (next major): styles reach a file only through the style writer.
                 this.notes.push(
                     Object.freeze({
                         code: gen.code,
@@ -540,59 +542,14 @@ class ExportPlan {
         const mapped = declared === null ? null : mapDeclaredType(NEO4J, declared, "f64");
         const label = `${meta.domain} column "${meta.name}"`;
         if (meta.dtype === "list") {
-            const itemDtype = meta.itemDtype ?? "string";
-            const compatible =
-                mapped !== null && mapped.list && mapped.itemDtype === itemDtype && mapped.kind !== "long";
-            let scalar = compatible
-                ? { type: declaredScalar(declared as string), kind: kindOf(mapped), temporal: mapped.temporal }
-                : defaultScalar(itemDtype);
-            if (mapped !== null && mapped.list && mapped.kind === "long" && itemDtype === "f64") {
-                scalar = this.integralOrDouble(column, declaredScalar(declared as string), label);
-            }
-            const itemComponents = meta.itemComponents ?? 1;
-            if (itemComponents > 1) {
-                this.note(
-                    LOSS.COMPONENTS,
-                    `${label} holds items of ${itemComponents} components; they are flattened into one array`,
-                    meta.name,
-                    column.length - column.nullCount,
-                );
-            }
-            this.checkArrayItems(column, scalar, label);
-            return {
-                column,
-                header: formatHeaderField(meta.name, `${scalar.type}[]`, null),
-                scalar,
-                list: true,
-                companion,
-            };
+            return this.planListColumn(column, companion, declared, mapped, label);
         }
-        let scalar: ScalarPlan;
-        const compatible = mapped !== null && !mapped.list && mapped.dtype === meta.dtype;
-        if (compatible && mapped.kind === "long") {
-            scalar = this.integralOrDouble(column, declared as string, label);
-        } else if (compatible) {
-            scalar = { type: declared as string, kind: kindOf(mapped), temporal: mapped.temporal };
-        } else {
-            scalar = defaultScalar(meta.dtype);
-        }
+        const scalar = this.scalarColumnPlan(column, declared, mapped, label);
         // the generic check treats position and visual columns by role only; their dtype and
         // stride are checked here so the notes match those of any other column
         const visual = meta.role === "position" || (meta.role !== null && isVizRole(meta.role));
-        if (visual && meta.dtype === "json" && scalar.kind !== "point") {
-            this.note(
-                LOSS.JSON,
-                `${label} holds nested values; the format has no nested values`,
-                meta.name,
-                column.length - column.nullCount,
-            );
-        } else if (visual && meta.dtype !== "json" && !NEO4J_CAPABILITIES.dtypes.includes(meta.dtype)) {
-            this.note(
-                LOSS.DTYPE,
-                `${label} is ${meta.dtype}; the format cannot keep that dtype`,
-                meta.name,
-                column.length - column.nullCount,
-            );
+        if (visual) {
+            this.noteVisualColumn(column, scalar, label);
         }
         if (meta.components > 1) {
             if (visual) {
@@ -615,6 +572,99 @@ class ExportPlan {
         const untyped = declared === null && meta.origin?.format === NEO4J && meta.dtype === "string";
         const header = untyped ? meta.name : formatHeaderField(meta.name, scalar.type, null);
         return { column, header, scalar, list: false, companion };
+    }
+
+    /**
+     * Plan one list column: its item type from the declared type when compatible, with notes.
+     * @param column - the list column
+     * @param companion - its text companion, or null
+     * @param declared - the declared type text, or null
+     * @param mapped - the declared type resolved, or null
+     * @param label - the column label for messages
+     * @returns the plan
+     */
+    private planListColumn(
+        column: Column,
+        companion: Column | null,
+        declared: string | null,
+        mapped: DeclaredTypeSpec | null,
+        label: string,
+    ): ColumnPlan {
+        const { meta } = column;
+        const itemDtype = meta.itemDtype ?? "string";
+        const compatible = mapped !== null && mapped.list && mapped.itemDtype === itemDtype && mapped.kind !== "long";
+        let scalar = compatible
+            ? { type: declaredScalar(declared as string), kind: kindOf(mapped), temporal: mapped.temporal }
+            : defaultScalar(itemDtype);
+        if (mapped !== null && mapped.list && mapped.kind === "long" && itemDtype === "f64") {
+            scalar = this.integralOrDouble(column, declaredScalar(declared as string), label);
+        }
+        const itemComponents = meta.itemComponents ?? 1;
+        if (itemComponents > 1) {
+            this.note(
+                LOSS.COMPONENTS,
+                `${label} holds items of ${itemComponents} components; they are flattened into one array`,
+                meta.name,
+                column.length - column.nullCount,
+            );
+        }
+        this.checkArrayItems(column, scalar, label);
+        return {
+            column,
+            header: formatHeaderField(meta.name, `${scalar.type}[]`, null),
+            scalar,
+            list: true,
+            companion,
+        };
+    }
+
+    /**
+     * The scalar plan of a non-list column: the declared type when compatible, the dtype's default otherwise.
+     * @param column - the column
+     * @param declared - the declared type text, or null
+     * @param mapped - the declared type resolved, or null
+     * @param label - the column label for messages
+     * @returns the scalar plan
+     */
+    private scalarColumnPlan(
+        column: Column,
+        declared: string | null,
+        mapped: DeclaredTypeSpec | null,
+        label: string,
+    ): ScalarPlan {
+        const compatible = mapped !== null && !mapped.list && mapped.dtype === column.meta.dtype;
+        if (compatible && mapped.kind === "long") {
+            return this.integralOrDouble(column, declared as string, label);
+        }
+        if (compatible) {
+            return { type: declared as string, kind: kindOf(mapped), temporal: mapped.temporal };
+        }
+        return defaultScalar(column.meta.dtype);
+    }
+
+    /**
+     * Note a position or visual column whose dtype the format cannot keep.
+     * @param column - the column
+     * @param scalar - its scalar plan
+     * @param label - the column label for messages
+     */
+    private noteVisualColumn(column: Column, scalar: ScalarPlan, label: string): void {
+        const { meta } = column;
+        if (meta.dtype === "json" && scalar.kind !== "point") {
+            this.note(
+                LOSS.JSON,
+                `${label} holds nested values; the format has no nested values`,
+                meta.name,
+                column.length - column.nullCount,
+            );
+        } else if (meta.dtype !== "json" && !NEO4J_CAPABILITIES.dtypes.includes(meta.dtype)) {
+            this.note(
+                LOSS.DTYPE,
+                `${label} is ${meta.dtype}; the format cannot keep that dtype`,
+                meta.name,
+                column.length - column.nullCount,
+            );
+        }
     }
 
     /**
@@ -713,48 +763,7 @@ class ExportPlan {
 
     /** Check the node ids' text forms: type changes under the canonical rule and collisions. */
     private checkIds(): void {
-        const { ids } = this.snapshot;
-        let typeChanges = 0;
-        let collisions = 0;
-        switch (ids.kind) {
-            case "identity":
-            case "dense":
-                break;
-            case "numeric":
-                for (let i = 0; i < ids.size; i++) {
-                    if (!Number.isSafeInteger(ids.idOf(i))) {
-                        typeChanges++;
-                    }
-                }
-                break;
-            case "string":
-                for (let i = 0; i < ids.size; i++) {
-                    if (isCanonicalIntegerText(String(ids.idOf(i)))) {
-                        typeChanges++;
-                    }
-                }
-                break;
-            case "mixed": {
-                const seen = new Set<string>();
-                for (let i = 0; i < ids.size; i++) {
-                    const id = ids.idOf(i);
-                    const text = String(id);
-                    if (typeof id === "number" ? !Number.isSafeInteger(id) : isCanonicalIntegerText(text)) {
-                        typeChanges++;
-                    }
-                    if (seen.has(text)) {
-                        collisions++;
-                    } else {
-                        seen.add(text);
-                    }
-                }
-                break;
-            }
-            default: {
-                const name: string = ids.kind;
-                throw new GraphFormatError("E_UNSUPPORTED", `unknown id map kind ${name}`, { kind: name });
-            }
-        }
+        const { typeChanges, collisions } = idTextIssues(this.snapshot.ids);
         if (typeChanges > 0) {
             this.note(
                 ID_TEXT_TYPE_LOSS,
@@ -1251,6 +1260,64 @@ function isVizRole(role: string): boolean {
 }
 
 /**
+ * Count the node ids whose text re-imports as another type, and the ids whose text another id shares.
+ * @param ids - the id map
+ * @returns the two counts
+ */
+function idTextIssues(ids: GraphSnapshot["ids"]): { typeChanges: number; collisions: number } {
+    let typeChanges = 0;
+    switch (ids.kind) {
+        case "identity":
+        case "dense":
+            return { typeChanges: 0, collisions: 0 };
+        case "numeric":
+            for (let i = 0; i < ids.size; i++) {
+                if (!Number.isSafeInteger(ids.idOf(i))) {
+                    typeChanges++;
+                }
+            }
+            return { typeChanges, collisions: 0 };
+        case "string":
+            for (let i = 0; i < ids.size; i++) {
+                if (isCanonicalIntegerText(String(ids.idOf(i)))) {
+                    typeChanges++;
+                }
+            }
+            return { typeChanges, collisions: 0 };
+        case "mixed":
+            return mixedIdTextIssues(ids);
+        default: {
+            const name: string = ids.kind;
+            throw new GraphFormatError("E_UNSUPPORTED", `unknown id map kind ${name}`, { kind: name });
+        }
+    }
+}
+
+/**
+ * Count type changes and text collisions over a mixed id map (numbers and strings).
+ * @param ids - the id map
+ * @returns the two counts
+ */
+function mixedIdTextIssues(ids: GraphSnapshot["ids"]): { typeChanges: number; collisions: number } {
+    let typeChanges = 0;
+    let collisions = 0;
+    const seen = new Set<string>();
+    for (let i = 0; i < ids.size; i++) {
+        const id = ids.idOf(i);
+        const text = String(id);
+        if (typeof id === "number" ? !Number.isSafeInteger(id) : isCanonicalIntegerText(text)) {
+            typeChanges++;
+        }
+        if (seen.has(text)) {
+            collisions++;
+        } else {
+            seen.add(text);
+        }
+    }
+    return { typeChanges, collisions };
+}
+
+/**
  * The declared scalar type text of a list declaration (`string[]` -> `string`).
  * @param declared - the declared type text
  * @returns the text without its `[]` suffix
@@ -1363,7 +1430,7 @@ function formatScalar(value: unknown, scalar: ScalarPlan, text: string | null): 
         case "point":
             return formatPoint(value);
         case "json":
-            return JSON.stringify(value) ?? "";
+            return jsonText(value) ?? "";
         default: {
             const name: string = scalar.kind;
             throw new GraphFormatError("E_UNSUPPORTED", `unknown cell kind ${name}`, { kind: name });
@@ -1379,7 +1446,7 @@ function formatScalar(value: unknown, scalar: ScalarPlan, text: string | null): 
  */
 function formatPoint(value: unknown): string {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
-        return JSON.stringify(value) ?? "";
+        return jsonText(value) ?? "";
     }
     const parts: string[] = [];
     for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
@@ -1388,7 +1455,7 @@ function formatPoint(value: unknown): string {
         } else if (typeof item === "string") {
             parts.push(`${key}:'${item.replaceAll("'", "")}'`);
         } else {
-            return JSON.stringify(value) ?? "";
+            return jsonText(value) ?? "";
         }
     }
     return `{${parts.join(", ")}}`;
@@ -1421,7 +1488,7 @@ function textOf(column: Column, row: number): string {
         case "list":
             return column.sliceOf(row).map(String).join(",");
         case "json":
-            return JSON.stringify(column.values[row]) ?? "";
+            return jsonText(column.values[row]) ?? "";
         case "bool":
             return column.value(row) === true ? "true" : "false";
         default: {

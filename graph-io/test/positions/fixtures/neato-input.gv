@@ -1,0 +1,7 @@
+graph G {
+  node [width=0.5];
+  a [pos="1,2"];
+  b [pos="3.5,-1!"];
+  c [pos="0,0", width=1.5];
+  a -- b -- c;
+}

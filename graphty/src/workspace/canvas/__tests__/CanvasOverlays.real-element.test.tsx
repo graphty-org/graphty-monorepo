@@ -12,14 +12,11 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up and running, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 /** Two rings of six joined by one bridge: Louvain finds the two rings. */
 const NODES = Array.from({ length: 12 }, (_, i) => ({ id: `n${String(i)}` }));
@@ -44,23 +41,46 @@ const EVERYTHING_GRAY = {
 async function newProject(): Promise<GraphSession> {
     render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
     return session;
 }
 
+// The workspace's design width. In the runner's 414 px frame the side panels overlap the canvas,
+// so a real click on a notice's action lands on the panel drawn over it.
+beforeAll(async () => {
+    await page.viewport(1366, 768);
+});
+
 describe("the canvas on the real element", () => {
+    it("shows a category a data-only edit brings in, and drops the one it took away (#3529)", async () => {
+        const session = await newProject();
+        await session.data.addNodes([
+            { id: "a", kind: "alpha" },
+            { id: "b", kind: "beta" },
+        ]);
+        await session.styles.add({
+            name: "Kind",
+            selector: { match: "everything" },
+            encode: { "node.color": { by: "data.kind", scale: "ordinal", palette: "okabe-ito" } },
+        });
+        const legend = await screen.findByRole("region", { name: "Legend" });
+        await within(legend).findByText("beta");
+
+        // Data alone: no layer changes, so no style event follows the repaint.
+        await session.data.updateNodes([{ id: "b", values: { kind: "gamma" } }]);
+        await within(legend).findByText("gamma");
+        assert.isNull(within(legend).queryByText("beta"), "the old category is gone");
+    });
+
     it("shows No nodes to draw until the graph has a node, then the legend of a run that paints (T7)", async () => {
         const session = await newProject();
-        await screen.findByRole("region", { name: "No nodes to draw" }, { timeout: TIMEOUT_MS });
+        await screen.findByRole("region", { name: "No nodes to draw" });
         assert.isNull(screen.queryByRole("region", { name: "Legend" }));
 
         await session.data.addNodes(NODES);
@@ -81,7 +101,7 @@ describe("the canvas on the real element", () => {
         assert.include(session.runs.bindings(run.id), session.styles.list().at(-1)?.id, "PageRank's row is on top");
 
         const legend = await screen.findByRole("region", { name: "Legend" });
-        await within(legend).findByRole("group", { name: `Color: ${run.label}` });
+        await within(legend).findByRole("group", { name: "Color: PageRank" });
         assert.isNull(screen.queryByText(/^Hidden by your layer/), "a run that painted gives no notice");
     });
 
@@ -106,7 +126,7 @@ describe("the canvas on the real element", () => {
         assert.include(session.runs.bindings(run.id), winner, "Louvain wins color");
 
         const legend = await screen.findByRole("region", { name: "Legend" });
-        await within(legend).findByRole("group", { name: `Color: ${run.label}` }, { timeout: TIMEOUT_MS });
+        await within(legend).findByRole("group", { name: "Color: Louvain" });
         assert.isNull(screen.queryByText(/^Hidden by your layer/), "a run that painted gives no notice");
     });
 
@@ -123,17 +143,15 @@ describe("the canvas on the real element", () => {
         assert.equal(outcome.outcome, "suppressed");
         assert.equal(outcome.outcome === "suppressed" ? outcome.byLayerId : undefined, mine.id);
 
-        await screen.findByText("Hidden by your layer My gray", {}, { timeout: TIMEOUT_MS });
-        assert.isNull(screen.queryByRole("group", { name: `Color: ${run.label}` }));
+        // The toast; the workspace's status line speaks the same words.
+        await screen.findByText("Hidden by your layer My gray", { selector: ".cm-toast-message" });
+        assert.isNull(screen.queryByRole("group", { name: "Color: Louvain" }));
         await userEvent.click(screen.getByRole("button", { name: "Show anyway" }));
 
-        await waitFor(
-            () => {
-                assert.equal(session.styles.list().at(-1)?.id, session.runs.bindings(run.id)[0], "Louvain is on top");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(session.styles.list().at(-1)?.id, session.runs.bindings(run.id)[0], "Louvain is on top");
+        });
         const legend = await screen.findByRole("region", { name: "Legend" });
-        await within(legend).findByRole("group", { name: `Color: ${run.label}` }, { timeout: TIMEOUT_MS });
+        await within(legend).findByRole("group", { name: "Color: Louvain" });
     });
 });

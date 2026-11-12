@@ -47,7 +47,7 @@ describe("the workspace command registry", () => {
         }
     });
 
-    it("draws the File list from three commands that every package agrees on", () => {
+    it("draws the File list from commands that every package agrees on", () => {
         for (const id of FILE_LIST) {
             assert.isDefined(registry.get(id), id);
         }

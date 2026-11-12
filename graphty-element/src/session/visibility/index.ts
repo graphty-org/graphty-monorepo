@@ -13,6 +13,14 @@
  * Nothing in this module's import graph reaches Babylon.js, Lit or the DOM.
  */
 
+export type { AttributeLeafNodes } from "../../catalog/types";
+export type {
+    FilterCondition,
+    FilterConditionInput,
+    FilterEffect,
+    FilterSelectWithin,
+    FilterStep,
+} from "../../catalog/types";
 export {
     assertVisibility,
     type CompiledVisibility,
@@ -23,16 +31,22 @@ export {
     type RuleTree,
     runPass,
     runPassInSlices,
+    type TimePlayback,
+    type TimeResultsPolicy,
     type TimeStep,
     type TimeWindow,
     type VisibilityPass,
 } from "./filter";
 export {
     createVisibilityApi,
+    type FilterConditionCount,
+    type FilterConditionMatches,
     type FilterResult,
     type SessionVisibilityApi,
+    type StepCounts,
     type VisibilityApi,
     type VisibilityChange,
     type VisibilitySources,
     type VisibilitySummary,
+    type WindowWalk,
 } from "./VisibilityApi";

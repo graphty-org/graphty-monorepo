@@ -15,10 +15,10 @@ import {
  * Connected components: the separate pieces of the graph, or of the run's scope.
  */
 export class ConnectedComponentsAlgorithm extends DeclaredAlgorithm {
-    static namespace = "graphty";
-    static type = "connected-components";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "connected-components";
     /** Groups over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * Find the separate pieces of the graph.

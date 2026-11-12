@@ -161,6 +161,12 @@ export function buildRepo() {
     for (const file of ["button--primary.dark.png", "card--legacy.png", "tooltip--hover.png"]) {
         cpSync(join(FIXTURE, "compact-mantine/baselines", file), join(repo, "visual-baselines/compact-mantine", file));
     }
+    // The fixture's unchanged item, whose capture is this image: master's baseline of it is the
+    // captured one, so it stays unchanged against master too.
+    cpSync(
+        join(FIXTURE, "graphty-element/graph--basic.png"),
+        join(repo, "visual-baselines/compact-mantine/input--default.png"),
+    );
     git(repo, "add", "-A");
     git(repo, "commit", "-q", "-m", "init");
     git(repo, "push", "-q", "origin", "master");
@@ -304,7 +310,7 @@ export function pullsGraphql(prs, runOf) {
  * @param {Record<string, object>} [data.runs] CI runs by head sha
  * @param {Record<string, object>} [data.runsById] CI runs by id
  * @param {object[]} [data.masterRuns] master's commits, newest first, each with its CI run (`id`
- *     null for a commit CI never ran on)
+ *     null for a commit CI never ran on) and its parents (`parents`, default the next entry)
  * @param {Record<string, object[]>} [data.jobs] jobs by run id
  * @param {Record<string, string[]>} [data.artifacts] artifact names by run id
  * @param {Record<string, object>} [data.results] results overrides applied to each download, by
@@ -337,7 +343,12 @@ export function fakeGh({
             return pullsGraphql(prs, (head) => runs[head]);
         }
         if (path?.startsWith("repos/{owner}/{repo}/commits?sha=master")) {
-            return JSON.stringify(masterRuns.map((r) => ({ sha: r.head })));
+            return JSON.stringify(
+                masterRuns.map((r, i) => ({
+                    sha: r.head,
+                    parents: (r.parents ?? [masterRuns[i + 1]?.head]).map((sha) => ({ sha })),
+                })),
+            );
         }
         if ((m = /workflows\/ci\.yml\/runs\?head_sha=(\w+)/.exec(path))) {
             const found = runs[m[1]] ?? masterRuns.find((r) => r.head === m[1] && r.id !== null);
@@ -438,12 +449,14 @@ export const withMoved = (r, extra = []) => {
  * request sent right after `await page.route(...)` can still go out unintercepted (about one in
  * ten on a CPU throttled sixfold, as a slow CI runner is). With this never-matching route held,
  * later routes only change what Playwright matches, which is in force before `page.route` returns.
+ * Its waits (waitFor, click and the rest) have no limit of Playwright's 30 s: the test's ends them.
  * @param {import("playwright").Browser} browser the browser to open it in
  * @param {import("playwright").BrowserContextOptions} options the viewport and the rest, as for newPage
  * @returns {Promise<import("playwright").Page>} the tab
  */
 export async function interceptedPage(browser, options) {
     const page = await browser.newPage(options);
+    page.setDefaultTimeout(0);
     await page.route("**/interception-stays-on", (route) => route.continue());
     return page;
 }

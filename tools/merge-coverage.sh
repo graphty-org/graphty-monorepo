@@ -26,7 +26,7 @@ COVERAGE_DIR="$ROOT_DIR/.coverage-packages"
 OUTPUT_FILE="$ROOT_DIR/coverage/lcov.info"
 
 # Packages to process
-PACKAGES=("graph-format" "graph-io" "webgpu-graph-algorithms" "graph-samples" "cytoscape-extensions" "algorithms" "layout" "graphty" "graphty-element" "githerd" "compact-mantine" "remote-logger" "visual-review")
+PACKAGES=("graph-format" "graph-io" "webgpu-graph-algorithms" "graph-samples" "babylonjs-map" "cytoscape-extensions" "algorithms" "layout" "graphty" "graphty-element" "githerd" "compact-mantine" "remote-logger" "visual-review")
 
 # Colors for output
 RED='\033[0;31m'
@@ -79,6 +79,7 @@ while [[ $# -gt 0 ]]; do
             echo "  cd graph-io && pnpm run coverage"
             echo "  cd webgpu-graph-algorithms && pnpm run coverage"
             echo "  cd graph-samples && pnpm run coverage"
+            echo "  cd babylonjs-map && pnpm run coverage"
             echo "  cd algorithms && pnpm run coverage"
             echo "  cd layout && pnpm run coverage"
             echo "  cd graphty && pnpm run coverage"
@@ -230,6 +231,7 @@ if [ $COLLECTED -eq 0 ]; then
     log_error "  cd graph-io && pnpm run coverage"
     log_error "  cd webgpu-graph-algorithms && pnpm run coverage"
     log_error "  cd graph-samples && pnpm run coverage"
+    log_error "  cd babylonjs-map && pnpm run coverage"
     log_error "  cd algorithms && pnpm run coverage"
     log_error "  cd layout && pnpm run coverage"
     log_error "  cd graphty && pnpm run coverage"

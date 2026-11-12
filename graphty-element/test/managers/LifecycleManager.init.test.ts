@@ -124,4 +124,28 @@ describe("LifecycleManager.init", () => {
             "init cleared the disposed flag and ran again",
         );
     });
+
+    it("keeps a registered event manager alive until the failure and the disposal are reported", async () => {
+        const log: Log = [];
+        const eventManager = events(log);
+        Object.assign(eventManager, { init: () => Promise.resolve(), dispose: () => log.push("dispose event") });
+        const managers = new Map<string, Manager>([
+            ["event", eventManager],
+            ["a", manager("a", log)],
+            [
+                "b",
+                manager("b", log, () => {
+                    throw new Error("boom");
+                }),
+            ],
+        ]);
+        const lifecycle = new LifecycleManager(managers, eventManager, ["event", "a", "b"]);
+        await lifecycle.init().catch(() => undefined);
+        assert.strictEqual(log.at(-1), "error init Failed to initialize manager 'b': boom");
+        assert.notInclude(log, "dispose event", "the failure is reported through it");
+
+        log.length = 0;
+        lifecycle.dispose();
+        assert.deepEqual(log, ["dispose b", "dispose a", "emit lifecycle-disposed", "dispose event"]);
+    });
 });

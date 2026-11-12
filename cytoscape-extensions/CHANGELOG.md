@@ -1,3 +1,240 @@
+## 0.0.35 (2026-11-10)
+
+### 🚀 Features
+
+- **graphty-element:** put styles from files behind the file-styles experiment ([#706](https://github.com/graphty-org/graphty-monorepo/issues/706))
+
+### 🩹 Fixes
+
+- **tools:** move to knip 6 so the dead-code check peaks at 1.4 GB, not 3 GB ([#6142](https://github.com/graphty-org/graphty-monorepo/issues/6142), [#6147](https://github.com/graphty-org/graphty-monorepo/issues/6147))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.68
+- Updated graph-samples to 0.1.46
+- Updated visual-review to 0.2.42
+- Updated graph-format to 1.5.1
+- Updated algorithms to 3.4.21
+- Updated graph-io to 0.3.55
+- Updated layout to 2.7.0
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
+## 0.0.34 (2026-11-09)
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** build the package before linting its consumer test ([c9fd8cdfdb](https://github.com/graphty-org/graphty-monorepo/commit/c9fd8cdfdb))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.67
+- Updated graph-samples to 0.1.45
+- Updated visual-review to 0.2.41
+- Updated graph-format to 1.5.0
+- Updated algorithms to 3.4.20
+- Updated graph-io to 0.3.54
+- Updated layout to 2.6.0
+
+## 0.0.33 (2026-11-02)
+
+### 🩹 Fixes
+
+- **workspace:** bundle storybook test dependencies afresh every run ([#5240](https://github.com/graphty-org/graphty-monorepo/issues/5240))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.66
+- Updated graph-samples to 0.1.44
+- Updated visual-review to 0.2.40
+- Updated graph-format to 1.4.12
+- Updated algorithms to 3.4.19
+- Updated graph-io to 0.3.53
+- Updated layout to 2.5.15
+
+## 0.0.32 (2026-11-01)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.65
+- Updated graph-samples to 0.1.43
+- Updated visual-review to 0.2.39
+- Updated graph-format to 1.4.11
+- Updated algorithms to 3.4.18
+- Updated graph-io to 0.3.52
+- Updated layout to 2.5.14
+
+## 0.0.31 (2026-10-31)
+
+### 🩹 Fixes
+
+- **layout:** add a Barnes-Hut repulsion to ForceAtlas2 and use it for the large dataset stories ([#5001](https://github.com/graphty-org/graphty-monorepo/issues/5001), [#3849](https://github.com/graphty-org/graphty-monorepo/issues/3849), [#3848](https://github.com/graphty-org/graphty-monorepo/issues/3848))
+- **algorithms:** score every ordered pair in directed link prediction ([#961](https://github.com/graphty-org/graphty-monorepo/issues/961))
+- **cytoscape-extensions:** measure the network sources as loaded after the file formats ([1e66fbbcce](https://github.com/graphty-org/graphty-monorepo/commit/1e66fbbcce))
+- **cytoscape-extensions:** keep the script-tag bundle's lazy file formats under Vite 8 ([#4230](https://github.com/graphty-org/graphty-monorepo/issues/4230))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.64
+- Updated graph-samples to 0.1.42
+- Updated visual-review to 0.2.38
+- Updated graph-format to 1.4.10
+- Updated algorithms to 3.4.17
+- Updated graph-io to 0.3.51
+- Updated layout to 2.5.13
+
+## 0.0.30 (2026-10-29)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.63
+- Updated graph-samples to 0.1.41
+- Updated visual-review to 0.2.37
+- Updated graph-format to 1.4.9
+- Updated algorithms to 3.4.16
+- Updated graph-io to 0.3.50
+- Updated layout to 2.5.12
+
+## 0.0.29 (2026-10-28)
+
+### 🚀 Features
+
+- **cytoscape-extensions:** show the venice-transit dataset on a map in the gallery ([e3989e34ee](https://github.com/graphty-org/graphty-monorepo/commit/e3989e34ee))
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** freeze only the finishing story's own cores in a capture ([#4071](https://github.com/graphty-org/graphty-monorepo/issues/4071), [#4072](https://github.com/graphty-org/graphty-monorepo/issues/4072))
+- **ci:** preset FC_FONTATIONS for every Chromium launch; one shared vitest base ([#3787](https://github.com/graphty-org/graphty-monorepo/issues/3787))
+- **cytoscape-extensions:** keep datasets over 1,000 nodes out of the Datasets Overview ([#3846](https://github.com/graphty-org/graphty-monorepo/issues/3846))
+- **compact-mantine:** take only the storybook 8.6.19 security fix ([#3492](https://github.com/graphty-org/graphty-monorepo/issues/3492))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.62
+- Updated graph-samples to 0.1.40
+- Updated visual-review to 0.2.36
+- Updated graph-format to 1.4.8
+- Updated algorithms to 3.4.15
+- Updated graph-io to 0.3.49
+- Updated layout to 2.5.11
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+- graphty-agent @graphty-agent
+
+## 0.0.28 (2026-10-21)
+
+### 🚀 Features
+
+- **cytoscape-extensions:** one caption line per story, the explanation on its Docs page ([#2048](https://github.com/graphty-org/graphty-monorepo/issues/2048))
+- **cytoscape-extensions:** traversal, spanning-tree and cycle stories show how they work ([#2045](https://github.com/graphty-org/graphty-monorepo/issues/2045), [#2046](https://github.com/graphty-org/graphty-monorepo/issues/2046), [#2047](https://github.com/graphty-org/graphty-monorepo/issues/2047))
+- **cytoscape-extensions:** show what the spiral, BFS and spectral layouts are for ([#2041](https://github.com/graphty-org/graphty-monorepo/issues/2041), [#2042](https://github.com/graphty-org/graphty-monorepo/issues/2042), [#2043](https://github.com/graphty-org/graphty-monorepo/issues/2043))
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** set imported style bypasses after the elements are added ([#2494](https://github.com/graphty-org/graphty-monorepo/issues/2494))
+- **cytoscape-extensions:** expect Gephi's mixed edge color in the styles guide example ([#2494](https://github.com/graphty-org/graphty-monorepo/issues/2494))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.61
+- Updated graph-samples to 0.1.39
+- Updated graph-format to 1.4.7
+- Updated algorithms to 3.4.14
+- Updated graph-io to 0.3.48
+- Updated layout to 2.5.10
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.0.27 (2026-10-20)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.60
+- Updated graph-samples to 0.1.38
+- Updated graph-format to 1.4.6
+- Updated algorithms to 3.4.13
+- Updated graph-io to 0.3.47
+- Updated layout to 2.5.9
+
+## 0.0.26 (2026-10-19)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-io to 0.3.46
+
+## 0.0.25 (2026-10-18)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-io to 0.3.45
+
+## 0.0.24 (2026-10-18)
+
+### 🚀 Features
+
+- **cytoscape-extensions:** import and export file styles through graph-io's style system ([#1983](https://github.com/graphty-org/graphty-monorepo/issues/1983))
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** count the gallery's own stylesheet as nothing the export tile loses ([4b045ca8a](https://github.com/graphty-org/graphty-monorepo/commit/4b045ca8a))
+- **cytoscape-extensions:** read and write positions the way up each format's program draws them ([4699b048f](https://github.com/graphty-org/graphty-monorepo/commit/4699b048f))
+- **graph-io:** write each node's position into its yEd geometry in a styled GraphML export ([bf69a4788](https://github.com/graphty-org/graphty-monorepo/commit/bf69a4788))
+- reconcile the merged file-styles, file-positions and master branches ([852fd978c](https://github.com/graphty-org/graphty-monorepo/commit/852fd978c))
+- **cytoscape-extensions:** say so when a core with styles disabled exports none ([7fb435e38](https://github.com/graphty-org/graphty-monorepo/commit/7fb435e38))
+- **cytoscape-extensions:** leave GEXF viz values out of data when styles are read ([2fe81ae98](https://github.com/graphty-org/graphty-monorepo/commit/2fe81ae98))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.59
+- Updated graph-samples to 0.1.37
+- Updated graph-format to 1.4.5
+- Updated algorithms to 3.4.12
+- Updated graph-io to 0.3.44
+- Updated layout to 2.5.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.0.23 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.58
+- Updated graph-samples to 0.1.36
+- Updated graph-format to 1.4.4
+- Updated algorithms to 3.4.11
+- Updated graph-io to 0.3.43
+- Updated layout to 2.5.7
+
+## 0.0.22 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.57
+- Updated graph-samples to 0.1.35
+- Updated graph-format to 1.4.3
+- Updated algorithms to 3.4.10
+- Updated graph-io to 0.3.42
+- Updated layout to 2.5.6
+
+## 0.0.21 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.56
+- Updated graph-samples to 0.1.34
+- Updated graph-format to 1.4.2
+- Updated algorithms to 3.4.9
+- Updated graph-io to 0.3.41
+- Updated layout to 2.5.5
+
 ## 0.0.20 (2026-10-15)
 
 ### 🚀 Features

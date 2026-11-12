@@ -1,10 +1,9 @@
 import { assert, describe, it } from "vitest";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { DijkstraAlgorithm } from "../../src/algorithms/DijkstraAlgorithm";
 import { LeidenAlgorithm } from "../../src/algorithms/LeidenAlgorithm";
 import { MinCutAlgorithm } from "../../src/algorithms/MinCutAlgorithm";
-import { PageRankAlgorithm } from "../../src/algorithms/PageRankAlgorithm";
 import { optionsFromZod } from "../../src/catalog/optionsFromZod";
 import type { OptionDescriptor } from "../../src/catalog/types";
 import { GraphStyle } from "../../src/config/GraphStyle";
@@ -41,7 +40,7 @@ describe("optionsFromZod", () => {
 
             assert.deepEqual(
                 options.map((o) => o.name),
-                ["source", "target", "bidirectional"],
+                ["source", "target", "bidirectional", "direction"],
             );
         });
 
@@ -86,11 +85,11 @@ describe("optionsFromZod", () => {
         });
 
         it("keeps a nullable string as a string, with null as its default", () => {
-            const weight = byName(optionsFromZod(schemaOf(PageRankAlgorithm)), "weight");
+            const weight = byName(optionsFromZod(z.object({ weight: z.string().nullable().default(null) })), "weight");
 
             assert.strictEqual(weight.type, "string");
             assert.isNull(weight.default);
-            assert.isTrue(weight.advanced);
+            assert.isUndefined(weight.advanced);
         });
 
         it("emits no Zod object anywhere in the result", () => {
@@ -174,7 +173,18 @@ describe("optionsFromZod", () => {
 
             assert.deepEqual(
                 options.map((o) => o.name),
-                ["scalingFactor", "k", "iterations", "scale", "dim", "seed"],
+                [
+                    "clusterBy",
+                    "clusterStrength",
+                    "scalingFactor",
+                    "k",
+                    "iterations",
+                    "scale",
+                    "dim",
+                    "nodeGap",
+                    "nodeGapFront",
+                    "seed",
+                ],
             );
             assert.deepEqual(
                 options.filter((o) => o.type === "unknown"),
@@ -254,6 +264,7 @@ describe("optionsFromZod", () => {
 
             assert.strictEqual(selection.type, "unknown");
             assert.include(selection.unsupportedReason, "object or record");
+            assert.deepEqual(selection.unsupported, { code: "option.object", params: {} });
         });
 
         it("keeps a union of objects, typed unknown, with a reason", () => {
@@ -261,6 +272,8 @@ describe("optionsFromZod", () => {
 
             assert.strictEqual(background.type, "unknown");
             assert.include(background.unsupportedReason, "union");
+            assert.strictEqual(background.unsupported?.code, "option.union");
+            assert.isNotEmpty(background.unsupported?.params.types);
         });
 
         it("drops no option from a schema of nested objects", () => {
@@ -270,14 +283,37 @@ describe("optionsFromZod", () => {
                 options.map((o) => o.name),
                 // Every top-level field of NodeStyle, exactly. `enabled` was here until 2.0
                 // withdrew it: the session's visibility mask decides whether a node is drawn and
-                // nothing ever read the flag.
-                ["shape", "texture", "effect", "label", "tooltip"],
+                // nothing ever read the flag. `visible` is the `node.visible` channel's field:
+                // false stops drawing the node and nothing else.
+                [
+                    "shape",
+                    "texture",
+                    "effect",
+                    "border",
+                    "outerBorder",
+                    "raisedBorder",
+                    "shadow",
+                    "underlay",
+                    "overlay",
+                    "image",
+                    "pie",
+                    "stripes",
+                    "chart",
+                    "glyph",
+                    "group",
+                    "label",
+                    "xlabel",
+                    "tooltip",
+                    "visible",
+                ],
             );
             for (const option of options) {
                 if (option.type === "unknown") {
                     assert.ok(option.unsupportedReason);
+                    assert.ok(option.unsupported);
                 } else {
                     assert.isUndefined(option.unsupportedReason);
+                    assert.isUndefined(option.unsupported);
                 }
             }
         });
@@ -312,6 +348,7 @@ describe("optionsFromZod", () => {
 
             assert.strictEqual(options[0].type, "unknown");
             assert.include(options[0].unsupportedReason, "recursive");
+            assert.strictEqual(options[0].unsupported?.code, "option.recursive");
         });
 
         it("types a heterogeneous union unknown, naming the arms", () => {

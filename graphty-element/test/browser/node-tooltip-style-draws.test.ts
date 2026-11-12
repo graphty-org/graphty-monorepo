@@ -31,7 +31,7 @@ import type { LayerSpec } from "../../src/catalog/types";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { Node } from "../../src/Node";
 import { assertPlaced } from "../helpers/placed-position";
-import { nextFrame } from "../helpers/real-input";
+import { hover, nextFrame } from "../helpers/real-input";
 
 /** Two nodes far enough apart that a pointer over one is nowhere near the other. */
 const NODES = [{ id: "alpha" }, { id: "omega" }];
@@ -39,11 +39,11 @@ const NODES = [{ id: "alpha" }, { id: "omega" }];
 /** The one edge between them. */
 const EDGES = [{ src: "alpha", dst: "omega" }];
 
-/** How wide the canvas the graph is drawn on is. */
-const WIDTH = 640;
+/** How wide the canvas the graph is drawn on is: inside the test frame's 414-pixel-wide viewport, where the real pointer reaches. */
+const WIDTH = 400;
 
 /** How tall it is. */
-const HEIGHT = 480;
+const HEIGHT = 300;
 
 /** How many frames to render before reading anything back. */
 const FRAMES = 20;
@@ -142,22 +142,7 @@ describe("the look of a node's tooltip, and the channel that carries it", () => 
      * @param at - Where to move it, in canvas pixels.
      */
     async function pointerTo(at: { x: number; y: number }): Promise<void> {
-        const { canvas } = graph;
-        const box = canvas.getBoundingClientRect();
-
-        canvas.dispatchEvent(
-            new PointerEvent("pointermove", {
-                clientX: box.left + at.x,
-                clientY: box.top + at.y,
-                bubbles: true,
-                pointerId: 1,
-                pointerType: "mouse",
-                // A real pointermove carries no button, and a PointerEvent built by hand defaults
-                // to 0 -- the LEFT button -- which Babylon reads as a press. A hand-built move
-                // then starts a drag, and a node being dragged stops reporting hover.
-                button: -1,
-            }),
-        );
+        await hover(graph.canvas, at);
 
         await settle();
     }
@@ -302,6 +287,31 @@ describe("the look of a node's tooltip, and the channel that carries it", () => 
                 `where the default drew ${String(plain.width)}. The type size a layer asked for ` +
                 "never reached the canvas the tooltip is drawn on.",
         );
+    });
+
+    it("is drawn at the size and in the panel colour the single-look channels write", async () => {
+        await graph.getSession().styles.add(WORDS_ONLY);
+        await settle();
+        await hoverAlpha();
+
+        const plain = tooltipSize();
+        assert.isNotNull(plain, "the words alone drew a tooltip");
+
+        await hoverNothing();
+        await graph.getSession().styles.add({
+            name: "the tooltip's own size and panel, one channel each",
+            selector: { match: "ids", nodes: ["alpha"] },
+            set: { "node.tooltipSize": BIG_TYPE, "node.tooltipBackground": PANEL },
+        });
+        await settle();
+        await hoverAlpha();
+
+        const big = tooltipSize();
+        const panel = panelColour();
+        assert.isNotNull(big, "a tooltip is still drawn once the size channel is written");
+        assert.isAbove(big.width, plain.width * GROWTH, "node.tooltipSize reached the canvas");
+        assert.isNotNull(panel, "a tooltip panel is drawn");
+        assert.isTrue(isColour(panel, PANEL), "node.tooltipBackground reached the canvas");
     });
 
     it("rebuilds a tooltip already on screen when a layer changes how it looks", async () => {

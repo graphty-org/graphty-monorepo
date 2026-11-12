@@ -28,7 +28,7 @@ import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
  * |---|---|
  * | Height | 16px, padding 0 4px, radius 5px |
  * | Default | transparent, 1px `--cm-border` outline inside, 11/16 `--cm-text` |
- * | In a dark menu | outline #383838, menu secondary text |
+ * | In a menu | outline `--cm-border-menu` (#e6e6e6 / #383838), menu secondary text |
  */
 const meta: Meta<typeof Badge> = {
     title: "Themed Mantine/Feedback/Badge",
@@ -47,7 +47,7 @@ export const Default: Story = {
 };
 
 /**
- * Every look: outline (the default), filled, light and dot, then the outline inside a dark menu.
+ * Every look: outline (the default), filled, light and dot, then the outline inside a menu.
  * Light and dark side by side.
  */
 export const States: Story = {

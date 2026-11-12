@@ -1,4 +1,4 @@
-import type { F64, GraphSnapshot } from "@graphty/graph-format";
+import type { AdjacencyView, F32, F64, GraphSnapshot } from "@graphty/graph-format";
 
 import { readsWeights } from "./weights.js";
 
@@ -69,6 +69,27 @@ function maxNormalize(v: Float64Array): void {
 }
 
 /**
+ * Sum, for every node, the scores of its row's targets times the arc weights, into `out`.
+ * @param adj - The adjacency whose rows are summed
+ * @param w - Per-arc weights, or null for unit weights
+ * @param scores - The scores read at the arc targets
+ * @param out - Receives one sum per node
+ */
+function rowSums(adj: AdjacencyView, w: F32 | null, scores: Float64Array, out: Float64Array): void {
+    // Read the arrays once: adj is a snapshot or a reverse view, two shapes, and a property load of
+    // either inside the arc loop made HITS 1.2-1.3x slower.
+    const { rowPtr, colIdx } = adj;
+    for (let v = 0; v < out.length; v++) {
+        let sum = 0;
+        const end = rowPtr[v + 1];
+        for (let a = rowPtr[v]; a < end; a++) {
+            sum += scores[colIdx[a]] * (w === null ? 1 : w[a]);
+        }
+        out[v] = sum;
+    }
+}
+
+/**
  * HITS by alternating power iteration: an authority sums the hub scores of the nodes pointing at
  * it, a hub sums the authority scores of the nodes it points at, and both vectors are
  * L2-normalized every round. On an undirected snapshot the two adjacencies are the same array, so
@@ -93,20 +114,8 @@ export function hits(s: GraphSnapshot, o: HitsOptions = {}): HitsResult {
     let it = 0;
     let converged = false;
     for (; it < maxIter && !converged; it++) {
-        for (let v = 0; v < n; v++) {
-            let auth = 0;
-            const inEnd = rev.rowPtr[v + 1];
-            for (let a = rev.rowPtr[v]; a < inEnd; a++) {
-                auth += hubs[rev.colIdx[a]] * (revW === null ? 1 : revW[a]);
-            }
-            nextAuthorities[v] = auth;
-            let hub = 0;
-            const outEnd = s.rowPtr[v + 1];
-            for (let a = s.rowPtr[v]; a < outEnd; a++) {
-                hub += authorities[s.colIdx[a]] * (fwdW === null ? 1 : fwdW[a]);
-            }
-            nextHubs[v] = hub;
-        }
+        rowSums(rev, revW, hubs, nextAuthorities);
+        rowSums(s, fwdW, authorities, nextHubs);
         l2Normalize(nextAuthorities);
         l2Normalize(nextHubs);
         let change = 0;

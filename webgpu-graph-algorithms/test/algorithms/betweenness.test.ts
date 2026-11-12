@@ -200,7 +200,6 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         }
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 109 s on the Windows WARP host lane, 42 s on CI's lavapipe, 23 s on lavapipe on the dev box under load, more than a third of the 30 s budget; tracked in #1636
     it("path counts past 2^32 (grid(20, 20), grid(40, 40), layered(4, 18)) are rescaled level by level and equal the CPU in both forward forms", async (t) => {
         const ctx = await context(t);
         // grid(40, 40) has C(78, 39), about 2.6e22, corner-to-corner paths: past u32 and far past f32's 2^24 integers
@@ -220,7 +219,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
             expect(edges.sigmaOverflow, name).toBe(false);
             expect(scoreError(edges.scores, cpuEdgeBetweenness(s).scores), name).toBeLessThanOrEqual(TOLERANCE);
         }
-    }, 300_000);
+    });
 
     it("the overflow flag: counts at one depth spread wider than f32 can hold (wideAndNarrow(130)) raise it and the dispatcher refuses the scores; wideAndNarrow(100) does not", async (t) => {
         const ctx = await context(t);
@@ -244,7 +243,6 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         ).rejects.toBeInstanceOf(PathCountOverflowError);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 13 s on CI's lavapipe, 11 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it("exact betweenness on the fixture list within 1e-4 of the reference, top-10 order kept, bitwise run to run, the snapshot unchanged", async (t) => {
         const ctx = await context(t);
         for (const { name, s } of fixtures()) {
@@ -264,9 +262,8 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         await betweennessCentrality(ctx, checked);
         await edgeBetweennessCentrality(ctx, checked);
         expect(() => checked.validate({ checksum: true })).not.toThrow();
-    }, 300_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 28 s on CI's lavapipe, 22 s on the Windows WARP host lane, 17 s on lavapipe on the dev box under load, more than a third of the 30 s budget; tracked in #1636
     it("every simple fixture equals the CPU port's betweennessCentrality and edgeBetweennessCentrality within 1e-4, exact, normalized and on a source list; the dispatcher's k runs the port's draw", async (t) => {
         const ctx = await context(t);
         const sources = [0, 3, 3, 7, 11];
@@ -293,7 +290,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         expect(
             scoreError((await dispatch.edgeBetweennessCentrality(s, k)).scores, cpuEdgeBetweenness(s, k).scores),
         ).toBeLessThanOrEqual(TOLERANCE);
-    }, 300_000);
+    });
 
     it("the closed forms: path(n) scores i (n - 1 - i); star(L) the hub L (L - 1) / 2 and every leaf 0; normalized divides by (n - 1)(n - 2) / 2", async (t) => {
         const ctx = await context(t);
@@ -358,7 +355,6 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         expectBitwiseEqual(shrunk.scores, planned.scores);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 19 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it("sampling: an explicit list equals the reference on that list, unscaled; k draws the same sources every time; a 256-source sample ranks like the exact scores", async (t) => {
         const ctx = await context(t);
         const s = snapshotOf(randomEdges(1000, 4000, 21));
@@ -387,19 +383,20 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         const sampled = await betweennessCentrality(ctx, s, { k: 256 });
         const exact = await betweennessCentrality(ctx, s);
         expect(spearman(sampled.scores, exact.scores)).toBeGreaterThanOrEqual(0.9);
-    }, 120_000);
+    });
 
     it("edge betweenness: both arcs of an undirected edge equal before the fold, the folded scores within 1e-4 of the reference, the path's closed form (i + 1)(n - 1 - i), a sample against the reference on the same sources", async (t) => {
         const ctx = await context(t);
         for (const { name, s } of fixtures()) {
-            let perArc: Float32Array | null = null;
+            const perArc: Float32Array[] = [];
             const got = await edgeBetweennessWithTuning(ctx, s, undefined, {}, (arcs) => {
-                perArc = arcs;
+                perArc.push(arcs);
             });
             expect(got.scores.length, name).toBe(s.edgeCount);
             if (s.arcCount > 0) {
-                expect(perArc, name).not.toBeNull();
-                expect(arcPairGap(s, perArc ?? new Float32Array(0)), `${name}: arc pairs`).toBeLessThanOrEqual(1e-5);
+                expect(perArc.length, name).toBeGreaterThan(0);
+                const last = perArc.length > 0 ? perArc[perArc.length - 1] : new Float32Array(0);
+                expect(arcPairGap(s, last), `${name}: arc pairs`).toBeLessThanOrEqual(1e-5);
             }
             const want = edgeConvention(s, brandesOracle(s).perArc);
             expect(scoreError(got.scores, want), name).toBeLessThanOrEqual(TOLERANCE);
@@ -504,7 +501,6 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         await expectRejection(betweennessWithTuning(ctx, s, undefined, { levelsPerSubmit: 0 }), "E_INVALID_ARGUMENT");
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("refuses a weighted snapshot unless weighted: false, since the kernel counts hops; a column of ones is hops already", async (t) => {
         const ctx = await context(t);
         const weighted = snapshotOf(KARATE_EDGES.map(([u, v], e) => [u, v, 1 + (e % 3)] as const));
@@ -518,7 +514,7 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         expectBitwiseEqual((await betweennessCentrality(ctx, ones)).scores, plain.scores, "a column of ones");
         ctx.release(weighted);
         ctx.release(ones);
-    }, 60_000);
+    });
 
     afterAll(() => {
         shared?.dispose();

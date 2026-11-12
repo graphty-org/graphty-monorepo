@@ -24,7 +24,9 @@ import { agree, plural } from "../../common/plural.js";
 import { inferTextDtype } from "../../common/text.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
+import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
+import { PAJEK_STYLE_CAPABILITIES, pajekStyledExport } from "./styles.js";
 import {
     encodeCharacterReferences,
     formatIntervals,
@@ -35,7 +37,11 @@ import {
     RELATION_COLUMN,
     SHAPE_COLUMN,
     SHAPES,
+    VOIDING_KEYS,
 } from "./syntax.js";
+
+/** What the writer takes: the format's options, the common ones and the styles. */
+type PajekWriteOptions = PajekExportOptions & CommonExportOptions & ExporterStyleOptions;
 
 /**
  * The format-specific options of the Pajek exporter.
@@ -105,6 +111,8 @@ export const PAJEK_LOSS = Object.freeze({
      * reads back with that role.
      */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
+    /** The label column, when a role-less column named `label` is read over it on import. */
+    COLUMN_DROPPED: LOSS.COLUMN_DROPPED,
     /**
      * With `sanitizeIds: "mangle"`: an original id that reads back as a different type, such as the text "7" as the
      * number 7.
@@ -392,16 +400,19 @@ function labelNotes(snapshot: GraphSnapshot, nodePlan: readonly PlannedColumn[],
                 plain.length - plain.nullCount,
             ),
         );
-    }
-    if (carried === 0) {
-        return;
-    }
-    let gained = 0;
-    for (let i = 0; i < snapshot.nodeCount; i++) {
-        if (!labels?.isSet(i)) {
-            gained++;
+        // the labels written second on each vertex line are then read over by that parameter
+        if (labels !== null && labels !== plain) {
+            notes.push(
+                note(
+                    PAJEK_LOSS.COLUMN_DROPPED,
+                    `node column "${labels.meta.name}" (the labels) reads back replaced by the parameter "${LABEL_COLUMN}"`,
+                    labels.meta.name,
+                    labels.length - labels.nullCount,
+                ),
+            );
         }
     }
+    const gained = carried === 0 ? 0 : unlabeled(snapshot.nodeCount, labels);
     if (gained > 0) {
         notes.push(
             note(
@@ -412,6 +423,22 @@ function labelNotes(snapshot: GraphSnapshot, nodePlan: readonly PlannedColumn[],
             ),
         );
     }
+}
+
+/**
+ * How many nodes have no label value.
+ * @param nodeCount - the node count
+ * @param labels - the label column, or null
+ * @returns the count
+ */
+function unlabeled(nodeCount: number, labels: Column | null): number {
+    let count = 0;
+    for (let i = 0; i < nodeCount; i++) {
+        if (!labels?.isSet(i)) {
+            count++;
+        }
+    }
+    return count;
 }
 
 /**
@@ -515,62 +542,102 @@ function checkCells(planned: readonly PlannedColumn[], domain: "node" | "edge", 
         if (slot === "position" || slot === "spells") {
             continue;
         }
-        const { name } = column.meta;
-        let badText = 0;
-        let nonFinite = 0;
-        let typed = 0;
-        for (let r = 0; r < column.length; r++) {
-            if (!column.isSet(r)) {
-                continue;
+        pushCellNotes(countCellIssues(column, slot), column.meta.name, domain, notes);
+    }
+}
+
+/** The counts of one column's cells that cannot be written or read back typed. */
+interface CellIssues {
+    readonly badText: number;
+    readonly nonFinite: number;
+    readonly typed: number;
+}
+
+/**
+ * Count one column's text cells with a quote or line break, non-finite numeric cells, and parameter
+ * text that reads back as a number or a boolean.
+ * @param column - the column
+ * @param slot - its slot in the plan
+ * @returns the counts
+ */
+function countCellIssues(column: Column, slot: PlannedColumn["slot"]): CellIssues {
+    let badText = 0;
+    let nonFinite = 0;
+    let typed = 0;
+    const numeric = column.dtype === "f64" || column.dtype === "f32";
+    const textual = column.dtype === "string" || column.dtype === "dict";
+    for (let r = 0; r < column.length; r++) {
+        if (!column.isSet(r)) {
+            continue;
+        }
+        if (numeric) {
+            if (isNonFiniteCell(column, r)) {
+                nonFinite++;
             }
-            if (column.dtype === "f64" || column.dtype === "f32") {
-                const value = column.value(r);
-                if (typeof value === "number") {
-                    if (!Number.isFinite(value)) {
-                        nonFinite++;
-                    }
-                } else if (value !== undefined && !Array.from(value).every((v) => Number.isFinite(v))) {
-                    nonFinite++;
-                }
-            } else if (column.dtype === "string" || column.dtype === "dict") {
-                const text = column.value(r) as string;
-                if (!isPajekLabel(text)) {
-                    badText++;
-                } else if (slot === "param" && inferTextDtype(text) !== "string") {
-                    typed++;
-                }
+        } else if (textual) {
+            const text = column.value(r) as string;
+            if (!isPajekLabel(text)) {
+                badText++;
+            } else if (slot === "param" && inferTextDtype(text) !== "string") {
+                typed++;
             }
         }
-        if (badText > 0) {
-            notes.push(
-                note(
-                    PAJEK_LOSS.TEXT,
-                    `${badText} value${plural(badText)} of ${domain} column "${name}" hold a double quote or a line break; Pajek cannot write them`,
-                    name,
-                    badText,
-                ),
-            );
-        }
-        if (typed > 0) {
-            notes.push(
-                note(
-                    PAJEK_LOSS.TEXT_INFERRED,
-                    `${typed} value${plural(typed)} of ${domain} column "${name}" look like numbers or booleans; Pajek parameters are untyped and they read back as such`,
-                    name,
-                    typed,
-                ),
-            );
-        }
-        if (nonFinite > 0) {
-            notes.push(
-                note(
-                    PAJEK_LOSS.NONFINITE_AS_TEXT,
-                    `${nonFinite} non-finite value${plural(nonFinite)} of ${domain} column "${name}" ${agree(nonFinite, "is", "are")} written as text`,
-                    name,
-                    nonFinite,
-                ),
-            );
-        }
+    }
+    return { badText, nonFinite, typed };
+}
+
+/**
+ * Whether a numeric cell (a scalar or a vector) holds a non-finite value.
+ * @param column - the f32 or f64 column
+ * @param r - the row
+ * @returns true when the value, or any of its components, is not finite
+ */
+function isNonFiniteCell(column: Column, r: number): boolean {
+    const value = column.value(r) as number | ArrayLike<number> | undefined;
+    if (typeof value === "number") {
+        return !Number.isFinite(value);
+    }
+    return value !== undefined && !Array.from(value).every((v) => Number.isFinite(v));
+}
+
+/**
+ * Add the notes of one column's cell counts.
+ * @param counts - the counts
+ * @param name - the column name
+ * @param domain - node or edge
+ * @param notes - the note list
+ */
+function pushCellNotes(counts: CellIssues, name: string, domain: "node" | "edge", notes: LossNote[]): void {
+    const { badText, nonFinite, typed } = counts;
+    if (badText > 0) {
+        notes.push(
+            note(
+                PAJEK_LOSS.TEXT,
+                `${badText} value${plural(badText)} of ${domain} column "${name}" hold a double quote or a line break; Pajek cannot write them`,
+                name,
+                badText,
+            ),
+        );
+    }
+    if (typed > 0) {
+        notes.push(
+            note(
+                PAJEK_LOSS.TEXT_INFERRED,
+                `${typed} value${plural(typed)} of ${domain} column "${name}" look like numbers or booleans; Pajek parameters are untyped and they read back as such`,
+                name,
+                typed,
+            ),
+        );
+    }
+    if (nonFinite > 0) {
+        notes.push(
+            note(
+                PAJEK_LOSS.NONFINITE_AS_TEXT,
+                `${nonFinite} non-finite value${plural(nonFinite)} of ${domain} column "${name}" ${agree(nonFinite, "is", "are")} written as text`,
+                name,
+                nonFinite,
+            ),
+        );
     }
 }
 
@@ -689,12 +756,14 @@ function needsZ(column: Column): boolean {
  * @param options.networkHeader - whether the `*Network` line is written
  * @param options.name - the name on that line, or null for a bare line
  * @param options.mangle - whether the original ids are written as `graphty_originalId` parameters
+ * @param comment - a comment line written first (the `graphty.styles` block), or null
  * @yields lines with their terminator
  * @returns nothing
  */
 function* writeParts(
     snapshot: GraphSnapshot,
     options: { networkHeader: boolean; name: string | null; mangle: boolean },
+    comment: string | null = null,
 ): Generator<string, void, undefined> {
     const ids = sanitizeIds(snapshot, CAPABILITIES.idCharset, options.mangle ? "mangle" : "error");
     const nodePlan = withoutReservedKey(plan(snapshot.nodes, "node", null), options.mangle);
@@ -714,6 +783,9 @@ function* writeParts(
         }
     }
 
+    if (comment !== null) {
+        yield `${comment}\n`;
+    }
     if (options.networkHeader) {
         yield options.name === null ? "*Network\n" : `*Network ${options.name}\n`;
     }
@@ -801,69 +873,20 @@ function* writeVertices(
     nodePlan: readonly PlannedColumn[],
     mangle: boolean,
 ): Generator<string, void, undefined> {
-    let labels: Column | null = null;
-    let position: Column | null = null;
-    let shape: Column | null = null;
-    let nodeSpells: Column | null = null;
-    const nodeParams: Column[] = [];
-    for (const { column, slot } of nodePlan) {
-        switch (slot) {
-            case "label":
-                labels = column;
-                break;
-            case "position":
-                position = column;
-                break;
-            case "shape":
-                shape = column;
-                break;
-            case "spells":
-                nodeSpells = column;
-                break;
-            case "param":
-                nodeParams.push(column);
-                break;
-            case "relation":
-            case "skip":
-                break;
-            default: {
-                const name: string = slot;
-                throw new Error(`unknown slot ${name}`);
-            }
-        }
-    }
-    const writeZ = position !== null && needsZ(position);
+    const slots = vertexSlots(nodePlan);
+    const writeZ = slots.position !== null && needsZ(slots.position);
     for (let i = 0; i < snapshot.nodeCount; i++) {
-        const parts: string[] = [];
-        if (position !== null) {
-            const coordinates = coordinatesText(position, i, writeZ);
-            if (coordinates !== null) {
-                parts.push(coordinates);
-            }
-        }
-        if (shape?.isSet(i)) {
-            const keyword = cellText(shape, i);
-            if (SHAPES.has(keyword)) {
-                parts.push(keyword);
-            } else {
-                parts.push(`${SHAPE_COLUMN} ${quotePajekLabel(keyword)}`);
-            }
-        }
-        for (const column of nodeParams) {
-            if (column.isSet(i)) {
-                parts.push(`${column.meta.name} ${quotePajekLabel(cellText(column, i))}`);
-            }
-        }
+        const parts = vertexParts(slots, i, writeZ);
         if (mangle && ids.isChanged(i)) {
             parts.push(`${ORIGINAL_ID_KEY} ${quotePajekLabel(idText(ids.originalAt(i)))}`);
         }
-        if (nodeSpells !== null) {
-            const spells = spellsText(nodeSpells, i);
+        if (slots.spells !== null) {
+            const spells = spellsText(slots.spells, i);
             if (spells !== null) {
                 parts.push(spells);
             }
         }
-        const label = labelOf(labels, ids, i, parts.length > 0);
+        const label = labelOf(slots.labels, ids, i, parts.length > 0);
         let line = String(i + 1);
         if (label !== null) {
             // the importer decodes `&#dddd;` in labels, so a literal one is written with `&#38;`
@@ -874,6 +897,86 @@ function* writeVertices(
         }
         yield `${line}\n`;
     }
+}
+
+/** The node columns a vertex line writes, by the slot each fills. */
+interface VertexSlots {
+    labels: Column | null;
+    position: Column | null;
+    shape: Column | null;
+    spells: Column | null;
+    params: Column[];
+}
+
+/**
+ * Sorts the node column plan into the slots of a vertex line.
+ * @param nodePlan - the node column plan
+ * @returns the columns by slot
+ */
+function vertexSlots(nodePlan: readonly PlannedColumn[]): VertexSlots {
+    const slots: VertexSlots = { labels: null, position: null, shape: null, spells: null, params: [] };
+    for (const { column, slot } of nodePlan) {
+        switch (slot) {
+            case "label":
+                slots.labels = column;
+                break;
+            case "position":
+                slots.position = column;
+                break;
+            case "shape":
+                slots.shape = column;
+                break;
+            case "spells":
+                slots.spells = column;
+                break;
+            case "param":
+                slots.params.push(column);
+                break;
+            case "relation":
+            case "skip":
+                break;
+            default: {
+                const name: string = slot;
+                throw new Error(`unknown slot ${name}`);
+            }
+        }
+    }
+    return slots;
+}
+
+/**
+ * A vertex line's coordinates, shape and parameters.
+ * @param slots - the node columns by slot
+ * @param i - the vertex's index
+ * @param writeZ - whether coordinates carry a z
+ * @returns the parts, in order
+ */
+function vertexParts(slots: VertexSlots, i: number, writeZ: boolean): string[] {
+    const { position, shape } = slots;
+    const parts: string[] = [];
+    const coordinates = position === null ? null : coordinatesText(position, i, writeZ);
+    if (coordinates !== null) {
+        parts.push(coordinates);
+    }
+    const placed = parts.length > 0;
+    const shaped = shape?.isSet(i) === true;
+    if (shaped) {
+        const keyword = cellText(shape, i);
+        parts.push(SHAPES.has(keyword) ? keyword : `${SHAPE_COLUMN} ${quotePajekLabel(keyword)}`);
+    }
+    const named = parts.length;
+    for (const column of slots.params) {
+        if (!column.isSet(i)) {
+            continue;
+        }
+        // a placed line that names no shape and starts with such a key is drawn by Pajek with none of its
+        // parameters (`VOIDING_KEYS`): the default shape is named first, so it is drawn as written
+        if (placed && !shaped && parts.length === named && VOIDING_KEYS.has(column.meta.name)) {
+            parts.push("ellipse");
+        }
+        parts.push(`${column.meta.name} ${quotePajekLabel(cellText(column, i))}`);
+    }
+    return parts;
 }
 
 /**
@@ -888,31 +991,8 @@ function* writeLines(snapshot: GraphSnapshot, edgePlan: readonly PlannedColumn[]
     const folding = pairFolding(snapshot, { foldMutual: true });
     const weights = explicitWeights(snapshot);
     const { src, dst } = snapshot.edgeList();
-    let relation: Column | null = null;
-    let edgeSpells: Column | null = null;
-    const edgeParams: Column[] = [];
-    for (const { column, slot } of edgePlan) {
-        switch (slot) {
-            case "relation":
-                relation = column;
-                break;
-            case "spells":
-                edgeSpells = column;
-                break;
-            case "param":
-                edgeParams.push(column);
-                break;
-            case "label":
-            case "position":
-            case "shape":
-            case "skip":
-                break;
-            default: {
-                const name: string = slot;
-                throw new Error(`unknown slot ${name}`);
-            }
-        }
-    }
+    const slots = edgeSlotsOf(edgePlan);
+    const { relation } = slots;
     const relationNumbers = new Map<string, number>();
     let currentKind: "arcs" | "edges" | null = null;
     let currentRelation: string | null = null;
@@ -929,39 +1009,105 @@ function* writeLines(snapshot: GraphSnapshot, edgePlan: readonly PlannedColumn[]
             currentKind = kind;
             currentRelation = relationName;
             sectionOpen = true;
-            const keyword = kind === "arcs" ? "*Arcs" : "*Edges";
-            if (relationName === null) {
-                yield `${keyword}\n`;
-            } else {
-                let number = relationNumbers.get(relationName);
-                if (number === undefined) {
-                    number = relationNumbers.size + 1;
-                    relationNumbers.set(relationName, number);
-                }
-                yield `${keyword} :${number} ${quotePajekLabel(relationName)}\n`;
-            }
+            yield sectionHeader(kind, relationName, relationNumbers);
         }
-        let line = `${src[e] + 1} ${dst[e] + 1}`;
-        const weight = weights.text(e);
-        if (weight !== null) {
-            line += ` ${weight}`;
-        }
-        for (const column of edgeParams) {
-            if (column.isSet(e)) {
-                line += ` ${column.meta.name} ${quotePajekLabel(cellText(column, e))}`;
-            }
-        }
-        if (edgeSpells !== null) {
-            const spells = spellsText(edgeSpells, e);
-            if (spells !== null) {
-                line += ` ${spells}`;
-            }
-        }
-        yield `${line}\n`;
+        yield edgeLine(e, `${src[e] + 1} ${dst[e] + 1}`, weights.text(e), slots);
     }
     if (!sectionOpen) {
         yield snapshot.directed ? "*Arcs\n" : "*Edges\n";
     }
+}
+
+/** The edge columns by slot: the relation, the spells and the parameters, in plan order. */
+interface EdgeSlots {
+    readonly relation: Column | null;
+    readonly spells: Column | null;
+    readonly params: readonly Column[];
+}
+
+/**
+ * Sort the edge plan's columns by slot.
+ * @param edgePlan - the edge column plan
+ * @returns the edge columns by slot
+ */
+function edgeSlotsOf(edgePlan: readonly PlannedColumn[]): EdgeSlots {
+    let relation: Column | null = null;
+    let spells: Column | null = null;
+    const params: Column[] = [];
+    for (const { column, slot } of edgePlan) {
+        switch (slot) {
+            case "relation":
+                relation = column;
+                break;
+            case "spells":
+                spells = column;
+                break;
+            case "param":
+                params.push(column);
+                break;
+            case "label":
+            case "position":
+            case "shape":
+            case "skip":
+                break;
+            default: {
+                const name: string = slot;
+                throw new Error(`unknown slot ${name}`);
+            }
+        }
+    }
+    return { relation, spells, params };
+}
+
+/**
+ * The header line of an `*Arcs` / `*Edges` section, numbering each relation name on first use.
+ * @param kind - arcs or edges
+ * @param relationName - the section's relation name, or null
+ * @param relationNumbers - the relation numbers given so far, by name (updated)
+ * @returns the header line
+ */
+function sectionHeader(
+    kind: "arcs" | "edges",
+    relationName: string | null,
+    relationNumbers: Map<string, number>,
+): string {
+    const keyword = kind === "arcs" ? "*Arcs" : "*Edges";
+    if (relationName === null) {
+        return `${keyword}\n`;
+    }
+    let number = relationNumbers.get(relationName);
+    if (number === undefined) {
+        number = relationNumbers.size + 1;
+        relationNumbers.set(relationName, number);
+    }
+    return `${keyword} :${number} ${quotePajekLabel(relationName)}\n`;
+}
+
+/**
+ * One edge line: its endpoints, weight, parameters and interval.
+ * @param e - the edge index
+ * @param endpoints - the endpoints text ("source target", 1-based)
+ * @param weight - the weight text, or null when not written
+ * @param slots - the edge columns by slot
+ * @returns the line
+ */
+function edgeLine(e: number, endpoints: string, weight: string | null, slots: EdgeSlots): string {
+    let line = endpoints;
+    if (weight !== null) {
+        line += ` ${weight}`;
+    }
+    for (const column of slots.params) {
+        if (column.isSet(e)) {
+            line += ` ${column.meta.name} ${quotePajekLabel(cellText(column, e))}`;
+        }
+    }
+    if (slots.spells !== null) {
+        const spells = spellsText(slots.spells, e);
+        if (spells !== null) {
+            line += ` ${spells}`;
+        }
+    }
+    return `${line}\n`;
 }
 
 /**
@@ -1008,105 +1154,21 @@ export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
     format: "pajek",
     options: Object.freeze(["name", "networkHeader"]),
     capabilities: CAPABILITIES,
+    styles: Object.freeze({ capabilities: PAJEK_STYLE_CAPABILITIES }),
 
     /**
-     * Pre-flight: the generic capability gaps plus the Pajek-specific ones.
+     * Pre-flight: the generic capability gaps plus the Pajek-specific ones; with styles, also the values written as
+     * the nearest ones Pajek has.
      * @param snapshot - the snapshot
      * @param options - export options
      * @returns the loss notes, empty when the export is exact
      */
-    check(snapshot: GraphSnapshot, options?: PajekExportOptions & CommonExportOptions): readonly LossNote[] {
-        const resolved = resolveExportOptions(options);
-        const { mangle } = resolvePajekOptions(snapshot, options);
-        const notes: LossNote[] = [];
-        const planned = plan(snapshot.nodes, "node", notes);
-        const nodePlan = withoutReservedKey(planned, mangle);
-        const edgePlan = plan(snapshot.edges, "edge", notes);
-        const ids = sanitizeIds(snapshot, CAPABILITIES.idCharset, mangle ? "mangle" : "error");
-        checkIdTexts(snapshot.nodeCount, ids, mangle, notes);
-        if (nodePlan.length !== planned.length) {
-            const reserved = planned.find((p) => p.slot === "param" && p.column.meta.name === ORIGINAL_ID_KEY);
-            if (reserved !== undefined) {
-                notes.push(
-                    note(
-                        PAJEK_LOSS.KEY_DROPPED,
-                        `node column "${ORIGINAL_ID_KEY}" is the parameter the exporter writes the original ids under (sanitizeIds "mangle"); it is not written`,
-                        ORIGINAL_ID_KEY,
-                        reserved.column.length - reserved.column.nullCount,
-                    ),
-                );
-            }
+    check(snapshot: GraphSnapshot, options?: PajekWriteOptions): readonly LossNote[] {
+        const styled = pajekStyledExport(snapshot, options?.styles);
+        if (styled === null) {
+            return checkPlain(snapshot, options);
         }
-        // columns this exporter handles itself although the generic table says otherwise: the spells
-        // list (written as an interval token, or reported above with the spells code), the shape
-        // keyword and the relation name (dict columns written as keywords)
-        const owned = new Set<string>();
-        for (const { column, slot } of [...nodePlan, ...edgePlan]) {
-            // a shape written as a parameter is owned too: its note already says the column reads back as string
-            if (
-                slot === "shape" ||
-                slot === "relation" ||
-                (slot === "param" && column.meta.domain === "node" && column.meta.name === SHAPE_COLUMN)
-            ) {
-                owned.add(`${column.meta.domain}:${column.meta.name}`);
-            }
-        }
-        for (const table of [snapshot.nodes, snapshot.edges]) {
-            for (const column of table) {
-                if (column.meta.role === "spells") {
-                    owned.add(`${column.meta.domain}:${column.meta.name}`);
-                }
-            }
-        }
-        for (const n of checkCapabilities(snapshot, CAPABILITIES, resolved, {
-            roles: SLOT_ROLES,
-            roleNames: ROLE_NAMES,
-            // the label slot is a vertex slot; an edge label is a parameter under its own name
-            edgeRoleNames: {},
-        })) {
-            if (n.column !== null && (n.code === LOSS.LIST || n.code === LOSS.DTYPE)) {
-                const domain = n.message.startsWith("node column") ? "node" : "edge";
-                if (owned.has(`${domain}:${n.column}`)) {
-                    continue;
-                }
-            }
-            notes.push(n);
-        }
-        labelNotes(snapshot, nodePlan, notes);
-        for (const column of snapshot.edges) {
-            if (column.meta.role === "label") {
-                notes.push(
-                    note(
-                        LOSS.ROLE,
-                        `edge column "${column.meta.name}" (label) is written as a plain parameter; Pajek labels vertices only and the role is lost`,
-                        column.meta.name,
-                        column.length - column.nullCount,
-                    ),
-                );
-            }
-        }
-        checkCells(nodePlan, "node", notes);
-        checkCells(edgePlan, "edge", notes);
-        const folding = pairFolding(snapshot, { foldMutual: true });
-        if (folding.mutualCount > 0) {
-            notes.push(
-                note(
-                    PAJEK_LOSS.MUTUAL_AS_UNDIRECTED,
-                    `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as undirected edges; the mutual mark is lost`,
-                    snapshot.edges.byRole("mutual")?.meta.name ?? null,
-                    folding.mutualCount,
-                ),
-            );
-        }
-        if (Number.isNaN(firstModeOf(snapshot))) {
-            notes.push(
-                note(
-                    PAJEK_LOSS.FIRST_MODE_DROPPED,
-                    "meta.extra.pajek.firstMode is not a count within 0..nodeCount; the two-mode header is not written",
-                ),
-            );
-        }
-        return notes;
+        return Object.freeze([...checkPlain(styled.snapshot, withOriginalIds(options)), ...styled.notes]);
     },
 
     /**
@@ -1115,9 +1177,8 @@ export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
      * @param options - export options
      * @returns the chunks
      */
-    export(snapshot: GraphSnapshot, options?: PajekExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
-        const resolved = resolvePajekOptions(snapshot, options);
-        return encodeChunks(writeParts(snapshot, resolved));
+    export(snapshot: GraphSnapshot, options?: PajekWriteOptions): AsyncIterable<Uint8Array> {
+        return encodeChunks(styledParts(snapshot, options));
     },
 
     /**
@@ -1126,8 +1187,151 @@ export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
      * @param options - export options
      * @returns the document
      */
-    exportToString(snapshot: GraphSnapshot, options?: PajekExportOptions & CommonExportOptions): Promise<string> {
-        const resolved = resolvePajekOptions(snapshot, options);
-        return joinText(writeParts(snapshot, resolved));
+    exportToString(snapshot: GraphSnapshot, options?: PajekWriteOptions): Promise<string> {
+        return joinText(styledParts(snapshot, options));
     },
 });
+
+/**
+ * The text parts of a Pajek document, with its styles when they are given.
+ * @param snapshot - the snapshot
+ * @param options - export options
+ * @returns the parts
+ */
+function styledParts(snapshot: GraphSnapshot, options?: PajekWriteOptions): Generator<string, void, undefined> {
+    const styled = pajekStyledExport(snapshot, options?.styles);
+    if (styled === null) {
+        return writeParts(snapshot, resolvePajekOptions(snapshot, options));
+    }
+    return writeParts(styled.snapshot, resolvePajekOptions(styled.snapshot, withOriginalIds(options)), styled.comment);
+}
+
+/**
+ * The options of an export with styles: unless `sanitizeIds` is given, the original ids of renumbered vertices are
+ * written too (`"mangle"`), so the file reads back as the same graph and its `graphty.styles` block applies.
+ * @param options - export options
+ * @returns the options to write with
+ */
+function withOriginalIds(
+    options: (PajekExportOptions & CommonExportOptions) | undefined,
+): PajekExportOptions & CommonExportOptions {
+    return options?.sanitizeIds === undefined ? { ...options, sanitizeIds: "mangle" } : options;
+}
+
+/**
+ * The columns this exporter handles itself although the generic table says otherwise: the spells list (written as an
+ * interval token, or reported with the spells code), the shape keyword and the relation name (dict columns written as
+ * keywords), and a shape written as a parameter (its own note says the column reads back as string).
+ * @param snapshot - the snapshot
+ * @param planned - the node and edge column plans
+ * @returns the columns, as `<domain>:<name>`
+ */
+function ownedColumns(snapshot: GraphSnapshot, planned: readonly PlannedColumn[]): Set<string> {
+    const owned = new Set<string>();
+    const key = (column: Column): string => `${column.meta.domain}:${column.meta.name}`;
+    for (const { column, slot } of planned) {
+        const shapeParam = slot === "param" && column.meta.domain === "node" && column.meta.name === SHAPE_COLUMN;
+        if (slot === "shape" || slot === "relation" || shapeParam) {
+            owned.add(key(column));
+        }
+    }
+    for (const column of [...snapshot.nodes, ...snapshot.edges]) {
+        if (column.meta.role === "spells") {
+            owned.add(key(column));
+        }
+    }
+    return owned;
+}
+
+/**
+ * The generic capability gaps, without the list and dtype notes of a column Pajek writes in a slot of its own.
+ * @param snapshot - the snapshot
+ * @param resolved - the resolved export options
+ * @param owned - the columns written in a slot of their own, as `<domain>:<name>`
+ * @returns the loss notes
+ */
+function capabilityNotes(
+    snapshot: GraphSnapshot,
+    resolved: ReturnType<typeof resolveExportOptions>,
+    owned: ReadonlySet<string>,
+): LossNote[] {
+    const notes = checkCapabilities(snapshot, CAPABILITIES, resolved, {
+        roles: SLOT_ROLES,
+        roleNames: ROLE_NAMES,
+        // the label slot is a vertex slot; an edge label is a parameter under its own name
+        edgeRoleNames: {},
+    });
+    return notes.filter((n) => {
+        if (n.column === null || (n.code !== LOSS.LIST && n.code !== LOSS.DTYPE)) {
+            return true;
+        }
+        const domain = n.message.startsWith("node column") ? "node" : "edge";
+        return !owned.has(`${domain}:${n.column}`);
+    });
+}
+
+/**
+ * Every loss the Pajek text of a snapshot would incur: the generic capability gaps plus the Pajek-specific ones.
+ * @param snapshot - the snapshot
+ * @param options - export options
+ * @returns the loss notes
+ */
+function checkPlain(snapshot: GraphSnapshot, options?: PajekExportOptions & CommonExportOptions): LossNote[] {
+    const resolved = resolveExportOptions(options);
+    const { mangle } = resolvePajekOptions(snapshot, options);
+    const notes: LossNote[] = [];
+    const planned = plan(snapshot.nodes, "node", notes);
+    const nodePlan = withoutReservedKey(planned, mangle);
+    const edgePlan = plan(snapshot.edges, "edge", notes);
+    const ids = sanitizeIds(snapshot, CAPABILITIES.idCharset, mangle ? "mangle" : "error");
+    checkIdTexts(snapshot.nodeCount, ids, mangle, notes);
+    const reserved =
+        nodePlan.length === planned.length
+            ? undefined
+            : planned.find((p) => p.slot === "param" && p.column.meta.name === ORIGINAL_ID_KEY);
+    if (reserved !== undefined) {
+        notes.push(
+            note(
+                PAJEK_LOSS.KEY_DROPPED,
+                `node column "${ORIGINAL_ID_KEY}" is the parameter the exporter writes the original ids under (sanitizeIds "mangle"); it is not written`,
+                ORIGINAL_ID_KEY,
+                reserved.column.length - reserved.column.nullCount,
+            ),
+        );
+    }
+    const owned = ownedColumns(snapshot, [...nodePlan, ...edgePlan]);
+    notes.push(...capabilityNotes(snapshot, resolved, owned));
+    labelNotes(snapshot, nodePlan, notes);
+    for (const column of [...snapshot.edges].filter((c) => c.meta.role === "label")) {
+        notes.push(
+            note(
+                LOSS.ROLE,
+                `edge column "${column.meta.name}" (label) is written as a plain parameter; Pajek labels vertices only and the role is lost`,
+                column.meta.name,
+                column.length - column.nullCount,
+            ),
+        );
+    }
+    checkCells(nodePlan, "node", notes);
+    checkCells(edgePlan, "edge", notes);
+    const folding = pairFolding(snapshot, { foldMutual: true });
+    if (folding.mutualCount > 0) {
+        notes.push(
+            note(
+                PAJEK_LOSS.MUTUAL_AS_UNDIRECTED,
+                `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as undirected edges; the mutual mark is lost`,
+                snapshot.edges.byRole("mutual")?.meta.name ?? null,
+                folding.mutualCount,
+            ),
+        );
+    }
+    if (Number.isNaN(firstModeOf(snapshot))) {
+        notes.push(
+            note(
+                PAJEK_LOSS.FIRST_MODE_DROPPED,
+                "meta.extra.pajek.firstMode is not a count within 0..nodeCount; the two-mode header is not written",
+            ),
+        );
+    }
+    return notes;
+}

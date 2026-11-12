@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { hierarchicalClustering, type HierarchicalResult } from "../../../src/indexed/hierarchical.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
-import type { ClusterNode, LinkageMethod } from "../../helpers/legacy-types.js";
+import type { ClusterNode, HierarchicalClusteringResult, LinkageMethod } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 

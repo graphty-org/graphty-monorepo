@@ -1,6 +1,7 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
+import { GraphBuilder } from "../../src/builder/graph-builder.js";
 import { bitmapCount, bitmapToIndices } from "../../src/columns/bitmap.js";
 import { GrowableBitmap, GrowableTypedArray } from "../../src/columns/growable.js";
 import { INVALID_INDEX } from "../../src/constants.js";
@@ -209,6 +210,52 @@ describe.each(STRATEGIES)("GrowableTypedArray ($name)", ({ resizable }) => {
                 expect(Array.from(g.trim())).toEqual(model);
             }),
         );
+    });
+});
+
+/**
+ * Run `body` while counting the address space every resizable ArrayBuffer it creates reserves.
+ * @param body - The code to measure.
+ * @returns The total `maxByteLength` of the resizable buffers created.
+ */
+function reservedBytesDuring(body: () => void): number {
+    const original = globalThis.ArrayBuffer;
+    let reserved = 0;
+    globalThis.ArrayBuffer = new Proxy(original, {
+        construct(target, args: [number, { maxByteLength?: number }?], newTarget) {
+            reserved += args[1]?.maxByteLength ?? 0;
+            return Reflect.construct(target, args, newTarget) as object;
+        },
+    });
+    try {
+        body();
+    } finally {
+        globalThis.ArrayBuffer = original;
+    }
+    return reserved;
+}
+
+describe("staging address-space reservations", () => {
+    // WebKit gives a process about 64 GiB for ArrayBuffers and frees a reservation only when its
+    // buffer is garbage collected; at 256 MiB a buffer, a builder reserved 2 GiB and a page holding
+    // a few graphs threw "RangeError: Out of memory".
+    it("an empty builder reserves a few MiB, not gigabytes", () => {
+        const reserved = reservedBytesDuring(() => new GraphBuilder({ directed: false }));
+        expect(reserved).toBeGreaterThan(0);
+        expect(reserved).toBeLessThanOrEqual(16 * STAGING_RESERVE_BYTES);
+        expect(reserved).toBeLessThan(64 * 1024 * 1024);
+    });
+
+    it("a column grown to 64 MiB is copied at most twice, its reservation growing with it", () => {
+        const g = new GrowableTypedArray(Uint32Array, { resizable: true });
+        const buffers = new Set<ArrayBufferLike>();
+        for (let i = 0; i < 16 * 1024 * 1024; i++) {
+            g.push(i);
+            buffers.add(g.array.buffer);
+        }
+        expect(buffers.size).toBeLessThanOrEqual(3);
+        expect(g.array.buffer.maxByteLength).toBeLessThanOrEqual(256 * 1024 * 1024);
+        expect(g.get(16 * 1024 * 1024 - 1)).toBe(16 * 1024 * 1024 - 1);
     });
 });
 

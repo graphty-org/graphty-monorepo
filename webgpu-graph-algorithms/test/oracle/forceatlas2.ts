@@ -770,11 +770,14 @@ export class ForceAtlas2Oracle {
             stages.oldForce[3 * i] = ox;
             stages.oldForce[3 * i + 1] = oy;
             stages.oldForce[3 * i + 2] = oz;
+            if (this.isFixed(i)) {
+                continue; // a pinned node says nothing about the speed; with every node pinned K4 holds it
+            }
             if (this.swingMode === 1) {
-                // NetworkX: positions and forces mixed, every node (layout.py 1479-1480)
+                // NetworkX: positions and forces mixed, every free node (layout.py 1479-1480; NetworkX has no pins)
                 swing[i] = r(mi * len3(r, r(px - Fx), r(py - Fy), r(pz - Fz)));
                 traction[i] = r(r(r(0.5) * mi) * len3(r, r(px + Fx), r(py + Fy), r(pz + Fz)));
-            } else if (!this.isFixed(i)) {
+            } else {
                 // paper: m |F(t) - F(t-1)|, 0.5 m |F(t) + F(t-1)| over FREE nodes (Gephi ForceAtlas2.java 283-293)
                 swing[i] = r(mi * len3(r, r(Fx - ox), r(Fy - oy), r(Fz - oz)));
                 traction[i] = r(r(r(0.5) * mi) * len3(r, r(Fx + ox), r(Fy + oy), r(Fz + oz)));
@@ -791,17 +794,20 @@ export class ForceAtlas2Oracle {
             globalSwing = r(this.swingValue + freshSwing); // NetworkX accumulates across iterations from 1
             globalTraction = r(this.tractionValue + freshTraction);
         }
-        const est = estimateFactor(
-            n,
-            globalSwing,
-            globalTraction,
-            this.speedValue,
-            this.speedEfficiencyValue,
-            this.jitterTolerance,
-            this.precision,
-        );
-        this.speedValue = est.speed;
-        this.speedEfficiencyValue = est.speedEfficiency;
+        // nothing free to measure: the controller holds (#3255)
+        if (freshSwing !== 0 || freshTraction !== 0) {
+            const est = estimateFactor(
+                n,
+                globalSwing,
+                globalTraction,
+                this.speedValue,
+                this.speedEfficiencyValue,
+                this.jitterTolerance,
+                this.precision,
+            );
+            this.speedValue = est.speed;
+            this.speedEfficiencyValue = est.speedEfficiency;
+        }
         this.swingValue = globalSwing;
         this.tractionValue = globalTraction;
         // ---- K5: integrate (spec 7.11; 7.2 row "Local speed / apply"; networkx layout.py 1497-1501)
@@ -847,9 +853,10 @@ export class ForceAtlas2Oracle {
             pos[3 * i + 1] = py;
             pos[3 * i + 2] = pz;
             if (this.swingMode === 0) {
-                this.oldForce[3 * i] = Fx; // fixed nodes too, so a later unpin sees no stale swing (7.11)
-                this.oldForce[3 * i + 1] = Fy;
-                this.oldForce[3 * i + 2] = Fz;
+                // a fixed node's is 0, as after load: its first free tick then has the full swing damping (7.11, #3255)
+                this.oldForce[3 * i] = fixed ? 0 : Fx;
+                this.oldForce[3 * i + 1] = fixed ? 0 : Fy;
+                this.oldForce[3 * i + 2] = fixed ? 0 : Fz;
             }
             const qx = r(px - cx);
             const qy = r(py - cy);

@@ -22,8 +22,6 @@ import {
 import { LeakCounter } from "../helpers/leak-counter.js";
 import { acquire, acquireRaw, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
-
 /** The grid tuning of every case. */
 const GRID: GpuLayoutTuning = Object.freeze({ repulsion: "grid", compat: "paper" });
 
@@ -105,43 +103,38 @@ describe("FA2 grid-tier lifecycle (spec 11.3)", () => {
         }
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 17 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "device loss mid-run: the pending step rejects E_DEVICE_LOST, the simulation is disposed, the context is lost; a fresh context runs afterwards",
-        async (t) => {
-            requireGpu(t);
-            const ctx = await acquire({ label: "grid-lifecycle/lost" });
-            const s = paritySnapshot("rmat14", gpuScale(), false);
-            const sim = createSim(ctx, BASE_OPTIONS, GRID);
-            sim.load(s, startPositions(s, BASE_OPTIONS, false));
-            await sim.step(1);
-            const submittedBefore = sim.lastSubmittedBatchId;
-            const pending = sim.step(200);
-            while (sim.lastSubmittedBatchId === submittedBefore) {
-                await tick();
-            }
-            ctx.device.destroy();
-            const err = await rejectionOf(pending);
-            expect(err.code).toBe("E_DEVICE_LOST");
-            await ctx.lost;
-            expect(ctx.state).toBe("lost");
-            expect(sim.state).toBe("disposed");
-            const again = await rejectionOf(sim.step(1));
-            expect(["E_DISPOSED", "E_DEVICE_LOST"]).toContain(again.code);
-            expect(ctx.residency.stats().buffers, "the residency was cleared without destroying").toBe(0);
-            const fresh = await acquire({ label: "grid-lifecycle/recovered" });
-            try {
-                await withSim(fresh, BASE_OPTIONS, GRID, async (recovered) => {
-                    const positions = startPositions(s, BASE_OPTIONS, false);
-                    recovered.load(s, positions);
-                    await recovered.step(2);
-                    expect(recovered.iterationsDone).toBe(2);
-                    expect(positions.every((v) => Number.isFinite(v))).toBe(true);
-                });
-            } finally {
-                fresh.release(s);
-            }
-        },
-        CASE_TIMEOUT,
-    );
+    it("device loss mid-run: the pending step rejects E_DEVICE_LOST, the simulation is disposed, the context is lost; a fresh context runs afterwards", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "grid-lifecycle/lost" });
+        const s = paritySnapshot("rmat14", gpuScale(), false);
+        const sim = createSim(ctx, BASE_OPTIONS, GRID);
+        sim.load(s, startPositions(s, BASE_OPTIONS, false));
+        await sim.step(1);
+        const submittedBefore = sim.lastSubmittedBatchId;
+        const pending = sim.step(200);
+        while (sim.lastSubmittedBatchId === submittedBefore) {
+            await tick();
+        }
+        ctx.device.destroy();
+        const err = await rejectionOf(pending);
+        expect(err.code).toBe("E_DEVICE_LOST");
+        await ctx.lost;
+        expect(ctx.state).toBe("lost");
+        expect(sim.state).toBe("disposed");
+        const again = await rejectionOf(sim.step(1));
+        expect(["E_DISPOSED", "E_DEVICE_LOST"]).toContain(again.code);
+        expect(ctx.residency.stats().buffers, "the residency was cleared without destroying").toBe(0);
+        const fresh = await acquire({ label: "grid-lifecycle/recovered" });
+        try {
+            await withSim(fresh, BASE_OPTIONS, GRID, async (recovered) => {
+                const positions = startPositions(s, BASE_OPTIONS, false);
+                recovered.load(s, positions);
+                await recovered.step(2);
+                expect(recovered.iterationsDone).toBe(2);
+                expect(positions.every((v) => Number.isFinite(v))).toBe(true);
+            });
+        } finally {
+            fresh.release(s);
+        }
+    });
 });

@@ -1,0 +1,23 @@
+tmp/
+
+# Pilot, dry-run and readiness walks (rounds/r1, rounds/r1d2, rounds/<round>/pilot ...) keep only
+# their .md reports in git. Their screenshots and step files go under the main checkout's
+# tmp/design-studio/ (see tool/README.md): on 2026-10-21 golden held 83,000 walk screenshots,
+# 9.9 GB in Git LFS. Files already tracked are not affected.
+**/rounds/r[0-9]*/**
+**/rounds/*/pilot/**
+**/rounds/pilot/**
+!**/rounds/r[0-9]*/**/
+!**/rounds/*/pilot/**/
+!**/rounds/pilot/**/
+!**/rounds/**/*.md
+
+# A round's sessions, expert walkthroughs and repros keep only their .md files in git too; their
+# screenshots live under the main checkout's tmp/design-studio/<tier>/rounds/ (owner, 2026-10-21:
+# walk screenshots never go into git; the tier 4 round's 1,233 images tripped the image guard).
+**/rounds/round-*/sessions/**
+**/rounds/round-*/expert/**
+**/rounds/round-*/repro/**
+!**/rounds/round-*/**/
+!**/rounds/**/*.md
+!**/rounds/**/*.json

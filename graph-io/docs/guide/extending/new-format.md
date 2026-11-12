@@ -84,6 +84,11 @@ values. Pass `directed: true` for a format whose edges are directed, `comment` f
 comment marker (or `null` for none), and `sniff` to recognize your files by their content
 ([Detection](#detection) explains how).
 
+`parseLine` also gets the whole line as its third argument, for a value that holds spaces (a
+`rgb(0 128 0)` color, a quoted name). The importer `defineLineFormat()` returns is an ordinary
+`GraphImporter`: spread it into a new object to add members, such as the `styles` member of
+[Reading styles](#reading-styles) (`{ ...importer, styles: () => ... }`).
+
 `parseLine` sees one line at a time. A format whose lines mean different things in different parts
 of the file (a node section, then an edge section) needs the full importer that the rest of this
 page builds, as does a format that is not line based.
@@ -1440,6 +1445,350 @@ To keep a format away from the rest of your application, make a registry of your
 empty one. A registry has the same methods as the top-level functions: `importGraph()`,
 `loadFromUrl()`, `loadFromFile()`, `exportGraphToBytes()`, `checkExport()`, `listFormats()` and the
 rest, `downloadGraph()` included.
+
+## Styles
+
+A format that stores colors, sizes or shapes can hand them to graph-io, and graph-io turns them
+into the common description of [Styles](../styles.md): it reads each value in your format's
+spelling, finds the rules the values follow ("fill by team"), and notes what it cannot read. A
+caller gets them with `importGraph(input, { styles: true })`, and nothing changes for a caller who
+does not ask.
+
+### Reading styles
+
+Give the importer a `styles` member. graph-io calls it after `import()`, with the graph that was
+built, only when the caller asked for styles. In the simplest case it names the columns that hold
+each style and how their values are spelled. Here a roster format built on CSV reads node colors
+from its `color` column:
+
+<!-- generated:begin example:styles/importer -->
+
+```ts
+import { createRegistry, type GraphImporter } from "@graphty/graph-io";
+import { csvImporter } from "@graphty/graph-io/csv";
+import { resolveStyles } from "@graphty/graph-io/styles";
+
+// Team rosters: a CSV node table whose color column holds CSS colors, spelled any way CSS allows
+const rosterImporter: GraphImporter = {
+    ...csvImporter,
+    format: "roster",
+    extensions: [".roster"],
+    // the whole style support: which column holds which style, and how its values are spelled
+    styles: () => ({ dialect: "css", node: { fill: { data: "color" } } }),
+};
+const rosters = createRegistry().registerImporter(rosterImporter);
+
+const roster =
+    "id,team,color\na,red,red\nb,red,#f00\nc,red,#FF0000\nd,red,rgb(255 0 0)\n" +
+    "e,blue,blue\nf,blue,#00f\ng,blue,#0000FF\nh,blue,hsl(240 100% 50%)\n";
+const { snapshot, styles } = await rosters.importGraph(roster, { format: "roster", styles: true });
+if (styles) {
+    console.log(styles.styles.rules.map((r) => `${r.id} (${r.role})`));
+    console.log(resolveStyles(styles, "node", "fill", snapshot).join(" "));
+}
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:styles/importer -->
+
+```text
+[ 'node.by.team (mapping)' ]
+#ff0000 #ff0000 #ff0000 #ff0000 #0000ff #0000ff #0000ff #0000ff
+```
+
+<!-- generated:end -->
+
+The color column held four spellings of each color; the styles hold one mapping, "fill by team".
+`styles()` returns:
+
+- `dialect`: how the values are spelled, which decides how a color name or a shape is read. One of
+  `"css"` (CSS color names, `#rgb`, `rgb()`, `hsl()`), `"x11"` (X11 color names, where `gray` is
+  `#bebebe`), `"graphviz"`, `"java"` (Java's color names), `"dvips"` (the CMYK color names Pajek
+  uses), `"yed"` (`#RRGGBBAA`, alpha last), `"yfiles3"` (`#AARRGGBB`, alpha first), `"gexf"`,
+  `"gephi"`, `"cytoscape"`, `"cytoscape-js"`, `"vis"`, `"graphology"`, or `"graphty"` (values
+  already in graph-io's own spelling). The type is `StyleDialect`.
+- `node` and `edge`: for each property (the names on [Styles](../styles.md#the-properties)),
+  either `{ data: "<column>" }`, a column of the graph, or an array of raw values by node or edge
+  index (`undefined` or `null` where an element has none). A column named this way stays in the
+  graph as data, and graph-io does not use it to explain itself.
+
+`styles()` returns `null` for a file with no styles. A value graph-io cannot read becomes a note,
+never an error; `styles()` itself should not throw.
+
+### Style data outside the elements
+
+A file may keep style data that is not per element: a legend, a stylesheet, a table of defaults.
+Read it in `import()` and pass it to `report.keepForStyles(value)`. graph-io hands it back to the
+same import's `styles()` as `context.kept`. It is kept per import, not on the importer object, so
+two imports running at once never see each other's:
+
+<!-- generated:begin example:styles/kept -->
+
+```ts
+import {
+    createRegistry,
+    forDecodedText,
+    type GraphImporter,
+    ImportReportBuilder,
+    readText,
+    resolveImportOptions,
+} from "@graphty/graph-io";
+import { csvImporter } from "@graphty/graph-io/csv";
+import { resolveStyles } from "@graphty/graph-io/styles";
+
+// A roster whose first line is a legend: "# legend red=tomato blue=skyblue", then a CSV node table
+const legendImporter: GraphImporter = {
+    ...csvImporter,
+    format: "legend",
+    extensions: [".legend"],
+    async import(input, sink, options) {
+        const opts = resolveImportOptions(options, { ids: "canonical", defaultDirected: true, weightFrom: null });
+        const report = new ImportReportBuilder("legend", opts.errorLimit);
+        const text = await readText(input, report, opts);
+        const legend = new Map(
+            /^# legend (.*)$/m
+                .exec(text)?.[1]
+                .split(" ")
+                .map((p) => p.split("=") as [string, string]),
+        );
+        report.keepForStyles(legend); // handed back to styles() as context.kept, for this import only
+        report.include(await csvImporter.import(text, sink, forDecodedText(options)));
+        return report.finish();
+    },
+    styles(snapshot, context) {
+        const legend = context.kept as Map<string, string>;
+        const fill = Array.from({ length: snapshot.nodeCount }, (_, i) =>
+            legend.get(String(snapshot.nodes.value("team", i))),
+        );
+        return { dialect: "css", node: { fill } };
+    },
+};
+
+const text = "# legend red=tomato blue=skyblue\nid,team\na,red\nb,blue\nc,red\n";
+const { snapshot, styles } = await createRegistry()
+    .registerImporter(legendImporter)
+    .importGraph(text, { format: "legend", styles: true });
+if (styles) {
+    console.log(resolveStyles(styles, "node", "fill", snapshot).join(" "));
+}
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:styles/kept -->
+
+```text
+#ff6347 #87ceeb #ff6347
+```
+
+<!-- generated:end -->
+
+`context` also holds the load's `signal` and a work `budget` shared by everything that reads one
+file's styles.
+
+A format that stores rules of its own (defaults, mappings, selectors), or whose writing program
+has defaults the graph should be drawn with, returns the advanced form instead:
+`{ canonical: true, tool, units, node, edge, graph, notes }`, where `node` and `edge` hold the
+values already in graph-io's spelling, the rules the file declares and any extra columns those
+rules read. The built-in formats use it; the [API reference](https://graphty.app/docs/graph-io/api/generated/)
+lists every member of `ImporterStyles` and `ReaderOutput`.
+
+### Writing styles
+
+Give the exporter a `styles` member that says what the format can hold. The smallest one keeps
+the styles for graphty in a format that writes graph, node and edge attributes, with no other
+code: graph-io adds the rules as the graph attribute `graphty.styles` and each element's values as
+`graphty.style.*` attributes before calling `export()`, and reading the file back gives the same
+rules. Here a small node-link writer gains style support in one line:
+
+<!-- generated:begin example:styles/exporter -->
+
+```ts
+import { readFile } from "node:fs/promises";
+
+import type { AttributeTable } from "@graphty/graph-format";
+import {
+    capabilities,
+    checkExport,
+    exportGraphToString,
+    type GraphSnapshot,
+    importGraph,
+    registry,
+} from "@graphty/graph-io";
+
+// A writer of your own that writes every attribute: node-link JSON, with the graph's attributes under "graph"
+const row = (t: AttributeTable, i: number): object => Object.fromEntries(t.names().map((n) => [n, t.value(n, i)]));
+function write(g: GraphSnapshot): string {
+    const id = (i: number): unknown => g.ids.idOf(i);
+    const nodes = Array.from({ length: g.nodeCount }, (_, i) => ({ ...row(g.nodes, i), id: id(i) }));
+    const links = Array.from({ length: g.edgeCount }, (_, e) => ({
+        ...row(g.edges, e),
+        source: id(g.edgeSource(e)),
+        target: id(g.edgeTarget(e)),
+    }));
+    return JSON.stringify({ directed: g.directed, multigraph: true, graph: row(g.graph, 0), nodes, links });
+}
+
+registry.registerExporter({
+    format: "links",
+    extensions: [".links"],
+    mimeTypes: [],
+    capabilities: capabilities({ graphAttributes: true }), // it writes graph attributes
+    check: () => [],
+    async *export(g) {
+        yield new TextEncoder().encode(write(g));
+    },
+    exportToString: async (g) => write(g),
+    // the whole style support: graph-io adds the styles as attributes, which write() already writes
+    styles: { capabilities: { node: [], edge: [], block: "attributes" } },
+});
+
+const { snapshot, styles } = await importGraph(await readFile("teams.gv"), { styles: true });
+if (styles) {
+    // other programs see no styles in this format; graphty gets the same rules back
+    const codes = new Set(checkExport(snapshot, "links", { styles }).map((n) => n.code));
+    console.log([...codes]);
+    const text = await exportGraphToString(snapshot, "links", { styles });
+    const back = await importGraph(text, { format: "json", styles: true });
+    console.log(
+        back.styles?.styles.rules.map((r) => r.id).join(" ") === styles.styles.rules.map((r) => r.id).join(" "),
+    );
+}
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:styles/exporter -->
+
+```text
+[ 'W_STYLE_NOT_WRITTEN' ]
+true
+```
+
+<!-- generated:end -->
+
+Other programs see no styles in such a file, so every property is a `W_STYLE_NOT_WRITTEN` note.
+The block needs the format to write graph attributes (`graphAttributes: true` in its
+capabilities); otherwise `checkExport()` also returns `W_STYLE_RULES_NOT_KEPT`.
+
+`styles.capabilities` is a `StyleWriteCapabilities`:
+
+- `node`, `edge` and `graph`: the properties your format writes into its own style slots. Every
+  other property is reported as `W_STYLE_NOT_WRITTEN`.
+- `block`: where the rules for graphty go: `"attributes"` (graph-io adds them as attributes, as
+  above), `"native"` (your exporter writes `options.styles.block` itself, somewhere other programs
+  skip) or `"none"`.
+
+An exporter that lists properties receives `options.styles` when the caller passed styles. Type
+its options as `CommonExportOptions & ExporterStyleOptions` (plus your own options, if it has any),
+so the same options also go to `resolveExportOptions()` in `check()`. `options.styles` holds:
+
+- `picture(target, property)`: one value of one property per node (or edge), by index, in
+  graph-io's spelling (a color is `#rrggbb`), or `null` where the element has none; leave such an
+  element's slot empty rather than inventing a value. This is what
+  your format writes into its own slots.
+- `block`: the `graphty.styles` JSON, for a `"native"` block.
+- `tags`: the per-element values by attribute name, for a `"native"` block.
+- `rules`: the styles themselves, for a format with a style language of its own.
+
+Here a line format writes each node's fill into its own color slot:
+
+<!-- generated:begin example:styles/slots -->
+
+```ts
+import {
+    capabilities,
+    checkCapabilities,
+    checkExport,
+    type CommonExportOptions,
+    defineLineFormat,
+    encodeChunks,
+    type ExporterStyleOptions,
+    exportGraphToString,
+    type GraphExporter,
+    type GraphSnapshot,
+    importGraph,
+    joinText,
+    registry,
+    resolveExportOptions,
+} from "@graphty/graph-io";
+
+// "colors": lines "node <id> <css color>" and "edge <source> <target>"
+const reader = defineLineFormat({
+    format: "colors",
+    extensions: [".colors"],
+    // the third argument is the whole line, for a value with spaces in it ("rgb(0 128 0)")
+    parseLine([kind, a = "", b = ""], graph, line) {
+        if (kind === "node") {
+            const color = line.trim().split(/\s+/).slice(2).join(" ");
+            graph.node(a, color === "" ? {} : { color });
+        } else {
+            graph.edge(a, b);
+        }
+    },
+});
+// a line format's importer takes a styles member like any other importer
+registry.registerImporter({ ...reader, styles: () => ({ dialect: "css", node: { fill: { data: "color" } } }) });
+
+// the exporter's options: graph-io's common ones plus the styles the caller passed
+type Options = CommonExportOptions & ExporterStyleOptions;
+const caps = capabilities({ multiEdges: true, selfLoops: true, edgeIds: "none", idCharset: "any" });
+function* lines(g: GraphSnapshot, options?: Options): Generator<string> {
+    const fill = options?.styles?.picture("node", "fill"); // one value per node, null where it has none
+    for (let i = 0; i < g.nodeCount; i++) {
+        const color = fill?.[i]; // a node with no fill is written with no color, not a made-up one
+        const written = color == null ? "" : " " + String(color);
+        yield `node ${String(g.ids.idOf(i))}${written}\n`;
+    }
+    for (let e = 0; e < g.edgeCount; e++) {
+        yield `edge ${String(g.ids.idOf(g.edgeSource(e)))} ${String(g.ids.idOf(g.edgeTarget(e)))}\n`;
+    }
+}
+const writer: GraphExporter<Options> = {
+    format: "colors",
+    extensions: [".colors"],
+    mimeTypes: [],
+    capabilities: caps,
+    check: (g, options) => checkCapabilities(g, caps, resolveExportOptions(options), { attributes: false }),
+    export: (g, options) => encodeChunks(lines(g, options)),
+    exportToString: (g, options) => joinText(lines(g, options)),
+    // node fill goes into the format's own slot; there is nowhere to keep the rules for graphty
+    styles: { capabilities: { node: ["fill"], edge: [], block: "none" } },
+};
+registry.registerExporter(writer);
+
+const { snapshot, styles } = await importGraph("node a red\nnode b rgb(0 128 0)\nedge a b\n", {
+    format: "colors",
+    styles: true,
+});
+console.log(await exportGraphToString(snapshot, "colors", { styles }));
+console.log(checkExport(snapshot, "colors", { styles }).map((n) => n.code));
+```
+
+<!-- generated:end -->
+
+<!-- generated:begin output:styles/slots -->
+
+```text
+node a #ff0000
+node b #008000
+edge a b
+
+[ 'W_COLUMN_DROPPED', 'W_STYLE_RULES_NOT_KEPT' ]
+```
+
+<!-- generated:end -->
+
+`W_STYLE_RULES_NOT_KEPT` says the rules ("fill by color") do not survive, only each node's color:
+the format has nowhere to keep them (`block: "none"`). `W_COLUMN_DROPPED` names the `color` column:
+the file holds each node's fill as graph-io spells it (`#ff0000`), not the column's own text
+(`red`). A format that writes a column's own values lists it in the checker's `writtenColumns`
+([Checking what a save loses](#checking-what-a-save-loses)) and gets no such note. Report a value
+written as the nearest one the format allows with a `W_STYLE_APPROXIMATED` note from `check()`.
+
+An exporter without a `styles` member loses every style, and `checkExport()` says so with
+`W_STYLE_NOT_WRITTEN` and `W_STYLE_RULES_NOT_KEPT` notes.
 
 ## Helpers by task
 

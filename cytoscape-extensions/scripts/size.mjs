@@ -11,7 +11,8 @@
  *     file formats and loads them from dist/cdn/ on first use,
  *   - for comparison, one layout and one algorithm imported straight from @graphty/layout and @graphty/algorithms
  *     (the least a package holding only that layout or algorithm could weigh), and each graph-io format alone.
- * Cytoscape itself is left out: the page already has it. No dataset is measured: no dataset's data is in the
+ * Cytoscape itself is left out: the page already has it. So is neo4j-driver, graph-io's optional peer for its Bolt
+ * transport, which an application installs only to use it. No dataset is measured: no dataset's data is in the
  * package; graphtyDataset downloads it from graphty.app.
  *
  * Usage (build the package first):
@@ -73,7 +74,9 @@ async function bundle(root, code) {
             build: {
                 write: false,
                 minify: true,
-                rollupOptions: { input: entry, external: ["cytoscape", "jquery"] },
+                // neo4j-driver is graph-io's optional peer for the Bolt transport: an application installs
+                // it only to use Bolt, so it is no part of what this package weighs
+                rollupOptions: { input: entry, external: ["cytoscape", "jquery", "neo4j-driver"] },
             },
         });
         return (Array.isArray(out) ? out[0] : out).output.filter((o) => o.type === "chunk");
@@ -106,8 +109,12 @@ function upFront(chunks) {
  * @returns {string} the name
  */
 function lazyPartName(chunk) {
-    // the generators chunk has no facade when Rollup merges graph-samples' dataset metadata into it
-    const id = chunk.facadeModuleId ?? chunk.moduleIds.find((m) => /dist\/samples\.js$/.test(m)) ?? chunk.fileName;
+    // the generators chunk has no facade when Rollup merges graph-samples' dataset metadata into it, and the file
+    // formats chunk none when it holds the graph-io modules the network sources share
+    const id =
+        chunk.facadeModuleId ??
+        chunk.moduleIds.find((m) => /cytoscape-extensions\/dist\/(samples|io)\.js$/.test(m)) ??
+        chunk.fileName;
     if (/gpu-platform/.test(id)) {
         return "WebGPU code (on the first GPU-eligible call)";
     }
@@ -117,7 +124,54 @@ function lazyPartName(chunk) {
     if (/cytoscape-extensions\/dist\/io\.js$/.test(id)) {
         return "file formats, all of them (on the first graphtyImport or graphtyExport)";
     }
+    if (/graph-io\/dist\/(sources-|chunks\/sigv4-)/.test(id)) {
+        return "network sources, all of them (on the first load from a server)";
+    }
     return `other lazy chunk ${chunk.fileName}`;
+}
+
+/**
+ * Adds a chunk and its static imports to a set, leaving out the chunks in `skip`.
+ * @param {Map<string, import("vite").Rollup.OutputChunk>} byName - the build's chunks, by file name
+ * @param {import("vite").Rollup.OutputChunk} c - the chunk
+ * @param {Set<import("vite").Rollup.OutputChunk>} into - the set to add to
+ * @param {Set<import("vite").Rollup.OutputChunk>} skip - the chunks to leave out
+ * @returns {Set<import("vite").Rollup.OutputChunk>} `into`
+ */
+function closureOf(byName, c, into, skip) {
+    if (!into.has(c) && !skip.has(c)) {
+        into.add(c);
+        c.imports.forEach((f) => closureOf(byName, byName.get(f), into, skip));
+    }
+    return into;
+}
+
+/**
+ * What is loaded when chunk c imports a lazy chunk: the page and c with its static imports.
+ * @param {import("vite").Rollup.OutputChunk[]} chunks - the build
+ * @param {Map<string, import("vite").Rollup.OutputChunk>} byName - the build's chunks, by file name
+ * @param {Set<import("vite").Rollup.OutputChunk>} initial - what the page loads up front
+ * @param {import("vite").Rollup.OutputChunk} c - the importing chunk
+ * @returns {Set<import("vite").Rollup.OutputChunk>} the chunks already loaded
+ */
+function loadedWith(chunks, byName, initial, c) {
+    // what is loaded when c imports it: the page and c with its static imports; a part of several
+    // chunks (the network sources) adds each of them to its group
+    const loaded = new Set(initial);
+    closureOf(byName, c, loaded, initial);
+    // a shared chunk that only lazy chunks import (Rolldown's graph-io input chunk, which imports the
+    // signing code on demand) runs only once one of them is loaded, so what every one of them loads
+    // is already there too
+    if (!initial.has(c) && !c.isDynamicEntry) {
+        const reaching = chunks
+            .filter((d) => d.isDynamicEntry)
+            .map((d) => closureOf(byName, d, new Set(), initial))
+            .filter((s) => s.has(c));
+        for (const x of reaching[0] ?? []) {
+            if (reaching.every((s) => s.has(x))) loaded.add(x);
+        }
+    }
+    return loaded;
 }
 
 /**
@@ -135,12 +189,7 @@ async function measurePackage(compare) {
         const chunks = await bundle(root, 'import g from "@graphty/cytoscape-extensions";\nconsole.log(g);\n');
         const byName = new Map(chunks.map((c) => [c.fileName, c]));
         const initial = new Set();
-        const closure = (c, into, skip) => {
-            if (!into.has(c) && !skip.has(c)) {
-                into.add(c);
-                c.imports.forEach((f) => closure(byName.get(f), into, skip));
-            }
-        };
+        const closure = (c, into, skip) => closureOf(byName, c, into, skip);
         chunks.filter((c) => c.isEntry).forEach((c) => closure(c, initial, new Set()));
         parts["main entry (loaded up front)"] = sizeOf([...initial].map((c) => c.code));
         // each dynamically imported chunk, with what it imports that the page does not already hold
@@ -148,15 +197,15 @@ async function measurePackage(compare) {
         for (const c of chunks) {
             for (const f of c.dynamicImports) {
                 const target = byName.get(f);
-                const name = lazyPartName(target);
-                if (!lazy.has(name)) {
-                    // what is loaded when c imports it: the page and c with its static imports
-                    const loaded = new Set(initial);
-                    closure(c, loaded, initial);
-                    const group = new Set();
-                    closure(target, group, loaded);
-                    lazy.set(name, group);
+                if (target === undefined) {
+                    // an external module (neo4j-driver), which the page does not hold
+                    continue;
                 }
+                const name = lazyPartName(target);
+                const loaded = loadedWith(chunks, byName, initial, c);
+                const group = lazy.get(name) ?? new Set();
+                closure(target, group, loaded);
+                lazy.set(name, group);
             }
         }
         for (const [name, group] of [...lazy].sort(([a], [b]) => a.localeCompare(b))) {

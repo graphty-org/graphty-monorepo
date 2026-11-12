@@ -99,7 +99,7 @@ describe("seeded placement", () => {
         // of the simulation. With no repulsion and no edges, only the nodeGap separation moves the nodes, and the two
         // unpinned nodes sit exactly on the pinned one, so it takes the coincident branch.
         const nodes = ["a", "b", "c"].map(
-            (id, index) => ({ id, index, drawnRadius: 1, roundRadius: 1 }) as unknown as Node,
+            (id, index) => ({ id, index, layoutRadius: 1, roundRadius: 1 }) as unknown as Node,
         );
         const layout = new NGraphEngine({ seed: 1, dim: 2, nodeGap: 1, gravity: 0 });
         nodes.forEach((n) => {

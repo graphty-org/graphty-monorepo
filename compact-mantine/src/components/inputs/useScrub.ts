@@ -1,5 +1,7 @@
 import { type PointerEvent as ReactPointerEvent, useEffect, useRef } from "react";
 
+import { shieldDragSelection } from "../chrome/dragSelectionShield";
+
 /** The rate a scrub changes a value at: exactly half a unit per screen pixel (spec 6.1). */
 export const SCRUB_UNITS_PER_PX = 0.5;
 
@@ -80,10 +82,10 @@ export function useScrub(enabled: boolean, rtl: boolean, callbacks: ScrubCallbac
             const input = event.currentTarget.closest(".cm-input-wrapper")?.querySelector("input");
             if (input && !input.disabled) {
                 input.focus({ preventScroll: true });
-                // After the commit re-renders the value, which would drop a selection made now.
-                requestAnimationFrame(() => {
-                    input.select();
-                });
+                // Selected now, not a frame later: a busy page handles the next key before its
+                // frame ("7" typed after a scrub to 50 gave 507). A number field selects again
+                // when the commit is drawn (useNumberField), which drops a selection.
+                input.select();
             }
         }
     };
@@ -102,6 +104,7 @@ export function useScrub(enabled: boolean, rtl: boolean, callbacks: ScrubCallbac
             } catch {
                 // Without capture the drag still works while the pointer stays on the handle.
             }
+            shieldDragSelection();
             armed.current = true;
             started.current = false;
             originX.current = event.clientX;

@@ -166,7 +166,7 @@ export function readingFactOf(result: RunResult): CodedFact<ReadingCode> {
             return {
                 code: "reading.groups",
                 params: {
-                    groups: groups.length,
+                    groups: summary.groupCount ?? groups.length,
                     largest: groups[0].size,
                     measured: summary.measured,
                     modularity: graphNumber(result, "modularity") ?? null,
@@ -369,7 +369,7 @@ const READING_SENTENCES: Readonly<Record<ReadingCode, ReadingWords>> = {
  * @param options - The locale to print numbers in, and whether to use plain or technical words.
  * @returns The sentence.
  */
-export function readingSentence(fact: CodedFact<ReadingCode>, result: RunResult, options: ReadingOptions): string {
+function readingSentence(fact: CodedFact<ReadingCode>, result: RunResult, options: ReadingOptions): string {
     return READING_SENTENCES[fact.code](fact.params, result, options);
 }
 

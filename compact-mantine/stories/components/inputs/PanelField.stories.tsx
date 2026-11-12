@@ -1,7 +1,7 @@
 import { Box, DirectionProvider, Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import React from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { LabelsProvider, PANEL_GRID, PANEL_INK, PanelField, PanelLabelsProvider } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -25,7 +25,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * | You have | Use |
  * |---|---|
  * | A number that scrubs, steps and takes arithmetic | `PanelField kind="number"` |
- * | A number with a default the reader overrides | `StyleNumberInput` |
+ * | A number with a default the reader overrides | `PanelField kind="number"` showing the default, and a `ResetButton` in the `FieldRow` trailing slot once it is changed |
  * | One of a list of choices | `PanelField kind="select"` with `data`, or `Select` |
  * | A word or a name | `PanelField` (the default `kind="text"`) |
  *

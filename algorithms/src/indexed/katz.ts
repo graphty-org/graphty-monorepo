@@ -1,4 +1,4 @@
-import type { F64, GraphSnapshot } from "@graphty/graph-format";
+import type { AdjacencyView, F32, F64, GraphSnapshot } from "@graphty/graph-format";
 
 import { readsWeights } from "./weights.js";
 
@@ -33,6 +33,61 @@ export interface KatzResult {
 }
 
 /**
+ * One power-iteration round: `next[v] = alpha * sum(cur[u] * w(u, v)) + beta` over the in-arcs.
+ * @param rev - The in-arc adjacency
+ * @param weights - The in-arc weights, or null for unit weights
+ * @param cur - The current scores
+ * @param next - Receives the new scores
+ * @param alpha - Attenuation factor
+ * @param beta - Base score
+ * @returns The summed (L1) change
+ */
+function katzStep(
+    rev: AdjacencyView,
+    weights: F32 | null,
+    cur: Float64Array,
+    next: Float64Array,
+    alpha: number,
+    beta: number,
+): number {
+    const { rowPtr, colIdx } = rev;
+    let change = 0;
+    for (let v = 0; v < next.length; v++) {
+        let sum = 0;
+        const end = rowPtr[v + 1];
+        for (let a = rowPtr[v]; a < end; a++) {
+            sum += cur[colIdx[a]] * (weights === null ? 1 : weights[a]);
+        }
+        next[v] = alpha * sum + beta;
+        change += Math.abs(next[v] - cur[v]);
+    }
+    return change;
+}
+
+/**
+ * Rescale a vector to [0, 1] by min-max, in place; a constant vector is left alone.
+ * @param v - The vector to rescale
+ */
+function minMaxNormalize(v: Float64Array): void {
+    let min = Infinity;
+    let max = -Infinity;
+    for (const x of v) {
+        if (x < min) {
+            min = x;
+        }
+        if (x > max) {
+            max = x;
+        }
+    }
+    const range = max - min;
+    if (range > 0) {
+        for (let i = 0; i < v.length; i++) {
+            v[i] = (v[i] - min) / range;
+        }
+    }
+}
+
+/**
  * Katz centrality by power iteration over incoming arcs: `x[v] = alpha * sum(x[u] for u -> v) + beta`.
  *
  * `reverse()` supplies the in-arcs, and is the forward adjacency itself on an undirected snapshot,
@@ -56,36 +111,12 @@ export function katzCentrality(s: GraphSnapshot, o: KatzOptions = {}): KatzResul
     let it = 0;
     let converged = false;
     for (; it < maxIter && !converged; it++) {
-        let change = 0;
-        for (let v = 0; v < n; v++) {
-            let sum = 0;
-            const end = rev.rowPtr[v + 1];
-            for (let a = rev.rowPtr[v]; a < end; a++) {
-                sum += cur[rev.colIdx[a]] * (weights === null ? 1 : weights[a]);
-            }
-            next[v] = alpha * sum + beta;
-            change += Math.abs(next[v] - cur[v]);
-        }
+        const change = katzStep(rev, weights, cur, next, alpha, beta);
         [cur, next] = [next, cur];
         converged = change < n * tol;
     }
     if (o.normalized !== false) {
-        let min = Infinity;
-        let max = -Infinity;
-        for (let v = 0; v < n; v++) {
-            if (cur[v] < min) {
-                min = cur[v];
-            }
-            if (cur[v] > max) {
-                max = cur[v];
-            }
-        }
-        const range = max - min;
-        if (range > 0) {
-            for (let v = 0; v < n; v++) {
-                cur[v] = (cur[v] - min) / range;
-            }
-        }
+        minMaxNormalize(cur);
     }
     return { scores: cur, iterations: it, converged };
 }

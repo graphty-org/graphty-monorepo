@@ -30,9 +30,14 @@ function prepared(entry: CompiledLayer): readonly PreparedBinding[] {
 /**
  * A stack over `count` nodes `n0..`, whose scopes are a node-id list or the whole graph.
  * @param count - How many nodes the graph holds.
+ * @param extra - Further sources; `onResolve` is told each time a scope is resolved.
  * @returns The stack.
  */
-function stylesOver(count: number): SessionStylesApi {
+function stylesOver(
+    count: number,
+    extra: Partial<Parameters<typeof createStylesApi>[0]> & { readonly onResolve?: () => void } = {},
+): SessionStylesApi {
+    const { onResolve, ...more } = extra;
     const all = Array.from({ length: count }, (_, index) => `n${String(index)}`);
     const resolved = (nodes: readonly NodeId[]): ResolvedScope => ({
         nodes: new Set(nodes),
@@ -57,7 +62,9 @@ function stylesOver(count: number): SessionStylesApi {
 
             return Number.isInteger(at) && at >= 0 && at < count ? at : undefined;
         },
+        ...more,
         resolveScope: (spec: Scope) => {
+            onResolve?.();
             if (typeof spec === "object" && "nodes" in spec) {
                 return resolved(spec.nodes);
             }
@@ -217,6 +224,53 @@ describe("styles.agreement, how several elements look in one read", () => {
             assert.sameDeepMembers(got, shares, channel);
             assert.strictEqual(entry?.state, shares.length === 1 ? "agree" : "mixed", channel);
         }
+    });
+
+    it("keeps its answer over the graph until the stack, the data or an element state moves", async () => {
+        let walks = 0;
+        let state = 0;
+        let input = 0;
+        const styles = stylesOver(4, {
+            onResolve: () => walks++,
+            stateRevision: () => state,
+            inputRevision: () => input,
+        });
+        const red = await styles.add(on("Red", ["n0", "n1", "n2", "n3"], { "node.color": "#ff0000" }));
+
+        const first = styles.agreement("graph");
+        const walked = walks;
+        assert.strictEqual(styles.agreement("graph"), first, "a second read over an unchanged stack");
+        assert.strictEqual(walks, walked, "no second walk");
+        assert.notStrictEqual(styles.agreement("graph", "node.color"), first, "another question is its own");
+
+        state++;
+        styles.agreement("graph");
+        assert.strictEqual(walks, walked + 2, "an element state moved");
+        input++;
+        styles.agreement("graph");
+        assert.strictEqual(walks, walked + 3, "the data moved");
+
+        const blue = await styles.add(on("Blue", ["n3"], { "node.color": "#0000ff" }));
+        const colour = find(styles.agreement("graph").channels, "node.color");
+        assert.deepStrictEqual(
+            colour?.state === "mixed" ? colour.breakdown.map((share) => [share.layerId, share.count]) : [],
+            [
+                [red.id, 3],
+                [blue.id, 1],
+            ],
+        );
+    });
+
+    it("reads every time when the session cannot say when element states move", async () => {
+        let walks = 0;
+        const styles = stylesOver(2, { onResolve: () => walks++ });
+        await styles.add(on("Red", ["n0"], { "node.color": "#ff0000" }));
+
+        const before = walks;
+        styles.agreement("graph");
+        styles.agreement("graph");
+
+        assert.strictEqual(walks, before + 2);
     });
 
     it("reads a scope through the session, edges included", async () => {

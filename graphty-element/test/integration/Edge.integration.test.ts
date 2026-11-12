@@ -6,7 +6,7 @@
  */
 
 import { AbstractMesh, Mesh, NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import type { EdgeStyleConfig } from "../../src/config";
 import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
@@ -115,6 +115,19 @@ function createMinimalStyles(): Styles {
             },
             camera: {
                 pivotOnSelection: false,
+                autoRotate: 0,
+                fitInsets: { top: 0, right: 0, bottom: 0, left: 0 },
+                fitBounds: "box",
+                refitOnResize: false,
+            },
+            expand: {
+                trigger: "none",
+                depth: 1,
+                direction: "both",
+                layout: "continue",
+            },
+            selection: {
+                region: "off",
             },
         },
         data: {
@@ -129,6 +142,7 @@ function createMinimalStyles(): Styles {
                 repeatedEdges: "keep",
                 edgeWeightPath: null,
                 edgeTimePath: null,
+                edgeWeightMeaning: null,
                 positionScale: 1,
                 idCoercion: "canonical",
             },
@@ -153,6 +167,9 @@ function createMockNode(scene: Scene, id: string, position: Vector3): Node {
         id,
         mesh,
         data: { id },
+        get drawnPosition() {
+            return mesh.position;
+        },
     } as unknown as Node;
 
     return mockNode;
@@ -234,6 +251,10 @@ describe("Edge Integration", () => {
             line: { width: 1.0, color: "#0000FF" },
             arrowHead: { type: "box", size: 1, color: "#0000FF", opacity: 1 },
         });
+    });
+
+    afterEach(() => {
+        engine.dispose();
     });
 
     describe("Complete Edge Creation", () => {
@@ -322,8 +343,10 @@ describe("Edge Integration", () => {
                to bracket this repaint, and they are what said "drawn from THAT style" rather
                than "drawn from something". A style id is gone with the 1.x style table and the
                mesh key that replaced it is private, so the identity is read where it is public:
-               the line renderer names its source mesh `edge-style-<the paint's mesh key>`. */
-            assert.include(edge.mesh.name, initialPaint.meshKey);
+               the line as drawn, at the width the paint asks for. (Its batch is keyed by the
+               line's shape, not by the paint's key: edges that differ only in color share it.) */
+            const before = edge.mesh;
+            assert.strictEqual(edge.drawnLine?.width, initialPaint.style.line?.width);
 
             // Repaint from a style that carries an arrow cap. `applySessionPaint` is the door the
             // session's own pass uses; `updateStyle()` is the no-argument rebuild request beside
@@ -343,8 +366,8 @@ describe("Edge Integration", () => {
 
             // AND THE SECOND HALF OF THE BRACKET: the line the repaint rebuilt is drawn from the
             // new paint's mesh key, not the old one's.
-            assert.include(edge.mesh.name, updatedPaint.meshKey);
-            assert.notInclude(edge.mesh.name, initialPaint.meshKey);
+            assert.strictEqual(edge.drawnLine?.width, updatedPaint.style.line?.width);
+            assert.notStrictEqual(edge.mesh, before, "drawn from another batch");
         });
 
         test("draws an arrow at the size its own style asks for, not at one fixed size", () => {

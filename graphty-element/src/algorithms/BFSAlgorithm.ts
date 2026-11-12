@@ -1,5 +1,5 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
@@ -56,17 +56,17 @@ interface BFSOptions extends Record<string, unknown> {
  * and predecessor relationships for each reachable node.
  */
 export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
-    static namespace = "graphty";
-    static type = "bfs";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "bfs";
     /** Walks the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = bfsOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = bfsOptionsSchema;
 
     /**
      * Options schema for BFS algorithm
      */
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         source: {
             type: "nodeId",
             default: null,

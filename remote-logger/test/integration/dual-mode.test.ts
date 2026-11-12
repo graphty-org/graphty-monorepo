@@ -12,7 +12,8 @@ import { createDualServer, type DualServerResult } from "../../src/server/dual-s
 import { LogStorage } from "../../src/server/log-storage.js";
 
 describe("Dual mode (HTTP + MCP)", () => {
-    let dualServer: DualServerResult;
+    // undefined until a test starts a server, and again after the test's cleanup
+    let dualServer: DualServerResult | undefined;
     let port: number;
 
     beforeEach(() => {
@@ -20,10 +21,20 @@ describe("Dual mode (HTTP + MCP)", () => {
     });
 
     afterEach(async () => {
-        if (dualServer) {
-            await dualServer.shutdown();
-        }
+        await dualServer?.shutdown();
+        dualServer = undefined;
     });
+
+    /**
+     * The port the running server bound.
+     * @returns the port
+     */
+    function boundPort(): number | undefined {
+        if (dualServer === undefined) {
+            throw new Error("the test sent a request before it started a server");
+        }
+        return dualServer.httpPort;
+    }
 
     /**
      * Helper to send a log via HTTP POST.
@@ -46,7 +57,7 @@ describe("Dual mode (HTTP + MCP)", () => {
                     // The port the server bound, not the one this test asked for: findAvailablePort
                     // moves to the next free port when the requested one is taken, so the requested
                     // port can belong to another test's server -- one that is shutting down.
-                    port: dualServer.httpPort,
+                    port: boundPort(),
                     // No pooled sockets. Node's default agent keeps idle connections alive, and when a
                     // later test draws the same random port the request can go out on the socket an
                     // earlier test's shutdown destroyed: "socket hang up" (ECONNRESET).
@@ -90,7 +101,7 @@ describe("Dual mode (HTTP + MCP)", () => {
                     // The port the server bound, not the one this test asked for: findAvailablePort
                     // moves to the next free port when the requested one is taken, so the requested
                     // port can belong to another test's server -- one that is shutting down.
-                    port: dualServer.httpPort,
+                    port: boundPort(),
                     // No pooled sockets. Node's default agent keeps idle connections alive, and when a
                     // later test draws the same random port the request can go out on the socket an
                     // earlier test's shutdown destroyed: "socket hang up" (ECONNRESET).

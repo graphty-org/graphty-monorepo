@@ -5,14 +5,14 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { ApiKeyManager } from "../../../src/ai/keys/ApiKeyManager";
+import { ApiKeyManager, type ApiKeyManagerOptions } from "../../../src/ai/keys/ApiKeyManager";
 
 /**
- * Construct a manager, as a reloaded page would, and wait for its restore.
- * @param options - Constructor options
- * @returns The restored manager
+ * A manager for the next page, once it has restored what storage holds.
+ * @param options - Where persisted keys live
+ * @returns The manager
  */
-async function reload(options?: ConstructorParameters<typeof ApiKeyManager>[0]): Promise<ApiKeyManager> {
+async function reload(options?: ApiKeyManagerOptions): Promise<ApiKeyManager> {
     const manager = new ApiKeyManager(options);
     await manager.ready();
     return manager;
@@ -96,31 +96,20 @@ describe("ApiKeyManager restore after reload", () => {
         assert.strictEqual(after.getKey("google"), "g-custom");
     });
 
-    it("keeps a key set while the restore is still running, over the stored one", async () => {
-        const before = new ApiKeyManager();
-        await before.enablePersistence();
-        before.setKey("openai", "sk-stored");
-        before.setKey("anthropic", "sk-stored-anthropic");
-        await before.ready();
+    it("leaves keys saved by the old encrypt-storage format untouched, and the first save replaces them", async () => {
+        // encrypt-storage's crypto-js output, which Web Crypto cannot read
+        const legacy = "U2FsdGVkX1+legacy+crypto+js+ciphertext";
+        localStorage.setItem("@graphty-ai-keys:keys", legacy);
 
-        const after = new ApiKeyManager();
-        after.setKey("openai", "sk-typed-during-restore");
+        const after = await reload();
+        assert.strictEqual(after.isPersistenceEnabled(), false, "nothing readable to restore");
+        await after.enablePersistence();
+        assert.deepStrictEqual(after.getConfiguredProviders(), [], "the reader enters the keys again");
+        assert.strictEqual(localStorage.getItem("@graphty-ai-keys:keys"), legacy);
+
+        after.setKey("openai", "sk-entered-again");
         await after.ready();
-        assert.strictEqual(after.getKey("openai"), "sk-typed-during-restore");
-        assert.strictEqual(after.getKey("anthropic"), "sk-stored-anthropic");
-        assert.strictEqual((await reload()).getKey("openai"), "sk-typed-during-restore");
-    });
-
-    it("gives way to a host that turns persistence off before the restore finishes", async () => {
-        const before = new ApiKeyManager();
-        await before.enablePersistence();
-        before.setKey("openai", "sk-stored");
-        await before.ready();
-
-        const after = new ApiKeyManager();
-        after.disablePersistence(false);
-        await after.ready();
-        assert.strictEqual(after.isPersistenceEnabled(), false);
+        assert.strictEqual((await reload()).getKey("openai"), "sk-entered-again");
     });
 
     it("saves keys that were in memory before persistence was enabled", async () => {

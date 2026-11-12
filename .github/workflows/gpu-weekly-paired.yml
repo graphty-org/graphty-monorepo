@@ -23,6 +23,10 @@ concurrency:
     group: gpu-weekly-paired
     cancel-in-progress: false
 
+env:
+    # A failed Actions cache restore waits one minute here, not 10 (#5098; see ci.yml).
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
+
 jobs:
     paired:
         name: Paired benchmark, master against the latest release (NVIDIA T4)
@@ -50,14 +54,52 @@ jobs:
         steps:
             # Before checkout: a bare ubuntu:24.04 has no git. The packages are gpu.yml's bootstrap (see its comment
             # for each one) plus gh, which the regression-issue step below calls.
-            - name: Bootstrap the container (git for checkout, the Vulkan loader and libEGL for Dawn, gh)
+            # The .deb files apt chose are cached, keyed on the bare image's own package list (every package and
+            # version dpkg reports before anything is installed) and the packages asked for, so a hit installs with
+            # dpkg and never touches archive.ubuntu.com: in run 42555029230 the runner could not reach it, apt
+            # found "no installation candidate" for libvulkan1 and the full run went red (#6390). A new ubuntu:24.04
+            # build changes the key, so its first run fetches once more (with apt's retries) and saves the set.
+            - name: Key the container's packages by its image
+              id: t4-debs-key
               working-directory: /
+              env:
+                  PACKAGES: ca-certificates curl git gnupg sudo xz-utils gh libvulkan1 libegl1 libgl1 libatomic1
+              run: echo "key=t4-debs-$({ dpkg-query -W -f '${Package} ${Version} ${Architecture}\n'; echo "$PACKAGES"; } | sha256sum | cut -c1-32)" >> "$GITHUB_OUTPUT"
+            - name: Restore the container's packages
+              id: t4-debs
+              uses: actions/cache/restore@v6
+              with:
+                  path: /var/cache/t4-debs
+                  key: ${{ steps.t4-debs-key.outputs.key }}
+            - name: Bootstrap the container (git for checkout, the Vulkan loader and libEGL for Dawn, libatomic for pnpm, gh)
+              working-directory: /
+              env:
+                  HIT: ${{ steps.t4-debs.outputs.cache-hit }}
+                  PACKAGES: ca-certificates curl git gnupg sudo xz-utils gh libvulkan1 libegl1 libgl1 libatomic1
               run: |
-                  apt-get update
-                  apt-get install -y --no-install-recommends \
-                      ca-certificates curl git gnupg sudo xz-utils gh \
-                      libvulkan1 libegl1 libgl1
-            - uses: actions/checkout@v4
+                  dir=/var/cache/t4-debs
+                  # apt drops a connection that stalls for 20 s and retries a download up to 5 times
+                  printf '%s\n' 'Acquire::http::Timeout "20";' 'Acquire::https::Timeout "20";' 'Acquire::Retries "5";' \
+                      > /etc/apt/apt.conf.d/99-ci-timeouts
+                  if [ "$HIT" = true ]; then
+                      dpkg -i "$dir"/*.deb
+                  else
+                      # apt downloads into $dir and keeps the files there for the save step below
+                      mkdir -p "$dir/partial"
+                      apt-get update
+                      apt-get install -y --no-install-recommends -o Dir::Cache::Archives="$dir" $PACKAGES
+                      rm -rf "$dir/partial" "$dir/lock"
+                  fi
+                  # a hit that held too little fails here, not later as a missing loader or a missing git
+                  missing=$(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' $PACKAGES 2>&1 | grep -v '^ii ' || true)
+                  if [ -n "$missing" ]; then echo "::error::the container's packages are not all installed: $missing"; exit 1; fi
+            - name: Save the container's packages
+              if: steps.t4-debs.outputs.cache-hit != 'true' && github.event_name != 'pull_request'
+              uses: actions/cache/save@v6
+              with:
+                  path: /var/cache/t4-debs
+                  key: ${{ steps.t4-debs-key.outputs.key }}
+            - uses: actions/checkout@v7
               with: { ref: master, fetch-depth: 0 } # every tag, and the release commit bench-ab.js checks out
             - name: Let git use the checkout inside the container
               working-directory: .
@@ -69,8 +111,8 @@ jobs:
                   nvidia-smi
                   test -e /usr/share/vulkan/icd.d/nvidia_icd.json -o -e /etc/vulkan/icd.d/nvidia_icd.json \
                     || { echo "::error::no NVIDIA Vulkan ICD in the container -- NVIDIA_DRIVER_CAPABILITIES must include graphics"; exit 1; }
-            - uses: pnpm/action-setup@v4
-            - uses: actions/setup-node@v4
+            - uses: pnpm/action-setup@v6
+            - uses: actions/setup-node@v7
               with: { node-version: 22.x, cache: pnpm }
             - run: pnpm install --frozen-lockfile
               working-directory: .

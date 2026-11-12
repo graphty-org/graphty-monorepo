@@ -1,0 +1,23 @@
+{
+    "id": 40441556963,
+    "name": "PR Title",
+    "path": ".github/workflows/pr-title.yml",
+    "head_branch": "fix/3938-master-builds-finish",
+    "head_sha": "97a0065888306569d249e7389d60a60def579daa",
+    "event": "pull_request",
+    "status": "queued",
+    "conclusion": null,
+    "run_attempt": 1,
+    "created_at": "2026-10-27T02:58:54Z",
+    "run_started_at": "2026-10-27T02:58:54Z",
+    "updated_at": "2026-10-27T02:58:54Z",
+    "display_title": "fix(ci): a running master build always finishes; a newer push replaces only the waiting one",
+    "check_suite_node_id": "CS_kwDOQuemQs8AAAAZhU77Xw",
+    "triggering_actor": {
+        "login": "graphty-agent"
+    },
+    "pull_requests": [],
+    "repository": {
+        "full_name": "graphty-org/graphty-monorepo"
+    }
+}

@@ -333,13 +333,7 @@ export class History<P> {
             return top.id;
         }
 
-        if (this.counted !== null && this.cursor < this.counted.steps) {
-            this.counted = null;
-        }
-
-        for (const step of this.entries.splice(this.cursor)) {
-            this.total -= this.size(step, false);
-        }
+        this.discardUndone();
 
         const id = `step-${this.nextId++}`;
         this.entries.push({
@@ -568,6 +562,17 @@ export class History<P> {
     }
 
     /**
+     * Forget the undone steps, as a new edit would, with nothing recorded: Redo has nothing left.
+     * Published as an eviction: steps left the history and the graph did not change.
+     */
+    dropUndone(): void {
+        if (this.cursor < this.entries.length) {
+            this.discardUndone();
+            this.changed("evict");
+        }
+    }
+
+    /**
      * Move to the state just after a step, or to the baseline, as the equivalent sequence of undos
      * or redos.
      * @param id - The step, or null for the baseline.
@@ -602,6 +607,26 @@ export class History<P> {
     }
 
     /**
+     * Discard the redo tail, as recording a new step does: the undone steps can no longer be redone.
+     */
+    dropRedo(): void {
+        if (this.cursor === this.entries.length) {
+            return;
+        }
+
+        if (this.counted !== null && this.cursor < this.counted.steps) {
+            this.counted = null;
+        }
+
+        for (const step of this.entries.splice(this.cursor)) {
+            this.total -= this.size(step, false);
+        }
+
+        this.mergeable = false;
+        this.changed("restore");
+    }
+
+    /**
      * Drop every step: the current state becomes the baseline.
      * @param baseline - The arrangement now, the new A(0).
      */
@@ -615,6 +640,40 @@ export class History<P> {
         this.mergeable = false;
         this.counted = null;
         this.changed("clear");
+    }
+
+    /**
+     * Start the history again over the oldest steps: they are dropped as eviction drops them (what
+     * they did stays, folded into the baseline, and they can no longer be undone; undone ones go
+     * with the rest), and the change is published as a clear, even when there were none.
+     * @param count - How many, from the oldest.
+     */
+    dropOldest(count: number): void {
+        for (const [index, step] of this.entries.slice(0, count).entries()) {
+            const done = index < this.cursor;
+            this.total -= this.size(step, done);
+            if (done) {
+                this.fold(step);
+            }
+        }
+
+        this.entries.splice(0, count);
+        this.cursor = Math.max(0, this.cursor - count);
+        this.counted = null;
+        // A boundary, as `clear()` is: the next edit does not coalesce into a step before it.
+        this.mergeable = false;
+        this.changed("clear");
+    }
+
+    /** Discard the redo tail. */
+    private discardUndone(): void {
+        if (this.counted !== null && this.cursor < this.counted.steps) {
+            this.counted = null;
+        }
+
+        for (const step of this.entries.splice(this.cursor)) {
+            this.total -= this.size(step, false);
+        }
     }
 
     /**

@@ -1,18 +1,33 @@
 /**
  * @file `LoadReport.errors`: what a load met, as codes and facts, on `lastImport()` and on a
- * draft's `report()`. A recognisable GraphML or GEXF file that breaks off keeps what was read
- * before the break and says where it broke (#1218).
+ * draft's `report()`. A recognisable GraphML or GEXF file that breaks off is refused whole, with
+ * `E_PARSE_FAILED` and the line it broke on, and adds nothing to the graph (#1218).
  */
 
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession } from "../../src/session";
 
+/**
+ * What a promise was refused with, as the error's code and `details.line`.
+ * @param promise - The promise.
+ * @returns The code and line, or null when it resolved.
+ */
+async function refusal(promise: Promise<unknown>): Promise<{ code?: string; line?: unknown } | null> {
+    return promise.then(
+        () => null,
+        (error: unknown) => {
+            const { code, details } = error as { code?: string; details?: { line?: unknown } };
+            return { code, line: details?.line };
+        },
+    );
+}
+
 const HEAD =
     '<?xml version="1.0"?>\n<graphml xmlns="http://graphml.graphdrawing.org/xmlns">\n' +
     '<graph edgedefault="directed">\n<node id="a"/>\n';
 
-/** Each malformed GraphML case from the issue, the nodes kept, and the line it breaks on. */
+/** Each malformed GraphML case from the issue, the nodes read before the break, and the line it breaks on. */
 const BROKEN_GRAPHML = [
     { name: "a stray end tag", data: `${HEAD}</node>\n<node id="b"/>\n</graph>\n</graphml>\n`, nodes: 1, line: 5 },
     { name: "an unclosed node tag", data: `${HEAD}<node id="b">\n</graph>\n</graphml>\n`, nodes: 1, line: 6 },
@@ -23,40 +38,39 @@ const BROKEN_GRAPHML = [
 
 describe("LoadReport.errors", () => {
     for (const broken of BROKEN_GRAPHML) {
-        it(`keeps the graph read before ${broken.name} in a GraphML file, and reports the line`, async () => {
+        it(`refuses a GraphML file with ${broken.name}, keeps nothing, and reports the line`, async () => {
             const session = createGraphSession();
-            await session.data.import({ type: "graphml", config: { data: broken.data } });
+            const refused = await refusal(session.data.import({ type: "graphml", config: { data: broken.data } }));
 
-            const report = session.data.lastImport();
-            assert.strictEqual(session.data.statistics().nodeCount, broken.nodes, "what came before the break is kept");
-            assert.strictEqual(report?.errors[0]?.code, "parse-error");
-            assert.strictEqual(report?.errors[0]?.line, broken.line);
-            assert.strictEqual(report?.errors[0]?.params.issue, "E_XML_SYNTAX");
+            assert.deepEqual(refused, { code: "E_PARSE_FAILED", line: broken.line });
+            assert.isAbove(broken.nodes, 0, "the file holds nodes before the break");
+            assert.strictEqual(session.data.statistics().nodeCount, 0, "nothing read before the break is kept");
             session.dispose();
         });
     }
 
-    it("keeps the graph read before a GEXF file breaks off, and reports the line", async () => {
+    it("refuses a GEXF file that breaks off, keeps nothing, and reports the line", async () => {
         const session = createGraphSession();
         const data =
             '<?xml version="1.0"?><gexf version="1.3"><graph>\n' +
             '<nodes><node id="a"/>\n<node id="b"></nodes></graph></gexf>';
-        await session.data.import({ type: "gexf", config: { data } });
+        const refused = await refusal(session.data.import({ type: "gexf", config: { data } }));
 
-        const report = session.data.lastImport();
-        assert.strictEqual(session.data.statistics().nodeCount, 2);
-        assert.strictEqual(report?.errors[0]?.code, "parse-error");
-        assert.strictEqual(report?.errors[0]?.line, 3);
+        assert.deepEqual(refused, { code: "E_PARSE_FAILED", line: 3 });
+        assert.strictEqual(session.data.statistics().nodeCount, 0);
         session.dispose();
     });
 
-    it("reports the break on a draft's report before the load, too", async () => {
+    it("refuses a draft of a broken file before the load, too", async () => {
         const session = createGraphSession();
-        const draft = await session.data.prepare({ type: "graphml", config: { data: BROKEN_GRAPHML[0].data } });
+        const refused = await refusal(
+            (async () => {
+                const draft = await session.data.prepare({ type: "graphml", config: { data: BROKEN_GRAPHML[0].data } });
+                await draft.report();
+            })(),
+        );
 
-        const report = await draft.report();
-        assert.strictEqual(report.errors[0]?.code, "parse-error");
-        assert.strictEqual(report.errors[0]?.line, 5);
+        assert.deepEqual(refused, { code: "E_PARSE_FAILED", line: 5 });
         session.dispose();
     });
 

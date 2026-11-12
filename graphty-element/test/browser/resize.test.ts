@@ -2,9 +2,6 @@ import "../../src/graphty-element";
 
 import { expect, test } from "vitest";
 
-/** How long the element may take to connect and finish `Graph.init()`: the test's own budget. */
-const INIT_BUDGET_MS = 10_000;
-
 test("canvas resizes when container element dimensions change", async () => {
     // Create a container with initial dimensions
     const container = document.createElement("div");
@@ -28,7 +25,7 @@ test("canvas resizes when container element dimensions change", async () => {
     container.appendChild(graphtyElement);
 
     // Wait for element to be connected and initialized
-    await expect.poll(() => graphtyElement.graph.initialized, { timeout: INIT_BUDGET_MS }).toBe(true);
+    await expect.poll(() => graphtyElement.graph.initialized).toBe(true);
 
     // Add some test data
     await graphtyElement.graph.addNodes([{ id: "1" }, { id: "2" }, { id: "3" }]);
@@ -105,7 +102,7 @@ test("canvas resizes in flexbox layout", async () => {
     container.appendChild(graphtyElement);
 
     // Wait for element to be connected and initialized
-    await expect.poll(() => graphtyElement.graph.initialized, { timeout: INIT_BUDGET_MS }).toBe(true);
+    await expect.poll(() => graphtyElement.graph.initialized).toBe(true);
 
     // Add some test data
     await graphtyElement.graph.addNodes([{ id: "1" }, { id: "2" }]);

@@ -1,0 +1,19 @@
+{
+    "sample": "gml-specimen-arrows-p5",
+    "file": "graph-io/test/fidelity/specimens/gml/specimen-arrows-p5.gml",
+    "sha256": "ed287d8e7557828f6fd83a52222c0bc6eb6768a028b03585f4e7e766cbc71041",
+    "program": "OGDF (Open Graph Drawing Framework)",
+    "version": "2025.10 (release tag foxglove-202510, built from source, libOGDF.a)",
+    "route": "ogdf",
+    "command": "ogdf-gml rewrite <file> (GraphIO::readGML, GraphIO::writeGML); ogdf-gml draw <file> (GraphIO::readGML, then GraphIO::drawSVG, SVGSettings margin 16.5, width 1200px, height 900px, font family \"Arial\" (OGDF's default), every other setting OGDF's default)",
+    "standIn": false,
+    "about": "OGDF writes these files (the sheet is OGDF's own readGML / writeGML of the generated sheet) and this is OGDF's own drawing of them. drawSVG draws every label in one font size (SVGSettings, 10 px) and ignores fill patterns.",
+    "canvas": {
+        "widthPx": 1200,
+        "heightPx": 900
+    },
+    "fonts": "OGDF's default font family \"Arial\" is written into the SVG; rasterize.mjs draws it with visual-fonts/ (Liberation Sans, Arial's metric twin)",
+    "svgPostprocessing": "none: the SVG is OGDF's output byte for byte",
+    "date": "2026-10-20",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/ogdf.mjs gml-specimen-arrows-p5 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gml-specimen-arrows-p5.svg"
+}

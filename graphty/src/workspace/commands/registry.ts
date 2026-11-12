@@ -12,7 +12,7 @@
  */
 
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { ColumnRef, FeatureId, GraphSession, LoadedSource } from "@graphty/graphty-element/session";
 
 import { assertAppKey } from "../keys/keys";
 import type { WorkspaceStore } from "../state/store";
@@ -21,7 +21,16 @@ import type { WorkspaceStore } from "../state/store";
  * Where Quick actions lists a command (tier1-design.md section 2.3: "grouped by its home").
  */
 type CommandGroup =
-    "Go to" | "Graph tree" | "Analyze" | "Data" | "View" | "Layout" | "Selection" | "Project" | "Settings and help";
+    | "Go to"
+    | "Graph tree"
+    | "Analyze"
+    | "Data"
+    | "Notes"
+    | "View"
+    | "Layout"
+    | "Selection"
+    | "Project"
+    | "Settings and help";
 
 /** What a command's `run` and `disabled` read. */
 export interface CommandContext {
@@ -47,16 +56,88 @@ export interface Command {
      * modifier is a single-key shortcut, which the reader can switch off (WCAG 2.1.4).
      */
     readonly keys?: readonly string[];
+    /**
+     * Keys that run it on the focused row of the paint tree, for the row: listed with the other
+     * keys, but bound by the tree rather than window-wide, so one may repeat a window key (F2
+     * renames the project anywhere else).
+     */
+    readonly rowKeys?: readonly string[];
     /** Extra words Quick actions matches ("field", "column"). */
     readonly keywords?: readonly string[];
     /** A tooltip sentence, where the label alone is not enough. */
     readonly description?: string;
+    /**
+     * The tooltip's name in place of the label, read on each render, where it changes with the
+     * state ("Undo Size by PageRank"). The accessible name stays the label.
+     */
+    readonly tooltip?: (ctx: CommandContext) => string;
     /** Why it cannot run now, or null when it can. Drawn grayed with the reason, still focusable. */
     readonly disabled?: (ctx: CommandContext) => string | null;
+    /**
+     * Whether it is available at all now: false draws no door to it (toolbar button, Quick
+     * actions row) and makes its keys and `run` do nothing. For a command that only makes sense
+     * in some data (Timeline, with a time column), where a grayed door would be noise. Absent
+     * means always.
+     */
+    readonly shown?: (ctx: CommandContext) => boolean;
+    /**
+     * The door to an experiment: while `shown` is false it is as if it were not registered, so the
+     * Keyboard shortcuts dialog does not list it and its keys stay the browser's.
+     */
+    readonly experiment?: boolean;
+    /** The experiment it belongs to: with that off the shortcuts list leaves it out too. */
+    readonly feature?: FeatureId;
     /** Does it. */
     readonly run: (ctx: CommandContext) => void | Promise<void>;
     /** Declared but not built: holds the id, drawn nowhere. */
     readonly stub?: boolean;
+}
+
+/**
+ * Whether a command is an experiment's door with its experiment off.
+ * @param command - the command.
+ * @param ctx - what its `shown` reads.
+ * @returns true when nothing may show it or answer its keys.
+ */
+export function switchedOff(command: Command, ctx: CommandContext): boolean {
+    return command.experiment === true && command.shown?.(ctx) === false;
+}
+
+/**
+ * A command on one Sources row (data prototype spec section 3.2): the row's menu lists every one
+ * registered whose `shown` holds for the row, so a package adds an item to the menu by registering
+ * one, not by editing the Data place. A command with `icon` is also drawn as a button on the row's
+ * hover (Load more, Refresh).
+ */
+export interface SourceRowCommand {
+    /** Stable id, `source.<verb>`. */
+    readonly id: string;
+    /** The menu item's label, such as `"Refresh"`. */
+    readonly label: string;
+    /** Where the menu lists it: lower first; absent lists it last, in registration order. */
+    readonly order?: number;
+    /** Also a hover button on the row, drawn with this icon. */
+    readonly icon?: "more" | "refresh";
+    /** Whether the row offers it: false leaves it out (an absent precondition is never grayed). */
+    readonly shown?: (ctx: CommandContext, source: LoadedSource) => boolean;
+    /** Does it to the row's load. */
+    readonly run: (ctx: CommandContext, source: LoadedSource) => void | Promise<void>;
+}
+
+/**
+ * A command on a table column's header menu (data prototype spec section 3.5.2): the menu lists
+ * every one registered whose `shown` holds for the column, after the table's own items, so a
+ * package adds an item (the join screen's Match on this) by registering one.
+ */
+export interface ColumnHeaderCommand {
+    /** Stable id, `column.<verb>`. */
+    readonly id: string;
+    /** The menu item's label, such as `"Match on this"`. */
+    readonly label: string;
+    /** Whether the column offers it: false leaves it out (an absent precondition is never grayed). */
+    readonly shown?: (ctx: CommandContext, column: ColumnRef) => boolean;
+    /** Does it to the column. */
+    readonly run: (ctx: CommandContext, column: ColumnRef) => void | Promise<void>;
 }
 
 /** An inspected kind (tier1-design.md section 2.7): its tabs and which tab it opens on. */
@@ -79,6 +160,10 @@ export interface WorkspaceRegistration {
     readonly commands: readonly Command[];
     /** The inspected kinds it introduces. */
     readonly inspectedKinds?: readonly InspectedKind[];
+    /** Its commands on a Sources row. */
+    readonly sourceRow?: readonly SourceRowCommand[];
+    /** Its commands on a table column's header menu. */
+    readonly columnHeader?: readonly ColumnHeaderCommand[];
 }
 
 /**
@@ -100,10 +185,11 @@ export function stubCommands(commands: readonly Omit<Command, "run" | "stub">[])
 }
 
 /**
- * The File list, shared word for word by the main menu and the project-name menu
- * (tier1-design.md section 2.1). Each is registered by the package that owns it.
+ * The File list: what the main menu offers for the open project, after its ways to open one
+ * (tier1-design.md section 2.1). Drawn once, in the main menu, and left out of the start
+ * screen's copy. Each is registered by the package that owns it.
  */
-export const FILE_LIST = ["file.open", "project.save", "file.export"] as const;
+export const FILE_LIST = ["project.save", "project.save-as", "project.save-copy", "file.export"] as const;
 
 /**
  * Every command id the tier 1 design needs, by owning package. A package that drops one fails
@@ -127,6 +213,8 @@ export const EXPECTED_COMMAND_IDS: Readonly<Record<string, readonly string[]>> =
     privacy: ["settings.privacy", "help.report"],
     toolbar: [
         "view.open",
+        "view.camera",
+        "view.auto-rotate",
         "view.legend",
         "view.fit",
         "view.frame-selection",
@@ -136,11 +224,19 @@ export const EXPECTED_COMMAND_IDS: Readonly<Record<string, readonly string[]>> =
     ],
     analyze: ["analyze.open"],
     layout: ["layout.open", "layout.rerun", "layout.reshuffle"],
-    "graph-place": ["find.focus"],
-    style: ["style.add-label-line"],
+    "graph-place": [
+        "find.focus",
+        "row.rename",
+        "row.pin-top",
+        "row.pin-bottom",
+        "row.pin-none",
+        "row.ungroup",
+        "row.delete",
+    ],
+    style: ["style.add-label-line", "style.layer-from-selection", "shader.add"],
     table: ["table.toggle"],
     export: ["file.export"],
-    project: ["project.save", "project.save-as", "project.close"],
+    project: ["project.save", "project.save-as", "project.save-copy", "project.close"],
 };
 
 /** The commands, looked up and listed. */
@@ -151,6 +247,10 @@ export interface WorkspaceCommands {
     readonly live: readonly Command[];
     /** The inspected kinds, by id. */
     readonly kinds: ReadonlyMap<string, InspectedKind>;
+    /** Every Sources row command, in menu order. */
+    readonly sourceRow: readonly SourceRowCommand[];
+    /** Every table column header command, in registration order. */
+    readonly columnHeader: readonly ColumnHeaderCommand[];
     /**
      * A command by id.
      * @param id - the command id.
@@ -188,6 +288,27 @@ function addCommand(byId: Map<string, Command>, byKey: Map<string, string>, comm
 }
 
 /**
+ * Adds commands to a list, refusing an id the list already holds.
+ * @param list - the commands so far.
+ * @param commands - the commands to add.
+ * @param what - what a command is, for the error.
+ * @param owner - the registration they came from, for the error.
+ */
+function addUnique<T extends { readonly id: string }>(
+    list: T[],
+    commands: readonly T[],
+    what: string,
+    owner: string,
+): void {
+    for (const command of commands) {
+        if (list.some((each) => each.id === command.id)) {
+            throw new Error(`${what} "${command.id}" is registered twice (again by ${owner})`);
+        }
+        list.push(command);
+    }
+}
+
+/**
  * Builds the registry, refusing what would break a door: a duplicate id, a key two commands
  * share, or a key graphty-element owns on a focused canvas.
  * @param registrations - every package's registration.
@@ -197,8 +318,18 @@ export function createRegistry(registrations: readonly WorkspaceRegistration[]):
     const byId = new Map<string, Command>();
     const byKey = new Map<string, string>();
     const kinds = new Map<string, InspectedKind>();
+    const sourceRow: SourceRowCommand[] = [];
+    const columnHeader: ColumnHeaderCommand[] = [];
 
-    for (const { owner, commands, inspectedKinds = [] } of registrations) {
+    for (const {
+        owner,
+        commands,
+        inspectedKinds = [],
+        sourceRow: rowCommands = [],
+        columnHeader: headerCommands = [],
+    } of registrations) {
+        addUnique(columnHeader, headerCommands, "Column header command", owner);
+        addUnique(sourceRow, rowCommands, "Source row command", owner);
         for (const command of commands) {
             addCommand(byId, byKey, command, owner);
         }
@@ -212,11 +343,15 @@ export function createRegistry(registrations: readonly WorkspaceRegistration[]):
 
     const all = [...byId.values()];
     const live = all.filter((command) => command.stub !== true);
+    // A stable sort keeps registration order among equals.
+    sourceRow.sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
 
     return {
         all,
         live,
         kinds,
+        sourceRow,
+        columnHeader,
         get: (id) => byId.get(id),
         built: (id) => {
             const command = byId.get(id);

@@ -275,6 +275,8 @@ try {
     if (!noMove) log("orbit", await page.evaluate(() => B.orbit(200)));
     if (!noMove) log("drag", await page.evaluate(() => B.drag(60)));
     if (!noMove) await checkBatched("drag");
+    // The heap as the page holds it, before the forced collection below shrinks it.
+    log("memoryNoGc", { ...(await page.evaluate(() => B.mem())), rssMB: rssMB() });
     await cdp.send("HeapProfiler.collectGarbage");
     log("memory", { ...(await page.evaluate(() => B.mem())), gpuMBDelta: gpuMB() - gpu0, rssMB: rssMB() });
     // Hover before the layout: a run of the layout moves cosmos.gl's points off the screen, which is

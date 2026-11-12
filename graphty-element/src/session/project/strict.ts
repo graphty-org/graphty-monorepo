@@ -104,6 +104,9 @@ let verifications = 0;
  * over bytes where it is not), or -1 for one whose buffer was detached. Every dispatch sums every
  * array its state keeps, several megabytes at the render ceiling, so it reads a word at a time.
  * Each step is a bijection of the running sum, so a change to any one word always changes it.
+ *
+ * Twin of graph-format's internal `hashTypedArray` (`snapshot/hash.ts`), kept apart on purpose:
+ * that one is not exported, and widening graph-format's API for a debug-only check is not worth it.
  * @param array - The array.
  * @returns The checksum.
  */

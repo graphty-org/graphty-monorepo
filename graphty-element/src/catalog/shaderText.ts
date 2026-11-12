@@ -754,6 +754,13 @@ export interface ShaderTextOptions {
     readonly target?: ShaderTarget;
     /** The place it takes when its text names none, if its target allows it. */
     readonly place?: ShaderPlace;
+    /**
+     * Whether the header's id must carry a namespace (`user/tint`). Default true. False reads a
+     * bare id (`pearl`), as a project's own shaders and a style document's carry them: there an
+     * id is a key into the file's shader list, nothing more.
+     * @since 3.50.0
+     */
+    readonly namespaced?: boolean;
 }
 
 /**
@@ -1083,7 +1090,7 @@ export function parseShaderText(text: ShaderText, options?: ShaderTextOptions): 
         return { ok: false, problems: [header] };
     }
 
-    const descriptor = checkHeader(header.value, true);
+    const descriptor = checkHeader(header.value, options?.namespaced ?? true);
     if (Array.isArray(descriptor)) {
         return { ok: false, problems: descriptor };
     }

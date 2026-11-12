@@ -271,6 +271,12 @@ else
     # owner adds, on the commit that makes it. See tools/check-figma-lock.mjs.
     run_step "compact-mantine Figma lock" "node \"$GATE_TOOLS/check-figma-lock.mjs\""
 
+    # Save files carry what they use: a commit that adds a known exception to graphty-element's
+    # saved-format checks, removes a self-contained kind or a saved-format test, or changes the shader
+    # library snapshot needs the owner's `Saved-Format-Exception-Approved: <reason>` trailer; removing a
+    # shipped shader hash without revoking it always fails. See tools/check-saved-format-allowlist.mjs.
+    run_step "Saved-format exceptions" "node \"$GATE_TOOLS/check-saved-format-allowlist.mjs\""
+
     # Dead relative links and #anchors in the Markdown, MDX and HTML, and links to this repository's own
     # files on GitHub, resolved against the working tree. Offline: the network half of the check
     # (github.com/graphty-org, and graphty.app against the assembled site) runs in CI's "Links" job,

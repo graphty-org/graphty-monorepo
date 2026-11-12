@@ -49,6 +49,14 @@ export interface GraphBounds {
      * behave differently for "nothing to frame" checks this rather than inspecting the numbers.
      */
     readonly measured: number;
+    /**
+     * The points the box was measured over, in world units: where each element is, and the
+     * corners of the box each is drawn in when measured by its drawn extent. A perspective view
+     * that fits these rather than the box's eight corners frames what is drawn and not the empty
+     * corners around it, which on a round graph seen from an angle is most of the box. Absent for
+     * the default box and for a box around a single point.
+     */
+    readonly points?: readonly Vec3[];
 }
 
 /**

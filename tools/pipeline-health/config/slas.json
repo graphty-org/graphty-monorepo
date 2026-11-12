@@ -723,6 +723,7 @@
                 "metric": "flaky.net_change"
             },
             "ok": ["<=", 0],
+            "also": [{ "metric": "flaky.net_added" }, { "metric": "flaky.net_resolved" }],
             "fail": [">", 3],
             "slowWindow": "7d",
             "sources": ["ci-results"]

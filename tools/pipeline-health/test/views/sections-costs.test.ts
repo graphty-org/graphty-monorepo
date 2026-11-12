@@ -129,6 +129,30 @@ describe("Costs and Data sources sections", () => {
         expect(s.groups[1].items.every((i) => i.tone === "value")).toBe(true);
     });
 
+    it("by workflow: the AWS line by service, largest first, once Cost Explorer has split it", async () => {
+        const aws = (id: string, services: Record<string, number>): CostItem => ({
+            ...cost(
+                id,
+                "aws",
+                "",
+                Object.values(services).reduce((a, b) => a + b, 0),
+            ),
+            workflow: undefined,
+            services,
+        });
+        const { reads: r } = await reads([
+            aws("aws#1", { "Amazon DynamoDB": 0.5, "AWS Lambda": 0.1 }),
+            aws("aws#2", { "Amazon DynamoDB": 0.25, AmazonCloudWatch: 0.3 }),
+        ]);
+        const s = (await byWorkflow(r)) as BarsSection;
+        const g = s.groups.find((x) => (x.head as { code: string }).code === "costs.aws_by_service");
+        expect(g?.items.map((i) => [(i.label as { v: string }).v, i.n])).toEqual([
+            ["Amazon DynamoDB", 0.75],
+            ["AmazonCloudWatch", 0.3],
+            ["AWS Lambda", 0.1],
+        ]);
+    });
+
     it("stress table: newest first, a broken run marked, older runs muted", async () => {
         const { store, reads: r } = await reads([]);
         expect((await stressTable(r)).kind).toBe("empty");

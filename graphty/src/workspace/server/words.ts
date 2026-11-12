@@ -9,7 +9,7 @@ import { type CodedFact, type CodedFactParam, GraphtyError } from "@graphty/grap
 import { formatNumber } from "../inspector/words";
 
 /** The app's names for sources whose catalog name is not the reader's word, by catalog id. */
-const KIND_NAMES: Readonly<Record<string, string>> = { rest: "Web API" };
+const KIND_NAMES: Readonly<Record<string, string>> = { rest: "Web API", url: "Load from URL" };
 
 /**
  * A source's name in the app: the catalog's, or the app's own where the catalog's is jargon

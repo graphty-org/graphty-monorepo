@@ -423,16 +423,6 @@ export function openUrl(workspace: WorkspaceStore, url: string): void {
 }
 
 /**
- * The graph file at a web address, added as any source is (Paste of an address, the Web address
- * box): on the start screen it opens as a new project; in a project it is added to it.
- * @param ctx - the command context.
- * @param url - the address.
- */
-export function addUrl(ctx: CommandContext, url: string): void {
-    addSource(ctx, urlSource(url));
-}
-
-/**
  * Loads a source the reader brought by any door (drop, File..., Paste, Samples): from the start
  * screen as a new project named after it; into an empty project as its first source; into a graph
  * that holds data as a replacement or a join.
@@ -631,11 +621,12 @@ export async function pasteSource(ctx: CommandContext): Promise<void> {
         ctx.workspace.set({ notice: { message: "Clipboard empty" } });
         return;
     }
-    if (pasted.kind === "url") {
-        addUrl(ctx, pasted.url);
-        return;
-    }
-    addSource(ctx, { name: "Pasted data", source: { config: { data: pasted.text }, name: "Pasted data" } });
+    addSource(
+        ctx,
+        pasted.kind === "url"
+            ? urlSource(pasted.url)
+            : { name: "Pasted data", source: { config: { data: pasted.text }, name: "Pasted data" } },
+    );
 }
 
 /**

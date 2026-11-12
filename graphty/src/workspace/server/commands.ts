@@ -1,6 +1,5 @@
 /**
- * Network data (data prototype spec section 3.9): the Sources "+" Network data... door (the start
- * page's Open network data chooser, whose cards open the server form), the
+ * Network data (data prototype spec section 3.9): the Sources "+" Network data... door, the
  * Expand... and Collapse verbs on a node a server load brought, and how the form's rows become one
  * `data.import` call. graphty-element reads the server, pages, refreshes and expands; this file
  * only turns what the reader picked into its inputs.
@@ -13,6 +12,7 @@ import {
     type ExpandBehavior,
     type GraphSession,
     type NodeId,
+    sourceEndpoint,
     type SourceInput,
     type SourceKey,
     type SourceLoadOptions,
@@ -24,9 +24,6 @@ import { type CommandContext, defineRegistration } from "../commands/registry";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { panelsInView } from "../time/timeActions";
 import { codeWords, failureOf, kindName } from "./words";
-
-/** The `dialog` value that opens Open network data, the chooser of servers, a web address and a file. */
-export const NETWORK_DIALOG = "network";
 
 /** The `dialog` value that opens the server form beside the Sources section. */
 export const SERVER_DIALOG = "server";
@@ -84,8 +81,8 @@ export interface ServerFormState {
 export const EXPAND_DEFAULTS: ServerFormState["expandWith"] = { depth: 1, direction: "both", limit: 50, types: "" };
 
 /**
- * A fresh form for a source: its first Start, its starter query, a 500 node cap, and expand on
- * double-click when the source can expand.
+ * A fresh form for a source: its first Start, its starter query, a 500 node cap (none for a file,
+ * which loads whole), and expand on double-click when the source can expand.
  * @param entry - the source.
  * @returns the form.
  */
@@ -103,7 +100,7 @@ export function freshForm(entry: SourceCatalogEntry): ServerFormState {
             ...(mode === undefined ? {} : { mode }),
             ...(query === undefined || starter === undefined ? {} : { [query.name]: starter }),
         },
-        limit: 500,
+        limit: entry.descriptor.kind === "file-host" ? 0 : 500,
         expand: entry.features.expand,
         expandWith: EXPAND_DEFAULTS,
     };
@@ -248,15 +245,15 @@ function isBlank(value: unknown): boolean {
 }
 
 /**
- * Whether the form holds what Test and Load need: an endpoint when the source has no default,
- * every required param, the query for a Query start and the seeds for a Seed nodes start.
+ * Whether the form holds what Test and Load need: an endpoint when the source has no default and
+ * takes none from a param, every required param, the query for a Query start and the seeds for a Seed nodes start.
  * @param entry - the source.
  * @param form - the form.
  * @returns true when ready.
  */
 export function formReady(entry: SourceCatalogEntry, form: ServerFormState): boolean {
     const { descriptor } = entry;
-    if (form.endpoint.trim() === "" && isBlank(descriptor.defaultEndpoint)) {
+    if (form.endpoint.trim() === "" && isBlank(descriptor.defaultEndpoint) && descriptor.endpointParam === undefined) {
         return false;
     }
     const hasMode = descriptor.params.some((p) => p.name === "mode");
@@ -375,10 +372,8 @@ export function serverRequest(
         limit: form.expandWith.limit,
         ...(types.length === 0 ? {} : { relationshipTypes: types }),
     };
-    const host = URL.canParse(endpoint) ? new URL(endpoint).host : null;
-    const name = host === null ? kindName(entry) : `${kindName(entry)} ${host}`;
     return {
-        input: { source: entry.id, config, name },
+        input: { source: entry.id, config, name: loadName(entry, endpoint, config) },
         options: {
             ...(endpoint === "" ? {} : { endpoint }),
             ...(form.limit > 0 ? { limits: { maxNodes: form.limit, onLimit: "stop" as const } } : {}),
@@ -387,13 +382,40 @@ export function serverRequest(
     };
 }
 
+/**
+ * What a load from the form is called: a file's name ("buildings.csv"), else its host, for a
+ * source whose address is a param; else the kind and the endpoint's host ("Neo4j db.example.com").
+ * @param entry - the source.
+ * @param endpoint - the typed endpoint.
+ * @param config - the params.
+ * @returns the name.
+ */
+function loadName(entry: SourceCatalogEntry, endpoint: string, config: Readonly<Record<string, unknown>>): string {
+    const { endpointParam } = entry.descriptor;
+    const address = endpointParam === undefined ? undefined : config[endpointParam];
+    if (typeof address === "string" && URL.canParse(address)) {
+        const url = new URL(address);
+        const last = url.pathname.split("/").pop() ?? "";
+        if (last === "") {
+            return url.host;
+        }
+        try {
+            return decodeURIComponent(last);
+        } catch {
+            return last;
+        }
+    }
+    const host = URL.canParse(endpoint) ? new URL(endpoint).host : null;
+    return host === null ? kindName(entry) : `${kindName(entry)} ${host}`;
+}
+
 /** What Load and Test send: the read, and the sign-in to remember in memory. */
 export interface ServerLoad {
     readonly input: SourceInput;
     /** The load's options, the credential among them. */
     readonly options: SourceLoadOptions;
     readonly credential: Credential | undefined;
-    /** Where the credential goes: the typed endpoint, else the source's default. */
+    /** Where the credential goes: the typed endpoint, else the address param's, else the source's default. */
     readonly endpoint: string | undefined;
 }
 
@@ -406,11 +428,12 @@ export interface ServerLoad {
 export function serverLoad(entry: SourceCatalogEntry, form: ServerFormState): ServerLoad {
     const { input, options } = serverRequest(entry, form);
     const credential = formCredential(entry, form);
+    const where = sourceEndpoint(entry.descriptor, input.config, options.endpoint);
     return {
         input,
         options: credential === undefined ? options : { ...options, credential },
         credential,
-        endpoint: options.endpoint ?? entry.descriptor.defaultEndpoint ?? undefined,
+        endpoint: where === null ? undefined : String(where),
     };
 }
 
@@ -513,10 +536,24 @@ export const registration = defineRegistration({
             id: "data.add-server",
             label: "Network data...",
             group: "Data",
-            keywords: ["add", "source", "server", "database", "neo4j", "cypher", "sparql", "ndex", "openalex", "rest"],
+            keywords: [
+                "add",
+                "source",
+                "server",
+                "database",
+                "neo4j",
+                "cypher",
+                "sparql",
+                "ndex",
+                "openalex",
+                "rest",
+                "url",
+                "web address",
+                "link",
+            ],
             shown: (ctx) => ctx.session !== null,
             run: (ctx) => {
-                ctx.workspace.set({ dialog: NETWORK_DIALOG });
+                openServerForm(ctx.workspace);
             },
         },
         {

@@ -173,4 +173,12 @@ describe("Costs and Data sources sections", () => {
         expect(s.rows[1].cells.filed).toEqual({ t: "none" });
         expect(s.rows[2].cells.filed).toEqual({ t: "num", n: 0 });
     });
+
+    it("stress table: a failed store read throws, a corrupt cursor is no runs (#7275)", async () => {
+        const { store, reads: r } = await reads([]);
+        await setCursor(store, "stress", "{not json", T0);
+        expect((await stressTable(r)).kind).toBe("empty");
+        store.get = () => Promise.reject(new Error("ProvisionedThroughputExceededException"));
+        await expect(stressTable(r)).rejects.toThrow("ProvisionedThroughputExceededException");
+    });
 });

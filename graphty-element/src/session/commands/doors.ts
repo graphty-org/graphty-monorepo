@@ -2462,6 +2462,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: RENDER,
     },
     {
+        // The painter's queue of rows waiting to draw.
+        name: "PendingRows",
+        file: "src/managers/StylePainter.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
         name: "InputManager",
         file: "src/managers/InputManager.ts",
         half: "renderer",

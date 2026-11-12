@@ -883,11 +883,12 @@ export async function byWorkflow(reads: Reads): Promise<Section> {
  */
 export async function stressTable(reads: Reads): Promise<Section> {
     let runs: StressCursorRun[] = [];
+    // A failed store read throws (the page shows no data); only a corrupt cursor reads as no runs (#7275).
+    const raw = await getCursor(reads.store, "stress");
     try {
-        const raw = await getCursor(reads.store, "stress");
         runs = Object.values(raw ? (JSON.parse(raw) as Record<string, StressCursorRun>) : {});
     } catch {
-        // an unreadable cursor is no runs, never a guess
+        // a corrupt cursor is no runs, never a guess
     }
     const sub = f("data.stress.sub", { workflow: "restricted-cpu-stress.yml" });
     runs = runs.filter((r) => r.at !== undefined).sort((a, b) => b.at - a.at);

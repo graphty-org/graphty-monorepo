@@ -141,8 +141,8 @@ versions npm only had not listed yet closes itself, `tools/publish-hold.mjs`). T
 ### Versions and npm
 
 `nx release` bumps each package from the conventional commits since its last `{projectName}@{version}` tag. A
-commit with `!` or a `BREAKING CHANGE:` footer means a major bump for the package in its scope, so decide a
-package's next major before its first breaking commit lands (see "Breaking changes and major releases"). Check a
+commit with `!` or a `BREAKING CHANGE:` footer means a major bump for the package in its scope, so a breaking
+change carries neither for now (see "Breaking changes and major releases"). Check a
 release change with
 `pnpm exec nx release --dry-run --skip-publish`. Changelogs are rendered by `tools/changelog-renderer.cjs`, which
 lists a commit under a package's "Breaking Changes" only when its scope names that package (or it has none).
@@ -300,19 +300,16 @@ changes a file production already has (`tools/dataset-overlay.mjs`).
 
 ## Breaking changes and major releases
 
-Every major release costs every consumer a migration, so keep them few: think ahead and group
-breaking changes into as few majors as possible.
+The owner's rule (2026-11-10): "we have taken a softer stance on 'breaking' since we don't have
+anyone using our app yet. merge in the issues we have held as 'breaking' as non-breaking."
 
-- Before adding a breaking (`!`) commit to a published package, find the other breaking changes
-  already planned or in flight for that package -- unlanded branches carrying `!` commits,
-  deprecations scheduled for removal, the breaking-change registers in `design/` -- and land them
-  in the same major.
-- The full run promotes whatever has reached master to nightly and npm `next`, so a group of
-  breaking changes cannot be assembled by merging several branches over several days: a nightly
-  promotion in between would publish a major of its own. Put the grouped changes on one
-  branch and open it as one pull request.
-- Prefer deprecating now and removing in the next major that is already planned over a major of
-  its own. A breaking change that can wait for the next grouped major waits.
-- A branch that will bump a published package's major says so in its commit message, lists the
-  breaking changes it groups, and names any known breaking change it deliberately leaves for a
-  later major, with the reason.
+- While nobody outside consumes the packages, a change that would be breaking (removing or
+  renaming anything public, changing what an existing API does or returns, changing a default)
+  lands as an ordinary `feat` or `fix` commit with no `!` and no `BREAKING CHANGE:` footer, so it
+  bumps a minor or a patch, never a major.
+- Each such change goes through its own pull request with auto-merge, like any other; nothing is
+  held for a grouped major, and no `breaking-go` label is needed.
+- Its commit message says what changed for callers: what was removed, renamed or now behaves
+  differently, and what to use instead.
+- Ask the owner again only when a real outside consumer appears; then majors are one-way doors
+  again and are grouped into as few as possible.

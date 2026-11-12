@@ -26,6 +26,7 @@ import type { UndoableDefinition } from "../project/Dispatcher";
 import { deepFreeze } from "../project/draft";
 import { deepEquals } from "../styles/predicate";
 import type { GraphFraming, ProjectConfig, ProjectConfigPatch, RunPlacement, SessionDataConfig } from "../types";
+import { dropUnusedShaderCopies, namedShaders, settleShaderCopies, shaderIdsIn } from "./shaderCopies";
 
 /** `config.set`: write project settings. */
 export interface ConfigSetCommand {
@@ -35,6 +36,9 @@ export interface ConfigSetCommand {
 
 /**
  * Whether a value is a plain object, which a patch recurses into.
+ *
+ * Twin of `utils/isPlainObject`, kept apart on purpose: that one also accepts a null-prototype
+ * object, and a config patch does not, so merging them would change what `config.set` accepts.
  * @param value - The value.
  * @returns True for `{...}`.
  */
@@ -140,7 +144,8 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
     // One round-trip fixture per group of keys.
     variants: [...new Set([...CONFIG_KEYS.values()].map((key) => key.group))],
     lane: { kind: "immediate" },
-    keys: (command) => configLeaves(command.values).map(([path]) => `config/${path}`),
+    // A background naming a catalog shader copies it into the project in this step.
+    keys: (command) => [...configLeaves(command.values).map(([path]) => `config/${path}`), "shaders"],
     undo: {
         kind: "undoable",
         label: labelOf,
@@ -157,6 +162,8 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
     },
     execute: (command, ctx) => {
         const effective = ctx.services.config?.();
+        const named = namedShaders(ctx.state);
+        settleShaderCopies(shaderIdsIn(command.values), ctx.draft, ctx.services);
         let restore = false;
         for (const [path, value] of configLeaves(command.values)) {
             // What the key reads as now, and whether this write changes it.
@@ -177,6 +184,8 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
 
             restore ||= restoresStartingRows(path, value, same, ctx.services.timeline?.() !== false);
         }
+
+        dropUnusedShaderCopies(named, ctx.state, ctx.draft, ctx.services);
 
         // The starting rows arrive with the setting, in its step: undo takes both back. Added once
         // every key is written, so an Everything row added with `editableBase` holds the base look.

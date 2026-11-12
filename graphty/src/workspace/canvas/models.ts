@@ -1,23 +1,15 @@
 /**
- * Models and pictures dropped or chosen by the reader: reading what was dropped (files, a folder,
- * a .zip) and putting an accepted model or picture on nodes. Whether files are a model or a
- * picture, and whether one is fine, is graphty-element's call (`detectModelFormat`,
- * `detectAssetKind`, `session.assets.add`); this file only hands it the files and words the answer.
+ * Models and pictures dropped on or chosen in the Models pop-over: reading what was dropped (files,
+ * a folder, a .zip) and naming what graphty-element holds. Whether files are a model or a picture,
+ * and whether one is fine, is graphty-element's call (`session.assets.add`); this file only hands
+ * it the files.
  */
 
-import { detectAssetKind, detectModelFormat } from "@graphty/graphty-element/catalog";
-import {
-    type AssetOffer,
-    type AssetRecord,
-    type AssetSource,
-    type GraphSession,
-    isAssetId,
-    type ModelChange,
-} from "@graphty/graphty-element/session";
-import { useEffect, useState } from "react";
+import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
+import { type AssetSource, type GraphSession, isAssetId, type ModelChange } from "@graphty/graphty-element/session";
+import { type HTMLAttributes, useEffect, useState } from "react";
 
-import type { WorkspaceStore } from "../state/store";
-import { modelWords } from "../style/words";
+import { useWorkspace } from "../state/WorkspaceContext";
 
 /** What was dropped: the files, and the same files as graphty-element's assets take them. */
 interface Dropped {
@@ -26,9 +18,6 @@ interface Dropped {
     /** For `session.assets.add`: the files, or a folder's files by path. */
     readonly source: AssetSource;
 }
-
-/** The first bytes the element reads to tell a model (detectModelFormat reads up to 4 KB). */
-const HEAD_BYTES = 4096;
 
 /**
  * Every file under a dropped folder entry, by its path from the drop.
@@ -72,61 +61,6 @@ export async function readDrop(transfer: DataTransfer): Promise<Dropped> {
 }
 
 /**
- * Whether any of the files is a 3D model, as graphty-element tells from each name and first bytes.
- * @param files - the files.
- * @returns true for a model, even one the element cannot load (it says why on add).
- */
-export async function holdsModel(files: readonly File[]): Promise<boolean> {
-    for (const file of files) {
-        const head = new Uint8Array(await file.slice(0, HEAD_BYTES).arrayBuffer());
-        if (detectModelFormat({ filename: file.name, head }) !== undefined) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/**
- * Whether any of the files is a 3D model or a picture, as graphty-element tells from each name and
- * first bytes (the node-models experiment).
- * @param files - the files.
- * @returns true for a model or a picture, even one the element cannot load (it says why on add).
- */
-export async function holdsAsset(files: readonly File[]): Promise<boolean> {
-    for (const file of files) {
-        const head = new Uint8Array(await file.slice(0, HEAD_BYTES).arrayBuffer());
-        if (detectAssetKind({ filename: file.name, head }) !== undefined) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/**
- * Hands files to the models waiting for parts first (`session.assets.offer`), so a picture reaches
- * the model that needs it; what no waiting model takes is left to add.
- * @param session - the element's session.
- * @param source - the files as `session.assets.add` takes them.
- * @param files - the same files, one by one.
- * @returns the parts supplied, and what is left to add (null when nothing is).
- */
-export async function offerFirst(
-    session: GraphSession,
-    source: AssetSource,
-    files: readonly File[],
-): Promise<{ readonly supplied: AssetOffer["supplied"]; readonly rest: AssetSource | null }> {
-    if (session.assets.waiting().length === 0 || files.length === 0) {
-        return { supplied: [], rest: source };
-    }
-    const offered = await session.assets.offer(files);
-    if (offered.supplied.length === 0) {
-        return { supplied: [], rest: source };
-    }
-    // ponytail: what is left loses its folder paths; a waiting model's parts arrive by name.
-    return { supplied: offered.supplied, rest: offered.rest.length === 0 ? null : [...offered.rest] };
-}
-
-/**
  * The files of a source handed over one by one: what a chooser or a drop gave.
  * @param source - the files.
  * @returns them, or none for a URL or bytes.
@@ -165,7 +99,8 @@ function addressOf(ref: string): string {
 }
 
 /**
- * A model's name for the reader: its main file without the extension, or a sample's name.
+ * A model's name for the reader: the name the reader gave it, its main file without the extension,
+ * or a sample's name.
  * @param session - the element's session.
  * @param ref - what a layer names: an asset id, the id a model had while it waited, or a URL.
  * @returns the name.
@@ -175,7 +110,8 @@ export function modelName(session: GraphSession, ref: string): string {
     if (sample !== undefined) {
         return sample.plainName;
     }
-    return fileStem(session.assets.find(ref)?.path ?? addressOf(ref)) || "Model";
+    const record = session.assets.find(ref);
+    return record?.plainName ?? (fileStem(record?.path ?? addressOf(ref)) || "Model");
 }
 
 /**
@@ -186,127 +122,6 @@ export function modelName(session: GraphSession, ref: string): string {
  */
 export function pictureName(session: GraphSession, ref: string): string {
     return fileStem(session.assets.find(ref)?.path ?? addressOf(ref)) || "Picture";
-}
-
-/**
- * Adds the model and, once accepted, one undoable layer drawing it on the selected nodes, or on
- * every node when nothing is selected. A refused model is said in a notice.
- * @param session - the element's session.
- * @param store - the workspace store, for the notice.
- * @param source - the model's files.
- * @returns the record, or null when it was refused.
- */
-export async function putModelOnNodes(
-    session: GraphSession,
-    store: WorkspaceStore,
-    source: AssetSource,
-): Promise<AssetRecord | null> {
-    const record = await session.assets.add(source);
-    if (record.state !== "accepted") {
-        const [first] = record.problems;
-        store.set({ notice: { message: first === undefined ? "The model could not be added." : modelWords(first) } });
-        return null;
-    }
-    const { nodes } = session.selection;
-    const name = modelName(session, record.id);
-    await session.styles.add({
-        name,
-        target: "node",
-        selector: nodes.length > 0 ? { match: "ids", nodes } : { match: "everything" },
-        set: { "node.model": record.id },
-    });
-    store.set({
-        notice: {
-            message: nodes.length > 0 ? `Selected nodes drawn as ${name}` : `Nodes drawn as ${name}`,
-            action: {
-                label: "Undo",
-                run: () => {
-                    void session.undo();
-                },
-            },
-        },
-    });
-    return record;
-}
-
-/**
- * One undoable layer drawing a model or a picture on the selected nodes, or on every node when
- * nothing is selected, and the notice that says so with Undo.
- * @param session - the element's session.
- * @param store - the workspace store, for the notice.
- * @param record - the model or the picture: accepted, or a model waiting for parts.
- * @param message - the notice's words, when they are not "Nodes drawn as ...".
- */
-async function drawOnNodes(
-    session: GraphSession,
-    store: WorkspaceStore,
-    record: AssetRecord,
-    message?: string,
-): Promise<void> {
-    const { nodes } = session.selection;
-    const picture = record.kind === "image";
-    const name = picture ? pictureName(session, record.id) : modelName(session, record.id);
-    const layer = await session.styles.add({
-        name,
-        target: "node",
-        selector: nodes.length > 0 ? { match: "ids", nodes } : { match: "everything" },
-        set: picture ? { "node.texture": record.id } : { "node.model": record.id },
-    });
-    const drawn = `${picture ? "drawn with" : "drawn as"} ${name}`;
-    store.set({
-        // The new layer opens in the Style panel, so its Shape or Picture field (and a model's
-        // missing-parts chip) is in view.
-        inspected: { kind: "layer-row", id: layer.id, tab: "style" },
-        notice: {
-            message: message ?? (nodes.length > 0 ? `Selected nodes ${drawn}` : `Nodes ${drawn}`),
-            action: {
-                label: "Undo",
-                run: () => {
-                    void session.undo();
-                },
-            },
-        },
-    });
-}
-
-/**
- * With the node-models experiment on: hands the files to a model waiting for them first; else adds
- * them, and makes one undoable layer drawing the model (`node.model`) or the picture
- * (`node.texture`) on the selected nodes, or on every node when nothing is selected. A model
- * waiting for parts gets its layer too, so the Shape field names it and offers its parts; a model
- * finished by these files that no layer names yet is put on the nodes. A refusal is said in a
- * notice.
- * @param session - the element's session.
- * @param store - the workspace store, for the notice.
- * @param source - the model's or the picture's files.
- * @returns the record, or null when the files went to a waiting model or were refused.
- */
-export async function putAssetOnNodes(
-    session: GraphSession,
-    store: WorkspaceStore,
-    source: AssetSource,
-): Promise<AssetRecord | null> {
-    const { supplied, rest } = await offerFirst(session, source, filesOf(source));
-    if (rest === null) {
-        const [part] = supplied;
-        const finished = session.assets.find(part.ref);
-        if (finished?.state === "accepted" && session.assets.usedBy(part.ref).length === 0) {
-            await drawOnNodes(session, store, finished);
-            return null;
-        }
-        store.set({ notice: { message: `${part.fileName} added to ${modelName(session, part.ref)}` } });
-        return null;
-    }
-    const record = await session.assets.add(rest);
-    const waits = session.assets.waiting().some((w) => w.id === record.id);
-    if (record.state !== "accepted" && !waits) {
-        const [first] = record.problems;
-        store.set({ notice: { message: first === undefined ? "The model could not be added." : modelWords(first) } });
-        return null;
-    }
-    const [missing] = waits ? record.problems : [];
-    await drawOnNodes(session, store, record, missing === undefined ? undefined : modelWords(missing));
-    return record;
 }
 
 /**
@@ -330,12 +145,79 @@ export function useModelStates(session: GraphSession | null): readonly ModelChan
 }
 
 /**
- * A model's picture: a sample's catalog thumbnail. A model the reader added has none (the cube
- * stands in): graphty-element's `nodeThumbnail` draws only built-in shapes yet.
- * @param session - the element's session.
+ * A model's picture, drawn by graphty-element as a node draws it (`modelThumbnail`), or a sample's
+ * shipped thumbnail. Drawn again when the model or its style changes; undefined while it is drawn
+ * and for a model that cannot be drawn (the cube stands in).
  * @param ref - what a layer names, or undefined for no model.
+ * @param size - the picture's side in CSS pixels; it is drawn at the screen's pixel ratio.
+ * @param style - the node's style values the picture is drawn with (Up, Turn, Color...).
  * @returns the picture's URL, or undefined.
  */
-export function modelThumbnail(session: GraphSession, ref: string | undefined): string | undefined {
-    return ref === undefined ? undefined : session.catalog.models().find((m) => m.id === ref)?.thumbnail;
+export function useModelPicture(
+    ref: string | undefined,
+    size: number,
+    style?: Readonly<Partial<Record<Channel, ChannelValue>>>,
+): string | undefined {
+    const { session, element } = useWorkspace();
+    // Read again when a model moves on, so a model that just got its parts is drawn.
+    useModelStates(session);
+    const sample = ref === undefined ? undefined : session?.catalog.models().find((m) => m.id === ref)?.thumbnail;
+    const record = ref === undefined || sample !== undefined ? undefined : session?.assets.find(ref);
+    const key = record?.state === "accepted" ? JSON.stringify([ref, record.digest, size, style ?? null]) : undefined;
+    const [drawn, setDrawn] = useState<{ readonly key: string; readonly url: string } | null>(null);
+    useEffect(() => {
+        if (key === undefined || element === null) {
+            return undefined;
+        }
+        // Read back from the key, so a style object made anew on every render draws once.
+        const [asked, , side, values] = JSON.parse(key) as [
+            string,
+            string,
+            number,
+            Record<string, ChannelValue> | null,
+        ];
+        let live = true;
+        element
+            .modelThumbnail(asked, { size: side * Math.ceil(window.devicePixelRatio || 1), style: values ?? {} })
+            .then((url) => {
+                if (live) {
+                    setDrawn({ key, url });
+                }
+            })
+            // The cube stays: the model's own chips say why it cannot be drawn.
+            .catch(() => undefined);
+        return () => {
+            live = false;
+        };
+    }, [key, element]);
+    return sample ?? (drawn !== null && drawn.key === key ? drawn.url : undefined);
+}
+
+/**
+ * Whether files are held over a drop target, and the handlers that tell: the target is drawn as
+ * the compact-mantine file drop zone draws itself while files are held over it.
+ * @returns the flag and the handlers to spread on the target.
+ */
+export function useDropOver(): {
+    readonly over: boolean;
+    readonly handlers: Pick<HTMLAttributes<HTMLElement>, "onDragOver" | "onDragLeave" | "onDrop">;
+} {
+    const [over, setOver] = useState(false);
+    return {
+        over,
+        handlers: {
+            onDragOver: (event) => {
+                event.preventDefault();
+                setOver(true);
+            },
+            onDragLeave: (event) => {
+                if (!(event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))) {
+                    setOver(false);
+                }
+            },
+            onDrop: () => {
+                setOver(false);
+            },
+        },
+    };
 }

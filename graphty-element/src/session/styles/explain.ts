@@ -34,7 +34,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { shaderDescriptor } from "../../catalog/shaderRegistry";
+import { projectShaderDescriptor } from "../../catalog/shaderRegistry";
 import { shaderCovers, type ShaderUse } from "../../catalog/shaders";
 import type {
     Channel,
@@ -1089,7 +1089,7 @@ function coveringShader(
 ): { readonly layerId: LayerId; readonly covers: readonly Channel[] } | null {
     const uses = values[`${target}.shaders`];
     const { exclusive } = drawnUses(Array.isArray(uses) ? (uses as readonly ShaderUse[]) : undefined);
-    const descriptor = exclusive === null ? undefined : shaderDescriptor(exclusive.use.shader);
+    const descriptor = exclusive === null ? undefined : projectShaderDescriptor(exclusive.use.shader);
     const layerId = exclusive === null ? undefined : useLayers.get(exclusive.use);
     if (exclusive === null || descriptor === undefined || layerId === undefined || descriptor.target !== target) {
         return null;
@@ -1243,7 +1243,7 @@ function countFact(tally: ShaderFactTally, code: UndrawnCode, params: Record<str
  * @param use - The use.
  */
 function checkShaderUse(tally: ShaderFactTally, channel: Channel, use: ShaderUse): void {
-    const descriptor = shaderDescriptor(use.shader);
+    const descriptor = projectShaderDescriptor(use.shader);
     const target = channel === "node.shaders" ? ["node", "group"] : ["edge"];
     if (descriptor === undefined) {
         countFact(tally, "shader.unknown", { channel, shader: use.shader });

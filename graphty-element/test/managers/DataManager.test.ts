@@ -3,6 +3,8 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import type { AdHocData } from "../../src/config";
 import type { Graph } from "../../src/Graph";
 import { type DataManager, dataManagerInternals } from "../../src/managers/DataManager";
+import type { UpdateManager } from "../../src/managers/UpdateManager";
+import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 describe("DataManager", () => {
@@ -546,6 +548,90 @@ describe("DataManager", () => {
             assert.isDefined(edge);
             assert.equal(dataManager.drawnBundle(edge).count, 2);
             assert.equal(dataManagerInternals.edgesBuilt(dataManager), 2, "the pair's two, not the lone b-c edge");
+        });
+
+        // The element's own walks of the edges outside the data manager (a pick, a selection
+        // restyle) visit the built Edges only.
+        it("picks at a point without building one", () => {
+            assert.isNull(graph.elementAt({ x: 0, y: 0 }));
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+        });
+
+        it("restyles the selection without building one", async () => {
+            graph.setSelectionStyle({ edgeScale: 3 });
+            await dispatcherOf(graph.getSession()).lane.settled();
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+        });
+
+        it("counts the rows without building one", () => {
+            assert.deepInclude(graph.rowCounts, { pulledEdges: 2, objectEdges: 0 });
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+        });
+
+        // The frame's own walks of the edges (the masks, the incident edges of a resized node,
+        // the screen-scale retrim, the rows a freeze renumbered) visit the built Edges only.
+        it("runs frames without building one", () => {
+            const { updateManager } = graph as unknown as { updateManager: UpdateManager };
+            updateManager.update();
+            dataManager.removeEdge("0");
+            dataManager.getSnapshot();
+            updateManager.update();
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+        });
+    });
+
+    // The layout is handed an edge stored with no `Edge` as an edge row (its id and its two node ids), as d3 and
+    // ngraph take them (`addEdgeRows`), and told when it goes; an engine that lays out `Edge`s only gets an `Edge`.
+    describe("edges stored with no Edge, handed to the layout", () => {
+        let added: string[];
+        let removed: string[];
+        let adopted: string[];
+
+        beforeEach(() => {
+            added = [];
+            removed = [];
+            adopted = [];
+            dataManagerInternals.storeEdgesUnbuilt(dataManager, true);
+            dataManagerInternals.setLayoutEdgeRows(dataManager, {
+                add: (rows) => added.push(...rows.map((r) => `${r.key}:${String(r.source)}-${String(r.target)}`)),
+                remove: (keys) => removed.push(...keys),
+                adopt: (key, e) => adopted.push(`${key}:${e.id}`) > 0,
+            });
+            dataManager.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+            dataManager.addEdges([
+                { src: "a", dst: "b" },
+                { src: "b", dst: "c" },
+            ]);
+        });
+
+        it("hands each edge's row over, building none", () => {
+            assert.deepEqual(added, ["0:a-b", "1:b-c"]);
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 0);
+            assert.deepEqual(
+                dataManagerInternals.unbuiltEdgeRows(dataManager).map((r) => r.key),
+                ["0", "1"],
+            );
+        });
+
+        it("takes a row back when its edge is removed or cleared, and hands a built Edge the row's place", () => {
+            dataManager.removeEdge("0");
+            assert.deepEqual(removed, ["0"]);
+
+            dataManager.getEdge("1");
+            assert.deepEqual(removed, ["0"], "a built Edge keeps its row's place: the link is not dropped");
+            assert.deepEqual(adopted, ["1:1"]);
+
+            dataManager.addEdges([{ src: "a", dst: "c" }]);
+            dataManager.clear();
+            assert.deepEqual(removed, ["0", "2"]);
+        });
+
+        it("builds every Edge for an engine that lays out Edges only", () => {
+            dataManagerInternals.setLayoutEdgeRows(dataManager, null);
+            dataManager.addEdges([{ src: "a", dst: "c" }]);
+
+            assert.equal(dataManagerInternals.edgesBuilt(dataManager), 1);
+            assert.deepEqual(added, ["0:a-b", "1:b-c"], "the built edge is handed as an Edge, not a row");
         });
     });
 });

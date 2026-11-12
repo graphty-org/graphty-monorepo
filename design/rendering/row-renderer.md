@@ -1150,6 +1150,12 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   the per-edge keys it names, so a paged batched import is drawn page by page as on `"objects"`. Under `"objects"`
   every edge is touched as before (`test/session/bulk-lane-keys.test.ts`,
   `test/browser/autosave/bulk-lane-keys-element.test.ts`, `test/browser/styles-from-the-first-frame.test.ts`).
+- **Bulk lane keys, second pull request.** A batched run also touches the rows-added and rows-moved keys once, when the
+  run starts, instead of twice per edge; the lane's touch count for a batched load no longer grows with the edge count.
+  Measured on Lean 100k + 1M (`lean-m`, batched, `BENCH_PROFILE_TIMED`, one run each, same session): `touch` plus
+  `reconcile` 145 ms before, 41 ms after, under G4's 0.1 s target; first frame 18.1 s and 17.1 s. The one range
+  history entry is still not built: it waits for stage 28's `importColumns` range entry, which is not on master, and
+  until then the op log keeps one operation per edge.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.

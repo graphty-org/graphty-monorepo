@@ -146,7 +146,11 @@ describe("WebLlmProvider tool capability", () => {
         const tools = requests[0].tools as { function: { name: string; parameters: Record<string, unknown> } }[];
         assert.strictEqual(tools[0].function.name, "zoomToNodes");
         assert.strictEqual(tools[0].function.parameters.type, "object");
-        assert.deepEqual(response.toolCalls, [{ id: "c1", name: "zoomToNodes", arguments: { nodeIds: ["a"] } }]);
+        // The id is minted here, not WebLLM's: WebLLM numbers calls per response, so its ids repeat across turns.
+        assert.deepEqual(response.toolCalls, [
+            { id: response.toolCalls[0].id, name: "zoomToNodes", arguments: { nodeIds: ["a"] } },
+        ]);
+        assert.match(response.toolCalls[0].id, /^call_[0-9a-f]{32}$/);
     });
 
     it("streams text and each named tool call of a Hermes model, then completes with all of them", async () => {
@@ -200,12 +204,11 @@ describe("WebLlmProvider tool capability", () => {
         ]);
         assert.strictEqual(completed?.text, "on it");
         assert.deepStrictEqual(
-            completed?.toolCalls.map((call) => [call.id, call.name]),
-            [
-                ["c1", "zoomToNodes"],
-                ["c2", "fitToGraph"],
-            ],
+            completed?.toolCalls.map((call) => call.name),
+            ["zoomToNodes", "fitToGraph"],
         );
+        // Each call gets its own id, even when they stream in one batch.
+        assert.strictEqual(new Set(completed?.toolCalls.map((call) => call.id)).size, 2);
     });
 
     it("asks a Hermes model again without tools when it calls none, for a text answer", async () => {

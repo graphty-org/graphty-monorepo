@@ -5,6 +5,7 @@
 
 import type { LlmProvider, Message, ToolDefinition } from "../providers/types";
 import { API_KEY_MISSING_ERROR, toSafeError } from "../safeError";
+import { uniqueId } from "../uniqueId";
 import {
     type AiEngine,
     type EngineCapabilities,
@@ -171,8 +172,10 @@ export class LlmProviderEngine implements AiEngine {
             yield { type: "text", delta: response.text };
         }
 
+        // The call's id is the engine's own: a provider may number calls per response (WebLLM
+        // gives "0" every turn), and a conversation pairs results with calls by id across turns.
         for (const call of response.toolCalls) {
-            yield { type: "tool-call", id: call.id, name: call.name, arguments: call.arguments };
+            yield { type: "tool-call", id: uniqueId("call_"), name: call.name, arguments: call.arguments };
         }
 
         if (response.usage) {

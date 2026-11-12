@@ -11,8 +11,10 @@ import {
     MeshBuilder,
     RawTexture,
     type Scene,
+    type ShaderMaterial,
     StandardMaterial,
     Texture,
+    Vector2,
     Vector3,
     VertexBuffer,
     VertexData,
@@ -24,7 +26,7 @@ import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import type { ArrowCap } from "./ArrowCapBatch";
 import { parseArrowStack } from "./arrowStack";
-import { CustomLineRenderer, type EdgeFade } from "./CustomLineRenderer";
+import { CustomLineRenderer, type EdgeFade, type JoinedLineOptions } from "./CustomLineRenderer";
 import type { EdgeLineBatch } from "./EdgeLineBatch";
 import { parseBends } from "./edgeRoute";
 import { FilledArrowRenderer, HALF_BARB, HALF_OPEN_MEETS, TEE_DEPTH } from "./FilledArrowRenderer";
@@ -33,13 +35,14 @@ import { MaterialHelper } from "./MaterialHelper";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer, type PatternType } from "./PatternedLineRenderer";
-import { PulledLineBatch } from "./PulledLineBatch";
+import { ANIMATED_TEMPLATE, createPulledAnimatedLineMesh, followRenderSize } from "./pulledAnimatedLine";
+import { LEAN_TEMPLATE, PulledLineBatch } from "./PulledLineBatch";
 import type { WaveShape } from "./shapeOutlines";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
 /** The line types drawn as a run of pattern elements rather than as one line. */
 /** The animated edge lines of each scene, behind one before-render observer; see {@link FrameRoster}. */
-const animatedEdgeFrames = new FrameRoster();
+export const animatedEdgeFrames = new FrameRoster();
 
 const PATTERNED_TYPES: ReadonlySet<string> = new Set<PatternType>([
     "dot",
@@ -561,11 +564,6 @@ void main() {
         if (lineType === "dash" || lineType === "dot") {
             const is2D = this.is2DMode(scene);
             const width = options.width / 40;
-            const { dashLength, dashGap } = style.line ?? {};
-            // A dot is drawn round, one width across; a dot length of its own (a program's dotted pattern, Graphviz
-            // "1,5" at width 1.5) keeps the program's period, its gap widened or narrowed by the difference.
-            const dotShort = lineType === "dot" ? (dashLength ?? 1) - 1 : 0;
-            const gap = dashGap === undefined ? undefined : width * Math.max(0, dashGap + dotShort);
             return cache.getBatch(
                 `${key}-joined${is2D ? "-2d" : ""}`,
                 made(() =>
@@ -579,12 +577,7 @@ void main() {
                             minScreenWidth: style.line?.minScreenWidth,
                             fade,
                             opaque,
-                            pattern: {
-                                kind: lineType,
-                                elementLength: lineType === "dash" ? width * (style.line?.dashLength ?? 3) : width,
-                                count: style.line?.patternCount,
-                                gap,
-                            },
+                            pattern: this.joinedPattern(lineType, width, style),
                         },
                         scene,
                     ),
@@ -625,15 +618,45 @@ void main() {
     }
 
     /**
+     * The dashes or dots of a dashed or dotted joined line, in world units.
+     * @param kind - Dashes or dots.
+     * @param width - The line's width, in world units.
+     * @param style - The resolved style.
+     * @returns The pattern.
+     */
+    private static joinedPattern(
+        kind: "dash" | "dot",
+        width: number,
+        style: EdgeStyleConfig,
+    ): NonNullable<JoinedLineOptions["pattern"]> {
+        const { dashLength, dashGap } = style.line ?? {};
+        // A dot is drawn round, one width across; a dot length of its own (a program's dotted pattern, Graphviz
+        // "1,5" at width 1.5) keeps the program's period, its gap widened or narrowed by the difference.
+        const dotShort = kind === "dot" ? (dashLength ?? 1) - 1 : 0;
+        return {
+            kind,
+            elementLength: kind === "dash" ? width * (style.line?.dashLength ?? 3) : width,
+            count: style.line?.patternCount,
+            gap: dashGap === undefined ? undefined : width * Math.max(0, dashGap + dotShort),
+        };
+    }
+
+    /**
      * Whether a pulled line is drawn from the curve batch: a curve (`line.bezier`), or a line its own style raises
-     * off the map or a globe (`line.route` "arc" or "great-circle"), straight or not, or a self-loop.
+     * off the map or a globe (`line.route` "arc" or "great-circle"), straight or not, a straight line through bends (`line.bends`), or a self-loop.
      * @param style - The resolved style.
      * @param loop - Whether the edge is a self-loop, whose teardrop is a curve whatever its style.
      * @param route - The route the edge takes, which the layout picks when its style does not (`Edge.route`).
      * @returns True for a pulled curve.
      */
     static pullsCurve(style: EdgeStyleConfig, loop = false, route = style.line?.route): boolean {
-        return loop || style.line?.bezier === true || route === "arc" || route === "great-circle";
+        return (
+            loop ||
+            style.line?.bezier === true ||
+            route === "arc" ||
+            route === "great-circle" ||
+            parseBends(style.line?.bends) !== null
+        );
     }
 
     /**
@@ -648,8 +671,11 @@ void main() {
      * @param style - The resolved style.
      * @param scene - The scene.
      * @param rowPositions - The row table's `rowPosition` texture, asked each frame.
-     * @param loop - Whether the edge is a self-loop ({@link EdgeMesh.pullsCurve}).
-     * @param route - The route the edge takes ({@link EdgeMesh.pullsCurve}).
+     * @param edge - How the edge is drawn.
+     * @param edge.loop - Whether the edge is a self-loop ({@link EdgeMesh.pullsCurve}).
+     * @param edge.route - The route the edge takes ({@link EdgeMesh.pullsCurve}).
+     * @param edge.lean - Whether a straight line draws the lean program (`EDGE_PULLED_LEAN`): the
+     *     graph's `antialias` is false under renderPath "batched" (cosmos-gap.md G12). A curve never does.
      * @returns The batch.
      */
     static pulledBatch(
@@ -658,20 +684,65 @@ void main() {
         style: EdgeStyleConfig,
         scene: Scene,
         rowPositions: () => BaseTexture,
-        loop = false,
-        route = style.line?.route,
+        edge: { loop?: boolean; route?: NonNullable<EdgeStyleConfig["line"]>["route"]; lean?: boolean } = {},
     ): PulledLineBatch {
+        const { loop = false, route = style.line?.route, lean = false } = edge;
         // The pass is the mesh's, so every edge in one batch must want the same one: an unblended
         // line (blending false) neither blends in place nor goes in the transparent pass.
         const pass = this.pulledPass(style);
         const curve = this.pullsCurve(style, loop, route);
-        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${curve ? "|curve" : ""}`;
+        if (!curve && style.line?.animationSpeed) {
+            return cache.getPulledBatch("edge-pulled|animated", () =>
+                this.createPulledAnimatedBatch(scene, rowPositions),
+            );
+        }
+
+        // a 2D line's width is in world units, so the view keys the batch and a 2D/3D switch builds another;
+        // the 2D batch draws the joined program, never the lean one
+        const flat = this.drawsFlat(scene);
+        const leanLine = lean && !curve && !flat;
+        let kind: "curve" | "lean" | true = true;
+        let suffix = "";
+        if (curve) {
+            kind = "curve";
+            suffix = "|curve";
+        } else if (leanLine) {
+            kind = "lean";
+            suffix = "|lean";
+        }
+
+        const key = `edge-pulled|${String(style.line?.minScreenWidth ?? 0)}|${pass}${suffix}${flat ? "|2d" : ""}`;
         return cache.getPulledBatch(key, () => {
-            const mesh = this.createStaticLine(options, style, scene, cache, false, curve ? "curve" : true);
+            const mesh = flat
+                ? this.createFlatPulledLine(options, style, scene)
+                : this.createStaticLine(options, style, scene, cache, false, kind);
             // The rows are in graph-root's space, as a line batch's slots are.
             mesh.parent = scene.getTransformNodeByName("graph-root");
-            return new PulledLineBatch(mesh, scene, rowPositions, curve);
+            return new PulledLineBatch(mesh, scene, rowPositions, curve, leanLine ? LEAN_TEMPLATE : undefined);
         });
+    }
+
+    /**
+     * A 2D pulled batch's mesh: the 2D line's joined program (`Simple2DLineRenderer.createBatchMesh`), its width in
+     * world units, reading its pieces from the row table.
+     * @param options - The line's look.
+     * @param style - The resolved style.
+     * @param scene - The scene.
+     * @returns The mesh.
+     */
+    private static createFlatPulledLine(options: EdgeMeshOptions, style: EdgeStyleConfig, scene: Scene): Mesh {
+        return CustomLineRenderer.createJoinedLineMesh(
+            {
+                width: options.width / 40,
+                color: options.color,
+                opacity: this.opacityOf(style),
+                worldWidth: true,
+                minScreenWidth: style.line?.minScreenWidth,
+                opaque: this.drawsOpaque(style),
+                pulled: true,
+            },
+            scene,
+        );
     }
 
     /**
@@ -686,6 +757,33 @@ void main() {
         }
 
         return this.opacityOf(style) < 1 ? "translucent" : "opaque";
+    }
+
+    /**
+     * The batch every pulled straight animated line is drawn from (`pulledAnimatedLine.ts`), and its one frame
+     * callback: it moves the one `scroll` uniform for every piece, each scrolling at its own speed, and parks it at 0
+     * while the scene does not animate, as {@link EdgeMesh.applyAnimatedTexture} parks a greased line's texture.
+     * @param scene - The scene.
+     * @param rowPositions - The row table's `rowPosition` texture, asked each frame.
+     * @returns The batch.
+     */
+    private static createPulledAnimatedBatch(scene: Scene, rowPositions: () => BaseTexture): PulledLineBatch {
+        const mesh = createPulledAnimatedLineMesh(scene);
+        mesh.parent = scene.getTransformNodeByName("graph-root");
+        const material = mesh.material as ShaderMaterial;
+        let scroll = 0;
+        const stopFrames = animatedEdgeFrames.join(scene, () => {
+            scroll = scene.animationsEnabled
+                ? scroll + EDGE_CONSTANTS.MOVING_TEXTURE_ANIMATION_SPEED * scene.getAnimationRatio()
+                : 0;
+            material.setFloat("scroll", scroll);
+        });
+        const releaseFrames = animatesEveryFrame(scene);
+        mesh.onDisposeObservable.addOnce(() => {
+            releaseFrames();
+            stopFrames();
+        });
+        return new PulledLineBatch(mesh, scene, rowPositions, false, ANIMATED_TEMPLATE);
     }
 
     /**
@@ -980,7 +1078,7 @@ void main() {
 
         _cache: MeshCache,
         widened = false,
-        pulled: boolean | "curve" = false,
+        pulled: boolean | "curve" | "lean" = false,
     ): Mesh {
         // Use custom line renderer if flag is enabled
 
@@ -998,6 +1096,7 @@ void main() {
                     opaque: this.drawsOpaque(style),
                     pulled: pulled !== false,
                     pulledCurve: pulled === "curve",
+                    pulledLean: pulled === "lean",
                 },
                 scene,
             );
@@ -1015,6 +1114,7 @@ void main() {
             },
             scene,
         );
+        this.followResolution(mesh);
 
         // Apply opacity if specified
         if (style.line?.opacity !== undefined) {
@@ -1022,6 +1122,21 @@ void main() {
         }
 
         return mesh;
+    }
+
+    /**
+     * Keep a greased line's resolution at the render size. Its material reads the size once, when it is built, so
+     * a line built before a resize -- the first element on a page builds its lines at the canvas's default 300 by
+     * 150 -- kept drawing with that aspect.
+     * @param mesh - The greased line.
+     */
+    private static followResolution(mesh: GreasedLineBaseMesh): void {
+        followRenderSize(mesh, (width, height) => {
+            const material = mesh.greasedLineMaterial;
+            if (material !== undefined) {
+                material.resolution = new Vector2(width, height);
+            }
+        });
     }
 
     private static createAnimatedLine(options: EdgeMeshOptions, style: EdgeStyleConfig, scene: Scene): Mesh {
@@ -1056,6 +1171,7 @@ void main() {
         );
 
         this.applyAnimatedTexture(mesh, texture, scene, style.line?.animationSpeed);
+        this.followResolution(mesh);
 
         // Apply opacity if specified
         if (style.line?.opacity !== undefined) {

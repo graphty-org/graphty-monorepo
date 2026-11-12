@@ -846,8 +846,7 @@ function chartAxes(
     }
     const [lo, hi] = [Number(plotted.chartMin), Number(plotted.chartMax)];
     const values = String(plotted.chartValues).split(" ");
-    const size = Number(options.cy_axisLabelFontSize ?? AXIS_LABEL_FONT_SIZE);
-    const f = Number.isFinite(size) && size > 0 ? size : AXIS_LABEL_FONT_SIZE;
+    const f = axisFontSize(options);
     const line = f * DIALOG_LINE_HEIGHT;
     const half = Math.max(0, disc - CHART_INSET - PLOT_INSET) / 2;
     const look = { size: num6(f / h), color: CHART_LABEL_COLOR };
@@ -881,6 +880,16 @@ function chartAxes(
         },
         texts,
     };
+}
+
+/**
+ * How tall a chart's axis labels are: `cy_axisLabelFontSize`, or the default when it is unset or not a positive number.
+ * @param options - the chart's options
+ * @returns the font size
+ */
+function axisFontSize(options: ChartOptions): number {
+    const size = Number(options.cy_axisLabelFontSize ?? AXIS_LABEL_FONT_SIZE);
+    return Number.isFinite(size) && size > 0 ? size : AXIS_LABEL_FONT_SIZE;
 }
 
 /**

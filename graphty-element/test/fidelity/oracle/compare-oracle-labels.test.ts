@@ -851,7 +851,17 @@ describe("what the association reads as a label's own and a node's own", () => {
         const prims = drawing(() => []);
         // a yellow box behind a's words, drawn just before them
         const t = prims.findIndex((p) => p.text?.content === "A");
-        prims.splice(t, 0, prim({ tag: "rect", corners: 4, points: rect(82, 93, 118, 107), fill: fill("#ffff00") }));
+        prims.splice(
+            t,
+            0,
+            prim({
+                tag: "rect",
+                corners: 4,
+                points: rect(82, 93, 118, 107),
+                fill: fill("#ffff00"),
+                index: prims[t].index - 0.5,
+            }),
+        );
         const { scene: o } = associate(prims, 600, 400, guide);
         const a = o.nodes.find((n) => n.id === "a");
         assert.strictEqual(a?.label?.background?.fill?.color, "#ffff00");

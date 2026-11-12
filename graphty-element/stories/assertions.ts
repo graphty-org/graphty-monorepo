@@ -25,13 +25,21 @@
  */
 
 import { type AbstractMesh, DynamicTexture, Matrix, type StandardMaterial, Vector3 } from "@babylonjs/core";
-import { expect, waitFor } from "storybook/test";
+import { configure, expect, waitFor } from "storybook/test";
 
+import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 import type { Edge } from "../src/Edge";
 import type { Graph } from "../src/Graph";
 import type { Graphty } from "../src/graphty-element";
 import type { GraphSession } from "../src/session";
 import { isVisualCapture } from "./helpers";
+
+// Outside Storybook (render-parity, and every test that runs a story's play) nothing has run
+// .storybook/preview.ts, so storybook/test's waitFor would keep Testing Library's 1000 ms default
+// and a busy machine would fail a story's wait (#6368). Give it the one hang guard here, where
+// every story's waits come from. Not in test/setup.ts: loading storybook/test there replaces
+// vitest's global expect for every test, and `expect.getState().currentTestName` goes empty.
+configure({ asyncUtilTimeout: WAIT_GUARD_MS });
 
 /** How opaque a pixel of a label's own texture must be to count as ink. */
 const INK_ALPHA = 16;

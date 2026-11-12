@@ -57,6 +57,7 @@ import type { ViewCommand } from "./commands/view";
 import type { VisibilityCommand } from "./commands/visibility";
 import {
     ASSUMED_ITERATION_BOUND,
+    bareBasis,
     type CostEstimate,
     type CostGateLimits,
     type CostInput,
@@ -504,6 +505,7 @@ function unavailableEstimate(
         reason,
         refusal,
         basis: reason,
+        basisFacts: bareBasis("cost.refused"),
     });
 }
 
@@ -635,6 +637,7 @@ function planLayout(context: PlanningContext, command: LayoutSetCommand): Plan {
                   blocked: Object.freeze({
                       code: "E_OPTION_RANGE",
                       // An unavailable layout's basis is its refusal sentence.
+                      // eslint-disable-next-line @typescript-eslint/no-deprecated -- PlanBlock.reason is still English
                       reason: cost.basis,
                   }),
               }),
@@ -1214,6 +1217,17 @@ function layoutEstimateNow(
         cancellable: true,
         available: true,
         basis: `${costClass} layout "${id}" drawn by "${engine}" over n=${String(n)}, m=${String(e)}`,
+        basisFacts: Object.freeze({
+            nodes: n,
+            edges: e,
+            sizesScaled: false,
+            term: "class" as const,
+            iterations,
+            iterationsAssumed: !(Number.isFinite(declared) && declared > 0),
+            sample: null,
+            derivationSeconds: 0,
+            provenance: Object.freeze({ code: "cost.layout" as const, params: Object.freeze({ layout: id, engine }) }),
+        }),
     });
 }
 
@@ -1236,5 +1250,6 @@ function unavailableLayout(costClass: CostClass, { reason, refusal }: EstimateRe
         reason,
         refusal,
         basis: reason,
+        basisFacts: bareBasis("cost.refused"),
     });
 }

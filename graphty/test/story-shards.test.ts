@@ -1,6 +1,19 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { assert, describe, it } from "vitest";
 
-import { balancedPart, DEFAULT_SECONDS, isStoryProject, STORY_SECONDS } from "./story-shards";
+import {
+    balancedPart,
+    DEFAULT_SECONDS,
+    FILE_SECONDS,
+    isRealElementProject,
+    isStoryProject,
+    REAL_ELEMENT_SECONDS,
+    realElementSeconds,
+    STORY_SECONDS,
+    TEST_SECONDS,
+} from "./story-shards";
 
 const seconds = (file: string): number => STORY_SECONDS[file] ?? DEFAULT_SECONDS;
 const total = (files: string[]): number => files.reduce((sum, f) => sum + seconds(f), 0);
@@ -71,5 +84,49 @@ describe("isStoryProject", () => {
         for (const name of ["browser (chromium)", "real-element (chromium)", "node", "storybook-extra"]) {
             assert.isFalse(isStoryProject(name), name);
         }
+    });
+});
+
+describe("isRealElementProject", () => {
+    it("takes the real-element project and not large-graph, whose parts are one file each", () => {
+        assert.isTrue(isRealElementProject("real-element (chromium)"));
+        assert.isTrue(isRealElementProject("real-element"));
+        // the experiments-on twin's parts split the same files by time, not by vitest's hash
+        assert.isTrue(isRealElementProject("real-element-features-on (chromium)"));
+        for (const name of ["large-graph (chromium)", "browser (chromium)", "storybook (chromium)", "node"]) {
+            assert.isFalse(isRealElementProject(name), name);
+        }
+    });
+});
+
+describe("realElementSeconds", () => {
+    it("counts each it, test and each-table as one test", () => {
+        const source = [
+            'describe("x", () => {',
+            '    it("a", async () => {});',
+            '    test("b", () => {});',
+            '    it.each([1, 2])("c %d", () => {});',
+            '    // it("not at the start of a line") is still a comment',
+            "});",
+        ].join("\n");
+        assert.equal(realElementSeconds(source), FILE_SECONDS + 3 * TEST_SECONDS);
+    });
+});
+
+describe("the graphty-N parts' real-element files", () => {
+    const root = join(import.meta.dirname, "..");
+    const files = readdirSync(join(root, "src"), { recursive: true, encoding: "utf8" })
+        .filter((f) => f.endsWith(".real-element.test.tsx") && !/LargeGraph\.|__screenshots__/.test(f))
+        .map((f) => `src/${f}`);
+    const cost = new Map(
+        files.map((f) => [f, REAL_ELEMENT_SECONDS[f] ?? realElementSeconds(readFileSync(join(root, f), "utf8"))]),
+    );
+    const seconds = (f: string): number => cost.get(f) ?? 0;
+
+    it("come out within the slowest file of each other in six parts", () => {
+        const parts = [1, 2, 3, 4, 5, 6].map((i) => balancedPart(files, i, 6, seconds));
+        assert.deepEqual(parts.flat().sort(), [...files].sort());
+        const loads = parts.map((p) => p.reduce((sum, f) => sum + seconds(f), 0));
+        assert.isAtMost(Math.max(...loads) - Math.min(...loads), Math.max(...cost.values()));
     });
 });

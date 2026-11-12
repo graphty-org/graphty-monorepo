@@ -4,7 +4,9 @@ name: Links (weekly)
 # once a week. Dead ones go into one open issue labelled "dead-links", which each run rewrites and
 # a clean run closes. This never fails a pull request: an external site going down is not
 # something a contributor did. Our own links (relative, anchors, github.com/graphty-org,
-# graphty.app) are gated on every pull request by the "Links" job in ci.yml instead.
+# graphty.app) are gated on every pull request by the "Links" job in ci.yml instead. It also
+# checks that the AI provider pages the graphty app links to (key and billing pages) still land
+# where they did (tools/check-provider-links.mjs).
 # See tools/check-links.sh.
 
 on:
@@ -20,12 +22,25 @@ concurrency:
     group: links-weekly
     cancel-in-progress: true
 
+env:
+    # A failed Actions cache restore waits one minute here, not 10 (#5098; see ci.yml).
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
+
 jobs:
     external-links:
         name: External links
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v7
+
+            - name: Install lychee
+              uses: ./.github/actions/lychee
+
+            # tools/check-provider-links.mjs imports a TypeScript table, which Node 22 reads as is.
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
 
             - name: Check every link
               id: check

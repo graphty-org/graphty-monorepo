@@ -30,11 +30,12 @@
 // input carries neither.
 
 import { mulberry32 } from "@graphty/algorithms";
+import type { EdgeMask, NodeMask } from "@graphty/graph-format";
 
 import type { RegisterOptions } from "../catalog/pluginRegistry";
 import type { AuthoredLayoutDescriptor, LayoutDescriptor, OptionDescriptor } from "../catalog/types";
 import { GraphtyError } from "../errors";
-import { LayoutEngine, type SimpleLayoutOpts, StaticLayoutEngine } from "../layout/LayoutEngine";
+import { LayoutEngine, simpleLayoutInternals, type SimpleLayoutOpts, StaticLayoutEngine } from "../layout/LayoutEngine";
 import { GraphtyLogger } from "../logging/GraphtyLogger.js";
 import type { Node } from "../Node";
 import {
@@ -46,7 +47,7 @@ import {
     requireFunction,
 } from "./definition";
 import { checkViewOptions, expandOptions } from "./options";
-import { viewSourceOf } from "./source";
+import { type ViewSource, viewSourceOf } from "./source";
 import type { GraphView, LayoutContext, LayoutDefinition, NodeId, OptionsShorthand, Point } from "./types";
 import { createGraphView, quoteId, viewWarnings } from "./view";
 
@@ -259,6 +260,20 @@ function refuseUnmatched(id: string, size: number, matched: number, unknown: unk
     }
 }
 
+/** The engine classes `defineLayout` built: each arranges the rows of the element's snapshot. */
+const definedEngines = new WeakSet();
+
+/**
+ * Whether an engine is one `defineLayout` built, which arranges every row of the element's snapshot,
+ * a row drawn with no `Node` included, rather than only the `Node`s it was handed.
+ * @param engine - The engine.
+ * @returns True for a defined layout.
+ * @internal
+ */
+export function isDefinedLayout(engine: object): boolean {
+    return definedEngines.has(engine.constructor);
+}
+
 /**
  * Build the layout engine class a definition compiles to.
  * @param plan - The checked definition.
@@ -269,7 +284,7 @@ function refuseUnmatched(id: string, size: number, matched: number, unknown: unk
 function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensions: 2 | 3): DefinedEngine {
     const { id } = plan;
 
-    return class DefinedLayout extends StaticLayoutEngine {
+    const DefinedLayout = class DefinedLayout extends StaticLayoutEngine {
         static override readonly type = id;
         static override readonly maxDimensions = maxDimensions;
         static override readonly scoped: boolean = true;
@@ -345,6 +360,18 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             this.#changes++;
         }
 
+        /**
+         * A freeze: laying out by row, it is how a node or an edge stored with no `Node` or `Edge`
+         * arrives, so it counts as a change; otherwise the add that froze counted already.
+         * @param args - The freeze, and whether a load is still streaming.
+         */
+        override reload(...args: Parameters<StaticLayoutEngine["reload"]>): void {
+            super.reload(...args);
+            if (simpleLayoutInternals.byRow(this)) {
+                this.#changes++;
+            }
+        }
+
         override removeEdge(...args: Parameters<StaticLayoutEngine["removeEdge"]>): void {
             super.removeEdge(...args);
             this.#changes++;
@@ -384,7 +411,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
                     this.stale = true;
                     // The element's own restart, so the next frame draws it; a reader's pause still
                     // refuses it.
-                    const graph = this._nodes[0]?.parentGraph;
+                    const graph = simpleLayoutInternals.hostGraph(this);
                     if (graph) {
                         graph.getLayoutManager().running = true;
                     }
@@ -397,7 +424,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
                     this.#pending = null;
                     const thrown = error instanceof Error ? error : new Error(String(error));
                     logger.error(`${id}: the layout could not be recomputed`, thrown, { layout: id });
-                    const graph = this._nodes[0]?.parentGraph;
+                    const graph = simpleLayoutInternals.hostGraph(this);
                     graph?.getEventManager?.()?.emitGraphError(graph, thrown, "layout", { layoutType: id });
                 },
             );
@@ -412,7 +439,7 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             const run = new AbortController();
             this.#run = run;
 
-            const graph = this._nodes[0]?.parentGraph;
+            const graph = simpleLayoutInternals.hostGraph(this);
             // Only the element's own Graph has a session; a bare GraphContext (a test harness) does not.
             const session = graph?.getSession?.();
             if (graph === undefined || session === undefined) {
@@ -421,7 +448,18 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
             }
 
             const twoD = graph.getStyles().config.graph.viewMode === "2d";
-            const view = createGraphView(viewSourceOf(session), { id, directed: false, source: "layout" });
+            const source = viewSourceOf(session);
+            // A node or edge the working graph hides is not in the view `place` reads.
+            const shown = this.shownView;
+            const narrowed =
+                shown?.graph === source.snapshot && !shown.whole
+                    ? keptSource(source, shown.nodes, shown.edges)
+                    : source;
+            const view = createGraphView(narrowed, {
+                id,
+                directed: false,
+                source: "layout",
+            });
             checkViewOptions(view, id, plan.options, this.#values, "layout");
 
             const byId = new Map<NodeId, Node>(this._nodes.map((node) => [node.id, node]));
@@ -482,6 +520,35 @@ function engineFor(plan: Plan, descriptor: AuthoredLayoutDescriptor, maxDimensio
 
             return twoD ? [at.x, at.y] : [at.x, at.y, at.z];
         }
+    };
+    definedEngines.add(DefinedLayout);
+
+    return DefinedLayout;
+}
+
+/**
+ * A view source over only the kept rows and edges of another: their induced subgraph, each value
+ * read from the row it came from.
+ * @param source - The source over every row.
+ * @param kept - The rows to keep.
+ * @param keptEdges - The edges to keep.
+ * @returns The source over the kept rows.
+ */
+function keptSource(source: ViewSource, kept: NodeMask, keptEdges: EdgeMask): ViewSource {
+    const filtered = source.snapshot.filterEdges(keptEdges);
+    const derived = filtered.snapshot.inducedSubgraph({ mask: kept });
+    const { nodeOrigin } = derived;
+    const edgeOrigin = (row: number): number => {
+        const inFiltered = derived.edgeOrigin === null ? row : derived.edgeOrigin[row];
+        return filtered.edgeOrigin?.[inFiltered] ?? inFiltered;
+    };
+    return {
+        snapshot: derived.snapshot,
+        nodeValue: (row, path) => source.nodeValue(nodeOrigin === null ? row : nodeOrigin[row], path),
+        edgeValue: (row, path) => source.edgeValue(edgeOrigin(row), path),
+        ...(source.attributeNames === undefined
+            ? {}
+            : { attributeNames: (target) => source.attributeNames?.(target) ?? [] }),
     };
 }
 

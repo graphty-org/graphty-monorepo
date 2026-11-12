@@ -46,7 +46,7 @@ import {
     SOURCES_VALUE,
 } from "../commands/data";
 import { ISSUES_VALUE, type IssueState, loadFactsOf, withLoadFacts } from "../issues";
-import { DEFAULT_LIMITS } from "../limits";
+import { DEFAULT_LIMITS, type DefaultableLimits, tooLargeError } from "../limits";
 import type { ProgressChange } from "../shared";
 import { type Provenance, PROVENANCE_VALUE, withSupplied } from "../sources/provenance";
 import { HELD_READERS, type ImportOutcome } from "../styles/fileStyles/apply";
@@ -217,7 +217,8 @@ export interface AddEdgesOptions {
     readonly target?: string;
     /**
      * What to do with a record naming an ordered pair the graph already holds, overriding
-     * `data.knownFields.repeatedEdges` for this call alone.
+     * `data.knownFields.repeatedEdges` for this call alone. With {@link AddEdgesOptions.repeatedScope}
+     * it covers only pairs held before this call.
      *
      * The expand-a-node path passes `"first"`, because "fetch the neighbourhood of this node" is a
      * request that legitimately re-supplies edges the graph already has, and the element knows
@@ -229,6 +230,8 @@ export interface AddEdgesOptions {
      * `value` fallback; null reads none.
      */
     readonly weight?: string | null;
+    /** `"held"`: `repeated` covers only pairs held before this call; its own repeats keep the configured rule. */
+    readonly repeatedScope?: "held";
 }
 
 /** An edge the graph already holds, as the host hands it back; the host may carry more. */
@@ -279,6 +282,8 @@ export interface IngestHost<K extends KnownEdge> {
     nodeStored(id: NodeIdType, record: Record<string | number, unknown>, index: number): void;
     /** An edge the store has just taken. */
     edgeStored(edge: StoredEdge): void;
+    /** A batch of this many edge records is about to be stored, so whatever draws them can make room once. */
+    edgesArriving?(count: number): void;
     /** Rows have been removed from the store; whatever draws them goes. */
     rowsRemoved(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void;
     /** The graph has been emptied. */
@@ -299,7 +304,17 @@ export interface IngestHost<K extends KnownEdge> {
     progress?(change: ProgressChange): void;
     /** Whether the timeline experiment is on, so a reader keeps the time data it reads; absent reads off. */
     timeline?(): boolean;
+    /**
+     * The ceilings a load is refused above, as plain numbers the element worked out for its render
+     * path; absent, or undefined, reads `DEFAULT_LIMITS`.
+     */
+    ceilings?(): Readonly<Ceilings> | undefined;
+    /** Whether the rows are drawn on the `"batched"` render path; absent reads `false`. Nothing reads it yet. */
+    batched?(): boolean;
 }
+
+/** The two ceilings `Ingest` refuses a load above. */
+export type Ceilings = Pick<DefaultableLimits, "renderCeiling" | "edgesDrawn">;
 
 /**
  * A load's progress as the session publishes it. A load cannot know its record count in advance,
@@ -423,6 +438,10 @@ interface EdgeBatch {
     readonly endpoints: ResolvedEndpoints;
     /** The repeat policy for this call. */
     readonly policy: DuplicatePolicy;
+    /** The edges this load made, when {@link EdgeBatch.policy} covers only earlier ones. */
+    readonly ownEdges?: Set<number>;
+    /** What a repeat of one of this load's own edges does. */
+    readonly ownPolicy: DuplicatePolicy;
     /** Where a record's own id is read, or null when none is. */
     readonly recordIdPath: string | null;
     /** Where a record's weight is read, or null when none is. */
@@ -832,6 +851,7 @@ export class Ingest<K extends KnownEdge> {
             ...tableFacts(command),
             added,
             ...(leftOut === undefined ? {} : { leftOut }),
+            loadedAt: new Date().toISOString(),
             // What it supplied that the graph holds; `data.sources()` recounts it as the graph changes.
             counts: Object.freeze({ nodes: supplied.nodes.size, edges: supplied.edges.size }),
         });
@@ -1027,7 +1047,7 @@ export class Ingest<K extends KnownEdge> {
         const { builder } = this.host.store();
         const ids = nodes.map((node) => searchRecord(node, query) as NodeIdType);
         const fresh = new Set(ids.filter((id) => !this.hasNode(id) && !(isStorableId(id) && builder.hasNode(id))));
-        this.refuseAboveCeiling("nodes", this.heldCounts().nodes, fresh.size, DEFAULT_LIMITS.renderCeiling);
+        this.refuseAboveCeiling("nodes", this.heldCounts().nodes, fresh.size, this.ceilings().renderCeiling);
 
         for (const [i, node] of nodes.entries()) {
             const nodeId = ids[i];
@@ -1178,22 +1198,32 @@ export class Ingest<K extends KnownEdge> {
             "edges",
             this.heldCounts().edges,
             this.edgesAdded(edges, endpoints, policy, false),
-            DEFAULT_LIMITS.edgesDrawn,
+            this.ceilings().edgesDrawn,
         );
         this.refuseAboveCeiling(
             "nodes",
             this.heldCounts().nodes,
             this.endpointNodesAdded(edges, endpoints),
-            DEFAULT_LIMITS.renderCeiling,
+            this.ceilings().renderCeiling,
         );
 
-        const batch: EdgeBatch = { endpoints, policy, recordIdPath, weightPath, legacyFallback, tally };
+        const batch: EdgeBatch = {
+            endpoints,
+            policy,
+            recordIdPath,
+            weightPath,
+            legacyFallback,
+            tally,
+            ...(options?.repeatedScope === "held" ? { ownEdges: new Set<number>() } : {}),
+            ownPolicy: knownFields.repeatedEdges,
+        };
         if (this.loadTally === null) {
             // An earlier push that threw mid-batch was rolled back, and the endpoints it noted
             // with it: they are not this batch's to draw.
             this.loadMadeEndpoints.clear();
         }
 
+        this.host.edgesArriving?.(edges.length);
         for (const edge of edges) {
             if (this.addEdgeRecord(edge, batch, writer)) {
                 legacyWeights++;
@@ -1298,6 +1328,7 @@ export class Ingest<K extends KnownEdge> {
             tally.edgesByPosition++;
         }
 
+        batch.ownEdges?.add(edgeIndex);
         tally.edgeIds.push(edgeIdOf(edgeId));
         this.noteSupplied(edgeIdOf(edgeId), srcNodeId, dstNodeId);
         this.host.edgeStored({ record, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId });
@@ -1331,7 +1362,8 @@ export class Ingest<K extends KnownEdge> {
         const known = this.knownEdgeFor(repeat.sourceId, repeat.targetId, recordId);
         if (known !== null) {
             tally.repeatedSeen++;
-            if (this.mergeRepeat(known, repeat, policy, tally, writer)) {
+            const own = batch.ownEdges?.has(known.edgeIndex) === true;
+            if (this.mergeRepeat(known, repeat, own ? batch.ownPolicy : policy, tally, writer)) {
                 // The edge it repeats is one this load supplied too.
                 this.noteSupplied(edgeIdOf(writer.store.edgeIdAt(known.edgeIndex)), repeat.sourceId, repeat.targetId);
                 tally.edgeIds.push(null);
@@ -1431,7 +1463,7 @@ export class Ingest<K extends KnownEdge> {
     refuseNodeReplacement(nodes: readonly Record<string | number, unknown>[], idPath?: string): void {
         const query = idPath ?? this.host.dataConfig().knownFields.nodeIdPath;
         const ids = new Set(nodes.map((node) => searchRecord(node, query)));
-        this.refuseAboveCeiling("nodes", 0, ids.size, DEFAULT_LIMITS.renderCeiling);
+        this.refuseAboveCeiling("nodes", 0, ids.size, this.ceilings().renderCeiling);
     }
 
     /**
@@ -1453,7 +1485,7 @@ export class Ingest<K extends KnownEdge> {
             "edges",
             surviving,
             this.edgesAdded(edges, this.endpointsFor(edges, options), policy, true),
-            DEFAULT_LIMITS.edgesDrawn,
+            this.ceilings().edgesDrawn,
         );
     }
 
@@ -2175,6 +2207,15 @@ export class Ingest<K extends KnownEdge> {
     }
 
     /**
+     * The ceilings in force: the host's, which the element sets from its `limits` option under
+     * `"batched"`, or the shipped defaults.
+     * @returns The ceilings.
+     */
+    private ceilings(): Readonly<Ceilings> {
+        return this.host.ceilings?.() ?? DEFAULT_LIMITS;
+    }
+
+    /**
      * Refuse to grow past what the renderer can draw, instead of freezing the tab.
      *
      * WHY A REFUSAL AND NOT A DEGRADED DRAW. The design says that above the render ceiling the
@@ -2205,15 +2246,7 @@ export class Ingest<K extends KnownEdge> {
             return;
         }
 
-        throw new GraphtyError({
-            code: "E_TOO_LARGE",
-            source: "data",
-            message:
-                `Loading ${adding.toLocaleString("en-US")} more ${of} would take the graph to ` +
-                `${(held + adding).toLocaleString("en-US")}, past the ${limit.toLocaleString("en-US")} ` +
-                `this renderer can draw. Load a subset of the graph.`,
-            details: { limit, count: held + adding, of, graph: { nodes, edges } },
-        });
+        throw tooLargeError(of, held, adding, limit, { nodes, edges });
     }
 }
 
@@ -2263,6 +2296,7 @@ function endpointOverridesOf(type: string, opts: object, held: HeldRows | undefi
         ...(typeof target === "string" ? { target } : {}),
         ...(held?.weight === undefined ? {} : { weight: held.weight }),
         ...(held?.repeated === undefined ? {} : { repeated: held.repeated }),
+        ...(held?.repeatedScope === undefined ? {} : { repeatedScope: held.repeatedScope }),
     };
 }
 

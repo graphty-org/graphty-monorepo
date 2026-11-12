@@ -18,12 +18,15 @@ import type { ElementPositions } from "../data/positions";
 import type { ImportReport, LoadReport } from "../data/report";
 import { adoptEdgeRecord, Edge, placeEdgeRow } from "../Edge";
 import { GraphtyError } from "../errors/GraphtyError";
-import { type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
+import { D3GraphEngine } from "../layout/D3GraphLayoutEngine";
+import { type EdgeRow, type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
+import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import { isEdgeLineBatchMesh } from "../meshes/EdgeLineBatch";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { MeshCache } from "../meshes/MeshCache";
+import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
 import { SupportPoints } from "../meshes/supportPoints";
-import { adoptNodeRecord, Node, NodeIdType, placeNodeRow } from "../Node";
+import { adoptNodeRecord, Node, NodeIdType, nodeRebuildsFor, placeNodeRow, releaseNodeMesh } from "../Node";
 import { inputCountersOf } from "../session/attributes";
 import { legacyScopeOf } from "../session/commands/algo";
 import {
@@ -41,6 +44,7 @@ import type { Draft } from "../session/project/draft";
 import { GraphOps, type GraphWriter } from "../session/project/graphOps";
 import {
     type AddEdgesOptions,
+    type Ceilings,
     Ingest,
     type IngestHost,
     isStorableId,
@@ -54,7 +58,7 @@ import type { Styles } from "../Styles";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
-import { bootstrapEdgePaint, bootstrapNodePaint } from "./StylePainter";
+import { bootstrapEdgePaint, bootstrapNodePaint, type NodePaint } from "./StylePainter";
 
 /** The graph value a plugin algorithm's graph-level results are kept under. */
 const GRAPH_RESULTS = "graphResults";
@@ -359,7 +363,233 @@ export const dataManagerInternals = {} as {
      * of design/rendering/row-renderer.md drives toward zero under `"batched"`.
      */
     nodesBuilt(manager: DataManager): number;
+    /**
+     * How many `Edge` render objects this manager has built, ever: the count the lazy-edge stage
+     * of design/rendering/row-renderer.md drives toward zero under `"batched"`.
+     */
+    edgesBuilt(manager: DataManager): number;
+    /** The `Edge`s built so far by id, building none: what a check of the drawn edges walks. */
+    builtEdges(manager: DataManager): ReadonlyMap<string, Edge>;
+    /** A stored node id's row in the store, read with no `Node`; `INVALID_INDEX` for an id it does not hold. */
+    rowOf(manager: DataManager, id: NodeIdType): number;
+    /** The `Node`s built so far, walked without building one for a row that has none. */
+    builtNodes(manager: DataManager): IterableIterator<Node>;
+    /** The rows stored with no `Node` yet (see `LazyView`), by row number. */
+    unbuiltRows(manager: DataManager): number[];
+    /**
+     * How much of {@link DataManager.nodeVersion} came from building the `Node` of a row already
+     * drawn with no `Node`: the set of rows did not change, so the applied view masks still hold.
+     */
+    lateNodeVersions(manager: DataManager): number;
+    /**
+     * A stored node's id as the graph spells it, either spelling accepted, building no `Node`;
+     * undefined for an id it does not hold.
+     */
+    storedIdOf(manager: DataManager, id: NodeIdType): NodeIdType | undefined;
+    /** A node's `Node` if one was built, building none. */
+    builtNode(manager: DataManager, id: NodeIdType): Node | undefined;
+    /** See `DataManager.incidentEdgeIds`, by id, so a row with no `Node` is not given one. */
+    incidentEdgeIds(manager: DataManager, id: NodeIdType): EdgeId[];
+    /** The id of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
+    unbuiltAt(manager: DataManager, index: number): NodeIdType | undefined;
+    /** The record of a row stored with no `Node` yet, or undefined when a `Node` draws it or none is stored there. */
+    unbuiltRecord(manager: DataManager, index: number): Record<string | number, unknown> | undefined;
+    /** Build the `Node` of a row stored with no `Node` yet, and hand it back. */
+    buildRow(manager: DataManager, id: NodeIdType): Node | undefined;
+    /** Build the `Node` of every row stored with no `Node` yet, then the `Edge` of every edge stored with none. */
+    buildAll(manager: DataManager): void;
+    /**
+     * How the current layout engine is handed a row stored with no `Node`: a function given the
+     * ids of each arrival's such rows (a no-op for an engine that reads every row of the
+     * snapshot), or null for an engine that lays out only `Node`s, for which every row gets one.
+     */
+    setLayoutRows(manager: DataManager, rows: ((ids: readonly NodeIdType[]) => void) | null): void;
+    /**
+     * Store each edge whose ends are stored with no `Edge`, building one only when the edge maps
+     * are read (true), never (false). Until set, the element decides: on under `"batched"` with row
+     * lines to draw such an edge, off otherwise.
+     */
+    storeEdgesUnbuilt(manager: DataManager, on: boolean): void;
+    /**
+     * The rows of the two ends of an edge stored with no `Edge`, or undefined when an `Edge` draws
+     * the row or none is stored there.
+     */
+    unbuiltEdgeEnds(manager: DataManager, row: number): [number, number] | undefined;
+    /**
+     * Build the `Edge` of an edge row stored with no `Edge` yet, and hand it back; its paint is queued
+     * unless the caller paints it now (`paintingNow`).
+     */
+    buildEdgeAt(manager: DataManager, row: number, paintingNow?: boolean): Edge | undefined;
+    /**
+     * How the current layout engine is handed an edge stored with no `Edge`: d3 and ngraph take its
+     * edge row and let it go again (a no-op for an engine that reads every edge of the snapshot), or
+     * null for an engine that lays out only `Edge`s, for which every edge gets one.
+     */
+    setLayoutEdgeRows(manager: DataManager, rows: LayoutEdgeRows | null): void;
+    /**
+     * The edge rows of the edges stored with no `Edge` (each one's id and its two node ids), only
+     * those whose row `keep` keeps when it is given.
+     */
+    unbuiltEdgeRows(manager: DataManager, keep?: (row: number) => boolean): EdgeRow[];
 };
+
+/** How a layout engine takes and lets go of the edges stored with no `Edge`. See `dataManagerInternals.setLayoutEdgeRows`. */
+export interface LayoutEdgeRows {
+    add(rows: readonly EdgeRow[]): void;
+    remove(keys: Iterable<string>): void;
+    /**
+     * Hand an `Edge` built late the place its row already has in the layout, without unsettling it.
+     * @returns False when the engine must be handed the `Edge` as a new edge instead.
+     */
+    adopt(key: string, e: Edge): boolean;
+}
+
+/** No layout engine yet, or one that reads the snapshot: an edge stored with no `Edge` needs no hand-over. */
+export const noLayoutEdgeRows: LayoutEdgeRows = {
+    add: () => undefined,
+    remove: () => undefined,
+    adopt: () => false,
+};
+
+/**
+ * The edge row a layout engine is handed for an edge stored with no `Edge`.
+ * @param stored - The edge.
+ * @returns Its id and its two node ids.
+ */
+function edgeRowOf(stored: StoredEdge): EdgeRow {
+    return { key: edgeIdOf(stored.edgeId), source: stored.sourceId, target: stored.targetId };
+}
+
+/** No layout engine yet: a row stored with no `Node` needs no hand-over. */
+function noLayoutRows(): void {
+    // Nothing to hand over.
+}
+
+/** A row with no `Node` that a reconcile keeps on another row. */
+interface UnbuiltMove {
+    readonly id: NodeIdType;
+    readonly record: Record<string | number, unknown>;
+    readonly from: number;
+    readonly to: number;
+}
+
+/** The rows stored with no render object yet, as a {@link LazyView} reads them. */
+interface UnbuiltRows<K, V> {
+    has(id: K): boolean;
+    count(): number;
+    /** Their ids, as a fresh array. */
+    ids(): K[];
+    build(id: K): V | undefined;
+}
+
+/**
+ * A map of render objects (`Node`s or `Edge`s) by id that also answers for the rows stored under
+ * `"batched"` with no render object yet: it counts and finds them, and builds a row's object the
+ * first time it is read, or every missing one when it is walked. The object is kept, so the same
+ * one is handed out until removal. Internal walks that only want what is drawn as an object use
+ * {@link LazyView.built}.
+ */
+class LazyView<K, V> extends Map<K, V> {
+    #rows: UnbuiltRows<K, V> | null = null;
+
+    /**
+     * Answer for unbuilt rows too.
+     * @param rows - The rows with no `Node` yet.
+     * @returns This.
+     */
+    lazy(rows: UnbuiltRows<K, V>): this {
+        this.#rows = rows;
+        return this;
+    }
+
+    override get(id: K): V | undefined {
+        return super.get(id) ?? (this.#rows?.has(id) === true ? this.#rows.build(id) : undefined);
+    }
+
+    override has(id: K): boolean {
+        return super.has(id) || this.#rows?.has(id) === true;
+    }
+
+    override get size(): number {
+        return super.size + (this.#rows?.count() ?? 0);
+    }
+
+    /**
+     * An id's object if it was built, building none.
+     * @param id - The id.
+     * @returns Its object, or undefined.
+     */
+    builtOf(id: K): V | undefined {
+        return super.get(id);
+    }
+
+    /**
+     * The objects built so far, building none.
+     * @returns They.
+     */
+    built(): MapIterator<V> {
+        return super.values();
+    }
+
+    #builtView: ReadonlyMap<K, V> | undefined;
+
+    /**
+     * The objects built so far as a read-only map, building none: a live view, not a copy.
+     * @returns It.
+     */
+    builtView(): ReadonlyMap<K, V> {
+        const entries = (): MapIterator<[K, V]> => super.entries();
+        const size = (): number => super.size;
+        this.#builtView ??= readonlyMapView<K, V>({
+            get size() {
+                return size();
+            },
+            get: (id) => super.get(id),
+            has: (id) => super.has(id),
+            keys: () => super.keys(),
+            values: () => super.values(),
+            entries,
+            forEach: (callback, thisArg) => {
+                super.forEach(callback, thisArg);
+            },
+            [Symbol.iterator]: entries,
+        });
+        return this.#builtView;
+    }
+
+    #buildAll(): void {
+        const rows = this.#rows;
+        if (rows !== null) {
+            for (const id of rows.ids()) {
+                rows.build(id);
+            }
+        }
+    }
+
+    override keys(): MapIterator<K> {
+        this.#buildAll();
+        return super.keys();
+    }
+
+    override values(): MapIterator<V> {
+        this.#buildAll();
+        return super.values();
+    }
+
+    override entries(): MapIterator<[K, V]> {
+        this.#buildAll();
+        return super.entries();
+    }
+
+    override [Symbol.iterator](): MapIterator<[K, V]> {
+        return this.entries();
+    }
+
+    override forEach(callback: (value: V, key: K, map: Map<K, V>) => void, thisArg?: unknown): void {
+        this.#buildAll();
+        super.forEach(callback, thisArg);
+    }
+}
 
 /**
  * Manages all data operations for nodes and edges
@@ -390,16 +620,100 @@ export const dataManagerInternals = {} as {
  */
 export class DataManager implements Manager {
     // Node and edge collections: written only here, as commands add, remove and renumber rows.
-    private readonly nodeMap = new Map<string | number, Node>();
-    private readonly edgeMap = new Map<string, Edge>();
+    /**
+     * Rows stored under `"batched"` with no `Node`, by id: the record and row each `Node` is built
+     * from when one is asked for. The batches draw them from their paint (`NodeBatches.paintRow`).
+     */
+    private readonly unbuilt = new Map<number, { id: NodeIdType; record: Record<string | number, unknown> }>();
+    /** The rows of {@link unbuilt} by id, so a removal finds its row once the store has let it go. */
+    private readonly unbuiltIds = new Map<NodeIdType, number>();
+    /** {@link unbuilt} as the node maps read it. */
+    private readonly unbuiltRows: UnbuiltRows<NodeIdType, Node> = {
+        has: (id) => this.unbuiltRowOf(id) !== INVALID_INDEX,
+        count: () => this.unbuilt.size,
+        ids: () => [...this.unbuilt.values()].map((row) => row.id),
+        build: (id) => this.buildRow(id),
+    };
+    private readonly nodeMap = new LazyView<NodeIdType, Node>().lazy(this.unbuiltRows);
+    /**
+     * Edges stored with no `Edge`, by row: what each `Edge` is built from when one is asked for.
+     * Only while {@link storesWithoutEdge} says so.
+     */
+    private readonly unbuiltEdges = new Map<number, StoredEdge>();
+    /** The rows of {@link unbuiltEdges} by edge id. */
+    private readonly unbuiltEdgeIds = new Map<EdgeId, number>();
+    /**
+     * Whether an edge whose ends are stored is stored with no `Edge` (`dataManagerInternals.storeEdgesUnbuilt`),
+     * or null for {@link storesWithoutEdge} to decide.
+     */
+    private edgesUnbuilt: boolean | null = null;
+    private readonly edgeMap = new LazyView<string, Edge>().lazy({
+        has: (id) => this.unbuiltEdgeIds.has(id),
+        count: () => this.unbuiltEdges.size,
+        ids: () => [...this.unbuiltEdgeIds.keys()],
+        build: (id) => this.buildEdgeRow(this.unbuiltEdgeIds.get(id) ?? INVALID_INDEX),
+    });
     private readonly edgeRows: (Edge | undefined)[] = [];
     /** Who else holds rows by index (the session's selection), told after the render objects. */
     private readonly renumberFollowers = new Set<FreezeFollower>();
     /** See `dataManagerInternals.nodesBuilt`. */
     private builtNodes = 0;
+    /** See `dataManagerInternals.edgesBuilt`. */
+    private builtEdges = 0;
 
     static {
         dataManagerInternals.nodesBuilt = (manager) => manager.builtNodes;
+        dataManagerInternals.edgesBuilt = (manager) => manager.builtEdges;
+        dataManagerInternals.builtEdges = (manager) => manager.edgeMap.builtView();
+        dataManagerInternals.rowOf = (manager, id) => manager.store.builder.indexOf(id);
+        dataManagerInternals.builtNodes = (manager) => manager.nodeMap.built();
+        dataManagerInternals.unbuiltRows = (manager) => [...manager.unbuilt.keys()];
+        dataManagerInternals.lateNodeVersions = (manager) => manager.lateNodeVersions;
+        dataManagerInternals.storedIdOf = (manager, id) => {
+            if (manager.nodeMap.has(id)) {
+                return id;
+            }
+
+            const other = otherIdSpelling(id);
+            return other !== undefined && manager.nodeMap.has(other) ? other : undefined;
+        };
+        dataManagerInternals.builtNode = (manager, id) => manager.nodeMap.builtOf(id);
+        dataManagerInternals.incidentEdgeIds = (manager, id) => manager.incidentEdgeIdsOf(id);
+        dataManagerInternals.unbuiltAt = (manager, index) => manager.unbuilt.get(index)?.id;
+        dataManagerInternals.unbuiltRecord = (manager, index) => manager.unbuilt.get(index)?.record;
+        dataManagerInternals.buildRow = (manager, id) => manager.buildRow(id);
+        dataManagerInternals.buildAll = (manager) => {
+            for (const id of manager.unbuiltRows.ids()) {
+                manager.buildRow(id);
+            }
+
+            // Only a row line draws an edge stored with no `Edge`, and the objects path has none.
+            for (const row of [...manager.unbuiltEdges.keys()]) {
+                manager.buildEdgeRow(row);
+            }
+        };
+        dataManagerInternals.setLayoutRows = (manager, rows) => {
+            manager.layoutRows = rows;
+        };
+        dataManagerInternals.storeEdgesUnbuilt = (manager, on) => {
+            manager.edgesUnbuilt = on;
+        };
+        dataManagerInternals.unbuiltEdgeEnds = (manager, row) => {
+            const stored = manager.unbuiltEdges.get(row);
+            const { builder } = manager.store;
+            return stored === undefined
+                ? undefined
+                : [builder.indexOf(stored.sourceId), builder.indexOf(stored.targetId)];
+        };
+        dataManagerInternals.buildEdgeAt = (manager, row, paintingNow = false) =>
+            manager.buildEdgeRow(row, !paintingNow);
+        dataManagerInternals.setLayoutEdgeRows = (manager, rows) => {
+            manager.layoutEdgeRows = rows;
+        };
+        dataManagerInternals.unbuiltEdgeRows = (manager, keep) =>
+            [...manager.unbuiltEdges]
+                .filter(([row]) => keep === undefined || keep(row))
+                .map(([, stored]) => edgeRowOf(stored));
         dataManagerInternals.followRenumbering = (manager, follower) => {
             manager.renumberFollowers.add(follower);
             return () => {
@@ -457,7 +771,15 @@ export class DataManager implements Manager {
     edgeVersion = 0;
     /** Goes up on every node added or removed, so a cache over the node set knows it is stale. */
     nodeVersion = 0;
-    nodeCache = new Map<NodeIdType, Node>();
+    /** See `dataManagerInternals.lateNodeVersions`. */
+    private lateNodeVersions = 0;
+    nodeCache: Map<NodeIdType, Node> = new LazyView<NodeIdType, Node>().lazy(this.unbuiltRows);
+    /** See `dataManagerInternals.setLayoutRows`; no engine yet needs no hand-over. */
+    private layoutRows: ((ids: readonly NodeIdType[]) => void) | null = noLayoutRows;
+    /** See `dataManagerInternals.setLayoutEdgeRows`. */
+    private layoutEdgeRows: LayoutEdgeRows | null = noLayoutEdgeRows;
+    /** The ids of this arrival's rows stored with no `Node`, handed to the layout when it ends. */
+    private arrivedRows: NodeIdType[] = [];
 
     /**
      * Render objects by their store edge index, so a freeze report's `edgeRemap` -- and a removal,
@@ -479,7 +801,7 @@ export class DataManager implements Manager {
     get nodesByIndex(): readonly (Node | undefined)[] {
         if (this.nodeRowsVersion !== this.nodeVersion) {
             this.nodeRows = [];
-            for (const node of this.nodes.values()) {
+            for (const node of this.nodeMap.built()) {
                 if (node.index !== INVALID_INDEX) {
                     this.nodeRows[node.index] = node;
                 }
@@ -575,6 +897,13 @@ export class DataManager implements Manager {
 
     /** Turns records and data sources into the graph; this manager draws what it produces. */
     private readonly ingest: Ingest<ExistingEdge> = new Ingest(this.ingestHost());
+
+    /**
+     * Where the ingest reads the ceilings in force and whether rows are drawn batched: the graph
+     * sets it from its render path and `limits`. Unset, a load meets the shipped defaults.
+     * @internal
+     */
+    renderLimits: { ceilings(): Readonly<Ceilings> | undefined; batched(): boolean } | null = null;
 
     /**
      * The graph primitives every write goes through. A data manager on its own has nothing to
@@ -955,7 +1284,8 @@ export class DataManager implements Manager {
      * @returns The id the graph holds it under, or the one given when it holds none.
      */
     private resolveId(target: "node" | "edge", id: NodeIdType): NodeIdType {
-        return target === "node" ? (this.getNode(id)?.id ?? id) : id;
+        // Building no `Node`: a row drawn with none keeps none.
+        return target === "node" ? (dataManagerInternals.storedIdOf(this, id) ?? id) : id;
     }
 
     /**
@@ -967,7 +1297,7 @@ export class DataManager implements Manager {
     sliceProblems(slice: GraphSlice): string[] {
         const problems: string[] = [];
         const waiting = new Set(this.pendingEdges.map((entry) => entry.edgeId));
-        for (const id of this.nodes.keys()) {
+        for (const id of [...[...this.nodeMap.built()].map((node) => node.id), ...this.unbuiltRows.ids()]) {
             if (!slice.nodes.has(id)) {
                 problems.push(`node ${JSON.stringify(id)} is drawn but not in the slice`);
             }
@@ -979,7 +1309,8 @@ export class DataManager implements Manager {
             }
         }
 
-        for (const id of this.edges.keys()) {
+        // Building no `Edge`: the check must not change what it checks.
+        for (const id of [...this.edgeMap.builtView().keys(), ...this.unbuiltEdgeIds.keys()]) {
             if (!slice.edges.has(id)) {
                 problems.push(`edge ${JSON.stringify(id)} is drawn but not in the slice`);
             }
@@ -1012,13 +1343,16 @@ export class DataManager implements Manager {
         let addedEdges = 0;
         const edgeKeys: EdgeId[] = [];
         const doomed = new Set<NodeIdType>();
+        const moves: UnbuiltMove[] = [];
         for (const key of dirty) {
             if (key.startsWith("e:")) {
                 edgeKeys.push(key.slice(2));
             } else if (key.startsWith("n:")) {
-                addedNodes += this.reconcileNode(JSON.parse(key.slice(2)) as NodeIdType, slice, doomed);
+                addedNodes += this.reconcileNode(JSON.parse(key.slice(2)) as NodeIdType, slice, doomed, moves);
             }
         }
+
+        this.moveUnbuilt(moves);
 
         // Torn down together: one pass over the edges for all of them, not one per node, and the
         // nodes in the order they were built, which is the order the scene holds their meshes in.
@@ -1036,6 +1370,7 @@ export class DataManager implements Manager {
         }
 
         if (addedNodes > 0) {
+            this.layOutArrivedRows();
             this.processPendingEdges();
             this.eventManager.emitDataAdded("nodes", addedNodes, false, false, cause);
         }
@@ -1057,10 +1392,28 @@ export class DataManager implements Manager {
      * @param id - The node.
      * @param slice - The slice to draw.
      * @param doomed - Receives a drawn node the slice no longer holds.
-     * @returns 1 when the node was built, else 0.
+     * @param moves - Receives a row with no `Node` the slice keeps on another row.
+     * @returns 1 when the node was built or stored, else 0.
      */
-    private reconcileNode(id: NodeIdType, slice: GraphSlice, doomed: Set<NodeIdType>): number {
+    private reconcileNode(id: NodeIdType, slice: GraphSlice, doomed: Set<NodeIdType>, moves: UnbuiltMove[]): number {
         const record = slice.nodes.get(id);
+        const unbuilt = this.unbuiltRowOf(id);
+        if (unbuilt !== INVALID_INDEX) {
+            // A row drawn with no `Node` takes its record and keeps no `Node`.
+            const index = record === undefined ? INVALID_INDEX : this.store.builder.indexOf(id);
+            if (record === undefined) {
+                doomed.add(id);
+            } else if (index === unbuilt || index === INVALID_INDEX) {
+                this.unbuilt.set(unbuilt, { id, record });
+            } else {
+                // Kept on a new row (undo of a replacing load), as `placeKept` moves a `Node`.
+                // Moved once every row's move is known: two rows may swap.
+                moves.push({ id, record, from: unbuilt, to: index });
+            }
+
+            return 0;
+        }
+
         const node = this.nodes.get(id);
         if (record === undefined) {
             if (node !== undefined) {
@@ -1071,13 +1424,46 @@ export class DataManager implements Manager {
         }
 
         if (node === undefined) {
-            this.buildNode(id, record, this.store.builder.indexOf(id));
+            const index = this.store.builder.indexOf(id);
+            if (this.storesWithoutNode(index)) {
+                // As a forward add stores it: the layout is handed the row, and it is announced
+                // and counted, so its waiting edges are built and undo's listeners hear of it.
+                this.storeUnbuilt(id, record, index);
+                return 1;
+            }
+
+            this.buildNode(id, record, index);
             return 1;
         }
 
         adoptNodeRecord(node, record as AdHocData<string | number>);
         this.placeKept("node", node, this.store.builder.indexOf(id));
         return 0;
+    }
+
+    /**
+     * Put rows with no `Node` on their new rows: every one off its old row first, then each on its
+     * new one, so a row moving onto one another row is leaving is not lost.
+     * @param moves - The moves.
+     */
+    private moveUnbuilt(moves: readonly UnbuiltMove[]): void {
+        const batches = this.graphContext?.getNodeBatches?.();
+        for (const { id, from } of moves) {
+            if (this.unbuilt.get(from)?.id === id) {
+                this.unbuilt.delete(from);
+                batches?.unpaintRow(from);
+            }
+        }
+
+        for (const { id, record, to } of moves) {
+            this.unbuilt.set(to, { id, record });
+            this.unbuiltIds.set(id, to);
+            this.graphContext?.getStylePainter?.()?.queue("node", to);
+        }
+
+        if (moves.length > 0) {
+            this.nodeVersion++;
+        }
     }
 
     /**
@@ -1096,6 +1482,10 @@ export class DataManager implements Manager {
         removedEdges: EdgeId[],
     ): number {
         const record = slice.edges.get(id);
+        if (this.reconcileUnbuiltEdge(id, record, removedEdges)) {
+            return 0;
+        }
+
         const edge = this.edges.get(id);
         const counter = edgeCounterOf(id);
         const pending = waiting.get(counter);
@@ -1140,6 +1530,50 @@ export class DataManager implements Manager {
     }
 
     /**
+     * Bring an edge stored with no `Edge` in line with the slice, building none: forget it, or
+     * hand it its record and move it to its row in the store now, queued to be painted there.
+     * @param id - The edge.
+     * @param record - Its record in the slice, or undefined when the slice no longer holds it.
+     * @param removedEdges - Receives the edge when it is forgotten.
+     * @returns False when the edge is not one stored with no `Edge`.
+     */
+    private reconcileUnbuiltEdge(
+        id: EdgeId,
+        record: Record<string | number, unknown> | undefined,
+        removedEdges: EdgeId[],
+    ): boolean {
+        const from = this.unbuiltEdgeIds.get(id);
+        const stored = from === undefined ? undefined : this.unbuiltEdges.get(from);
+        if (from === undefined || stored === undefined) {
+            return false;
+        }
+
+        const row = this.store.edgeIndexOf(stored.edgeId);
+        if (record === undefined || row === INVALID_INDEX) {
+            this.forgetUnbuiltEdge(from);
+            removedEdges.push(id);
+            return true;
+        }
+
+        if (row !== from) {
+            // An edge moved here earlier in this reconcile keeps its place.
+            if (this.unbuiltEdges.get(from) === stored) {
+                this.unbuiltEdges.delete(from);
+            }
+
+            // Its line is drawn again on its new row, from the paint queued below.
+            this.graphContext?.getEdgeRowLines?.()?.unpaintRow(from);
+
+            this.graphContext?.getStylePainter?.()?.queue("edge", row);
+        }
+
+        this.unbuiltEdges.set(row, { ...stored, record, edgeIndex: row });
+        this.unbuiltEdgeIds.set(id, row);
+
+        return true;
+    }
+
+    /**
      * Put a render object the slice keeps back on its row, and queue it to be drawn from that row's
      * paint. Undoing a replacing load puts the graph it replaced back as a new builder, whose walk
      * from the old rows names none of them, so a node or edge drawn in both graphs (a file opened
@@ -1174,10 +1608,13 @@ export class DataManager implements Manager {
      * @returns The ids of the edges torn down with them and not left waiting.
      */
     private dropRenderNodes(ids: ReadonlySet<NodeIdType>, slice: GraphSlice): EdgeId[] {
-        const removed: EdgeId[] = [];
-        const edges = [...this.edges.values()];
+        // An edge stored with no `Edge` goes the same way, with nothing to tear down: reading it
+        // would build one.
+        const removed = this.dropUnbuiltEdgesOf(ids, slice);
+        const edges = [...this.edgeMap.built()];
         disposeReleased(
-            [...ids].flatMap((id) => this.nodes.get(id) ?? []),
+            // Built ones only: a row removed with no `Node` has none to release, and is not given one.
+            [...ids].flatMap((id) => this.nodeMap.builtOf(id) ?? []),
             edges.filter((edge) => ids.has(edge.srcId) || ids.has(edge.dstId)),
             () => {
                 for (const edge of edges) {
@@ -1207,7 +1644,8 @@ export class DataManager implements Manager {
                     }
                 }
 
-                for (const node of [...this.nodes.values()]) {
+                this.dropUnbuiltIds(ids);
+                for (const node of [...this.nodeMap.built()]) {
                     if (ids.has(node.id)) {
                         this.disposeRenderNode(node);
                     }
@@ -1219,12 +1657,50 @@ export class DataManager implements Manager {
     }
 
     /**
+     * {@link dropRenderNodes} for the edges stored with no `Edge`: one the slice still holds goes
+     * back to waiting for its ends, any other is forgotten. Builds none.
+     * @param ids - The nodes going.
+     * @param slice - The slice being drawn.
+     * @returns The ids of the edges forgotten.
+     */
+    private dropUnbuiltEdgesOf(ids: ReadonlySet<NodeIdType>, slice: GraphSlice): EdgeId[] {
+        const removed: EdgeId[] = [];
+        for (const [row, stored] of [...this.unbuiltEdges]) {
+            if (!ids.has(stored.sourceId) && !ids.has(stored.targetId)) {
+                continue;
+            }
+
+            this.forgetUnbuiltEdge(row);
+            const id = edgeIdOf(stored.edgeId);
+            const record = slice.edges.get(id);
+            if (record === undefined || this.store.edgeIndexOf(stored.edgeId) === INVALID_INDEX) {
+                removed.push(id);
+                continue;
+            }
+
+            const pending: PendingEdge = { ...stored, record, edgeIndex: this.store.edgeIndexOf(stored.edgeId) };
+            this.pendingEdges.push(pending);
+            this.rememberPending(pending);
+        }
+
+        return removed;
+    }
+
+    /**
      * Tear down what draws rows a forward removal took out of the store: the edges first, since an
      * edge reads its endpoints' meshes while it goes, then the nodes. One `elements-removed`.
      * @param nodes - The node ids removed.
      * @param edges - The edge ids removed, including every edge attached to a removed node.
      */
     private dropRendered(nodes: readonly NodeIdType[], edges: readonly EdgeId[]): void {
+        // An edge with no `Edge` goes with nothing to tear down: reading it would build one.
+        for (const id of edges) {
+            const row = this.unbuiltEdgeIds.get(id);
+            if (row !== undefined) {
+                this.forgetUnbuiltEdge(row);
+            }
+        }
+
         // The edges go now. The nodes leave every map now too, but their meshes leave the scene at
         // the end of the run, with every other node removed in it: see `releaseLater`.
         disposeReleased(
@@ -1247,8 +1723,9 @@ export class DataManager implements Manager {
                 }
             },
         );
+        const dropped = this.dropUnbuiltIds(new Set(nodes));
         for (const id of nodes) {
-            const node = this.nodes.get(id);
+            const node = dropped.has(id) ? undefined : this.nodes.get(id);
             if (node !== undefined) {
                 this.disposeRenderNode(node, true);
             }
@@ -1275,13 +1752,23 @@ export class DataManager implements Manager {
         // The layout lets go of them too, as it does of a node removed one at a time: an engine
         // still holding the old nodes would lay out a graph that no longer exists and write their
         // old rows into the position array, growing it under the snapshot it is lent to.
-        for (const edge of this.edges.values()) {
+        this.layoutEdgeRows?.remove(this.unbuiltEdgeIds.keys());
+        this.unbuiltEdges.clear();
+        this.unbuiltEdgeIds.clear();
+        for (const edge of this.edgeMap.built()) {
             if (this.layoutEngine) {
                 layoutEngineInternals.removeEdge(this.layoutEngine, edge);
             }
         }
 
-        for (const node of this.nodes.values()) {
+        for (const index of [...this.unbuilt.keys()]) {
+            this.dropUnbuilt(index);
+        }
+        // Before the mesh cache lets their batches go: the empty graph is frozen lazily, so no
+        // freeze would name these rows dropped (`EdgeRowLines.rowsMoved`).
+        this.graphContext?.getEdgeRowLines?.()?.clear();
+
+        for (const node of this.nodeMap.built()) {
             placeNodeRow(node, INVALID_INDEX);
             if (this.layoutEngine) {
                 layoutEngineInternals.removeNode(this.layoutEngine, node);
@@ -1391,12 +1878,31 @@ export class DataManager implements Manager {
                 this.dropEverythingRendered();
             },
             nodeStored: (id, record, index) => {
+                if (this.storesWithoutNode(index)) {
+                    this.storeUnbuilt(id, record, index);
+                    return;
+                }
+
                 this.buildNode(id, record, index);
             },
             edgeStored: (edge) => {
+                // The rows stored before this edge get their bodies first, as each one's `Node`
+                // would have at store time: an edge reaching the layout first makes its ends'
+                // bodies in edge order, and a seeded simulation then draws another picture.
+                this.layOutArrivedRows();
                 this.buildEdge(edge);
             },
+            // On the "batched" path a batch's caps, built with its edges, make room once (`poolReserve.ts`).
+            edgesArriving: (count) => {
+                if (this.graphContext && (this.graphContext.getNodeBatches?.() ?? null) !== null) {
+                    armPoolReserve(this.graphContext.getScene(), count, ["caps"]);
+                }
+            },
+            ceilings: () => this.renderLimits?.ceilings(),
+            batched: () => this.renderLimits?.batched() ?? false,
             nodesArrived: (count) => {
+                this.layOutArrivedRows();
+
                 // Request layout start and zoom to fit
                 this.shouldStartLayout = true;
                 this.shouldZoomToFit = true;
@@ -1408,6 +1914,10 @@ export class DataManager implements Manager {
                 this.eventManager.emitDataAdded("nodes", count, true, true, this.cause);
             },
             edgesArrived: (count) => {
+                if (this.graphContext && (this.graphContext.getNodeBatches?.() ?? null) !== null) {
+                    clearPoolReserve(this.graphContext.getScene(), ["caps"]);
+                }
+
                 this.shouldStartLayout = true;
                 this.eventManager.emitDataAdded("edges", count, true, false, this.cause);
             },
@@ -1526,7 +2036,28 @@ export class DataManager implements Manager {
      *     node the freeze dropped
      */
     private walkNodeRemap(remap: U32): void {
-        for (const node of this.nodes.values()) {
+        const unbuilt = [...this.unbuilt];
+        this.unbuilt.clear();
+        this.unbuiltIds.clear();
+        for (const [index, row] of unbuilt) {
+            let moved = remap[index] ?? INVALID_INDEX;
+            if (moved === INVALID_INDEX) {
+                // A builder put back in place of the one remapped (undo of a replacing load) names
+                // none of the old rows; a row it still holds is drawn on its row there, as a kept
+                // `Node` is placed by `placeKept`, and one it does not is let go.
+                moved = this.store.builder.indexOf(row.id);
+                if (moved === INVALID_INDEX) {
+                    continue;
+                }
+
+                this.graphContext?.getStylePainter?.()?.queue("node", moved);
+            }
+
+            this.unbuilt.set(moved, row);
+            this.unbuiltIds.set(row.id, moved);
+        }
+
+        for (const node of this.nodeMap.built()) {
             // A node that never reached the store carries INVALID_INDEX, which is 0xFFFFFFFF and
             // therefore past the end of the remap: the read is `undefined` and it stays invalid.
             placeNodeRow(node, remap[node.index] ?? INVALID_INDEX);
@@ -1541,8 +2072,19 @@ export class DataManager implements Manager {
      * @param remap - the freeze report's edgeRemap: old index -> new index, or INVALID_INDEX
      */
     private walkEdgeRemap(remap: U32): void {
+        const unbuilt = [...this.unbuiltEdges.values()];
+        this.unbuiltEdges.clear();
+        this.unbuiltEdgeIds.clear();
+        for (const stored of unbuilt) {
+            const moved = remap[stored.edgeIndex] ?? INVALID_INDEX;
+            if (moved !== INVALID_INDEX) {
+                this.unbuiltEdges.set(moved, { ...stored, edgeIndex: moved });
+                this.unbuiltEdgeIds.set(edgeIdOf(stored.edgeId), moved);
+            }
+        }
+
         this.edgeRows.length = 0;
-        for (const edge of this.edges.values()) {
+        for (const edge of this.edgeMap.built()) {
             const moved = remap[edge.index] ?? INVALID_INDEX;
             placeEdgeRow(edge, moved);
             if (moved !== INVALID_INDEX) {
@@ -1638,6 +2180,8 @@ export class DataManager implements Manager {
      */
     private resetStore(): void {
         this.edgeRows.length = 0;
+        this.unbuiltEdges.clear();
+        this.unbuiltEdgeIds.clear();
         this.pendingEdges = [];
         this.pendingByPair.clear();
         this.ingest.reset();
@@ -1705,12 +2249,12 @@ export class DataManager implements Manager {
      */
     private disposeNodesAndEdges(): void {
         this.flushReleasing();
-        disposeReleased(this.nodes.values(), this.edges.values(), () => {
-            for (const edge of this.edges.values()) {
+        disposeReleased(this.nodeMap.built(), this.edgeMap.built(), () => {
+            for (const edge of this.edgeMap.built()) {
                 edge.dispose();
             }
 
-            for (const node of this.nodes.values()) {
+            for (const node of this.nodeMap.built()) {
                 node.dispose();
             }
         });
@@ -1727,6 +2271,8 @@ export class DataManager implements Manager {
         // Clear all collections
         this.nodeMap.clear();
         this.edgeMap.clear();
+        this.unbuiltEdges.clear();
+        this.unbuiltEdgeIds.clear();
         this.nodeVersion++;
         this.edgeVersion++;
         this.nodeCache.clear();
@@ -1788,6 +2334,17 @@ export class DataManager implements Manager {
             op: "data.apply",
             mutation: { kind: "add-nodes", records: nodes, ...(idPath === undefined ? {} : { idPath }) },
         });
+    }
+
+    /**
+     * Hand the layout the rows stored with no `Node` since it was last handed any.
+     */
+    private layOutArrivedRows(): void {
+        const rows = this.arrivedRows;
+        this.arrivedRows = [];
+        if (rows.length > 0) {
+            this.layoutRows?.(rows);
+        }
     }
 
     /**
@@ -1879,19 +2436,41 @@ export class DataManager implements Manager {
      * @param node - the raw record
      * @param index - the row the store gave it; INVALID_INDEX for an id graph-format will not
      *     take, and the node renders anyway. See the class comment.
+     * @param announce - emit `node-add-before` and hold the draw for the pass that paints the row;
+     *     false for a row stored earlier, which already did both
+     * @param look - What a batch drew the row as: the `Node` is built from the same source and takes
+     *     the paint it had, as the row's `Node` would have had them built at store time.
+     * @returns the `Node`
      */
-    private buildNode(nodeId: NodeIdType, node: Record<string | number, unknown>, index: number): void {
+    private buildNode(
+        nodeId: NodeIdType,
+        node: Record<string | number, unknown>,
+        index: number,
+        announce = true,
+        look: { sourcePaint: NodePaint; paint: NodePaint } | null = null,
+    ): Node {
         if (!this.graphContext) {
             throw new Error("GraphContext not set. Call setGraphContext before adding nodes.");
         }
 
         // The element's own defaults, because the row index the session's paint is addressed
         // by is assigned on the line below this one. The pass that paints the row replaces it,
-        // and no frame is drawn before then.
-        this.builtUnpainted(`n:${JSON.stringify(nodeId)}`, "node", index);
-        const n = new Node(this.graphContext, nodeId, bootstrapNodePaint(), node as AdHocData, {
+        // and no frame is drawn before then. A row stored earlier with no Node keeps its key
+        // among the unpainted until a pass paints it; once painted, no pass will come for it,
+        // so its paint is queued and only the next frame's update is waited for.
+        if (announce) {
+            this.builtUnpainted(`n:${JSON.stringify(nodeId)}`, "node", index);
+        } else {
+            this.graphContext.getStylePainter?.()?.queue("node", index);
+            this.paintUndrawn = true;
+        }
+
+        const n = new Node(this.graphContext, nodeId, look?.sourcePaint ?? bootstrapNodePaint(), node as AdHocData, {
             pinOnDrag: this.graphContext.getConfig().pinOnDrag,
         });
+        if (look !== null) {
+            n.takeDrawnPaint(look.paint);
+        }
         this.builtNodes++;
         placeNodeRow(n, index);
         this.nodeCache.set(nodeId, n);
@@ -1903,11 +2482,148 @@ export class DataManager implements Manager {
             layoutEngineInternals.addNode(this.layoutEngine, n);
         }
 
+        // after the engine has it: drawing reads its place from the engine
+        if (!announce) {
+            this.paintBuiltRow(n, index);
+        }
+
         // Emit node added event
-        this.eventManager.emitNodeEvent("node-add-before", {
-            nodeId,
-            metadata: node,
-        });
+        if (announce) {
+            this.eventManager.emitNodeEvent("node-add-before", {
+                nodeId,
+                metadata: node,
+            });
+        }
+
+        return n;
+    }
+
+    /**
+     * Draw a `Node` built for a row a batch drew with no `Node` as that row was drawn, at once: a
+     * caller that asked for the `Node` reads its mesh and place before the next frame paints it.
+     * @param node - The new `Node`.
+     * @param index - Its row.
+     */
+    private paintBuiltRow(node: Node, index: number): void {
+        const paint = this.graphContext?.getStylePainter?.()?.nodePaint(index) ?? null;
+        if (paint === null) {
+            return;
+        }
+
+        if (nodeRebuildsFor(node, paint)) {
+            disposeReleased([node], [], () => {
+                releaseNodeMesh(node);
+            });
+        }
+
+        node.applySessionPaint(paint);
+        // and at its place, which a frame's update would otherwise write only at the next frame
+        node.update();
+    }
+
+    /**
+     * Store a row with no `Node`: drawn by its batch, handed to the layout with the next rows that
+     * arrive, and announced with `node-add-before` as its `Node` would have been.
+     * @param id - The id.
+     * @param record - The record.
+     * @param index - Its row.
+     */
+    private storeUnbuilt(id: NodeIdType, record: Record<string | number, unknown>, index: number): void {
+        this.graphContext?.getNodeBatches?.()?.prepareSource(bootstrapNodePaint());
+        this.unbuilt.set(index, { id, record });
+        this.unbuiltIds.set(id, index);
+        this.arrivedRows.push(id);
+        this.builtUnpainted(`n:${JSON.stringify(id)}`, "node", index);
+        this.nodeVersion++;
+        this.eventManager.emitNodeEvent("node-add-before", { nodeId: id, metadata: record });
+    }
+
+    /**
+     * Whether a row the store has just taken is drawn with no `Node`: under `"batched"`, with
+     * batches to draw it, a row in the store, and a layout that places rows it was never handed.
+     * @param index - The row.
+     * @returns True to store it with no `Node`.
+     */
+    private storesWithoutNode(index: number): boolean {
+        return (
+            index !== INVALID_INDEX &&
+            this.layoutRows !== null &&
+            this.renderLimits?.batched() === true &&
+            (this.graphContext?.getNodeBatches?.() ?? null) !== null
+        );
+    }
+
+    /**
+     * The row of an id stored with no `Node`.
+     * @param id - The id.
+     * @returns Its row, or INVALID_INDEX when it has a `Node` or is not stored.
+     */
+    private unbuiltRowOf(id: NodeIdType): number {
+        // By its own map, not the store's: a row the store has just let go (undo of its add) is
+        // still drawn, and still has to be found to be torn down.
+        return this.unbuiltIds.get(id) ?? INVALID_INDEX;
+    }
+
+    /**
+     * Build the `Node` of a row stored with no `Node`, which then draws the row in its place.
+     * @param id - The id.
+     * @returns The `Node`, or undefined for an id with no such row.
+     */
+    private buildRow(id: NodeIdType): Node | undefined {
+        const index = this.unbuiltRowOf(id);
+        const row = this.unbuilt.get(index);
+        if (row === undefined) {
+            return undefined;
+        }
+
+        this.unbuilt.delete(index);
+        this.unbuiltIds.delete(id);
+        const batches = this.graphContext?.getNodeBatches?.();
+        const look = batches?.lookOf(index) ?? null;
+        batches?.unpaintRow(index);
+        const before = this.nodeVersion;
+        const node = this.buildNode(id, row.record, index, false, look);
+        this.lateNodeVersions += this.nodeVersion - before;
+        this.graphContext?.getUpdateManager?.().adoptBuiltNode(node);
+        return node;
+    }
+
+    /**
+     * Forget a row stored with no `Node`, and stop drawing it.
+     * @param index - The row.
+     */
+    private dropUnbuilt(index: number): void {
+        const row = this.unbuilt.get(index);
+        this.unbuilt.delete(index);
+        // Only while the id still names this row: a replacing load may have stored it on another.
+        if (row !== undefined && this.unbuiltIds.get(row.id) === index) {
+            this.unbuiltIds.delete(row.id);
+        }
+
+        this.graphContext?.getNodeBatches?.()?.unpaintRow(index);
+        // A d3 or ngraph engine holds a body for the row; one left behind keeps pushing the rest.
+        const engine = this.layoutEngine;
+        if (row !== undefined && (engine instanceof D3GraphEngine || engine instanceof NGraphEngine)) {
+            engine.removeRows([row.id]);
+        }
+    }
+
+    /**
+     * Forget the rows stored with no `Node` among some ids, which the store may no longer hold.
+     * @param ids - The ids.
+     * @returns The ids that were such rows.
+     */
+    private dropUnbuiltIds(ids: ReadonlySet<NodeIdType>): Set<NodeIdType> {
+        const dropped = new Set<NodeIdType>();
+        for (const id of ids) {
+            const index = this.unbuiltIds.get(id);
+            if (index !== undefined) {
+                this.dropUnbuilt(index);
+                dropped.add(id);
+            }
+        }
+
+        return dropped;
     }
 
     /**
@@ -1930,11 +2646,9 @@ export class DataManager implements Manager {
             // resolve differently from an immediate one.
             const { record, sourceId, targetId, edgeIndex, edgeId } = pending;
 
-            // Check if both nodes now exist
-            const srcNode = this.nodeCache.get(sourceId);
-            const dstNode = this.nodeCache.get(targetId);
-
-            if (!srcNode || !dstNode) {
+            // Check if both nodes now exist. `has`, not `get`: the edge reaches its ends through its
+            // accessors, so building it needs neither end's `Node`.
+            if (!this.nodeCache.has(sourceId) || !this.nodeCache.has(targetId)) {
                 // Nodes still don't exist, keep it pending
                 stillPending.push(pending);
                 continue;
@@ -1988,6 +2702,7 @@ export class DataManager implements Manager {
      *     endpoint ids graph-format will not store is rejected before it reaches here
      */
     private registerEdge(edge: Edge, edgeIndex: number): void {
+        this.builtEdges++;
         placeEdgeRow(edge, edgeIndex);
         this.edgeRows[edgeIndex] = edge;
         this.edgeMap.set(edge.id, edge);
@@ -2030,8 +2745,17 @@ export class DataManager implements Manager {
      * @internal
      */
     incidentEdgeIds(node: Node): EdgeId[] {
+        return this.incidentEdgeIdsOf(node.id);
+    }
+
+    /**
+     * See {@link DataManager.incidentEdgeIds}.
+     * @param nodeId - The node.
+     * @returns The ids of its edges.
+     */
+    private incidentEdgeIdsOf(nodeId: NodeIdType): EdgeId[] {
         const ids: EdgeId[] = [];
-        for (const counter of this.store.incidentEdgeIds([node.id])) {
+        for (const counter of this.store.incidentEdgeIds([nodeId])) {
             const id = edgeIdOf(counter);
             if (this.edgeMap.has(id)) {
                 ids.push(id);
@@ -2059,13 +2783,14 @@ export class DataManager implements Manager {
     removeNodeAndIncidentEdges(nodeId: NodeIdType): readonly EdgeId[] | null {
         // Through `getNode`, so an id printed as text still names a node the file supplied as a
         // number; the rows are held under the id the node actually carries.
-        const node = this.getNode(nodeId);
-        if (node === undefined) {
+        // `has`, not `get`: a row with no `Node` is removed without building one.
+        const id = this.nodes.has(nodeId) ? nodeId : otherIdSpelling(nodeId);
+        if (id === undefined || !this.nodes.has(id)) {
             return null;
         }
 
         this.removedEdges = [];
-        this.write({ kind: "remove-nodes", ids: [node.id] });
+        this.write({ kind: "remove-nodes", ids: [id] });
         return this.removedEdges;
     }
 
@@ -2211,11 +2936,9 @@ export class DataManager implements Manager {
     private buildEdge(stored: StoredEdge): void {
         const { record: edge, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId } = stored;
 
-        // Check if both nodes exist before creating the RENDER object, which reads them
-        const srcNode = this.nodeCache.get(srcNodeId);
-        const dstNode = this.nodeCache.get(dstNodeId);
-
-        if (!srcNode || !dstNode) {
+        // Check if both nodes exist before creating the RENDER object. `has`, not `get`: the edge
+        // reaches its ends through its accessors, so building it needs neither end's `Node`.
+        if (!this.nodeCache.has(srcNodeId) || !this.nodeCache.has(dstNodeId)) {
             // Defer the render object until the nodes exist
             const pending: PendingEdge = {
                 record: edge,
@@ -2229,6 +2952,54 @@ export class DataManager implements Manager {
             return;
         }
 
+        if (this.storesWithoutEdge(stored)) {
+            this.unbuiltEdges.set(edgeIndex, stored);
+            this.unbuiltEdgeIds.set(edgeIdOf(edgeId), edgeIndex);
+            // ponytail: one hand-over per edge; buffer them as `arrivedRows` does if a profile shows the calls.
+            this.layoutEdgeRows?.add([edgeRowOf(stored)]);
+            this.builtUnpainted(`e:${edgeIdOf(edgeId)}`, "edge", edgeIndex);
+            this.edgeVersion++;
+        } else {
+            this.makeEdge(stored);
+        }
+
+        // Emit edge added event
+        this.eventManager.emitEdgeEvent("edge-add-before", {
+            srcNodeId,
+            dstNodeId,
+            metadata: edge,
+        });
+    }
+
+    /**
+     * Whether an edge the store has just taken, with both ends stored, is stored with no `Edge`: when
+     * switched on, or, unless switched off, under `"batched"` with row lines to draw it; and always with a
+     * row and a layout that takes edge rows.
+     * @param stored - The edge.
+     * @returns True to store it with no `Edge`.
+     */
+    private storesWithoutEdge(stored: StoredEdge): boolean {
+        if (stored.edgeIndex === INVALID_INDEX || this.layoutEdgeRows === null) {
+            return false;
+        }
+
+        if (this.edgesUnbuilt !== null) {
+            return this.edgesUnbuilt;
+        }
+
+        return this.renderLimits?.batched() === true && (this.graphContext?.getEdgeRowLines?.() ?? null) !== null;
+    }
+
+    /**
+     * Build the `Edge` of an edge whose ends are stored, and register it.
+     * @param stored - The edge, its ends and its row.
+     * @param announce - False for an edge stored earlier with no `Edge`, whose key a pass may have painted
+     *   already, so only its paint is queued (as `buildNode` does for a row with no `Node`).
+     * @param queue - With `announce` false: false when the caller paints it now, so it is not painted twice.
+     * @returns The `Edge`.
+     */
+    private makeEdge(stored: StoredEdge, announce = true, queue = true): Edge {
+        const { record: edge, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId } = stored;
         const opts = {};
         if (!this.graphContext) {
             throw new Error("GraphContext not set. Call setGraphContext before adding edges.");
@@ -2244,19 +3015,68 @@ export class DataManager implements Manager {
             opts,
         );
         this.registerEdge(e, edgeIndex);
-        this.builtUnpainted(`e:${edgeIdOf(edgeId)}`, "edge", edgeIndex);
+        if (announce) {
+            this.builtUnpainted(`e:${edgeIdOf(edgeId)}`, "edge", edgeIndex);
+        } else if (queue) {
+            this.graphContext.getStylePainter?.()?.queue("edge", edgeIndex);
+            this.paintUndrawn = true;
+        }
 
-        // Add to layout engine if it exists
-        if (this.layoutEngine) {
+        // Add to layout engine if it exists; an edge it already lays out by row keeps its place there.
+        const adopted = !announce && this.layoutEdgeRows?.adopt(edgeIdOf(edgeId), e) === true;
+        if (this.layoutEngine && !adopted) {
             layoutEngineInternals.addEdge(this.layoutEngine, e);
         }
 
-        // Emit edge added event
-        this.eventManager.emitEdgeEvent("edge-add-before", {
-            srcNodeId,
-            dstNodeId,
-            metadata: edge,
-        });
+        return e;
+    }
+
+    /**
+     * Build the `Edge` of an edge stored with no `Edge`, which then draws it.
+     * @param row - Its row.
+     * @param queue - False when the caller paints it now, so its paint is not queued too.
+     * @returns The `Edge`, or undefined for a row with no such edge.
+     */
+    private buildEdgeRow(row: number, queue = true): Edge | undefined {
+        const stored = this.unbuiltEdges.get(row);
+        if (stored === undefined) {
+            return undefined;
+        }
+
+        // A row line's paint is one an `Edge` pulls as a straight line, which needs no placement: the `Edge` takes it
+        // now, so reading the edge map never shows its placeholder look until the frame loop paints it.
+        const lined = queue && this.graphContext?.getEdgeRowLines?.()?.has(row) === true;
+        // The layout keeps the row's place for the `Edge` (`adopt`), so it is not dropped here.
+        this.forgetUnbuiltEdge(row, false);
+        const edge = this.makeEdge(stored, false, queue);
+        const paint = lined ? (this.graphContext?.getStylePainter?.()?.edgePaint(row) ?? null) : null;
+        if (paint !== null) {
+            edge.applySessionPaint(paint);
+        }
+
+        return edge;
+    }
+
+    /**
+     * Forget an edge stored with no `Edge`.
+     * @param row - Its row.
+     * @param leaves - False when its `Edge` is being built, which takes over the row's place in the layout.
+     */
+    private forgetUnbuiltEdge(row: number, leaves = true): void {
+        const stored = this.unbuiltEdges.get(row);
+        this.unbuiltEdges.delete(row);
+        // Its row line goes with it; a built `Edge` draws it from here on.
+        this.graphContext?.getEdgeRowLines?.()?.unpaintRow(row);
+        // Only while the id still names this row; the layout lets its edge row go with it, before a
+        // built `Edge` reaches the engine in its place.
+        if (stored !== undefined && this.unbuiltEdgeIds.get(edgeIdOf(stored.edgeId)) === row) {
+            this.unbuiltEdgeIds.delete(edgeIdOf(stored.edgeId));
+            if (leaves) {
+                this.layoutEdgeRows?.remove([edgeIdOf(stored.edgeId)]);
+            }
+        }
+
+        this.edgeVersion++;
     }
 
     /**
@@ -2265,7 +3085,7 @@ export class DataManager implements Manager {
      * @returns the existing edge, or null when the row is not one this manager holds
      */
     private existingAt(edgeIndex: number): ExistingEdge | null {
-        const edge = this.edgesByIndex[edgeIndex];
+        const edge = this.edgesByIndex[edgeIndex] ?? this.buildEdgeRow(edgeIndex);
         if (edge) {
             return { edgeIndex, edge, pending: null };
         }
@@ -2298,26 +3118,34 @@ export class DataManager implements Manager {
     drawnBundle(edge: Edge): EdgeBundle {
         if (this.bundles?.version !== this.edgeVersion) {
             const byEdge = new Map<Edge, EdgeBundle>();
-            const pairs = new Map<Node, Map<Node, Edge[]>>();
-            for (const each of this.edgeMap.values()) {
-                const { srcNode: a, dstNode: b } = each;
+            // By id, not by `Node`: reading an end's `Node` would build one for a row drawn with none.
+            // An edge stored with no `Edge` joins by its row, and is built only when it shares its
+            // pair with another edge: a fan is drawn by `Edge`s, a lone edge needs none.
+            const pairs = new Map<NodeIdType, Map<NodeIdType, (Edge | number)[]>>();
+            const join = (a: NodeIdType, b: NodeIdType, each: Edge | number): void => {
                 let group = pairs.get(a)?.get(b) ?? pairs.get(b)?.get(a);
                 if (group === undefined) {
                     group = [];
-                    const inner = pairs.get(a) ?? new Map<Node, Edge[]>();
+                    const inner = pairs.get(a) ?? new Map<NodeIdType, (Edge | number)[]>();
                     inner.set(b, group);
                     pairs.set(a, inner);
                 }
 
                 group.push(each);
+            };
+            for (const each of this.edgeMap.built()) {
+                join(each.srcId, each.dstId, each);
             }
 
+            for (const [row, stored] of this.unbuiltEdges) {
+                join(stored.sourceId, stored.targetId, row);
+            }
+
+            const byRow = this.renderLimits?.batched() === true;
             for (const inner of pairs.values()) {
-                for (const group of inner.values()) {
-                    if (group.length > 1) {
-                        group.forEach((each, rank) => {
-                            byEdge.set(each, { rank, count: group.length, first: group[0], members: group });
-                        });
+                for (const joined of inner.values()) {
+                    if (joined.length > 1) {
+                        this.joinBundle(joined, byRow, byEdge);
                     }
                 }
             }
@@ -2326,6 +3154,25 @@ export class DataManager implements Manager {
         }
 
         return this.bundles.byEdge.get(edge) ?? { rank: 0, count: 1, first: edge, members: [edge] };
+    }
+
+    /**
+     * Record one fan of {@link drawnBundle}'s, building the `Edge` of each member stored with none.
+     * @param joined - Its members: `Edge`s, and the rows of edges stored with no `Edge`.
+     * @param byRow - Under "batched": order it by row, oldest first, so an `Edge` built late (from a row
+     *   stored with none) is not last in its fan for that. The objects path keeps its build order.
+     * @param byEdge - Where each member's place is recorded.
+     */
+    private joinBundle(joined: (Edge | number)[], byRow: boolean, byEdge: Map<Edge, EdgeBundle>): void {
+        if (byRow) {
+            const rowOf = (each: Edge | number): number => (typeof each === "number" ? each : each.index);
+            joined.sort((x, y) => rowOf(x) - rowOf(y));
+        }
+
+        const group = joined.flatMap((each) => (typeof each === "number" ? (this.buildEdgeRow(each) ?? []) : each));
+        group.forEach((each, rank) => {
+            byEdge.set(each, { rank, count: group.length, first: group[0], members: group });
+        });
     }
 
     /** {@link DataManager.drawnBundle}'s answers, and the edge set they were worked out over. */
@@ -2345,8 +3192,8 @@ export class DataManager implements Manager {
      * edges became representable.
      *
      * Answered by the store: the builder's incidence lists name the live edges between the two
-     * rows, and `edgesByIndex` turns each into its render object. An edge whose render object is
-     * still pending is left out, and so, in an undirected graph, is an edge recorded the other way
+     * rows, and `edgesByIndex` turns each into its render object, built here for an edge stored
+     * with none. An edge whose render object is still pending is left out, and so, in an undirected graph, is an edge recorded the other way
      * round -- the pair is ORDERED, the same question for either direction.
      * @param srcNodeId - Source node identifier
      * @param dstNodeId - Destination node identifier
@@ -2366,7 +3213,7 @@ export class DataManager implements Manager {
 
         const found: Edge[] = [];
         for (const e of builder.findEdges(u, v)) {
-            const edge = this.edgeRows[e];
+            const edge = this.edgeRows[e] ?? this.buildEdgeRow(e);
             if (edge !== undefined && builder.indexOf(edge.srcId) === u) {
                 found.push(edge);
             }
@@ -2601,7 +3448,7 @@ export class DataManager implements Manager {
      * Called when layout has settled
      */
     startLabelAnimations(): void {
-        for (const node of this.nodes.values()) {
+        for (const node of this.nodeMap.built()) {
             node.label?.startAnimation();
         }
     }

@@ -68,8 +68,8 @@ let pendingFocus: { readonly target: string; readonly onBox?: boolean } | null =
 /** While a new card is taken back, its removal is no filter change to say: "Filter not added" says it. */
 let takingBack = 0;
 
-/** The controls that open a new filter card and stay on screen: the canvas toolbar's Filters, "+". */
-const OPENS_FILTERS = '[data-command="filters.open"], [data-filters-plus] [data-add]';
+/** The control that opens a new filter card and stays on screen: "+". */
+const OPENS_FILTERS = "[data-filters-plus] [data-add]";
 
 /** A card's on box, inside the card. */
 const ON_BOX = ".dp-filter-on input[type=checkbox]";
@@ -133,14 +133,14 @@ const hides = (condition: FilterCondition): boolean => condition.effect !== "sel
  * have no value, then the time window's row. "+" adds a card. One card is open at a time; the rest
  * rest as their summary. A load's section lists that load's filters, and "+" there makes one for
  * that load (graphty-element's `FilterCondition.source`): it judges only that load's nodes and
- * edges, and counts "N of that load's". The primary section takes the canvas toolbar's Filters and
+ * edges, and counts "N of that load's". The primary section takes the Filters command and
  * an attribute's Filter to..., and holds the time window's row.
  * @param props - Component props
  * @param props.source - the load whose filters it lists: those made for it, and, when it is the
  * only load (`primary`), those of no load too
  * @param props.unscoped - with no `source`, list only the filters of no load (beside each load's
  * own section); otherwise every filter
- * @param props.primary - whether it is the section the toolbar and Filter to... open (default true)
+ * @param props.primary - whether it is the section the Filters command and Filter to... open (default true)
  * @param props.headingLevel - its heading's level, under a load's own section
  * @returns the section.
  */
@@ -191,7 +191,7 @@ export function FiltersSection({
     }, [version]);
 
     // The control that opened the newest card, kept only when it is one that opens filters (the
-    // canvas toolbar's Filters, "Add filter"): focus returns to it when the new card goes (Cancel,
+    // "Add filter"): focus returns to it when the new card goes (Cancel,
     // Escape on its empty picker, Done with no step) and it is still on screen, else to "Add
     // filter". Opened from Quick actions or a menu's Filter to..., what held focus is the page body
     // or a control the closing popup hands focus to, never one that opens filters. The workspace
@@ -234,12 +234,12 @@ export function FiltersSection({
     openRef.current = open;
     const listedRef = useRef(listed);
     listedRef.current = listed;
-    // An attribute's Filter to... opens a card on it; the toolbar's Filters opens "+".
+    // An attribute's Filter to... opens a card on it; the Filters command opens "+".
     useEffect(() => {
         if (asked === null || session === null) {
             return;
         }
-        // The toolbar's Filters edits the one filter there is, in whichever section lists it, shows
+        // The Filters command edits the one filter there is, in whichever section lists it, shows
         // two or more where they are listed, and starts one only when there is none.
         const saved = session.visibility.conditions;
         if (asked === PLUS && saved.length === 1 && listedRef.current(saved[0])) {

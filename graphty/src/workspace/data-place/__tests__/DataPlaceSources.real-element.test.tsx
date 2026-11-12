@@ -101,7 +101,7 @@ describe("the Sources tab with two loads", () => {
         await userEvent.click(within(place).getByRole("button", { name: "Add source" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Samples/ }));
         const dialog = await screen.findByRole("dialog");
-        await userEvent.click(within(dialog).getAllByText("Les Miserables", { exact: true })[0]);
+        await userEvent.click(within(dialog).getByRole("button", { name: /^Les Miserables: / }));
         await userEvent.click(await screen.findByRole("button", { name: "Add as rows" }));
         const loads = await waitFor(() => {
             const found = session.data.sources();

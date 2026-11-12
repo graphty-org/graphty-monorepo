@@ -3,12 +3,7 @@ import { registry as sourceRegistry, SOURCE_FORMAT_PREFIX } from "@graphty/graph
 import { css, LitElement, type PropertyValues, ReactiveElement } from "lit";
 import { property } from "lit/decorators.js";
 
-import {
-    type AccelerationController,
-    type AccelerationPolicy,
-    type Capabilities,
-    isAccelerationPolicy,
-} from "./acceleration";
+import { type AccelerationController, type AccelerationPolicy, isAccelerationPolicy } from "./acceleration";
 import { type AutosaveAtRisk, ElementAutosave, resolveAutosaveKey } from "./autosave/elementAutosave";
 import { type PageSource, sourceSlot } from "./autosave/recovery";
 import type {
@@ -43,6 +38,7 @@ import type { PartialXRConfig } from "./config/xr-config-schema";
 import { CredentialStore } from "./credentials/CredentialStore";
 import { DataSource } from "./data/DataSource";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
+import type { GraphtyWarningCode } from "./errors/codes";
 import { isGraphtyError } from "./errors/GraphtyError";
 import {
     type GraphtyForwardedEventMap,
@@ -56,7 +52,8 @@ import { featuresFrom, Graph, loadSourcePair, type NodeScreenPosition, operation
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
-import type { NodeThumbnailOptions } from "./meshes/NodeThumbnail";
+import type { ModelThumbnailOptions, NodeThumbnailOptions } from "./meshes/NodeThumbnail";
+import { antialiasDefault } from "./meshes/PulledLineBatch";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import {
@@ -70,6 +67,7 @@ import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT, type LayoutSetCommand } from "./session/commands/layout";
 import { recordsInRowOrder } from "./session/data";
 import { dispatcherOf, DISPOSED_STATUS } from "./session/GraphSession";
+import type { LimitsOption } from "./session/limits";
 import { loadLineOf } from "./session/loadLine";
 import type { NoteChange } from "./session/notes/types";
 import type { GraphSlice } from "./session/project/state";
@@ -89,7 +87,13 @@ import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
 import type { SourceExpanded, SourceExpandFailed, SourceExpandStart, SourceLoadOptions } from "./session/sources/types";
 import type { DefaultPalettes } from "./session/styles";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
-import type { ModelChange, ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
+import type {
+    ModelChange,
+    ProjectConfigPatch,
+    SessionCapabilities,
+    SessionEventMap,
+    TransactionScope,
+} from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
 import { downloadBlob } from "./utils/download";
 
@@ -112,6 +116,16 @@ const ELEMENT_SOURCE = "element-source";
  * one `layout.set`, one build and one step.
  */
 const ELEMENT_LAYOUT = "element-layout";
+
+/**
+ * The `antialias` attribute's value: only `"false"` turns multisampling off, and no attribute
+ * leaves it on.
+ * @param value - The attribute, or null when there is none.
+ * @returns Whether to multisample.
+ */
+function antialiasFromAttribute(value: string | null): boolean {
+    return value === null ? antialiasDefault.value : value !== "false";
+}
 
 /**
  * A file name for an export in a format other than a project file: the project's name, or
@@ -180,6 +194,8 @@ export class Graphty extends LitElement {
     }
 
     #builtGraph: Graph | undefined;
+    /** The `antialias` property as set before the engine was built; undefined when it was not. */
+    #antialias: boolean | undefined;
     readonly #element: Element;
     #resizeObserver: ResizeObserver | null = null;
     #capabilitiesMirrored = false;
@@ -234,7 +250,11 @@ export class Graphty extends LitElement {
      */
     get #graph(): Graph {
         if (this.#builtGraph === undefined) {
-            const graph = new Graph(this.#element);
+            // Read here, the one moment the engine is built: an attribute anywhere in the tag is
+            // already present, though its own callback may not have run yet.
+            const graph = new Graph(this.#element, false, {
+                antialias: this.#antialias ?? antialiasFromAttribute(this.getAttribute("antialias")),
+            });
             this.#builtGraph = graph;
             waitFirstFor(
                 graph,
@@ -342,7 +362,8 @@ export class Graphty extends LitElement {
      * Save the project (`session.project.save`) and hand it to the reader as a download named
      * `<project name>.graphty.json`. Lives on the element, not the session, because the session
      * also runs in Node, where there is nothing to download to.
-     * @param options - What to leave out, your own extensions, and the file's name.
+     * @param options - What to leave out, your own extensions, how to keep models named by URL,
+     *     the file's name, and `markSaved: false` for a copy that leaves `project.dirty` as it was.
      * @returns What the file holds.
      * @example
      * ```typescript
@@ -350,14 +371,18 @@ export class Graphty extends LitElement {
      * ```
      */
     async downloadProject(
-        options: Omit<ProjectSaveOptions, "markSaved"> & { readonly fileName?: string } = {},
+        options: ProjectSaveOptions & { readonly fileName?: string } = {},
     ): Promise<ProjectSaveReport> {
         // The download is the write, and the caller never sees a SavedProject to mark, so this
-        // save always clears `dirty`.
-        const { text, report } = await this.session.project.save({ ...options, markSaved: true });
+        // save clears `dirty` unless the caller asked for a copy.
+        const { fileName, ...saveOptions } = options;
+        const { text, report } = await this.session.project.save({
+            ...saveOptions,
+            markSaved: options.markSaved !== false,
+        });
         downloadBlob(
             new Blob([text], { type: PROJECT_FILE.mediaType }),
-            options.fileName ?? projectFileName(this.session.project.name),
+            fileName ?? projectFileName(this.session.project.name),
         );
         return report;
     }
@@ -1393,6 +1418,10 @@ export class Graphty extends LitElement {
             options: this.#autosaveOptionsValue,
             restore: this.#autosaveRestoreValue,
             pageConfig,
+            camera: {
+                get: () => this.#graph.getCameraState(),
+                set: (state) => this.#graph.setCameraState(state, { animate: false }),
+            },
             reloadPage: async () => {
                 if (pristine !== undefined) {
                     await session.project.open(pristine, { discard: true });
@@ -3897,6 +3926,27 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * One node drawn as a model, alone, exactly as the graph draws it, on a transparent background:
+     * a preview of a model file for a picker or a gallery. Waits for the model to settle. Each
+     * picture is drawn once and kept, by the model's files, size, style values, 2D or 3D and lighting.
+     * @param ref - What `node.model` takes: an asset id from `session.assets.add`, a sample's id,
+     *     or a URL the session holds.
+     * @param options - The picture's size in pixels (32 when left out) and the node's style values
+     *     (`node.color` and the `node.model*` settings) as a layer's `set` holds them.
+     * @returns The picture as a PNG data URL.
+     * @throws GraphtyError `E_MODEL_UNKNOWN_ASSET` when the session holds nothing under `ref`; for a
+     *     rejected model or one waiting for parts, its first problem's code and params.
+     * @example
+     * ```typescript
+     * const asset = await element.session.assets.add(input.files);
+     * img.src = await element.modelThumbnail(asset.id, { size: 160 });
+     * ```
+     */
+    async modelThumbnail(ref: string, options?: ModelThumbnailOptions): Promise<string> {
+        return this.#graph.modelThumbnail(ref, options);
+    }
+
+    /**
      * Phase 6: Capability Check API
      * Check if screenshot can be captured with given options.
      * Available from Phase 6 onwards.
@@ -5848,9 +5898,243 @@ export class Graphty extends LitElement {
      * const result = await element.aiCommand('Show me the most connected nodes');
      * console.log('AI response:', result.message);
      * ```
+     * @param options - The saved conversation to send it into (with `history` set); an unknown
+     *     one resolves `AI_HISTORY_UNAVAILABLE` with `{ reason: "unknown-conversation" }`. `via:
+     *     "voice"` records that the reader spoke it (a transcript from `startVoiceInput`).
      */
-    async aiCommand(message: string): Promise<import("./ai/AiController").ExecutionResult> {
-        return this.#graph.aiCommand(message);
+    async aiCommand(
+        message: string,
+        options?: import("./ai/AiController").AiCommandOptions,
+    ): Promise<import("./ai/AiController").ExecutionResult> {
+        return this.#graph.aiCommand(message, options);
+    }
+
+    /**
+     * The assistant's open conversation, as an application draws it: what the reader and the model
+     * said, and the calls the model made with their outcomes as codes. Needs `history` in
+     * `enableAiControl`; `ai-conversation-changed` says when to read it again.
+     * @returns Its snapshot, or null without `history` or before AI is enabled.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * await element.enableAiControl({ provider: "google", apiKey, history: "browser" });
+     * element.addEventListener("ai-conversation-changed", () => draw(element.getAiConversation()));
+     * ```
+     */
+    getAiConversation(): import("./ai/conversation/snapshot").AiConversationSnapshot | null {
+        return this.#graph.getAiConversation();
+    }
+
+    /**
+     * The approval requests waiting on the reader (`ai-approval-requested` asked, nothing ended
+     * yet): held in this page, or reopened from the saved conversation after a reload, when they
+     * are also asked again with `replayed: true`. Read it any time to draw approval cards.
+     * @returns The requests, oldest first; none before AI is enabled.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * await element.enableAiControl({ provider: "google", apiKey, history: "browser", approvals: "writes" });
+     * for (const request of element.getPendingAiApprovals()) drawCard(request);
+     * ```
+     */
+    getPendingAiApprovals(): readonly import("./events").AiApprovalRequest[] {
+        return this.#graph.getPendingAiApprovals();
+    }
+
+    /**
+     * The questions the model asked the reader and waits on (`ai-question-asked` asked, nothing
+     * ended yet): asked in this page, or reopened from the saved conversation after a reload, when
+     * they are also asked again with `replayed: true`. Read it any time to draw questions.
+     * @returns The questions, oldest first; none before AI is enabled.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * await element.enableAiControl({ provider: "google", apiKey, history: "browser", questions: true });
+     * for (const question of element.getPendingAiQuestions()) drawQuestion(question);
+     * ```
+     */
+    getPendingAiQuestions(): readonly import("./events").AiQuestionRequest[] {
+        return this.#graph.getPendingAiQuestions();
+    }
+
+    /**
+     * What the assistant can use with its provider and model: web search, reading web pages and
+     * in-page code (`AiToolOptions`), each `"available"`, `"unsupported"`,
+     * `"results-not-returned"` or `"unknown"`. Synchronous.
+     * @returns The capabilities, or null before AI is enabled.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * await element.enableAiControl({ provider: "google", apiKey, tools: { webSearch: true } });
+     * const canSearch = element.getAiCapabilities()?.tools["web-search"] === "available";
+     * ```
+     */
+    getAiCapabilities(): import("./catalog/ai").AiCapabilities | null {
+        return this.#graph.getAiCapabilities();
+    }
+
+    /**
+     * Press (`true`) or release (`false`) talk: while it is held the assistant listens, then sends
+     * what was said as a command (`voice` in `enableAiControl`). Without `voice`, or before AI is
+     * enabled, a press ends at once with `ai-voice-end` `{ code: "AI_NOT_ENABLED" }`.
+     * With `{ endOnSilence: true }` the press also ends on its own once the speaker has spoken and
+     * paused (`voice.silenceSeconds`); given while a press already listens, it applies to that press.
+     * @param down - True to press, false to release.
+     * @param options - How the press behaves.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * talkButton.onpointerdown = () => element.aiTalk(true);
+     * talkButton.onpointerup = () => element.aiTalk(false);
+     * // Or: one click listens until the speaker stops.
+     * talkButton.onclick = () => element.aiTalk(true, { endOnSilence: true });
+     * ```
+     */
+    aiTalk(down: boolean, options?: import("./ai/AiManager").AiTalkOptions): void {
+        this.#graph.aiTalk(down, options);
+    }
+
+    /**
+     * Whether talk is on: pressed with `aiTalk(true)` (or toggled on) and still listening. It turns
+     * false the moment talk is released, while what was heard is still being transcribed, and when
+     * a press ends on its own (`ai-voice-end`). A talk button reads it to choose between starting
+     * and stopping, and to label itself.
+     * @returns True while talk is on.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * talkButton.onclick = () => element.aiTalk(!element.isAiTalking());
+     * ```
+     */
+    isAiTalking(): boolean {
+        return this.#graph.isAiTalking();
+    }
+
+    /**
+     * Stop speaking an answer at once (`ai-speech-end` `{ code: "AI_CANCELLED" }`).
+     * @since 4.0.0
+     */
+    stopAiSpeech(): void {
+        this.#graph.stopAiSpeech();
+    }
+
+    /**
+     * End a live conversation (`voice.mode: "live"`): its connection closes, a held press ends with
+     * `AI_CANCELLED`, and the next press opens another, with the conversation as saved. Does
+     * nothing when none is open.
+     * @since 4.0.0
+     */
+    endAiLive(): void {
+        this.#graph.endAiLive();
+    }
+
+    /**
+     * How speech would be carried in each direction now: the path, whether it is ready, why not,
+     * and where the audio goes. It reads what the page and the provider offer, and starts nothing;
+     * `ai-voice-support-change` says when the answer changes.
+     * @returns Both directions; unavailable with `AI_NOT_ENABLED` without `voice`.
+     * @since 4.0.0
+     */
+    getAiVoiceSupport(): Promise<import("./ai/AiManager").AiVoiceSupport> {
+        return this.#graph.getAiVoiceSupport();
+    }
+
+    /**
+     * The assistant's saved conversations, newest first: this element's scope, or every scope.
+     * @param options - Which.
+     * @param options.allKeys - True for every scope's.
+     * @returns Their summaries; none without `history`.
+     * @since 4.0.0
+     */
+    async listAiConversations(options?: {
+        readonly allKeys?: boolean;
+    }): Promise<readonly import("./ai/conversation/snapshot").AiConversationSummary[]> {
+        return this.#graph.listAiConversations(options);
+    }
+
+    /**
+     * Make a saved conversation the open one; the next `aiCommand` continues it. Called while
+     * `enableAiControl` is still coming up, it waits for it, and a graph loaded later never replaces it.
+     * @param id - Its id.
+     * @returns Its snapshot, or null when there is none.
+     * @since 4.0.0
+     */
+    async openAiConversation(id: string): Promise<import("./ai/conversation/snapshot").AiConversationSnapshot | null> {
+        return this.#graph.openAiConversation(id);
+    }
+
+    /**
+     * Start a new conversation; the open one stays saved and listed. Called while
+     * `enableAiControl` is still coming up, it waits for it, and a graph loaded later never replaces it.
+     * @returns Its snapshot, or null without `history`.
+     * @since 4.0.0
+     */
+    async newAiConversation(): Promise<import("./ai/conversation/snapshot").AiConversationSnapshot | null> {
+        return this.#graph.newAiConversation();
+    }
+
+    /**
+     * Delete a saved conversation; deleting the open one starts a new one.
+     * @param id - Its id.
+     * @returns When it is deleted.
+     * @since 4.0.0
+     */
+    async deleteAiConversation(id: string): Promise<void> {
+        return this.#graph.deleteAiConversation(id);
+    }
+
+    /**
+     * Name a saved conversation, or clear its name so `firstWords` titles it again. The name is the
+     * reader's data: it is saved with the conversation, read back as `name` on
+     * `getAiConversation()` and `listAiConversations()`, and renaming the open conversation fires
+     * `ai-conversation-changed`. Renaming does not reorder the list.
+     * @param id - Its id.
+     * @param name - The name, trimmed; null or "" clears it.
+     * @returns When it is saved; rejects when the store cannot save it.
+     * @experimental assistant
+     * @example
+     * ```ts
+     * await element.renameAiConversation(id, "Color by department");
+     * ```
+     */
+    async renameAiConversation(id: string, name: string | null): Promise<void> {
+        return this.#graph.renameAiConversation(id, name);
+    }
+
+    /**
+     * Delete every saved conversation, of every scope: for a shared headset's or kiosk's "end session".
+     * Works with no assistant enabled too: it then clears the browser's store.
+     * @param options - Which store, with no assistant open on one.
+     * @param options.database - The IndexedDB database `history.database` named; `graphty-ai` when absent.
+     * @returns When they are deleted.
+     * @since 4.0.0
+     */
+    async clearAiHistory(options?: { readonly database?: string }): Promise<void> {
+        return this.#graph.clearAiHistory(options);
+    }
+
+    /**
+     * Forget the reader's API keys, from memory and from both storages, whether or not an assistant
+     * is enabled: for a "clear my data" page. An assistant already running keeps the key its provider
+     * was given until `disableAiControl`.
+     * @param options - Which keys.
+     * @param options.provider - One provider's key; every provider's when absent.
+     * @param options.prefix - `keyPersistence.prefix`, with no assistant enabled.
+     * @returns When they are forgotten.
+     * @experimental assistant
+     */
+    async forgetAiKeys(options?: Parameters<Graph["forgetAiKeys"]>[0]): Promise<void> {
+        return this.#graph.forgetAiKeys(options);
+    }
+
+    /**
+     * A saved conversation as JSON, in the published `graphty-ai-conversation` format (version 1).
+     * @param id - Its id.
+     * @returns The JSON text, or null when there is none.
+     * @since 4.0.0
+     */
+    async exportAiConversation(id: string): Promise<string | null> {
+        return this.#graph.exportAiConversation(id);
     }
 
     /**
@@ -5885,6 +6169,70 @@ export class Graphty extends LitElement {
      */
     cancelAiCommand(): void {
         this.#graph.cancelAiCommand();
+    }
+
+    /**
+     * Answer a request the assistant made for the reader's approval (`ai-approval-requested`): a
+     * change it held because it was large, slow, replaced the graph, could not be undone, fetched a
+     * URL the reader did not give, or the `approvals` policy asked. The message that made it
+     * continues: approve runs the held calls (with any `calls[].arguments` the reader edited) as
+     * one more step of the message; deny drops them; either way the model hears the decision and
+     * answers. A new message, `cancelAiCommand()` or an undo of the message ends the request
+     * instead (`ai-pending-resolved`).
+     * @param id - The request's id, from the event.
+     * @param answer - The reader's answer: `{ approve }`, and optionally `calls` with edited arguments.
+     * @returns The message's final result, which `ai-command-complete` also carries:
+     *     `AI_COMPLETED`, `AI_APPROVAL_DENIED` or `AI_APPROVAL_STALE` with the model's answer,
+     *     `AI_CONFIRMATION_NEEDED` with a new request when another limit holds the calls again, or
+     *     `AI_NOT_ENABLED`. An answer given while its message is still running waits for it.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * element.addEventListener("ai-approval-requested", async (event) => {
+     *     const { request } = event.detail;
+     *     await element.resolveAiApproval(request.id, { approve: window.confirm("Apply it?") });
+     * });
+     * ```
+     */
+    async resolveAiApproval(
+        id: string,
+        answer: import("./ai/AiController").AiApprovalAnswer,
+    ): Promise<import("./ai/AiController").ExecutionResult> {
+        return this.#graph.resolveAiApproval(id, answer);
+    }
+
+    /**
+     * Answer a question the model asked the reader (`ai-question-asked`, with `questions: true`).
+     * The message that asked continues: the answer is its question's result, and the model goes
+     * on. A new message, `cancelAiCommand()` or an undo of the message ends the question instead
+     * (`ai-pending-resolved`).
+     * @param id - The question's id, from the event.
+     * @param answer - One of its choices, by value; or several, for a question that takes several.
+     * @param options - How it was given: `typed` lets a text the reader wrote, outside the choices,
+     *     go to the model as written.
+     * @returns The message's final result, which `ai-command-complete` also carries;
+     *     `AI_ANSWER_INVALID` when the answer is not among the choices (the question stays open);
+     *     `AI_APPROVAL_STALE` when the question is no longer open; or `AI_NOT_ENABLED`.
+     * @since 4.0.0
+     * @example
+     * ```typescript
+     * element.addEventListener("ai-question-asked", (event) => {
+     *     const { request } = event.detail;
+     *     for (const choice of request.choices) {
+     *         const button = document.createElement("button");
+     *         button.textContent = choice;
+     *         button.onclick = () => void element.answerAiQuestion(request.id, choice);
+     *         document.body.append(button);
+     *     }
+     * });
+     * ```
+     */
+    async answerAiQuestion(
+        id: string,
+        answer: string | readonly string[],
+        options?: import("./ai/AiController").AiAnswerOptions,
+    ): Promise<import("./ai/AiController").ExecutionResult> {
+        return this.#graph.answerAiQuestion(id, answer, options);
     }
 
     /**
@@ -5961,7 +6309,7 @@ export class Graphty extends LitElement {
      * ```typescript
      * const started = element.startVoiceInput({
      *   onTranscript: (text, isFinal) => {
-     *     if (isFinal) element.aiCommand(text);
+     *     if (isFinal) element.aiCommand(text, { via: "voice" });
      *   },
      *   onStart: (started) => console.log('Voice started:', started)
      * });
@@ -6157,6 +6505,88 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether the canvas is drawn with multisampling (4x), which smooths the edges of lines and
+     * nodes. `false` turns it off: harder edges, and faster frames when there are very many edges.
+     * Nothing else about the picture changes. Under renderPath "batched" it also draws plain straight
+     * 3D edges with a cheaper line program that draws the same pixels. Read once, when the element
+     * builds its engine.
+     * @remarks
+     * Set it as an attribute, in any position in the tag, or as a property before using any other
+     * property or method of the element. A later change takes effect only on a new element and
+     * raises the warning `W_ANTIALIAS_LATE`, as a `graphty-warning` event.
+     * @experimental cosmograph
+     * @example
+     * ```html
+     * <graphty-element render-path="batched" antialias="false"></graphty-element>
+     * ```
+     * @returns Whether the canvas multisamples; true by default.
+     */
+    @property({ attribute: "antialias", converter: { fromAttribute: antialiasFromAttribute } })
+    get antialias(): boolean {
+        return this.#builtGraph?.antialias ?? this.#antialias ?? antialiasFromAttribute(this.getAttribute("antialias"));
+    }
+    /**
+     * Sets whether the canvas multisamples. Once the engine is built a different value changes
+     * nothing and raises `W_ANTIALIAS_LATE`.
+     */
+    set antialias(value: boolean) {
+        const oldValue = this.antialias;
+        const built = this.#builtGraph;
+        if (built === undefined) {
+            this.#antialias = value;
+        } else if (value !== built.antialias) {
+            this.#warn({ code: "W_ANTIALIAS_LATE", params: { requested: value, active: built.antialias } });
+            return;
+        }
+
+        this.requestUpdate("antialias", oldValue);
+    }
+
+    /**
+     * Dispatches a warning as a `graphty-warning` event.
+     * @param warning - The code and its parameters.
+     */
+    #warn(warning: CodedFact<GraphtyWarningCode>): void {
+        this.dispatchEvent(new CustomEvent("graphty-warning", { detail: warning, bubbles: true, composed: true }));
+    }
+
+    /**
+     * The most nodes and edges a load may bring, past the shipped `DEFAULT_LIMITS` (100,000 nodes,
+     * 1,000,000 edges); a field left out keeps its default. Honored under
+     * `render-path="batched"`. Under `"objects"` the defaults stand, a larger load is still refused
+     * with `E_TOO_LARGE`, and setting `limits` raises `limits-warning` with `W_LIMITS_IGNORED`
+     * (`{ renderPath }`). A switch to `"objects"` while the graph is past the defaults is refused
+     * with an `error` event carrying `E_TOO_LARGE`, and the path stays `"batched"`.
+     * `session.capabilities.limits` reports the limits in force.
+     * @returns The limits asked for.
+     * @experimental cosmograph
+     * @example
+     * ```js
+     * graph.renderPath = "batched";
+     * graph.limits = { renderCeiling: 1_000_000 };
+     * ```
+     */
+    @property({ attribute: false })
+    get limits(): Readonly<LimitsOption> {
+        return this.#graph.limits;
+    }
+    /**
+     * Sets the limits. A value that is not a whole number of at least 1 is reported and ignored.
+     */
+    set limits(value: LimitsOption) {
+        const oldValue = this.#graph.limits;
+
+        try {
+            this.#graph.setLimits(value);
+        } catch (error) {
+            console.error(`<graphty-element>: ${error instanceof Error ? error.message : String(error)}.`);
+            return;
+        }
+
+        this.requestUpdate("limits", oldValue);
+    }
+
+    /**
      * How many nodes and edges each render path is drawing, as of the last frame.
      * @returns The counts.
      */
@@ -6327,7 +6757,7 @@ export type GraphtyModelChangeDetail = ModelChange;
 /** The detail of `graphty-capabilities-change`: the same document as `session.capabilities`. */
 export interface GraphtyCapabilitiesChangeDetail {
     /** The acceleration and XR capabilities after the change. */
-    readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
+    readonly capabilities: SessionCapabilities;
 }
 
 /*
@@ -6375,6 +6805,7 @@ declare global {
         "graphty-autosave-restored": CustomEvent<AutosaveRestored>;
         "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
         "graphty-autosave-at-risk": CustomEvent<AutosaveAtRisk>;
+        "graphty-warning": CustomEvent<CodedFact<GraphtyWarningCode>>;
     }
 
     // Every one bubbles and is composed, so a listener on the document is typed the same way.
@@ -6401,6 +6832,7 @@ declare global {
         "graphty-autosave-restored": CustomEvent<AutosaveRestored>;
         "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
         "graphty-autosave-at-risk": CustomEvent<AutosaveAtRisk>;
+        "graphty-warning": CustomEvent<CodedFact<GraphtyWarningCode>>;
     }
 }
 

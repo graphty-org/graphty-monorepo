@@ -329,9 +329,11 @@ export const START_SAMPLES: readonly StartSample[] = [
 ];
 
 /**
- * The samples this site offers: the timed ones only with the timeline experiment on.
+ * The samples this site offers: the timed ones only with the timeline experiment on. The start
+ * page's library, the Samples dialog and the main menu all list these (workspace/start/sampleLibrary.ts).
+ * @param timeline - whether the timeline experiment is on; the site's setting by default.
  * @returns the samples, in order.
  */
-export function offeredSamples(): readonly StartSample[] {
-    return START_SAMPLES.filter((sample) => sample.timed !== true || siteTimeline());
+export function offeredSamples(timeline: boolean = siteTimeline()): readonly StartSample[] {
+    return START_SAMPLES.filter((sample) => sample.timed !== true || timeline);
 }

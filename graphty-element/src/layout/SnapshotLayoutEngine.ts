@@ -1,4 +1,11 @@
-import { type F32, type GraphSnapshot, makeMask, maskSet, maskTest, type NodeMask } from "@graphty/graph-format";
+import {
+    type F32,
+    type GraphSnapshot,
+    makeMask,
+    maskSet,
+    maskTest,
+    type NodeMask,
+} from "@graphty/graph-format";
 import type { LayoutResult } from "@graphty/layout";
 
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
@@ -16,6 +23,7 @@ import {
     simpleLayoutInternals,
     StaticLayoutEngine,
 } from "./LayoutEngine";
+import type { LocationDesignation } from "./locationMap/source";
 
 /** How far an arrangement has got, as a layout reports it. */
 export interface SnapshotLayoutProgress {
@@ -160,6 +168,17 @@ interface SnapshotLayoutHost {
     drawPaint(): void;
     /** What the stored edge weights mean; see {@link SnapshotLayoutInput.weightMeaning}. */
     weightMeaning?(): "strength" | "distance" | null;
+    /** The data of a row drawn with no `Node` (renderPath "batched"), which the engine holds none for. */
+    rowData?(row: number): Record<string | number, unknown> | undefined;
+    /**
+     * The drawn half extents of a row drawn with no `Node` (renderPath "batched"), as the row table measured it;
+     * null before it is measured.
+     */
+    rowHalfExtents?(row: number): Readonly<{ x: number; y: number; z: number }> | null;
+    /** The element's `data.knownFields.positionScale`; undefined before the element is attached. */
+    positionScale?(): number | undefined;
+    /** The element's `data.knownFields`; undefined before the element is attached. */
+    knownFields?(): LocationDesignation | undefined;
 }
 
 /** The element's reach into a snapshot engine. No entry point exports it. */
@@ -287,7 +306,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
 
     /** An emptied graph has nothing to arrange, so an answer still being computed for it is called off. */
     protected override refresh(): void {
-        if (this.stale && this._nodes.length === 0) {
+        if (this.stale && simpleLayoutInternals.empty(this)) {
             this.#abort();
             this.#ready = null;
         }
@@ -423,6 +442,8 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         }
 
         const nodes = this.#nodesByRow(n);
+        const dataOf = (row: number): Record<string | number, unknown> | undefined =>
+            (nodes[row]?.data as Record<string | number, unknown> | undefined) ?? this.#host?.rowData?.(row);
         const { options } = this;
         return {
             graph,
@@ -453,38 +474,54 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
                     }
                 }
 
-                return nodes.map((node) => (node === undefined ? undefined : atPath(node.data, path)));
+                return Array.from(nodes, (_, row) => {
+                    const data = dataOf(row);
+                    return data === undefined ? undefined : atPath(data, path);
+                });
             },
             dataPositions: () => {
                 const out = new Float32Array(dim * n).fill(Number.NaN);
-                nodes.forEach((node, row) => {
-                    const seed = node === undefined ? null : readSeedPosition(node.data as Record<string, unknown>);
+                for (let row = 0; row < n; row++) {
+                    const data = dataOf(row);
+                    const seed = data === undefined ? null : readSeedPosition(data);
                     if (seed !== null) {
-                        const scale = node?.parentGraph?.getStyles?.().config.data.knownFields.positionScale ?? 1;
+                        const scale =
+                            this.#host?.positionScale?.() ??
+                            nodes[row]?.parentGraph?.getStyles?.().config.data.knownFields.positionScale ??
+                            1;
                         for (let k = 0; k < dim; k++) {
                             out[dim * row + k] = seed[k] * scale;
                         }
                     }
-                });
+                }
                 return out;
             },
             // The sizes as the nodes are about to be drawn: paint that has arrived is drawn first.
             // ponytail: a style pass still running is not waited for; its sizes are read as drawn
             // now. Wait for it here if a layout is ever seen starting mid-pass.
+            // A row drawn with no `Node` (renderPath "batched") is read from the row table, as a batched `Node` is.
             nodeSizes: () => {
                 this.#host?.drawPaint();
-                return Float32Array.from(nodes, (node) => (node === undefined ? Number.NaN : 2 * node.layoutRadius));
+                return Float32Array.from({ length: n }, (_, row) => {
+                    const node = nodes[row];
+                    if (node !== undefined) {
+                        return 2 * node.layoutRadius;
+                    }
+
+                    const half = this.#host?.rowHalfExtents?.(row);
+                    return half ? 2 * Math.max(half.x, half.y, half.z) : Number.NaN;
+                });
             },
             nodeExtents: () => {
                 this.#host?.drawPaint();
                 const out = new Float32Array(2 * n).fill(Number.NaN);
-                nodes.forEach((node, row) => {
-                    if (node !== undefined) {
-                        const { x, y } = node.drawnHalfExtents;
-                        out[2 * row] = 2 * x;
-                        out[2 * row + 1] = 2 * y;
+                for (let row = 0; row < n; row++) {
+                    const half = nodes[row]?.drawnHalfExtents ?? this.#host?.rowHalfExtents?.(row);
+                    if (half) {
+                        out[2 * row] = 2 * half.x;
+                        out[2 * row + 1] = 2 * half.y;
                     }
-                });
+                }
                 return out;
             },
             signal: controller.signal,
@@ -536,6 +573,30 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
      * @param n - the number of rows
      * @returns the node of each row, or undefined for a row no node answers
      */
+    /**
+     * Each row's data: its `Node`'s, or, for a row stored with no `Node` (the batched path), its stored record.
+     * Reading it builds no `Node`.
+     * @param n - The number of rows.
+     * @returns The records, by row.
+     */
+    protected rowRecords(n: number): (Record<string | number, unknown> | undefined)[] {
+        const nodes = this.#nodesByRow(n);
+        return Array.from(
+            { length: n },
+            (_, row) =>
+                (nodes[row]?.data as Record<string | number, unknown> | undefined) ?? this.#host?.rowData?.(row),
+        );
+    }
+
+    /**
+     * The element's `data.knownFields`: from the element, so a graph whose rows have no `Node` (the batched
+     * path) still reads what was designated; else through the first `Node`, for an engine the element did not connect.
+     * @returns The fields, or undefined before the element is attached.
+     */
+    protected knownFields(): LocationDesignation | undefined {
+        return this.#host?.knownFields?.() ?? this._nodes[0]?.parentGraph?.getStyles?.().config.data.knownFields;
+    }
+
     #nodesByRow(n: number): (Node | undefined)[] {
         const out = new Array<Node | undefined>(n);
         const { ids } = this.graph;

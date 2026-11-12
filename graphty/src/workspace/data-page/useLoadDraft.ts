@@ -147,6 +147,8 @@ export function useLoadDraft(
     const [loadError, setLoadError] = useState<unknown>(null);
     /** The draft a load was started on: leaving the page must not dispose it mid-load. */
     const loadingDraft = useRef<LoadDraft | null>(null);
+    /** Whether loads carry a file's styles: a boolean, so the hooks below re-run only when it flips. */
+    const fileStyles = fileStylesOn(session);
 
     const chooseSource = useCallback((next: PageSource | null) => {
         setSource(next);
@@ -209,7 +211,7 @@ export function useLoadDraft(
         }
         let stale = false;
         setLoadError(null);
-        draft.report(loadChoices(draft, choices, mode, fileStylesOn(session))).then(
+        draft.report(loadChoices(draft, choices, mode, fileStyles)).then(
             (next) => {
                 if (!stale) {
                     setReport(next);
@@ -226,7 +228,7 @@ export function useLoadDraft(
         return () => {
             stale = true;
         };
-    }, [session, draft, choices, mode]);
+    }, [session, draft, choices, mode, fileStyles]);
 
     // The grid's rows. The unmatched and rejected filters are read under the same choices the
     // report counted with: without them the element reads a load that replaces the graph, so an
@@ -236,8 +238,7 @@ export function useLoadDraft(
             return undefined;
         }
         let stale = false;
-        const only =
-            filter === "all" ? {} : { only: filter, choices: loadChoices(draft, choices, mode, fileStylesOn(session)) };
+        const only = filter === "all" ? {} : { only: filter, choices: loadChoices(draft, choices, mode, fileStyles) };
         // "Show the 32 unmatched rows" shows all of them, not a sample (round 8).
         const limit = filter === "all" ? SAMPLE_ROWS : Infinity;
         draft.rows(tableId, { limit, ...only }).then(
@@ -253,7 +254,7 @@ export function useLoadDraft(
         return () => {
             stale = true;
         };
-    }, [session, draft, tableId, filter, choices, mode]);
+    }, [session, draft, tableId, filter, choices, mode, fileStyles]);
 
     const load = useCallback(
         async (history?: LoadChoices["history"]): Promise<boolean> => {
@@ -264,7 +265,7 @@ export function useLoadDraft(
             loadingDraft.current = draft;
             try {
                 await draft.load({
-                    ...loadChoices(draft, choices, mode, fileStylesOn(session)),
+                    ...loadChoices(draft, choices, mode, fileStyles),
                     ...(history === undefined ? {} : { history }),
                 });
                 return true;
@@ -277,7 +278,7 @@ export function useLoadDraft(
                 setLoading(false);
             }
         },
-        [session, draft, choices, mode],
+        [draft, choices, mode, fileStyles],
     );
 
     return {

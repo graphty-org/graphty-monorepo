@@ -1,21 +1,15 @@
 import "./start.css";
 
-import { FileSource, useFileDrop } from "@graphty/compact-mantine";
-import {
-    DATASET_DESCRIPTORS,
-    type DatasetMeta,
-    GENERATOR_DESCRIPTORS,
-    type GeneratorDescriptor,
-} from "@graphty/graphty-element/catalog";
+import { useFileDrop } from "@graphty/compact-mantine";
+import { type DatasetMeta, GENERATOR_DESCRIPTORS, type GeneratorDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
 import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
-import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
-import { onSiteConfig, siteNetwork, siteTimeline } from "../../siteConfig";
+import { START_SAMPLES } from "../../data/sampleManifest";
+import { onSiteConfig, siteTimeline } from "../../siteConfig";
 import { RecoveredWork } from "../autosave/RecoveredWork";
-import { holdsModel } from "../canvas/models";
 import { CommandButton } from "../frame/CommandButton";
 import { GLYPHS } from "../glyphs";
 import { count } from "../inspector/words";
@@ -24,28 +18,18 @@ import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
 import { agoWords } from "../project/words";
-import { openServerForm } from "../server/commands";
-import type { WorkspaceStore } from "../state/store";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import lockupOnDark from "./brand/graphty-lockup-color-on-dark.svg";
 import lockupOnLight from "./brand/graphty-lockup-color-on-light.svg";
 import { HeroGraph, type HeroSample } from "./HeroGraph";
 import { Groups } from "./icons";
-import { countWords, fitsInBrowser, isLarge, megabytes } from "./library";
+import { isLarge } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
-import {
-    copyOf,
-    openDataset,
-    openFiles,
-    openGenerated,
-    openModel,
-    openSample,
-    openUrl,
-    OWN_COPIES,
-    pictureOf,
-    samplePicture,
-} from "./open";
+import { NETWORK_DIALOG } from "./NetworkDataDialog";
+import { openDataset, openFiles, openGenerated, openNetworkSample, openSample, pickFiles } from "./open";
+import { SampleCard } from "./SampleCard";
+import { GENERATED, type LibraryTile, NETWORK_TILES, type NetworkTile, offeredTiles } from "./sampleLibrary";
 
 /** Where the code and the license live. */
 const GITHUB = "https://github.com/graphty-org/graphty-monorepo";
@@ -64,223 +48,6 @@ const HERO: HeroSample = (() => {
     const sample = START_SAMPLES.find((each) => each.id === "les-miserables") ?? START_SAMPLES[0];
     return { url: sample.url, name: sample.name, path: ["Napoleon", "Brujon"] };
 })();
-
-/**
- * The field each dataset comes from, for the tag on its tile and the library's field filter: this
- * page's grouping of graph-samples' catalog. A dataset not named here is filed under "Other".
- */
-const FIELDS: Readonly<Record<string, string>> = {
-    karate: "Social",
-    "florentine-families": "Social",
-    "davis-southern-women": "Social",
-    "les-miserables": "Social",
-    football: "Sports",
-    // The app's own copies of football and florentine-families, by their sample ids.
-    "college-football": "Sports",
-    florentine: "Social",
-    "campus-contacts": "Social",
-    "graph-research": "Science",
-    "marvel-films": "Culture",
-    "paper-citations": "Science",
-    "political-books": "Politics",
-    dolphins: "Animals",
-    "contiguous-usa": "Places",
-    "knuth-miles": "Places",
-    "celegans-neural": "Biology",
-    "political-blogs": "Politics",
-    openflights: "Places",
-    "venice-transit": "Places",
-    "yeast-perturbation": "Biology",
-    "stelzl-interactome": "Biology",
-    "wikipathways-senescence-autophagy": "Biology",
-    "go-slim-generic": "Ontology",
-    "road-ny": "Places",
-    "com-dblp": "Science",
-    "ogbn-arxiv": "Science",
-    "go-basic": "Ontology",
-    "disease-ontology": "Ontology",
-    "bioplex3-hct116": "Biology",
-};
-
-/** The field of every generated graph, for the field filter. */
-const GENERATED = "Generated";
-
-/** A short title that says what each dataset is good for; the dataset's own name is the subline. */
-const HOOKS: Readonly<Record<string, string>> = {
-    karate: "A club that split in two",
-    "florentine-families": "How the Medici brokered power",
-    "davis-southern-women": "Who went to which party, 1930s",
-    "les-miserables": "Who holds the novel together",
-    football: "Conferences fall out of who played whom",
-    "college-football": "Conferences fall out of who played whom",
-    florentine: "How the Medici brokered power",
-    "campus-contacts": "A week of who was near whom",
-    "graph-research": "A research community grows",
-    "marvel-films": "A film universe, release by release",
-    "paper-citations": "Thirty years of citations",
-    "political-books": "Left, right and the few in between",
-    dolphins: "A pod with two social circles",
-    "contiguous-usa": "Borders as a network",
-    "knuth-miles": "128 cities, every driving distance",
-    "celegans-neural": "The wiring of a whole nervous system",
-    "political-blogs": "The 2004 blogosphere, split by party",
-    openflights: "Every airline route on Earth",
-    "venice-transit": "Every stop by bus, tram and boat",
-    "yeast-perturbation": "Cytoscape's classic gene network",
-    "stelzl-interactome": "Human proteins that bind each other",
-    "wikipathways-senescence-autophagy": "A drawn pathway from NDEx",
-    "go-slim-generic": "The Gene Ontology in miniature",
-    "road-ny": "Every road in New York City",
-    "com-dblp": "Who wrote papers with whom",
-    "ogbn-arxiv": "What arXiv papers cite",
-    "go-basic": "The whole Gene Ontology",
-    "disease-ontology": "How human diseases are classified",
-    "bioplex3-hct116": "Human proteins found together",
-};
-
-/** One tile in the sample library. */
-interface SampleTile {
-    readonly id: string;
-    readonly name: string;
-    /** The short title the tile leads with. */
-    readonly hook: string;
-    /** The field it comes from. */
-    readonly field: string;
-    readonly size: string;
-    readonly sentence: string;
-    /** It waits for the timeline experiment. */
-    readonly timed?: true;
-    /**
-     * The address of a picture of the graph, when graph-samples publishes one. Asked for when the
-     * tile draws: the address depends on the site's dataset address, which loads after this module.
-     */
-    readonly picture: () => string | undefined;
-    /** A word on what opening it takes, for a large dataset. */
-    readonly note: string | undefined;
-    /** What the search box matches against. */
-    readonly words: string;
-    /** What a click does: open it now, or ask first. */
-    readonly open: (library: LibraryActions) => void;
-}
-
-/** What a tile can do when it is clicked. */
-interface LibraryActions {
-    readonly store: WorkspaceStore;
-    /** Shows what a large dataset takes to open, before it downloads. */
-    readonly ask: (dataset: DatasetMeta) => void;
-    /** Shows a generator's parameters. */
-    readonly configure: (generator: GeneratorDescriptor) => void;
-}
-
-/**
- * The note on a large dataset's tile: its download.
- * @param dataset - The dataset.
- * @returns The words, or undefined for one that opens in a moment.
- */
-function noteOf(dataset: DatasetMeta): string | undefined {
-    if (!isLarge(dataset)) {
-        return undefined;
-    }
-    return dataset.bytes === undefined ? "Large: slower to open" : `Large: ${megabytes(dataset.bytes)}, slower to open`;
-}
-
-/**
- * A dataset's size as a tile reads it: "77 nodes, 254 edges".
- * @param dataset - The dataset.
- * @returns The words.
- */
-function sizeWords(dataset: DatasetMeta): string {
-    return `${countWords(dataset.nodes)} nodes, ${countWords(dataset.edges)} edges`;
-}
-
-/**
- * The first sentence of a dataset's description.
- * @param text - The description.
- * @returns Its first sentence.
- */
-function firstSentence(text: string): string {
-    // A full stop after something other than a full stop: "E1 .. E14" does not end it.
-    const end = text.search(/[^.]\.(\s|$)/);
-    return end === -1 ? text : text.slice(0, end + 2);
-}
-
-/**
- * The sample library: the app's own samples first, then every other dataset in graph-samples'
- * catalog that graphty-element can open, in the catalog's order, then every generator. A dataset
- * past the element's published ceilings is left out: its tile could only open an empty graph.
- * @param samples - The app's own samples.
- * @param datasets - graph-samples' catalog.
- * @param generators - graph-samples' generators.
- * @returns The tiles.
- */
-function sampleTiles(
-    samples: readonly StartSample[],
-    datasets: readonly DatasetMeta[],
-    generators: readonly GeneratorDescriptor[],
-): SampleTile[] {
-    return [
-        ...samples.map((sample) => {
-            const dataset = copyOf(sample);
-            const field = FIELDS[sample.id] ?? "Other";
-            const hook = HOOKS[sample.id] ?? sample.name;
-            return {
-                id: sample.id,
-                name: sample.name,
-                hook,
-                field,
-                size: dataset === undefined ? sample.size : sizeWords(dataset),
-                sentence: sample.sentence,
-                ...(sample.timed === true ? { timed: true as const } : {}),
-                picture: () => samplePicture(sample),
-                note: undefined,
-                words: `${sample.name} ${hook} ${field} ${sample.sentence}`.toLowerCase(),
-                open: ({ store }: LibraryActions) => {
-                    openSample(store, sample);
-                },
-            };
-        }),
-        ...datasets
-            .filter((dataset) => !Object.values(OWN_COPIES).includes(dataset.name) && fitsInBrowser(dataset))
-            .map((dataset) => ({
-                id: dataset.name,
-                name: dataset.title,
-                hook: HOOKS[dataset.name] ?? dataset.title,
-                field: FIELDS[dataset.name] ?? "Other",
-                size: sizeWords(dataset),
-                sentence: firstSentence(dataset.description),
-                picture: () => pictureOf(dataset),
-                note: noteOf(dataset),
-                words: `${dataset.title} ${HOOKS[dataset.name] ?? ""} ${FIELDS[dataset.name] ?? "Other"} ${dataset.description}`.toLowerCase(),
-                open: ({ store, ask }: LibraryActions) => {
-                    if (isLarge(dataset)) {
-                        ask(dataset);
-                    } else {
-                        openDataset(store, dataset);
-                    }
-                },
-            })),
-        ...generators.map((generator) => ({
-            id: `generate-${generator.name}`,
-            name: generator.plainName,
-            hook: generator.plainName,
-            field: GENERATED,
-            size:
-                generator.params.length === 0
-                    ? "nothing to set"
-                    : generator.params.map((param) => param.plainName).join(", "),
-            sentence: generator.description,
-            picture: () => pictureOf(generator),
-            note: undefined,
-            words: `${generator.plainName} ${generator.name} ${GENERATED} ${generator.description}`.toLowerCase(),
-            open: ({ configure }: LibraryActions) => {
-                configure(generator);
-            },
-        })),
-    ];
-}
-
-/** The tiles, worked out once. */
-const SAMPLE_TILES = sampleTiles(START_SAMPLES, DATASET_DESCRIPTORS, GENERATOR_DESCRIPTORS);
 
 /**
  * The GitHub mark, in the text color: ink in light mode, white in dark.
@@ -444,52 +211,6 @@ function Headset(): React.JSX.Element {
 }
 
 /**
- * A tile's picture, or a plain stand-in where graph-samples publishes none. Drawn again once the
- * site's configuration loads, which can move the picture to the site's own copy.
- * @param props - Component props
- * @param props.address - Works out the picture's address, or undefined
- * @returns The picture
- */
-function TilePicture({ address }: Readonly<{ address: () => string | undefined }>): React.JSX.Element {
-    const picture = useSyncExternalStore(onSiteConfig, address);
-    return picture === undefined ? (
-        <span className="ws-land-sample-pic ws-land-sample-none" aria-hidden>
-            <GLYPHS.noPicture />
-        </span>
-    ) : (
-        <img className="ws-land-sample-pic" src={picture} alt="" loading="lazy" />
-    );
-}
-
-/**
- * One tile of the library.
- * @param props - Component props
- * @param props.tile - The tile
- * @param props.label - What it is called for a screen reader
- * @param props.onClick - What a click does
- * @returns The tile
- */
-function LibraryTile({
-    tile,
-    label,
-    onClick,
-}: Readonly<{ tile: SampleTile; label: string; onClick: () => void }>): React.JSX.Element {
-    const generated = tile.field === GENERATED;
-    return (
-        <UnstyledButton className="ws-land-sample" aria-label={label} title={tile.sentence} onClick={onClick}>
-            <TilePicture address={tile.picture} />
-            <span className="ws-land-sample-tag">
-                {generated ? <GLYPHS.generated size={11} aria-hidden /> : null}
-                {tile.field}
-            </span>
-            <span className="ws-land-sample-t">{tile.hook}</span>
-            <span className="ws-land-sample-m">{generated ? tile.sentence : `${tile.name} -- ${tile.size}`}</span>
-            {tile.note === undefined ? null : <span className="ws-land-sample-note">{tile.note}</span>}
-        </UnstyledButton>
-    );
-}
-
-/**
  * The sample library: every sample tile and every generator, and a box and a field filter that
  * narrow them.
  * @returns The section
@@ -501,20 +222,54 @@ function SampleLibrary(): React.JSX.Element {
     const [view, setView] = useState<"grid" | "list">("grid");
     const [asking, setAsking] = useState<DatasetMeta | null>(null);
     const [configuring, setConfiguring] = useState<GeneratorDescriptor | null>(null);
-    const actions: LibraryActions = { store: workspace.store, ask: setAsking, configure: setConfiguring };
+    const [reading, setReading] = useState<string | null>(null);
+    const stopRead = useRef<AbortController | null>(null);
+    useEffect(() => () => stopRead.current?.abort(), []);
+    const read = (tile: NetworkTile): void => {
+        if (tile.id === reading) {
+            return;
+        }
+        stopRead.current?.abort();
+        const stop = new AbortController();
+        stopRead.current = stop;
+        setReading(tile.id);
+        void openNetworkSample(workspace.store, tile.name, tile.source, tile.example, stop.signal).finally(() => {
+            if (stopRead.current === stop) {
+                setReading(null);
+            }
+        });
+    };
+    const openTile = ({ source }: LibraryTile): void => {
+        if (source.kind === "sample") {
+            openSample(workspace.store, source.sample);
+        } else if (source.kind === "generator") {
+            setConfiguring(source.generator);
+        } else if (isLarge(source.dataset)) {
+            setAsking(source.dataset);
+        } else {
+            openDataset(workspace.store, source.dataset);
+        }
+    };
     const query = text.trim().toLowerCase();
     // The first paint does not wait for the site's configuration.
     const timeline = useSyncExternalStore(onSiteConfig, siteTimeline);
-    const offered = SAMPLE_TILES.filter((tile) => tile.timed !== true || timeline);
+    const library = offeredTiles(timeline);
+    // In the order the sections are drawn: samples, network data, then generated.
+    const offered = [
+        ...library.filter((tile) => tile.field !== GENERATED),
+        ...NETWORK_TILES,
+        ...library.filter((tile) => tile.field === GENERATED),
+    ];
     const fields = [...new Set(offered.map((tile) => tile.field))];
-    const datasetCount = offered.filter((tile) => tile.field !== GENERATED).length;
-    const tiles = offered.filter(
-        (tile) => (field === "" || tile.field === field) && (query === "" || tile.words.includes(query)),
-    );
+    const datasetCount = library.filter((tile) => tile.field !== GENERATED).length;
+    const shown = <T extends LibraryTile | NetworkTile>(each: readonly T[]): T[] =>
+        each.filter((tile) => (field === "" || tile.field === field) && (query === "" || tile.words.includes(query)));
+    const tiles = shown(library);
     const samples = tiles.filter((tile) => tile.field !== GENERATED);
+    const networkSamples = shown(NETWORK_TILES);
     const generators = tiles.filter((tile) => tile.field === GENERATED);
     // How many the box and the field filter leave, said as they change; never on arrival.
-    useAnnounceChange(`${count(tiles.length, "sample")} shown`);
+    useAnnounceChange(`${count(tiles.length + networkSamples.length, "sample")} shown`);
     return (
         <section className="ws-land-band" id="ws-land-samples" aria-label="Sample library">
             <h2 className="ws-land-h2 cm-focus-inside" id="ws-land-samples-title" tabIndex={-1}>
@@ -574,16 +329,38 @@ function SampleLibrary(): React.JSX.Element {
             {samples.length === 0 ? null : (
                 <div className="ws-land-samples" data-view={view}>
                     {samples.map((tile) => (
-                        <LibraryTile
+                        <SampleCard
                             key={tile.id}
-                            tile={tile}
+                            card={tile}
                             label={`Open the ${tile.name} sample: ${tile.hook}`}
                             onClick={() => {
-                                tile.open(actions);
+                                openTile(tile);
                             }}
                         />
                     ))}
                 </div>
+            )}
+            {networkSamples.length === 0 ? null : (
+                <section aria-label="Load network data">
+                    <h3 className="ws-land-h3">Load network data</h3>
+                    <p className="ws-land-intro">
+                        Read a graph live from a server: a biology repository, a graph database, a linked-data endpoint
+                        or a web API.
+                    </p>
+                    <div className="ws-land-samples" data-view={view}>
+                        {networkSamples.map((tile) => (
+                            <SampleCard
+                                key={tile.id}
+                                card={tile}
+                                label={`Load network data: ${tile.name}`}
+                                busy={tile.id === reading}
+                                onClick={() => {
+                                    read(tile);
+                                }}
+                            />
+                        ))}
+                    </div>
+                </section>
             )}
             {generators.length === 0 ? null : (
                 <section aria-label="Generate a graph">
@@ -594,19 +371,19 @@ function SampleLibrary(): React.JSX.Element {
                     </p>
                     <div className="ws-land-samples" data-view={view}>
                         {generators.map((tile) => (
-                            <LibraryTile
+                            <SampleCard
                                 key={tile.id}
-                                tile={tile}
+                                card={tile}
                                 label={`Generate a graph: ${tile.name}`}
                                 onClick={() => {
-                                    tile.open(actions);
+                                    openTile(tile);
                                 }}
                             />
                         ))}
                     </div>
                 </section>
             )}
-            {tiles.length === 0 ? (
+            {tiles.length + networkSamples.length === 0 ? (
                 <p className="ws-land-empty">
                     No sample matches &quot;{text}&quot;. Try a field, such as biology or places.
                 </p>
@@ -710,10 +487,7 @@ export function StartScreen(): React.JSX.Element {
     const workspace = useWorkspace();
     const scheme = useComputedColorScheme("dark");
     const recent = useRecentProjects();
-    const openDoor = useCommand("file.open");
     const newDoor = useCommand("project.new");
-    // The first paint does not wait for the site's configuration.
-    const network = useSyncExternalStore(onSiteConfig, siteNetwork);
     const [session, setSession] = useState<GraphSession | null>(null);
     const onSession = useCallback((next: GraphSession) => {
         setSession(next);
@@ -729,20 +503,19 @@ export function StartScreen(): React.JSX.Element {
         };
     }, []);
 
-    // The drop target is the whole window ("drop a file anywhere in this window"). graphty-element
-    // says whether it is a model before it is read as graph data.
+    // The drop target is the whole window ("drop a file anywhere in this window").
     const onDrop = useCallback(
         (files: File[]) => {
-            void holdsModel(files).then((model) => {
-                if (model) {
-                    openModel(workspace.store, files[0]?.name ?? "Model", files);
-                } else {
-                    openFiles(workspace, files);
-                }
-            });
+            openFiles(workspace, files);
         },
         [workspace],
     );
+    // Open a file is the drop's Choose: the same files open the same way.
+    const choose = (): void => {
+        void pickFiles().then((files) => {
+            openFiles(workspace, files);
+        });
+    };
     const { over: dragging } = useFileDrop("window", onDrop);
 
     const returning = recent.length > 0;
@@ -761,7 +534,7 @@ export function StartScreen(): React.JSX.Element {
     const openButton = (variant: "primary" | "tint"): React.JSX.Element => (
         <Button
             className={variant === "primary" ? "ws-land-go ws-land-xl" : "ws-land-tint"}
-            onClick={openDoor?.run}
+            onClick={choose}
             leftSection={variant === "tint" ? <GLYPHS.openFile size={16} aria-hidden /> : undefined}
         >
             {variant === "primary" ? (
@@ -775,6 +548,18 @@ export function StartScreen(): React.JSX.Element {
             ) : (
                 "Open a file"
             )}
+        </Button>
+    );
+    const networkButton = (
+        <Button
+            className="ws-land-tint"
+            leftSection={<GLYPHS.data size={16} aria-hidden />}
+            aria-haspopup="dialog"
+            onClick={() => {
+                workspace.store.set({ dialog: NETWORK_DIALOG });
+            }}
+        >
+            Open network data
         </Button>
     );
     const newButton = (
@@ -877,6 +662,7 @@ export function StartScreen(): React.JSX.Element {
                                 <div className="ws-land-more">
                                     {openButton("tint")}
                                     {newButton}
+                                    <div className="ws-land-wide">{networkButton}</div>
                                 </div>
                                 {privacy}
                             </Paper>
@@ -892,18 +678,7 @@ export function StartScreen(): React.JSX.Element {
                             <Paper className="ws-land-launcher" withBorder>
                                 {openButton("primary")}
                                 <div className="ws-land-more">
-                                    {network ? (
-                                        <Button
-                                            className="ws-land-tint"
-                                            leftSection={<GLYPHS.data size={16} aria-hidden />}
-                                            aria-haspopup="dialog"
-                                            onClick={() => {
-                                                openServerForm(workspace.store);
-                                            }}
-                                        >
-                                            Open network data
-                                        </Button>
-                                    ) : null}
+                                    {networkButton}
                                     <Button
                                         className="ws-land-tint"
                                         leftSection={<GLYPHS.gridView size={16} aria-hidden />}
@@ -911,24 +686,7 @@ export function StartScreen(): React.JSX.Element {
                                     >
                                         Samples
                                     </Button>
-                                    {/* Without network data, New from data... sits beside Samples. */}
-                                    {network ? <div className="ws-land-wide">{newButton}</div> : newButton}
-                                    {/* A graph file at a web address opens as a new project. */}
-                                    <div className="ws-land-wide">
-                                        <FileSource
-                                            variant="row"
-                                            url
-                                            multiple
-                                            placeholder="Web address of a graph file"
-                                            openLabel="Open"
-                                            onUrl={(url) => {
-                                                openUrl(workspace.store, url);
-                                            }}
-                                            onFiles={(files) => {
-                                                openFiles(workspace, files);
-                                            }}
-                                        />
-                                    </div>
+                                    <div className="ws-land-wide">{newButton}</div>
                                 </div>
                                 {privacy}
                             </Paper>

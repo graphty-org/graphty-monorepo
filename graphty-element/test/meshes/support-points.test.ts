@@ -259,6 +259,9 @@ describe("support points", () => {
         const slow = rested([0, 0.1, 0.2, 0.2, 0.2, 0.6, 0.9, 1]);
         assert.deepStrictEqual(slow, fast);
         assert.isAbove(Math.abs((fast[0]?.y ?? 0) - (fast[1]?.y ?? 0)), 1, "the two parallel curves are apart");
+        // a pause a hair from the end, then the last hair, as a drag's last place is rounded to 32 bits
+        const nudged = rested([0, 0.5, 1 - 1e-10, 1 - 1e-10, 1]);
+        assert.deepStrictEqual(nudged, fast, "a last move of a hair settles afresh");
     });
 
     it("come to rest beside an edge whose two ends are at one place, whose point stays there", () => {

@@ -38,7 +38,7 @@ import { fitTexturesToScreen } from "./labelTextureFit";
 import { labelBoxOf } from "./NodeShapeGeometry";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
-import { measureLine, RichTextParser, wrapLines } from "./RichTextParser";
+import { hasWords, measureLine, RichTextParser, wrapLines } from "./RichTextParser";
 import { RichTextRenderer } from "./RichTextRenderer";
 import { pixelsPerUnit } from "./screenSize";
 
@@ -245,6 +245,8 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "wrapEllipsis"
     | "wrapAnywhere"
     | "wrapSpaceCount"
+    | "maxLines"
+    | "keepBlankLines"
     | "runAlign"
     | "minScreenSize"
     | "minNodeScreenSize"
@@ -610,7 +612,7 @@ export class RichTextLabel {
             const perPixel = (label.lineHeightInWorld() * label.heightInLines) / height;
             const lines = Math.max(1, label.parsedContent.length);
             const ctx = document.createElement("canvas").getContext("2d");
-            const first = label.parsedContent.find((line) => line.length > 0);
+            const first = label.parsedContent.find(hasWords);
             let ink = { ascent: 0, descent: 0 };
             if (ctx !== null && first !== undefined) {
                 // measured with the glyphs it is drawn with, as `_calculateDimensions` measures
@@ -917,7 +919,11 @@ export class RichTextLabel {
     }
 
     private _parseRichText(): void {
-        this.parsedContent = this.parser.parse(this.options.text, this.options.plainText === true);
+        this.parsedContent = this.parser.parse(
+            this.options.text,
+            this.options.plainText === true,
+            this.options.keepBlankLines === true,
+        );
     }
 
     private _calculateDimensions(): void {
@@ -1176,7 +1182,7 @@ export class RichTextLabel {
      */
     private measureHeightInLines(ctx: CanvasRenderingContext2D, totalHeight: number): number {
         // The first line WITH WORDS: a blank line has no height of its own to measure.
-        const firstLine = this.parsedContent.find((line) => line.length > 0);
+        const firstLine = this.parsedContent.find(hasWords);
         if (firstLine === undefined) {
             return 1;
         }
@@ -2040,13 +2046,18 @@ export class RichTextLabel {
     /**
      * Break the label's lines where they run past its wrap width, at the spaces between words. The
      * width is in the scene, so it is turned into the canvas's pixels by one line's height in each.
-     * A word longer than the width keeps a line of its own.
+     * A word longer than the width keeps a line of its own. With `maxLines`, the lines past it are
+     * cut and the last one kept ends in an ellipsis, with or without a wrap width.
      * @param ctx - A canvas to measure on.
      */
     private wrapToWidth(ctx: CanvasRenderingContext2D): void {
-        const { wrapWidth } = this.options;
-        const first = this.parsedContent.find((line) => line.length > 0);
-        if (wrapWidth === undefined || first === undefined) {
+        const { wrapWidth, maxLines } = this.options;
+        const first = this.parsedContent.find(hasWords);
+        if ((wrapWidth === undefined && maxLines === undefined) || first === undefined) {
+            return;
+        }
+        if (wrapWidth === undefined) {
+            this.parsedContent = wrapLines(ctx, this.parsedContent, Infinity, { maxLines });
             return;
         }
 
@@ -2073,6 +2084,7 @@ export class RichTextLabel {
             ellipsis: wrapEllipsis === true,
             anywhere: wrapAnywhere === true,
             spaceCount: wrapSpaceCount,
+            maxLines,
         });
     }
 

@@ -13,8 +13,6 @@ const no = (notOffered: string): Home => ({ notOffered });
 
 /** A channel golden added after the unified Style panel was designed; the panel has no row for it yet. */
 const NOT_PLACED = no("added to graphty-element after the Style panel's design; no row for it yet");
-/** A node's 3D model or picture: put on nodes by dropping a file on the canvas; the panel has no row for it yet. */
-const MODEL = no("set by dropping a model or a picture on the canvas; the Style panel has no row for it yet");
 /** A label's font, weight or italic as its own channel; the panel sets them inside the label style. */
 const TEXT_FIELD = no("the panel sets it inside the label style, Label settings, Type");
 
@@ -23,13 +21,13 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "node.color": at("Nodes, Fill, Color"),
     "node.size": at("Nodes, Shape, Size"),
     "node.shape": at("Nodes, Shape, Shape"),
-    "node.model": MODEL,
-    "node.modelSourceUp": MODEL,
-    "node.modelTurn": MODEL,
-    "node.modelTint": MODEL,
-    "node.modelFit": MODEL,
-    "node.modelCenter": MODEL,
-    "node.texture": MODEL,
+    "node.model": at("Nodes, Shape, Model... (the node-models experiment)"),
+    "node.modelSourceUp": at("Nodes, Shape, Model settings, Up (node-models)"),
+    "node.modelTurn": at("Nodes, Shape, Model settings, Turn (node-models)"),
+    "node.modelTint": at("Nodes, Shape, Model settings, Color (node-models)"),
+    "node.modelFit": at("Nodes, Shape, Model settings, Fit (node-models)"),
+    "node.modelCenter": at("Nodes, Shape, Model settings, Center (node-models)"),
+    "node.texture": at("Nodes, Fill, Picture (node-models)"),
     "node.opacity": at("Nodes, Fill, Color opacity (its own line when it varies by a value)"),
     "node.wireframe": at("Nodes, Shape, Wireframe (on with a low-detail mesh)"),
     "node.meshDetail": no("no row of its own: Shape's Wireframe row writes it low with the wireframe"),
@@ -464,6 +462,8 @@ export const LABEL_FIELD_HOMES: Readonly<Record<keyof LabelStyle, Home>> = {
     wrapEllipsis: NOT_PLACED,
     wrapAnywhere: NOT_PLACED,
     wrapSpaceCount: NOT_PLACED,
+    maxLines: NOT_PLACED,
+    keepBlankLines: NOT_PLACED,
     runAlign: NOT_PLACED,
     rotation: NOT_PLACED,
     minScreenSize: NOT_PLACED,
@@ -645,6 +645,10 @@ export const COLOR_BRANCHES: Readonly<Record<string, { readonly count: number; r
     "workspace/style/row.ts": {
         count: 5,
         reason: "startFor reads a color beneath as its hex, and every other kind as it is; Vary by Layer starts a color on a palette with every layer its own color, a number on the app's range, a shape on the channel's own list with the distinct shapes first",
+    },
+    "workspace/style/ShaderParamRows.tsx": {
+        count: 2,
+        reason: "A Color shader parameter on a clock ramps between two colors it needs pickers for; a Number on a clock is the clock's own value and has no range to pick",
     },
     "workspace/style/StylePanel.tsx": {
         count: 1,

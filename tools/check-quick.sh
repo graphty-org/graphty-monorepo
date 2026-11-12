@@ -19,7 +19,7 @@
 # 9. the rest of ci.yml's Checks job, with its commands and its "Plan the package-only checks" gating: the
 #    tools tests (test:ci-workflows, which no test shard runs), CI budgets, offline links, the signing
 #    bypass grep, Knip, published dependencies (of the affected packages, the ones built here), the
-#    ESLint root config, the API report, feature flags, declared build tools, dry-run outcome checks,
+#    peer dependencies, the ESLint root config, the API report, feature flags, declared build tools, dry-run outcome checks,
 #    the release hold list, data sources, migration counts, legacy API use, special style layers,
 #    committed images, the Figma lock, and the whole-repository formatting check when one of prettier's inputs changed;
 #    tools/check-quick.test.mjs fails when the Checks job gains a `pnpm run` step this script lacks;
@@ -120,6 +120,7 @@ published_deps() {
     [ ${#dirs[@]} -eq 0 ] || pnpm run check:published-deps "${dirs[@]}"
 }
 step "Published dependencies (affected)" published_deps
+step "Peer dependencies stable" pnpm run check:peer-deps
 step "ESLint root config" pnpm run lint:eslint-root
 if touched '(^|/)(\.prettierrc|\.prettierignore|prettier\.config|\.editorconfig|\.gitignore)|^package\.json$|^pnpm-lock\.yaml$'; then
     step "Formatting (whole repository)" pnpm run format:check
@@ -140,6 +141,7 @@ step "No special style layers" pnpm run check:special-layers
 step "Readers honor the working graph" pnpm run check:working-graph
 step "No committed walk screenshots" pnpm run check:committed-images
 step "compact-mantine Figma lock" pnpm run check:figma-lock
+step "Saved-format exceptions" pnpm run check:saved-format-allowlist
 # The dry run walks graphty/dist, so it never runs on a build the app step failed to refresh.
 dry_run() { pnpm exec nx run graphty:build && node graphty/acceptance/run.mjs; }
 if [ "$DRY_RUN" = 1 ]; then

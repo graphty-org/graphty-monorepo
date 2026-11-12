@@ -19,7 +19,7 @@ import type { CameraManager } from "../cameras/CameraManager";
 import { type FramingSpot, OrbitCameraController } from "../cameras/OrbitCameraController";
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
-import { Edge } from "../Edge";
+import { Edge, pulledLines } from "../Edge";
 import { drawnCurveInWorld } from "../edgeWorldCurve";
 import { mapDepth, screenNodeScale } from "../layout/locationMap/nodeScale";
 import type { LocationMapFrame } from "../layout/locationMap/place";
@@ -30,15 +30,17 @@ import { disposeLabelsTogether } from "../meshes/LabelBatch";
 import { withoutEyeLine } from "../meshes/labelEyeLine";
 import { screenFitFrames } from "../meshes/labelScreenFit";
 import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
+import { armPoolReserve, clearPoolReserve } from "../meshes/poolReserve";
 import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesFreeing, texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
+import type { RowTable } from "../render/RowTable";
 import type { ElementMask } from "../session/scope/index";
 import type { EdgeAgeFade } from "../session/time/ageFade";
 import type { GraphFraming } from "../session/types";
 import { transitionsOf } from "../transitions/LayoutTransitionRunner";
 import { mapCorners } from "./BasemapManager";
-import { type DataManager, disposeReleased } from "./DataManager";
+import { type DataManager, dataManagerInternals, disposeReleased } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
@@ -79,28 +81,19 @@ interface FramingBox {
  * units out. The cameras pad the fit themselves.
  * @param nodes - The nodes to frame; hidden ones are skipped.
  * @param extent - What each node counts as: the box it is drawn in, or its center alone.
+ * @param columns - The rows drawn with no `Node`, framed by row; hidden ones are skipped.
  * @returns The corners, or undefined when no node is visible.
  */
 export function nodeFramingBox(
     nodes: Iterable<Node>,
     extent: GraphFraming["extent"] = "drawn",
+    columns?: ColumnFraming,
 ): FramingBox | undefined {
     let min: Vector3 | undefined;
     let max: Vector3 | undefined;
     const spots: FramingSpot[] = [];
 
-    for (const node of nodes) {
-        // A node the visibility mask has taken off screen keeps its position, but must not
-        // stretch the box, or zooming to fit a filtered graph would frame what is hidden.
-        if (node.getRenderState() !== "visible") {
-            continue;
-        }
-
-        // WHERE THE NODE IS NOW, not where it was drawn last time: `framingBounds` computes the
-        // world matrix first, because Babylon only refreshes world bounds while it renders and this
-        // runs BEFORE that render. In world space, because a node mesh is parented to the
-        // "graph-root" transform an XR gesture moves, rotates and scales.
-        const box = extent === "centers" ? centerOf(node) : node.framingBounds();
+    for (const box of framedBoxes(nodes, extent, columns)) {
         // A spot is as wide as the node's widest half, so the turning fit keeps all of it in view.
         const half = box.max.subtract(box.min).scaleInPlace(0.5);
         spots.push({ pos: box.min.add(half), half: Math.max(half.x, half.y, half.z) });
@@ -117,10 +110,93 @@ export function nodeFramingBox(
 
     // The centers of one node, or of nodes all in one place, enclose nothing to fit: their drawn box is framed instead.
     if (extent === "centers" && min.x === max.x && min.y === max.y) {
-        return nodeFramingBox(nodes);
+        return nodeFramingBox(nodes, "drawn", columns);
     }
 
     return { min, max, spots };
+}
+
+/**
+ * The rows drawn with no `Node` (`NodeBatches.columnRowIndices`), which a fit frames from the row
+ * table: where each is drawn and its half extents, inside the transform the batches draw in.
+ */
+export interface ColumnFraming {
+    readonly rows: Iterable<number>;
+    readonly table: RowTable;
+    readonly root: TransformNode | null;
+}
+
+/**
+ * The world box of every visible node and column row, as {@link nodeFramingBox} frames them.
+ * @param nodes - The nodes.
+ * @param extent - What each counts as.
+ * @param columns - The rows with no `Node`, if any.
+ * @yields Each box.
+ */
+function* framedBoxes(
+    nodes: Iterable<Node>,
+    extent: GraphFraming["extent"],
+    columns: ColumnFraming | undefined,
+): Iterable<{ min: Vector3; max: Vector3 }> {
+    for (const node of nodes) {
+        // A node the visibility mask has taken off screen keeps its position, but must not
+        // stretch the box, or zooming to fit a filtered graph would frame what is hidden.
+        if (node.getRenderState() !== "visible") {
+            continue;
+        }
+
+        // WHERE THE NODE IS NOW, not where it was drawn last time: `framingBounds` computes the
+        // world matrix first, because Babylon only refreshes world bounds while it renders and this
+        // runs BEFORE that render. In world space, because a node mesh is parented to the
+        // "graph-root" transform an XR gesture moves, rotates and scales.
+        yield extent === "centers" ? centerOf(node) : node.framingBounds();
+    }
+
+    if (columns !== undefined) {
+        yield* columnBoxes(columns, extent);
+    }
+}
+
+/**
+ * The world box of every visible row drawn with no `Node`, as {@link framedBoxes} frames them.
+ * @param columns - The rows, the table they are drawn from and the transform they are drawn in.
+ * @param extent - What each counts as.
+ * @yields Each box.
+ */
+function* columnBoxes(
+    columns: ColumnFraming,
+    extent: GraphFraming["extent"],
+): Iterable<{ min: Vector3; max: Vector3 }> {
+    const { rows, table, root } = columns;
+    const world = root?.computeWorldMatrix(true);
+    const scale = root?.absoluteScaling;
+    for (const row of rows) {
+        if (table.isHidden(row)) {
+            continue;
+        }
+
+        // Where the lane puts it now: the table takes this frame's lane only when it is drawn, after
+        // this measure, as a `Node` is placed before it. A row held off the lane is where it was put.
+        const local = table.centerOf(row);
+        if (!table.isHeld(row) && !table.laneOf(row, local)) {
+            local.copyFrom(table.centerOf(row));
+        }
+
+        const center = world === undefined ? local : Vector3.TransformCoordinates(local, world);
+        if (extent === "centers") {
+            yield { min: center, max: center.clone() };
+            continue;
+        }
+
+        // A batched row is never turned and carries no border, so its box is its half extents.
+        const { half } = table.extentOf(row);
+        const size = new Vector3(half.x, half.y, half.z);
+        if (scale !== undefined) {
+            size.multiplyInPlace(scale);
+        }
+
+        yield { min: center.subtract(size), max: center.add(size) };
+    }
 }
 
 /**
@@ -208,14 +284,16 @@ function sameBox(a: FramingBox, b: FramingBox): boolean {
  * @param nodes - The nodes to frame; hidden ones and their labels are skipped.
  * @param edges - The edges whose labels to frame; hidden ones are skipped.
  * @param extent - What each node counts as; with its center alone no label is framed.
+ * @param columns - The rows drawn with no `Node`, which carry no label.
  * @returns The corners, or undefined when no node is visible.
  */
 export function framingBox(
     nodes: Iterable<Node>,
     edges: Iterable<Edge>,
     extent: GraphFraming["extent"] = "drawn",
+    columns?: ColumnFraming,
 ): FramingBox | undefined {
-    const box = nodeFramingBox(nodes, extent);
+    const box = nodeFramingBox(nodes, extent, columns);
 
     // Centers frame no label, as a program that fits node centers lets labels run off the canvas.
     if (!box || extent === "centers") {
@@ -513,6 +591,13 @@ export class UpdateManager implements Manager {
     private drawnSelectedEdges = new Set<Edge>();
 
     /**
+     * The edge masks the last pass read: an `Edge` built for a row line's row takes them, and a row
+     * line draws no row they hide or select, having no mask of its own.
+     */
+    private edgeVisibilityMask: ElementMask<EdgeId> | null = null;
+    private edgeSelectionMask: ElementMask<EdgeId> | null = null;
+
+    /**
      * Whether the state the most recent update pass left behind is a finished picture: the layout
      * has stopped, no framing is outstanding that could still move the camera, no style work is
      * queued, and every drawn mesh has its shader. It says nothing about what is on screen -- a
@@ -677,7 +762,11 @@ export class UpdateManager implements Manager {
             }
         }
 
-        this.paintNodes(painted);
+        // A node that became a sprite's pick proxy changed shape: its edges stop at the new surface.
+        const { resized } = this.paintNodes(painted);
+        if (resized.size > 0) {
+            this.remeasureEdgesOf(resized);
+        }
         this.graphContext.getMeshCache().prune();
         this.sceneChanged = true;
     }
@@ -782,7 +871,11 @@ export class UpdateManager implements Manager {
      * Invalidate the masks when the set of render objects has changed since they were applied.
      */
     private followElementSets(): void {
-        const { nodeVersion, edgeVersion } = this.dataManager;
+        const { edgeVersion } = this.dataManager;
+        // A Node built for a row already drawn with no Node is put in line with the masks by
+        // adoptBuiltNode, so it is no new render object: under "batched" a full walk of every edge
+        // for each one built would be the walk a time step exists to avoid.
+        const nodeVersion = this.dataManager.nodeVersion - dataManagerInternals.lateNodeVersions(this.dataManager);
         if (nodeVersion !== this.appliedNodeSet || edgeVersion !== this.appliedEdgeSet) {
             this.invalidateViewMasks();
             this.appliedNodeSet = nodeVersion;
@@ -832,8 +925,15 @@ export class UpdateManager implements Manager {
         // A pulled line carries no age (`Edge.pullsLine`): on "batched", turning the fade on or
         // off moves the plain edges between the pulled and the placed line.
         if (state.on !== was && (this.graphContext.getNodeBatches?.() ?? null) !== null) {
-            for (const edge of this.dataManager.edges.values()) {
+            for (const edge of this.builtEdges()) {
                 edge.updateStyle();
+            }
+
+            // A row line carries no age either: each row takes its `Edge`, painted as it is built.
+            if (state.on) {
+                for (const row of this.graphContext.getEdgeRowLines?.()?.rows() ?? []) {
+                    this.buildRowEdge(row);
+                }
             }
 
             this.forceEdgeWalk();
@@ -916,6 +1016,8 @@ export class UpdateManager implements Manager {
         const edgeSelection = masks.selection?.edges() ?? null;
         const nodeVisibility = masks.visibility?.nodes() ?? null;
         const edgeVisibility = masks.visibility?.edges() ?? null;
+        this.edgeVisibilityMask = edgeVisibility;
+        this.edgeSelectionMask = edgeSelection;
         const showContext = masks.showContext?.() ?? false;
         const ghost = masks.ghost?.() ?? false;
 
@@ -1039,13 +1141,17 @@ export class UpdateManager implements Manager {
         const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
 
         for (const row of rows) {
-            // Showing or hiding a node enables or disables its mesh, which the frozen list must see.
-            if (
-                nodesByIndex[row]?.setRenderState(nodeVisibility?.has(row) === true ? "visible" : hiddenState) === true
-            ) {
-                this.sceneChanged = true;
+            const node = nodesByIndex[row];
+            // Showing or hiding a node drawn by its own mesh enables or disables that mesh, which the
+            // frozen list must see; a batched row only writes its hidden flag. Asked before and
+            // after, since the change can take an overlay away or bring one back.
+            const ownMeshes = node?.togglesOwnMeshes() === true;
+            if (node?.setRenderState(nodeVisibility?.has(row) === true ? "visible" : hiddenState) === true) {
+                this.sceneChanged ||= ownMeshes || node.togglesOwnMeshes();
             }
         }
+
+        this.applyColumnRows(rows, nodeVisibility);
     }
 
     /**
@@ -1057,6 +1163,7 @@ export class UpdateManager implements Manager {
      */
     private applyEdgeRows(rows: Rows, edgeVisibility: ElementMask<EdgeId> | null): void {
         const { edgesByIndex } = this.dataManager;
+        this.buildMaskedRowLines(rows);
 
         for (const row of rows) {
             const edge = edgesByIndex[row];
@@ -1090,6 +1197,35 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Bring a `Node` built for a row that was drawn with no `Node` into line with what was already
+     * applied to that row. The masks are applied as deltas, so a later one would not reach it. Its
+     * edges were measured against the row's reach and now end at the `Node`'s shape, which can be
+     * larger (a pattern's plane), on a frame where neither end moves, so they measure again.
+     * @param node - The new `Node`.
+     * @internal
+     */
+    adoptBuiltNode(node: Node): void {
+        for (const edge of this.edgesByNode().get(node.id) ?? []) {
+            edge.invalidatePositionCache();
+        }
+
+        // While a load holds the draw they wait for the walk that ends the repaint, as a resize's do.
+        if (!this.dataManager.drawHeld) {
+            this.forceEdgeWalk();
+        }
+
+        const masks = this.viewMasks ?? EMPTY_MASKS;
+        const visibility = masks.visibility?.nodes() ?? null;
+        const selection = masks.selection?.nodes() ?? null;
+        const hiddenState: NodeRenderState = (masks.showContext?.() ?? false) ? "context" : "hidden";
+        node.setRenderState(visibility === null || visibility.has(node.index) ? "visible" : hiddenState);
+        if (selection?.has(node.index) === true) {
+            node.setSelected(true);
+            this.drawnSelectedNodes.add(node);
+        }
+    }
+
+    /**
      * Show, hide, select and deselect every node to match the masks.
      * @param nodeVisibility - The visible nodes, or null when nothing hides.
      * @param nodeSelection - The selected nodes, or null when nothing is selected.
@@ -1103,7 +1239,7 @@ export class UpdateManager implements Manager {
         const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
         this.drawnSelectedNodes.clear();
 
-        for (const node of this.dataManager.nodes.values()) {
+        for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
             const { index } = node;
             const placed = index !== INVALID_INDEX;
             const visible = nodeVisibility === null || !placed || nodeVisibility.has(index);
@@ -1115,6 +1251,8 @@ export class UpdateManager implements Manager {
                 this.drawnSelectedNodes.add(node);
             }
         }
+
+        this.applyColumnRows(null, nodeVisibility);
     }
 
     /**
@@ -1165,7 +1303,7 @@ export class UpdateManager implements Manager {
         const next = new Set<Edge>();
 
         edgeSelection?.forEachMember((index) => {
-            const edge = this.dataManager.edgesByIndex[index];
+            const edge = this.dataManager.edgesByIndex[index] ?? this.maskedRowLineEdge(index);
             if (edge) {
                 next.add(edge);
             }
@@ -1205,8 +1343,9 @@ export class UpdateManager implements Manager {
     ): void {
         let revealed = false;
         this.drawnSelectedEdges.clear();
+        this.buildMaskedRowLines(this.graphContext.getEdgeRowLines?.()?.rows() ?? []);
 
-        for (const edge of this.dataManager.edges.values()) {
+        for (const edge of this.builtEdges()) {
             const { index } = edge;
             // `!placed` now means only "this edge is mid-teardown", which is a state lasting
             // less than one statement. It used to mean "this edge outlived the node it was
@@ -1368,10 +1507,13 @@ export class UpdateManager implements Manager {
     /** Whether the repaint under way has painted an edge with a support point. */
     private paintedSupportPoint = false;
 
+    /** Whether this paint run has told the edge pools its size ({@link UpdateManager.syncEdgeStyles}). */
+    private edgePoolsArmed = false;
+
     /** What a repaint looks up on each of its frames, kept until it ends; a version says when it went stale. */
     private paintIndex: {
         rows: { version: number; map: Map<number, Node> } | null;
-        incident: { version: number; map: Map<Node, Edge[]> } | null;
+        incident: { version: number; map: Map<NodeIdType, Edge[]> } | null;
     } = { rows: null, incident: null };
 
     /** Release the token held while a repaint's batches remain, when one is held. */
@@ -1394,6 +1536,13 @@ export class UpdateManager implements Manager {
         this.sceneChanged = true;
         let painted = 0;
         const least = minimumWorkPerFrame() ? 0 : Math.ceil(this.dataManager.edges.size / REPAINT_FRAMES);
+        // A paint run's first frame tells the edge pools how many edges it will paint, so a pool that
+        // must grow grows once ("batched" only: `poolReserve.ts`).
+        const scene = this.graphContext.getScene();
+        if (!this.edgePoolsArmed && (this.graphContext.getNodeBatches?.() ?? null) !== null) {
+            armPoolReserve(scene, painter.pendingEdgeCount);
+            this.edgePoolsArmed = true;
+        }
 
         do {
             painted += this.paintEdgeBatch(painter);
@@ -1405,6 +1554,11 @@ export class UpdateManager implements Manager {
         // places is all of it, unless it painted an edge with a support point: a layer can change
         // who has one and the forces on it.
         if (!painter.hasPendingEdges) {
+            if (this.edgePoolsArmed) {
+                clearPoolReserve(scene);
+                this.edgePoolsArmed = false;
+            }
+
             if (!painter.takeEdgesRowsOnly() || this.paintedSupportPoint) {
                 this.forceEdgeWalk();
             }
@@ -1422,7 +1576,7 @@ export class UpdateManager implements Manager {
         let painted = 0;
 
         for (const index of painter.takeEdges(minimumWorkPerFrame() ? MINIMUM_PAINT_BATCH : EDGE_PAINT_BATCH)) {
-            const edge = this.dataManager.edgesByIndex[index];
+            const edge = this.dataManager.edgesByIndex[index] ?? this.unbuiltEdgePainted(painter, index);
             const paint = edge === undefined ? null : painter.edgePaint(index);
 
             if (edge !== undefined && paint !== null) {
@@ -1437,6 +1591,121 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Draw an edge row stored with no `Edge` as a row line (`EdgeRowLines.paintRow`), and build its
+     * `Edge` only for what a row line does not draw: its paint, a self-loop, a route the layout's map
+     * arcs, or an end drawn behind edges.
+     * @param painter - Where the paint is read from.
+     * @param index - The edge row.
+     * @returns The row's new `Edge` to paint, or undefined when a row line drew it or no edge is stored there.
+     */
+    private unbuiltEdgePainted(painter: StylePainter, index: number): Edge | undefined {
+        const ends = dataManagerInternals.unbuiltEdgeEnds(this.dataManager, index);
+        if (ends === undefined) {
+            return undefined;
+        }
+
+        const lines = this.graphContext.getEdgeRowLines?.() ?? null;
+        const paint = painter.edgePaint(index);
+        const [source, target] = ends;
+        if (
+            lines !== null &&
+            paint !== null &&
+            source !== target &&
+            !this.mapArcsEdges() &&
+            !this.endBehindEdges(source) &&
+            !this.endBehindEdges(target) &&
+            !this.rowMasked(index) &&
+            lines.paintRow(index, source, target, paint)
+        ) {
+            return undefined;
+        }
+
+        return this.buildRowEdge(index, true);
+    }
+
+    /**
+     * Whether the edge masks hide or select a row, which a row line, with no mask of its own, does not draw.
+     * @param index - The edge row.
+     * @returns True when they do.
+     */
+    private rowMasked(index: number): boolean {
+        return this.edgeVisibilityMask?.has(index) === false || this.edgeSelectionMask?.has(index) === true;
+    }
+
+    /**
+     * Build the `Edge` of each of some rows a row line draws that the edge masks hide or select.
+     * @param rows - The edge rows.
+     */
+    private buildMaskedRowLines(rows: Iterable<number>): void {
+        for (const row of rows) {
+            this.maskedRowLineEdge(row);
+        }
+    }
+
+    /**
+     * Build a row line's `Edge` when the edge masks hide or select its row.
+     * @param index - The edge row.
+     * @returns The `Edge` built, or undefined when none was.
+     */
+    private maskedRowLineEdge(index: number): Edge | undefined {
+        const lines = this.graphContext.getEdgeRowLines?.() ?? null;
+        return lines?.has(index) === true && this.rowMasked(index) ? this.buildRowEdge(index) : undefined;
+    }
+
+    /**
+     * Build an edge row's `Edge` (`dataManagerInternals.buildEdgeAt`), which queues its paint unless the
+     * caller paints it now, and draw it as the edge masks the last pass read say: no pass walks it before
+     * its row's masks move.
+     * @param index - The edge row.
+     * @param paintingNow - True when the caller paints it in this pass.
+     * @returns The `Edge`, or undefined when no edge is stored there.
+     */
+    private buildRowEdge(index: number, paintingNow = false): Edge | undefined {
+        const edge = dataManagerInternals.buildEdgeAt(this.dataManager, index, paintingNow);
+        if (edge === undefined) {
+            return undefined;
+        }
+
+        const hidden = edge.setRenderVisible(this.edgeVisibilityMask?.has(index) !== false);
+        const selected = this.edgeSelectionMask?.has(index) === true;
+        edge.setSelected(selected);
+        if (selected) {
+            this.drawnSelectedEdges.add(edge);
+        }
+
+        if (hidden || selected) {
+            this.forceEdgeWalk();
+        }
+
+        return edge;
+    }
+
+    /**
+     * Whether the layout's map raises edges in arcs (`Edge.routeOf`): a map layout drawn in the 3D view.
+     * @returns True when it does.
+     */
+    private mapArcsEdges(): boolean {
+        const engine = this.graphContext.getLayoutManager().layoutEngine as { geoFrame?: unknown } | undefined;
+        return (engine?.geoFrame ?? null) !== null && !this.graphContext.is2D();
+    }
+
+    /**
+     * Whether a node row is drawn behind edges (`Node.isDrawnBehindEdges`), so an edge ends at its outline:
+     * read from the row's paint when no `Node` draws it, so none is built.
+     * @param row - The node row.
+     * @returns True when it is.
+     */
+    private endBehindEdges(row: number): boolean {
+        const node = this.dataManager.nodesByIndex[row];
+        if (node !== undefined) {
+            return node.isDrawnBehindEdges;
+        }
+
+        const look = this.graphContext.getNodeBatches?.()?.lookOf(row) ?? null;
+        return this.graphContext.is2D() && (look?.paint.style.shape?.zIndex ?? 0) < 0;
+    }
+
+    /**
      * Take one batch of pending nodes and the paint each is to be drawn with.
      * @param painter - Where the paint is read from.
      * @param rows - Every node, by index.
@@ -1447,7 +1716,7 @@ export class UpdateManager implements Manager {
         const painted: [Node, NodePaint][] = [];
 
         for (const index of painter.takeNodes(size)) {
-            const node = rows.get(index);
+            const node = rows.get(index) ?? this.unbuiltPainted(painter, index);
             const paint = node === undefined ? null : painter.nodePaint(index);
 
             if (node !== undefined && paint !== null) {
@@ -1456,6 +1725,29 @@ export class UpdateManager implements Manager {
         }
 
         return painted;
+    }
+
+    /**
+     * Draw a row stored with no `Node` from its paint, and build its `Node` only for a paint the
+     * batches cannot draw (`NodeBatches.paintRow`).
+     * @param painter - Where the paint is read from.
+     * @param index - The row.
+     * @returns The row's new `Node` to paint, or undefined when the batches drew it or no row is stored there.
+     */
+    private unbuiltPainted(painter: StylePainter, index: number): Node | undefined {
+        const id = dataManagerInternals.unbuiltAt(this.dataManager, index);
+        // one style per look, not per row (`StylePainter.rowPaint`); a row that needs a `Node` is
+        // painted again below through `nodePaint`, so the Node never holds a shared style
+        const paint = id === undefined ? null : painter.rowPaint(index);
+        if (
+            id === undefined ||
+            paint === null ||
+            this.graphContext.getNodeBatches?.()?.paintRow(index, paint) === true
+        ) {
+            return undefined;
+        }
+
+        return dataManagerInternals.buildRow(this.dataManager, id);
     }
 
     /** How many nodes the last node batch painted a millisecond, or 0 before one has been timed. */
@@ -1545,7 +1837,7 @@ export class UpdateManager implements Manager {
         const place = !this.dataManager.drawHeld;
 
         for (const node of resized) {
-            for (const edge of incident.get(node) ?? []) {
+            for (const edge of incident.get(node.id) ?? []) {
                 edge.invalidatePositionCache();
                 if (place) {
                     this.edgesToPlace.push(edge);
@@ -1565,7 +1857,7 @@ export class UpdateManager implements Manager {
         if (this.paintIndex.rows?.version !== nodeVersion) {
             const map = new Map<number, Node>();
 
-            for (const node of this.dataManager.nodes.values()) {
+            for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
                 map.set(node.index, node);
             }
 
@@ -1576,15 +1868,25 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Each node's edges, built once for a repaint rather than on each frame that resizes a node.
-     * @returns The edges at each node.
+     * The `Edge`s built so far, building none: an edge stored with no `Edge` has no line object
+     * to restyle, mask, retrim or renumber. Every edge while all are built.
+     * @returns They.
      */
-    private edgesByNode(): ReadonlyMap<Node, Edge[]> {
+    private builtEdges(): MapIterator<Edge> {
+        return dataManagerInternals.builtEdges(this.dataManager).values();
+    }
+
+    /**
+     * Each node's built edges, built once for a repaint rather than on each frame that resizes a
+     * node. Building an `Edge` moves `edgeVersion`, so a later build rebuilds the map.
+     * @returns The edges at each node, by its id.
+     */
+    private edgesByNode(): ReadonlyMap<NodeIdType, Edge[]> {
         const { edgeVersion } = this.dataManager;
 
         if (this.paintIndex.incident?.version !== edgeVersion) {
-            const map = new Map<Node, Edge[]>();
-            const add = (node: Node, edge: Edge): void => {
+            const map = new Map<NodeIdType, Edge[]>();
+            const add = (node: NodeIdType, edge: Edge): void => {
                 const edges = map.get(node);
 
                 if (edges === undefined) {
@@ -1594,9 +1896,10 @@ export class UpdateManager implements Manager {
                 }
             };
 
-            for (const edge of this.dataManager.edges.values()) {
-                add(edge.srcNode, edge);
-                add(edge.dstNode, edge);
+            for (const edge of this.builtEdges()) {
+                // By id: reading an end's `Node` would build one for a row drawn with none.
+                add(edge.srcId, edge);
+                add(edge.dstId, edge);
             }
 
             this.paintIndex.incident = { version: edgeVersion, map };
@@ -2210,8 +2513,11 @@ export class UpdateManager implements Manager {
             this.trimmedAt = new WeakMap();
             this.retrimPending = false;
             if (scaled) {
-                this.statsManager.incrementCounter(UpdateManager.RETRIM_COUNTER, this.dataManager.edges.size);
-                for (const edge of this.dataManager.edges.values()) {
+                this.statsManager.incrementCounter(
+                    UpdateManager.RETRIM_COUNTER,
+                    dataManagerInternals.builtEdges(this.dataManager).size,
+                );
+                for (const edge of this.builtEdges()) {
                     edge.invalidatePositionCache();
                 }
                 this.forceEdgeWalk();
@@ -2690,9 +2996,19 @@ export class UpdateManager implements Manager {
                 // The mesh position is updated by node.update()
                 node.update();
             }
+
+            // Under "batched" a row with no Node is drawn where the table puts it: brought up to the
+            // lane here, as updateRoster does, so the edge walk that follows reads this frame's places
+            // (a positions.set on a resting layout otherwise left its edges a frame behind, for good).
+            if (this.dataManager.renderLimits?.batched() === true) {
+                this.graphContext.getRowTable?.()?.flush();
+            }
         } else {
             this.updateRoster(roster);
         }
+
+        // The rows drawn with no Node, which no walk above reaches, move by their rows.
+        transitionsOf(this.layoutManager)?.placeRows();
 
         this.statsManager.nodeUpdate.endMonitoring();
     }
@@ -2758,7 +3074,120 @@ export class UpdateManager implements Manager {
      * @returns The box, or undefined when nothing is visible.
      */
     private measure(): FramingBox | undefined {
-        return framingBox(this.layoutManager.nodes, this.layoutManager.edges, this.framing?.extent);
+        return (
+            this.envelopeFraming() ??
+            framingBox(this.layoutManager.nodes, this.layoutManager.edges, this.framing?.extent, this.columnFraming())
+        );
+    }
+
+    /**
+     * Under renderPath "batched", the box a running layout's framing takes without walking a row:
+     * the box the layout's last publish left the rows in (`LayoutEngine.publishedBounds`, measured in
+     * the publish's own loop), grown by the widest row. At 100,000 rows the walk cost about 200 ms of
+     * a layout frame (issue #6389). The box's eight corners are its spots, so a "turning" fit
+     * (`camera.fitBounds`) keeps the whole box in view as the camera turns. Labels and bent edges
+     * are not framed while the layout moves; the framing it settles on, and any framing asked for,
+     * walks every row as before.
+     *
+     * Undefined, so the walk runs, whenever the box would not be the drawn picture's: a node drawn
+     * as an object, a hidden row, a layout transition easing the rows, a layout holding rows outside
+     * its publish, or a box with no room in it.
+     * @returns The box, or undefined.
+     */
+    private envelopeFraming(): FramingBox | undefined {
+        const layout = this.layoutManager;
+        const engine = layout.layoutEngine;
+        const batches = this.graphContext.getNodeBatches?.() ?? null;
+        const table = this.graphContext.getRowTable?.() ?? null;
+        if (
+            this.forceZoomToFit ||
+            !layout.running ||
+            engine === undefined ||
+            engine.isSettled ||
+            batches === null ||
+            table === null ||
+            this.dataManager.renderLimits?.batched() !== true ||
+            table.hiddenRows > 0 ||
+            this.dataManager.nodes.size > batches.batchedNodes ||
+            transitionsOf(layout)?.active === true
+        ) {
+            return undefined;
+        }
+
+        const bounds = engine.publishedBounds();
+        if (bounds === null) {
+            return undefined;
+        }
+
+        const scene = this.graphContext.getScene();
+        const flat = scene.metadata?.twoD === true;
+        const pad = this.framing?.extent === "centers" ? 0 : table.widestHalf;
+        const root = scene.getTransformNodeByName("graph-root");
+        const world = root?.computeWorldMatrix(true);
+        const min = new Vector3(Infinity, Infinity, Infinity);
+        const max = new Vector3(-Infinity, -Infinity, -Infinity);
+        // The box's corners are the spots a "turning" fit fits (`camera.fitBounds`).
+        const spots: FramingSpot[] = [];
+        // The batches draw a row flat in 2D, wherever the layout put its z.
+        const near = flat ? 0 : bounds[2] - pad;
+        const far = flat ? 0 : bounds[5] + pad;
+        for (let i = 0; i < 8; i++) {
+            const corner = new Vector3(
+                (i & 1) === 0 ? bounds[0] - pad : bounds[3] + pad,
+                (i & 2) === 0 ? bounds[1] - pad : bounds[4] + pad,
+                (i & 4) === 0 ? near : far,
+            );
+            if (world !== undefined) {
+                Vector3.TransformCoordinatesToRef(corner, world, corner);
+            }
+
+            min.minimizeInPlace(corner);
+            max.maximizeInPlace(corner);
+            spots.push({ pos: corner, half: 0 });
+        }
+
+        return min.x < max.x || min.y < max.y ? { min, max, spots } : undefined;
+    }
+
+    /**
+     * The rows drawn with no `Node`, for a fit to frame by row. Only `"batched"` has any.
+     * @returns The rows and the table they are drawn from, or undefined when there are none.
+     * @internal
+     */
+    columnFraming(): ColumnFraming | undefined {
+        const batches = this.graphContext.getNodeBatches?.() ?? null;
+        const table = this.graphContext.getRowTable?.() ?? null;
+        if (batches === null || table === null) {
+            return undefined;
+        }
+
+        return {
+            rows: batches.columnRowIndices(),
+            table,
+            root: this.graphContext.getScene().getTransformNodeByName("graph-root"),
+        };
+    }
+
+    /**
+     * Show or hide the rows drawn with no `Node`, which no walk of the nodes reaches. Their batch
+     * draws them from the row table, so the table's hidden flag is all there is to write. A row
+     * drawn faintly in context, or ringed as selected, needs a `Node`: none of these is.
+     * @param rows - The rows to bring into line, or null for every one.
+     * @param nodeVisibility - The visible nodes.
+     */
+    private applyColumnRows(rows: Rows | null, nodeVisibility: ElementMask<NodeId> | null): void {
+        const batches = this.graphContext.getNodeBatches?.() ?? null;
+        const table = this.graphContext.getRowTable?.() ?? null;
+        if (batches === null || table === null) {
+            return;
+        }
+
+        const drawn = new Set(batches.columnRowIndices());
+        for (const row of rows ?? drawn) {
+            if (drawn.has(row)) {
+                table.hide(row, nodeVisibility !== null && !nodeVisibility.has(row));
+            }
+        }
     }
 
     /**
@@ -2800,20 +3229,49 @@ export class UpdateManager implements Manager {
     /** How many meshes the scene held last frame, so one appearing or going unfreezes it. */
     private lastMeshCount = -1;
 
+    /** Set by a freeze that renumbered rows, so the next edge pass writes every pulled line's rows again. */
+    private pulledRowsMoved = false;
+
+    /**
+     * Say that a freeze renumbered the rows (`snapshot-replaced` with a `nodeRemap`): a straight pulled line, which
+     * no walk visits ({@link Edge.followsRows}), is told its nodes' new rows at the next edge pass.
+     * @internal
+     */
+    rowsRenumbered(): void {
+        this.pulledRowsMoved = true;
+    }
+
     private updateEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
+
+        this.followRenumberedRows();
 
         // No frame is drawn while a load holds the draw, so asking whether anything moved, a walk of
         // every node on each of a load's thousands of frames, waits for the first frame it releases.
         const walk = !this.dataManager.drawHeld && this.edgesNeedWalking();
         const everyEdge = walk === true;
-        // support points move after their nodes stop, until they come to rest, and their edges with them
+        // support points move after their nodes stop, until they come to rest, and their edges with them; forceAtlas2
+        // finds an edge's nodes among the centers by the very point, and a batched node gives a new one at each read,
+        // so each node's is read once for the whole call
+        const centers = new Map<Node, Readonly<Vector3>>();
+        const centerOf = (node: Node): Readonly<Vector3> => {
+            const known = centers.get(node);
+            if (known !== undefined) {
+                return known;
+            }
+            const center = node.drawnPosition;
+            centers.set(node, center);
+            return center;
+        };
+        // Under "batched" only a placed edge can have a support point: one that follows its rows is a straight pulled
+        // line, and a curve is pulled with a span of its own, so the walk asks the placed list, not every edge.
+        const batched = this.dataManager.renderLimits?.batched() === true;
         const bowed =
             !this.dataManager.drawHeld &&
             this.dataManager.supportPoints.update(
-                () => Array.from(this.layoutManager.nodes, (node) => node.drawnPosition),
-                this.layoutManager.edges,
-                (edge) => edge.supportEdge(),
+                () => Array.from(this.layoutManager.nodes, centerOf),
+                batched ? this.placedEdges() : this.layoutManager.edges,
+                (edge) => edge.supportEdge(centerOf),
                 // Only a walk of every edge finds an edge newly bowed, so nothing bowed means a drag
                 // need not read every edge to ask.
                 everyEdge || (walk !== false && this.dataManager.supportPoints.hasEdges),
@@ -2822,20 +3280,124 @@ export class UpdateManager implements Manager {
         if (everyEdge || bowed) {
             // Each edge aims its own ray, inside the branch that fires it, so an edge that has not
             // moved costs nothing here. A pass over the whole graph used to aim all of them first.
-            for (const edge of this.layoutManager.edges) {
-                edge.update();
+            // Under "batched" the list of edges to place is kept between walks; "objects" walks every edge as before.
+            if (batched) {
+                for (const edge of this.placedEdges()) {
+                    edge.update();
+                }
+            } else {
+                UpdateManager.placeEdges(this.layoutManager.edges);
             }
         } else {
             this.updateEdgesOf(walk === false ? [] : walk);
-            for (const edge of this.edgesToPlace) {
-                edge.update();
-            }
+            UpdateManager.placeEdges(this.edgesToPlace);
+            this.placedEdgesAtRows();
         }
 
+        this.unbuiltRowsMoved = false;
         this.edgesToPlace = [];
         this.settleEnds();
 
         this.statsManager.edgeUpdate.endMonitoring();
+    }
+
+    /**
+     * Place some edges, leaving out each line the shader draws from its rows ({@link Edge.followsRows}).
+     * @param edges - The edges.
+     */
+    private static placeEdges(edges: Iterable<Edge>): void {
+        for (const edge of edges) {
+            if (!edge.followsRows) {
+                edge.update();
+            }
+        }
+    }
+
+    /**
+     * Tell every pulled line its nodes' rows after a freeze renumbered them ({@link rowsRenumbered}).
+     * ponytail: a walk of every edge per renumbering freeze (a removal); a list of the pulled edges if removals at a
+     * million edges need it.
+     */
+    private followRenumberedRows(): void {
+        if (!this.pulledRowsMoved || this.dataManager.drawHeld) {
+            return;
+        }
+
+        this.pulledRowsMoved = false;
+        for (const edge of this.builtEdges()) {
+            if (edge.isPulled) {
+                edge.followRenumberedRows();
+            }
+        }
+    }
+
+    /** Whether the row table moved a row since the last edge walk while some row has no Node. */
+    private unbuiltRowsMoved = false;
+
+    /**
+     * Update the placed edges -- every edge whose line does not follow its rows ({@link Edge.followsRows}) -- after
+     * the table moved its rows while some row has no Node: such a row is in no walk of the nodes, so its edges are
+     * found by asking every placed edge, and one whose ends stayed exits at once. A straight pulled line follows its
+     * rows in its shader.
+     * ponytail: every placed edge on each table move; a list of the rows the lane moved, if a running layout over
+     * a million rows with no Node and many placed edges needs the frame back.
+     */
+    private placedEdgesAtRows(): void {
+        if (!this.unbuiltRowsMoved) {
+            return;
+        }
+
+        for (const edge of this.placedEdges()) {
+            edge.update();
+        }
+    }
+
+    /** The engine's edges whose line does not follow its rows, and what they were listed from; see {@link placedEdges}. */
+    private placedList: {
+        edges: readonly Edge[];
+        engine: unknown;
+        count: number;
+        edgeVersion: number;
+        pulledVersion: number;
+        flat: boolean;
+        geoFrame: unknown;
+    } | null = null;
+
+    /**
+     * The layout engine's edges whose line does not follow its rows ({@link Edge.followsRows}), listed again only
+     * when the engine, the store's edges, the engine's array of them, some edge's pulled line, the view or the
+     * engine's map frame changed (the last two pick a pulled line's route): a walk of a million edges asking each was
+     * most of a layout frame. An engine that hands back an iterator holds every edge the moment it is told, which
+     * bumps the store's version (see {@link edgesNeedWalking}).
+     * @returns The placed edges.
+     */
+    private placedEdges(): readonly Edge[] {
+        const { edges: from, layoutEngine: engine } = this.layoutManager;
+        const count = Array.isArray(from) ? from.length : -1;
+        const { edgeVersion } = this.dataManager;
+        const flat = this.graphContext.is2D();
+        const geoFrame = (engine as { geoFrame?: unknown } | undefined)?.geoFrame;
+        const known = this.placedList;
+        if (
+            known !== null &&
+            known.engine === engine &&
+            known.count === count &&
+            known.edgeVersion === edgeVersion &&
+            known.pulledVersion === pulledLines.version &&
+            known.flat === flat &&
+            known.geoFrame === geoFrame
+        ) {
+            return known.edges;
+        }
+
+        const edges: Edge[] = [];
+        for (const edge of from) {
+            if (!edge.followsRows) {
+                edges.push(edge);
+            }
+        }
+        this.placedList = { edges, engine, count, edgeVersion, pulledVersion: pulledLines.version, flat, geoFrame };
+        return edges;
     }
 
     /** Edges a move left with an end on its node's bounding radius, see {@link endsByRadius}. */
@@ -2888,7 +3450,10 @@ export class UpdateManager implements Manager {
     private updateEdgesOf(nodes: readonly Node[]): void {
         for (const node of nodes) {
             for (const id of this.dataManager.incidentEdgeIds(node)) {
-                this.dataManager.edges.get(id)?.update();
+                const edge = this.dataManager.edges.get(id);
+                if (edge !== undefined && !edge.followsRows) {
+                    edge.update();
+                }
             }
         }
     }
@@ -2917,10 +3482,21 @@ export class UpdateManager implements Manager {
      *     nodes whose edges are to be visited when only those moved; false for none.
      */
     private edgesNeedWalking(): boolean | readonly Node[] {
+        const { edges } = this.layoutManager;
+        const edgeCount = Array.isArray(edges) ? edges.length : -1;
+        const { edgeVersion } = this.dataManager;
+
         if (this.edgeWalkForced) {
             this.edgeWalkForced = false;
-            this.lastWalkedEdgeCount = -1;
             this.sceneChanged = true;
+            // Under "batched" the walk of every edge records what it walked, so it is one walk, not three: on the
+            // objects path the next frame walks again for the edge count, and the one after for the node positions,
+            // as on master. A stable frame can end between them, and at a million edges each is the frame.
+            if (this.dataManager.renderLimits?.batched() === true) {
+                this.walkedEverything(edgeCount, edgeVersion);
+            } else {
+                this.lastWalkedEdgeCount = -1;
+            }
 
             return true;
         }
@@ -2931,13 +3507,14 @@ export class UpdateManager implements Manager {
         // that takes an edge up after the store told it: read off the array's own length, since
         // COUNTING BY ITERATING would be the million-edge walk this method exists to avoid. An
         // engine that hands back an iterator has to hold every edge the moment it is told.
-        const { edges } = this.layoutManager;
-        const edgeCount = Array.isArray(edges) ? edges.length : -1;
-        const { edgeVersion } = this.dataManager;
-
         if (edgeCount !== this.lastWalkedEdgeCount || edgeVersion !== this.lastWalkedEdgeVersion) {
-            this.lastWalkedEdgeCount = edgeCount;
-            this.lastWalkedEdgeVersion = edgeVersion;
+            if (this.dataManager.renderLimits?.batched() === true) {
+                this.walkedEverything(edgeCount, edgeVersion);
+            } else {
+                this.lastWalkedEdgeCount = edgeCount;
+                this.lastWalkedEdgeVersion = edgeVersion;
+            }
+
             this.sceneChanged = true;
 
             return true;
@@ -2945,11 +3522,28 @@ export class UpdateManager implements Manager {
 
         const moved = this.nodesMoved();
 
-        if (moved !== false) {
+        if (moved !== false || this.unbuiltRowsMoved) {
             this.sceneChanged = true;
         }
 
         return moved;
+    }
+
+    /**
+     * Record that this frame walks every edge: the edge set it saw, and where every node sits, so the next frame
+     * walks again only for a change since this one.
+     * @param edgeCount - The engine's edge count, or -1.
+     * @param edgeVersion - The store's edge set.
+     */
+    private walkedEverything(edgeCount: number, edgeVersion: number): void {
+        this.lastWalkedEdgeCount = edgeCount;
+        this.lastWalkedEdgeVersion = edgeVersion;
+        let highest = -1;
+        for (const { index } of this.layoutManager.nodes) {
+            highest = Math.max(highest, index === INVALID_INDEX ? -1 : index);
+        }
+
+        this.noteEveryNode(highest);
     }
 
     /**
@@ -2966,7 +3560,7 @@ export class UpdateManager implements Manager {
         let unseen = false;
         let nodeCount = 0;
         let highest = -1;
-        const { walked, rowsStill, total } = this.movedWalk();
+        const { walked, rowsStill, total, rowsMoved } = this.movedWalk();
 
         for (const node of walked) {
             const { index } = node;
@@ -2990,6 +3584,9 @@ export class UpdateManager implements Manager {
             }
         }
 
+        // A row with no Node is in no walk, so a move of the table's rows says only that an edge at
+        // such a row may have moved (see placedEdgesAtRows).
+        this.unbuiltRowsMoved = rowsMoved && total === undefined && nodeCount < this.dataManager.nodes.size;
         nodeCount = total ?? nodeCount;
         if (unseen) {
             this.noteEveryNode(highest);
@@ -3008,16 +3605,22 @@ export class UpdateManager implements Manager {
      * while the table moved no row, no batched row moved: under `"batched"` only the roster is
      * walked then (`NodeBatches.roster`).
      * @returns The nodes; whether the table moved no row; and the graph's node count when the walk
-     *     is not every node, else undefined.
+     *     is not every node, else undefined; and whether the table moved a row since the last walk.
      */
-    private movedWalk(): { walked: Iterable<Node>; rowsStill: boolean; total: number | undefined } {
+    private movedWalk(): {
+        walked: Iterable<Node>;
+        rowsStill: boolean;
+        total: number | undefined;
+        rowsMoved: boolean;
+    } {
         const moves = this.graphContext.getRowTable?.()?.moves ?? -1;
         const rowsStill = moves !== -1 && moves === this.lastRowMoves;
+        const rowsMoved = moves !== -1 && !rowsStill;
         this.lastRowMoves = moves;
         const roster = rowsStill ? this.roster() : null;
         return roster === null
-            ? { walked: this.layoutManager.nodes, rowsStill, total: undefined }
-            : { walked: roster, rowsStill, total: this.dataManager.nodes.size };
+            ? { walked: this.layoutManager.nodes, rowsStill, total: undefined, rowsMoved }
+            : { walked: roster, rowsStill, total: this.dataManager.nodes.size, rowsMoved };
     }
 
     /**
@@ -3131,7 +3734,7 @@ export class UpdateManager implements Manager {
         const tolerance = moving ? UpdateManager.RETRIM_BAND : 0;
         let cut = 0;
         this.retrimPending = false;
-        for (const edge of this.dataManager.edges.values()) {
+        for (const edge of this.builtEdges()) {
             if (!onScreen.has(edge.srcNode) && !onScreen.has(edge.dstNode)) {
                 continue;
             }
@@ -3479,7 +4082,7 @@ export class UpdateManager implements Manager {
 
         const resized = new Set<Node>();
         // A border keeps a row on the object path, so a batched row has none to resize.
-        for (const node of this.roster() ?? this.dataManager.nodes.values()) {
+        for (const node of this.roster() ?? dataManagerInternals.builtNodes(this.dataManager)) {
             if (node.refreshScreenBorder()) {
                 resized.add(node);
             }
@@ -3492,8 +4095,10 @@ export class UpdateManager implements Manager {
         // An edge ends at its node's border, so a ring rebuilt wider or narrower moves the edge's
         // ends (#3532). Only the edges of the nodes whose ring changed, and only on a zoom that
         // crossed one of the ring's 1/16-doubling steps.
-        for (const edge of this.dataManager.edges.values()) {
-            if (resized.has(edge.srcNode) || resized.has(edge.dstNode)) {
+        // By id: reading an end's `Node` would build one for a row drawn with none.
+        const ids = new Set([...resized].map((node) => node.id));
+        for (const edge of this.builtEdges()) {
+            if (ids.has(edge.srcId) || ids.has(edge.dstId)) {
                 edge.invalidatePositionCache();
             }
         }

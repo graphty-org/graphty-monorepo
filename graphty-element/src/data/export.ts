@@ -68,6 +68,7 @@ import {
     COMMON_WRITER_OPTIONS,
     type FormatWriterRegistration,
     registeredFormatWriter,
+    withCommonWriterOptions,
 } from "../catalog/writerRegistry";
 import { GraphtyError } from "../errors";
 import { featureOff } from "../features/resolve";
@@ -92,11 +93,18 @@ export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
  * - `"shown"`: what the visibility filter and the time window leave showing.
  * - `"selection"`: the selected nodes and the edges between them.
  * - `{ set }`: a kept set's members.
+ * - `{ nodes }`: these nodes and the edges between them.
  * - a {@link RuleTree}: the nodes and edges it keeps, read as the visibility filter reads it.
  *
  * An edge is written only when both its ends are.
  */
-export type ExportScope = RuleTree | "all" | "shown" | "selection" | { readonly set: SetId };
+export type ExportScope =
+    | RuleTree
+    | "all"
+    | "shown"
+    | "selection"
+    | { readonly set: SetId }
+    | { readonly nodes: readonly NodeId[] };
 
 /**
  * Options of one export: the writer's own, graph-io's common ones, and the element's `scope`
@@ -405,11 +413,7 @@ function scopeInputOf(scope: Exclude<ExportScope, "all">): ScopeInput {
         return "selection";
     }
 
-    if ("set" in scope) {
-        return { set: scope.set };
-    }
-
-    return { define: { kind: "rule", where: scope, reading: "clipped" } };
+    return "kind" in scope ? { define: { kind: "rule", where: scope, reading: "clipped" } } : scope;
 }
 
 /**
@@ -843,6 +847,9 @@ interface ResultColumns {
  * @param groupRanks - Write a partition's group as its rank by size instead of its group id.
  */
 function writeResults(session: GraphSession, out: ResultColumns, notes: LossNote[], groupRanks: boolean): void {
+    // A field only a directed graph can tell apart (a degree's in and out halves) means nothing on
+    // an undirected one, so it is left out there, as the readable fields leave it out.
+    const { directed } = session.data.snapshot();
     for (const root of session.results.roots) {
         const result = session.results.get(root.runId);
         if (result === undefined) {
@@ -853,7 +860,7 @@ function writeResults(session: GraphSession, out: ResultColumns, notes: LossNote
         // can name it by ("Group 2"), so a table read beside the picture joins it. Otherwise the
         // file holds the algorithm's own group ids, as the live result does.
         const ranks = groupRanks ? partitionGroupRanks(result) : undefined;
-        writeResultFields(session, out, notes, { runId: root.runId, result, ranks });
+        writeResultFields(session, out, notes, { runId: root.runId, result, ranks, directed });
     }
 }
 
@@ -866,6 +873,7 @@ function writeResults(session: GraphSession, out: ResultColumns, notes: LossNote
  * @param run.runId - The result's run id.
  * @param run.result - The result.
  * @param run.ranks - A partition's group ranks, when groups are written as ranks.
+ * @param run.directed - Whether the graph is directed; on an undirected one a `directedOnly` field is left out.
  */
 function writeResultFields(
     session: GraphSession,
@@ -875,12 +883,13 @@ function writeResultFields(
         readonly runId: Parameters<GraphSession["results"]["path"]>[0];
         readonly result: PublishedResult;
         readonly ranks: ReturnType<typeof partitionGroupRanks> | undefined;
+        readonly directed: boolean;
     },
 ): void {
-    const { runId, result, ranks } = run;
+    const { runId, result, ranks, directed } = run;
     for (const field of result.fields) {
         const path = session.results.path(runId, field.name);
-        if (!out.kept(path)) {
+        if (!out.kept(path) || (!directed && field.directedOnly === true)) {
             continue;
         }
 
@@ -995,7 +1004,7 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
     if (neo4j) {
         declared = NEO4J_WRITER_OPTIONS;
     } else if (registered !== undefined) {
-        declared = [...(registered.writerOptions ?? []), ...COMMON_WRITER_OPTIONS];
+        declared = withCommonWriterOptions(registered.writerOptions);
     }
     // `notes`, `groupRanks` and `styles` are the element's own options; no exporter reads them as they are.
     const { notes, groupRanks, styles, ...resolved } = resolveOptionValues(declared, options, {

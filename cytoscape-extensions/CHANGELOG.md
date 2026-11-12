@@ -1,3 +1,43 @@
+## 0.0.35 (2026-11-10)
+
+### 🚀 Features
+
+- **graphty-element:** put styles from files behind the file-styles experiment ([#706](https://github.com/graphty-org/graphty-monorepo/issues/706))
+
+### 🩹 Fixes
+
+- **tools:** move to knip 6 so the dead-code check peaks at 1.4 GB, not 3 GB ([#6142](https://github.com/graphty-org/graphty-monorepo/issues/6142), [#6147](https://github.com/graphty-org/graphty-monorepo/issues/6147))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.68
+- Updated graph-samples to 0.1.46
+- Updated visual-review to 0.2.42
+- Updated graph-format to 1.5.1
+- Updated algorithms to 3.4.21
+- Updated graph-io to 0.3.55
+- Updated layout to 2.7.0
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
+## 0.0.34 (2026-11-09)
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** build the package before linting its consumer test ([c9fd8cdfdb](https://github.com/graphty-org/graphty-monorepo/commit/c9fd8cdfdb))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.67
+- Updated graph-samples to 0.1.45
+- Updated visual-review to 0.2.41
+- Updated graph-format to 1.5.0
+- Updated algorithms to 3.4.20
+- Updated graph-io to 0.3.54
+- Updated layout to 2.6.0
+
 ## 0.0.33 (2026-11-02)
 
 ### 🩹 Fixes

@@ -5092,3 +5092,40 @@ label.offset and `gml-synthetic-coverage` edge 4->15 label.alongLine, three labe
   picture over the node; the comparison reads its pieces like the program's own SVG. Left: a BPMN event on a port and a
   choreography's messages lie outside their node's box and are not drawn (`-p6`); the oracle's open lines (the loop and
   script symbols) are no strays, so neither side's are judged.
+
+## yEd label fonts and blank label lines on `graphml-stm32-func` (#706, 2026-11-09)
+
+`label.family` 107/107 failing (each view), not fixed, and not a defect of graph-io, graphty-element or the comparator:
+
+- The file names `Times New Roman` for 124 of its 147 labels. The oracle's yEd ran on a Linux JRE that has no font of
+  that name, and Java draws a font it lacks in Dialog's face (DejaVu Sans): ySVG wrote no `font-family` on any text,
+  so every label inherits the root's `'Dialog'`, while it does write the faces Java has (`'DejaVu Serif'` on
+  `yed-graphml-specimen-labels`). The words' places agree: `USB-UART` at 32 is centered in its 188.28-wide node at
+  x 555.756, which is a 164.3-wide line, DejaVu Sans's width (Times New Roman's is 160.0).
+- The file itself was drawn in Times New Roman by the yEd that wrote it: the label's stored box is 164.016 wide, Times
+  New Roman's 160.0 plus yEd's 2 + 2 inset, and `\nCS` at 14 is stored 35.008 tall, two Times New Roman lines (1.107 em)
+  plus 4.
+- graph-io reads `Times New Roman, DejaVu Sans, sans-serif` (the font, else Dialog's face), and the browser draws it
+  in Liberation Serif, fontconfig's metric twin of Times New Roman; Java does not use fontconfig's aliases, so on the
+  same machine yEd falls back and Chromium does not. Reading the name as Dialog would draw every yEd file that names
+  Times New Roman in the wrong face on every machine that has it (Windows and macOS, where yEd is mostly run).
+- The same cause fails `yed-graphml-specimen-labels` font-family-times-new-roman and -courier-new,
+  `gml-specimen-labels-p2` and `gml-specimen-edge-labels-p2` fontname-times-new-roman and -courier-new,
+  `gml-synthetic-coverage` (39) and `graphml-synthetic-nodes` (8). Arial passes only because Dialog and Liberation
+  Sans are both sans-serif.
+- Closing it needs a new yEd drawing on a JRE that has Times New Roman and Courier New (or their names), which this
+  round may not make.
+
+Fixed, the 7 `CS` labels (n29 to n32, n36, n63, n72) whose text is `\nCS`: yEd draws a blank first line and the word
+on the second.
+
+- graph-io trimmed the line break away. A label written with `xml:space="preserve"` (yEd writes it on every label) now
+  keeps its leading whitespace and drops its trailing (`crocs-muni` scrutiny `User's\nprofile\n` is stored two lines
+  tall, so a trailing break adds no line); a label without it is trimmed as before.
+- graphty-element measured a blank line as no height (a line with no run in it), so `\nCS` stood one line tall. A
+  blank line between or before others is now a line of the label's font (`RichTextParser.parse`); a label that is
+  only blank is unchanged.
+- The comparator centered graphty's label on its whole plane, the blank line included, where the SVG text is the word
+  alone; it now takes the box of the inked lines (`inkedLines`, a quarter turn at a time).
+- label.offset 100/107 -> 107/107 and label.anchor 105/107 -> 107/107, on both views. No other sample of any program
+  changed a failing element or a score (full report against master, 563 samples).

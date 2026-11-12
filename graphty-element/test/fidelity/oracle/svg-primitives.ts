@@ -159,6 +159,49 @@ export function straightPathVertices(d: string): Pt[] | null {
 }
 
 /**
+ * The corners of an open path drawn as cubics that are each a straight segment, its two control points on the chord
+ * between its ends (Graphviz's `splines=polyline` and `splines=ortho` lines: `M p0 C p0' p1 p1 ...`), in its user
+ * space, or null when it has any other command or a cubic that bends. Sampled by arc length such a line loses its
+ * corners: a short leg's two corners fall between samples and the leg is read as a slant (dot-synth-edges-clusters
+ * c2_3->c9_4, whose label beside a 10 pt leg was read as off the line before it).
+ * @param d - the path data
+ * @returns the corners, the start first
+ */
+export function straightCubicVertices(d: string): Pt[] | null {
+    const m = /^\s*M\s*([^MmCc]+)C([^A-BD-Za-z]+)$/.exec(d);
+    if (m === null) {
+        return null;
+    }
+    const num = (s: string): number[] => (s.match(/[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g) ?? []).map(Number);
+    const start = num(m[1]);
+    const rest = num(m[2]);
+    if (start.length !== 2 || rest.length === 0 || rest.length % 6 !== 0) {
+        return null;
+    }
+    const out: Pt[] = [[start[0], start[1]]];
+    for (let i = 0; i < rest.length; i += 6) {
+        const a = out[out.length - 1];
+        const b: Pt = [rest[i + 4], rest[i + 5]];
+        const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+        const L = Math.hypot(dx, dy);
+        for (const c of [
+            [rest[i], rest[i + 1]],
+            [rest[i + 2], rest[i + 3]],
+        ]) {
+            const [cx, cy] = [c[0] - a[0], c[1] - a[1]];
+            // off the chord, or before or past its ends, is a bend; a zero chord is straight only with both controls on it
+            const off = L < 1e-9 ? Math.hypot(cx, cy) : Math.abs(dx * cy - dy * cx) / L;
+            const t = L < 1e-9 ? 0 : (cx * dx + cy * dy) / (L * L);
+            if (off > 1e-2 || t < -1e-3 || t > 1 + 1e-3) {
+                return null;
+            }
+        }
+        out.push(b);
+    }
+    return out;
+}
+
+/**
  * A gradient attribute as a number: a percentage as a fraction, a length in user units.
  * @param el - the gradient element
  * @param name - the attribute
@@ -1194,7 +1237,9 @@ function geometryPoints(el: SVGGeometryElement, m: DOMMatrix, samples: number): 
         return [at(m, l.x1.baseVal.value, l.y1.baseVal.value), at(m, l.x2.baseVal.value, l.y2.baseVal.value)];
     }
     if (tag === "path") {
-        const straight = straightPathVertices(el.getAttribute("d") ?? "");
+        const d = el.getAttribute("d") ?? "";
+        // only an open line: an outline's samples feed the figure readers, which read corners off them
+        const straight = straightPathVertices(d) ?? (samples === PATH_SAMPLES ? straightCubicVertices(d) : null);
         if (straight !== null && straight.length > 0) {
             return straight.map(([x, y]) => at(m, x, y));
         }
@@ -1208,6 +1253,35 @@ function geometryPoints(el: SVGGeometryElement, m: DOMMatrix, samples: number): 
     for (let i = 0; i < samples; i++) {
         const p = el.getPointAtLength((len * i) / (samples - 1));
         out.push(at(m, p.x, p.y));
+    }
+    // a rect's sides and, square-cornered, its corners exactly, each in place of the sample nearest it: samples evenly
+    // spaced round a long thin box miss its ends by up to a step (graphml-cla-checker-graph's group band, 7076 x 21,
+    // read 130 units short of its right end, so its label's middle fell outside it; its rounded group as short)
+    if (tag === "rect") {
+        const r = el as unknown as SVGRectElement;
+        const [x, y, w, h] = [r.x.baseVal.value, r.y.baseVal.value, r.width.baseVal.value, r.height.baseVal.value];
+        const square = r.rx.baseVal.value === 0 && r.ry.baseVal.value === 0;
+        const sides: Pt[] = [
+            [x + w / 2, y],
+            [x + w, y + h / 2],
+            [x + w / 2, y + h],
+            [x, y + h / 2],
+        ];
+        const corners: Pt[] = square
+            ? [
+                  [x, y],
+                  [x + w, y],
+                  [x + w, y + h],
+                  [x, y + h],
+              ]
+            : [];
+        for (const c of [...sides, ...corners].map(([px, py]) => at(m, px, py))) {
+            const gap = (q: Pt): number => Math.hypot(q[0] - c[0], q[1] - c[1]);
+            const near = out.reduce((best, q, i) => (gap(q) < gap(out[best]) ? i : best), 0);
+            out[near] = c;
+        }
+        // the outline closes where it starts
+        out[out.length - 1] = out[0];
     }
     return out;
 }

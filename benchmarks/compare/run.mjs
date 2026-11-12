@@ -1,7 +1,7 @@
-// BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [sampled] [glyphs] [curves] [no-still] [no-move]
+// BENCH_URL=... BENCH_RESULTS=... node run.mjs <lib> <mode> <accel> <n> <m> <dpr> [skip-layout] [labels] [sampled] [glyphs] [curves] [3d] [no-still] [no-move]
 // lib: cosmos|graphty; mode: default|lean; accel: on|off. Appends one JSON line to BENCH_RESULTS.
 // dpr other than 1 sets pixel-ratio="device" on graphty-element. BENCH_RENDER_PATH sets its renderPath option;
-// unset, the element keeps its default. See RUNBOOK.md for the other variables.
+// unset, the element keeps its default. BENCH_ANTIALIAS=false sets antialias="false". See RUNBOOK.md for the others.
 import { execFileSync, execSync } from "node:child_process";
 import { appendFileSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -22,6 +22,8 @@ if (!BASE || !RESULTS) throw new Error("set BENCH_URL and BENCH_RESULTS");
 const DEADLINE_S = Number(process.env.BENCH_DEADLINE_S ?? 570);
 const RENDER_PATH = process.env.BENCH_RENDER_PATH || undefined;
 const RENDERER = process.env.BENCH_RENDERER || undefined;
+const ANTIALIAS = process.env.BENCH_ANTIALIAS === undefined ? undefined : process.env.BENCH_ANTIALIAS !== "false";
+const LIMITS = process.env.BENCH_LIMITS ? JSON.parse(process.env.BENCH_LIMITS) : undefined;
 const [lib, mode, accel, n, m, dpr, ...flags] = process.argv.slice(2);
 const skip = flags.includes("skip-layout"),
     labels = flags.includes("labels"),
@@ -31,6 +33,8 @@ const skip = flags.includes("skip-layout"),
     glyphs = flags.includes("glyphs"),
     // every edge a curve (edge.curvature) with no caps, in 3D: the curve scenario of stage 21
     curves = flags.includes("curves"),
+    // the lean mode's straight edges kept in 3D, where they are pulled under batched (cosmos-gap G12)
+    threeD = flags.includes("3d"),
     noStill = flags.includes("no-still"),
     noMove = flags.includes("no-move");
 const N = Number(n),
@@ -87,6 +91,8 @@ const out = {
     accel,
     renderPath: lib === "graphty" ? RENDER_PATH : undefined,
     rendererRequest: lib === "graphty" ? RENDERER : undefined,
+    antialias: lib === "graphty" ? ANTIALIAS : undefined,
+    limits: lib === "graphty" ? LIMITS : undefined,
     n: N,
     m: M,
     dpr: DPR,
@@ -181,14 +187,29 @@ try {
                     sampled,
                     glyphs,
                     curves,
+                    threeD,
                     renderPath: RENDER_PATH,
                     renderer: RENDERER,
+                    antialias: ANTIALIAS,
+                    limits: LIMITS,
                     onDemand: !!process.env.LAYOUT_ONLY,
                 },
             ],
         ),
     );
-    const load = await page.evaluate(() => B.load());
+    // BENCH_PROFILE_TIMED names a file prefix: the load and the layout frame stages are then CPU-profiled
+    // while they are timed, into <prefix>-load.cpuprofile and <prefix>-layout.cpuprofile, to read their
+    // garbage collector and per-function time. The profiler slows them, so write those rows to their own file.
+    const profiled = async (stage, run) => {
+        if (!process.env.BENCH_PROFILE_TIMED) return page.evaluate(run);
+        await cdp.send("Profiler.enable");
+        await cdp.send("Profiler.start");
+        const out = await page.evaluate(run);
+        const { profile: p } = await cdp.send("Profiler.stop");
+        writeFileSync(`${process.env.BENCH_PROFILE_TIMED}-${stage}.cpuprofile`, JSON.stringify(p));
+        return out;
+    };
+    const load = await profiled("load", () => B.load());
     log("load", load);
     if (load.error) throw new Error("load failed: " + load.error);
     log("canvas", await page.evaluate(() => B.canvasSize()));
@@ -198,7 +219,7 @@ try {
         if (lib !== "graphty" || RENDER_PATH !== "batched") return;
         const rows = await page.evaluate(() => document.querySelector("graphty-element")?.rowCounts);
         log(stage === "load" ? "rowCounts" : `rowCounts-${stage}`, rows);
-        if (!rows || rows.objectNodes > 0 || (curves && rows.objectEdges > 0))
+        if (!rows || rows.objectNodes > 0 || ((curves || threeD) && rows.objectEdges > 0))
             throw new Error(`rows left the batched path after ${stage}: ${JSON.stringify(rows)}`);
     };
     await checkBatched("load");
@@ -228,6 +249,7 @@ try {
         throw new Error("layout-only run, render-on-demand");
     }
     if (!noStill) log("still", await page.evaluate(() => B.still(200)));
+    if (!noStill) log("gpuFrame", await page.evaluate(() => B.gpuFrame(60)));
     await page
         .screenshot({
             path: join(
@@ -257,6 +279,29 @@ try {
     log("memory", { ...(await page.evaluate(() => B.mem())), gpuMBDelta: gpuMB() - gpu0, rssMB: rssMB() });
     // Hover before the layout: a run of the layout moves cosmos.gl's points off the screen, which is
     // why its 10,000-node hover used to find no target. Both libraries hover the same still scene.
+    await hoverStage(page, "hover");
+    if (lib === "graphty") log("lasso", await page.evaluate(() => B.lasso(20)));
+    if (!skip) {
+        log("layoutFps", await profiled("layout", () => B.layoutFps(200, 30000)));
+        // The layout is still running: a hover reads the node under the pointer back from the GPU,
+        // which waits behind every frame queued ahead of it.
+        await hoverStage(page, "hoverLayout");
+        log("layoutSteps", await page.evaluate(() => B.layoutSteps()));
+    }
+} catch (e) {
+    log("failure", String(e?.message ?? e).slice(0, 500));
+} finally {
+    save();
+    await ctx.close();
+    rmSync(UDD, { recursive: true, force: true });
+}
+
+/**
+ * Hovers ten nodes and logs how long each took to answer, under a stage name.
+ * @param {import("playwright").Page} page - The page.
+ * @param {string} stage - The row's field.
+ */
+async function hoverStage(page, stage) {
     const K = 10;
     const targets = await page.evaluate((k) => B.hoverTargets(k), K);
     const lats = [];
@@ -279,16 +324,5 @@ try {
         lats.push(+r.hit.lat.toFixed(1));
     }
     await page.mouse.move(1260, 980);
-    log("hover", { targets: targets.length, latMs: lats });
-    if (lib === "graphty") log("lasso", await page.evaluate(() => B.lasso(20)));
-    if (!skip) {
-        log("layoutFps", await page.evaluate(() => B.layoutFps(200, 30000)));
-        log("layoutSteps", await page.evaluate(() => B.layoutSteps()));
-    }
-} catch (e) {
-    log("failure", String(e?.message ?? e).slice(0, 500));
-} finally {
-    save();
-    await ctx.close();
-    rmSync(UDD, { recursive: true, force: true });
+    log(stage, { targets: targets.length, latMs: lats });
 }

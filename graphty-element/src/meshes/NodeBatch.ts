@@ -1,10 +1,14 @@
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
 import { type AbstractMesh, Mesh, type RawTexture, type TransformNode, VertexBuffer } from "@babylonjs/core";
+import { INVALID_INDEX } from "@graphty/graph-format";
+import isEqual from "lodash/isEqual.js";
 
 import type { Rgba } from "../catalog/types";
-import { batchableOf, type BatchView, type NodePaint } from "../managers/StylePainter";
+import { drawnText } from "../config/RichTextStyle";
+import { batchableOf, type BatchView, type NodePaint, shaderPartOf } from "../managers/StylePainter";
 import type { Node } from "../Node";
+import type { RowMeasure } from "../render/RowTable";
 import { batchUploadFrames } from "./FrameRoster";
 import { handOverTogether } from "./handOverTogether";
 import type { MeshCache } from "./MeshCache";
@@ -418,12 +422,15 @@ function drawSpan(first: Mesh, sources: Mesh[]): [Mesh, Mesh] {
     return [low, high];
 }
 
+/** The shapes a row can be round from every side as, as `Node` keeps them. */
+const ROUND_TYPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
+
 /**
  * A row with no `Node`, drawn from its paint alone: the look, color and size the style stack
  * resolved for it, and the source mesh that look draws from. It has no mesh, anchor, label or
  * overlay of its own, so it never needs a frame's visit (design/rendering/row-renderer.md 4.6).
  */
-export class ColumnRow {
+export class ColumnRow implements RowMeasure {
     /** A row's paint draws at its source's size: only a `Node` scales with the view. */
     readonly wholeScale = 1;
     /** Nothing hangs from the row, so a frame's walk never visits it. */
@@ -434,23 +441,33 @@ export class ColumnRow {
      * @param index - The row.
      * @param paint - What the style stack resolved for it.
      * @param paintedSourceMesh - The source mesh its paint draws from.
+     * @param sourcePaint - The paint that source was made for.
      */
     constructor(
-        readonly index: number,
+        public index: number,
         readonly paint: NodePaint,
         readonly paintedSourceMesh: Mesh,
+        readonly sourcePaint: NodePaint = paint,
     ) {}
 
     /**
-     * Whether a paint can be drawn with no `Node`: a batch draws it, and it names no model or
-     * picture, which a `Node` loads. A group region or a shader path is the caller's to rule out.
+     * Whether a paint can be drawn with no `Node`: a batch draws it, and it names no model,
+     * picture or drawn label, which a `Node` loads. A group region or a shader path is the caller's to rule out.
      * @param paint - The paint.
      * @param view - The scene state it is drawn in.
      * @returns True when it can.
      */
     static drawable(paint: NodePaint, view: BatchView): boolean {
-        const { shape, texture } = paint.style;
-        return shape?.model === undefined && (texture?.image ?? "") === "" && batchableOf(paint, view);
+        const { shape, texture, label, visible } = paint.style;
+        // A label hangs from a `Node` (`Node.labelTarget`): a row with no `Node` would draw none.
+        // A style that hides the row is honored by a `Node` (`Node.styleHidden`), which hides its row.
+        return (
+            visible !== false &&
+            shape?.model === undefined &&
+            (texture?.image ?? "") === "" &&
+            drawnText(label) === undefined &&
+            batchableOf(paint, view)
+        );
     }
 
     /**
@@ -477,6 +494,66 @@ export class ColumnRow {
      */
     batchableIn(view: BatchView): boolean {
         return ColumnRow.drawable(this.paint, view);
+    }
+
+    /**
+     * The row's own scale: its source mesh is built at the size its paint gives it.
+     * @returns 1.
+     */
+    get drawnScale(): number {
+        return 1;
+    }
+
+    /**
+     * Its source's box half-width when the shape is round from every side, as `Node.roundRadius` measures it.
+     * @returns The radius, or null when the row is not round.
+     */
+    get roundRadius(): number | null {
+        if (!ROUND_TYPES.has(this.paint.style.shape?.type ?? "")) {
+            return null;
+        }
+
+        const { extendSize, center } = this.paintedSourceMesh.getBoundingInfo().boundingBox;
+        const radius = extendSize.x;
+        const tolerance = radius * 0.01;
+        const off = (a: number, b: number): boolean => Math.abs(a - b) > tolerance;
+        return radius <= 0 || off(extendSize.y, radius) || off(extendSize.z, radius) || center.length() > tolerance
+            ? null
+            : radius;
+    }
+
+    /**
+     * A drawable paint has no border.
+     * @returns 0.
+     */
+    get borderReach(): number {
+        return 0;
+    }
+
+    /**
+     * Its source mesh's box half-size, as `Node.drawnHalfExtents` measures an unscaled node.
+     * @returns The half-extents.
+     */
+    get drawnHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
+        const { x, y, z } = this.paintedSourceMesh.getBoundingInfo().boundingBox.extendSize;
+        return { x, y, z };
+    }
+
+    /**
+     * With no border, its outline is its drawn surface.
+     * @returns The half-extents.
+     */
+    get outlineHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
+        return this.drawnHalfExtents;
+    }
+
+    /**
+     * The radius around its place that holds its source mesh, as `Node.drawnBoundingRadius` measures it.
+     * @returns The radius.
+     */
+    get drawnBoundingRadius(): number {
+        const { boundingSphere } = this.paintedSourceMesh.getBoundingInfo();
+        return boundingSphere.center.length() + boundingSphere.radius;
     }
 
     /** The row has no mesh to give up or take back. */
@@ -512,10 +589,36 @@ interface RowGroup {
     readonly restVisibility: number;
 }
 
+/** What a row is drawn as: its paint, and the source it draws from with the paint that made it. */
+interface RowLook {
+    readonly paint: NodePaint;
+    readonly sourcePaint: NodePaint;
+    readonly source: Mesh;
+}
+
+/**
+ * Whether two paints of a row are drawn the same size and shape, as `RowTable.measure` records it.
+ * @param a - One paint.
+ * @param b - The other.
+ * @returns True when they measure the same.
+ */
+function sameSize(a: RowMeasure, b: RowMeasure): boolean {
+    const ah = a.drawnHalfExtents;
+    const bh = b.drawnHalfExtents;
+    return (
+        a.drawnScale === b.drawnScale &&
+        a.roundRadius === b.roundRadius &&
+        a.borderReach === b.borderReach &&
+        ah.x === bh.x &&
+        ah.y === bh.y &&
+        ah.z === bh.z
+    );
+}
+
 /** What {@link NodeBatches} needs of the graph. */
 export interface NodeBatchHost {
     readonly cache: MeshCache;
-    readonly places: RowPlaces & { readonly rows: number };
+    readonly places: RowPlaces & { readonly rows: number; measure(row: RowMeasure): void };
     /** The transform node every row is drawn inside. */
     root(): TransformNode | null;
     /** The scene state paint does not hold. */
@@ -526,6 +629,8 @@ export interface NodeBatchHost {
     sourceOf(paint: NodePaint): Mesh;
     /** Babylon's list of active meshes no longer holds. */
     meshesChanged(): void;
+    /** A row drawn with no `Node` changed its drawn size or shape, which a `nodeGap` layout spaces it by. */
+    resized?(): void;
 }
 
 /** Decides which rows are batched and keeps the batches up to date, once a frame. */
@@ -538,6 +643,8 @@ export class NodeBatches {
     private readonly objectRows = new Set<BatchRow>();
     /** The rows drawn with no `Node`, by row. */
     private readonly columnRows = new Map<number, ColumnRow>();
+    /** The look a row stored with no `Node` has until its first paint, and its source. */
+    private storedLook: RowLook | null = null;
     /** The nodes a frame's walk still visits: every member a batch does not draw, and any with an overlay. */
     private readonly walked = new Set<Node>();
     private readonly dirty = new Set<RowGroup>();
@@ -721,6 +828,45 @@ export class NodeBatches {
     }
 
     /**
+     * Make the source a row stored with no `Node` first draws from, when the store takes it, as a
+     * `Node` built at store time does. Babylon draws opaque meshes in the order their materials
+     * were made, so a source made at the first paint would draw after every edge.
+     * @param paint - The look a row has from its store to its first paint.
+     */
+    prepareSource(paint: NodePaint): void {
+        this.storedLook = { paint, sourcePaint: paint, source: this.host.sourceOf(paint) };
+    }
+
+    /**
+     * What a row with no `Node` is drawn as, for a `Node` built for it to take over: the paint whose
+     * source it draws from and the paint it has now (see {@link NodeBatches.paintRow}).
+     * @param index - The row.
+     * @returns The two, or null when no batch draws the row.
+     */
+    lookOf(index: number): { sourcePaint: NodePaint; paint: NodePaint } | null {
+        return this.columnRows.get(index) ?? null;
+    }
+
+    /**
+     * The source a paint draws from: the one the row has while the paint keeps it, as
+     * `Node.keepsMeshFor` keeps a `Node`'s mesh (the same key, or a deep-equal style and colour on
+     * the same shader path), or else the paint's own.
+     * @param drawn - What the row is drawn as now, if anything.
+     * @param paint - The new paint.
+     * @returns The source and the paint it was made for.
+     */
+    private sourceFor(drawn: RowLook | null, paint: NodePaint): { source: Mesh; sourcePaint: NodePaint } {
+        const keeps =
+            drawn !== null &&
+            !drawn.source.isDisposed() &&
+            (drawn.paint.meshKey === paint.meshKey ||
+                (shaderPartOf(drawn.paint.meshKey) === shaderPartOf(paint.meshKey) &&
+                    isEqual(drawn.paint.style, paint.style) &&
+                    isEqual(drawn.paint.color, paint.color)));
+        return keeps ? drawn : { source: this.host.sourceOf(paint), sourcePaint: paint };
+    }
+
+    /**
      * Draw a row that has no `Node` from its paint alone, in place of any paint it had.
      * @param index - The row.
      * @param paint - What the style stack resolved for it.
@@ -728,13 +874,29 @@ export class NodeBatches {
      *     not held.
      */
     paintRow(index: number, paint: NodePaint): boolean {
+        const had = this.columnRows.get(index);
         this.unpaintRow(index);
         if (!ColumnRow.drawable(paint, this.view)) {
             return false;
         }
 
-        const row = new ColumnRow(index, paint, this.host.sourceOf(paint));
+        // Kept across paints as a `Node` keeps its mesh, so a row draws from the source, and in the
+        // order, the objects path's `Node` would have.
+        const { source, sourcePaint } = this.sourceFor(
+            had === undefined
+                ? this.storedLook
+                : { paint: had.paint, sourcePaint: had.sourcePaint, source: had.paintedSourceMesh },
+            paint,
+        );
+        const row = new ColumnRow(index, paint, source, sourcePaint);
         this.columnRows.set(index, row);
+        // what a fit, an edge's trim and a layout's gap read of the row, which no `Node` measures
+        this.host.places.measure(row);
+        if (had === undefined || !sameSize(had, row)) {
+            // as `Node` tells the layout when it is resized: nothing else re-reads a row's size
+            this.host.resized?.();
+        }
+
         this.sync(row);
         return true;
     }
@@ -751,8 +913,54 @@ export class NodeBatches {
         }
     }
 
-    /** A freeze moved rows: every batch refills. */
-    rowsMoved(): void {
+    /**
+     * The rows drawn with no `Node` ({@link NodeBatches.paintRow}): what a fit or a filter reaches
+     * by row, since no walk of the nodes finds them.
+     * @returns Their row numbers, as a fresh array that can be walked more than once.
+     */
+    columnRowIndices(): number[] {
+        return [...this.columnRows.keys()];
+    }
+
+    /**
+     * The row drawn with no `Node` at a row number, if that row is one ({@link NodeBatches.paintRow}).
+     * @param index - The row.
+     * @returns The row, or undefined while a `Node` draws it or nothing does.
+     */
+    columnRowOf(index: number): ColumnRow | undefined {
+        return this.columnRows.get(index);
+    }
+
+    /**
+     * How many rows are drawn with no `Node`: a caller with no row number yet can skip finding one at 0.
+     * @returns The count.
+     */
+    get columnRowCount(): number {
+        return this.columnRows.size;
+    }
+
+    /**
+     * A freeze moved rows: every batch refills, and each row drawn with no `Node` takes its new row
+     * number, or goes when the freeze dropped it.
+     * @param remap - The freeze's node remap: old row to new, INVALID_INDEX for a dropped row;
+     *     null when no row moved.
+     */
+    rowsMoved(remap: ArrayLike<number> | null): void {
+        const rows = remap === null ? [] : [...this.columnRows.values()];
+        if (remap !== null) {
+            this.columnRows.clear();
+        }
+
+        for (const row of rows) {
+            const moved = remap?.[row.index] ?? INVALID_INDEX;
+            if (moved === INVALID_INDEX) {
+                this.leave(row);
+            } else {
+                row.index = moved;
+                this.columnRows.set(moved, row);
+            }
+        }
+
         for (const group of this.groups.values()) {
             group.stale = true;
             this.dirty.add(group);

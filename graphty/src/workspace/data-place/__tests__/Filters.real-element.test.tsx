@@ -356,10 +356,12 @@ describe("Filter cards on the real element", () => {
         });
     });
 
-    it("the toolbar's Filters opens a new card's value picker", async () => {
+    it("the Filters command opens a new card's value picker", async () => {
         const { store } = await openWithGraph();
         store.set({ place: "graph" });
-        await userEvent.click(await screen.findByRole("button", { name: "Filters" }));
+        await userEvent.keyboard("{Control>}k{/Control}");
+        await userEvent.keyboard("filter");
+        await userEvent.click(await screen.findByRole("option", { name: /^Filters/ }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await screen.findByRole("option", { name: "Largest component" });
     });

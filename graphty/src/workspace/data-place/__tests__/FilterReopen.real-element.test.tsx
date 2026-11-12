@@ -1,7 +1,7 @@
 /**
  * Reopening a saved filter, on the REAL graphty-element and Les Miserables, driven by real clicks
  * and keys (the owner's review, 2026-11-07: "when I save a filter, then click edit, it comes up as
- * an empty filter"): the canvas toolbar's Filters opens the one saved filter with every card, never
+ * an empty filter"): the Filters command opens the one saved filter with every card, never
  * a new empty one; with two or more it shows them in the Data place; Done folds the filter back to
  * its one-line row, and its row opens it again with every card.
  */
@@ -133,21 +133,25 @@ async function assertSavedFilter(modal: HTMLElement): Promise<void> {
 }
 
 describe("a saved filter opens with its cards", () => {
-    it("the toolbar's Filters opens the one saved filter with both cards, not a new empty one", async () => {
+    it("the Filters command opens the one saved filter with both cards, not a new empty one", async () => {
         const { session, store } = await openData();
         await saveTwoCardFilter(session);
         store.set({ place: "graph" });
-        await userEvent.click(await screen.findByRole("button", { name: "Filters" }));
+        await userEvent.keyboard("{Control>}k{/Control}");
+        await userEvent.keyboard("filter");
+        await userEvent.click(await screen.findByRole("option", { name: /^Filters/ }));
         await assertSavedFilter(await ws());
         assert.lengthOf(session.visibility.conditions, 1, "no second filter");
     });
 
-    it("with two filters, the toolbar's Filters shows them in the Data place and opens neither", async () => {
+    it("with two filters, the Filters command shows them in the Data place and opens neither", async () => {
         const { session, store } = await openData();
         await saveTwoCardFilter(session);
         await saveTwoCardFilter(session);
         store.set({ place: "graph" });
-        await userEvent.click(await screen.findByRole("button", { name: "Filters" }));
+        await userEvent.keyboard("{Control>}k{/Control}");
+        await userEvent.keyboard("filter");
+        await userEvent.click(await screen.findByRole("option", { name: /^Filters/ }));
         await waitFor(() => {
             assert.strictEqual(store.get().place, "data");
         });

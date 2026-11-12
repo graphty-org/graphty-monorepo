@@ -67,7 +67,14 @@ export type { OptionContext } from "./src/catalog/options";
 export { resolveOptionValues } from "./src/catalog/options";
 export type { OptionsFromZodOptions, OptionsSource, OptionUiMeta } from "./src/catalog/optionsFromZod";
 export { optionsFromZod } from "./src/catalog/optionsFromZod";
-export type { OptionBound, OptionChoice, OptionDescriptor, OptionType } from "./src/catalog/types";
+export type {
+    OptionBound,
+    OptionChoice,
+    OptionDescriptor,
+    OptionType,
+    OptionUnsupported,
+    OptionUnsupportedCode,
+} from "./src/catalog/types";
 export { isOptionType, OPTION_TYPES } from "./src/catalog/types";
 
 // ---------------------------------------------------------------------------------------------
@@ -229,6 +236,14 @@ export {
 } from "./src/catalog/cameraRegistry";
 export type { CameraDescriptor, CameraId } from "./src/catalog/types";
 export { KNOWN_CAMERA_IDS } from "./src/catalog/types";
+
+/*
+ * The two-hand XR gesture the element's own controls use, as plain math over `Vec3`: for a
+ * consumer building its own XR controls on top of the element. It needs no Babylon.js; a
+ * Babylon `Vector3` is a `Vec3`.
+ */
+export type { TwoHandGestureDelta } from "./src/cameras/twoHandGesture";
+export { twoHandGestureDelta } from "./src/cameras/twoHandGesture";
 
 // ---------------------------------------------------------------------------------------------
 // Layout: an engine the element steps, or an arrangement computed in one pass
@@ -458,6 +473,20 @@ export type {
 export { compareNodeIds } from "./src/simple/view";
 
 // ---------------------------------------------------------------------------------------------
+// Whether a registration reaches the assistant
+// ---------------------------------------------------------------------------------------------
+
+/*
+ * NOT AN EXTENSION POINT: A CHECK OF THE SIX. Every algorithm, layout, format and camera view a
+ * plugin registers reaches graphty-element's assistant with no code of its own: the assistant's
+ * tools are generated from the catalog. `assistantReach()` asks, from the plugin's own test, what
+ * of its registrations a model could not be offered, as the element's own build asks of the
+ * built-ins.
+ */
+export type { AssistantReachCode } from "./src/ai/tools/reach";
+export { assistantReach } from "./src/ai/tools/reach";
+
+// ---------------------------------------------------------------------------------------------
 // How a plugin reports a failure
 // ---------------------------------------------------------------------------------------------
 
@@ -465,7 +494,15 @@ export { compareNodeIds } from "./src/simple/view";
 // Network sources (experimental): graph-io's source contract and the element's load types
 // ---------------------------------------------------------------------------------------------
 
-export type { GraphtyErrorCode, GraphtyErrorInit, GraphtyErrorSource, GraphtyErrorTarget } from "./src/errors";
+export type {
+    GraphtyErrorCode,
+    GraphtyErrorDetails,
+    GraphtyErrorDetailsMap,
+    GraphtyErrorFor,
+    GraphtyErrorInit,
+    GraphtyErrorSource,
+    GraphtyErrorTarget,
+} from "./src/errors";
 export { GraphtyError, isGraphtyError } from "./src/errors";
 export * from "./src/session/sources/public";
 

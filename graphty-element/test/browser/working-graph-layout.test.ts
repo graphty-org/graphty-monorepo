@@ -501,7 +501,8 @@ describe("the time window and the working graph", () => {
             await session.time.setSettings({ outside: "ghost" });
             await session.time.window({ from: 0, to: 5 });
             await graph.waitForSettled();
-            assert.isTrue(session.visibility.ghosting, "the nodes outside the window are ghosts");
+            // Asked for, but not drawn: the working graph draws nothing outside the view.
+            assert.isFalse(session.visibility.ghosting, "the nodes outside the window are not drawn");
             const after = positionsOf(graph);
             assert.closeTo(smallestGap(after, FIVE), 72, 0.5, "the five in the window on a circle of their own");
             for (const id of IDS.slice(5)) {

@@ -105,3 +105,9 @@ test("a replay compares a refusal by what was refused and the candidates, not it
     // any other line is compared as it is
     assert.equal(refusalFacts('clicked node "A"'), 'clicked node "A"');
 });
+
+test("a replay reads past a session's own loopback port, and only that", () => {
+    const at = (port) => `console error: blocked from origin 'http://127.0.0.1:${port}' by CORS`;
+    assert.equal(refusalFacts(at(40551)), refusalFacts(at(33117)));
+    assert.notEqual(refusalFacts("failed request: 500 /a"), refusalFacts("failed request: 500 /b"));
+});

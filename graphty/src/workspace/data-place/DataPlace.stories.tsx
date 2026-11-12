@@ -160,6 +160,18 @@ export const FieldEntries: Story = {
     },
 };
 
+/** A click on a source: what it was, when it was retrieved and simple statistics, in the right panel. */
+export const SourceDetails: Story = {
+    args: { initialState: OPEN },
+    play: async ({ canvasElement }) => {
+        await loadLog(canvasElement);
+        const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
+        const row = await place.findByRole("listitem", { name: "auth-log.csv" });
+        await userEvent.click(within(row).getAllByRole("button")[0]);
+        await within(canvasElement).findByRole("group", { name: "Retrieved" });
+    },
+};
+
 /** A source's menu: the registered row commands and Rename. */
 export const SourceMenu: Story = {
     args: { initialState: OPEN },
@@ -201,7 +213,10 @@ async function workspace(): Promise<HTMLElement> {
  */
 async function openPicker(canvasElement: HTMLElement): Promise<void> {
     const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
-    await userEvent.click(await place.findByRole("button", { name: "Add filter" }));
+    // With the Sources tab (the selection workspace) and two loads, each load's section has its own
+    // "+" too: the first is the one under Data sources, for the filters of every load.
+    const [plus] = await place.findAllByRole("button", { name: "Add filter" });
+    await userEvent.click(plus);
     // With the selection workspace on, the new card opens in its modal on the Card list: Value
     // turns its picker to the attributes, as a reader picks one.
     const element = canvasElement.querySelector("graphty-element");

@@ -2084,19 +2084,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return sourceTests(context, filter.sources, filter.side);
         case "state":
             return stateTests(context, filter.state);
-        case "member": {
-            if (context.sources.scope === undefined) {
-                throw unsupported("member", "a scope resolver");
-            }
-
-            const leaf = context.sources.scope(filter.of);
-            const { edges } = leaf;
-
-            return {
-                node: (index) => maskTest(leaf.nodes, index),
-                edge: edges === null ? null : (index) => maskTest(edges, index),
-            };
-        }
+        case "member":
+            return compileMember(context, filter.of);
         case "item":
             return compileItem(context, filter.item);
         case "threshold":
@@ -2141,24 +2130,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
         case "measure":
             return compileMeasure(context, filter);
         case "all":
-        case "any": {
-            if (isSourceScoped(filter)) {
-                return compileSourceScoped(context, filter);
-            }
-
-            const members = filter.of.map((member) => compileOne(member, context));
-
-            return {
-                node: fold(
-                    members.map((member) => member.node),
-                    filter.kind,
-                ),
-                edge: fold(
-                    members.map((member) => member.edge),
-                    filter.kind,
-                ),
-            };
-        }
+        case "any":
+            return compileGroup(context, filter);
         default: {
             const { node, edge } = compileOne(filter.of, context);
 
@@ -2168,6 +2141,52 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             };
         }
     }
+}
+
+/**
+ * Compile a "member" leaf: the elements a scope holds.
+ * @param context - The compile context.
+ * @param of - The scope the leaf names.
+ * @returns Its halves.
+ * @throws A `GraphtyError` when this session has no scope resolver.
+ */
+function compileMember(context: CompileContext, of: Extract<RuleTree, { kind: "member" }>["of"]): CompiledHalves {
+    if (context.sources.scope === undefined) {
+        throw unsupported("member", "a scope resolver");
+    }
+
+    const leaf = context.sources.scope(of);
+    const { edges } = leaf;
+
+    return {
+        node: (index) => maskTest(leaf.nodes, index),
+        edge: edges === null ? null : (index) => maskTest(edges, index),
+    };
+}
+
+/**
+ * Compile an "all" or "any" group, or a source-scoped rule.
+ * @param context - The compile context.
+ * @param filter - The group.
+ * @returns Its halves.
+ */
+function compileGroup(context: CompileContext, filter: Extract<RuleTree, { kind: "all" | "any" }>): CompiledHalves {
+    if (isSourceScoped(filter)) {
+        return compileSourceScoped(context, filter);
+    }
+
+    const members = filter.of.map((member) => compileOne(member, context));
+
+    return {
+        node: fold(
+            members.map((member) => member.node),
+            filter.kind,
+        ),
+        edge: fold(
+            members.map((member) => member.edge),
+            filter.kind,
+        ),
+    };
 }
 
 /**

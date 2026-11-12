@@ -949,12 +949,14 @@ describe("what a style editor needs to draw a row", () => {
 
     it("says in a sentence why a channel cannot be set, exactly when it cannot", () => {
         for (const channel of CHANNELS) {
-            const { renderable, unsupportedReason } = CHANNEL_DESCRIPTORS[channel];
+            const { renderable, unsupportedReason, unsupported } = CHANNEL_DESCRIPTORS[channel];
 
             assert.strictEqual(unsupportedReason !== undefined, !renderable, channel);
+            assert.strictEqual(unsupported !== undefined, !renderable, channel);
         }
 
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.marker"].unsupportedReason, "The element draws no marker yet");
+        assert.deepEqual(CHANNEL_DESCRIPTORS["node.marker"].unsupported, { code: "channel.not-drawn", params: {} });
     });
 });
 

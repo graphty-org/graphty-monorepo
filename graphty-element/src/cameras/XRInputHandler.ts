@@ -14,8 +14,9 @@ import type { XRControllerButton } from "../config/XRConfig";
 import { GraphtyLogger, type Logger } from "../logging";
 import type { NodeDragHandler } from "../NodeBehavior";
 import { pickRayAsDrawn } from "../render/PickService";
-import { isPinching, pinchStrength, thumbstickDeltas, twoHandGestureDelta } from "./InputUtils";
+import { isPinching, pinchStrength, thumbstickDeltas } from "./InputUtils";
 import type { PivotController } from "./PivotController";
+import { twoHandGestureDelta } from "./twoHandGesture";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "camera", "xr", "input"]);
 
@@ -740,7 +741,7 @@ export class XRInputHandler {
 
         this.pivotController.zoom(zoom);
         if (axis) {
-            this.pivotController.rotateAroundAxis(axis, angle);
+            this.pivotController.rotateAroundAxis(new Vector3(axis.x, axis.y, axis.z), angle);
         }
 
         this.previousDistance = currentDistance;

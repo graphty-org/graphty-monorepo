@@ -30,7 +30,8 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import type { ShaderCodeEditor, ShaderCodeEditorHandle, ShaderCodeMark } from "./ShaderCodeEditor";
 import { PlaceDiagram } from "./ShaderGallery";
 import { shaderAddedNotice } from "./shaderNotice";
-import { GEAR_FIELDS, NumberTextField, ShaderParamRows } from "./ShaderParamRows";
+import { NumberTextField, ShaderParamRows } from "./ShaderParamRows";
+import { GEAR_FIELDS, pickedShader } from "./shaderSlots";
 import {
     DIALOG_PLACES,
     dialogPlaceWords,
@@ -792,11 +793,12 @@ export function ShaderEditorDialog({
             if (same !== undefined) {
                 if (put !== undefined && onList) {
                     // At its own place: the text's header names it, or the field gave it to text that names none.
-                    await put(session, same.id, same.params);
+                    // A catalog shader is written through fromCatalog, so the save carries its text.
+                    await put(session, await pickedShader(session, same.id), same.params);
                     store.set({ announcement: `${checked.descriptor.plainName} added` });
                 } else {
                     // No list to write to, and the text is a shader already known: nothing joins.
-                    const known = session.catalog.shaders().find((each) => each.id === same.id) ?? checked.descriptor;
+                    const known = session.shaders.describe(same.id) ?? checked.descriptor;
                     store.set({ notice: shaderAddedNotice(store, session, known) });
                 }
                 close(true);

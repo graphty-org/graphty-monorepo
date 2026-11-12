@@ -614,7 +614,7 @@ interface CauseWords {
 /**
  * The sources whose credential only the owner can make: what refused, and where to make a new one. Every other
  * source's credential error is agent work and never pages: the billing feed reads Cost Explorer through the
- * collector's own AWS role (and the $10 Budget's deny-all stops the collector itself, which release.yml's dead-man
+ * collector's own AWS role (and the $50 Budget's deny-all stops the collector itself, which release.yml's dead-man
  * check reports), and the screenshot captures feed's results store token is one an agent can make and store.
  */
 const CREDENTIALS: Record<string, Omit<CauseWords, "off"> & { off?: string }> = {

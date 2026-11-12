@@ -116,6 +116,47 @@ export function batchableOf(paint: Pick<NodePaint, "style">, view: BatchView): b
     );
 }
 
+/**
+ * The paint a row past `limits.objectRows` is drawn with: its own, less everything no batch draws
+ * (a border, an outline, a model, a picture, a label or tooltip), so a batch draws it as a plain body.
+ * @param paint - The row's paint.
+ * @returns The plain paint, keyed apart from the full one.
+ */
+export function plainNodePaint(paint: NodePaint): NodePaint {
+    const { style } = paint;
+    const only = <T extends object>(bag: T | undefined, keys: ReadonlySet<string>): T | undefined =>
+        bag === undefined ? undefined : (Object.fromEntries(Object.entries(bag).filter(([key]) => keys.has(key))) as T);
+    const plain: NodeStyleConfig = {
+        ...(style.visible === undefined ? {} : { visible: style.visible }),
+        shape: only(style.shape, BATCHABLE_SHAPE_KEYS),
+        texture: only(style.texture, PLAIN_TEXTURE_KEYS),
+        effect: only(style.effect, BATCHABLE_EFFECT_KEYS),
+    };
+    return { meshKey: `plain|${paint.meshKey}`, style: plain, color: paint.color };
+}
+
+/** The line keys a plain line keeps. */
+const PLAIN_LINE_KEYS: ReadonlySet<string> = new Set(["width", "color", "opacity", "minScreenWidth"]);
+
+/**
+ * The paint an edge past `limits.objectEdges` is drawn with: its line's width, color and opacity
+ * alone, as a solid straight line with no caps, label or band.
+ * @param paint - The edge's paint.
+ * @returns The plain paint, keyed apart from the full one.
+ */
+export function plainEdgePaint(paint: EdgePaint): EdgePaint {
+    const { style } = paint;
+    const line = Object.fromEntries(Object.entries(style.line ?? {}).filter(([key]) => PLAIN_LINE_KEYS.has(key)));
+    const plain = {
+        ...(style.visible === undefined ? {} : { visible: style.visible }),
+        line,
+    } as EdgeStyleConfig;
+    return { meshKey: `plain|${paint.meshKey}`, style: plain };
+}
+
+/** The texture a plain body keeps: its color, never a picture. */
+const PLAIN_TEXTURE_KEYS: ReadonlySet<string> = new Set(["color"]);
+
 /** The colour a source mesh's material is built in when the instance carries the real one. */
 const NEUTRAL_HEX = "#FFFFFF";
 
@@ -765,6 +806,35 @@ function nodeIdentity(resolved: ResolvedStyle, meshKey: number): string | null {
 }
 
 /**
+ * Whether two resolved styles carry the same channels with the same values, by reference.
+ * @param a - One style.
+ * @param b - The other.
+ * @returns True when they are the same.
+ */
+function sameStyle(a: ResolvedStyle, b: ResolvedStyle): boolean {
+    const left = a as Record<string, unknown>;
+    const right = b as Record<string, unknown>;
+    let count = 0;
+    for (const channel in right) {
+        if (left[channel] !== right[channel]) {
+            return false;
+        }
+
+        count++;
+    }
+
+    // Every channel of `b` is in `a` with its value (no channel is held as undefined), so equal counts mean
+    // the same channels.
+    for (const channel in left) {
+        if (left[channel] !== undefined) {
+            count--;
+        }
+    }
+
+    return count === 0;
+}
+
+/**
  * Whether an edge's paint follows from its key alone: every channel it carries keys its mesh, or
  * is the colour or the opacity the key folds back in. Content (a label, a bend) and the visible
  * flag are per edge and are not in the key.
@@ -849,41 +919,108 @@ function spellEdgeColours(style: EdgeStyleConfig): EdgeStyleConfig {
 }
 
 /**
- * The rows waiting to be drawn, taken oldest first.
+ * The rows waiting to be drawn, taken oldest first, each held once.
  *
- * ONE ITERATOR ACROSS THE BATCHES. A Set keeps the entries it deleted as holes until it next
- * rehashes, and a fresh iterator steps over all of them, so starting one for each batch made
- * taking a million rows a batch at a time quadratic. A running iterator stays past the holes, and
- * still reaches rows added after it started.
+ * A FLAG PER ROW AND A RING OF ROWS, NOT A SET. A load queues every edge it builds, and a Set of a
+ * million rows spent about 0.2 s hashing and rehashing them (design/rendering/row-renderer.md,
+ * stage G8). A row is a small dense index, so a byte per row says whether it waits and an array
+ * of rows keeps the order a Set's insertion order kept: a row taken and added again goes to the
+ * back. Exported for its test.
  */
-class PendingRows extends Set<number> {
-    private cursor: Iterator<number> | null = null;
+export class PendingRows {
+    private waiting = new Uint8Array(64);
+    private order = new Int32Array(64);
+    private head = 0;
+    private tail = 0;
 
     /**
-     * Take up to `limit` rows.
+     * How many rows wait.
+     * @returns The count.
+     */
+    get size(): number {
+        return this.tail - this.head;
+    }
+
+    /**
+     * Whether a row waits.
+     * @param row - Its dense index.
+     * @returns True when it was added and not yet taken.
+     */
+    has(row: number): boolean {
+        return row < this.waiting.length && this.waiting[row] === 1;
+    }
+
+    /**
+     * Queue a row at the back, unless it already waits.
+     * @param row - Its dense index, at least 0.
+     */
+    add(row: number): void {
+        if (this.has(row)) {
+            return;
+        }
+
+        if (row >= this.waiting.length) {
+            const grown = new Uint8Array(Math.max(row + 1, this.waiting.length * 2));
+            grown.set(this.waiting);
+            this.waiting = grown;
+        }
+
+        if (this.tail === this.order.length) {
+            this.makeRoom();
+        }
+
+        this.waiting[row] = 1;
+        this.order[this.tail++] = row;
+    }
+
+    /** Drop every row. */
+    clear(): void {
+        this.waiting.fill(0);
+        this.head = 0;
+        this.tail = 0;
+    }
+
+    /**
+     * Take up to `limit` rows, oldest first.
      * @param limit - The most to take.
-     * @returns The rows taken, which leave the set.
+     * @returns The rows taken, which leave the queue.
      */
     take(limit: number): readonly number[] {
         if (this.size === 0) {
             return NOTHING;
         }
 
-        const taken: number[] = [];
-        this.cursor ??= this.values();
+        const end = this.head + Math.min(limit, this.size);
+        const taken = Array.from(this.order.subarray(this.head, end));
 
-        while (taken.length < limit && this.size > 0) {
-            const next = this.cursor.next();
+        for (const row of taken) {
+            this.waiting[row] = 0;
+        }
 
-            if (next.done === true) {
-                this.cursor = this.values();
-            } else {
-                taken.push(next.value);
-                this.delete(next.value);
-            }
+        this.head = end;
+
+        if (this.head === this.tail) {
+            this.head = 0;
+            this.tail = 0;
         }
 
         return taken;
+    }
+
+    /** Slide the waiting rows to the front, and grow the ring when that frees too little. */
+    private makeRoom(): void {
+        const { size } = this;
+
+        if (size * 2 > this.order.length) {
+            const grown = new Int32Array(this.order.length * 2);
+            grown.set(this.order.subarray(this.head, this.tail));
+            this.order = grown;
+        } else {
+            this.order.copyWithin(0, this.head, this.tail);
+        }
+
+        this.head = 0;
+        this.tail = size;
     }
 }
 
@@ -1012,6 +1149,18 @@ export class StylePainter {
     /** The paint of each edge key, for edges painted by their key alone; see {@link StylePainter.edgePaint}. */
     private readonly edgePaints = new Map<string, { mesh: ResolvedStyle | undefined; paint: EdgePaint }>();
 
+    /**
+     * The last edge {@link StylePainter.edgePaint} found among {@link edgePaints}: the next edge painted the same
+     * reuses its paint with no identity built, as the rows of a load mostly are (cosmos-gap.md G8).
+     */
+    private lastEdgePaint: {
+        resolved: ResolvedStyle;
+        meshKey: number;
+        directed: boolean;
+        mesh: ResolvedStyle | undefined;
+        paint: EdgePaint;
+    } | null = null;
+
     /** The look of each node key, for rows painted by their key alone; see {@link StylePainter.rowPaint}. */
     private readonly nodeLooks = new Map<string, { mesh: ResolvedStyle | undefined; paint: NodePaint }>();
 
@@ -1049,6 +1198,7 @@ export class StylePainter {
         this.stopListening = null;
         this.paint = paint;
         this.edgePaints.clear();
+        this.lastEdgePaint = null;
         this.nodeLooks.clear();
         this.pendingNodes.clear();
         this.pendingEdges.clear();
@@ -1318,6 +1468,17 @@ export class StylePainter {
         const resolved = paint.styleOf("edge", index);
         const meshKey = paint.meshKeyOf("edge", index);
         const directed = this.directed();
+        const last = this.lastEdgePaint;
+        if (
+            last !== null &&
+            last.meshKey === meshKey &&
+            last.directed === directed &&
+            sameStyle(last.resolved, resolved) &&
+            last.mesh === paint.meshStyleOf("edge", meshKey)
+        ) {
+            return last.paint;
+        }
+
         const make = (): EdgePaint =>
             edgePaintOf(resolved, meshKey, (channel) => paint.plainText("edge", index, channel), directed);
 
@@ -1335,6 +1496,7 @@ export class StylePainter {
         const known = this.edgePaints.get(identity);
 
         if (known !== undefined && known.mesh === mesh) {
+            this.lastEdgePaint = { resolved, meshKey, directed, mesh, paint: known.paint };
             return known.paint;
         }
 
@@ -1344,6 +1506,7 @@ export class StylePainter {
 
         const made = make();
         this.edgePaints.set(identity, { mesh, paint: made });
+        this.lastEdgePaint = { resolved, meshKey, directed, mesh, paint: made };
 
         return made;
     }

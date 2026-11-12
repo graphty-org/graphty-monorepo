@@ -19,9 +19,19 @@ a repository of networks, a graph database, a REST API. It returns the same
 | `total`         | `{ nodes, edges }` the service holds for the load, when it said  |
 
 The built-in sources are `ndex` (NDEx, the repository of biological networks), `cypher` with its
-`neo4j` and `neptune` presets, `rest` with its `openalex` preset, and `sparql`: see
+`neo4j` and `neptune` presets, `rest` with its `openalex` preset, `sparql`, and `url`: see
 [NDEx](./sources/ndex.md), [Cypher](./sources/cypher.md), [REST](./sources/rest.md) and
-[SPARQL](./sources/sparql.md). All of
+[SPARQL](./sources/sparql.md). `url` reads one graph file at a web address, in any format
+graph-io reads:
+
+```ts
+const { snapshot } = await loadFromSource("url", { url: "https://example.com/buildings.csv" });
+```
+
+Its `format` param names the format when the address does not show it (`"graphml"`); `delimiter`,
+`header` (`"yes"`/`"no"`), `table`, `sourceColumn`, `targetColumn` and `idColumn` go to the CSV
+importer when the file is CSV; `directed` (`"yes"`/`"no"`) says whether edges are directed when
+the file does not. A `credential` goes only to the address's origin. All of
 them are experimental. `listSources()` lists them with their descriptors and examples. To read from your own service, see
 [Writing a source](./writing-a-source.md).
 

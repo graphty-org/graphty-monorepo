@@ -147,6 +147,8 @@ export class ImportReportBuilder {
 
     private kept: unknown = NOTHING_KEPT;
 
+    private readonly resolvedOptions: Record<string, unknown> = {};
+
     private readonly startedAt: number;
 
     /**
@@ -335,6 +337,18 @@ export class ImportReportBuilder {
     }
 
     /**
+     * Record an option the importer worked out from the file because the caller did not give it
+     * (the CSV importer's `idColumn`), so the report's `resolved` can read the file the same way again.
+     * @param option - the option's name
+     * @param value - the value the import used
+     * @returns this builder
+     */
+    resolve(option: string, value: unknown): this {
+        this.resolvedOptions[option] = value;
+        return this;
+    }
+
+    /**
      * A builder that starts from everything this one recorded so far: issues, counts, loss notes,
      * the warnOnce keys, the error and warning counts and the truncation flag. For an importer that
      * reads its input once and emits several graphs, each with its own report.
@@ -355,6 +369,7 @@ export class ImportReportBuilder {
         copy.warnings = this.warnings;
         copy.truncatedFlag = this.truncatedFlag;
         copy.kept = this.kept;
+        Object.assign(copy.resolvedOptions, this.resolvedOptions);
         return copy;
     }
 
@@ -438,6 +453,7 @@ export class ImportReportBuilder {
         this.counts.expandedMixed += counts.expandedMixed;
         this.lossList.push(...report.lossy);
         this.truncatedFlag ||= report.truncated;
+        Object.assign(this.resolvedOptions, report.resolved);
         if (this.kept === NOTHING_KEPT && KEPT_FOR_STYLES.has(report)) {
             this.kept = KEPT_FOR_STYLES.get(report);
         }
@@ -475,6 +491,9 @@ export class ImportReportBuilder {
             truncated: this.truncatedFlag,
             lossy: Object.freeze([...this.lossList]),
             durationMs: now() - this.startedAt,
+            ...(Object.keys(this.resolvedOptions).length === 0
+                ? {}
+                : { resolved: Object.freeze({ ...this.resolvedOptions }) }),
         });
         if (this.kept !== NOTHING_KEPT) {
             KEPT_FOR_STYLES.set(report, this.kept);

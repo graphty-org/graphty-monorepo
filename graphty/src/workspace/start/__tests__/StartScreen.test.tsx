@@ -243,30 +243,10 @@ describe("the start screen", () => {
         await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
 
         await screen.findByRole("button", { name: /^Neo4j/ });
+        const chooser = screen.getByRole("dialog", { name: "Open network data" });
+        assert.isNotNull(within(chooser).getByRole("button", { name: /^Load from URL/ }));
+        assert.isNull(within(chooser).queryByRole("textbox", { name: /Web address/ }));
         assert.isNull(store.get().project);
-    });
-
-    it("opens a graph from a typed web address, and nothing for words that are not one", async () => {
-        const store = renderStart();
-        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
-        const field = await screen.findByRole("textbox", { name: /Web address/ });
-        await userEvent.type(field, "trade routes{Enter}");
-        assert.isNull(store.get().project);
-
-        await userEvent.clear(field);
-        await userEvent.type(field, "https://example.com/data/trade%20routes.graphml{Enter}");
-
-        assert.equal(store.get().project?.name, "trade routes");
-        assert.equal(store.get().opening?.name, "trade routes");
-    });
-
-    it("opens a typed web address from the Open button beside the box", async () => {
-        const store = renderStart();
-        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
-        const field = await screen.findByRole("textbox", { name: /Web address/ });
-        await userEvent.type(field, "https://example.com/data/sites.csv");
-        await userEvent.click(screen.getByRole("button", { name: "Open" }));
-        assert.equal(store.get().opening?.name, "sites");
     });
 
     it("draws Open network data beside Samples and New project", () => {

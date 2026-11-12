@@ -1077,6 +1077,16 @@ export interface SessionDataApi {
      */
     edges(): readonly EdgeRecord[];
     /**
+     * How many nodes and edges the graph holds, read without building a record: what a
+     * "1,234 nodes" label reads instead of `nodes().length`.
+     *
+     * ```ts
+     * const { nodes, edges } = session.data.count();
+     * ```
+     * @returns the node count and the edge count
+     */
+    count(): { readonly nodes: number; readonly edges: number };
+    /**
      * One page of node records, without reading the rest: what a table showing a few rows of a
      * large graph reads. The order is computed once per revision, scope and sort and then reused,
      * so scrolling through the pages of one order costs only the records on each page.
@@ -1613,6 +1623,25 @@ export interface SessionDataApi {
      */
     addEdges(records: readonly EdgeRecordInput[]): Promise<void>;
     /**
+     * Load a graph from column arrays, as one undoable step: the advanced path beside `addNodes`
+     * and `addEdges`, for a graph already held as arrays. Nodes are rows `0` to `nodeCount - 1`;
+     * edge `i` runs from row `sources[i]` to row `targets[i]`. The graph made is the one the record
+     * doors make from the same rows, under the same ceilings, report and undo.
+     *
+     * ```ts
+     * await session.data.importColumns({
+     *     sources: [0, 1, 2],
+     *     targets: [1, 2, 0],
+     *     nodeCount: 3,
+     *     ids: ["a", "b", "c"],
+     * });
+     * ```
+     * @param columns - The columns; see {@link ImportColumnsInput}.
+     * @returns Settles once the rows are in the graph and drawn.
+     * @throws `E_BAD_COMMAND` when the columns do not line up; nothing is added.
+     */
+    importColumns(columns: ImportColumnsInput): Promise<void>;
+    /**
      * Change some attributes of existing nodes, as one undoable step. Keys not named are kept; an
      * id the graph does not hold is skipped.
      * @param rows - The new values, per node.
@@ -2045,7 +2074,7 @@ export interface LoadDraft {
      * never become nodes or edges. Any draft answers, prepared onto the graph or not.
      * @returns The table: its name, columns and rows.
      * @throws `E_DISPOSED` once the draft has been loaded or disposed.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     lookup(): JoinLookup;
     /** Let go of the held rows. */
@@ -2527,13 +2556,13 @@ export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "repl
  * table order. Blank values are skipped.
  *
  * OPEN UNION: reductions may be added in a minor release.
- * @since 3.37.0
+ * @since 3.38.0
  */
 export type JoinReduce = "count" | "sum" | "min" | "max" | "mean" | "first" | "last" | "list";
 
 /**
  * Linking nodes whose rows share a value ({@link JoinChoices.link}, shape `"link"`).
- * @since 3.37.0
+ * @since 3.38.0
  */
 export interface JoinLink {
     /** The columns whose values link nodes: a phone, a device, an email. */
@@ -2554,7 +2583,7 @@ export interface JoinLink {
 
 /**
  * How a mapping table is read ({@link JoinChoices.mapping}).
- * @since 3.37.0
+ * @since 3.38.0
  */
 export interface JoinMapping {
     /** The mapping table's column holding the incoming keys, then its column holding the graph's. */
@@ -2565,8 +2594,10 @@ export interface JoinMapping {
 
 /**
  * A node's region when a join compares two graphs ({@link JoinChoices.compare}): the value
- * written to its membership column.
- * @since 3.37.0
+ * written to its membership column. `"from"` is the data being joined in and `"onto"` the graph
+ * already loaded: `"both"` (a node in both), `"only-from"` (a node only the joined data holds) or
+ * `"only-onto"` (a node only the loaded graph holds). These values are saved in projects.
+ * @since 3.38.0
  */
 export type JoinRegion = "both" | "only-from" | "only-onto";
 
@@ -2579,7 +2610,7 @@ export type JoinRegion = "both" | "only-from" | "only-onto";
  * const via = crosswalk.lookup();
  * crosswalk.dispose();
  * ```
- * @since 3.37.0
+ * @since 3.38.0
  */
 export interface JoinLookup {
     /** Its name, as a source's. */
@@ -2620,7 +2651,7 @@ export interface JoinSuggestion {
      * phone, a device), so a join of `shape: "link"` on them would link those nodes. Absent when no
      * column fits. The shape stays the values join; linking is the reader's choice:
      * `{ ...suggestion, shape: "link" }`.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly link?: JoinLink;
     /**
@@ -2675,7 +2706,7 @@ export interface JoinChoices {
      * A mapping table held apart from the graph (`LoadDraft.lookup()`), read as `via` reads one:
      * its rows never become nodes or edges, and it is saved with the join. Giving both `lookup` and
      * `via` is refused (`E_BAD_COMMAND`, `details.reason` `"via-and-lookup"`).
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly lookup?: JoinLookup;
     /**
@@ -2683,20 +2714,20 @@ export interface JoinChoices {
      * its column holding the graph's (by default the columns whose values meet the incoming keys
      * and the graph's most); `many` what a key mapped to several values matches: the `"first"`
      * (the default) or every one (`"list"`).
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly mapping?: JoinMapping;
     /**
      * For `"edges"`: the `kind` the nodes the join makes take, by end. A node the graph holds is
      * left as it is.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly endKinds?: { readonly source?: string; readonly target?: string };
     /**
      * For `"edges"` with `endKinds`: `"shared"` (the default) matches an end to a node of any kind;
      * `"scoped"` matches it only to a node of its end's kind, and an end it makes whose id a node
      * of another kind holds becomes `<kind>:<value>`, as `LoadChoices.kindIds` does.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly kindIds?: "shared" | "scoped";
     /**
@@ -2706,10 +2737,10 @@ export interface JoinChoices {
      * names). Every node is kept: a filter on the membership column keeps the union, the
      * intersection (`"both"`) or a difference. A clashing column of the table is always written as
      * `<column> (<table name>)`, so the two graphs' values sit side by side.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly compare?: boolean;
-    /** For `compare`: the column the regions are written to. Default `"membership"`. @since 3.37.0 */
+    /** For `compare`: the column the regions are written to. Default `"membership"`. @since 3.38.0 */
     readonly membership?: string;
     /**
      * For `"edges"`: a row with an end the graph lacks either `"add"`s that end as a new node
@@ -2724,22 +2755,22 @@ export interface JoinChoices {
      * column (count the rows); a key column's reduction is always written as
      * `<column> (<reduction>)`, so the key keeps its value. A brought column named here takes its first value. When present,
      * `repeated` is ignored and every row of a key counts; for `"edges"`, one edge per pair.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly aggregate?: Readonly<Record<string, JoinReduce | readonly JoinReduce[]>>;
-    /** For `"link"`: what links nodes. Required for `"link"`. @since 3.37.0 */
+    /** For `"link"`: what links nodes. Required for `"link"`. @since 3.38.0 */
     readonly link?: JoinLink;
     /**
      * For `"merge"`: a row naming no node is kept as a new node (`"keep"`, the default), its id
      * the key's value, or `"drop"`ped.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly unmatchedFrom?: "keep" | "drop";
     /**
      * The names to write in place of the ones the join derives, by the derived name: a reduction's
      * `<column> (<reduction>)`, a clashing column's `<column> (<table name>)`, a link edge's
      * `shared`. `{ "amount (count)": "orders", shared: "overlap" }`.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly names?: Readonly<Record<string, string>>;
     /**
@@ -2765,7 +2796,7 @@ export interface JoinChoices {
      */
     readonly split?: Readonly<Record<string, string>>;
     /**
-     * For `"node-values"` on one key with no `via`: a row matching no node is `"leave-out"`, left
+     * For `"node-values"` on one key with no `via` or `lookup`: a row matching no node is `"leave-out"`, left
      * out of the join (the default), or `"add"`ed as a new node named by its key. Undone, edited
      * and removed with the join.
      * @since 3.38.0
@@ -2849,27 +2880,27 @@ export interface JoinReport {
      * @since 3.33.0
      */
     readonly rowFates: readonly JoinRowFate[];
-    /** Rows whose key matches more than one element. @since 3.37.0 */
+    /** Rows whose key matches more than one element. @since 3.38.0 */
     readonly fanOut: number;
-    /** For `"merge"`: the nodes rows merge into. 0 otherwise. @since 3.37.0 */
+    /** For `"merge"`: the nodes rows merge into. 0 otherwise. @since 3.38.0 */
     readonly merged: number;
-    /** For `"merge"`: the keys only the table holds, kept or dropped. 0 otherwise. @since 3.37.0 */
+    /** For `"merge"`: the keys only the table holds, kept or dropped. 0 otherwise. @since 3.38.0 */
     readonly onlyFrom: number;
-    /** For `"merge"`: the nodes no row merges into. 0 otherwise. @since 3.37.0 */
+    /** For `"merge"`: the nodes no row merges into. 0 otherwise. @since 3.38.0 */
     readonly onlyOnto: number;
-    /** For `"link"`: the node pairs linked. 0 otherwise. @since 3.37.0 */
+    /** For `"link"`: the node pairs linked. 0 otherwise. @since 3.38.0 */
     readonly pairsLinked: number;
-    /** For `"link"`: the shared values left unused because more than `maxShared` nodes hold them. @since 3.37.0 */
+    /** For `"link"`: the shared values left unused because more than `maxShared` nodes hold them. @since 3.38.0 */
     readonly valuesOverCap: number;
-    /** For `"link"`: the pairs sharing fewer values than `minShared`, so not linked. @since 3.37.0 */
+    /** For `"link"`: the pairs sharing fewer values than `minShared`, so not linked. @since 3.38.0 */
     readonly pairsBelowMin: number;
-    /** With `via`: the distinct incoming keys the mapping table lacks. 0 otherwise. @since 3.37.0 */
+    /** With `via`: the distinct incoming keys the mapping table lacks. 0 otherwise. @since 3.38.0 */
     readonly unmapped: number;
-    /** With `via`: the distinct incoming keys the mapping table maps to more than one value. @since 3.37.0 */
+    /** With `via`: the distinct incoming keys the mapping table maps to more than one value. @since 3.38.0 */
     readonly mappedToMany: number;
     /**
      * With `compare`: the nodes in each region ({@link JoinRegion}). Absent otherwise.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly regions?: {
         readonly nodes: Readonly<Record<JoinRegion, number>>;
@@ -3330,6 +3361,33 @@ export type NodeRecordInput = Readonly<Record<string, unknown>>;
 
 /** An edge record to add: its endpoints are read through the edge id paths; its id is assigned. */
 export type EdgeRecordInput = Readonly<Record<string, unknown>>;
+
+/**
+ * A graph as column arrays, for `session.data.importColumns`. Every array may be a plain array or
+ * a typed array.
+ */
+export interface ImportColumnsInput {
+    /** Each edge's source, as a node row number from 0 to `nodeCount - 1`. */
+    readonly sources: ArrayLike<number>;
+    /** Each edge's target, as a node row number; as long as `sources`. */
+    readonly targets: ArrayLike<number>;
+    /** How many nodes there are. */
+    readonly nodeCount: number;
+    /** Each node's id, one per node. Default: the row number. */
+    readonly ids?: ArrayLike<string | number>;
+    /**
+     * Each edge's weight, one per edge, stored as the record's `weight`. Default: read from the edge
+     * attributes as `addEdges` reads it, else 1.
+     */
+    readonly weights?: ArrayLike<number>;
+    /** Each node's starting position as x, y, z, three numbers per node. Default: placed by the layout. */
+    readonly positions?: ArrayLike<number>;
+    /** Further values by column name: one per node, or one per edge. */
+    readonly attributes?: {
+        readonly nodes?: Readonly<Record<string, ArrayLike<unknown>>>;
+        readonly edges?: Readonly<Record<string, ArrayLike<unknown>>>;
+    };
+}
 
 /** New values for some attributes of one existing row; keys not named are left as they are. */
 export interface RowUpdate<Id> {

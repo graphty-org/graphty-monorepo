@@ -254,7 +254,7 @@ function isRare(param: SourceParamDescriptor): boolean {
 function shownParams(entry: SourceCatalogEntry, mode: unknown, rare: boolean): readonly SourceParamDescriptor[] {
     const hasMode = entry.descriptor.params.some((p) => p.name === "mode");
     return entry.descriptor.params.filter((param) => {
-        if (OWN_ROWS.has(param.name) || isRare(param) !== rare) {
+        if (OWN_ROWS.has(param.name) || param.name === entry.descriptor.endpointParam || isRare(param) !== rare) {
             return false;
         }
         if (hasMode && param.type === "query") {
@@ -400,6 +400,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
     };
 
     const ready = formReady(entry, form);
+    const addressParam = descriptor.params.find((p) => p.name === descriptor.endpointParam);
     const advanced = shownParams(entry, form.params.mode, true);
     const test = (): void => {
         if (session === null || busy !== null || !ready) {
@@ -506,16 +507,27 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                             }}
                         />
                     </FieldRow>
-                    <FieldRow>
-                        <PanelField
-                            label="Endpoint"
-                            placeholder={descriptor.defaultEndpoint ?? "https://"}
-                            value={form.endpoint}
-                            onChange={(endpoint) => {
-                                change({ endpoint: String(endpoint) });
+                    {addressParam === undefined ? (
+                        <FieldRow>
+                            <PanelField
+                                label="Endpoint"
+                                placeholder={descriptor.defaultEndpoint ?? "https://"}
+                                value={form.endpoint}
+                                onChange={(endpoint) => {
+                                    change({ endpoint: String(endpoint) });
+                                }}
+                            />
+                        </FieldRow>
+                    ) : (
+                        // A source whose address is a param (Load from URL) asks for it in place of an Endpoint.
+                        <ParamRow
+                            param={addressParam}
+                            value={form.params[addressParam.name]}
+                            onChange={(value) => {
+                                setParam(addressParam.name, value);
                             }}
                         />
-                    </FieldRow>
+                    )}
                     <SignInRow
                         entry={entry}
                         user={form.user}

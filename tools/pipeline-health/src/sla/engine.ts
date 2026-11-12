@@ -470,7 +470,7 @@ function monthComputed(ctx: Ctx, m: Extract<Measure, { type: "month" }>, p: Poin
 function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
     const m = c.measure;
     if (c.window === "slow") {
-        return slowValue(ctx, c, p.end);
+        return withAlso(ctx, c, p, slowValue(ctx, c, p.end));
     }
     if (m.type === "engine") {
         return p.end === ctx.now ? engineValue(ctx, m.name) : null;
@@ -490,6 +490,19 @@ function compute(ctx: Ctx, c: MemberConfig, p: Point): Computed | null {
         out.value6h = measureValue(m, b6, p.end - (p.t - SIX_SPAN + STEP));
         out.n6h = b6.n;
     }
+    return withAlso(ctx, c, p, out);
+}
+
+/**
+ * Adds a member's `also` metrics, read over the last hour: each as a fact at the newest point, and failExtra when one
+ * is past its own fail threshold.
+ * @param ctx - what evaluate loaded
+ * @param c - the member
+ * @param p - the point judged
+ * @param out - the member's computed values
+ * @returns `out`, with the facts and failExtra added
+ */
+function withAlso(ctx: Ctx, c: MemberConfig, p: Point, out: Computed): Computed {
     for (const a of c.also ?? []) {
         const v = measureValue(
             { type: "last", metric: a.metric },

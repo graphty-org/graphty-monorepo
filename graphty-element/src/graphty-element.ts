@@ -52,7 +52,7 @@ import { featuresFrom, Graph, loadSourcePair, type NodeScreenPosition, operation
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
-import type { NodeThumbnailOptions } from "./meshes/NodeThumbnail";
+import type { ModelThumbnailOptions, NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { antialiasDefault } from "./meshes/PulledLineBatch";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
@@ -347,13 +347,18 @@ export class Graphty extends LitElement {
 
     /**
      * The network source a `data-source` value names, or null for a data source: `source:<id>`
-     * always names a source; a bare name is a source only when no data source has it.
+     * always names a source; a bare name is a source only when no data source has it. A bare
+     * `"url"` stays the element's URL pair (it finds the file's format itself and reads `blob:` and
+     * relative addresses), never graph-io's `url` network source, which `source:url` names.
      * @param type - The `data-source` value.
      * @returns The source id, or null.
      */
     static #sourceIdOf(type: string): string | null {
         if (type.startsWith(SOURCE_FORMAT_PREFIX)) {
             return type.slice(SOURCE_FORMAT_PREFIX.length);
+        }
+        if (type === "url") {
+            return null;
         }
         return !DataSource.getRegisteredTypes().includes(type) && sourceRegistry.hasSource(type) ? type : null;
     }
@@ -3926,6 +3931,27 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * One node drawn as a model, alone, exactly as the graph draws it, on a transparent background:
+     * a preview of a model file for a picker or a gallery. Waits for the model to settle. Each
+     * picture is drawn once and kept, by the model's files, size, style values, 2D or 3D and lighting.
+     * @param ref - What `node.model` takes: an asset id from `session.assets.add`, a sample's id,
+     *     or a URL the session holds.
+     * @param options - The picture's size in pixels (32 when left out) and the node's style values
+     *     (`node.color` and the `node.model*` settings) as a layer's `set` holds them.
+     * @returns The picture as a PNG data URL.
+     * @throws GraphtyError `E_MODEL_UNKNOWN_ASSET` when the session holds nothing under `ref`; for a
+     *     rejected model or one waiting for parts, its first problem's code and params.
+     * @example
+     * ```typescript
+     * const asset = await element.session.assets.add(input.files);
+     * img.src = await element.modelThumbnail(asset.id, { size: 160 });
+     * ```
+     */
+    async modelThumbnail(ref: string, options?: ModelThumbnailOptions): Promise<string> {
+        return this.#graph.modelThumbnail(ref, options);
+    }
+
+    /**
      * Phase 6: Capability Check API
      * Check if screenshot can be captured with given options.
      * Available from Phase 6 onwards.
@@ -6507,6 +6533,11 @@ export class Graphty extends LitElement {
      * (`{ renderPath }`). A switch to `"objects"` while the graph is past the defaults is refused
      * with an `error` event carrying `E_TOO_LARGE`, and the path stays `"batched"`.
      * `session.capabilities.limits` reports the limits in force.
+     *
+     * `objectRows` and `objectEdges` (defaults 100,000 and 1,000,000) are how many nodes and edges
+     * may be drawn as objects of their own, for a look no batch draws (a border, an arrow head).
+     * Past either, later rows draw as plain bodies and plain lines, and `limits-warning` says so
+     * with `W_OBJECT_CAP` (`{ of, wanted, cap }`).
      * @returns The limits asked for.
      * @experimental cosmograph
      * @example

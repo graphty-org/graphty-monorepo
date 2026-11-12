@@ -31,8 +31,51 @@ admin bypass; never touch the screenshot gate's trusted files.
 
 ## Every round, before the steps
 
-Two checks run in EVERY round, before step 1, even when a step below ends the round early. Their results lead the
+Three checks run in EVERY round, before step 1, even when a step below ends the round early. Their results lead the
 round's last line.
+
+### Master onto nightly
+
+The standing goal (owner, 2026-11-11: "you should ALWAYS try to get master on to nightly"): drive the newest green
+master onto nightly. A round does not only react to each red full run; it moves master forward.
+
+- **Name the run that moves it.** When nightly's commit (its build stamp, below) is behind master's newest green
+  build, the round's last line names the `release.yml` run that will move nightly (id, commit, running or pending)
+  and what could stop it: a failure that happens on every run with no merged fix, a hold, a lane red on master.
+  No such run: dispatch one (the restart rule below).
+- **Check master between full runs.** As soon as a fix for a red full run's failure merges, test the newest master
+  for the next blocker in minutes, not at the next full run (about 80 minutes):
+    - each test file that failed in the red run, on a hosted runner:
+      `gh workflow run base-check.yml --ref master -f base=<newest master sha> -f file=<path> -f variant=<variant> -f repeat=1`
+      (`<variant>` as the red job printed it; an experiments-on lane is `<family>|flags=on|selected`). A failure files
+      its `Failing on master` issue.
+    - every experiments-on shard (`./tools/run-tests.sh --list | grep features-on`), locally, in the background, in a
+      detached worktree of that commit (`git worktree add --detach .worktrees/master-check-<sha7> <sha>`, then
+      `pnpm install --frozen-lockfile` and `tools/low-priority.sh pnpm exec nx run-many -t build`):
+      `for s in $(./tools/run-tests.sh --list | grep features-on); do tools/low-priority.sh ./tools/run-tests.sh "$s"; done > tmp/pipeline-round/master-check-<sha7>.log 2>&1`.
+      Each shard waits for a machine test slot by itself. Start it once and read the log next round.
+    - A new failure is the next blocker: a `priority:critical` issue with `Refs #<red issue>` and a fix subagent the
+      same round.
+- **Cancel doomed runs.** When a fix for a red full run's failure merges, list the running and pending `release.yml`
+  runs (`gh run list --workflow release.yml --status in_progress` and `--status pending`). A run whose commit lacks a
+  merged fix for a failure that happens on every run is doomed: cancel it (`gh run cancel <id>`) and comment the
+  run id and the missing fix on the red issue. Agents may cancel any GitHub Actions run that is doomed or superseded
+  (owner, 2026-11-11), except a master build of `ci.yml` (CLAUDE.md). Never cancel a run whose failures were only
+  flaky or unknown, and never a `promote-nightly` run.
+- **Dispatch the restart.** When master's newest build is green and holds the fixes for every failure that happens
+  on every run, and no running or pending `release.yml` run has them, dispatch
+  `gh workflow run release.yml --ref master -f mode=restart` (owner-approved 2026-11-11). It tests the commit it
+  starts on and replaces any pending release run (Known situations).
+- **Follow it through.** Once there is an approved candidate (step 6), or a merged fix for a red full run, this
+  session drives it to nightly without waiting for the next round (on 2026-11-11 a failed promotion sat unnoticed
+  until the owner asked, twice). After every action whose result arrives later -- an approval or fix pull request
+  merging, master's build, a `promote-nightly` or restart run -- arm a background watch that wakes the session when
+  it ends, then end the turn; never wait inside a turn. A run: `gh run watch <id> --interval 60 --exit-status` in the
+  background. A pull request: a background wait on its merge polling every 5 minutes or slower (GitHub API budget).
+  On each wake take the next step at once: dispatch the promotion when the approval or its fix merged, re-run once
+  for a classified outside cause, or start a fix subagent for a code cause and arm a watch on its pull request. Done
+  only when nightly.graphty.app's build stamp names the candidate and
+  `npm view @graphty/graphty-element dist-tags.next` moved.
 
 ### Nightly every slot
 
@@ -44,7 +87,7 @@ incident with a named cause (#5052).
   `blocking`), the open `Nightly missed slot <date hh:mm> UTC: <cause>` issue (filed by release.yml's slot job when a
   full, restart or candidate run ends without moving nightly; `Nightly stalled since` is only the fallback for a slot
   with no run at all) and the `Nightly held on <sha12>` issue.
-- **An unreviewable or stale hold is fixed this round:** a held head judged red, owner-item or rejected while
+- **An unreviewable or stale hold is fixed this round:** a held head judged red, owner-item, rejected or refused while
   newer green runs could not replace it, a hold whose fix forward is not moving, or one older than a slot with no
   fix in flight. Fix forward (step 6), or end it with
   `gh workflow run nightly-abandon.yml --ref master -f reason="<why>"` (allowed, needs no owner).
@@ -172,17 +215,20 @@ version` (409) means it is propagating (minutes); otherwise re-run the failed pu
 - **Red deploy run:** the newest `deploy-pages.yml` run failed and no open issue names its run id: open one,
   `Red run: deploy-pages.yml <run id> on <sha7>` (`bug`, `priority:high`, `effort:medium`), with the failed job and
   the end of its log, then classify it as above.
-- Never dispatch `promote.yml` (production) or `release.yml` in any mode but the `promote-nightly` fallback in step 6,
-  and never release the grouped major (#676, #702, #843, #1370 have no entry in `release-approvals.json` and stay
-  held).
+- Never dispatch `promote.yml` (production) or `release.yml` in any mode but `restart` ("Master onto nightly") and
+  the `promote-nightly` fallback in step 6, and never release a major (none is planned: held breaking changes land as
+  ordinary `feat`/`fix` commits, CLAUDE.md "Public API and breaking changes").
 
 ### 6. Held nightly candidate
 
 A full run that is green but changed screenshots (`green-images`), or not green-clean after its one re-run, holds its
 commit H on `channel/candidate` with a `Nightly held on <sha12>` issue (CLAUDE.md, "The held nightly candidate"). A
 red cause is fixed forward from `origin/channel/candidate` (step 1's fix prompt, that base, `Refs #<hold issue>`). A
-newer commit's green-clean or green-images verdict replaces a held head judged red, owner-item or rejected on its
-own (`hold.mjs replace`); a held green-images head awaiting review is never replaced.
+newer commit's green-clean or green-images verdict replaces a held head judged red, owner-item, rejected, refused or
+green-images on its own (`hold.mjs replace`): a held head awaiting the owner's review is replaced too, so nightly
+never waits behind it (#6604); only an approved head, or one whose approval merged, is never replaced. An approval the promotion gate refused
+records `refused`: once its cause is fixed on master, re-dispatch the command the hold issue names (it tries the same
+approval again, #6783).
 
 - **Before asking the owner,** open his proofroom review page (servherd `proofroom-review`, cwd
   `.worktrees/proofroom-review`; command in CLAUDE.md, "Visual review") in your own browser tab and confirm it lists
@@ -205,6 +251,11 @@ own (`hold.mjs replace`); a held green-images head awaiting review is never repl
   pull request's head). Then verify: nightly.graphty.app's build stamp
   (`<meta name="graphty-build" content="commit=...">`) names H, and `npm view @graphty/graphty-element dist-tags.next`
   moved.
+- **A `promote-nightly` run that failed** (not just missing): read the failed job's log
+  (`gh api repos/graphty-org/graphty-monorepo/actions/jobs/<id>/logs` when `gh run view --log-failed` returns
+  nothing), classify it, and fix the cause on master (a release-path tool fix goes alone in its own pull request).
+  Once the fix merges, re-dispatch the same command with the same H and P; the approval stands, so no new review is
+  needed. Arm a watch on each step ("Follow it through").
 
 ### 7. Owner items
 
@@ -214,8 +265,10 @@ several:
 - **Promotion waiting on screenshots, always first:** the held candidate's Finish (step 6, after its check), asked
   the round it is held; a broken story fails its own pull request instead.
 - **Never ask the owner to merge.** A pull request `tools/pr-open.sh` left auto-merge off for because it touches an
-  owner-guarded path: once green, arm its auto-merge yourself (`gh pr merge <n> --auto --merge`). Only a breaking
-  change (it needs the label `breaking-go`) is the owner's, in one daily review list. Never arm one that writes an
+  owner-guarded path: once green, arm its auto-merge yourself (`gh pr merge <n> --auto --merge`). Only a `!` commit
+  (it needs the label `breaking-go`) is the owner's, in one daily review list; breaking changes otherwise land with
+  no `!` (CLAUDE.md "Public API and breaking changes"), so never make one (a pushed `!` commit is lowered only by
+  the owner's `release-not-breaking.json` entry). Never arm one that writes an
   approval the owner keeps for himself (`visual-review/passkeys.json`, `release-approvals.json`, a hand-added
   `tools/test-quarantine.json` entry): agents never write those, so flag it to the owner instead. Never merge master into one
   waiting on the owner unless it conflicts: the push dismisses his approval.
@@ -228,8 +281,7 @@ several:
 
 From the broker file (`tmp/pr-status/status.json`): every open pull request into master opened by graphty-agent
 (its `author`) whose `All Checks Pass` concluded `failure` on its head, that conflicts with master, or has unanswered
-review findings. A pull request anyone else opened -- the owner's (among them the held grouped major #1677, with
-#676, #702, #843 and #1370), a master-guard revert (step 1) -- is not this step's: skip it.
+review findings. A pull request anyone else opened -- the owner's, a master-guard revert (step 1) -- is not this step's: skip it.
 
 - Its branch's issue has a live `taken` marker (its session is alive, see "Alive"): that session owns it. Skip.
 - Otherwise classify the failure from the failed job (see "Failure classes"): outside, re-run the failed jobs once;
@@ -316,6 +368,13 @@ Each: signal, meaning, action. Add to this list (see the next section).
   so a fix re-creates through the publish path, never by uploading to an existing release.
 - **The nightly site did not deploy** while npm `next` moved: the site job is `nightly-site.yml`; re-dispatch it
   for the promoted commit.
+- **One pending release run.** `release.yml`'s concurrency group `release-train` keeps one running and one pending
+  run; a newer dispatch replaces the pending one (on 2026-11-10 a restart dispatch replaced a doomed same-commit
+  retry). A fix merged with `Refs #<red issue>` starts a restart after its master build (`release-due`); an agent
+  may also dispatch one ("Master onto nightly").
+- **Excluded images and the promotion gate.** An image the owner excludes in the Finish counts as `excluded` for the
+  promotion only since #6781 (`acceptedBy` in `tools/channel/recapture.mjs` reads the head's `disableSnapshot`
+  file). Before it, an excluded unstable story still failed "Gate the approved candidate" (run 43141765347).
 - **A workflow fix and a re-run.** `gh run rerun` keeps the original run's workflow file, so a merged workflow fix
   takes effect only in a new dispatch.
 - **"rate limit exceeded"** on the agent account (5,000 an hour, every session) or the Actions token budget
@@ -323,6 +382,8 @@ Each: signal, meaning, action. Add to this list (see the next section).
   spender (a per-pull-request REST loop, a tight poll) and file or fix it.
 - **Worktrees git refuses to remove** because of untracked build output: leave them; a fix belongs in
   `tools/worktree-cleanup.mjs`, not a forced removal.
+- **The loop stopped running.** CronCreate jobs expire 7 days after they are created (the 2026-11-04 loop ran its last
+  round 2026-11-11 and nobody noticed for a day). Start it again and follow "Renewing the loop" in `shared.md`.
 - **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, and the
   Release status issue.
 
@@ -330,7 +391,7 @@ Each: signal, meaning, action. Add to this list (see the next section).
 
 When a round meets something this file or `shared.md` does not cover, or a step here turns out wrong: handle it, then
 fix the file -- a new "Known situations" entry or a corrected step -- on a branch
-(`./tools/worktree-new.sh docs/pipeline-round-<topic> origin/master --issue <N>`), and open its pull request like any
+(`./tools/worktree-new.sh chore/pipeline-round-<topic> origin/master --issue <N>`), and open its pull request like any
 change. Resolved failure modes go in `lessons.md` beside this file. A rule both skills need goes in `shared.md`, never
 in both. Never work around the skill in the session or in memory only. A situation that needs the same manual work
 every time becomes an issue for a tool fix. Keep this file a checklist: no daemons, no state files, no scripts of its
@@ -339,7 +400,8 @@ own.
 ## Running it
 
 One session runs each skill at a time; other sessions may still work by hand and are coordinated only through the
-`in-progress` label and markers. A /loop expires after seven days; start it again then. To pause, stop the loop.
+`in-progress` label and markers. A /loop expires after seven days; each round renews it (`shared.md`, "Renewing the
+loop"). To pause, stop the loop.
 
 - **Normal:** both skills. Two clients, `/loop 30m /pipeline-round` in one and `/loop 30m /issue-round` in the other;
   or one client, `/loop 30m run /pipeline-round, then /issue-round` (issue-round always after pipeline-round).

@@ -108,6 +108,7 @@ export const setCameraPosition: GraphCommand = {
                 return {
                     success: false,
                     message: "Either 'preset' or 'position' must be provided.",
+                    code: "AI_ARG_INVALID",
                 };
             }
 
@@ -119,6 +120,7 @@ export const setCameraPosition: GraphCommand = {
                     return {
                         success: false,
                         message: `Unknown camera view "${preset}". Available views: ${cameraViewNames().join(", ")}.`,
+                        code: "AI_UNKNOWN_ENTRY",
                     };
                 }
 

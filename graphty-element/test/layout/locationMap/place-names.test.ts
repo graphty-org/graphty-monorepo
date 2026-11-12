@@ -16,6 +16,7 @@ import type { Edge } from "../../../src/Edge";
 import { layoutEngineInternals } from "../../../src/layout/LayoutEngine";
 import { loadGazetteer, normalizePlace, readPlaces } from "../../../src/layout/locationMap/gazetteer";
 import type { LocationMapFrame } from "../../../src/layout/locationMap/place";
+import { detectSource } from "../../../src/layout/locationMap/source";
 import { LocationMapLayout } from "../../../src/layout/LocationMapLayoutEngine";
 import type { Node } from "../../../src/Node";
 
@@ -268,6 +269,12 @@ describe("the gazetteer", () => {
         assert.strictEqual(countries.lat[0], countries.lat[1]);
         assert.strictEqual(countries.lat[0], countries.lat[2]);
         assert.strictEqual(countries.lat[3], countries.lat[4]);
+    });
+
+    it("never reads a column of one-letter labels as places by a region's one-letter postal code", async () => {
+        const g = await loadGazetteer(BASE, "auto");
+        assert.isNull(detectSource([{ name: "label", values: ["A", "B"] }], g));
+        assert.deepInclude(readPlaces(["Baa", "Baa Atoll"], "region", null, g), { unmatched: [] });
     });
 
     it('splits "City, CC" at its last comma under auto, and narrows a city by a region name', async () => {

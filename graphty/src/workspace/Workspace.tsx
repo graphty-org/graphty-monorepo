@@ -21,7 +21,6 @@ import { notReadWords } from "./project/words";
 import { REGISTRATIONS } from "./registrations";
 import { cardPalette } from "./selection/cardPalette";
 import { SettingsDialog } from "./settings/SettingsDialog";
-import { NetworkDataDialog } from "./start/NetworkDataDialog";
 import { openAgain, useDropToOpen } from "./start/open";
 import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
@@ -39,6 +38,7 @@ import {
     type WorkspaceStore,
 } from "./state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "./state/WorkspaceContext";
+import { CustomModelHost } from "./style/CustomModelHost";
 import { ShaderEditorHost } from "./style/ShaderEditorHost";
 
 /** The workspace's facts about opening and reopening projects: ids and booleans, never data. */
@@ -314,9 +314,18 @@ export function Workspace({
     // causes is written after this runs, since it listens first.
     useEffect(() => {
         const empty = (): void => {
-            if (store.get().announcement !== "") {
-                store.set({ announcement: "" });
+            const { announcement, announced } = store.get();
+            if (announcement === "") {
+                return;
             }
+            // After the key's own listeners, unless one of them said something: emptying the line
+            // re-renders at once, and a re-render in the middle of the key's dispatch swaps the
+            // window listener an open Mantine modal closes on, so that modal would miss its Escape.
+            setTimeout(() => {
+                if (store.get().announced === announced) {
+                    store.set({ announcement: "" });
+                }
+            });
         };
         globalThis.addEventListener("keydown", empty, true);
         globalThis.addEventListener("pointerdown", empty, true);
@@ -379,6 +388,7 @@ export function Workspace({
             <HelpDialogs />
             <ExportDialog />
             <ShaderEditorHost />
+            <CustomModelHost />
             <SettingsDialog />
             <ReportDialog />
             <ProjectDialogs />
@@ -390,7 +400,6 @@ export function Workspace({
                 <span key={announced}>{announcement}</span>
             </VisuallyHidden>
             <SamplesDialog />
-            <NetworkDataDialog />
         </WorkspaceContext.Provider>
     );
 }

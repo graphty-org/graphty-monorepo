@@ -129,7 +129,7 @@ export {
     type StorableCredential,
     storableCredential,
 } from "./sources/credentials.js";
-export { defineSource } from "./sources/define.js";
+export { defineSource, sourceEndpoint, sourceFileName } from "./sources/define.js";
 export {
     CYPHER_SOURCE_ID,
     NDEX_SOURCE_ID,
@@ -143,6 +143,7 @@ export {
     SOURCE_FORMAT_PREFIX,
     SOURCE_STUB_ATTR,
     SPARQL_SOURCE_ID,
+    URL_SOURCE_ID,
 } from "./sources/ids.js";
 export { type SourceParamsMap } from "./sources/params.js";
 export { sha256Hex } from "./sources/sigv4.js";
@@ -197,6 +198,7 @@ export {
     type SourceTotal,
     type SourceValidators,
 } from "./sources/types.js";
+export { URL_DESCRIPTOR, type UrlParams } from "./sources/url/descriptor.js";
 
 // ============================================================ formats (8.4, 8.5)
 export {

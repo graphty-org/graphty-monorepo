@@ -50,9 +50,11 @@ import { SourceCredentialSlot } from '@graphty/graph-io';
 import { SourceCursor } from '@graphty/graph-io';
 import { SourceDescriptor } from '@graphty/graph-io';
 import { EdgeRecord as SourceEdgeRecord } from '@graphty/graph-io';
+import { sourceEndpoint } from '@graphty/graph-io';
 import { SourceExample } from '@graphty/graph-io';
 import { SourceFeature } from '@graphty/graph-io';
 import { SourceFile } from '@graphty/graph-io';
+import { sourceFileName } from '@graphty/graph-io';
 import { SourceFinish } from '@graphty/graph-io';
 import { SourceFreshness } from '@graphty/graph-io';
 import { SourceInfo } from '@graphty/graph-io';
@@ -174,7 +176,9 @@ export interface AssetRecord {
     readonly format: ModelFormat;
     readonly id: AssetId;
     readonly kind: "model" | "image";
+    readonly parts?: readonly ModelPart[];
     readonly path?: string;
+    readonly plainName?: string;
     readonly problems: readonly CodedFact[];
     readonly skipped?: readonly string[];
     readonly state: AssetState;
@@ -197,6 +201,7 @@ export interface AssetsApi {
         readonly signal?: AbortSignal;
     }): Promise<AssetRecord>;
     remove(id: string): void;
+    rename(ref: string, plainName?: string): AssetRecord;
     setLimits(limits: Partial<ModelLimits>): void;
     states(): readonly ModelChange[];
     supply(ref: string, answer: PartAnswer, options?: {
@@ -673,6 +678,28 @@ export interface CommandOutcomeMap {
 }
 
 // @public
+export interface ComparedField {
+    readonly field: string;
+    readonly runId: RunId;
+}
+
+// @public
+export interface CompareSide {
+    readonly field?: string;
+    readonly run: RunRef;
+}
+
+// @public
+export interface ComparisonBase {
+    readonly a: ComparedField;
+    readonly b: ComparedField;
+    readonly elements: "node" | "edge";
+    readonly onlyA: readonly NodeId[];
+    readonly onlyB: readonly NodeId[];
+    readonly shared: number;
+}
+
+// @public
 export interface ComponentStatistics {
     componentOf(id: NodeId_2): number | undefined;
     readonly count: number;
@@ -683,12 +710,117 @@ export interface ComponentStatistics {
 }
 
 // @public
+export type Condition<F extends ConditionField = ConditionField> = {
+    readonly type: "number";
+    readonly key: string;
+    readonly field: F;
+    readonly match: "range" | "top" | Presence;
+    readonly min?: number;
+    readonly max?: number;
+    readonly top?: number;
+    readonly from?: "high" | "low";
+    readonly percent?: boolean;
+} | {
+    readonly type: "category";
+    readonly key: string;
+    readonly field: F;
+    readonly match: "values" | Presence;
+    readonly values: readonly string[];
+    readonly gaps: boolean;
+} | {
+    readonly type: "text";
+    readonly key: string;
+    readonly field: F;
+    readonly match: ConditionTextMode | Presence | "list";
+    readonly text: string;
+    readonly caseSensitive: boolean;
+    readonly ids?: readonly string[];
+} | {
+    readonly type: "date";
+    readonly key: string;
+    readonly field: F;
+    readonly match: "before" | "after" | "between" | Presence;
+    readonly min?: number;
+    readonly max?: number;
+} | {
+    readonly type: "yes-no";
+    readonly key: string;
+    readonly field: F;
+    readonly match: "yes" | "no" | "unset" | Presence;
+} | {
+    readonly type: "source";
+    readonly key: string;
+    readonly field: F;
+    readonly sources: readonly SourceKey[];
+} | {
+    readonly type: "ends";
+    readonly key: "ends";
+    readonly reading: "clipped" | "incident";
+} | {
+    readonly type: "fixed";
+    readonly key: string;
+    readonly leaf: RuleTree | null;
+    readonly selector?: Selector_2;
+    readonly repeat?: true;
+};
+
+// @public
+export const CONDITION_SOURCE_PATH = "@source";
+
+// @public
+export interface ConditionField {
+    readonly kind: ConditionFieldKind;
+    readonly on: "node" | "edge";
+    readonly path: string;
+    readonly range?: {
+        readonly min: number;
+        readonly max: number;
+    };
+}
+
+// @public
+export type ConditionFieldKind = ReadableValueKind | "name" | "source" | "date";
+
+// @public
+export function conditionFields(session: GraphSession, on: "node" | "edge"): ListedConditionField[];
+
+// @public
+export const conditionKey: (field: Pick<ConditionField, "on" | "path">) => string;
+
+// @public
+export function conditionLeaf(condition: Condition): RuleTree | null;
+
+// @public
+export function conditionOf<F extends ConditionField>(leaf: RuleTree, fields: readonly F[], at: number): Condition<F>;
+
+// @public
+export function conditionSelector(conditions: readonly Condition[], ends?: readonly RuleTree[]): Selector_2;
+
+// @public
+export type ConditionTextMode = "substring" | "starts-with" | "ends-with" | "exact";
+
+// @public
+export interface CostBasis {
+    readonly derivationSeconds: number;
+    readonly edges: number | null;
+    readonly iterations: number | null;
+    readonly iterationsAssumed: boolean;
+    readonly nodes: number | null;
+    readonly provenance: CodedFact<CostProvenanceCode>;
+    readonly sample: number | null;
+    readonly sizesScaled: boolean;
+    readonly term: "class" | "algorithm" | "units" | null;
+}
+
+// @public
 export type CostConfidence = "measured" | "calibrated" | "modelled" | "unknown";
 
 // @public
 export interface CostEstimate {
     readonly available: boolean;
+    // @deprecated
     readonly basis: string;
+    readonly basisFacts: CostBasis;
     readonly blocksFrame: boolean;
     readonly cancellable: boolean;
     readonly confidence: CostConfidence;
@@ -734,6 +866,9 @@ export interface CostMeasurement {
     readonly nodes: number;
     readonly seconds: number;
 }
+
+// @public
+export type CostProvenanceCode = "cost.measured" | "cost.extrapolated" | "cost.declared-model" | "cost.calibrated" | "cost.built-in" | "cost.no-throughput" | "cost.size-unknown" | "cost.unbounded" | "cost.refused" | "cost.layout";
 
 // @public
 export function createGraphSession(options?: CreateGraphSessionOptions): GraphSession;
@@ -860,6 +995,9 @@ export interface DraftTable {
     readonly rowCount: number;
     readonly weightCandidate?: string;
 }
+
+// @public
+export function edgeConditions<F extends ConditionField>(selector: Selector_2, fields: readonly F[]): Condition<F>[];
 
 // @public
 export type EdgeEnd = "source" | "target";
@@ -2284,6 +2422,45 @@ export type GraphtyErrorCode =
 | "E_IMAGE_LOAD" | "E_INTERNAL";
 
 // @public
+export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
+
+// @public
+export interface GraphtyErrorDetailsMap {
+    E_DUPLICATE_ID: {
+        readonly id?: string | number;
+    };
+    E_PARSE_FAILED: {
+        readonly format?: string;
+        readonly line?: number;
+    };
+    E_TOO_LARGE: {
+        readonly limit?: number;
+        readonly count?: number;
+        readonly of?: string;
+        readonly graph?: {
+            readonly nodes: number;
+            readonly edges: number;
+        };
+    };
+    E_UNKNOWN_ATTRIBUTE: {
+        readonly candidates?: readonly string[];
+        readonly available?: readonly string[];
+        readonly run?: string;
+        readonly field?: string;
+    };
+    E_UNKNOWN_LAYOUT: {
+        readonly layout?: string;
+        readonly available?: readonly string[];
+    };
+}
+
+// @public
+export type GraphtyErrorFor<C extends GraphtyErrorCode = GraphtyErrorCode> = C extends GraphtyErrorCode ? GraphtyError & {
+    readonly code: C;
+    readonly details: GraphtyErrorDetails<C>;
+} : never;
+
+// @public
 export interface GraphtyErrorInit {
     cause?: unknown;
     code: GraphtyErrorCode;
@@ -2377,6 +2554,14 @@ export type GraphtyWarningCode =
 * @experimental cosmograph
 */
 | "W_LIMITS_IGNORED"
+/**
+* More rows ask to be drawn as objects of their own (a look no batch draws, such as a border)
+* than `limits.objectRows` allows, on `render-path="batched"`: the rows past it are drawn as
+* plain bodies and plain lines. `params.of` is `"nodes"` or `"edges"`, `params.wanted` how
+* many asked, `params.cap` the budget.
+* @experimental cosmograph
+*/
+| "W_OBJECT_CAP"
 /**
 * A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
 * which draws no text. `params.channel` is the channel, `params.path` where in the layer the
@@ -2568,10 +2753,25 @@ export interface GraphvizCapability {
 export type GroupMatchCode = "group.new" | "group.gone";
 
 // @public
+export interface GroupMove {
+    readonly a: string | number;
+    readonly b: string | number;
+    readonly id: NodeId;
+    readonly mostOfGroup: string | number;
+}
+
+// @public
 export interface GroupOutlineClick {
     readonly group: string | number | boolean | null;
     readonly layer: LayerId;
     readonly shader: string;
+}
+
+// @public
+export interface GroupOverlap {
+    readonly a: string | number;
+    readonly b: string | number;
+    readonly count: number;
 }
 
 // @public
@@ -2673,6 +2873,20 @@ export interface HopsLeaf {
 }
 
 // @public
+export interface ImportColumnsInput {
+    readonly attributes?: {
+        readonly nodes?: Readonly<Record<string, ArrayLike<unknown>>>;
+        readonly edges?: Readonly<Record<string, ArrayLike<unknown>>>;
+    };
+    readonly ids?: ArrayLike<string | number>;
+    readonly nodeCount: number;
+    readonly positions?: ArrayLike<number>;
+    readonly sources: ArrayLike<number>;
+    readonly targets: ArrayLike<number>;
+    readonly weights?: ArrayLike<number>;
+}
+
+// @public
 export interface ImportOptions {
     readonly history?: "step" | "start";
     readonly layout?: "recommended" | "keep";
@@ -2717,7 +2931,10 @@ export function isAlgorithmRunCommand(value: unknown): value is AlgorithmRunComm
 export function isAssetId(value: unknown): value is AssetId;
 
 // @public
-export function isGraphtyError(value: unknown): value is GraphtyError;
+export const isConditionFinished: (condition: Condition) => boolean;
+
+// @public
+export function isGraphtyError(value: unknown): value is GraphtyErrorFor;
 
 // @public
 export function isGraphtyErrorCode(value: unknown): value is GraphtyErrorCode;
@@ -3297,15 +3514,24 @@ export interface Limits {
     edgesDrawn: number;
     graphMemoryBudgetBytes: number;
     largeGraphThreshold: number;
+    objectEdges: number;
+    objectRows: number;
     renderCeiling: number;
     selectionCap: number;
 }
 
 // @public
-export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn">>;
+export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn" | "objectRows" | "objectEdges">>;
 
 // @public
 export function listAutosaves(key: string, options?: AutosaveLookupOptions): Promise<readonly AutosaveEntry[]>;
+
+// @public
+export interface ListedConditionField extends ConditionField {
+    readonly from: ReadableValue["from"] | "source";
+    readonly integer?: true;
+    readonly value?: ReadableValue;
+}
 
 export { listSources }
 
@@ -3572,6 +3798,22 @@ export interface ModelLimits {
 }
 
 // @public
+export interface ModelPart {
+    readonly file?: string;
+    readonly name: string;
+    // (undocumented)
+    readonly role: ModelPartRole;
+    // (undocumented)
+    readonly state: ModelPartState;
+}
+
+// @public
+export type ModelPartRole = "model" | "geometry" | "materials" | "texture" | "other";
+
+// @public
+export type ModelPartState = "found" | "substituted" | "missing" | "ambiguous" | "skipped" | "unused";
+
+// @public
 export type ModelState = "pending" | "accepted" | "drawn" | "rejected" | "failed";
 
 // @public
@@ -3681,6 +3923,17 @@ export type NetworkRequestAsker = "file" | "ai" | "data" | "source" | "supplied"
 
 // @public
 export type NetworkRequestKind = "model" | "texture" | "source";
+
+// @public
+export function newCondition<F extends ConditionField>(field: F): Exclude<Condition<F>, {
+    type: "fixed" | "ends";
+}>;
+
+// @public
+export function nodeConditionLeaves(selector: Selector_2): readonly RuleTree[] | null;
+
+// @public
+export function nodeConditions<F extends ConditionField>(selector: Selector_2, fields: readonly F[]): Condition<F>[];
 
 // @public
 export type NodeId = string | number;
@@ -3926,7 +4179,12 @@ export type PartAnswer =
     readonly name?: string;
     readonly file: NamedBlob | Uint8Array;
 }
-/** Use a file the set already holds for an ambiguous reference (`E_MODEL_PART_AMBIGUOUS`). */
+/**
+* Use a file the set already holds: one of an ambiguous reference's candidates
+* (`E_MODEL_PART_AMBIGUOUS`), or any file of the set for a missing part (`E_MODEL_MISSING_FILE`),
+* as when a picture's name differs from the one the model names. A file nothing else names is
+* moved to the part's name.
+*/
 | {
     readonly name: string;
     readonly use: string;
@@ -3943,6 +4201,18 @@ export type PartAnswer =
 
 // @public
 export type PartialCode = "partial.iteration-cap" | "partial.time-box" | "partial.canceled" | "partial.stopped" | "partial.batch-incomplete";
+
+// @public
+export interface PartitionComparison extends ComparisonBase {
+    readonly agreement: number | undefined;
+    readonly groups: {
+        readonly a: number;
+        readonly b: number;
+    };
+    readonly kind: "partition";
+    readonly moves: readonly GroupMove[];
+    readonly overlaps: readonly GroupOverlap[];
+}
 
 // @public
 export type Path = string;
@@ -4204,7 +4474,7 @@ export interface ProjectOpenReport {
 }
 
 // @public
-export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
+export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | "shader.unknown" | "shader.not-saved">;
 
 // @public
 export interface ProjectSaveOptions {
@@ -4284,6 +4554,24 @@ export type QueuePolicy = (typeof QUEUE_POLICIES)[number];
 
 // @public
 export function quotePath(path: Path): Query;
+
+// @public
+export interface RankChange {
+    readonly id: NodeId;
+    readonly move: number;
+    readonly rankA: number;
+    readonly rankB: number;
+    readonly tiedA: number;
+    readonly tiedB: number;
+}
+
+// @public
+export interface RankingComparison extends ComparisonBase {
+    readonly changes: readonly RankChange[];
+    readonly correlation: number | undefined;
+    readonly kind: "ranking";
+    readonly moved: number;
+}
 
 // @public
 export interface RankingEntry {
@@ -4693,6 +4981,9 @@ export interface ResultColumnDescriptor {
 }
 
 // @public
+export type ResultComparison = RankingComparison | PartitionComparison;
+
+// @public
 export type ResultId = RunId;
 
 // @public
@@ -4713,6 +5004,7 @@ export interface ResultRef {
 
 // @public
 export interface ResultsApi {
+    compare(a: RunRef | CompareSide, b: RunRef | CompareSide): ResultComparison;
     get(run: RunRef): RunResult | undefined;
     has(run: RunRef, field?: string): boolean;
     path(run: RunRef, field?: string): Path;
@@ -5669,6 +5961,10 @@ export interface SessionDataApi {
     checkSource(load: string, options?: SourceLoadOptions): Promise<SourceCheck>;
     clear(): Promise<void>;
     collapse(id: NodeId_2): Promise<CollapseResult>;
+    count(): {
+        readonly nodes: number;
+        readonly edges: number;
+    };
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
     edge(id: EdgeId): EdgeRecord | undefined;
     edgePage(options: EdgePageOptions & {
@@ -5690,6 +5986,7 @@ export interface SessionDataApi {
     ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;
     ignoreIssues(issues: readonly (IssueId | Pick<DataIssue, "id">)[], ignored?: boolean): Promise<void>;
     import(source: DataSourceInput, options?: LoadChoices & SourceLoadOptions): Promise<void>;
+    importColumns(columns: ImportColumnsInput): Promise<void>;
     issues(options?: {
         readonly includeIgnored?: boolean;
         readonly includeFixed?: boolean;
@@ -5946,6 +6243,8 @@ export interface SessionShaders {
         readonly compile?: boolean;
         readonly picture?: boolean;
     }): Promise<ShaderAddResult>;
+    describe(id: string): ShaderDescriptor | undefined;
+    fromCatalog(id: string): Promise<string>;
     // (undocumented)
     list(): readonly ProjectShader[];
     remove(id: string): Promise<void>;
@@ -6326,6 +6625,8 @@ export { SourceDescriptor }
 
 export { SourceEdgeRecord }
 
+export { sourceEndpoint }
+
 export { SourceExample }
 
 // @public
@@ -6364,6 +6665,8 @@ export interface SourceFeatures {
 }
 
 export { SourceFile }
+
+export { sourceFileName }
 
 export { SourceFinish }
 
@@ -6687,6 +6990,7 @@ export interface StyleDocument {
     layers: readonly LayerSpec[];
     // (undocumented)
     palettes?: readonly PaletteDescriptor[];
+    problems?: readonly ShaderProblem[];
     shaders?: readonly {
         readonly id: string;
         readonly text: ShaderText;
@@ -6928,7 +7232,7 @@ export type TemplatePosition = "top" | "aboveBase" | {
 // @public
 export interface TemplateReport {
     readonly applied: readonly LayerId[];
-    readonly shaders?: readonly CodedFact<"shader.held" | "shader.id-taken">[];
+    readonly shaders?: readonly CodedFact<"shader.held" | "shader.id-taken" | "shader.unknown">[];
     readonly unbound: readonly UnboundLayer[];
 }
 

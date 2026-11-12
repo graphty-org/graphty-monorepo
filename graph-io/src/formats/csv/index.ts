@@ -35,6 +35,7 @@ import {
     NO_DATA_ROWS_CODE,
     NO_ENDPOINT_COLUMNS_CODE,
     NO_ID_COLUMN_CODE,
+    NO_UNIQUE_ID_CODE,
     OTHER_FORMAT_CODE,
     PADDED_ID_CODE,
     ROLE_TAKEN_CODE,
@@ -85,6 +86,12 @@ export const CSV_ISSUE = Object.freeze({
      * import stops.
      */
     NO_ID_COLUMN: NO_ID_COLUMN_CODE,
+    /**
+     * Every id-like column of a node table's header (`id`, `person_id`, `node`, `key`, `name`) repeats a value or
+     * leaves one blank, so the nodes are numbered by row (0 for the first data row). Pass `idColumn` to key the table
+     * by one of them anyway.
+     */
+    NO_UNIQUE_ID: NO_UNIQUE_ID_CODE,
     /**
      * A row with a different number of fields than the header; the row is skipped. An adjacency list read without
      * `table: "adjacency"` gives one per long row, and the first one's message suggests the option.

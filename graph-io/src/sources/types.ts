@@ -152,6 +152,20 @@ export interface SourceFile {
     readonly mimeType?: string | undefined;
     /** Graph facts the file itself does not hold, written after it is read, as `RecordBatch.meta`. */
     readonly meta?: Readonly<Record<string, unknown>> | undefined;
+    /**
+     * Importer options by format id ("csv"), applied only when the file is read as that format;
+     * the caller's own options win.
+     */
+    readonly formatOptions?: Readonly<Record<string, Readonly<Record<string, unknown>>>> | undefined;
+    /** Importer options for whichever format the file is read as; the caller's own options win. */
+    readonly importOptions?: Readonly<Record<string, unknown>> | undefined;
+    /**
+     * The params that read this file the same way again, given the options the importer worked out
+     * from it (the import report's `resolved`, such as the CSV `idColumn`), or undefined when the
+     * given params already do. What it returns is the load report's `source.params`.
+     */
+    readonly settle?:
+        ((resolved: Readonly<Record<string, unknown>>) => Readonly<Record<string, unknown>> | undefined) | undefined;
 }
 
 /**
@@ -446,6 +460,12 @@ export interface SourceDescriptor {
         | undefined;
     /** The endpoint used when the caller names none. @defaultValue null */
     readonly defaultEndpoint?: string | null | undefined;
+    /**
+     * The param whose value is the endpoint when the caller names none: a file source whose
+     * address is a param (the `url` source's `url`). `sourceEndpoint` reads it. Absent: the
+     * endpoint is the caller's, else `defaultEndpoint`.
+     */
+    readonly endpointParam?: string | undefined;
     /** Where it runs; a runtime marked unsupported is refused with E_SOURCE_RUNTIME before any request. */
     readonly runtimes?:
         | Readonly<
@@ -653,6 +673,12 @@ export interface SourceReportInfo {
     readonly validators?: SourceValidators | undefined;
     /** What the source holds for this load, when it counted: the nodes and edges it matches. */
     readonly total?: SourceTotal | undefined;
+    /**
+     * The params to save for this load, when they differ from the ones given: the given params with
+     * what the read worked out from the data filled in (the `url` source's CSV `idColumn`), so a
+     * saved load reads its data the same way again after a default changes.
+     */
+    readonly params?: Readonly<Record<string, unknown>> | undefined;
 }
 
 /**

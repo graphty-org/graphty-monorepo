@@ -203,7 +203,11 @@ test("the score, step and end-state scripts each catch their planted tier 5 case
 test("the leak check flags the files a call opens, never the text it writes", async () => {
     const own = await mkdtemp(join(tmpdir(), "leak-check-"));
     const fail = `FAIL: ${studio}/tier5/rounds/round-1/plan.md holds no "Gate evidence" section`;
-    const call = (name, input) => ({ type: "assistant", message: { content: [{ type: "tool_use", name, input }] } });
+    const call = (name, input, cwd) => ({
+        type: "assistant",
+        ...(cwd && { cwd }),
+        message: { content: [{ type: "tool_use", name, input }] },
+    });
     const leaks = async (...calls) => {
         const t = join(own, "t.jsonl");
         await writeFile(t, calls.map((c) => JSON.stringify(c)).join("\n"));
@@ -222,6 +226,12 @@ test("the leak check flags the files a call opens, never the text it writes", as
             [call("Bash", { command: `cat answers.md <<'EOF'\nx\nEOF` }), /a facilitator file, answers\.md/],
             [call("Bash", { command: `cat > x <<EOF\n$(cat ../tasks.md)\nEOF` }), /a facilitator file, tasks\.md/],
             [call("Write", { file_path: `${studio}/tier5/notes.md`, content: "x" }), /a studio file/],
+            // participants run from the repository root, so a path relative to it reaches the studio
+            [call("Bash", { command: "cat design/ui/studio/notes/researcher.md" }), /a studio file/],
+            [call("Read", { file_path: "design/ui/studio/tier5/report.md" }), /a studio file/],
+            [call("Bash", { command: "cat notes/researcher.md" }, `${studio}`), /a studio file/],
+            [call("Grep", { pattern: "x", path: "design/ui/studio" }), /a search outside its folder/],
+            [call("Glob", { pattern: "**/*.md", path: "design" }), /a search outside its folder/],
         ]) {
             r = await leaks(c);
             assert.equal(r.status, 1, `${JSON.stringify(c.message.content[0].input)} was not flagged: ${r.stdout}`);

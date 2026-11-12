@@ -115,14 +115,18 @@ A link to graphty.app must point at something `tools/assemble-pages-site.sh` pub
 **The held nightly candidate.** A run that is not green-clean after its re-run holds its commit: branch
 `channel/candidate`, the store's hold and a "Nightly held on <sha12>" issue (`tools/channel/hold.mjs`). Master
 keeps merging, and nothing promotes past the held commit, except that a newer commit's green-clean or green-images
-run replaces a held head judged red, owner-item or rejected (`hold.mjs replace`): the red hold ends, and the newer
-commit promotes or is held for review in its place. A held green-images head awaiting review is never replaced. Fix it forward from the candidate's head, never
+run replaces a held head judged red, owner-item, rejected, refused or green-images (`hold.mjs replace`): that hold
+ends, and the newer commit promotes or is held for review in its place, so nightly never waits behind an older
+screenshot review (#6604); only an approved head, or one whose approval is already on master, is never replaced
+(its promotion is due). Fix it forward from the candidate's head, never
 from newer master: `./tools/worktree-new.sh fix/<n>-<topic> origin/channel/candidate --issue <n>`,
 `Refs #<hold issue>` in the commit message, then `tools/pr-open.sh`. When it merges, `mode: candidate` merges the
 fix commit (never master) into `channel/candidate` and re-tests the new head as a whole full run. A green-clean
 head promotes to nightly; a green-images one when the owner's screenshot approval merges
-(`mode: promote-nightly`); a screenshot gate that refuses the approval records the head `rejected`, comments the
-gate's reason on the "Nightly held on" issue (opening one when the store names none) and fails the run. The hold ends on that promotion, or by an abandon, which needs no owner (owner, 2026-10-27: it publishes
+(`mode: promote-nightly`); a screenshot gate that refuses the approval records the head `refused` (never the
+owner's `rejected`, #6783), comments the gate's reason and the retry command on the "Nightly held on" issue (opening
+one when the store names none) and fails the run; once the cause is fixed on master, dispatching promote-nightly for
+the same candidate and approval tries again (a full slot's catch-up does not). The hold ends on that promotion, or by an abandon, which needs no owner (owner, 2026-10-27: it publishes
 nothing and the next full run undoes it): anyone's `gh workflow run nightly-abandon.yml --ref master -f
 reason="<why>"`, or the full run's own (`hold.mjs auto`) before it picks, when only a pipeline lane (screenshot
 capture or re-capture) since fixed on master held the head red, or when the hold is over 24 hours old and master
@@ -141,8 +145,8 @@ versions npm only had not listed yet closes itself, `tools/publish-hold.mjs`). T
 ### Versions and npm
 
 `nx release` bumps each package from the conventional commits since its last `{projectName}@{version}` tag. A
-commit with `!` or a `BREAKING CHANGE:` footer means a major bump for the package in its scope, so decide a
-package's next major before its first breaking commit lands (see "Breaking changes and major releases"). Check a
+commit with `!` or a `BREAKING CHANGE:` footer means a major bump for the package in its scope, so a breaking
+change carries neither for now (see "Breaking changes and major releases"). Check a
 release change with
 `pnpm exec nx release --dry-run --skip-publish`. Changelogs are rendered by `tools/changelog-renderer.cjs`, which
 lists a commit under a package's "Breaking Changes" only when its scope names that package (or it has none).
@@ -300,19 +304,16 @@ changes a file production already has (`tools/dataset-overlay.mjs`).
 
 ## Breaking changes and major releases
 
-Every major release costs every consumer a migration, so keep them few: think ahead and group
-breaking changes into as few majors as possible.
+The owner's rule (2026-11-10): "we have taken a softer stance on 'breaking' since we don't have
+anyone using our app yet. merge in the issues we have held as 'breaking' as non-breaking."
 
-- Before adding a breaking (`!`) commit to a published package, find the other breaking changes
-  already planned or in flight for that package -- unlanded branches carrying `!` commits,
-  deprecations scheduled for removal, the breaking-change registers in `design/` -- and land them
-  in the same major.
-- The full run promotes whatever has reached master to nightly and npm `next`, so a group of
-  breaking changes cannot be assembled by merging several branches over several days: a nightly
-  promotion in between would publish a major of its own. Put the grouped changes on one
-  branch and open it as one pull request.
-- Prefer deprecating now and removing in the next major that is already planned over a major of
-  its own. A breaking change that can wait for the next grouped major waits.
-- A branch that will bump a published package's major says so in its commit message, lists the
-  breaking changes it groups, and names any known breaking change it deliberately leaves for a
-  later major, with the reason.
+- While nobody outside consumes the packages, a change that would be breaking (removing or
+  renaming anything public, changing what an existing API does or returns, changing a default)
+  lands as an ordinary `feat` or `fix` commit with no `!` and no `BREAKING CHANGE:` footer, so it
+  bumps a minor or a patch, never a major.
+- Each such change goes through its own pull request with auto-merge, like any other; nothing is
+  held for a grouped major, and no `breaking-go` label is needed.
+- Its commit message says what changed for callers: what was removed, renamed or now behaves
+  differently, and what to use instead.
+- Ask the owner again only when a real outside consumer appears; then majors are one-way doors
+  again and are grouped into as few as possible.

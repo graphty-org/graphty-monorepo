@@ -56,3 +56,26 @@ by mutation testing" block of `tools/test-select.test.mjs`. `node tools/test-sel
   selector would have run whole (graphty-element's browser shards for a source change; any shard for a design/
   change). Under selection the gate and `test:changed` ask the selector about every shard.
 - **A file served by URL:** `graphty/public/samples/*` (Vite's publicDir). `public/` is a whole-package rule.
+
+## A full run red all day, one failure per 80 minutes (2026-11-10, #6549)
+
+- **Symptom:** the full run stayed red all day. Each red run exposed only the failures that happened in it, and each
+  new full run took about 80 minutes, so blockers surfaced one run at a time.
+- **A hang found four hours late:** #6586 merged at 6:16 PM PT with two style tests that hang on every run with
+  experiments on (#6631). A full run found it only at about 10:30 PM. Running the experiments-on shards against
+  master as soon as each fix merged would have found it within about 20 minutes.
+- **Doomed runs held the queue:** release runs on commits that lacked a merged fix for a failure that happens on
+  every run were left running for hours -- the 10 PM full run on cc45c61 and its same-commit retry, and a restart
+  on ef47760 -- holding the `release-train` queue while the run with every fix waited.
+- **What cleared it,** at about 11:50 PM PT: the owner cancelled the ef47760 run, and an agent dispatched
+  `gh workflow run release.yml --ref master -f mode=restart`, which replaced the pending cc45c61 retry (the group
+  keeps one pending run).
+- **Fix:** SKILL.md "Master onto nightly": check master between full runs as soon as a fix merges, cancel doomed
+  runs, and dispatch the restart (owner, 2026-11-11).
+
+## A failed promotion nobody followed (2026-11-11, #6782)
+
+- **Symptom:** the approval pull request #6752 merged, its `promote-nightly` run 43141765347 failed at "Gate the
+  approved candidate" (an excluded image, fixed by #6781), and the failure and the re-dispatch after #6781 merged each
+  waited for the owner to ask. **Fix:** SKILL.md "Follow it through" and step 6's failed-promotion bullet: watch every
+  pending result in the background and take the next step on wake.

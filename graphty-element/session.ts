@@ -107,6 +107,7 @@ export type {
     HistoryRestoreOptions,
     HistoryStep,
     HistoryStepId,
+    ImportColumnsInput,
     ImportOptions,
     JoinChoices,
     JoinClash,
@@ -245,6 +246,9 @@ export type {
     BuiltInModelFormat,
     ModelFormat,
     ModelLimits,
+    ModelPart,
+    ModelPartRole,
+    ModelPartState,
     ModelSummary,
     NamedBlob,
     PartAnswer,
@@ -384,15 +388,24 @@ export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } 
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    ComparedField,
+    CompareSide,
+    ComparisonBase,
+    GroupMove,
+    GroupOverlap,
     Histogram,
     HistogramBin,
     HistogramBinning,
     HistogramOptions,
     Normalization,
     NumericColumnView,
+    PartitionComparison,
+    RankChange,
+    RankingComparison,
     RankingEntry,
     ReadingCode,
     ReadingOptions,
+    ResultComparison,
     ResultsApi,
     ResultSummary,
     RunRef,
@@ -609,11 +622,13 @@ export type {
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
 export { isAlgorithmRunCommand } from "./src/session";
 export type {
+    CostBasis,
     CostConfidence,
     CostEstimate,
     CostGateDecision,
     CostGateLimits,
     CostMeasurement,
+    CostProvenanceCode,
     EstimateRefusalCode,
     MachineCalibration,
 } from "./src/session/cost";
@@ -783,7 +798,25 @@ export type {
     ValueEntryWrite,
     ValueGroup,
 } from "./src/session/styles";
+export type {
+    Condition,
+    ConditionField,
+    ConditionFieldKind,
+    ConditionTextMode,
+    ListedConditionField,
+} from "./src/session/styles";
 export {
+    CONDITION_SOURCE_PATH,
+    conditionFields,
+    conditionKey,
+    conditionLeaf,
+    conditionOf,
+    conditionSelector,
+    edgeConditions,
+    isConditionFinished,
+    newCondition,
+    nodeConditionLeaves,
+    nodeConditions,
     OVERFLOW_PATTERNS,
     OVERFLOW_SHAPES,
     quotePath,
@@ -823,6 +856,9 @@ export { DEFAULT_LIMITS } from "./src/session";
 export type {
     AccelerationErrorCode,
     GraphtyErrorCode,
+    GraphtyErrorDetails,
+    GraphtyErrorDetailsMap,
+    GraphtyErrorFor,
     GraphtyErrorInit,
     GraphtyErrorJson,
     GraphtyErrorSource,

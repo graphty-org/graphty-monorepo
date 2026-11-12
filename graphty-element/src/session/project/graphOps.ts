@@ -23,6 +23,7 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId } from "../../catalog/types";
 import { edgeCounterOf, edgeIdOf } from "../../data/edgeIdentity";
+import { EdgeRecordMap } from "../../data/edgeRecordMap";
 import type { EdgeIdentityCells, GraphStore, KeptGraph, RemovedRows } from "../../data/GraphStore";
 import { deepEquals } from "../styles/predicate";
 import type { DirectionProvenance } from "../types";
@@ -1664,7 +1665,7 @@ class Writer implements GraphWriter {
         this.store.stampEdgeId(index, edgeId);
         this.store.recordIngestedEdge(index, edgeId, fileId);
         this.store.recordsChanged();
-        (this.graph.slice.edges as Map<EdgeId, GraphRecord>).set(edgeIdOf(edgeId), record);
+        this.edgeRecords().set(edgeIdOf(edgeId), record);
         // A new row already reads the column default, 1: only another capacity costs a write.
         if (resolveEdgeCapacity(record) !== 1) {
             writeCapacity(this.store, edgeId, record);
@@ -1682,6 +1683,24 @@ class Writer implements GraphWriter {
         }
 
         return { index, edgeId };
+    }
+
+    /**
+     * The slice's edge records, to add to. Under "batched" an empty plain map is first swapped for
+     * an {@link EdgeRecordMap}, which keeps records by counter with no string key per edge; the
+     * objects path keeps the plain map.
+     * @returns The map.
+     */
+    private edgeRecords(): Map<EdgeId, GraphRecord> {
+        const edges = this.graph.slice.edges as Map<EdgeId, GraphRecord>;
+        if (edges.size > 0 || edges instanceof EdgeRecordMap || !this.graph.touchesRanges) {
+            return edges;
+        }
+
+        const { slice } = this.graph;
+        const table = new EdgeRecordMap();
+        this.graph.swapMaps({ nodes: slice.nodes, edges: table, values: slice.values });
+        return table;
     }
 
     mergeEdge(edgeIndex: number, weight: number, given: GraphRecord | null): void {

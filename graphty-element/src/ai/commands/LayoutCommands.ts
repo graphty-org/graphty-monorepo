@@ -8,7 +8,7 @@ import { z } from "zod";
 import { layoutIdForEngine } from "../../catalog/layouts";
 import { isGraphtyError } from "../../errors";
 import type { Graph } from "../../Graph";
-import { type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
+import { causeOf, type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
 
 /**
  * Common layout types that can be used.
@@ -61,8 +61,7 @@ export const setLayout: GraphCommand = {
             };
         } catch (error) {
             const errorMessage = (error as Error).message;
-            // The session's own code (E_UNKNOWN_LAYOUT, E_OPTION_RANGE), the result's `cause`.
-            const coded = isGraphtyError(error) ? { code: error.code } : {};
+            const coded = causeOf(error);
 
             // Provide helpful error messages for common issues
             if (

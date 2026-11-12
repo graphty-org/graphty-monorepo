@@ -8,10 +8,9 @@ import { z } from "zod";
 import { Algorithm } from "../../algorithms/Algorithm";
 import { algorithmByLegacyKey } from "../../catalog/algorithms";
 import { registeredAlgorithmByKey } from "../../catalog/registry";
-import { isGraphtyError } from "../../errors";
 import type { Graph } from "../../Graph";
 import { englishReading } from "../../session/results/reading";
-import { type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
+import { causeOf, type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
 
 /**
  * Schema for runAlgorithm parameters.
@@ -155,8 +154,7 @@ export const runAlgorithm: GraphCommand = {
             return {
                 success: false,
                 message: `Failed to run algorithm ${namespace}:${type}: ${error instanceof Error ? error.message : String(error)}`,
-                // The session's own code (E_UNKNOWN_OPTION, E_OPTION_RANGE), the result's `cause`.
-                ...(isGraphtyError(error) ? { code: error.code } : {}),
+                ...causeOf(error),
             };
         }
     },

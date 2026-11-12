@@ -16,17 +16,25 @@ export function ssmGetParams(client = new SSMClient({})): (names: string[]) => P
     };
 }
 
+/** One day's AWS cost: the total and its split by AWS service (Cost Explorer's SERVICE names). */
+export interface AwsCostDay {
+    day: string;
+    usd: number;
+    /** Absent from a reader that does not split it. */
+    services?: Record<string, number>;
+}
+
 /**
- * Daily unblended cost of the account, credits and refunds left out, from `from` (inclusive) to `to` (exclusive), ISO
- * days. Cost Explorer lives in us-east-1.
+ * Daily unblended cost of the account by service, credits and refunds left out, from `from` (inclusive) to `to`
+ * (exclusive), ISO days. Cost Explorer lives in us-east-1.
  * @param client - the Cost Explorer client to read with
  * @returns a reader that takes the day range and resolves to one cost row per day
  */
 export function costExplorerDaily(
     client = new CostExplorerClient({ region: "us-east-1" }),
-): (from: string, to: string) => Promise<{ day: string; usd: number }[]> {
-    return async (from: string, to: string): Promise<{ day: string; usd: number }[]> => {
-        const out: { day: string; usd: number }[] = [];
+): (from: string, to: string) => Promise<AwsCostDay[]> {
+    return async (from: string, to: string): Promise<AwsCostDay[]> => {
+        const out = new Map<string, AwsCostDay>();
         let token: string | undefined;
         do {
             const r = await client.send(
@@ -36,17 +44,32 @@ export function costExplorerDaily(
                     Metrics: ["UnblendedCost"],
                     // Cost before credits and refunds, as the dashboard's AWS Budget counts it (health-stack.ts).
                     Filter: { Not: { Dimensions: { Key: "RECORD_TYPE", Values: ["Credit", "Refund"] } } },
+                    // Grouped, Total is empty: the day's total is the sum of its services.
+                    GroupBy: [{ Type: "DIMENSION", Key: "SERVICE" }],
                     NextPageToken: token,
                 }),
             );
             for (const t of r.ResultsByTime ?? []) {
-                if (t.TimePeriod?.Start) {
-                    out.push({ day: t.TimePeriod.Start, usd: Number(t.Total?.UnblendedCost?.Amount ?? 0) });
+                const day = t.TimePeriod?.Start;
+                if (!day) {
+                    continue;
+                }
+                // A page can end inside a day's groups; the next page continues the same day.
+                const row = out.get(day) ?? { day, usd: 0, services: {} };
+                const services = (row.services ??= {});
+                out.set(day, row);
+                for (const g of t.Groups ?? []) {
+                    const usd = Number(g.Metrics?.UnblendedCost?.Amount ?? 0);
+                    const name = g.Keys?.[0];
+                    row.usd += usd;
+                    if (name && usd !== 0) {
+                        services[name] = (services[name] ?? 0) + usd;
+                    }
                 }
             }
             token = r.NextPageToken;
         } while (token);
-        return out;
+        return [...out.values()];
     };
 }
 

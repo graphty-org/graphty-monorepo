@@ -1181,7 +1181,12 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   freezing the element's snapshot, about 810 ms, 670 of it the load's edge identity pass, which the next paint's freeze
   would pay anyway, and making the graph undirected, 183 ms. A one-pass layout now makes the graph undirected only when
   it reads it (`test/layout/undirected-on-demand.test.ts`), so the fixed layout never does; on both render paths, with
-  no change to any picture.
+  no change to any picture. The 2026-11-12 profile still puts 0.7 s of that load under `publishPositions`, all of it
+  the freeze: 610 ms edge identity, 96 ms `freezeWithReport`, 5 ms the publish. `nodeData` and `edgeData` add through
+  a door, not a load, so every edge is a session edge, and each took three checked cell writes (170 ms at 1M edges)
+  besides its hash. Built (fifth pull request of stage 28): when the live session edges are every edge in the store,
+  the three identity columns are written whole, as a covering load's are; the values are the same, so it applies on
+  both render paths (`test/data/edgeIdentity.test.ts`). The hash itself (about 420 ms at 1M) stays.
 - **Records into columns is conditional.** Records and op log are 3.8% of the heap; removing `Edge`, `Node` and per-node Babylon objects
   alone leaves about 515 MB. Stage 29 is built only if stage 30's harness run misses the heap target; otherwise #3249 closes at stage 28,
   citing that measurement. If built: attribute columns where `storedAttributeOf` already looks first, the rest in

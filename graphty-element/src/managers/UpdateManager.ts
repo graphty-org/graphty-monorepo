@@ -1626,7 +1626,7 @@ export class UpdateManager implements Manager {
         const cap = this.dataManager.renderLimits?.objectEdges?.() ?? Number.POSITIVE_INFINITY;
         if (
             lineable &&
-            dataManagerInternals.edgesBuilt(this.dataManager) >= cap &&
+            dataManagerInternals.edgesLive(this.dataManager) >= cap &&
             lines.paintRow(index, source, target, plainEdgePaint(paint))
         ) {
             this.heldPlainEdges.add(index);
@@ -1763,7 +1763,7 @@ export class UpdateManager implements Manager {
         const cap = this.dataManager.renderLimits?.objectRows?.() ?? Number.POSITIVE_INFINITY;
         if (
             batches !== null &&
-            dataManagerInternals.nodesBuilt(this.dataManager) >= cap &&
+            dataManagerInternals.nodesLive(this.dataManager) >= cap &&
             batches.paintRow(index, plainNodePaint(paint))
         ) {
             this.heldPlain.add(index);
@@ -1799,8 +1799,8 @@ export class UpdateManager implements Manager {
         const cap = of === "nodes" ? limits?.objectRows?.() : limits?.objectEdges?.();
         const built =
             of === "nodes"
-                ? dataManagerInternals.nodesBuilt(this.dataManager)
-                : dataManagerInternals.edgesBuilt(this.dataManager);
+                ? dataManagerInternals.nodesLive(this.dataManager)
+                : dataManagerInternals.edgesLive(this.dataManager);
         if (held > 0 && cap !== undefined) {
             limits?.objectCap?.(of, built + held, cap);
         }

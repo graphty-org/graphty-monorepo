@@ -206,6 +206,51 @@ describe("the limits option", () => {
         );
     });
 
+    it("counts the objects that exist now, so a clear and a reload get the whole objectRows budget back", async () => {
+        const element = await mounted("batched");
+        const seen = heard(element);
+        element.limits = { objectRows: 10 };
+        await element.session.styles.add({
+            name: "ring",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.borderColor": "#000000", "node.borderWidth": 0.1 },
+        } as never);
+
+        for (let load = 0; load < 2; load++) {
+            element.graph.clearData();
+            await element.session.data.addNodes(nodes(8));
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            assert.strictEqual(element.rowCounts.objectNodes, 8, `load ${load}`);
+        }
+
+        assert.deepStrictEqual(seen, []);
+    });
+
+    it("counts the edges that exist now, so a clear and a reload get the whole objectEdges budget back", async () => {
+        const element = await mounted("batched");
+        const seen = heard(element);
+        element.limits = { objectEdges: 5 };
+        await element.session.styles.add({
+            name: "arrowed",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "normal" },
+        } as never);
+
+        for (let load = 0; load < 2; load++) {
+            element.graph.clearData();
+            await element.session.data.addNodes(nodes(5));
+            await element.session.data.addEdges(Array.from({ length: 4 }, (_, i) => ({ src: "n0", dst: `n${i + 1}` })));
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            assert.strictEqual(element.rowCounts.objectEdges, 4, `load ${load}`);
+        }
+
+        assert.deepStrictEqual(seen, []);
+    });
+
     it("keeps every bordered row an object row at the default budget", async () => {
         const element = await mounted("batched");
         const seen = heard(element);

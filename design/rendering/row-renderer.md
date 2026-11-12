@@ -1315,7 +1315,8 @@ object per element. Stages 26 to 28 remove that reason.
   below them. Past a budget under a raised ceiling, later rows draw as plain bodies and edges as plain lines, and
   `{ code: "W_OBJECT_CAP", params: { wanted, cap } }` reports it.
 - **As stage 30 built it** (corrections to the bullet above). An object row is a row the batches cannot draw, so a
-  `Node` (or an `Edge`) is built for it; the budget counts those built objects, and is checked where a row stored with
+  `Node` (or an `Edge`) is built for it; the budget counts those objects that exist now (built and not yet removed or
+  cleared, so a clear and a reload get the whole budget back), and is checked where a row stored with
   no `Node` would get one (`UpdateManager.unbuiltPainted`, `unbuiltEdgePainted`). Past it, the row is drawn from a plain
   paint (`plainNodePaint`, `plainEdgePaint` in `StylePainter.ts`: shape, color, opacity and line width only, keyed
   `plain|...`) and gets no object. A row that already has its `Node` is left as it is. `W_OBJECT_CAP` carries

@@ -8,7 +8,7 @@
 import "@graphty/graphty-element";
 
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { selectionWorkspaceOn } from "../../features";
@@ -37,6 +37,13 @@ async function openGraphSettings(): Promise<HTMLElementTagNameMap["graphty-eleme
     await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
     await screen.findByRole("combobox", { name: "Lighting" });
     return element;
+}
+
+declare module "vitest/browser" {
+    interface BrowserCommands {
+        /** Answers the next file picker with this file (graphty/vitest.config.ts). */
+        chooseNextFile: (name: string, mimeType: string, text: string) => Promise<void>;
+    }
 }
 
 describe("Graph settings", () => {
@@ -134,6 +141,29 @@ describe("Graph settings", () => {
         await waitFor(() => {
             assert.include(document.querySelector("[data-background-caption]")?.textContent ?? "", drawn);
         });
+    });
+
+    it("an image the browser cannot decode is a failure notice; one it can is drawn as the background", async () => {
+        const element = await openGraphSettings();
+        await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Image/ }));
+
+        // Bytes no browser here decodes, named as an iPad camera roll hands over a HEIC photo.
+        await commands.chooseNextFile("IMG_0001.HEIC", "image/heic", "\u0000\u0000\u0000\u0018ftypheic");
+        await userEvent.click(await screen.findByRole("button", { name: "Upload image" }));
+        const alert = await screen.findByRole("alert");
+        assert.include(alert.textContent ?? "", "IMG_0001.HEIC is HEIC, which this browser cannot draw.");
+        assert.notStrictEqual(element.session.config.background.backgroundType, "skybox", "nothing was written");
+
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="16"><rect width="32" height="16" fill="#369"/></svg>`;
+        await commands.chooseNextFile("sky.svg", "image/svg+xml", svg);
+        await userEvent.click(screen.getByRole("button", { name: "Upload image" }));
+        await waitFor(() => {
+            assert.strictEqual(element.session.config.background.backgroundType, "skybox");
+        });
+        const { background } = element.session.config;
+        assert.strictEqual(background.backgroundType, "skybox");
+        assert.match(background.backgroundType === "skybox" ? background.data : "", /^data:image\/png;base64,/);
     });
 
     it("writes Outline width to the element's layout behavior", async () => {

@@ -112,7 +112,7 @@ function spectralRows(
     const degree = distinctDegrees(g);
     const laplacian = (x: F64): F64 => applyLaplacian(g, degree, x);
     // a loop, not Math.max(...degree): spreading n arguments overflows the stack on large graphs (#7032)
-    const tolerance = TOLERANCE * 2 * degree.reduce((max, d) => (d > max ? d : max), 1);
+    const tolerance = TOLERANCE * 2 * degree.reduce((max, d) => Math.max(max, d), 1);
     const rng = new RandomNumberGenerator(seed ?? undefined);
     // the constant vector, the eigenvector of 0, and then every component found so far
     const found: F64[] = [new Float64Array(n).fill(1 / Math.sqrt(n))];

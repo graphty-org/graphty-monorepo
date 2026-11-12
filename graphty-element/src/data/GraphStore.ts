@@ -2220,9 +2220,14 @@ export class GraphStore {
      * as a covering load's are, instead of three checked cell writes per edge.
      * @param graph - where endpoints and ids are read
      * @param ordered - whether pairs are ordered
-     * @returns false, writing nothing, when another edge is live beside them
+     * @param completingLoad - whether a load's edges are being completed too
+     * @returns false, writing nothing, when a load or another edge is live beside them
      */
-    private writeSessionColumnsWhole(graph: IdentityGraph, ordered: boolean): boolean {
+    private writeSessionColumnsWhole(graph: IdentityGraph, ordered: boolean, completingLoad: boolean): boolean {
+        if (completingLoad) {
+            return false;
+        }
+
         const builder = this.current;
         let live = 0;
         for (const { row } of this.sessionEdges) {
@@ -2276,7 +2281,7 @@ export class GraphStore {
         };
         const ordered = this.latchPairsOrdered();
         const noSessionEdges = this.sessionEdges.length === 0;
-        if (!completingLoad && this.writeSessionColumnsWhole(graph, ordered)) {
+        if (this.writeSessionColumnsWhole(graph, ordered, completingLoad)) {
             return;
         }
 

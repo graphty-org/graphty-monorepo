@@ -195,6 +195,11 @@ interface Utterance {
     state: "waiting" | "running" | "ended";
     /** Its message read its last response: the next press's responses may start the next message. */
     read: boolean;
+    /**
+     * Its last response was empty: its message may still ask the model to go on and read one more,
+     * so the next press's message waits until it does or ends.
+     */
+    quiet: boolean;
     /** Saves words heard after its message was saved. */
     reword?: (text: string) => void;
 }
@@ -230,6 +235,8 @@ export class LiveTurnEngine implements AiEngine {
     private reading: Utterance | undefined;
     /** The model is saying an answer. */
     private answering = false;
+    /** The response the turn reads said something. */
+    private spoke = false;
     /** An answer was cut off: the provider's end of that response is not a new one. */
     private skipEnd = false;
     /** Handing off: the connection closes at the end of this response. */
@@ -292,7 +299,7 @@ export class LiveTurnEngine implements AiEngine {
      * @returns True while it is.
      */
     busy(): boolean {
-        return this.reading !== undefined && !this.reading.read && !this.answering;
+        return this.reading !== undefined && (!this.reading.read || this.reading.quiet) && !this.answering;
     }
 
     /**
@@ -319,7 +326,7 @@ export class LiveTurnEngine implements AiEngine {
      * @returns It, waiting.
      */
     private newUtterance(): Utterance {
-        const utterance: Utterance = { text: "", state: "waiting", read: false };
+        const utterance: Utterance = { text: "", state: "waiting", read: false, quiet: false };
         this.waiting.push(utterance);
         return utterance;
     }
@@ -406,7 +413,7 @@ export class LiveTurnEngine implements AiEngine {
      * @param force - A press or the close: a whole response with no words heard runs now.
      */
     private startNext(force: boolean): void {
-        if (this.reading?.read === false) {
+        if (this.reading !== undefined && (!this.reading.read || this.reading.quiet)) {
             return;
         }
 
@@ -566,11 +573,27 @@ export class LiveTurnEngine implements AiEngine {
     }
 
     /**
-     * Send the results of the last turn's calls, when it made any.
+     * Send the results of the last turn's calls, when it made any. A call the loop did not run (one
+     * made on a turn that may only answer) is answered `AI_TOOL_NOT_RUN`, with graphty's own words
+     * that end the request (the loop's ask to answer or to go on). A later turn whose last response
+     * made no call sends those words as text. Either way the provider answers in one response.
      * @param request - The turn, whose messages hold the results.
      */
     private answerOutstanding(request: TurnRequest): void {
+        this.spoke = false;
+        const last = request.messages.at(-1);
+        const parts = last?.role === "user" ? last.parts : [];
+        const words = parts.every((part) => part.type === "text" && part.origin === "graphty")
+            ? parts.map((part) => (part.type === "text" ? part.text : "")).join("\n")
+            : "";
         if (this.outstanding.length === 0) {
+            if (this.reading?.read === true && words !== "") {
+                // The message reads one more response.
+                this.reading.read = false;
+                this.reading.quiet = false;
+                this.connection.sendText(words);
+            }
+
             return;
         }
 
@@ -581,7 +604,13 @@ export class LiveTurnEngine implements AiEngine {
             }
         }
 
-        this.send(this.outstanding.flatMap((call) => results.get(call.id) ?? []));
+        this.send(
+            this.outstanding.map(
+                (call) =>
+                    results.get(call.id) ??
+                    result(call.id, "AI_TOOL_NOT_RUN", { tool: call.name, reason: "limit" }, words || undefined),
+            ),
+        );
     }
 
     /**
@@ -592,6 +621,7 @@ export class LiveTurnEngine implements AiEngine {
     private eventStep(event: LiveEvent): { events: TurnEvent[]; done: boolean } {
         switch (event.type) {
             case "answer-text":
+                this.spoke = true;
                 return { events: [{ type: "text", delta: event.delta }], done: false };
             case "usage":
                 return { events: [event], done: false };
@@ -655,14 +685,20 @@ export class LiveTurnEngine implements AiEngine {
             return { events: [], done: false };
         }
 
-        this.read();
+        // An empty response may be asked to go on (#6712): the next press's message waits for that.
+        this.read(!this.spoke);
         return { events: [{ type: "finish", reason: "stop" }], done: true };
     }
 
-    /** The message reading now read its last response: the next press's message may start. */
-    private read(): void {
+    /**
+     * The message reading now read its last response: the next press's message may start, unless
+     * the response was empty and the message may still ask for one more.
+     * @param quiet - The response was empty.
+     */
+    private read(quiet = false): void {
         if (this.reading !== undefined) {
             this.reading.read = true;
+            this.reading.quiet = quiet;
         }
 
         this.startNext(false);

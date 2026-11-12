@@ -118,7 +118,7 @@ class Visit {
             }
             await this.page
                 .getByRole("button", {
-                    name: new RegExp(`^Style ${this.many[0].toUpperCase()}${this.many.slice(1)}\\.\\.\\.`),
+                    name: `Style ${this.many[0].toUpperCase()}${this.many.slice(1)}...`,
                 })
                 .click();
             await this.ws.waitFor();

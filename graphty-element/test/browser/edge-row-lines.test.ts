@@ -460,6 +460,31 @@ describe("an edge loaded with no switch", () => {
         assert.equal(element.graph.getDataManager().edges.size, 2);
     });
 
+    // A million-edge load spent 2.1 s adding one `e:<id>` string per edge to the keys that hold the frame
+    // (cosmos-gap.md G8): an edge stored with no `Edge` holds it by its counter instead.
+    it("holds the frame for its paint with no key per edge", async () => {
+        const element = await lazyLoaded([], true, { switched: false });
+        const dm = element.graph.getDataManager();
+        const seen: { keys: string[]; held: boolean }[] = [];
+        const notePainted = dm.notePainted.bind(dm);
+        vi.spyOn(dm, "notePainted").mockImplementation((dirty) => {
+            const keys = dataManagerInternals.unpaintedKeys(dm).filter((key) => key.startsWith("e"));
+            seen.push({ keys, held: dm.drawHeld });
+            notePainted(dirty);
+        });
+        await element.session.data.addEdges([
+            { src: 0, dst: 1 },
+            { src: 1, dst: 2 },
+        ]);
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.isAbove(seen.length, 0);
+        assert.deepEqual(seen[0], { keys: [], held: true });
+        assert.isFalse(dm.drawHeld);
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 0);
+        assert.equal(element.graph.getEdgeRowLines()?.count, 2);
+    });
+
     it("is found between its nodes, building its Edge", async () => {
         const element = await lazyLoaded([{ src: 0, dst: 1 }], true, { switched: false });
         const dm = element.graph.getDataManager();

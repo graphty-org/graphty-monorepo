@@ -385,6 +385,8 @@ export const dataManagerInternals = {} as {
      * drawn with no `Node`: the set of rows did not change, so the applied view masks still hold.
      */
     lateNodeVersions(manager: DataManager): number;
+    /** The record keys of the elements built or stored whose rows no pass has painted since (see `drawHeld`). */
+    unpaintedKeys(manager: DataManager): string[];
     /**
      * A stored node's id as the graph spells it, either spelling accepted, building no `Node`;
      * undefined for an id it does not hold.
@@ -672,6 +674,7 @@ export class DataManager implements Manager {
         dataManagerInternals.builtNodes = (manager) => manager.nodeMap.built();
         dataManagerInternals.unbuiltRows = (manager) => [...manager.unbuilt.keys()];
         dataManagerInternals.lateNodeVersions = (manager) => manager.lateNodeVersions;
+        dataManagerInternals.unpaintedKeys = (manager) => [...manager.unpainted];
         dataManagerInternals.storedIdOf = (manager, id) => {
             if (manager.nodeMap.has(id)) {
                 return id;
@@ -1761,6 +1764,7 @@ export class DataManager implements Manager {
         this.store.forgetSnapshot();
         // Nothing that was waiting for its style is drawn any more.
         this.unpainted.clear();
+        this.clearStoredUnpainted();
 
         // The layout lets go of them too, as it does of a node removed one at a time: an engine
         // still holding the old nodes would lay out a graph that no longer exists and write their
@@ -2369,6 +2373,15 @@ export class DataManager implements Manager {
      */
     private readonly unpainted = new Set<string>();
 
+    /**
+     * The edges stored with no `Edge` ({@link storeUnbuiltEdge}) that hold the frame as {@link unpainted}'s keys do,
+     * one byte per edge counter, 1 while unpainted: a million `e:<id>` strings cost a load 2 s (cosmos-gap.md G8).
+     */
+    private unpaintedEdges = new Uint8Array(0);
+
+    /** How many of {@link unpaintedEdges} are set. */
+    private unpaintedEdgeCount = 0;
+
     /** Rows painted since the last frame's update applied what the painter had queued. */
     private paintUndrawn = false;
 
@@ -2394,6 +2407,57 @@ export class DataManager implements Manager {
     }
 
     /**
+     * {@link builtUnpainted} for an edge stored with no `Edge`, held by its counter and not by a key.
+     * @param counter - Its edge counter.
+     * @param index - Its row.
+     */
+    private storedUnpainted(counter: number, index: number): void {
+        if (counter >= this.unpaintedEdges.length) {
+            const grown = new Uint8Array(Math.max(counter + 1, this.unpaintedEdges.length * 2, 1024));
+            grown.set(this.unpaintedEdges);
+            this.unpaintedEdges = grown;
+        }
+
+        if (this.unpaintedEdges[counter] === 0) {
+            this.unpaintedEdges[counter] = 1;
+            this.unpaintedEdgeCount++;
+        }
+
+        this.graphContext?.getStylePainter?.()?.queue("edge", index);
+    }
+
+    /**
+     * Note painted the edges stored with no `Edge` that a lane key names, by counter.
+     * @param key - The lane key: `e:<id>`, `e+:<first>:<count>`, or any other, which names none.
+     */
+    private paintedStored(key: string): void {
+        let first = INVALID_INDEX;
+        let end = INVALID_INDEX;
+        if (key.startsWith("e:")) {
+            first = edgeCounterOf(key.slice(2));
+            end = first + 1;
+        } else if (key.startsWith("e+:")) {
+            const [from, count] = key.slice(3).split(":").map(Number);
+            first = from;
+            end = from + count;
+        }
+
+        const flags = this.unpaintedEdges;
+        for (let counter = Math.max(first, 0); counter < Math.min(end, flags.length); counter++) {
+            if (flags[counter] === 1) {
+                flags[counter] = 0;
+                this.unpaintedEdgeCount--;
+            }
+        }
+    }
+
+    /** Forget every edge stored with no `Edge` that held the frame. */
+    private clearStoredUnpainted(): void {
+        this.unpaintedEdges = new Uint8Array(0);
+        this.unpaintedEdgeCount = 0;
+    }
+
+    /**
      * Take the rows of the waiting edges built since the last pass took them, for the pass to
      * paint with its own rows; {@link notePainted} then counts them painted.
      * @returns Their rows.
@@ -2413,12 +2477,17 @@ export class DataManager implements Manager {
      * @internal
      */
     notePainted(dirty: ReadonlySet<string> | null): void {
-        const before = this.unpainted.size;
+        const before = this.unpainted.size + this.unpaintedEdgeCount;
         if (dirty === null) {
             this.unpainted.clear();
+            this.clearStoredUnpainted();
         } else {
             for (const key of [...dirty, ...this.lateKeysPainting]) {
                 this.unpainted.delete(key);
+                if (this.unpaintedEdgeCount > 0) {
+                    this.paintedStored(key);
+                }
+
                 // A batched add's range key names its edges' per-edge keys (cosmos-gap.md G4).
                 if (key.startsWith("e+:") && this.unpainted.size > 0) {
                     forEachEdgeOfKey(key, (id) => this.unpainted.delete(`e:${id}`));
@@ -2427,7 +2496,7 @@ export class DataManager implements Manager {
         }
 
         this.lateKeysPainting = [];
-        this.paintUndrawn ||= this.unpainted.size < before;
+        this.paintUndrawn ||= this.unpainted.size + this.unpaintedEdgeCount < before;
     }
 
     /**
@@ -2445,7 +2514,7 @@ export class DataManager implements Manager {
      * @internal
      */
     get drawHeld(): boolean {
-        return this.unpainted.size > 0 || this.paintUndrawn;
+        return this.unpainted.size > 0 || this.unpaintedEdgeCount > 0 || this.paintUndrawn;
     }
 
     /**
@@ -3011,7 +3080,7 @@ export class DataManager implements Manager {
         this.unbuiltEdgeIds.set(edgeIdOf(edgeId), edgeIndex);
         // ponytail: one hand-over per edge; buffer them as `arrivedRows` does if a profile shows the calls.
         this.layoutEdgeRows?.add([edgeRowOf(stored)]);
-        this.builtUnpainted(`e:${edgeIdOf(edgeId)}`, "edge", edgeIndex);
+        this.storedUnpainted(edgeId, edgeIndex);
         this.edgeVersion++;
     }
 

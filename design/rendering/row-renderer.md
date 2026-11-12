@@ -1283,7 +1283,7 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   request's build (same element source as master): 100k + 1k first frame master 1.03, 0.98, 1.26 and 1.06 s, branch
   0.63, 0.68, 0.87 and 0.80 s (load average 20-22 in the first two rounds, 13-16 in the last two), so the 0.8 s target
   is met in three runs of four; 100k + 1M typed master 5.93 and 6.07 s, branch 5.83 and 6.77 s (load average 7.6-13.8),
-  unchanged: its first frame waits on edge work, the duplicate-edge checks (stage 117) and `publishPositions`.
+  unchanged: its first frame waits on edge work, the duplicate-edge checks (stage 117) and `publishPositions`. Correction (sixth pull request): the duplicate-edge checks were already gone (stage 117, see the first pull request's note), and `publishPositions` costs a few ms; what is profiled under it (0.5-0.66 s) is the first snapshot freeze it asks for, mostly identity completion (`GraphStore.writeSessionColumnsWhole`). Session edges' hashes now read each node's hash once (`withNodeHashes` in `edgeIdentity.ts`) instead of hashing both end ids per edge: 450 to 355 ms of CPU at 100k + 1M, equal hashes on both render paths (`test/data/edgeIdentity.test.ts`, node id hashes counted).
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.

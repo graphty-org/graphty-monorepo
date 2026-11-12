@@ -1992,6 +1992,7 @@ export class DataManager implements Manager {
             positionScale: () => this.styles.config.data.knownFields.positionScale,
             edgeCounter: this.edgeCounter,
             inputs: this.inputs,
+            denseEdgeIds: () => this.renderLimits?.batched() === true,
             // The count is read from the store, as the headless session does: a freeze in delivery
             // answers `getSnapshot()` from the snapshot it is delivering.
             onNodeRemap: (remap) => {

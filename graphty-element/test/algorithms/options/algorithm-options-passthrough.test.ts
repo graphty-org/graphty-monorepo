@@ -24,7 +24,53 @@ import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { PrimAlgorithm } from "../../../src/algorithms/PrimAlgorithm";
-import { createMockGraph, getGraphResult, getNodeResult } from "../../helpers/mockGraph";
+import type { Graph } from "../../../src/Graph";
+import {
+    createMockGraph,
+    getGraphResult,
+    getNodeResult,
+    partitionOf,
+    type ResultCarrier,
+} from "../../helpers/mockGraph";
+
+type NodeId = string | number;
+
+/**
+ * Every node id of a graph, in load order.
+ * @param graph - The graph.
+ * @returns The ids.
+ */
+function nodeIdsOf(graph: Graph): NodeId[] {
+    return Array.from(graph.getDataManager().nodes.keys());
+}
+
+/**
+ * The node with the highest value of one field.
+ * @param algo - The run.
+ * @param graph - The graph it ran on.
+ * @param type - The algorithm's type.
+ * @param key - The field.
+ * @returns The id of the highest-valued node.
+ */
+function topNodeOf(algo: ResultCarrier, graph: Graph, type: string, key: string): NodeId {
+    let best: { id: NodeId; value: number } | undefined;
+    for (const id of nodeIdsOf(graph)) {
+        const value = getNodeResult(algo, id, "graphty", type, key) as number;
+        if (best === undefined || value > best.value) {
+            best = { id, value };
+        }
+    }
+    assert.ok(best);
+    return best.id;
+}
+
+/** The two-triangles fixture's natural split: each triangle, the bridge with the first. */
+const TWO_TRIANGLES = [
+    ["A1", "A2", "A3", "bridge"],
+    ["B1", "B2", "B3"],
+];
+/** The two-triangles fixture split three ways: each triangle, and the bridge on its own. */
+const TRIANGLES_AND_BRIDGE = [["A1", "A2", "A3"], ["B1", "B2", "B3"], ["bridge"]];
 
 /**
  * Test data: a simple graph for pathfinding tests
@@ -94,8 +140,7 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 await pr2.run();
 
                 // Get results for first node
-                const dm1 = graph1.getDataManager() as any;
-                const firstNodeId = Array.from(dm1.nodes.keys())[0] as string;
+                const [firstNodeId] = nodeIdsOf(graph1);
 
                 const rank1 = getNodeResult(pr1, firstNodeId, "graphty", "pagerank", "rank");
                 const rank2 = getNodeResult(pr2, firstNodeId, "graphty", "pagerank", "rank");
@@ -123,10 +168,13 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const iterations1 = getGraphResult(pr1, "graphty", "pagerank", "iterations");
                 const iterations2 = getGraphResult(pr2, "graphty", "pagerank", "iterations");
 
-                // With maxIterations=1, iterations should be limited (may be 1 or 2 due to loop counting)
-                assert.isAtMost(iterations1 as number, 2, "With maxIterations=1, should use at most 2 iterations");
-                // With more iterations, may converge before max
-                assert.isAtMost(iterations2 as number, 100);
+                // One pass is all maxIterations=1 allows, and it is not enough to converge.
+                assert.strictEqual(iterations1, 1, "maxIterations=1 runs exactly one pass");
+                assert.isFalse(getGraphResult(pr1, "graphty", "pagerank", "converged"));
+                // A cap of 100 lets the run converge, which takes more than one pass and fewer than 100.
+                assert.isTrue(getGraphResult(pr2, "graphty", "pagerank", "converged"));
+                assert.isAbove(iterations2 as number, 1);
+                assert.isBelow(iterations2 as number, 100);
             });
 
             it("tolerance option affects convergence", async () => {
@@ -144,8 +192,10 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const iterations1 = getGraphResult(pr1, "graphty", "pagerank", "iterations");
                 const iterations2 = getGraphResult(pr2, "graphty", "pagerank", "iterations");
 
-                // Tighter tolerance should require more iterations
-                assert.isAtLeast(
+                // Both converge, and the tighter tolerance needs strictly more passes to get there.
+                assert.isTrue(getGraphResult(pr1, "graphty", "pagerank", "converged"));
+                assert.isTrue(getGraphResult(pr2, "graphty", "pagerank", "converged"));
+                assert.isAbove(
                     iterations1 as number,
                     iterations2 as number,
                     "Tighter tolerance should need more iterations",
@@ -172,10 +222,13 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const ev2 = new EigenvectorCentralityAlgorithm(graph2, { maxIterations: 100 });
                 await ev2.run();
 
-                const dm2 = graph2.getDataManager() as any;
-                const firstNodeId = Array.from(dm2.nodes.keys())[0] as string;
-
-                assert.isDefined(getNodeResult(ev2, firstNodeId, "graphty", "eigenvector", "score"));
+                // The converged run publishes a min-max scaled score for every node.
+                for (const id of nodeIdsOf(graph2)) {
+                    const score: unknown = getNodeResult(ev2, id, "graphty", "eigenvector", "score");
+                    assert.isNumber(score);
+                    assert.isAtLeast(score as number, 0);
+                    assert.isAtMost(score as number, 1);
+                }
             });
 
             it("tolerance option affects results", async () => {
@@ -189,15 +242,16 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const ev2 = new EigenvectorCentralityAlgorithm(graph2, { tolerance: 0.01, maxIterations: 1000 });
                 await ev2.run();
 
-                // Both should produce valid results
-                const dm1 = graph1.getDataManager() as any;
-                const firstNodeId = Array.from(dm1.nodes.keys())[0] as string;
+                // The loose tolerance stops while Valjean still leads; run to 1e-10 the leader is
+                // Gavroche, as it is in the converged eigenvector of this graph.
+                assert.strictEqual(topNodeOf(ev1, graph1, "eigenvector", "score"), "Gavroche");
+                assert.strictEqual(topNodeOf(ev2, graph2, "eigenvector", "score"), "Valjean");
 
-                const score1 = getNodeResult(ev1, firstNodeId, "graphty", "eigenvector", "score");
-                const score2 = getNodeResult(ev2, firstNodeId, "graphty", "eigenvector", "score");
-
-                assert.isDefined(score1);
-                assert.isDefined(score2);
+                const [firstNodeId] = nodeIdsOf(graph1);
+                assert.notStrictEqual(
+                    getNodeResult(ev1, firstNodeId, "graphty", "eigenvector", "score"),
+                    getNodeResult(ev2, firstNodeId, "graphty", "eigenvector", "score"),
+                );
             });
         });
 
@@ -212,8 +266,7 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const katz2 = new KatzCentralityAlgorithm(graph2, { alpha: 0.01 });
                 await katz2.run();
 
-                const dm1 = graph1.getDataManager() as any;
-                const firstNodeId = Array.from(dm1.nodes.keys())[0] as string;
+                const [firstNodeId] = nodeIdsOf(graph1);
 
                 const score1 = getNodeResult(katz1, firstNodeId, "graphty", "katz", "score");
                 const score2 = getNodeResult(katz2, firstNodeId, "graphty", "katz", "score");
@@ -233,8 +286,7 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const katz2 = new KatzCentralityAlgorithm(graph2, { beta: 2.0, normalized: false });
                 await katz2.run();
 
-                const dm1 = graph1.getDataManager() as any;
-                const firstNodeId = Array.from(dm1.nodes.keys())[0] as string;
+                const [firstNodeId] = nodeIdsOf(graph1);
 
                 const score1 = getNodeResult(katz1, firstNodeId, "graphty", "katz", "score");
                 const score2 = getNodeResult(katz2, firstNodeId, "graphty", "katz", "score");
@@ -256,15 +308,20 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const hits2 = new HITSAlgorithm(graph2, { maxIterations: 50 });
                 await hits2.run();
 
-                // Both should produce valid results
-                const dm1 = graph1.getDataManager() as any;
-                const firstNodeId = Array.from(dm1.nodes.keys())[0] as string;
+                // Neither cap is enough to converge on this graph, so each run stops at its cap.
+                const caveats1 = hits1.result?.summary().caveats;
+                const caveats2 = hits2.result?.summary().caveats;
+                assert.strictEqual(caveats1?.iterations, 3);
+                assert.isFalse(caveats1?.converged);
+                assert.strictEqual(caveats2?.iterations, 50);
+                assert.isFalse(caveats2?.converged);
 
-                const hubScore1 = getNodeResult(hits1, firstNodeId, "graphty", "hits", "hubScore");
-                const hubScore2 = getNodeResult(hits2, firstNodeId, "graphty", "hits", "hubScore");
-
-                assert.isDefined(hubScore1);
-                assert.isDefined(hubScore2);
+                // Stopping 47 passes earlier leaves different scores.
+                const hubScore1 = getNodeResult(hits1, "Napoleon", "graphty", "hits", "hubScore");
+                const hubScore2 = getNodeResult(hits2, "Napoleon", "graphty", "hits", "hubScore");
+                assert.isNumber(hubScore1);
+                assert.isNumber(hubScore2);
+                assert.notStrictEqual(hubScore1, hubScore2);
             });
         });
     });
@@ -283,45 +340,24 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const louvain2 = new LouvainAlgorithm(graph2, { resolution: 2.0 });
                 await louvain2.run();
 
-                // Count unique communities
-                const dm1 = graph1.getDataManager() as any;
-                const dm2 = graph2.getDataManager() as any;
-
-                const communities1 = new Set<number>();
-                const communities2 = new Set<number>();
-
-                for (const nodeId of dm1.nodes.keys()) {
-                    const c = getNodeResult(louvain1, nodeId, "graphty", "louvain", "communityId");
-                    if (c !== undefined) {
-                        communities1.add(c);
-                    }
-                }
-                for (const nodeId of dm2.nodes.keys()) {
-                    const c = getNodeResult(louvain2, nodeId, "graphty", "louvain", "communityId");
-                    if (c !== undefined) {
-                        communities2.add(c);
-                    }
-                }
-
-                // Higher resolution should produce same or more communities
-                assert.isAtLeast(
-                    communities2.size,
-                    communities1.size,
-                    "Higher resolution should produce more or equal communities",
-                );
+                // At 0.5 the bridge joins a triangle; at 2.0 it is a community of its own.
+                assert.deepStrictEqual(partitionOf(louvain1, nodeIdsOf(graph1), "louvain"), TWO_TRIANGLES);
+                assert.deepStrictEqual(partitionOf(louvain2, nodeIdsOf(graph2), "louvain"), TRIANGLES_AND_BRIDGE);
             });
 
             it("maxIterations option limits iterations", async () => {
-                const graph = await createMockGraph(communityGraphData);
+                const graph1 = await createMockGraph(communityGraphData);
+                const graph2 = await createMockGraph(communityGraphData);
 
-                const louvain = new LouvainAlgorithm(graph, { maxIterations: 1 });
-                await louvain.run();
+                const louvain1 = new LouvainAlgorithm(graph1, { maxIterations: 1 });
+                await louvain1.run();
 
-                // Algorithm should complete without error with limited iterations
-                const dm = graph.getDataManager() as any;
-                const firstNodeId = Array.from(dm.nodes.keys())[0] as string;
-                const communityId = getNodeResult(louvain, firstNodeId, "graphty", "louvain", "communityId");
-                assert.isDefined(communityId);
+                const louvain2 = new LouvainAlgorithm(graph2, { maxIterations: 100 });
+                await louvain2.run();
+
+                // One pass of moves leaves the graph in four pieces; given room, it settles on two.
+                assert.lengthOf(partitionOf(louvain1, nodeIdsOf(graph1), "louvain"), 4);
+                assert.deepStrictEqual(partitionOf(louvain2, nodeIdsOf(graph2), "louvain"), TWO_TRIANGLES);
             });
         });
 
@@ -336,30 +372,36 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const leiden2 = new LeidenAlgorithm(graph2, { resolution: 2.0 });
                 await leiden2.run();
 
-                // Both should produce valid results
-                const dm1 = graph1.getDataManager() as any;
-                const firstNodeId = Array.from(dm1.nodes.keys())[0] as string;
-
-                const c1 = getNodeResult(leiden1, firstNodeId, "graphty", "leiden", "communityId");
-                const c2 = getNodeResult(leiden2, firstNodeId, "graphty", "leiden", "communityId");
-
-                assert.isDefined(c1);
-                assert.isDefined(c2);
+                // At 0.5 the bridge joins a triangle; at 2.0 it is a community of its own.
+                assert.deepStrictEqual(partitionOf(leiden1, nodeIdsOf(graph1), "leiden"), TWO_TRIANGLES);
+                assert.deepStrictEqual(partitionOf(leiden2, nodeIdsOf(graph2), "leiden"), TRIANGLES_AND_BRIDGE);
+                assert.strictEqual(getGraphResult(leiden1, "graphty", "leiden", "communityCount"), 2);
+                assert.strictEqual(getGraphResult(leiden2, "graphty", "leiden", "communityCount"), 3);
             });
         });
 
         describe("LabelPropagationAlgorithm", () => {
             it("maxIterations option limits iterations", async () => {
-                const graph = await createMockGraph(communityGraphData);
+                const graph1 = await createMockGraph(communityGraphData);
+                const graph2 = await createMockGraph(communityGraphData);
 
-                const lp = new LabelPropagationAlgorithm(graph, { maxIterations: 5 });
-                await lp.run();
+                const lp1 = new LabelPropagationAlgorithm(graph1, { maxIterations: 1 });
+                await lp1.run();
 
-                // Algorithm should complete and assign communityId
-                const dm = graph.getDataManager() as any;
-                const firstNodeId = Array.from(dm.nodes.keys())[0] as string;
-                const communityId = getNodeResult(lp, firstNodeId, "graphty", "label-propagation", "communityId");
-                assert.isDefined(communityId);
+                const lp2 = new LabelPropagationAlgorithm(graph2, { maxIterations: 50 });
+                await lp2.run();
+
+                // One pass is cut off before the labels settle, leaving five communities.
+                const caveats1 = lp1.result?.summary().caveats;
+                assert.strictEqual(caveats1?.iterations, 1);
+                assert.isFalse(caveats1?.converged);
+                assert.lengthOf(partitionOf(lp1, nodeIdsOf(graph1), "label-propagation"), 5);
+
+                // Fifty passes are more than enough: it converges in four, on the two triangles.
+                const caveats2 = lp2.result?.summary().caveats;
+                assert.strictEqual(caveats2?.iterations, 4);
+                assert.isTrue(caveats2?.converged);
+                assert.deepStrictEqual(partitionOf(lp2, nodeIdsOf(graph2), "label-propagation"), TWO_TRIANGLES);
             });
 
             it("randomSeed option affects reproducibility", async () => {
@@ -378,20 +420,24 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const lp3 = new LabelPropagationAlgorithm(graph3, { randomSeed: 123 });
                 await lp3.run();
 
-                const dm1 = graph1.getDataManager() as any;
-                const nodeIds: string[] = Array.from(dm1.nodes.keys());
+                const labelsOf = (algo: ResultCarrier, graph: Graph): Record<string, unknown> =>
+                    Object.fromEntries(
+                        nodeIdsOf(graph).map((id) => [
+                            String(id),
+                            getNodeResult(algo, id, "graphty", "label-propagation", "communityId"),
+                        ]),
+                    );
 
-                // Compare results from same randomSeed
-                let sameResults = true;
-                for (const nodeId of nodeIds) {
-                    const communityId1 = getNodeResult(lp1, nodeId, "graphty", "label-propagation", "communityId");
-                    const communityId2 = getNodeResult(lp2, nodeId, "graphty", "label-propagation", "communityId");
-                    if (communityId1 !== communityId2) {
-                        sameResults = false;
-                    }
-                }
+                // The same seed gives the same labels, node for node.
+                assert.deepStrictEqual(labelsOf(lp1, graph1), labelsOf(lp2, graph2));
+                assert.deepStrictEqual(partitionOf(lp1, nodeIdsOf(graph1), "label-propagation"), TWO_TRIANGLES);
 
-                assert.isTrue(sameResults, "Same randomSeed should produce same results");
+                // Another seed visits the nodes in another order, and here the bridge ends up with
+                // the other triangle.
+                assert.deepStrictEqual(partitionOf(lp3, nodeIdsOf(graph3), "label-propagation"), [
+                    ["A1", "A2", "A3"],
+                    ["B1", "B2", "B3", "bridge"],
+                ]);
             });
         });
 
@@ -406,28 +452,13 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const gn2 = new GirvanNewmanAlgorithm(graph2, { maxCommunities: 5 });
                 await gn2.run();
 
-                // Count communities
-                const dm1 = graph1.getDataManager() as any;
-                const dm2 = graph2.getDataManager() as any;
-
-                const communities1 = new Set<number>();
-                const communities2 = new Set<number>();
-
-                for (const nodeId of dm1.nodes.keys()) {
-                    const c = getNodeResult(gn1, nodeId, "graphty", "girvan-newman", "communityId");
-                    if (c !== undefined) {
-                        communities1.add(c);
-                    }
-                }
-                for (const nodeId of dm2.nodes.keys()) {
-                    const c = getNodeResult(gn2, nodeId, "graphty", "girvan-newman", "communityId");
-                    if (c !== undefined) {
-                        communities2.add(c);
-                    }
-                }
-
-                assert.isAtMost(communities1.size, 2, "Should have at most 2 communities");
-                assert.isAtMost(communities2.size, 5, "Should have at most 5 communities");
+                // The bridge's two edges tie for the highest betweenness and are cut together,
+                // which goes straight from one community to three. A cap of 2 therefore keeps the
+                // uncut graph; a cap of 5 takes the three-way split.
+                assert.deepStrictEqual(partitionOf(gn1, nodeIdsOf(graph1), "girvan-newman"), [
+                    ["A1", "A2", "A3", "B1", "B2", "B3", "bridge"],
+                ]);
+                assert.deepStrictEqual(partitionOf(gn2, nodeIdsOf(graph2), "girvan-newman"), TRIANGLES_AND_BRIDGE);
             });
         });
     });
@@ -557,25 +588,15 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const bfs2 = new BFSAlgorithm(graph2, { source: "A" });
                 await bfs2.run();
 
-                // Count visited nodes by checking if level is defined
-                const dm1 = graph1.getDataManager() as any;
-                const dm2 = graph2.getDataManager() as any;
+                const levelsOf = (algo: ResultCarrier, graph: Graph): Record<string, unknown> =>
+                    Object.fromEntries(
+                        nodeIdsOf(graph).map((id) => [String(id), getNodeResult(algo, id, "graphty", "bfs", "level")]),
+                    );
 
-                let visited1 = 0;
-                let visited2 = 0;
-
-                for (const nodeId of dm1.nodes.keys()) {
-                    if (getNodeResult(bfs1, nodeId, "graphty", "bfs", "level") !== undefined) {
-                        visited1++;
-                    }
-                }
-                for (const nodeId of dm2.nodes.keys()) {
-                    if (getNodeResult(bfs2, nodeId, "graphty", "bfs", "level") !== undefined) {
-                        visited2++;
-                    }
-                }
-
-                assert.isAtMost(visited1, visited2, "Early termination should visit fewer or equal nodes");
+                // The walk stops at C, so D and E are never reached; without a target it reaches all.
+                assert.deepStrictEqual(levelsOf(bfs1, graph1), { A: 0, B: 1, C: 2, D: undefined, E: undefined });
+                assert.deepStrictEqual(levelsOf(bfs2, graph2), { A: 0, B: 1, C: 2, D: 3, E: 4 });
+                assert.isTrue(getGraphResult(bfs1, "graphty", "bfs", "targetFound"));
             });
         });
 
@@ -598,36 +619,38 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 assert.strictEqual(timeESecond, 0, "E should be discovered first when starting from E");
             });
 
-            it("recursive option changes traversal method", async () => {
-                const graph1 = await createMockGraph(linearGraphData);
-                const graph2 = await createMockGraph(linearGraphData);
+            it("recursive option changes what a target stops", async () => {
+                // Two branches from A:  C -- B -- A -- D -- E
+                const branchData = {
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }, { id: "E" }],
+                    edges: [
+                        { srcId: "A", dstId: "B" },
+                        { srcId: "B", dstId: "C" },
+                        { srcId: "A", dstId: "D" },
+                        { srcId: "D", dstId: "E" },
+                    ],
+                };
+                const graph1 = await createMockGraph(branchData);
+                const graph2 = await createMockGraph(branchData);
 
-                const dfs1 = new DFSAlgorithm(graph1, { source: "A", recursive: true });
+                const dfs1 = new DFSAlgorithm(graph1, { source: "A", targetNode: "B", recursive: true });
                 await dfs1.run();
 
-                const dfs2 = new DFSAlgorithm(graph2, { source: "A", recursive: false });
+                const dfs2 = new DFSAlgorithm(graph2, { source: "A", targetNode: "B", recursive: false });
                 await dfs2.run();
 
-                // Both should visit all nodes (check visited boolean)
-                const dm1 = graph1.getDataManager() as any;
-                const dm2 = graph2.getDataManager() as any;
+                const visitedOf = (algo: ResultCarrier, graph: Graph): Record<string, unknown> =>
+                    Object.fromEntries(
+                        nodeIdsOf(graph).map((id) => [
+                            String(id),
+                            getNodeResult(algo, id, "graphty", "dfs", "visited"),
+                        ]),
+                    );
 
-                let visited1 = 0;
-                let visited2 = 0;
-
-                for (const nodeId of dm1.nodes.keys()) {
-                    if (getNodeResult(dfs1, nodeId, "graphty", "dfs", "visited") === true) {
-                        visited1++;
-                    }
-                }
-                for (const nodeId of dm2.nodes.keys()) {
-                    if (getNodeResult(dfs2, nodeId, "graphty", "dfs", "visited") === true) {
-                        visited2++;
-                    }
-                }
-
-                assert.strictEqual(visited1, 5, "Recursive DFS should visit all 5 nodes");
-                assert.strictEqual(visited2, 5, "Iterative DFS should visit all 5 nodes");
+                // Recursive: the walk skips only B's subtree (C) and goes on down the other branch.
+                assert.deepStrictEqual(visitedOf(dfs1, graph1), { A: true, B: true, C: false, D: true, E: true });
+                // Iterative: the walk stops at B.
+                assert.deepStrictEqual(visitedOf(dfs2, graph2), { A: true, B: true, C: false, D: false, E: false });
             });
         });
     });
@@ -694,11 +717,15 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 const mc2 = new MinCutAlgorithm(graph2, { source: "B", sink: "C" });
                 await mc2.run();
 
-                const cutValue1 = getGraphResult(mc1, "graphty", "min-cut", "cutValue");
-                const cutValue2 = getGraphResult(mc2, "graphty", "min-cut", "cutValue");
+                const graph3 = await createMockGraph(diamondGraphData);
+                const mc3 = new MinCutAlgorithm(graph3, { source: "A", sink: "B" });
+                await mc3.run();
 
-                assert.isDefined(cutValue1);
-                assert.isDefined(cutValue2);
+                // The cut reads edge weights. A|D and B|C are both split by cutting A-C and B-D
+                // (1 + 1); A|B needs one end cut off entirely (2 + 1).
+                assert.strictEqual(getGraphResult(mc1, "graphty", "min-cut", "cutValue"), 2);
+                assert.strictEqual(getGraphResult(mc2, "graphty", "min-cut", "cutValue"), 2);
+                assert.strictEqual(getGraphResult(mc3, "graphty", "min-cut", "cutValue"), 3);
             });
         });
     });

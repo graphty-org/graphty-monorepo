@@ -1149,6 +1149,15 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   records, file ids, created endpoints by place) instead of one op object per edge; undo and redo walk it in one
   op, touching each edge by its own `e:` key as before. Under `"objects"` the op log is unchanged. This is the
   entry G4 waits for: a forward `addNodes`/`addEdges` load already records it.
+  graph-samples (seventh pull request of stage 28): correction, a generated graph or a dataset does not go through
+  `importColumns`. It is a load: it replaces the graph by default, is listed in `sources()` with its sample facts,
+  names its nodes by its label column and is reloaded by name from a project file, and `importColumns` carries none
+  of that. It keeps its `data.import`, and under `"batched"` hands that import graph-samples' records as held rows
+  (the route a draft's load takes) instead of writing them into a JSON text the JSON source parses back; under
+  `"objects"`, and whenever a choice reads the source through a draft (`mapping`, `unmatched`, `directed`,
+  `duplicateIds`), it reads the JSON text as before. The graph, the load entry, undo and redo are the same on both
+  paths for every generator and six datasets (`test/session/sample-rows.test.ts`). It still builds a record per row;
+  typed rows into the builder, for this route and `importColumns` alike, are still to build.
 - **Bulk lane keys (cosmos-gap.md G4, first pull request).** Under `"batched"` a forward add marks its edges dirty as
   one range key per run of consecutive edges, `e+:<first edge counter>:<count>`, through `DerivationLane.touchLater`,
   whose key is read when the next pass starts. Correction to cosmos-gap.md section 3.3 item 2: the range is over the

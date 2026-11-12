@@ -407,6 +407,20 @@ interface DrawnTransform {
 }
 
 /**
+ * Whether two drawn transforms are the same map.
+ * @param a - One.
+ * @param b - The other.
+ * @returns True when every number matches.
+ */
+function sameTransform(a: DrawnTransform, b: DrawnTransform): boolean {
+    return (
+        a.scale === b.scale &&
+        a.center.every((v, i) => v === b.center[i]) &&
+        a.target.every((v, i) => v === b.target[i])
+    );
+}
+
+/**
  * What an accelerated simulation offers to fill the row table on the card
  * (design/rendering/row-renderer.md 4.5); optional members of the GPU package's simulation.
  */
@@ -450,6 +464,15 @@ interface DrawnRun {
     readonly told: Map<number, number>;
     /** The mirror this run gave the table, which only this run takes back. */
     readonly mirror: (row: number, x: number, y: number, z: number, w: number) => void;
+    /** Whether a landing of this run has been published, so the transforms sent since were measured over one. */
+    stepped: boolean;
+    /**
+     * The transforms sent before that, measured over the coordinates the run was loaded with (each distinct one
+     * once; they change only when a landing does). A batch drawn with one is no picture of the graph: a seeded
+     * ForceAtlas2 spreads some 3,000 times over in its first batches, so its first landing drawn this way stood
+     * some 2,000 times the size of the next (#6584). Such a landing goes up by upload.
+     */
+    readonly unstepped: DrawnTransform[];
 }
 
 /**
@@ -1315,10 +1338,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // texture the ring is copied into hold the same rows; the envelope measured now is the next batches'.
         const drawn = this.#drawnRun();
         const landed = drawn?.simulation.landedDrawn ?? null;
-        const viaCard =
-            landed !== null && drawn?.suspended === false && !(this.#simulation?.settled ?? true)
-                ? (drawn?.simulation.landedDrawnTransform ?? null)
-                : null;
+        const viaCard = drawn === null || landed === null ? null : this.#cardTransform(drawn);
         this.#fitEnvelope(snapshot, simPositions);
 
         const scale = viaCard?.scale ?? this.#envelopeScale;
@@ -1371,8 +1391,25 @@ export class SimulationLayoutEngine extends LayoutEngine {
             this.#origin === null ? this.#fixedRows : new Set([...this.#fixedRows].map((row) => this.#elementRow(row))),
         );
         if (drawn !== null) {
+            drawn.stepped ||= landed !== null;
             this.#publishDrawn(drawn, viaCard === null ? null : landed);
         }
+    }
+
+    /**
+     * The transform a landed batch drew with, when its copy may stand for the landing: not while a
+     * transition draws the rows or the simulation is at rest, and not when the batch drew with the
+     * transform measured before the run stepped.
+     * @param run - The run, with a landing.
+     * @returns The transform, or null to publish the landing by upload.
+     */
+    #cardTransform(run: DrawnRun): DrawnTransform | null {
+        const batch = run.simulation.landedDrawnTransform ?? null;
+        if (batch === null || run.suspended || (this.#simulation?.settled ?? true)) {
+            return null;
+        }
+
+        return run.unstepped.some((seed) => sameTransform(batch, seed)) ? null : batch;
     }
 
     /**
@@ -1420,6 +1457,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
             skip: new Uint32Array(Math.ceil(nodeCount / 32)),
             suspended: false,
             told: new Map(),
+            stepped: false,
+            unstepped: [],
             mirror: (row, x, y, z, w): void => {
                 if (this.#drawn === run && row < nodeCount) {
                     drawn.writeDrawn(row, x, y, z, w);
@@ -1528,6 +1567,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
             target: [this.#targetCentre[0], this.#targetCentre[1], this.#targetCentre[2]],
         };
         run.simulation.setDrawnTransform(transform);
+        const last = run.unstepped.at(-1);
+        if (!run.stepped && (last === undefined || !sameTransform(last, transform))) {
+            run.unstepped.push(transform);
+        }
     }
 
     /**

@@ -117,10 +117,10 @@ describe("health stack", () => {
         });
     });
 
-    it("budgets 10 USD and denies the Lambda roles at 100% actual", () => {
+    it("budgets 50 USD and denies the Lambda roles at 100% actual", () => {
         t.hasResourceProperties("AWS::Budgets::Budget", {
             Budget: Match.objectLike({
-                BudgetLimit: { Amount: 10, Unit: "USD" },
+                BudgetLimit: { Amount: 50, Unit: "USD" },
                 TimeUnit: "MONTHLY",
                 CostTypes: Match.objectLike({ IncludeCredit: false }),
             }),

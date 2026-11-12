@@ -1,3 +1,33 @@
+## 0.3.56 (2026-11-12)
+
+### 🚀 Features
+
+- **graph-io:** place a DOT graph label beside a drawing that is not laid out yet ([#706](https://github.com/graphty-org/graphty-monorepo/issues/706))
+
+### 🩹 Fixes
+
+- **graph-io:** note a yFiles ramp that unrolls to nothing and a gradient the GraphML writer drops ([#5809](https://github.com/graphty-org/graphty-monorepo/issues/5809))
+- **graph-io:** mark a yFiles gradient-filled node paintedOver in its reference ([#6265](https://github.com/graphty-org/graphty-monorepo/issues/6265), [#5809](https://github.com/graphty-org/graphty-monorepo/issues/5809))
+- **graph-io:** clear the SonarQube findings on the yEd reader's new lines ([054a19b97d](https://github.com/graphty-org/graphty-monorepo/commit/054a19b97d))
+- **graphty-element:** keep a label's blank lines tall only when a yEd file says so ([e287bedb71](https://github.com/graphty-org/graphty-monorepo/commit/e287bedb71))
+- **graph-io:** read yEd border alpha, inside ports, and yEd Live picture and group defaults ([1717883e13](https://github.com/graphty-org/graphty-monorepo/commit/1717883e13))
+- **graph-io:** draw yEd Live collapsed groups, flowcharts, null paints and Bezier pieces as yEd does ([9ac982fbc5](https://github.com/graphty-org/graphty-monorepo/commit/9ac982fbc5))
+- **graph-io:** read an unfilled DOT plain or plaintext node as a label-only node ([#706](https://github.com/graphty-org/graphty-monorepo/issues/706))
+- **graph-io:** place yEd and yEd Live labels where the programs draw them ([#706](https://github.com/graphty-org/graphty-monorepo/issues/706))
+- **graph-io:** draw yEd arcs, quad curves, closed folders and nested groups as yEd does ([9235fe6ccd](https://github.com/graphty-org/graphty-monorepo/commit/9235fe6ccd))
+- **graph-io:** keep a yEd label's leading line break and draw blank label lines ([#706](https://github.com/graphty-org/graphty-monorepo/issues/706))
+- **graph-io:** draw a yEd GML corner label of the sides model at the top ([#4247](https://github.com/graphty-org/graphty-monorepo/issues/4247))
+- **graphty-element:** reach the assistant's new surface and fit it to master ([50606ca1d5](https://github.com/graphty-org/graphty-monorepo/commit/50606ca1d5))
+
+### 🧱 Updated Dependencies
+
+- Updated visual-review to 0.2.43
+- Updated graph-format to 1.5.2
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
 ## 0.3.55 (2026-11-10)
 
 ### 🚀 Features

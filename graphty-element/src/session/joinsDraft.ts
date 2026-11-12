@@ -287,20 +287,22 @@ export function createJoinsDraft(host: JoinsDraftHost): JoinsDraft {
             return host.joinedTable(key);
         }
 
+        // A network load's `_source.` bookkeeping is no value of the table: a step never joins on it.
+        const own = (data: Readonly<Record<string, unknown>>): Record<string, unknown> =>
+            Object.fromEntries(Object.entries(data).filter(([name]) => !isSourceFactKey(name)));
         const rows: Readonly<Record<string, unknown>>[] = load.asEdges
             ? load.edges.flatMap((id) => {
                   const edge = graph.edges.get(id);
                   return edge === undefined
                       ? []
-                      : [{ ...edge.data, id: edge.id, source: edge.source, target: edge.target }];
+                      : [{ ...own(edge.data), id: edge.id, source: edge.source, target: edge.target }];
               })
             : load.nodes.flatMap((id) => {
                   const node = graph.nodes.get(String(id));
-                  return node === undefined ? [] : [{ ...node.data, id: node.id }];
+                  return node === undefined ? [] : [{ ...own(node.data), id: node.id }];
               });
-        // A network load's `_source.` bookkeeping is no column of the table: a step never joins on it.
         const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))].filter(
-            (column) => (!load.asEdges || column !== "id") && !isSourceFactKey(column),
+            (column) => !load.asEdges || column !== "id",
         );
         return { name: load.name, columns, rows };
     };

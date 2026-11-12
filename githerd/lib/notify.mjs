@@ -96,13 +96,31 @@ function buildArgv(command, status, message) {
 }
 
 /**
+ * Starts the timer that kills a run at its timeout.
+ * @callback StartTimer
+ * @param {() => void} fire kills the run
+ * @param {number} ms the timeout
+ * @returns {() => void} cancels the timer
+ */
+
+/**
+ * Starts the kill timer with setTimeout.
+ * @type {StartTimer}
+ */
+function defaultStartTimer(fire, ms) {
+    const timer = setTimeout(fire, ms);
+    return () => clearTimeout(timer);
+}
+
+/**
  * Runs the command without a shell in its own process group, killing the whole group at the
  * timeout.
  * @param {string[]} argv the command and its arguments
  * @param {number} timeoutMs the timeout
+ * @param {StartTimer} startTimer starts the kill timer
  * @returns {Promise<RunResult>} how it ended
  */
-function runCommand(argv, timeoutMs) {
+function runCommand(argv, timeoutMs, startTimer) {
     return new Promise((resolve) => {
         let stderr = "";
         let timedOut = false;
@@ -114,11 +132,11 @@ function runCommand(argv, timeoutMs) {
         const finish = (result) => {
             if (settled) return;
             settled = true;
-            clearTimeout(timer);
+            cancelTimer();
             resolve(result);
         };
         const child = spawn(argv[0], argv.slice(1), { detached: true, stdio: ["ignore", "ignore", "pipe"] });
-        const timer = setTimeout(() => {
+        const cancelTimer = startTimer(() => {
             timedOut = true;
             try {
                 process.kill(-child.pid, "SIGKILL");
@@ -156,13 +174,21 @@ function failure(result, timeoutMs) {
  *   ledger: (entry: {kind: string} & Record<string, unknown>) => unknown,
  *   now?: () => Date,
  *   timeoutMs?: number,
+ *   startTimer?: StartTimer,
  * }} options `notify` is the config's `notify` section or a function returning the current one;
  *   `state` is the daemon state, mutated in place; `ledger` appends one ledger entry
  * @returns {{send: (page: Page) => boolean, flush: () => Promise<void>}} `send` queues a page and
  *   returns false when its key was already queued, delivered or given up; `flush` delivers the
  *   queue, and a call while one is running returns the running one
  */
-export function createNotifier({ notify, state, ledger, now = () => new Date(), timeoutMs = TIMEOUT_MS }) {
+export function createNotifier({
+    notify,
+    state,
+    ledger,
+    now = () => new Date(),
+    timeoutMs = TIMEOUT_MS,
+    startTimer = defaultStartTimer,
+}) {
     state.notified ??= {};
     state.notify ??= {};
     const n = state.notify;
@@ -199,7 +225,7 @@ export function createNotifier({ notify, state, ledger, now = () => new Date(), 
             await ledger({ kind: "notify", keys, status, message, delivered: false, reason: hold });
             return true;
         }
-        const result = await runCommand(buildArgv(command, status, message), timeoutMs);
+        const result = await runCommand(buildArgv(command, status, message), timeoutMs, startTimer);
         const reason = failure(result, timeoutMs);
         const done = now().toISOString();
         if (reason === null) {

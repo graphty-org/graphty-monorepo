@@ -752,6 +752,8 @@ class Session implements ElementSession {
             const groups = groupsOf(this.dispatcher.state.graph.values.get(GROUPS_VALUE));
             const advice = recommendLayout(this.data.statistics(), {
                 placedNodes: this.store.seededNodeCount + groups.length,
+                // As recommendLayout() answers it: nodes that carry locations open on the map.
+                locations: this.estimate({ op: "layout.set", id: "location-map" }).available,
                 file: fileGraph(),
                 graphvizAvailable: graphviz === true,
             });

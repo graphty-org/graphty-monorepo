@@ -99,7 +99,12 @@ function bringDataset(ctx: CommandContext, dataset: DatasetMeta, target: Target)
     bringGraph(
         ctx,
         dataset.title,
-        (session, load) => session.data.loadDataset(dataset.name, { ...datasetBase(), ...load }),
+        (session, load) =>
+            session.data.loadDataset(dataset.name, {
+                ...datasetBase(),
+                ...load,
+                ...(target === "add" ? {} : { layout: "recommended" as const }),
+            }),
         target,
     );
 }

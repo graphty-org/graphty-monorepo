@@ -115,7 +115,7 @@ export async function openNetworkSample(
     try {
         const read = await scratch.data.readExample(source, example, { signal });
         openWithStylePanel(workspace, name, async (session) => {
-            await session.data.import(read, { history: "start" });
+            await session.data.import(read, { history: "start", layout: "recommended" });
         });
         remember(workspace, { kind: "network", name, source, example });
     } catch (error) {
@@ -207,7 +207,7 @@ export function samplePicture(sample: Pick<StartSample, "id" | "picture">): stri
  */
 export function openDataset(workspace: WorkspaceStore, dataset: DatasetMeta): void {
     openProject(workspace, dataset.title, (session) =>
-        session.data.loadDataset(dataset.name, { history: "start", ...datasetBase() }),
+        session.data.loadDataset(dataset.name, { history: "start", layout: "recommended", ...datasetBase() }),
     );
     remember(workspace, { kind: "dataset", dataset: dataset.name });
 }
@@ -324,7 +324,8 @@ async function drawFirst(
         ...(styled ? { styles: fileStylesChoice(), styleOptions: FILE_STYLE_OPTIONS } : {}),
         ...(fixed ? {} : { mapping }),
         ...(fresh ? { history: "start" as const } : {}),
-        ...(origin === undefined ? {} : { origin }),
+        // A sample opens with the layout graphty-element recommends for it (a map for coordinates).
+        ...(origin === undefined ? {} : { origin, layout: "recommended" as const }),
     });
     if (styled) {
         noticeFileStyles(workspace, session);

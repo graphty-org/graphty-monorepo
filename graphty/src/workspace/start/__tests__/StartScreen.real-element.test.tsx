@@ -14,7 +14,7 @@ import { userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
 import { pickSample } from "../../../test/samples-dialog";
-import { render, screen } from "../../../test/test-utils";
+import { render, screen, waitFor } from "../../../test/test-utils";
 import { forgetUsageAnswer, setUsageSenderForTests } from "../../privacy/usageData";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -102,4 +102,16 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
             unmount();
         });
     }
+
+    it("opens a sample with the layout graphty-element recommends: the airline routes on the map", async () => {
+        const store = createWorkspaceStore();
+        const { unmount } = render(<Workspace store={store} />);
+
+        const session = await openBy(store, () => pickSample("OpenFlights airline routes"));
+        // Its airports carry latitude and longitude, so the element recommends the location map.
+        await waitFor(() => {
+            assert.equal(session.layout.id, "location-map");
+        });
+        unmount();
+    });
 });

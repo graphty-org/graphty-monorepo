@@ -1107,10 +1107,7 @@ class GraphEntry implements OpLogEntry {
                 this.undoNode(op, maps.nodes, seen);
                 break;
             case "nodes":
-                for (let at = op.ids.length - 1; at >= 0; at--) {
-                    this.undoNode(nodeAt(op, at), maps.nodes, seen);
-                }
-
+                this.undoNodes(op, maps.nodes, seen);
                 break;
             case "edge":
                 op.identity ??= store.frozenEdgeIdentity(op.edgeId);
@@ -1195,6 +1192,18 @@ class GraphEntry implements OpLogEntry {
         }
 
         this.graph.touch(nodeKey(op.id));
+    }
+
+    /**
+     * Undo a run of nodes added, last first, each as one node op is undone.
+     * @param op - The run.
+     * @param nodes - The node records.
+     * @param seen - The fields this batch bumped already.
+     */
+    private undoNodes(op: NodeRange, nodes: Map<NodeId, GraphRecord>, seen: Bumped): void {
+        for (let at = op.ids.length - 1; at >= 0; at--) {
+            this.undoNode(nodeAt(op, at), nodes, seen);
+        }
     }
 
     /**

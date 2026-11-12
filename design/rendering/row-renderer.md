@@ -1265,7 +1265,11 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   5.42 s at load average 2.7 and 5.35 s at 1.5; the table 5.36 s at 1.6 and 5.49 s at 1.1), so it was reverted. What
   costs is keeping a million live record objects reachable from one growing store while the garbage collector marks
   them, whatever holds them. It goes only when a load stops making a record per edge, which is stage 29's records on
-  demand, not a change to the slice's map. G8's typed 5 s target is still not met (5.35-5.42 s).
+  demand, not a change to the slice's map. What this pull request does build: the painter's
+  queue of rows to draw (`PendingRows` in StylePainter.ts) was a `Set`, and queueing a million edges cost about 0.2 s of
+  hashing; it is now a byte per row plus an array of rows, in the same oldest-first order, on both render paths.
+  Interleaved, same session: 100k + 1M first frame master 5.35 s and 5.15 s, branch 4.98 s and 5.00 s (load average
+  1.6-2.0), so the typed 5 s target is met at the edge; 100k + 1k is unchanged at about 0.90 s against its 0.8 s target.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.

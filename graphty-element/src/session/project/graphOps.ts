@@ -1105,6 +1105,8 @@ class GraphEntry implements OpLogEntry {
             if (store.deferring) {
                 store.dropAdded([op.id], []);
             } else if (store.builder.hasNode(op.id)) {
+                // A row-numbered node keeps its id through the freeze that compacts it away.
+                store.builder.keepIds();
                 store.builder.removeNode(op.id);
             }
         }
@@ -1157,6 +1159,7 @@ class GraphEntry implements OpLogEntry {
 
             for (const id of created) {
                 if (store.builder.hasNode(id)) {
+                    store.builder.keepIds();
                     store.builder.removeNode(id);
                 }
             }
@@ -1489,7 +1492,9 @@ class Writer implements GraphWriter {
         let merged = false;
         if (isStorableId(id)) {
             merged = this.store.builder.hasNode(id);
-            index = this.store.builder.addNode(id);
+            index = this.rowNumbered(id, merged)
+                ? this.store.builder.addAnonymousNodes(1)
+                : this.store.builder.addNode(id);
             if (seed !== null) {
                 this.store.builder.setNodeValue(this.store.seedColumn, index, seed);
             }
@@ -1507,6 +1512,22 @@ class Writer implements GraphWriter {
         bumpFields(this.store, "node", prior, record, this.bumped);
         this.record({ kind: "node", id, record, seed, existed: merged, prior }, nodeKey(id), NODES_ADDED);
         return { index, merged };
+    }
+
+    /**
+     * Whether a new node's id is the row it lands on, so the builder may add it with no id map
+     * (row-renderer.md 4.6, "Staging"): only under "batched", and only while the builder holds no
+     * removed row, so the id cannot name a row waiting to be revived. The builder still builds its
+     * map the first time a node with any other id joins.
+     * @param id - The node's id.
+     * @param merged - Whether a live node already has it.
+     * @returns True when the node may be added as an anonymous row.
+     */
+    private rowNumbered(id: NodeId, merged: boolean): boolean {
+        const { builder } = this.store;
+        return (
+            !merged && this.graph.touchesRanges && id === builder.nodeBound && builder.nodeBound === builder.nodeCount
+        );
     }
 
     addEdge(

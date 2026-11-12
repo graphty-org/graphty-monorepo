@@ -413,16 +413,6 @@ function urlSource(url: string): Incoming {
 }
 
 /**
- * Opens the graph file at a web address as a new project named after the file, drawn as a first
- * file is. The element reads the format from the address and the file.
- * @param workspace - the workspace store.
- * @param url - the address.
- */
-export function openUrl(workspace: WorkspaceStore, url: string): void {
-    openSeparate(workspace, urlSource(url));
-}
-
-/**
  * Loads a source the reader brought by any door (drop, File..., Paste, Samples): from the start
  * screen as a new project named after it; into an empty project as its first source; into a graph
  * that holds data as a replacement or a join.

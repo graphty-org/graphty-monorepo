@@ -21,7 +21,7 @@ export function kindName(entry: SourceCatalogEntry): string {
     return KIND_NAMES[entry.id] ?? entry.descriptor.plainName;
 }
 
-/** A short label per source code (graph-io's `SOURCE_ISSUE`); the code itself for any other. */
+/** A short label per source code (graph-io's `SOURCE_ISSUE`, and the file issues a url load reports); the code itself for any other. */
 const CODE_WORDS: Readonly<Record<string, string>> = {
     E_FETCH: "unreachable",
     E_FETCH_FAILED: "unreachable",
@@ -47,6 +47,8 @@ const CODE_WORDS: Readonly<Record<string, string>> = {
     W_SOURCE_RETRIED: "retried",
     W_SOURCE_VALUE: "unread value",
     W_STYLES_NOT_IMPORTED: "styles not read",
+    W_DUPLICATE_NODE: "repeated node ids merged",
+    W_CSV_NO_UNIQUE_ID: "no unique id column: nodes numbered by row",
 };
 
 /** What each of graph-io's caps counts. */

@@ -1158,7 +1158,11 @@ function csvHeadersBlock(ctx: Context): string[] {
         [
             ["Edge source", names(h.SOURCE_NAMES), "`sourceColumn`"],
             ["Edge target", names(h.TARGET_NAMES), "`targetColumn`"],
-            ["Node id (node table)", names(h.ID_NAMES), "`idColumn`"],
+            [
+                "Node id (node table)",
+                "`id`, a column ending in `id` (`person_id`), `node`, `key`, `name`: the first whose values are distinct",
+                "`idColumn`",
+            ],
             ["Edge id (edge table)", names(h.EDGE_ID_NAMES), ""],
             ["Label", names(h.LABEL_NAMES), ""],
             ["Edge weight", "`weight`, or the name you pass as `weightFrom`", "`weightFrom`"],

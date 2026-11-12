@@ -60,6 +60,34 @@ export const TARGET_NAMES: readonly string[] = Object.freeze([
 export const ID_NAMES: readonly string[] = Object.freeze(["id", "node", "name", "key"]);
 
 /**
+ * The id column candidates of a node table header, best first: a column named `id`, then every
+ * column whose name ends in an `id` word (`person_id`, `person-id`, `personId`, `PersonID`, never
+ * `paid` or `valid`) in header order, then `node`, `key` and `name`. The importer keys the table by
+ * the first candidate whose values are all present and distinct.
+ * @param names - the header names
+ * @returns the column indices, best first
+ * @category Plugin helpers
+ */
+export function idCandidates(names: readonly string[]): number[] {
+    const out: number[] = [];
+    const add = (index: number): void => {
+        if (index >= 0 && !out.includes(index)) {
+            out.push(index);
+        }
+    };
+    add(findColumn(names, ["id"]));
+    names.forEach((name, i) => {
+        if (/[_\-\s.]id$/i.test(name) || /[a-z]I[dD]$/.test(name)) {
+            add(i);
+        }
+    });
+    for (const name of ["node", "key", "name"]) {
+        add(findColumn(names, [name]));
+    }
+    return out;
+}
+
+/**
  * Header candidates of a label column (node or edge).
  * @category Plugin helpers
  */

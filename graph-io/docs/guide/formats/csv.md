@@ -229,15 +229,15 @@ those labels.
 
 <!-- generated:begin headers:csv -->
 
-| Column               | Header names                                                                                     | To name another column |
-| -------------------- | ------------------------------------------------------------------------------------------------ | ---------------------- |
-| Edge source          | `source`, `src`, `from`, `start`, `source_id`, `sourceid`, `fromnodeid`, `start_id`, `:start_id` | `sourceColumn`         |
-| Edge target          | `target`, `dst`, `dest`, `to`, `end`, `target_id`, `targetid`, `tonodeid`, `end_id`, `:end_id`   | `targetColumn`         |
-| Node id (node table) | `id`, `node`, `name`, `key`                                                                      | `idColumn`             |
-| Edge id (edge table) | `id`                                                                                             |                        |
-| Label                | `label`                                                                                          |                        |
-| Edge weight          | `weight`, or the name you pass as `weightFrom`                                                   | `weightFrom`           |
-| Edge direction       | `Type`, only in a Gephi table (a header with exactly `Source` and `Target`)                      | `typeColumn`           |
+| Column               | Header names                                                                                            | To name another column |
+| -------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------- |
+| Edge source          | `source`, `src`, `from`, `start`, `source_id`, `sourceid`, `fromnodeid`, `start_id`, `:start_id`        | `sourceColumn`         |
+| Edge target          | `target`, `dst`, `dest`, `to`, `end`, `target_id`, `targetid`, `tonodeid`, `end_id`, `:end_id`          | `targetColumn`         |
+| Node id (node table) | `id`, a column ending in `id` (`person_id`), `node`, `key`, `name`: the first whose values are distinct | `idColumn`             |
+| Edge id (edge table) | `id`                                                                                                    |                        |
+| Label                | `label`                                                                                                 |                        |
+| Edge weight          | `weight`, or the name you pass as `weightFrom`                                                          | `weightFrom`           |
+| Edge direction       | `Type`, only in a Gephi table (a header with exactly `Source` and `Target`)                             | `typeColumn`           |
 
 <!-- generated:end -->
 
@@ -337,7 +337,7 @@ These come on top of the [options every importer takes](../options.md#every-impo
 - <a id="import-sourcecolumn"></a>`sourceColumn`: The source column, by name or 0-based position. The default is the column whose header is a recognized source name (`source`, `from`, `src` and others; the CSV format page lists them all); in a file without a header, the first column. A header with no recognized source and target names needs this option and `targetColumn`.
 - <a id="import-targetcolumn"></a>`targetColumn`: The target column, by name or 0-based position. The default is the column whose header is a recognized target name (`target`, `to`, `dst` and others; the CSV format page lists them all); in a file without a header, the second column.
 - <a id="import-typecolumn"></a>`typeColumn`: The column that gives each edge's direction (Directed / Undirected / Mutual), by name or position. The default is the `Type` column of a Gephi table (one whose header has exactly `Source` and `Target`); null reads no such column.
-- <a id="import-idcolumn"></a>`idColumn`: The id column of a node table, by name or position. The default is the column the header names `id` (or `node`, `name`, `key`).
+- <a id="import-idcolumn"></a>`idColumn`: The id column of a node table, by name or position. The default is the first of these whose values are all present and distinct: the column named `id`, a column whose name ends in `id` (`person_id`, `personId`), then `node`, `key`, `name`. When none is, the nodes are numbered by row (`W_CSV_NO_UNIQUE_ID`); a node table paired with edges keeps the first instead.
 - <a id="import-labelcolumn"></a>`labelColumn`: The label column of a node table, by name or position. The default is the column the header names `label` (in any case). With `nodeIdFrom: "label"`, the node ids come from this column, and the edge table must name its nodes by these labels too.
 - <a id="import-nodes"></a>`nodes`: A node table to read before the edges: its ids become nodes and its other columns node attributes. Pass it as a string, bytes, a stream, or a `File` or `Blob` (for example, the second file a user picked).
 - <a id="import-rownumberids"></a>`rowNumberIds`: Give the nodes of a node table without an id column the row number as id (0 for the first data row, turned into an id by `ids`), instead of failing with `E_CSV_NO_ID_COLUMN`. It applies to the `nodes` table when you pass one, else to the input. Under `header: "auto"` that table's first row is then read as a header; under `header: false` the option is ignored with a warning, because a table without a header takes its ids from its first column.
@@ -373,6 +373,7 @@ The codes this format's import report can hold. They are also exported as `CSV_I
 - `W_UNKNOWN_ENCODING` (warning): A declared encoding the platform cannot decode was ignored.
 - `E_CSV_NO_ENDPOINT_COLUMNS` (error): The header names no source and target columns and no id column. Pass `sourceColumn` and `targetColumn` to name the columns. The import stops.
 - `E_CSV_NO_ID_COLUMN` (error): The node table has no id column. Pass `idColumn` to name it, or `rowNumberIds: true` to number the rows. The import stops.
+- `W_CSV_NO_UNIQUE_ID` (warning): Every id-like column of a node table's header (`id`, `person_id`, `node`, `key`, `name`) repeats a value or leaves one blank, so the nodes are numbered by row (0 for the first data row). Pass `idColumn` to key the table by one of them anyway.
 - `E_CSV_FIELD_COUNT` (error): A row with a different number of fields than the header; the row is skipped. An adjacency list read without `table: "adjacency"` gives one per long row, and the first one's message suggests the option.
 - `E_MISSING_ENDPOINT` (error): An edge row with a blank source or target.
 - `E_MISSING_ID` (error): A node row with a blank id.

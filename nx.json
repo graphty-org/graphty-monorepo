@@ -165,6 +165,7 @@
             "{workspaceRoot}/tools/test-wait-guard.mjs",
             "{workspaceRoot}/vitest.map-tiles.mjs",
             "{workspaceRoot}/vitest.map-tiles-setup.ts",
+            "{workspaceRoot}/vitest.real-user-event.mjs",
             "{workspaceRoot}/pnpm-workspace.yaml",
             "{workspaceRoot}/.npmrc"
         ]

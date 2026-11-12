@@ -932,12 +932,16 @@ jobs:
                   key: ${{ steps.babylon-compilers-key.outputs.key }}
                   lookup-only: true
 
+            # Warming a cache must never turn the master build red: a CDN refusal here leaves the entry unsaved, and
+            # the shards fetch on their own as before until a later master push saves it.
             - name: Fetch the Babylon.js GLSL compilers
+              id: babylon-compilers-fetch
               if: steps.babylon-compilers-key.outputs.key && steps.babylon-compilers.outputs.cache-hit != 'true'
+              continue-on-error: true
               run: node vitest.babylon-compilers.mjs
 
             - name: Save the Babylon.js GLSL compilers
-              if: steps.babylon-compilers-key.outputs.key && steps.babylon-compilers.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
+              if: steps.babylon-compilers-fetch.outcome == 'success' && env.SAVE_CACHES == 'true'
               uses: actions/cache/save@v6
               with:
                   path: ~/.cache/babylon-shader-compilers

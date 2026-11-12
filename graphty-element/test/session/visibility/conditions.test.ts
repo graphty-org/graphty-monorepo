@@ -50,7 +50,7 @@ const SERVICES: RuleTree = { kind: "categories", attribute: "data.type", values:
 const HEAVY: RuleTree = { kind: "range", attribute: "data.weight", min: 5 };
 
 async function graph(): Promise<GraphSession> {
-    const session = createGraphSession();
+    const session = createGraphSession({ workingGraph: false });
     await session.data.import({ type: "json", config: { data: DATA } });
     return session;
 }

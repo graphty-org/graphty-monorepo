@@ -11,7 +11,7 @@ const NODES = ["a", "b", "c", "d", "e"].map((id, at) => ({ id, rank: at }));
 
 describe("a layer's count over the graph the filter leaves", () => {
     it("leaves out filtered-out nodes and keeps matched over the whole graph", async () => {
-        const s = createGraphSession();
+        const s = createGraphSession({ workingGraph: false });
         await s.data.addNodes(NODES);
         const all = await s.styles.add({
             name: "All",

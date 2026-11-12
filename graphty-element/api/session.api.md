@@ -2679,19 +2679,19 @@ export interface GroupOutlineClick {
     readonly shader: string;
 }
 
+// @public
+export interface GroupOverlap {
+    readonly a: string | number;
+    readonly b: string | number;
+    readonly count: number;
+}
+
 // @beta
 export interface HiddenNotDrawn {
     readonly code: "W_HIDDEN_NOT_DRAWN";
     readonly params: {
         readonly asked: "showContext" | "hold" | "full" | "ghost";
     };
-}
-
-// @public
-export interface GroupOverlap {
-    readonly a: string | number;
-    readonly b: string | number;
-    readonly count: number;
 }
 
 // @public

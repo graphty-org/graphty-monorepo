@@ -68,6 +68,7 @@ async function execute(context: RunExecutionContext): Promise<RunOutcome> {
 async function open(designate = true, csv = CSV): Promise<{ session: GraphSession; executions: () => number }> {
     let count = 0;
     const session = createGraphSession({
+        workingGraph: false,
         runs: {
             execute: async (context) => {
                 count++;
@@ -290,7 +291,7 @@ describe("the window, its step and playback", () => {
         });
 
         const { text } = await session.project.save();
-        const reopened = createGraphSession({ runs: { execute } });
+        const reopened = createGraphSession({ runs: { execute }, workingGraph: false });
         await reopened.project.open(text);
         assert.strictEqual(reopened.time.settings.mode, "cumulative");
         assert.strictEqual(reopened.time.settings.step, "day");

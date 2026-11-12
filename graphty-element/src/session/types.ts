@@ -385,9 +385,9 @@ export interface FindOptions {
     /** What to list. Default `["node", "edge"]`. */
     readonly kinds?: readonly FindKind[];
     /**
-     * Where to search. Default the whole graph: a hit the visibility filter hides is still
-     * listed, and carries `excludedBy`. With the session's `workingGraph` option on, the default
-     * is `"visible"`, what is shown; name `"graph"` to find hidden items too.
+     * Where to search. Default `"visible"`, what is shown, while the session's `workingGraph`
+     * option is on (the default); name `"graph"` to find hidden items too. Over the whole graph a
+     * hit the visibility filter hides is still listed, and carries `excludedBy`.
      */
     readonly scope?: ScopeInput;
     /**
@@ -4291,10 +4291,10 @@ export interface GraphSession {
      * `W_HIDDEN_NOT_DRAWN` fact (`visibility:not-drawn-changed` tells each change). Off, they draw
      * as before.
      *
-     * Off by default, which keeps every reader on the whole graph. Settable; a session setting that
-     * records no undo step and is not saved in a project file. Set it when creating the session with
-     * `createGraphSession({ workingGraph: true })`, or on the element with the `working-graph`
-     * attribute.
+     * On by default. Off keeps every reader on the whole graph, as before 3.36.0. Settable; a session
+     * setting that records no undo step and is not saved in a project file. Set it when creating the
+     * session with `createGraphSession({ workingGraph: false })`, or on the element with
+     * `working-graph="false"`.
      * @since 3.36.0
      */
     workingGraph: boolean;
@@ -4551,7 +4551,8 @@ export interface CreateGraphSessionOptions {
     readonly features?: readonly string[];
     /**
      * Start with the working graph on: readers that name no scope read what the filter and the time
-     * window leave shown. Default false. See `GraphSession.workingGraph`.
+     * window leave shown. Default true; false keeps them on the whole graph. See
+     * `GraphSession.workingGraph`.
      * @since 3.36.0
      */
     readonly workingGraph?: boolean;

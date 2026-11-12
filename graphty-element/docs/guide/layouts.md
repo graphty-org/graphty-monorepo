@@ -656,8 +656,8 @@ The same scope is the `layoutScope` property and the `layout-scope` attribute (J
 ## Laying out only what the filter shows
 
 A layout runs over what is shown -- the nodes and edges the [visibility filter](./filter-conditions)
-and the time window leave visible -- while the element's `workingGraph` option is on, and over the
-whole graph while it is off. Set `layout.visibleOnly` in the layout behaviour to choose for layouts
+and the time window leave visible -- while the element's `workingGraph` option is on, the default,
+and over the whole graph while it is off. Set `layout.visibleOnly` in the layout behaviour to choose for layouts
 alone: `true` lays out only what is shown, `false` the whole graph, hidden nodes included, so the
 shown nodes keep the places the whole graph gave them.
 

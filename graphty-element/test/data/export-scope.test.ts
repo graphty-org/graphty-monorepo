@@ -38,6 +38,8 @@ function rowsOf(text: string): string[] {
 describe("exportGraph scope", () => {
     it("writes only what is shown: 140 of 900 nodes, and the edges between them", async () => {
         const h = chain();
+        // With the working graph off, no scope writes the whole graph.
+        h.session.workingGraph = false;
         await h.session.visibility.set(FIRST_140);
 
         const nodes = rowsOf(await exportSession(h.session, "csv", { table: "nodes", scope: "shown" }).text());

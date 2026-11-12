@@ -54,7 +54,7 @@ async function load(sample: FidelitySample): Promise<{ session: GraphSession; sh
     const raw = readFileSync(join(GRAPH_IO_TEST, sample.file));
     const sha256 = createHash("sha256").update(raw).digest("hex");
     const data = new Uint8Array(sample.file.endsWith(".gz") ? gunzipSync(raw) : raw);
-    const session = createGraphSession({ features: ["file-styles"] });
+    const session = createGraphSession({ features: ["file-styles"], workingGraph: false });
     await session.data.import(
         { type: sample.format, config: { data, errorLimit: 1_000_000 } },
         { styles: "file", layout: "recommended" },

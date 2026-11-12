@@ -25,10 +25,10 @@ Issue #6201: the design the owner agreed on 2026-11-07; choices he has not seen 
 
 All of it is additive. With the option off, every reader keeps today's behavior.
 
-**The option.** A boolean, `workingGraph`, default `false`: the element's `workingGraph` property
+**The option.** A boolean, `workingGraph`, default `true` (flipped by #6124): the element's `workingGraph` property
 and `working-graph` attribute, `createGraphSession({ workingGraph: true })`, read back as
 `session.workingGraph`. On, every reader that names no scope reads the view. The graphty app turns
-it on; the default flips in the next major (#6124).
+it on; since #6124 it is on by default, and `false` keeps every reader on the whole graph.
 
 **Reading the whole graph by name.** Every reader of nodes or edges takes a scope and keeps its
 existing whole-graph word: `"graph"` (`data.nodePage`, `find`, `neighbors`, union leaves) or
@@ -248,7 +248,7 @@ off and before any filter (decision 77).
 
 ## 11. Decisions the owner has not seen
 
-1. **Boolean `workingGraph`** (attribute `working-graph`, `session.workingGraph`), default `false`,
+1. **Boolean `workingGraph`** (attribute `working-graph`, `session.workingGraph`), default `true` since #6124,
    not saved in the project file, not undoable.
 2. **No `data.working()`, no new event**: `visibility:changed` and `project:derived` suffice.
 3. **No new whole-graph word, no deprecation**: readers keep `"graph"` or `"all"`; scope-less

@@ -30,6 +30,8 @@ async function pathGraph(): Promise<{ graph: Graph; container: HTMLDivElement }>
     document.body.appendChild(container);
     const graph = new Graph(container);
     await graph.init();
+    // The working graph off, so `layout.visibleOnly` alone decides what a layout runs over.
+    graph.getSession().workingGraph = false;
     await graph.addNodes(IDS.map((id) => ({ id })));
     await graph.addEdges(IDS.slice(1).map((id, index) => ({ src: IDS[index], dst: id })));
     await operationQueueOf(graph).waitForCompletion();
@@ -131,7 +133,7 @@ describe("a layout over only what the filter shows", () => {
         assert.closeTo(smallestGap(anglesOf(positionsOf(graph), five)), 72, 0.5);
     });
 
-    it("runs the whole graph by default, hidden nodes keeping their slots", async () => {
+    it("runs the whole graph with the working graph off, hidden nodes keeping their slots", async () => {
         await graph.setLayout("circular", { dim: 2 });
         const five = ["n0", "n1", "n2", "n3", "n4"];
         await show(five);

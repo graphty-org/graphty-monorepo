@@ -1342,8 +1342,14 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         const compiled = compileVisibility(graph, filter, window, passSources(graph));
         runPass({ compiled, edges: edgeMaskValue, graph, nodes: nodeMaskValue });
         unresolvedValue = compiled.unresolvedPaths();
-        if (sources.timeline?.() === true) {
+        // Kept for the readers of the filter alone: the window's slides, and under the working
+        // graph the selection a filter change drops, so neither compiles the filter again.
+        const sliding = sources.timeline?.() === true;
+        if (sliding) {
             slideCounters.filterReads++;
+        }
+
+        if (sliding || sources.workingGraph?.() === true) {
             lastCompiled = { key: [filter, graph, ...inputsFor(filter, null)], filter: compiled.filter };
         }
     };

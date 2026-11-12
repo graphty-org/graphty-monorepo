@@ -1137,7 +1137,7 @@ class Session implements ElementSession {
     /**
      * Whether a reader that names no scope reads the working graph -- what the filter and the time
      * window leave shown -- rather than the whole graph.
-     * @returns True when on; false unless it was asked for.
+     * @returns True when on, the default.
      */
     get workingGraph(): boolean {
         return this.working.enabled;
@@ -4205,7 +4205,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
     const working = createWorkingGraph(
         { snapshot, masks: visibility.masks, store: store.store },
-        options.workingGraph === true,
+        options.workingGraph !== false,
     );
     shareInputs(store.store, working.shared);
     // A layout's availability also reads the graph, the values its grouping names, and the tick

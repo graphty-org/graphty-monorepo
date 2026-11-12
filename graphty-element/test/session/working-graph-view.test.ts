@@ -64,8 +64,10 @@ beforeEach(() => {
 });
 
 describe("the option", () => {
-    it("is off by default, and a reader naming no scope then reads the whole graph", async () => {
+    it("is on by default; off, a reader naming no scope reads the whole graph", async () => {
         const harness = makeSession();
+        assert.isTrue(harness.session.workingGraph, "on by default");
+        harness.session.workingGraph = false;
         harness.add(
             [
                 { id: "a", type: "host" },
@@ -90,7 +92,11 @@ describe("the option", () => {
         assert.isFalse(on.workingGraph);
         on.dispose();
 
-        const off = createGraphSession();
+        const byDefault = createGraphSession();
+        assert.isTrue(byDefault.workingGraph);
+        byDefault.dispose();
+
+        const off = createGraphSession({ workingGraph: false });
         assert.isFalse(off.workingGraph);
         off.dispose();
     });

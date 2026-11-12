@@ -214,7 +214,10 @@ export async function taskSession(dataset: TaskDataset): Promise<GraphSession> {
         },
     };
     const manager = new AlgorithmManager({} as never, graph as never);
+    // The working graph off: the stand-in renderer above hands the algorithms the whole store,
+    // where the element's own hands them what is shown.
     const session = createGraphSession({
+        workingGraph: false,
         ...(records.directed === undefined ? {} : { config: { data: { directed: records.directed } } }),
         runs: { execute: (context) => manager.execute(context, algorithmByKey(context.algorithm)) },
     });

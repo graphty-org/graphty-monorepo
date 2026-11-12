@@ -72,3 +72,10 @@ by mutation testing" block of `tools/test-select.test.mjs`. `node tools/test-sel
   keeps one pending run).
 - **Fix:** SKILL.md "Master onto nightly": check master between full runs as soon as a fix merges, cancel doomed
   runs, and dispatch the restart (owner, 2026-11-11).
+
+## A failed promotion nobody followed (2026-11-11, #6782)
+
+- **Symptom:** the approval pull request #6752 merged, its `promote-nightly` run 43141765347 failed at "Gate the
+  approved candidate" (an excluded image, fixed by #6781), and the failure and the re-dispatch after #6781 merged each
+  waited for the owner to ask. **Fix:** SKILL.md "Follow it through" and step 6's failed-promotion bullet: watch every
+  pending result in the background and take the next step on wake.

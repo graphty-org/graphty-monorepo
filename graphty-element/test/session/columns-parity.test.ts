@@ -1,9 +1,9 @@
 /**
  * @file The typed door against the record doors on real graphs (design/rendering/cosmos-gap.md,
- * G8): every graph-io corpus file and every graph-samples generator and dataset, loaded once, is
- * read back as records and as columns, and `session.data.importColumns` makes the graph, the
- * counts and the graph-level values that `addNodes` and `addEdges` make from the same rows, on
- * both render paths.
+ * G8): every graph-io corpus file, every graph-samples generator and every dataset in the
+ * repository, loaded once, is read back as records and as columns, and
+ * `session.data.importColumns` makes the graph, the counts and the graph-level values that
+ * `addNodes` and `addEdges` make from the same rows, on both render paths.
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -13,7 +13,7 @@ import { join, resolve } from "node:path";
 
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
-import { GENERATOR_DESCRIPTORS } from "../../catalog";
+import { DATASET_DESCRIPTORS, GENERATOR_DESCRIPTORS } from "../../catalog";
 import type { GraphSession, ImportColumnsInput } from "../../src/session";
 import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
 import { dataDigest } from "../../src/session/project/digest";
@@ -44,8 +44,13 @@ const READERS: Readonly<Record<string, string>> = {
 /** graph-samples' built dataset files, served the way graphty.app serves them. */
 const DATA = resolve(__dirname, "../../../graph-samples/dist/data/v1");
 
-/** The datasets compared, each served as `<name>.gsnp.gz`. */
-const DATASETS = ["karate", "les-miserables", "florentine-families", "davis-southern-women", "go-slim-generic"];
+/**
+ * Every dataset converted into the repository (one source directory each under graph-samples), each
+ * served as `<name>.gsnp.gz`. The hosted ones have no data in the repository and are not compared.
+ */
+const DATASETS = DATASET_DESCRIPTORS.map(({ name }) => name).filter((name) =>
+    existsSync(resolve(__dirname, "../../../graph-samples/src/datasets", name)),
+);
 
 /** What a load leaves that the comparison reads. */
 interface Held {
@@ -257,11 +262,10 @@ describe("the typed door against the record doors", () => {
         });
 
         it("makes the graph the record doors make from every sample dataset", async () => {
-            assert.isAbove(files.size, 0, "graph-samples is built");
+            assert.isAbove(DATASETS.length, 0, "the datasets in the repository are found");
             for (const name of DATASETS) {
-                if (files.has(`/${name}.gsnp.gz`)) {
-                    assert.isTrue(await compare(name, (session) => session.data.loadDataset(name, { baseUrl })), name);
-                }
+                assert.isTrue(files.has(`/${name}.gsnp.gz`), `graph-samples builds ${name}`);
+                assert.isTrue(await compare(name, (session) => session.data.loadDataset(name, { baseUrl })), name);
             }
         });
     });

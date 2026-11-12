@@ -100,7 +100,7 @@ import {
     type TransactionOptions as DispatchOptions,
     type TransactionScope as DispatchScope,
 } from "./project/Dispatcher";
-import { EDGES_ADDED, nodeOfKey, NODES_ADDED, ROWS_MOVED } from "./project/graphOps";
+import { EDGES_ADDED, forEachEdgeOfKey, namesEdges, nodeOfKey, NODES_ADDED, ROWS_MOVED } from "./project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./project/state";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
@@ -2699,6 +2699,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // per-capability floors in force, and a 0 written here would count as the consumer's own.
     const minNodes = options.acceleration?.minNodes ?? options.config?.acceleration?.minNodes;
     const watchers: Watchers = new Map();
+    // Under "batched" a forward add marks its edges as one range key (cosmos-gap.md G4).
+    if (internals.batched !== undefined) {
+        dispatcher.services.batched = internals.batched;
+    }
     dispatcher.services.progress = (change) => {
         publish(watchers, "progress:changed", change);
     };
@@ -2919,6 +2923,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         dispatcher,
         edgeMember,
         pairsOrdered: () => pairsOrdered(snapshot()),
+        hasNode: (id: NodeId) => snapshot().ids.indexOf(id) !== INVALID_INDEX,
         dependencies,
         offering,
         executionOf: (run: RunId) => executionOf(run),
@@ -4087,7 +4092,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // As it paints: a hidden row's layer repaints as disabled, never as its author wrote it.
             const stack = paintingOf(styles, target.styles);
             const recordsOnly = ![...dirty].some(
-                (key) => key === ROWS_MOVED || !(key.startsWith("n:") || key.startsWith("e:") || key.startsWith("v:")),
+                (key) => key === ROWS_MOVED || !(key.startsWith("n:") || namesEdges(key) || key.startsWith("v:")),
             );
             // A load's style values moved: every layer reading a `graphty.style.` path repaints.
             const stylesMoved = dirty.has(FILE_STYLES_KEY);
@@ -4342,11 +4347,13 @@ function editedRows(graph: GraphSnapshot, dirty: ReadonlySet<string>): { node: n
             if (row !== INVALID_INDEX) {
                 rows.node.push(row);
             }
-        } else if (key.startsWith("e:")) {
-            const row = space.indexOf(key.slice(2));
-            if (row !== INVALID_INDEX) {
-                rows.edge.push(row);
-            }
+        } else {
+            forEachEdgeOfKey(key, (id) => {
+                const row = space.indexOf(id);
+                if (row !== INVALID_INDEX) {
+                    rows.edge.push(row);
+                }
+            });
         }
     }
 
@@ -4362,7 +4369,7 @@ function editedRows(graph: GraphSnapshot, dirty: ReadonlySet<string>): { node: n
 function changesRowsOnly(key: string): boolean {
     return (
         key.startsWith("n:") ||
-        key.startsWith("e:") ||
+        namesEdges(key) ||
         // A graph value (the import report an add replaces) is read by no layer; the file-style
         // store is, so a change to it repaints what reads it rather than only the rows.
         (key.startsWith("v:") && key !== FILE_STYLES_KEY) ||

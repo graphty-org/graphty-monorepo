@@ -493,6 +493,27 @@ describe("yEd Live GraphML: a LinearGradient fill", () => {
         expect(styles.styles.notes.map((n) => n.code)).toContain("W_STYLE_GRADIENT");
     });
 
+    it("notes a REFLECT ramp far longer than its box, not an empty unrolled ramp", async () => {
+        const text = readFileSync(join(SHEETS, "specimen-node-fills-borders.graphml"), "utf8").replace(
+            'startPoint="0.4,0.5" endPoint="0.6,0.5"',
+            'startPoint="0,0.5" endPoint="1e10,0.5"',
+        );
+        assert(text.includes('endPoint="1e10,0.5"'));
+        const { styles, snapshot } = await registry.importGraph(new TextEncoder().encode(text), {
+            format: "graphml",
+            styles: { toolDefaults: true },
+            errorLimit: Infinity,
+        });
+        if (styles === null || styles === undefined) {
+            throw new Error("no styles");
+        }
+        const at = snapshot.ids.requireIndex("linear-gradient-reflect");
+        expect(resolveStyles(styles, "node", "fillGradientColors", snapshot)[at]).toBeNull();
+        expect(resolveStyles(styles, "node", "fillGradient", snapshot)[at]).toBeNull();
+        expect(resolveStyles(styles, "node", "fill", snapshot)[at]).toBe("#ffffff");
+        expect(styles.styles.notes.map((n) => n.code)).toContain("W_STYLE_GRADIENT");
+    });
+
     it("notes a REFLECT ramp of too many stops to unroll across its box", async () => {
         const stop = '<yjs:GradientStop color="#FFFFFFFF" offset="0"/>';
         const many = Array.from({ length: 300 }, (_, i) => stop.replace('offset="0"', `offset="${String(i / 299)}"`));

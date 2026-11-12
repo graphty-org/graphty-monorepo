@@ -23,6 +23,16 @@ describe("narrowTextBoxes", () => {
         assert.match(found[0] ?? "", /^input "Tiny" is [\d.]+ px inside, under [\d.]+ px$/);
     });
 
+    it("passes a read-only field whose value fits, and names one whose value is cut", () => {
+        const box = add(
+            '<input readonly aria-label="Short" value="Hex" style="width: 24px; padding: 0" />' +
+                '<input readonly aria-label="Long" value="Hexadecimal" style="width: 24px; padding: 0" />',
+        );
+        const found = narrowTextBoxes(box);
+        assert.lengthOf(found, 1);
+        assert.match(found[0] ?? "", /^input "Long"/);
+    });
+
     it("passes a text field wide enough", () => {
         assert.deepEqual(narrowTextBoxes(add('<textarea style="width: 120px"></textarea>')), []);
     });

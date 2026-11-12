@@ -27,6 +27,8 @@ const config: KnipConfig = {
                 "vitest.wait-guard-setup.ts",
                 // Serves map tiles from a fixture in the browser test projects (vitest.map-tiles.mjs)
                 "vitest.map-tiles-setup.ts",
+                // Serves Babylon.js's GLSL compilers from a local copy in the browser test projects (vitest.babylon-compilers.mjs)
+                "vitest.babylon-compilers-setup.ts",
                 "docs/.vitepress/config.ts",
                 "tools/*.mjs",
                 "tools/changelog-renderer.cjs",

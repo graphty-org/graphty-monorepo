@@ -1,4 +1,4 @@
-import { ControlSection, PanelField, Popout, ToggleIconButton } from "@graphty/compact-mantine";
+import { ControlSection, PanelField, Popout } from "@graphty/compact-mantine";
 import {
     type ChannelDescriptor,
     LABEL_LOOKS,
@@ -7,12 +7,11 @@ import {
 } from "@graphty/graphty-element/catalog";
 import { type Channel, type LabelStyle, labelTemplateLine } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Checkbox, Group, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Group, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { SettingsPopout } from "../options/SettingsPopout";
-import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { cardLines, cardSummary } from "./cardLines";
 import { CARD_LOOK, isCard } from "./cardLook";
@@ -37,7 +36,7 @@ import {
 import { AddButton, type AddOption } from "./Section";
 import { focusLineNext, focusSectionNext, headerBottom, lineTarget } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
-import { failureWords, labelStatement, positionWord, TEXT_KINDS, type TextKindSpec } from "./words";
+import { failureWords, positionWord, TEXT_KINDS, type TextKindSpec } from "./words";
 
 /** The width of the entry's pop-outs: the source list as wide as the panel's rows, the settings wider. */
 const LIST_WIDTH = 248;
@@ -131,7 +130,7 @@ function channelsOf(kind: TextKindSpec): Channel[] {
  * @returns The section
  */
 export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
-    const { element, store } = useWorkspace();
+    const { store } = useWorkspace();
     // The kind picked from "+" whose source list is open, and the kind whose fixed words are being typed.
     const [picking, setPicking] = useState<string | null>(null);
     const [typing, setTyping] = useState<string | null>(null);
@@ -148,20 +147,9 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
             list.current?.querySelector<HTMLElement>("[data-plus]")?.focus();
         }
     }, [refocus]);
-    const allLabelsShown = useWorkspaceState((state) => state.allLabelsShown);
     const { session, side: target } = ctx;
     const kinds = TEXT_KINDS[target];
     const kindWord = target === "node" ? "Node" : "Edge";
-    // The label count is said when it changes (a label added, Show all labels); not the count the
-    // section opens with, nor "0 labels" while a graph is still loading. A label line added while
-    // the section is open makes its first count news: "24 labels, 4 hidden".
-    const labeled = lineIn(ctx, "node.label") !== undefined;
-    const openedLabeled = useRef(labeled);
-    const labelCounts = target === "node" && labeled && element !== null ? element.nodeLabelCounts : null;
-    useAnnounceChange(
-        labelCounts === null || labelCounts.labeled === 0 ? null : labelStatement(labelCounts, !allLabelsShown),
-        openedLabeled.current,
-    );
     const hasEntry = (kind: TextKindSpec): boolean =>
         lineIn(ctx, kind.words) !== undefined || lineIn(ctx, kind.style) !== undefined;
     const fail = (error: unknown): void => {
@@ -389,22 +377,6 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                         </Group>
                     );
                 })}
-                {target === "node" && lineIn(ctx, "node.label") !== undefined && element !== null ? (
-                    <Group gap={8} wrap="nowrap">
-                        <Text size="xs" c="dimmed">
-                            {labelStatement(element.nodeLabelCounts, !allLabelsShown)}
-                        </Text>
-                        <Checkbox
-                            size="xs"
-                            ml="auto"
-                            label="Show all labels"
-                            checked={allLabelsShown}
-                            onChange={(event) => {
-                                store.set({ allLabelsShown: event.currentTarget.checked });
-                            }}
-                        />
-                    </Group>
-                ) : null}
             </ControlSection>
         </div>
     );
@@ -669,8 +641,8 @@ function partsOf(ctx: RowContext, kind: TextKindSpec): AddOption[] {
 
 /**
  * One text entry at rest (design 2.3). Line 1: the kind's glyph, word and own "+" in the label
- * column, the settings button, the eye (`LabelStyle.enabled`), the minus. Line 2: the source (typed
- * words, or a value the words read) on the field column. Then the look (previews; "Card, edited" while a field differs,
+ * column, the settings button, the minus. Line 2: the source (typed words, or a value the words
+ * read) on the field column. Then the look (previews; "Card, edited" while a field differs,
  * from graphty-element's `labelLookChanges`), the size with its vary glyph, and the position, each
  * on the panel's field column with its Clear. Accessible names carry the kind ("Node label size"),
  * since a layer on nodes and edges draws two entries.
@@ -693,13 +665,14 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
     const styleLine = lineIn(ctx, kind.style);
     const style = styleOf(styleLine);
     const locked = (words ?? styleLine)?.layer.locked === true;
-    const hidden = style.enabled === false;
     // What the element offers, and a setting the row already sets even when it is not offered.
     const descriptorOf = (channel: Channel): ChannelDescriptor | undefined =>
         shownChannel(session, target, channel, lineIn(ctx, channel) !== undefined);
+    // A write from the row drops `enabled: false`, which the row no longer sets: a label hidden
+    // before the row lost its eye is drawn again once the reader changes it here.
     const writeStyle = (patch: Partial<LabelStyle>): void => {
         const next = Object.fromEntries(
-            Object.entries({ ...style, ...patch }).filter(([, value]) => value !== undefined),
+            Object.entries({ ...style, enabled: undefined, ...patch }).filter(([, value]) => value !== undefined),
         ) as LabelStyle;
         const done =
             Object.keys(next).length === 0 && styleLine !== undefined
@@ -773,14 +746,8 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
     );
 
     return (
-        <Stack
-            gap={0}
-            pl={4}
-            data-line={kind.words}
-            data-bound={words?.binding === undefined ? undefined : true}
-            data-hidden={hidden ? true : undefined}
-        >
-            {/* Line 1: what kind of text it is, where its words come from, its settings, eye and minus. */}
+        <Stack gap={0} pl={4} data-line={kind.words} data-bound={words?.binding === undefined ? undefined : true}>
+            {/* Line 1: what kind of text it is, where its words come from, its settings and minus. */}
             <Group gap={4} wrap="nowrap" mih={28}>
                 <span className="ws-text-kind">
                     {React.createElement(KIND_GLYPHS[kind.id] ?? GLYPHS.label, { size: 14, "aria-hidden": true })}
@@ -816,16 +783,6 @@ function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryPro
                     ) : null}
                     <LabelSettings style={style} onChange={writeStyle} vary={vary} />
                 </SettingsPopout>
-                <ToggleIconButton
-                    variant="swap"
-                    label={`Hide ${noun}`}
-                    checked={hidden}
-                    icon={<GLYPHS.show size={14} />}
-                    checkedIcon={<GLYPHS.hide size={14} />}
-                    onChange={(hide) => {
-                        writeStyle({ enabled: hide ? false : undefined });
-                    }}
-                />
                 {locked ? (
                     <span className="ws-slot" />
                 ) : (

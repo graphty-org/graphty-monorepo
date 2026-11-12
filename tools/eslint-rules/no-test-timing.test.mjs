@@ -95,6 +95,10 @@ tester.run("no-test-timing", rule, {
         "await page.addInitScript(() => { globalThis.ready = true; });",
         "await page.waitForFunction((n) => globalThis.pops >= n, 3);",
         "setTimeout(() => page.evaluate(() => go()), 100);",
+        // A page script written as text that yields, waits on an event, or stands in for a late event.
+        "const html = `<script>await new Promise((r) => setTimeout(r, 0)); setTimeout(go);</script>`;",
+        "const html = `<script>await el.waitForSettled();</script>`;",
+        "const html = `<script>const late = new Promise((resolve) => setTimeout(() => { show(); resolve(); }, 500));</script>`;",
         { code: "await nextFrame(); await nextFrame();", options: [{ frameWaits: false }] },
     ],
     invalid: [
@@ -279,6 +283,12 @@ tester.run("no-test-timing", rule, {
             errors: [pageTimer, pageTimer],
         },
         { code: "await page.addInitScript(() => { globalThis.setTimeout(fail, 1500); });", errors: [pageTimer] },
+        // A page script written as text with a polling sleep (#6958).
+        {
+            code: "const html = `<script>for (let f = 0; f < 6000 && !done(); f++) await new Promise((r) => setTimeout(r, 10));</script>`;",
+            errors: [sleep],
+        },
+        { code: "const html = `<script>await new Promise(r => window.setTimeout(r, 50));</script>`;", errors: [sleep] },
         {
             code: "function install() { setTimeout(() => answer(), RETRY_MS); } await page.addInitScript(install);",
             errors: [pageTimer],

@@ -6,20 +6,27 @@
  */
 
 /** How many characters the narrowest usable text box shows: "name" in full. */
-export const NARROWEST_CHARACTERS = 4;
+const NARROWEST_CHARACTERS = 4;
 
 /** The input types a reader types words or numbers into. */
 const TYPED = new Set(["", "text", "search", "email", "url", "tel", "number", "password"]);
 
 /**
- * The width of `NARROWEST_CHARACTERS` digits in an element's font.
+ * The width of `NARROWEST_CHARACTERS` digits in an element's font, or of a read-only field's value
+ * when that is narrower.
  * @param element - the element.
  * @param context - a canvas context to measure with.
  * @returns the width in CSS pixels.
  */
 function floorOf(element: Element, context: CanvasRenderingContext2D): number {
     context.font = getComputedStyle(element).font;
-    return context.measureText("0".repeat(NARROWEST_CHARACTERS)).width;
+    const room = context.measureText("0".repeat(NARROWEST_CHARACTERS)).width;
+    // A read-only field (a select's box) takes no typing: it only has to show its value whole, so
+    // "Hex" in a format select is readable in less room than four characters.
+    if (element instanceof HTMLInputElement && element.readOnly) {
+        return Math.min(room, context.measureText(element.value).width);
+    }
+    return room;
 }
 
 /**

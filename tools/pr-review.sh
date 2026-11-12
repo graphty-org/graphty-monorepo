@@ -36,12 +36,16 @@ set -euo pipefail
 # when its copy differs from this one, run that instead. PR_REVIEW_LOCAL=1 (the tests) keeps this copy.
 if [ -z "${PR_REVIEW_FROM_MASTER:-}${PR_REVIEW_LOCAL:-}" ]; then
     git fetch -q origin master 2>/dev/null || true
-    latest=$(mktemp)
+    latest_dir=$(mktemp -d)
+    latest="$latest_dir/pr-review.sh"
     if git show origin/master:tools/pr-review.sh >"$latest" 2>/dev/null && [ -s "$latest" ] && ! cmp -s "$latest" "$0"; then
+        # beside it, the branch-note.mjs it asks for a branch's issue
+        git show origin/master:tools/branch-note.mjs >"$latest_dir/branch-note.mjs" 2>/dev/null || true
         PR_REVIEW_FROM_MASTER=1 exec bash "$latest" "$@"
     fi
-    rm -f "$latest"
+    rm -rf "$latest_dir"
 fi
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 die() {
     echo "pr-review: $*" >&2
@@ -63,9 +67,8 @@ done
 
 [ -n "$proof" ] && [ -s "$proof" ] || die "--proof <file> is required and must not be empty"
 branch=$(git symbolic-ref -q --short HEAD) || die "HEAD is detached; check out the branch"
-# The same issue rule as tools/pr-open.sh.
-[ -n "$issue" ] || issue=$(git config "branch.$branch.issue" || true)
-[ -n "$issue" ] || issue=$(printf '%s\n' "$branch" | sed -nE 's#^[a-z0-9-]+/([0-9]{3,})(-[a-zA-Z].*)?$#\1#p')
+# Its branch.<b>.issue setting, else the number right after the type prefix (tools/branch-note.mjs issueInName).
+[ -n "$issue" ] || issue=$(node "$here/branch-note.mjs" issue-of "$branch" || true)
 [[ "$issue" =~ ^[0-9]+$ ]] || die "$branch names no issue (pass --issue N)"
 
 mb=$(git merge-base "$base" HEAD) || die "no merge base with $base"

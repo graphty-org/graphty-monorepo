@@ -690,11 +690,7 @@ export class ElementAutosave {
         // session storage kept across a reload or a discard.
         const own = this.#readOwn(key);
         const before = readOwnBefore(this.#env, key);
-        for (const id of [own, before]) {
-            if (id !== null) {
-                await this.#waitForOwn(key, id);
-            }
-        }
+        await this.#waitForOwns(key, [own, before]);
 
         saver.setFacts(await this.#gatherFacts(), true);
         const recover: RecoverOptions = {
@@ -739,6 +735,20 @@ export class ElementAutosave {
         this.#startRevision = saver.status.revision;
         this.#finish(restored);
         this.#checkAtRisk(saver.status);
+    }
+
+    /**
+     * Wait, one after another, for each of this tab's own entries (the one it names, and the one
+     * it named before) to be let go of.
+     * @param key - The autosave key.
+     * @param ids - The entries, null where there is none.
+     */
+    async #waitForOwns(key: string, ids: readonly (string | null)[]): Promise<void> {
+        for (const id of ids) {
+            if (id !== null) {
+                await this.#waitForOwn(key, id);
+            }
+        }
     }
 
     /**

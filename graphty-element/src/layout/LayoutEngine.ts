@@ -844,6 +844,14 @@ export abstract class LayoutEngine {
     }
 
     /**
+     * Whether the layout leaves any edge out, so {@link LayoutEngine.keptEdges} has edges to drop.
+     * @returns true when an edge is left out
+     */
+    protected get leavesEdgesOut(): boolean {
+        return this.leftOutEdges !== null;
+    }
+
+    /**
      * The edges of a graph over the element's rows that the layout keeps, when the filter hides
      * some edge between two nodes it shows. An edge whose end is left out is not cleared here:
      * {@link LayoutEngine.keptRows} drops it with its end.
@@ -1975,12 +1983,14 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * @returns the start rows, or null
      */
     protected startPositions(dim: 2 | 3): F32 | null {
-        const { snapshot, positions } = this.#loaded ?? this.#load();
+        const loaded = this.#loaded ?? this.#load();
+        const { positions } = loaded;
         if (this.#keep === null || positions === null) {
             return null;
         }
 
-        return fromPositionColumn(positions.view(snapshot.nodeCount), dim, this.scalingFactor, null);
+        const { nodeCount } = loaded.source ?? loaded.snapshot;
+        return fromPositionColumn(positions.view(nodeCount), dim, this.scalingFactor, null);
     }
 
     /**
@@ -2398,12 +2408,19 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         const source = manager as Partial<GraphSource> | undefined;
         if (typeof source?.getSnapshot === "function" && typeof source.undirected === "function") {
             const store = source.getSnapshot();
-            const { snapshot } = source.undirected(store);
+            const { undirected } = source;
+            // Made undirected on first read: a layout that reads no edges (fixed) never builds a
+            // second graph over every edge, which at a million edges is about 180 ms of a load.
+            // The undirected graph keeps the stored node rows, so a row is found in either.
+            let snapshot: GraphSnapshot | null = null;
             return {
-                snapshot,
+                get snapshot(): GraphSnapshot {
+                    snapshot ??= undirected.call(source, store).snapshot;
+                    return snapshot;
+                },
                 source: store,
                 positions: writableLane(manager) ?? null,
-                rowOf: (n) => (n.index < snapshot.nodeCount ? n.index : INVALID_INDEX),
+                rowOf: (n) => (n.index < store.nodeCount ? n.index : INVALID_INDEX),
             };
         }
 
@@ -2496,7 +2513,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             return idKeyed && this.#publishIdKeyedRows(loaded);
         }
 
-        const count = Math.min(column.length / 3, loaded.snapshot.nodeCount);
+        const count = Math.min(column.length / 3, loaded.source.nodeCount);
         const { rows, coords } = this.publishScratch(count);
         for (let row = 0; row < count; row++) {
             rows[row] = row;

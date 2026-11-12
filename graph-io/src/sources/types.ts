@@ -152,6 +152,13 @@ export interface SourceFile {
     readonly mimeType?: string | undefined;
     /** Graph facts the file itself does not hold, written after it is read, as `RecordBatch.meta`. */
     readonly meta?: Readonly<Record<string, unknown>> | undefined;
+    /**
+     * Importer options by format id ("csv"), applied only when the file is read as that format;
+     * the caller's own options win.
+     */
+    readonly formatOptions?: Readonly<Record<string, Readonly<Record<string, unknown>>>> | undefined;
+    /** Importer options for whichever format the file is read as; the caller's own options win. */
+    readonly importOptions?: Readonly<Record<string, unknown>> | undefined;
 }
 
 /**
@@ -446,6 +453,12 @@ export interface SourceDescriptor {
         | undefined;
     /** The endpoint used when the caller names none. @defaultValue null */
     readonly defaultEndpoint?: string | null | undefined;
+    /**
+     * The param whose value is the endpoint when the caller names none: a file source whose
+     * address is a param (the `url` source's `url`). `sourceEndpoint` reads it. Absent: the
+     * endpoint is the caller's, else `defaultEndpoint`.
+     */
+    readonly endpointParam?: string | undefined;
     /** Where it runs; a runtime marked unsupported is refused with E_SOURCE_RUNTIME before any request. */
     readonly runtimes?:
         | Readonly<

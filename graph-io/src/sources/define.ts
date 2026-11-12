@@ -193,3 +193,26 @@ export function checkParams(
         }
     }
 }
+
+/**
+ * The endpoint a load runs against: the one given, else the value of the descriptor's
+ * `endpointParam` (the `url` source's address), else its `defaultEndpoint`, else null. A
+ * credential is bound to this endpoint's origin, so remember one under the same value. Experimental.
+ * @param descriptor - the source's descriptor
+ * @param params - the load's params
+ * @param given - the endpoint the caller names, if any
+ * @returns the endpoint, or null for none
+ * @category Network sources
+ */
+export function sourceEndpoint(
+    descriptor: SourceDescriptor | undefined,
+    params: Readonly<Record<string, unknown>>,
+    given?: string | URL | null,
+): string | URL | null {
+    if (given !== undefined && given !== null) {
+        return given;
+    }
+    const name = descriptor?.endpointParam;
+    const fromParam = name === undefined ? undefined : params[name];
+    return typeof fromParam === "string" && fromParam !== "" ? fromParam : (descriptor?.defaultEndpoint ?? null);
+}

@@ -16,7 +16,7 @@ import { SNIFF_HEAD_BYTES } from "../sniff.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../types.js";
 import { type CreatedContext, createSourceContext, detectRuntime, LimitStop } from "./context.js";
 import { credentialQuery, endpointOrigin } from "./credentials.js";
-import { checkParams } from "./define.js";
+import { checkParams, sourceEndpoint } from "./define.js";
 import { failOn, warnOn } from "./fail.js";
 import { SOURCE_FORMAT_PREFIX } from "./ids.js";
 import {
@@ -110,7 +110,7 @@ function prepare(
     }
     Object.assign(params, rawParams);
 
-    const endpoint = resolveEndpoint(options.endpoint ?? descriptor?.defaultEndpoint ?? null, report);
+    const endpoint = resolveEndpoint(sourceEndpoint(descriptor, params, options.endpoint), report);
     if (options.credential?.origins.length === 0 && endpoint === null) {
         failOn(report, "E_SOURCE_PARAM", "a credential needs an endpoint or its own origins", {
             name: "credential",
@@ -611,7 +611,8 @@ async function runFile(
         }
     }
     const importer = formats.importer(format);
-    prepared.report.include(await importer.import(body, sink, importerOptions(options, ctx.signal)));
+    const own = { ...file.importOptions, ...file.formatOptions?.[format] };
+    prepared.report.include(await importer.import(body, sink, { ...own, ...importerOptions(options, ctx.signal) }));
     writeMeta(sink, file.meta ?? {});
     return format;
 }

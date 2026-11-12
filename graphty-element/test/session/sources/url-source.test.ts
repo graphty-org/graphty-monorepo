@@ -86,4 +86,35 @@ describe("the url source in a session", () => {
             assert.strictEqual(session.data.nodes().length, 3);
         });
     });
+
+    it("reopens a CSV node table keyed by the id column it was loaded with, not the importer's default now", async () => {
+        // person_id and name are both filled and distinct: graph-io's default picks person_id,
+        // an older default picked name. A reopened load must key the rows as they were saved.
+        const peopleUrl = `${HOST}/data/people.csv`;
+        const people = "person_id,name,age\np1,Ann,30\np2,Bob,41\np3,Cy,25\n";
+        const peopleFetch = (): ReturnType<typeof replayFetch> => replayFetch([{ url: peopleUrl, body: people }]);
+        let text = "";
+        await withSession(async (session) => {
+            await session.data.import({ source: "url", config: { url: peopleUrl } }, { fetch: peopleFetch() });
+            assert.sameMembers(
+                session.data.nodes().map((node) => node.id),
+                ["p1", "p2", "p3"],
+            );
+            const settings = session.data.sourceSettings(session.data.sources()[0].key);
+            assert.strictEqual(settings?.config.idColumn, "person_id", "the column the import used is saved");
+            ({ text } = await session.project.save());
+        });
+
+        await withSession(async (session) => {
+            await session.project.open(text);
+            const [pending] = session.data.pendingSourceLoads();
+            assert.strictEqual(pending.params.idColumn, "person_id");
+            await session.data.runPendingSourceLoad(pending.id, { fetch: peopleFetch() });
+            assert.sameMembers(
+                session.data.nodes().map((node) => node.id),
+                ["p1", "p2", "p3"],
+                "the same nodes, none added under other ids",
+            );
+        });
+    });
 });

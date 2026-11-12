@@ -507,3 +507,17 @@ export function fixedParams(entry: ShaderEntry): Params {
         Object.entries(paramsOf(entry)).filter(([, value]) => typeof value !== "object"),
     ) as Params;
 }
+
+/**
+ * The fields in a row's gear, whose problems mark the gear. `clock` is the dialog's name for a
+ * problem with a default bound to a clock, which the gear's Starts fields edit.
+ */
+export const GEAR_FIELDS: ReadonlySet<string> = new Set([
+    "plainName",
+    "min",
+    "max",
+    "step",
+    "values",
+    "varies",
+    "clock",
+]);

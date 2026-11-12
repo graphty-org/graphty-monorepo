@@ -30,8 +30,8 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import type { ShaderCodeEditor, ShaderCodeEditorHandle, ShaderCodeMark } from "./ShaderCodeEditor";
 import { PlaceDiagram } from "./ShaderGallery";
 import { shaderAddedNotice } from "./shaderNotice";
-import { GEAR_FIELDS, NumberTextField, ShaderParamRows } from "./ShaderParamRows";
-import { pickedShader } from "./shaderSlots";
+import { NumberTextField, ShaderParamRows } from "./ShaderParamRows";
+import { GEAR_FIELDS, pickedShader } from "./shaderSlots";
 import {
     DIALOG_PLACES,
     dialogPlaceWords,

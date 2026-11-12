@@ -1141,6 +1141,13 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   `nodeData`'s are. graph-io and graph-samples route through it.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` serves `JoinScreen.tsx:636`.
+- **The load's position publish is already one typed write.** The 2026-11-09 profile credits 1.0 s of the 100k + 1M
+  load to `publishPositions` in the derivation pass's position hook. Correction: the publish itself (`publishComputed`)
+  is 9 ms and already writes the position column whole. The second is the fixed layout's first run reading its graph:
+  freezing the element's snapshot, about 810 ms, 670 of it the load's edge identity pass, which the next paint's freeze
+  would pay anyway, and making the graph undirected, 183 ms. A one-pass layout now makes the graph undirected only when
+  it reads it (`test/layout/undirected-on-demand.test.ts`), so the fixed layout never does; on both render paths, with
+  no change to any picture.
 - **Records into columns is conditional.** Records and op log are 3.8% of the heap; removing `Edge`, `Node` and per-node Babylon objects
   alone leaves about 515 MB. Stage 29 is built only if stage 30's harness run misses the heap target; otherwise #3249 closes at stage 28,
   citing that measurement. If built: attribute columns where `storedAttributeOf` already looks first, the rest in
@@ -1739,6 +1746,20 @@ of a 17.3 s load, 1.5 s of a 30.9 s layout stage. Correction: the profiled load 
 derivation lane's `touch` (one dirty key per added edge) and pointed at it as the lead for the rest of the load. It is
 not: a build that skips those keys loaded in 14.53 s median, interleaved with the runs above, 0.2 s faster. The
 sampling profiler overstates hash-table inserts on a page this size, so the remaining 0.75 s has no measured lead.
+
+G7 of `design/rendering/cosmos-gap.md` (lazy edges, 2D included) needed no new mechanism: since G3 pulls straight 2D
+lines and the eighteenth pull request's switch asks only for `"batched"` and row lines, never for a view, a 2D lean
+load already stored its edges with no `Edge`. Correction the G7 proving test found: an edge that arrives before its
+ends waits (`pendingEdges`), and `processPendingEdges` built an `Edge` for every waiting edge without asking
+`storesWithoutEdge`, so an `edgeData` set before `nodeData`, or any edge waiting on a node, got one each. It now asks,
+as the direct path does; the objects path is unchanged. Also true of the code and not of the stage's wording "undo
+across a load builds no `Edge`": undo and redo select what changed (`GraphSession`'s `touched.select`), and a selected
+row is drawn by its `Edge` (the sixteenth pull request), so a redo of a load builds an `Edge` for each edge it
+selects, up to the selection's cap, and none for the rest. `test/browser/edge-row-lines.test.ts` ("a lean load on the
+batched path") pins both, in 2D and 3D. Measured on 2772e6f57f (WebGPU, `lean`, 2D, paced, 100k + 1M, one run at
+load average 5.25, `benchmarks/results/g7-pr1`): first frame 16.93 s against G7's 17 s target, met; `objectEdges` 0
+and `pulledEdges` 1,000,000. No interleaved master run was taken, so this number is not compared with the 14.75 s
+above; the harness sets `nodeData` before `edgeData`, so its edges never wait and the fix does not touch its path.
 
 Stage 116 (frame garbage) found, on master 3ac6da36aa at 100k + 1M (WebGPU, `lean`, batched), that a still frame
 allocates nothing per row: about 15-36 KB a frame of fixed work (Babylon's render observers and sort, the frame-rate

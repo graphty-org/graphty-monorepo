@@ -774,20 +774,30 @@ export function createdNodes(log: readonly OpLogEntry[]): NodeId[] {
     for (const entry of log) {
         if (entry instanceof GraphEntry) {
             for (const op of entry.ops) {
-                if (op.kind === "node" && !op.existed) {
-                    out.push(op.id);
-                } else if (op.kind === "edge") {
-                    out.push(...op.created);
-                } else if (op.kind === "edges") {
-                    for (const ids of op.created.values()) {
-                        out.push(...ids);
-                    }
-                }
+                out.push(...createdBy(op));
             }
         }
     }
 
     return out;
+}
+
+/**
+ * The nodes one op created rows for.
+ * @param op - The op.
+ * @returns Their ids, in the order they were created.
+ */
+function createdBy(op: GraphOp): readonly NodeId[] {
+    switch (op.kind) {
+        case "node":
+            return op.existed ? [] : [op.id];
+        case "edge":
+            return op.created;
+        case "edges":
+            return [...op.created.values()].flat();
+        default:
+            return [];
+    }
 }
 
 /**

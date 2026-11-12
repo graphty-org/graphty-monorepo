@@ -145,6 +145,20 @@ export function isStorableId(id: unknown): id is string | number {
 }
 
 /**
+ * The options an `add-edges` mutation names, with the ones it leaves out absent.
+ * @param mutation - The mutation.
+ * @returns The options.
+ */
+function addEdgesOptions(mutation: Extract<DataMutation, { kind: "add-edges" }>): AddEdgesOptions {
+    return {
+        ...(mutation.source === undefined ? {} : { source: mutation.source }),
+        ...(mutation.target === undefined ? {} : { target: mutation.target }),
+        ...(mutation.repeated === undefined ? {} : { repeated: mutation.repeated }),
+        ...(mutation.weight === undefined ? {} : { weight: mutation.weight }),
+    };
+}
+
+/**
  * Whether a weight can be STORED: the snapshot keeps its arc weights as f32, so a finite double
  * above the f32 range (about 3.4e38) would become Infinity there, and every algorithm that needs
  * finite weights would refuse the whole graph. Such a weight is treated like an infinite one.
@@ -667,16 +681,7 @@ export class Ingest<K extends KnownEdge> {
                     this.applyDeclaredDirection("data.apply", { directed, statedBy, conflictingEdges: 0 }, writer);
                 }
 
-                this.addEdges(
-                    mutation.records,
-                    {
-                        ...(mutation.source === undefined ? {} : { source: mutation.source }),
-                        ...(mutation.target === undefined ? {} : { target: mutation.target }),
-                        ...(mutation.repeated === undefined ? {} : { repeated: mutation.repeated }),
-                        ...(mutation.weight === undefined ? {} : { weight: mutation.weight }),
-                    },
-                    writer,
-                );
+                this.addEdges(mutation.records, addEdgesOptions(mutation), writer);
                 return;
             case "set-attributes":
                 for (const id of mutation.ids) {

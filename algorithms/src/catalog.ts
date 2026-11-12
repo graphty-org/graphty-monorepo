@@ -255,6 +255,7 @@ export const ALGORITHMS = {
     },
 
     // Shortest paths
+    // Selected weights must be nonnegative and not NaN; otherwise dijkstra throws E_BAD_WEIGHT.
     dijkstra: {
         name: "dijkstra",
         fn: dijkstra,

@@ -2432,7 +2432,7 @@ function refuseEmptyOrPartial(
             message:
                 `The ${type} source stopped after ${rowErrors} rejected rows, its error limit, ` +
                 "so only part of it was read and the current graph was kept.",
-            details: { format: type, rowErrors },
+            details: { format: type, rowErrors, limit: errors.getErrorLimit() },
         });
     }
 }

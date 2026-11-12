@@ -245,7 +245,8 @@ naming the format and, when the parser knows it, the line. A graphty project or 
 `session.project.save` writes) is not graph data: it fails with `E_PROJECT_FILE_AS_DATA`, whose
 `details.use` names `project.open`, the verb that opens it. A replacing load that stops at
 the source's `errorLimit` has read only part of the file, so it fails with `E_PARSE_FAILED` and
-keeps the current graph.
+keeps the current graph; its `details` carry `format`, `rowErrors` and `limit`. A JSON or CSV
+reader that reaches the limit stops the load with the same code, whether or not it was replacing.
 
 GML, DOT and Pajek files are read by `@graphty/graph-io`. A file of one of those formats that
 cannot be read at all -- a GML list or DOT brace still open when the text ends, a Pajek file with

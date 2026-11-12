@@ -267,7 +267,9 @@ export interface GraphGenericEvent {
         | "manager-initialized"
         | "lifecycle-initialized"
         | "lifecycle-disposed"
+        // A skybox image arrived (`url`), or could not be loaded (`skybox-failed`, `url`).
         | "skybox-loaded"
+        | "skybox-failed"
         | "operation-queue-active"
         | "operation-queue-idle"
         | "operation-batch-complete"

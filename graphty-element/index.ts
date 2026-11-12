@@ -54,6 +54,7 @@ export type {
     GraphtyModelChangeDetail,
     GraphtyNoteChangeDetail,
     GraphtyRunChangeDetail,
+    GraphtySkyboxLoadedDetail,
 } from "./src/graphty-element";
 export { Graphty } from "./src/graphty-element";
 export type { NodeIdType } from "./src/Node";

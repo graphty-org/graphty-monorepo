@@ -591,6 +591,8 @@ export interface GraphtyElementJSXProps {
     "ongraphty-project-status"?: (event: GraphtyElementEventMap["graphty-project-status"]) => void;
     "ongraphty-run-change"?: (event: GraphtyElementEventMap["graphty-run-change"]) => void;
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
+    "ongraphty-skybox-failed"?: (event: GraphtyElementEventMap["graphty-skybox-failed"]) => void;
+    "ongraphty-skybox-loaded"?: (event: GraphtyElementEventMap["graphty-skybox-loaded"]) => void;
     "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
@@ -680,6 +682,7 @@ export interface GraphtyElementJSXProps {
     "onscreenshot-enhancing"?: (event: CustomEvent<EventOfType<"screenshot-enhancing">>) => void;
     "onscreenshot-ready"?: (event: CustomEvent<EventOfType<"screenshot-ready">>) => void;
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;
+    "onskybox-failed"?: (event: CustomEvent<EventOfType<"skybox-failed">>) => void;
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
     /**
      * Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns.

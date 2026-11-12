@@ -349,6 +349,20 @@ element.addEventListener("graphty-note-change", (e) => {
 On the session the same change is `note:changed`, whose payload also carries the frozen record as
 `note`. See [Notes](./notes#hearing-about-changes).
 
+### graphty-skybox-loaded and graphty-skybox-failed
+
+A skybox background's image (`element.background = { backgroundType: "skybox", data }`) has
+arrived, once per new image, or could not be loaded. Setting the image already shown fires neither.
+
+```javascript
+element.addEventListener("graphty-skybox-loaded", (e) => {
+    const { url } = e.detail; // the background's `data`
+});
+element.addEventListener("graphty-skybox-failed", (e) => {
+    const { code, params } = e.detail; // "E_IMAGE_LOAD", params.url: its first 256 characters
+});
+```
+
 ### graphty-warning
 
 A notice that stops nothing, as a code and its parameters (`e.detail.code`, `e.detail.params`).

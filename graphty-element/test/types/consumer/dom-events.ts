@@ -219,6 +219,7 @@ export function listenToEveryForwardedEvent(element: Graphty, log: (...values: u
         "lifecycle-initialized",
         "lifecycle-disposed",
         "skybox-loaded",
+        "skybox-failed",
         "operation-queue-active",
         "operation-queue-idle",
         "operation-batch-complete",

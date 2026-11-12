@@ -72,8 +72,7 @@ const PAGE_TIMER_HINT =
     "Drive each step in the page from the event it waits on (an awaited waitForFunction, a promise the test resolves) instead of a timer.";
 
 // A sleep in page code written as text: `new Promise((r) => setTimeout(r, n))` with a delay other than 0.
-const PAGE_TEXT_SLEEP =
-    /\bnew Promise\(\s*\(?\s*([\w$]+)\s*\)?\s*=>\s*(?:[\w$]+\.)?setTimeout\(\s*\1\s*,\s*(?!0\s*\))[^\s)]/g;
+const PAGE_TEXT_SLEEP = /new Promise\(\(?([\w$]+)\)? ?=> ?(?:window\.|globalThis\.)?setTimeout\(\1, ?([^)]+)\)/g;
 
 const TEST_NAMES = new Set(["it", "test", "describe", "suite"]);
 const HOOK_NAMES = new Set(["beforeAll", "beforeEach", "afterAll", "afterEach"]);
@@ -946,6 +945,9 @@ const rule = {
                 for (const quasi of node.quasis) {
                     const text = sourceCode.text.slice(quasi.range[0], quasi.range[1]);
                     for (const m of text.matchAll(PAGE_TEXT_SLEEP)) {
+                        if (m[2].trim() === "0") {
+                            continue;
+                        }
                         const loc = sourceCode.getLocFromIndex(quasi.range[0] + m.index);
                         context.report({ loc, messageId: "sleep" });
                     }

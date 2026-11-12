@@ -98,7 +98,6 @@ function load(
 
             if (decision.kind === "merge") {
                 builder.setEdgeWeight(known, decision.weight);
-                store.touch();
                 return;
             }
         }
@@ -368,7 +367,6 @@ describe("the identity columns", () => {
         store.getSnapshot();
         // Removing the earlier load's edge renumbers every row of this one at the next freeze.
         store.builder.removeEdge(0);
-        store.touch();
         store.getSnapshot();
         ingestEdge(store, "b", "a", 1);
         store.closeLoad();
@@ -459,7 +457,6 @@ describe("the identity columns", () => {
 
         const before = new Map(rows(store.getSnapshot()).map((row) => [row.counter, row]));
         store.builder.removeNode("a");
-        store.touch();
         const after = store.getSnapshot();
         assertHashesMatchIdentity(after, fileIds);
         for (const row of rows(after)) {
@@ -505,7 +502,6 @@ describe("the identity columns", () => {
         load(store, ab3);
         store.getSnapshot();
         store.builder.removeEdge(1);
-        store.touch();
         assert.deepEqual(ordinals(store.getSnapshot()), ["0/3", "2/3", "0/1"]);
     });
 

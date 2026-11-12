@@ -229,7 +229,7 @@ Each problem's `params.name` names the missing file, `role` says what it is for 
 | `{ file }` or `{ name, file }` | This file is the missing one. With no `name`, it is matched by its folder path, then by its file name, in any case                                             |
 | `{ name, url }`                | Fetch it from this address. On the model's own site it is fetched at once; on another site the reader is asked first (`network:pending` with `by: "supplied"`) |
 | `{ name, skip: true }`         | Draw without it: a picture or an `.mtl` only. A picture is drawn plain white, so the material's own color still shows                                          |
-| `{ name, use }`                | For `E_MODEL_PART_AMBIGUOUS`: which of the files given is the one meant                                                                                        |
+| `{ name, use }`                | Which file of the set is the one meant: one of an `E_MODEL_PART_AMBIGUOUS` part's candidates, or any file for a missing part whose name differs                |
 | `{ main }`                     | For `E_MODEL_AMBIGUOUS`: which file of a `.zip` or folder is the model                                                                                         |
 
 `supply` resolves with the new record: accepted, or still rejected with what is left (an `.mtl`,
@@ -240,6 +240,34 @@ added as a folder, as a `.zip` or one by one get the same id. A model drawn with
 it in `record.skipped`, and a saved project remembers the skip, so reopening it asks for nothing.
 An address on this machine or the local network is never fetched as a missing file unless it is
 the model's own site, and an address's query is used for the request and never shown or saved.
+
+### Listing a model's files
+
+`record.parts` lists a model's files, accepted or waiting: the main file (`role: "model"`), each
+file it names (`geometry`, `materials` or `texture`), then the files of the set it never names
+(`role: "other"`, `state: "unused"`). Each part's `state` is `found`, `substituted` (found by
+another case or folder), `missing`, `ambiguous`, `skipped` or `unused`, and `file` names the file
+used. A reader whose picture is named `paint.png` while the model names `Textures/colormap.png`
+answers the missing part with that file:
+
+```ts
+const car = await element.session.assets.add(folderFiles);
+const unused = car.parts?.filter((part) => part.state === "unused") ?? [];
+await element.session.assets.supply(car.id, { name: "Textures/colormap.png", use: unused[0].name });
+```
+
+### A preview and a name
+
+`element.modelThumbnail(ref, { size, style })` draws one node as the model, alone, exactly as the
+graph draws it, and resolves with a PNG data URL: a preview for a picker before any layer names
+the model. `style` takes a layer's values (`node.color` and the `node.model*` settings), so the
+preview shows the tint and the up axis the layer would use. A model that cannot be drawn rejects
+with its first problem's code, such as `E_MODEL_MISSING_FILE`.
+
+```ts
+img.src = await element.modelThumbnail(car.id, { size: 160, style: { "node.modelSourceUp": "z" } });
+element.session.assets.rename(car.id, "Cruiser"); // record.plainName, saved with the project
+```
 
 ### Dropped files go to the model that waits for them
 
@@ -404,7 +432,9 @@ project saves it like a model.
 ## Saving a project with its models
 
 A saved project carries its models. `session.project.save()` (and the element's autosave) writes
-the files of every model a layer names into the project file, exactly as they were added, so the
+the files of every model a layer names, and of every other accepted model the session holds (one
+added for later, or no longer named), into the project file, exactly as they were added; call
+`session.assets.remove(id)` to leave one out. So the
 project opens anywhere -- offline, on another machine, with no request for the model -- and draws
 the same models:
 

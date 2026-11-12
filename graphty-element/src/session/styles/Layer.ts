@@ -47,7 +47,7 @@
 
 import { LABEL_LOOKS, labelLook } from "../../catalog/label-looks";
 import { knownPaletteIds, paletteDescriptor } from "../../catalog/palettes";
-import { shaderDescriptor, shaderIdsFor } from "../../catalog/shaderRegistry";
+import { projectShaderDescriptor, shaderIdsFor } from "../../catalog/shaderRegistry";
 import {
     isClockBinding,
     isShaderId,
@@ -1464,7 +1464,7 @@ function checkShaderRef(
     path: string,
     log: ProblemLog,
 ): ShaderDescriptor | null {
-    const descriptor = shaderDescriptor(id);
+    const descriptor = projectShaderDescriptor(id);
     if (descriptor === undefined) {
         report(log, {
             code: "E_UNKNOWN_SHADER",

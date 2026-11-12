@@ -1096,6 +1096,20 @@ rows (2 runs in 8, every x, y and z lane, worst relative difference 0.2). A publ
 the flag (`RowTable.dropCopy`), so the repack sends every row. The texture at rest now equals the CPU copy, which is
 what the upload path sends, within 1e-6, and a click while the layout copies selects the node under the pointer.
 
+As built (cosmos-gap stage 114): under renderPath "batched", the zoom-to-fit a running layout takes every step frames
+the box the layout's last publish left the rows in, grown by the widest row (`RowTable.widestHalf`), and walks no row
+(`UpdateManager.envelopeFraming`). Correction to the stage text, which asked for a GPU reduction alongside the step for
+the GPU layout: none is needed. Every engine that runs on a frame, the GPU spring-electrical driver included, publishes
+its rows through one `LayoutEngine.publishColumn` loop over the scene coordinates it already computes (the GPU driver from
+the landed read-back, mapped through the transform its batch drew with), so that loop measures the box for free
+(`LayoutEngine.publishedBounds`; ngraph and the simulation engines answer it, d3 and the one-shot engines do not). A
+pinned or held row counts where it is kept: `publishColumn` takes in a kept row it is handed, and the simulation engines,
+which leave their pinned and dragged rows out of the publish, add them after it (`LayoutEngine.keepInPublishedBox`, a loop
+over those rows only). The walk still runs for a framing asked for, the framing a layout settles on,
+a node drawn as an object, any hidden row (`RowTable.hiddenRows`), a layout transition and an engine that holds rows
+outside its publish (a scope or followers). Labels and bent edges are not framed while the layout moves. The box's
+eight corners are the framing's spots, so `camera.fitBounds` "turning" keeps the whole box in view as the camera turns.
+
 ### 4.6 Columns and load (#3249)
 
 - **Lazy objects.** Under `"batched"`, `buildNode` and `buildEdge` stop running at load for eligible rows. `nodes`, `edges`, `edgesByIndex`,
@@ -1439,6 +1453,15 @@ different in kind: they keep a body per `Node`, fed through `addNode`, so going 
 not a change to their publish. They and layout transitions, whose movers are keyed by `Node` and read `drawnPosition`, are the
 next pull request.
 
+Correction from cosmos-gap stage 115 (#6389): the paragraph above held for the publish but not for the frame loop. The
+engine's `nodes` getter, which `UpdateManager` walks every frame (`walkedEverything`, `updateNodes`), answered with the store's
+`nodes.values()`, and that lazy view builds a `Node` for every row it yields. So the first frame after `setLayout` started a
+simulation built and painted a `Node` for every row, the bulk of the 6-9 s before the first layout frame at 100k + 1M. Under
+`"batched"` the getter now hands out the built `Node`s only (`dataManagerInternals.builtNodes`), as its `edges` getter already
+did, and its `nodeGap` radii read a row with no `Node` from the row table's extent (round radius, else the half extents'
+length). Under `"objects"` both are as before. Starting or switching a layout then builds no `Node`, paints no row whose look
+did not change, and reuses the frozen snapshot; `node-batch.test.ts` counts all three.
+
 Correction from stage 26's sixth pull request: transitions go first, alone, and d3 and ngraph follow. The runner needed no
 rekeying: its movers are keyed by a `TransitionSubject`, which a `Node` is and a `RowSubject` now is too, a row drawn with no
 `Node` read and written through the row table (`centerOf`, `extentOf`, `shrink`, `place`) and painted from `StylePainter.nodePaint`.
@@ -1588,6 +1611,134 @@ an `Edge`, so it never leaves an edge row out; an end left out still lets its li
 (`edgeProblems`) reports an edge row whose link lost an end. `test/layout/edge-rows.test.ts` pins it. Nothing hands
 edge rows over yet: ingest still builds every `Edge`, so neither path lays out differently. Every other engine
 still needs an `Edge` per edge.
+
+Stage 27's eleventh pull request: an edge can be stored with no `Edge`. The node maps' lazy map (`NodeView`, now
+`LazyView` in `DataManager.ts`, shared by nodes and edges) backs `edges` too: an edge whose ends are stored is kept as
+its `StoredEdge` by row, `edges` counts and finds it, and reading or walking it builds and keeps its `Edge`. A removal,
+a reconcile (which hands it its record and moves it to its row), a freeze and a clear take it out or move it without
+building one; `disposeNodesAndEdges` disposes built `Edge`s only. `test/managers/DataManager.test.ts` pins it, switched
+on through `dataManagerInternals.storeEdgesUnbuilt`, which nothing in the element calls yet, so neither path changes.
+Correction: `edgesByIndex` stays the built `Edge`s by row, as `nodesByIndex` is for nodes, not a view that builds:
+its readers are the frame's walks, which must not build. What turning it on still needs: the frame's paint loop
+drawing such a row through `EdgeRowLines.paintRow` (building the `Edge` only when it returns false), d3 and ngraph
+handed the rows (`addEdgeRows`), every internal walk of `edges` reading built `Edge`s only (`drawnBundle`, the
+reconcile of a removed node's edges, the strict-state check and the per-frame walks outside `DataManager` all walk
+`edges` and would build every `Edge`), and the eligibility check (batched, row lines, an engine that takes edge rows).
+
+Stage 27's twelfth pull request: the data manager's own walks of the edges build no `Edge`. Undo and redo that take a
+node away (`dropRenderNodes`) send its edges stored with no `Edge` back to waiting, or forget them, without building
+them. The strict-state check after each pass compares the slice with the built `Edge`s and the stored edge ids, and
+hands the layout engine's check (`heldEdgeProblems`) the built `Edge`s only (`dataManagerInternals.builtEdges`, a
+live view). `drawnBundle` groups the built `Edge`s and the stored edges by pair and builds the stored ones of a pair
+with more than one edge, since a fan is drawn by `Edge`s; a lone edge stays unbuilt, and built ones keep their order
+ahead of those built for the fan. `test/managers/DataManager.test.ts` pins it: an undo, redo and undo of a node's
+removal build none (3 before), and a lone pair's bundle builds only the edge asked about (2 before). Still to come:
+the walks of `edges` outside `DataManager` (in `Graph.ts`, `LayoutManager.ts`, `Node.ts`, the edge ID target's
+`pickEdgeId`), the paint loop, d3 and ngraph handed the rows, and the eligibility check. Nothing turns the switch on,
+so neither path changes.
+
+Stage 27's thirteenth pull request: the element's own walks of the edges outside `DataManager` build no `Edge`. In
+`Graph.ts` the selection restyle, the edge ID target, the switch of the plain-edge pull, the hover and click picks
+(`hoverEdgeAt`, `pickEdgeId`), the font refresh and the dimension switch walk the built `Edge`s
+(`dataManagerInternals.builtEdges`), and so does `Node.ts`'s walk after a node resizes: an edge stored with no `Edge`
+has no line object to restyle, pick, rebuild or re-measure. While every edge is built (the switch off, either path)
+that is every edge in the same order, so neither path changes. `test/managers/DataManager.test.ts` pins it: a pick
+at a point and a selection restyle build none (2 before each). Correction: `LayoutManager.ts`'s walks stay as they
+are; they hand an engine its edges, and an engine that needs an `Edge` per edge must build them until it is handed
+edge rows (`addEdgeRows`), which belongs with the eligibility check. Not moved yet, and still building every `Edge`
+when walked: `UpdateManager.ts`'s seven walks of `edges` (`followAgeFade`, `applyEdgeMasks`, `edgesByNode`, the
+screen-scale retrim inside the per-frame `update`, `followRenumberedRows`, `retrimForScreenScale`,
+`refreshScreenBorders`) and `Graph.rowCounts`, which counts pulled edges over every `Edge`. `Graph.getEdges` keeps
+building them on purpose: it promises the consumer every `Edge`. Still to come: those eight walks, the paint loop,
+d3 and ngraph handed the rows, and the eligibility check.
+
+Stage 27's fourteenth pull request: the frame's own walks of the edges build no `Edge`. `UpdateManager.ts`'s seven
+walks (`followAgeFade`, `applyEdgeMasks`, `edgesByNode`, the screen-scale retrim inside `update`,
+`followRenumberedRows`, `retrimForScreenScale`, `refreshScreenBorders`) walk the built `Edge`s
+(`dataManagerInternals.builtEdges`): an edge stored with no `Edge` has no line object to restyle, mask, retrim or
+renumber, and its row line follows a freeze through `EdgeRowLines.rowsMoved`. Building an `Edge` moves `edgeVersion`,
+so the incident map `edgesByNode` keeps is rebuilt when one is built later. `Graph.rowCounts` counts object edges
+over the built `Edge`s and every other stored edge as pulled, since an edge with no `Edge` is drawn from the row tables
+or not at all. While every edge is built (the switch off, either path) each walk visits the same edges in the same
+order, so neither path changes. `test/managers/DataManager.test.ts` pins it: reading `rowCounts` and running frames
+across a removal and its freeze build none (2 before each). The three moving-layout tests of
+`test/browser/pulled-edges-on-graph.test.ts` now step one layout round a frame (`setMinimumWorkPerFrame`): a slow
+frame caught up with several rounds, so the layout settled in fewer frames than the test's floor of 10 when the
+machine was busy. Still to come: the paint loop drawing a row with no `Edge` (it must also honor the masks and the
+age fade these walks now skip), d3 and ngraph handed the rows, and the eligibility check.
+
+Stage 27's fifteenth pull request: the frame's paint loop draws an edge stored with no `Edge`.
+`UpdateManager.paintEdgeBatch` hands such a row to `EdgeRowLines.paintRow` with its paint and its ends' rows
+(`dataManagerInternals.unbuiltEdgeEnds`), and builds its `Edge` (`dataManagerInternals.buildEdgeAt`) only when the
+row line refuses the paint or the caller rules it out: a self-loop, a map layout in the 3D view (which arcs every
+edge), or an end drawn behind edges (a built `Node`'s `isDrawnBehindEdges`, or a 2D row painted below z-index 0).
+A row line goes when its edge is forgotten (a removal, an undo sending it back to waiting, a build) and when a
+reconcile moves it to another row, whose paint is queued. Correction: an `Edge` built for a row stored earlier
+announced its key among the unpainted again, after the pass that painted the row had run, so no pass cleared it and
+`waitForStableFrame` never settled; it now only queues its paint, as `buildNode` does for a row with no `Node`.
+`test/browser/edge-row-lines.test.ts` pins it: two uncapped edges draw two row lines and build no `Edge`, a capped
+one and a self-loop build theirs, and a removal takes its line before any freeze. Nothing turns the switch on, so
+neither path changes. Still to come: the masks (a row line hidden by a filter, or selected, needs its `Edge` or a
+mask of its own) and the age fade switched on after a row line is drawn, d3 and ngraph handed the edge rows, the
+eligibility check, and the switch.
+
+Stage 27's sixteenth pull request: a row line has no mask of its own, so a masked row takes its `Edge`. A row line
+is not drawn for a row the edge visibility mask hides or the selection mask holds: the paint loop builds its `Edge`
+instead, and a mask pass (the walk, a time window's changed rows, a selection-only pass) builds the `Edge` of every
+row line whose row the new masks hide or select. An `Edge` built for a stored row takes the masks the last pass read
+at once (`UpdateManager.buildRowEdge`), since no pass walks it before its row's masks move again. Correction: before
+this, an `Edge` built by the paint loop for a refused paint drew visible and unselected under a filter or selection
+that should have hidden or marked it. When lines start to fade by age, every row line's row takes its `Edge`, as a
+pulled line moves to the placed one. A row unmasked later keeps its `Edge`. `test/browser/edge-row-lines.test.ts`
+pins it. Nothing turns the switch on, so neither path changes. Still to come: d3 and ngraph handed the edge rows,
+the eligibility check, and the switch.
+
+Stage 27's seventeenth pull request: d3 and ngraph are handed the edges stored with no `Edge`. The layout manager
+gives a new d3 or ngraph engine the built `Edge`s and, for every other stored edge, its edge row
+(`dataManagerInternals.unbuiltEdgeRows`, then `addEdgeRows`), and those that arrived while it initialised; one
+built or removed meanwhile is taken off it again. While the engine runs, the data manager hands it each edge stored
+with no `Edge` as it is stored, and takes the row back (`removeEdgeRows`) when the edge is forgotten: a removal, an
+undo sending it back to waiting, a clear, or a build, before the built `Edge` reaches the engine in its place
+(`dataManagerInternals.setLayoutEdgeRows`, set beside `setLayoutRows`). An engine that reads the snapshot (a static
+engine, a simulation) needs no hand-over. Any other engine lays out `Edge`s only, so under it every edge is built
+when stored, and setting it builds the ones stored earlier. Correction: `EdgeRow` moved from
+`D3GraphLayoutEngine.ts` to `LayoutEngine.ts`, since the data manager's declarations naming it would otherwise reach
+`d3-force-3d`, which has no types, and fail the strict consumer type check. `test/managers/DataManager.test.ts` and
+`test/browser/edge-row-lines.test.ts` pin it: under d3 and ngraph an edge stored before the layout is set, or after,
+builds no `Edge` and draws the same layout as its `Edge` does. Nothing turns the switch on, so neither path changes.
+Still to come: the rest of the eligibility check (batched, row lines), the switch, and the stage's measurements.
+
+Stage 27's eighteenth pull request turns the switch on. Under `"batched"`, with row lines to draw it and a layout that
+takes edge rows, an edge whose ends are stored is stored with no `Edge`; the objects path builds every `Edge` as
+before. `dataManagerInternals.storeEdgesUnbuilt` now overrides the element's choice either way, and a test that reads
+an `Edge`'s own state right after a batched load switches it off. Three defects the switch exposed are fixed:
+`getEdgesBetween` builds the `Edge` of each edge stored with none it finds (a repeated record would otherwise not find
+its edge, and `parallelRank` would miss it); under `"batched"`, `drawnBundle` orders a fan by row, not by build order,
+so an `Edge` built late keeps its place in the fan; and an `Edge` the paint loop builds is painted once, not also
+queued for the next pass (`buildEdgeAt`'s `paintingNow`). Correction: parallel edges need no rule of their own at
+store time. A straight edge does not fan (only `line.bezier` curves), and a curve's paint is refused by a row line, so
+its `Edge` is built and `drawnBundle` builds its fan's other members. Still to come: the stage's measurements.
+
+Corrections the batched render-parity run found once the switch was on (62 stories differed; after these, the same 7
+as before the switch). "A layout that takes edge rows" is narrower than "a static engine": Graphviz, and `fixed` with
+`edgeRoutes: "graphviz"`, build their graph from the `Edge`s they hold and key their routes by `Edge`, so under them
+every edge gets an `Edge` (`readsEdges` in `LayoutManager`). And an `Edge` built late for an edge stored with none
+(the paint loop needs one for an arrow, or a mask hides its row) takes over its row's place in the layout instead of
+leaving and arriving again: d3 and ngraph hand it the row's link (`adoptEdgeRow`), a static engine holds it without
+marking itself stale, and a simulation holds nothing. Dropping and re-adding the link unsettled ngraph and d3, which
+then stepped on and settled somewhere else. A `defineLayout` engine laying out by row counts a freeze as a change, so
+edges that arrive as rows with no `Edge` re-run it.
+
+Stage 27's nineteenth pull request records the stage's measurement on master ee3238ddf4, the switch on (WebGPU,
+`lean`, paced, 100k + 1M, `benchmarks/results/s27-pr19-base`, three unprofiled runs at load average 3.9-11.2): first
+frame 14.75 s median (14.72-15.14 s), against 23.5 s in the 2026-11-11 comparison and a 14 s target, which is missed
+by about 0.75 s; JS heap without a forced collection 755 MB and renderer RSS about 1.0 GB, against 1.6 GB, met (the
+harness now records `memoryNoGc` before it forces one); layout frame median 307 ms (300-309 ms), against 1,065 ms in
+the 2026-11-09 profile. Garbage collector time, from the eighteenth pull request's profiled run at c3459eeb47: 575 ms
+of a 17.3 s load, 1.5 s of a 30.9 s layout stage. Correction: the profiled load put 2.8 s of self time in the
+derivation lane's `touch` (one dirty key per added edge) and pointed at it as the lead for the rest of the load. It is
+not: a build that skips those keys loaded in 14.53 s median, interleaved with the runs above, 0.2 s faster. The
+sampling profiler overstates hash-table inserts on a page this size, so the remaining 0.75 s has no measured lead.
 
 | #   | Stage                               | Issues                          | What it changes                                                                                                                                                                                                                                                                                         | Depends on                                                                                                                                       | R   | Target                                                                                                                                                                                               | Proving test                                                                                                                                                                                                                                                                                                                                                                                     |
 | --- | ----------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

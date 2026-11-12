@@ -38,7 +38,10 @@ describe("Notes, on the real element", () => {
 
         const list = await screen.findByRole("list", { name: "Notes" });
         const note = within(list).getByRole("listitem", { name: "Ask about the bank" });
-        assert.isNotNull(within(note).getByRole("button", { name: `${name}, in note: Ask about the bank` }));
+        const chip = within(note).getByRole("button", { name: `${name}, in note: Ask about the bank` });
+        // Figma density: a 20px target pill, and a divider closing each note's row.
+        assert.equal(chip.getBoundingClientRect().height, 20);
+        assert.equal(getComputedStyle(note).borderBottomStyle, "solid");
         assert.equal(store.get().announcement, `Note added about ${name}`);
         assert.isNull(screen.queryByRole("textbox", { name: "Note" }));
         // The saved note takes focus, and no tooltip ("Add note") opens over it.

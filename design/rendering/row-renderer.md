@@ -1268,8 +1268,9 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   demand, not a change to the slice's map. What this pull request does build: the painter's
   queue of rows to draw (`PendingRows` in StylePainter.ts) was a `Set`, and queueing a million edges cost about 0.2 s of
   hashing; it is now a byte per row plus an array of rows, in the same oldest-first order, on both render paths.
-  Interleaved, same session: 100k + 1M first frame master 5.35 s and 5.15 s, branch 4.98 s and 5.00 s (load average
-  1.6-2.0), so the typed 5 s target is met at the edge; 100k + 1k is unchanged at about 0.90 s against its 0.8 s target.
+  Interleaved, same session: 100k + 1M first frame master 5.35 s and 5.15 s, branch 4.975 s and 5.003 s (load average
+  3.6-3.9 in the first round, 1.8-2.0 in the second), so the typed 5 s target is met by one run and missed by 3 ms in the
+  other; 100k + 1k is unchanged at about 0.90 s against its 0.8 s target.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.

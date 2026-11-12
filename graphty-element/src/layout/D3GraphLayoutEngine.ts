@@ -941,31 +941,6 @@ export class D3GraphEngine extends LayoutEngine {
         this.holdRowBodies(followers);
 
         this.chargeForce.strength((d) => (followers.has((d as D3InputNode).id) ? 0 : DEFAULT_CHARGE));
-        // A link to a node the layout leaves out, or one the filter hides, pulls nothing (see
-        // `LayoutEngine.setLeftOut`).
-        const leftOut = new Set<NodeIdType>();
-        for (const node of this.nodeMapping.keys()) {
-            if (this.isLeftOut(node.index)) {
-                leftOut.add(node.id);
-            }
-        }
-
-        const hiddenLinks = new Set<unknown>();
-        for (const [edge, link] of [...this.edgeMapping, ...this.newEdgeMap]) {
-            if (this.isEdgeLeftOut(edge)) {
-                hiddenLinks.add(link);
-            }
-        }
-
-        const endId = (end: unknown): unknown =>
-            typeof end === "object" && end !== null ? (end as D3InputNode).id : end;
-        this.linkForce.strength((l) =>
-            hiddenLinks.has(l) ||
-            leftOut.has(endId(l.source) as NodeIdType) ||
-            leftOut.has(endId(l.target) as NodeIdType)
-                ? 0
-                : LINK_STRENGTH,
-        );
         for (const [node, d3node] of this.nodeMapping) {
             if (this.isHeld(node.index)) {
                 fixAt(d3node);

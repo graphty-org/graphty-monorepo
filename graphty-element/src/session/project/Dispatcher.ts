@@ -1625,6 +1625,11 @@ export class Dispatcher {
         this.notify(() => this.events.project?.(change));
         this.flushHistory();
         void this.lane.settled().then(() => {
+            // A session disposed meanwhile has no reader left to tell, and its data answers nothing.
+            if (this.lane.isClosed) {
+                return;
+            }
+
             for (const each of derived) {
                 this.notify(() => this.events.derived?.(each));
             }

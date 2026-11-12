@@ -151,6 +151,7 @@ import type { CodedFact, CodedFactParam, ColumnRef } from "../shared";
 import type { HistoryCause } from "../types";
 import { valueLabelsAt } from "../valueLabels";
 import { inertReason } from "../visibility/union";
+import { type HiddenNotDrawn, hiddenNotDrawn } from "../visibility/VisibilityApi";
 import { beneathAuthored, placementLayers } from "./autoApply";
 import {
     channelDescriptor,
@@ -461,6 +462,9 @@ export interface BranchesView {
     /**
      * A filter condition the reader is editing, by id: what it would remove stays drawn, faint,
      * while the view is shown (it still decides what is visible). Absent, nothing is held.
+     * While the session's `workingGraph` option is on, nothing outside what is shown is drawn:
+     * the condition is held but its removals are not drawn, and the view's `notDrawn` says so
+     * (`W_HIDDEN_NOT_DRAWN`, `asked: "hold"`).
      */
     readonly hold?: string;
     /**
@@ -476,7 +480,9 @@ export interface BranchesView {
      * `"full"` lifts every filter condition while the view is shown, so a selection counted on the
      * full graph is drawn there: what the conditions remove is drawn faint, as ghosts, and a
      * branch's members are drawn in its color even when a condition removes them. What is visible
-     * does not change, and nothing is recorded.
+     * does not change, and nothing is recorded. While the session's `workingGraph` option is on,
+     * `"full"` draws as `"visible"` does, and with a `hold` the view's `notDrawn`
+     * says so (`W_HIDDEN_NOT_DRAWN`, `asked: "full"`); with no `hold`, `"full"` lifts nothing.
      * Experimental: may change or be removed in a minor release.
      * @beta
      */
@@ -505,11 +511,14 @@ export interface StylesApi {
      * first, whose `end()` then does nothing. Not a layer, not saved.
      * Experimental: may change or be removed in a minor release.
      * @param view - What to draw.
-     * @returns Ends the view, the stack's picture back in the same repaint.
+     * @returns Ends the view, the stack's picture back in the same repaint; and `notDrawn`, what
+     *   the view asked to draw outside what is shown (`hold`, `base: "full"`) that is not drawn
+     *   because the session's `workingGraph` option is on, empty otherwise; read when it is read, so
+     *   it follows the option, and empty once the view has ended (since 3.36.0).
      * @throws `E_BAD_COMMAND` for a rule that is not a valid union leaf.
      * @beta
      */
-    showBranches(view: BranchesView): { end(): void };
+    showBranches(view: BranchesView): { end(): void; readonly notDrawn: readonly HiddenNotDrawn[] };
     /**
      * Whether a branches view is drawn now; `style:branches-shown-changed` tells each change.
      * Experimental: may change or be removed in a minor release.
@@ -1050,11 +1059,15 @@ export interface StylesApi {
      * layer's kind of element. Re-read it when `revision` would change: on `style:changed`, and
      * after a data or run change.
      * @param id - The layer.
+     * @param options - How to count.
+     * @param options.scope - Which elements are counted (since 3.36.0): `"graph"` the whole graph,
+     *     `"visible"` only what the filter and the time window leave shown. Absent, the whole
+     *     graph, or what is shown while the session reads the working graph.
      * @returns What it matches, where it wins each channel, and what it could not paint.
      * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
      * @since 3.16.0
      */
-    counts(id: LayerId): StyleCounts;
+    counts(id: LayerId, options?: { readonly scope?: "graph" | "visible" }): StyleCounts;
     /**
      * How many of the elements a layer's rule matches are drawn now: `counts(id).matched` less those
      * a filter hides.
@@ -1622,6 +1635,12 @@ export interface StylesSources {
      * @returns What it resolves to now.
      */
     readonly resolveScope?: (spec: Scope) => ResolvedScope;
+    /**
+     * Whether the session reads the working graph: a layer's categories and its legend rows are
+     * then counted among what the filter and the time window leave shown. Absent, never.
+     * @returns True while it does.
+     */
+    readonly workingGraph?: () => boolean;
     /** Which versions are doing the work. Defaults to the element's own. */
     readonly engine?: EngineVersions;
     /**
@@ -3052,6 +3071,29 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * How many of the elements in a scope one layer selects carry each value of a path.
+     * @param id - The layer.
+     * @param path - The category path.
+     * @param scope - The elements counted.
+     * @returns The count by value, spelled as a category is.
+     */
+    const categoryCounts = (id: LayerId, path: Path, scope: Scope): Map<string, number> => {
+        const { selector, layer } = require(id);
+        const { nodes, edges } = elementsOf(scope);
+        const onNodes = layer.target === "node";
+        const read = onNodes ? sources.elements.nodeValue : sources.elements.edgeValue;
+        const held = new Map<string, number>();
+        for (const index of onNodes ? nodes : edges) {
+            if (selector.test === null || selector.test(index)) {
+                const key = String(read(index, path));
+                held.set(key, (held.get(key) ?? 0) + 1);
+            }
+        }
+
+        return held;
+    };
+
+    /**
      * What a layer selects among the elements no filter step hides, and how many of its kind those
      * are: the style selector's base (`StyleCounts.visible`, a legend block's `scope`).
      * @param id - The layer.
@@ -3172,7 +3214,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         ...(sources.field === undefined ? {} : { field: sources.field }),
         ...(sources.groupRanks === undefined ? {} : { groupRanks: sources.groupRanks }),
         valueLabels: (path) => valueLabelsAt(dispatcher.state.valueLabels, path),
-        painted: (id) => api.counts(id).painted,
+        // The whole graph's: the legend's painted count takes no `within` (working graph design, decision 18).
+        painted: (id) => api.counts(id, { scope: "graph" }).painted,
         // What the layer selects among the elements drawn: a filter step that hides some of them
         // takes them out of the count, so a key never counts nodes the drawing does not show.
         selects: (id) => {
@@ -3182,6 +3225,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return { count: matched, of: edges ? whole.edgeCount : whole.nodeCount, visible: of };
         },
         reach: (id, channel) => valueReach(id, channel, elementsOf(WHOLE_GRAPH), countSources()),
+        // With the working graph on, a row is a category some shown element of the layer carries.
+        shown: (id, channel) => {
+            const binding = byId().get(id)?.layer.encode?.[channel];
+            if (sources.workingGraph?.() !== true || binding === undefined || !("by" in binding)) {
+                return undefined;
+            }
+
+            const held = categoryCounts(id, binding.by, DRAWN);
+            return new Set([...held].filter(([, count]) => count > 0).map(([key]) => key));
+        },
         reached: (id, channel) => {
             const binding = byId().get(id)?.layer.encode?.[channel];
             if (binding === undefined || !("by" in binding)) {
@@ -5107,7 +5160,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return listLayers();
         },
 
-        showBranches(view: BranchesView): { end(): void } {
+        showBranches(view: BranchesView): { end(): void; readonly notDrawn: readonly HiddenNotDrawn[] } {
             const made = branchLayers(view);
             // A layer that draws what the view drawn now draws is kept, the same object, so a view
             // that changes nothing on the canvas repaints nothing (a step with no test, the same
@@ -5126,6 +5179,18 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             sources.onBranchesShown?.(true);
 
             return {
+                // The working graph draws only the view: what of this one it does not draw, now.
+                get notDrawn(): readonly HiddenNotDrawn[] {
+                    if (branchesShown !== shown || sources.workingGraph?.() !== true || shown.view.hold === undefined) {
+                        return Object.freeze([]);
+                    }
+
+                    // With no hold, "full" lifts nothing, so it keeps nothing from drawing.
+                    return Object.freeze([
+                        hiddenNotDrawn("hold"),
+                        ...(shown.view.base === "full" ? [hiddenNotDrawn("full")] : []),
+                    ]);
+                },
                 end(): void {
                     if (branchesShown !== shown) {
                         return;
@@ -5572,8 +5637,23 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 );
             }
 
-            return categoriesOf(entry.layer, channel, steadyEncodingOf(id), (path) =>
+            const categories = categoriesOf(entry.layer, channel, steadyEncodingOf(id), (path) =>
                 valueLabelsAt(dispatcher.state.valueLabels, path),
+            );
+            const binding = entry.layer.encode?.[channel];
+            if (
+                categories.length === 0 ||
+                sources.workingGraph?.() !== true ||
+                binding === undefined ||
+                !("by" in binding)
+            ) {
+                return categories;
+            }
+
+            // Counted among what is shown, as every reader of the working graph counts.
+            const held = categoryCounts(id, binding.by, DRAWN);
+            return categories.map((category) =>
+                Object.freeze({ ...category, count: held.get(String(category.value)) ?? 0 }),
             );
         },
 
@@ -5589,22 +5669,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const groups = groupsOf(entry.layer, path, steadyEncodingOf(id), (at) =>
                 valueLabelsAt(dispatcher.state.valueLabels, at),
             );
-            if (groups.length === 0 || entry.layer.selector.match === "everything") {
+            const working = sources.workingGraph?.() === true;
+            if (groups.length === 0 || (entry.layer.selector.match === "everything" && !working)) {
                 return groups;
             }
             // The prepared binding reads the whole graph, so its scale is the whole graph's; a group's
-            // count is how many of THIS layer's elements carry it, as `ValueGroup.count` says.
-            const { selector } = require(id);
-            const { nodes, edges } = elementsOf(WHOLE_GRAPH);
-            const onNodes = entry.layer.target === "node";
-            const read = onNodes ? sources.elements.nodeValue : sources.elements.edgeValue;
-            const held = new Map<string, number>();
-            for (const index of onNodes ? nodes : edges) {
-                if (selector.test === null || selector.test(index)) {
-                    const key = String(read(index, path));
-                    held.set(key, (held.get(key) ?? 0) + 1);
-                }
-            }
+            // count is how many of THIS layer's elements carry it, as `ValueGroup.count` says --
+            // among what is shown, with the working graph on.
+            const held = categoryCounts(id, path, working ? DRAWN : WHOLE_GRAPH);
             return groups.map((group) => Object.freeze({ ...group, count: held.get(String(group.value)) ?? 0 }));
         },
 
@@ -5863,12 +5935,27 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             });
         },
 
-        counts(id: LayerId): StyleCounts {
+        counts(id: LayerId, options: { readonly scope?: "graph" | "visible" } = {}): StyleCounts {
             const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
+            const scope = options.scope ?? (sources.workingGraph?.() === true ? "visible" : "graph");
+            if (scope !== "graph" && scope !== "visible") {
+                throw new GraphtyError({
+                    code: "E_OPTION_RANGE",
+                    message: `styles.counts scope must be "graph" or "visible", not ${JSON.stringify(scope)}`,
+                    source: "data",
+                });
+            }
+            const shown = elementsOf(DRAWN);
 
             // Counted on the stack's own layers: a branches view suspends them only while it is drawn.
             const counts = {
-                ...styleCounts(id, elementsOf(WHOLE_GRAPH), countSources(), revision),
+                ...styleCounts(
+                    id,
+                    scope === "graph" ? elementsOf(WHOLE_GRAPH) : shown,
+                    countSources(),
+                    revision,
+                    shown,
+                ),
                 visible: amongDrawn(id),
             };
             // Groups past the outline cap draw nothing; said here, never dropped silently.

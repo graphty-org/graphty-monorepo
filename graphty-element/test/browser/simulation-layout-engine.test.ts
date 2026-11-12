@@ -1167,6 +1167,9 @@ describe("the simulation layout bridge", () => {
         // published picture would not say so: the refit normalises it either way, which is why
         // this is read off the simulation's own array and not off a node's position.
         const graph = await pathGraph(8);
+        // The working graph off: with it on, the seeded restart the add sets off lands after the
+        // freeze below instead of before it, so the count holds that build's load too.
+        graph.getSession().workingGraph = false;
         const fake = createFakeAccelerator({ moveBy: 40, settleAfter: 3 });
         graph.acceleration.setAccelerator(fake);
 

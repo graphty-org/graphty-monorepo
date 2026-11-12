@@ -1348,6 +1348,7 @@ function captionTally(directed: boolean): {
  * @param elements - Every node and edge in the session, as dense indices.
  * @param sources - The stack, the prepared encodings and the element columns.
  * @param revision - What the caller says the counts are a reading of.
+ * @param shown - The elements drawn, which a top within what is shown ranks.
  * @returns The counts.
  * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
  */
@@ -1356,6 +1357,7 @@ export function styleCounts(
     elements: AgreementElements,
     sources: ExplainSources,
     revision: string,
+    shown?: AgreementElements,
 ): StyleCounts {
     const { layer, selector, reads } = requireLayer(layerId, sources);
     const own = sources.encoding(layerId);
@@ -1434,7 +1436,7 @@ export function styleCounts(
             ...shaders.facts(),
             ...(flatLifts > 0 ? [{ code: "edge.lift-needs-flat-layout" as const, params: { count: flatLifts } }] : []),
         ]),
-        ...topFacts(layer.selector, columns, indices),
+        ...topFacts(layer.selector, columns, indices, layer.target === "node" ? shown?.nodes : shown?.edges),
         adjusted: Object.freeze(facts),
         revision,
     };
@@ -1536,6 +1538,8 @@ interface NamedTop {
     readonly path: Path;
     readonly n: number;
     readonly ties: TopTies;
+    /** Whether it ranks only what is shown. */
+    readonly visible?: boolean;
 }
 
 /**
@@ -1554,7 +1558,12 @@ function topsOf(selector: Layer["selector"]): NamedTop[] {
     const found: NamedTop[] = [];
     const walk = (tree: RuleTree): void => {
         if (tree.kind === "threshold" && tree.top !== undefined) {
-            found.push({ path: tree.path, n: tree.top, ties: tree.ties ?? "fewer" });
+            found.push({
+                path: tree.path,
+                n: tree.top,
+                ties: tree.ties ?? "fewer",
+                ...(tree.within === "visible" ? { visible: true } : {}),
+            });
         } else if (tree.kind === "all" || tree.kind === "any") {
             tree.of.forEach(walk);
         } else if (tree.kind === "not") {
@@ -1572,18 +1581,21 @@ function topsOf(selector: Layer["selector"]): NamedTop[] {
  * @param selector - The layer's selector.
  * @param columns - The layer's kind of element.
  * @param elements - The elements of that kind, as dense indices.
+ * @param shown - The elements drawn, which a top within what is shown ranks.
  * @returns A `top.tie` fact per top a tie stopped short, and a fact per top for what it took.
  */
 function topFacts(
     selector: Layer["selector"],
     columns: ElementColumns,
     elements: readonly number[],
+    shown?: Iterable<number>,
 ): Pick<StyleCounts, "leftOut" | "tops"> {
     const leftOut: CodedFact<LeftOutCode>[] = [];
     const tops: CodedFact<TopFactCode>[] = [];
-    for (const { path, n, ties } of topsOf(selector)) {
+    for (const { path, n, ties, visible } of topsOf(selector)) {
         const population: { id: NodeId; value: number }[] = [];
-        for (const index of elements) {
+        // A top within what is shown is ranked over what is shown, as its selector ranks it.
+        for (const index of visible === true && shown !== undefined ? shown : elements) {
             const value = columns.value(index, path);
             if (typeof value === "number" && Number.isFinite(value)) {
                 population.push({ id: index, value });

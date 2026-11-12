@@ -207,6 +207,12 @@ export interface FilterConditionMatches {
     readonly matched: number;
     /** How many the graph holds, for every condition. */
     readonly total: number;
+    /**
+     * How many of `matched` are shown now: those the filter conditions that are on and the time
+     * window leave drawn. A condition's own count reads the whole graph, so beside other filters
+     * it can match more than is shown; this says how many of its matches a reader can see.
+     */
+    readonly shown: number;
 }
 
 /**
@@ -232,6 +238,93 @@ export interface FilterConditionCount {
     readonly edges: FilterConditionMatches | null;
     /** The paths it reads that nothing in this session answers (a removed column); empty when none. */
     readonly unresolved: readonly Path[];
+}
+
+/**
+ * One filter condition being edited without changing what is shown: its edits are held until
+ * {@link FilterDraft.commit}, so the masks, every reader of what is shown and the layout stay as
+ * they are while a reader edits it, and the edit lands as one undo step. Opened with
+ * {@link VisibilityApi.draft}.
+ * @example
+ * ```ts
+ * const draft = element.session.visibility.draft({ effect: "keep", rule: { kind: "range", attribute: "data.score", min: 0.5 } });
+ * draft.update({ rule: { kind: "range", attribute: "data.score", min: 0.7 } });
+ * console.log(draft.counts().nodes); // what it would keep, over the whole graph
+ * await draft.commit(); // one step: the filter changes, and the graph is laid out again over it
+ * ```
+ * Experimental: may change or be removed in a minor release.
+ * @since 3.36.0
+ * @beta
+ */
+export interface FilterDraft {
+    /** The condition as the draft holds it now, with its id: a new one's id is made when it opens. */
+    readonly condition: FilterCondition;
+    /** Whether the draft is still open: false once committed or cancelled. */
+    readonly open: boolean;
+    /**
+     * Change what the draft holds. Nothing is written and nothing that is shown changes.
+     * @param change - What to change: the rule, the effect, `on`, `within` or the name.
+     * @throws A `GraphtyError` (`E_BAD_COMMAND`) once the draft is no longer open.
+     */
+    update(change: Partial<Omit<FilterCondition, "id">>): void;
+    /**
+     * What the draft's rule matches over the whole graph, the time window ignored, as
+     * {@link VisibilityApi.conditionCounts} counts a condition.
+     * @returns The counts, under the condition's id.
+     */
+    counts(): FilterConditionCount;
+    /**
+     * Write the draft: the condition is added, or the condition it opened on is changed, in one
+     * undoable step. The draft closes.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns The run, which resolves with the counts and the condition's id.
+     * @throws A `GraphtyError` (`E_BAD_COMMAND`) once the draft is no longer open, or when the
+     *     condition is malformed.
+     */
+    commit(options?: RunOptions): Run<FilterResult & { readonly id: string }>;
+    /** Close the draft and write nothing. Does nothing once it is closed. */
+    cancel(): void;
+}
+
+/**
+ * Something a consumer asked to draw outside what is shown, which is not drawn because the
+ * session's `workingGraph` option is on. Hidden nodes have no place in a layout of only the shown
+ * nodes, so a faint node at its old position under a fresh layout would draw two layouts on one
+ * canvas. The request is kept (a saved `showContext` stays saved) and draws again as soon as the
+ * option is off.
+ *
+ * `code` is always `"W_HIDDEN_NOT_DRAWN"`. `params.asked` names what was asked for:
+ * - `"showContext"`: `visibility.showContext` is on; hidden nodes are not drawn faintly.
+ * - `"hold"`: a `styles.showBranches` view holds a filter condition (`hold`); what it would
+ *   remove is not drawn.
+ * - `"full"`: a `styles.showBranches` view asked for `base: "full"`; it is drawn over what is
+ *   shown, and what the filter removes is not drawn. Reported only for a view that also holds a
+ *   condition: with no `hold`, `"full"` draws nothing outside what is shown anyway.
+ * - `"ghost"`: the time setting `outside` is `"ghost"` and a window is in force; what the window
+ *   leaves out is not drawn.
+ *
+ * `visibility:not-drawn-changed` fires whenever the list in `visibility.notDrawn` changes.
+ * Experimental: may change or be removed in a minor release.
+ * @since 3.36.0
+ * @beta
+ */
+export interface HiddenNotDrawn {
+    /** What kind of fact this is. */
+    readonly code: "W_HIDDEN_NOT_DRAWN";
+    /** What was asked for. */
+    readonly params: { readonly asked: "showContext" | "hold" | "full" | "ghost" };
+}
+
+/** No {@link HiddenNotDrawn} fact. */
+const NOTHING_NOT_DRAWN: readonly HiddenNotDrawn[] = Object.freeze([]);
+
+/**
+ * One {@link HiddenNotDrawn} fact, frozen.
+ * @param asked - What was asked for.
+ * @returns The fact.
+ */
+export function hiddenNotDrawn(asked: HiddenNotDrawn["params"]["asked"]): HiddenNotDrawn {
+    return Object.freeze({ code: "W_HIDDEN_NOT_DRAWN", params: Object.freeze({ asked }) });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -452,6 +545,20 @@ export interface VisibilityApi {
      */
     conditionCounts(): readonly FilterConditionCount[];
     /**
+     * Open a draft of one filter condition: a new condition, or an existing one by id. Edits to the
+     * draft change nothing that is shown until it is committed, which writes them as one step.
+     * See {@link FilterDraft}.
+     * @param target - The new condition (an id is made when absent, and `on` defaults to true), or
+     *     the id of a condition to edit.
+     * @returns The draft.
+     * @throws A `GraphtyError` (`E_BAD_COMMAND`) when no condition has that id, or the new
+     *     condition is malformed or its id is taken.
+     * Experimental: may change or be removed in a minor release.
+     * @since 3.36.0
+     * @beta
+     */
+    draft(target: FilterConditionInput | string): FilterDraft;
+    /**
      * Whether hidden nodes should still be drawn faintly instead of vanishing.
      *
      * A reader who hides nine tenths of a graph usually still wants to see the shape of what they
@@ -460,8 +567,23 @@ export interface VisibilityApi {
      * Turning it on changes NOTHING about the masks: a context node is still hidden, still
      * outside every run's default scope, and still absent from `nodes`. Changing it is one
      * undoable step.
+     *
+     * While the session's `workingGraph` option is on, the flag is kept (and saved) but nothing
+     * is drawn for it: `notDrawn` then holds `{ code: "W_HIDDEN_NOT_DRAWN", params: { asked:
+     * "showContext" } }`. Turning the option off draws the context nodes again.
      */
     showContext: boolean;
+    /**
+     * What a consumer asked to draw outside what is shown that is not drawn now, because the
+     * session's `workingGraph` option is on: `showContext`, a `styles.showBranches` view's
+     * `hold` or `base: "full"`, and time ghosts (see {@link HiddenNotDrawn}). Empty while the
+     * option is off, or while nothing of the kind is asked for. `visibility:not-drawn-changed`
+     * fires each time it changes.
+     * Experimental: may change or be removed in a minor release.
+     * @since 3.36.0
+     * @beta
+     */
+    readonly notDrawn: readonly HiddenNotDrawn[];
 }
 
 /**
@@ -480,6 +602,12 @@ export interface SessionVisibilityApi extends VisibilityApi {
     readonly masks: ScopeVisibilitySource;
     /** The one rule the masks evaluate: the filter AND every step that is on, or null. */
     readonly rule: RuleTree | null;
+    /**
+     * The conditions the filter drafts still open hold, as they hold them now: what a selection
+     * editor's Done keeps the runs of, since its draft is written after the visit ends.
+     * @returns The conditions.
+     */
+    openDrafts(): readonly FilterCondition[];
     /**
      * What a steps list would leave visible, without recording it: the counts before the first
      * step (the filter and the window alone), then after each step that is on, in order.
@@ -588,6 +716,13 @@ export interface SessionVisibilityApi extends VisibilityApi {
      * @param all - Lift every condition, not only this one: the view is drawn over the full graph.
      */
     hold(id: string | null, all?: boolean): void;
+    /**
+     * Whether hidden nodes are drawn faintly now: `showContext`, unless the working graph is on.
+     * What the renderer reads.
+     */
+    readonly drawsContext: boolean;
+    /** Told when the session's working graph option changes: what is drawn may move. */
+    workingGraphChanged(): void;
 }
 
 /** What is drawn, one mask per kind. */
@@ -676,6 +811,23 @@ export interface VisibilitySources extends FilterSources {
      * is re-evaluated only when it is set again or the snapshot moves.
      */
     readonly watch?: FilterWatchSources;
+    /**
+     * Whether a filter drops what it hides from the selection: the session's working graph
+     * option. Absent or false, the selection keeps hidden ids.
+     * @returns True when it drops them.
+     */
+    readonly dropsHiddenSelection?: () => boolean;
+    /**
+     * Whether the session's working graph option is on: nothing outside the view is drawn, so
+     * `showContext` and a held condition draw no hidden node. Absent or false, they draw as asked.
+     * @returns True when on.
+     */
+    readonly workingGraph?: () => boolean;
+    /**
+     * Told when `notDrawn` changes, with the new list.
+     * @param notDrawn - What is not drawn now.
+     */
+    readonly onNotDrawn?: (notDrawn: readonly HiddenNotDrawn[]) => void;
 }
 
 /** The selection as select conditions reach it. */
@@ -1190,8 +1342,14 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         const compiled = compileVisibility(graph, filter, window, passSources(graph));
         runPass({ compiled, edges: edgeMaskValue, graph, nodes: nodeMaskValue });
         unresolvedValue = compiled.unresolvedPaths();
-        if (sources.timeline?.() === true) {
+        // Kept for the readers of the filter alone: the window's slides, and under the working
+        // graph the selection a filter change drops, so neither compiles the filter again.
+        const sliding = sources.timeline?.() === true;
+        if (sliding) {
             slideCounters.filterReads++;
+        }
+
+        if (sliding || sources.workingGraph?.() === true) {
             lastCompiled = { key: [filter, graph, ...inputsFor(filter, null)], filter: compiled.filter };
         }
     };
@@ -1487,13 +1645,23 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
-     * Whether ghosts are drawn now.
+     * Whether the working graph is on: then nothing outside the view is drawn.
+     * @returns True when on.
+     */
+    const workingOn = (): boolean => sources.workingGraph?.() === true;
+    /**
+     * Whether ghosts are asked for.
      * @returns True while the `outside` setting is `"ghost"` and a window is in force.
      */
-    const timeGhosting = (): boolean =>
+    const ghostsAsked = (): boolean =>
         sources.timeline?.() !== false &&
         dispatcher.state.visibility.playback?.outside === "ghost" &&
         (dispatcher.state.visibility.window !== null || slid);
+    /**
+     * Whether ghosts are drawn now: asked for, and the working graph off.
+     * @returns True when drawn.
+     */
+    const timeGhosting = (): boolean => ghostsAsked() && !workingOn();
 
     /** The condition a reader is editing, whose removals stay drawn as ghosts (`hold`). */
     let held: string | null = null;
@@ -1517,7 +1685,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         const { filter, conditions } = dispatcher.state.visibility;
         const holding = conditions.find((each) => each.id === held);
         const lifts = heldAll ? held !== null : holding !== undefined && holding.on && holding.effect !== "select";
-        if (held === null || !lifts) {
+        // The working graph draws only the view: a held condition lifts nothing.
+        if (held === null || !lifts || workingOn()) {
             return ruleNow();
         }
 
@@ -1537,6 +1706,34 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         }
 
         return heldRule.rule;
+    };
+
+    /**
+     * What is asked to be drawn outside the view and is not, because the working graph is on.
+     * @returns The facts.
+     */
+    const notDrawnNow = (): readonly HiddenNotDrawn[] => {
+        if (!workingOn()) {
+            return NOTHING_NOT_DRAWN;
+        }
+
+        return Object.freeze([
+            ...(dispatcher.state.visibility.showContext ? [hiddenNotDrawn("showContext")] : []),
+            ...(held === null ? [] : [hiddenNotDrawn("hold")]),
+            ...(heldAll ? [hiddenNotDrawn("full")] : []),
+            ...(ghostsAsked() ? [hiddenNotDrawn("ghost")] : []),
+        ]);
+    };
+    /** What `notDrawn` last told, by its `asked` values. */
+    let toldNotDrawn = "";
+    /** Tell the host when `notDrawn` changed since it was last told. */
+    const tellNotDrawn = (): void => {
+        const now = notDrawnNow();
+        const key = now.map((each) => each.params.asked).join();
+        if (key !== toldNotDrawn) {
+            toldNotDrawn = key;
+            sources.onNotDrawn?.(now);
+        }
     };
 
     const ghostingNow = (): boolean => timeGhosting() || drawnRuleNow() !== ruleNow();
@@ -1718,6 +1915,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         // conditions it reached leave visible.
         sync();
         followSelectHistory(was.conditions, now.conditions);
+        dropHiddenSelection(was, now);
     });
 
     // The filter follows the sets it names: when one moves -- a set edit, its undo or redo, or an
@@ -1754,6 +1952,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         previousDerived?.(change);
         if (change.slices.includes("visibility") && quiet !== true) {
             sources.onChange?.({ ...resultOf(), filterKind: lastKind, cause: change.cause });
+        }
+
+        if (change.slices.includes("visibility")) {
+            // showContext, the window or the ghost setting may have moved what is not drawn.
+            tellNotDrawn();
         }
 
         quiet = undefined;
@@ -1923,6 +2126,13 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         readonly FilterCondition[],
         { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] }
     >();
+    /** The filter drafts still open, for {@link SessionVisibilityApi.openDrafts}. */
+    const drafts = new Set<FilterDraft>();
+    /** The selection before a filter change dropped what it hides, by the visibility it reached. */
+    const droppedFrom = new WeakMap<
+        VisibilityState,
+        { readonly nodes: readonly NodeId[]; readonly edges: readonly EdgeId[] }
+    >();
     /** The conditions whose select conditions the selection last followed, or null when none did. */
     let selectFollowed: readonly FilterCondition[] | null = null;
 
@@ -1963,6 +2173,54 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             "history",
         );
         selectFollowed = now;
+    };
+
+    /**
+     * With the working graph on, a filter change drops what the filter hides from the selection
+     * (owner decision B): the time window does not, and clearing the filter brings nothing back.
+     * Undoing the change puts back what it dropped; redoing it drops it again.
+     * @param was - The visibility shown before.
+     * @param now - The visibility shown after.
+     */
+    const dropHiddenSelection = (was: VisibilityState, now: VisibilityState): void => {
+        const { selection } = sources;
+        const cause = dispatcher.lane.passCause;
+        if (
+            selection === undefined ||
+            sources.dropsHiddenSelection?.() !== true ||
+            (was.filter === now.filter && was.conditions === now.conditions)
+        ) {
+            return;
+        }
+
+        if (cause === "undo") {
+            const back = droppedFrom.get(was);
+            if (back !== undefined) {
+                selection.replace(back, "history");
+            }
+
+            return;
+        }
+
+        if (cause !== "command" && cause !== "redo") {
+            return;
+        }
+
+        const graph = sources.snapshot();
+        const { nodes: keepsNodes, edges: keepsEdges } = passingOf(graph);
+        if (keepsNodes === null) {
+            return;
+        }
+
+        const current = selection.current();
+        const nodes = current.nodes.filter((id) => keepsNodes[nodeMaskValue.indexOf(id)] === 1);
+        const edges = current.edges.filter((id) => keepsEdges === null || keepsEdges[edgeMaskValue.indexOf(id)] === 1);
+        if (nodes.length === current.nodes.length && edges.length === current.edges.length) {
+            return;
+        }
+
+        droppedFrom.set(now, current);
+        selection.replace({ nodes, edges }, cause === "redo" ? "history" : "command");
     };
 
     /**
@@ -2067,6 +2325,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             test: ((index: number) => boolean) | null,
             count: number,
             among: ElementMask<NodeId> | ElementMask<EdgeId> | undefined,
+            visible: ElementMask<NodeId> | ElementMask<EdgeId>,
             within: ((index: number) => boolean) | null,
         ): FilterConditionMatches | null => {
             if (test === null) {
@@ -2074,21 +2333,27 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             }
 
             let matched = 0;
+            let shown = 0;
             let total = 0;
             for (let at = 0; at < count; at++) {
-                if (within === null || within(at)) {
-                    total++;
-                    matched += (among === undefined || among.has(at)) && test(at) ? 1 : 0;
+                if (within !== null && !within(at)) {
+                    continue;
+                }
+
+                total++;
+                if ((among === undefined || among.has(at)) && test(at)) {
+                    matched++;
+                    shown += visible.has(at) ? 1 : 0;
                 }
             }
 
             // One basis for every condition: the whole graph's count (its load's, for a condition
             // of one load), so a Select card and a Filter to card beside it are read against the
             // same number.
-            return Object.freeze({ matched, total });
+            return Object.freeze({ matched, total, shown });
         };
-        const nodes = tally(compiled.node, active.graph.nodeCount, drawn?.nodes, mine?.node ?? null);
-        const edges = tally(compiled.edge, active.graph.edgeCount, drawn?.edges, mine?.edge ?? null);
+        const nodes = tally(compiled.node, active.graph.nodeCount, drawn?.nodes, nodeMaskValue, mine?.node ?? null);
+        const edges = tally(compiled.edge, active.graph.edgeCount, drawn?.edges, edgeMaskValue, mine?.edge ?? null);
 
         return Object.freeze({ nodes, edges, unresolved: compiled.unresolvedPaths() });
     };
@@ -2117,10 +2382,17 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                     ? conditions
                     : conditions.map((each) => (each === condition ? { ...each, on: true } : each)),
             );
+        // Every count says how many of its matches are shown, so the live masks' version is part
+        // of every key.
         const pictureSignature = `${nodeMaskValue.version}:${edgeMaskValue.version}`;
         const each = conditions.map((condition) => {
             const own = signatureOf(condition.rule);
-            return own === null || !inPicture(condition) ? own : `${own}\n${pictureSignature}`;
+            if (own === null) {
+                return own;
+            }
+
+            const where = inPicture(condition) ? "picture" : "graph";
+            return `${own}\n${where}\n${pictureSignature}`;
         });
         const signatures = JSON.stringify(each);
         if (
@@ -2572,6 +2844,77 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             return countsNow();
         },
 
+        openDrafts(): readonly FilterCondition[] {
+            return [...drafts].map((each) => each.condition);
+        },
+
+        draft(target: FilterConditionInput | string): FilterDraft {
+            const list = conditionsNow();
+            const editing = typeof target === "string";
+            // An existing condition is read live and the draft holds only its edits, so a write that
+            // lands meanwhile (a rename, its on box) is kept by the commit; a new one is admitted now,
+            // which fixes its id.
+            const base: FilterCondition | null = editing ? null : admitConditions([target], list)[0];
+            const id = editing ? list[indexOfCondition(list, target)].id : (base?.id ?? "");
+            let edits: Partial<Omit<FilterCondition, "id">> = {};
+            let open = true;
+            const held = (): FilterCondition => {
+                const now = conditionsNow();
+                const from = base ?? now[indexOfCondition(now, id)];
+                return Object.freeze({ ...from, ...edits, id });
+            };
+            const requireOpen = (): void => {
+                if (!open) {
+                    throw new GraphtyError({
+                        code: "E_BAD_COMMAND",
+                        message: `the draft of filter condition "${id}" is closed`,
+                        source: "data",
+                    });
+                }
+            };
+            const made: FilterDraft = {
+                get condition(): FilterCondition {
+                    return held();
+                },
+                get open(): boolean {
+                    return open;
+                },
+                update(change: Partial<Omit<FilterCondition, "id">>): void {
+                    requireOpen();
+                    edits = { ...edits, ...change };
+                },
+                counts(): FilterConditionCount {
+                    const now = held();
+                    return Object.freeze({ id, ...countRule(upToDate(), now.rule, null, now.source) });
+                },
+                commit(options: RunOptions = {}): Run<FilterResult & { readonly id: string }> {
+                    requireOpen();
+                    open = false;
+                    drafts.delete(made);
+                    // One step, as `updateCondition` or `addCondition` writes it, against the
+                    // conditions as they stand now.
+                    const now = conditionsNow();
+                    const condition = held();
+                    if (editing) {
+                        const at = indexOfCondition(now, id);
+                        const next = now.map((each, index) =>
+                            index === at ? conditionOf(condition, condition.rule) : each,
+                        );
+                        return editConditions(admitConditions(next), options, { id });
+                    }
+
+                    const [added] = admitConditions([condition], now);
+                    return editConditions(admitConditions([...now, added]), options, { id: added.id });
+                },
+                cancel(): void {
+                    open = false;
+                    drafts.delete(made);
+                },
+            };
+            drafts.add(made);
+            return made;
+        },
+
         restoreConditions(conditions: readonly FilterCondition[]): Run<FilterResult> {
             const admitted = admitConditions(conditions);
             return edit(
@@ -2760,6 +3103,21 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             held = id;
             heldAll = id !== null && all;
             sources.onSlide?.();
+            tellNotDrawn();
+        },
+
+        get drawsContext(): boolean {
+            return dispatcher.state.visibility.showContext && !workingOn();
+        },
+
+        get notDrawn(): readonly HiddenNotDrawn[] {
+            return notDrawnNow();
+        },
+
+        workingGraphChanged(): void {
+            // The drawn masks are read through calls; only the ghosts' repaint must be told.
+            sources.onSlide?.();
+            tellNotDrawn();
         },
     };
 }

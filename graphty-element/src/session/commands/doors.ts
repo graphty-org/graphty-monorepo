@@ -741,6 +741,9 @@ const HISTORY = exempt("Moves through the history or groups commands into a step
 const INPUT = exempt("Input handling and input preferences; the gestures it drives are doors of their own.");
 const IN_FLIGHT = exempt("Stops or pauses work in flight; work in flight is not saved.");
 const VIEW_SETTING = exempt("A rendering preference of this view, not saved in a project file.");
+const WORKING_GRAPH = exempt(
+    "Which part of the graph readers read when they name none; a session setting, not saved in a project file.",
+);
 const HOST_HOOK = exempt("A function the host supplies; a project file cannot save it.");
 const AUTOSAVE_SETTING = exempt("Where and how this browser keeps the work; not part of the work a project saves.");
 const ASSISTANT = exempt(
@@ -874,6 +877,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     capabilities: READ,
     acceleration: MACHINE,
     setAccelerator: MACHINE,
+    workingGraph: WORKING_GRAPH,
     // Its coordinate and pin columns are copies, so a write there moves nothing.
     snapshot: READ,
     fingerprint: READ,
@@ -992,6 +996,7 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
         [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 } }],
     ),
     showContext: assigns(true, [{ op: "visibility.context", show: true }]),
+    notDrawn: READ,
     steps: READ,
     setSteps: calls(
         [[{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }]],
@@ -1022,6 +1027,8 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
     ),
     removeCondition: conditionDoor(["c1"], []),
     conditionCounts: READ,
+    // Opening a draft writes nothing; its commit is `addCondition` or `updateCondition`.
+    draft: READ,
 };
 
 /**
@@ -1620,6 +1627,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isVoiceActive: READ,
             acceleration: MACHINE,
             accelerationMinNodes: MACHINE,
+            workingGraph: WORKING_GRAPH,
             renderer: MACHINE,
             rendererStatus: READ,
             renderPath: MACHINE,
@@ -2283,8 +2291,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             releaseDetachedScope: DERIVED,
             // A run's results changed; a layout clustering by them moves, and rests in its own step.
             clustersChanged: TRANSPORT,
-            // What the filter shows changed; a layout over what it shows moves, and rests in its own step.
-            relayoutForVisibility: TRANSPORT,
+            // What is shown changed; the layout follows it, and rests in its own step.
+            followView: TRANSPORT,
+            // Whether followView would lay the graph out again; it only reads.
+            viewChanged: READ,
         },
     },
     {
@@ -3239,6 +3249,28 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         },
     },
     {
+        name: "FilterDraft",
+        file: "src/session/visibility/VisibilityApi.ts",
+        half: "session",
+        doors: {
+            // The doors test opens a draft of a new condition "c1"; its commit adds it in one step.
+            commit: calls(
+                [],
+                [
+                    {
+                        op: "visibility.conditions",
+                        conditions: [{ id: "c1", on: true, effect: "keep", rule: { kind: "degree", min: 1 } }],
+                    },
+                ],
+            ),
+            update: exempt("holds an edit in the draft; nothing is written until its commit"),
+            cancel: exempt("closes the draft, writing nothing"),
+            counts: READ,
+            condition: READ,
+            open: READ,
+        },
+    },
+    {
         name: "StepsWatch",
         file: "src/session/scope/steps.ts",
         half: "session",
@@ -3653,10 +3685,15 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ghosts: READ,
             rule: READ,
             previewSteps: READ,
+            openDrafts: READ,
             filterBytes: READ,
             passingBytes: READ,
             hold: exempt(
                 "Draws a condition's removals as ghosts while a reader edits it; the conditions are unchanged.",
+            ),
+            drawsContext: READ,
+            workingGraphChanged: exempt(
+                "Tells the drawn masks the working graph option moved; a session setting, not saved.",
             ),
             commitWindow: calls(
                 [{ attribute: "data.t", from: 0, to: 1 }],

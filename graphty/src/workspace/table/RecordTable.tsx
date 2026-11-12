@@ -40,6 +40,8 @@ interface Row {
  * @param kind - nodes or edges.
  * @param column - the column.
  * @param record - the row's record.
+ * @param whole - a structure value (degree) is measured over the whole graph (All, or a filter's
+ *     own matches), else over what is shown.
  * @returns the cell's value.
  */
 function cellValue(
@@ -47,9 +49,11 @@ function cellValue(
     kind: RecordKind,
     column: TableColumnChoice,
     record: NodeRecord | EdgeRecord,
+    whole: boolean,
 ): DataTableValue {
     const key = column.attribute ?? column.id;
-    const value = column.structure === true ? session.data.structureValue(record.id, key) : record[key];
+    const scope = whole ? ({ scope: "graph" } as const) : {};
+    const value = column.structure === true ? session.data.structureValue(record.id, key, scope) : record[key];
     if (kind === "edge" && (key === "source" || key === "target")) {
         const id = value as NodeId;
         return session.data.name(id) ?? String(id);
@@ -68,6 +72,11 @@ interface RecordTableProps {
     columns: readonly TableColumnChoice[];
     /** Which records: the graph, or a group's members. */
     scope: ScopeInput;
+    /**
+     * Structure values (degree) are measured over the whole graph even when the records are a
+     * group's members: a filter's own matches, which read the whole graph. Implied by scope "graph".
+     */
+    wholeGraph?: boolean;
     /** Only the records an open issue is on: one issue's id, or "any" for every open issue; null for every record. */
     issue?: IssueId | null;
     /** The issues each column's warning carries, by column id: a cell on a record they are on is tinted. */
@@ -172,6 +181,7 @@ function groupCell(group: { name: string; color: string } | null, filled: boolea
  * @param props.kind - Nodes or edges
  * @param props.columns - The visible columns
  * @param props.scope - Which records
+ * @param props.wholeGraph - Structure values are measured over the whole graph
  * @param props.issue - Only the records an open issue is on
  * @param props.issueColumns - The issues each column's warning carries
  * @param props.sort - The sorted column
@@ -201,6 +211,7 @@ export function RecordTable({
     matching,
     localSelection = false,
     groupColumn = false,
+    wholeGraph = false,
 }: Readonly<RecordTableProps>): React.JSX.Element {
     const [range, setRange] = useState({ offset: 0, limit: 200 });
     const [marked, setMarked] = useState<readonly (NodeId | EdgeId)[]>([]);
@@ -275,7 +286,7 @@ export function RecordTable({
             value:
                 at >= 0
                     ? (row) => resultValue(page.columns?.[at], row.index)
-                    : (row) => cellValue(session, kind, column, row.record),
+                    : (row) => cellValue(session, kind, column, row.record, wholeGraph || scope === "graph"),
         };
     });
 

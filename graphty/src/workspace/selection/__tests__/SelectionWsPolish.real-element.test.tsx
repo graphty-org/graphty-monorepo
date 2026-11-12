@@ -292,7 +292,7 @@ describe("the workspace over the canvas", () => {
 });
 
 describe("a filter card", () => {
-    it("is drawn over the full graph while it is edited", async () => {
+    it("is drawn over what is shown while it is edited, no hidden node drawn faint", async () => {
         const { session } = await openSample();
         const card = (id: string, rule: { min?: number; max?: number }) =>
             session.visibility.addCondition({
@@ -316,9 +316,13 @@ describe("a filter card", () => {
         await userEvent.click(await screen.findByRole("button", { name: /Degree max 3/ }));
         await userEvent.click(await screen.findByRole("button", { name: /^Edit Degree max 3/ }));
         await opened();
+        // With graphty-element's working graph on, the other cards' removals are not lifted and drawn
+        // faint over the picture (design/working-graph/design.md, section 3; the owner's report,
+        // 2026-11-07, of faded old nodes under a new layout).
         await waitFor(() => {
-            assert.strictEqual(session.styles.shownBranches?.base, "full");
+            assert.isTrue(session.styles.showingBranches);
         });
+        assert.notStrictEqual(session.styles.shownBranches?.base, "full");
     });
 });
 

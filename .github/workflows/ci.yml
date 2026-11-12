@@ -1394,6 +1394,12 @@ jobs:
             - name: No special style layers
               run: pnpm run check:special-layers
 
+            # Every reader reads the working graph (design/working-graph/design.md section 9):
+            # graphty-element/working-graph-whole-readers.json, the readers that read the whole graph by
+            # agreement, may only shrink against the merge base. The same check runs in tools/check-quick.sh.
+            - name: Readers honor the working graph
+              run: pnpm run check:working-graph
+
             # No pile of images committed outside the folders that hold them (more than 20 new images or
             # 20 MB against the base; an `Images-Approved: <reason>` trailer passes a deliberate addition).
             # The same check runs in tools/prepush-source-checks.sh.

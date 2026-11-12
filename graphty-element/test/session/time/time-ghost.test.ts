@@ -21,7 +21,7 @@ beforeAll(() => {
  *   designated on nodes and edges.
  */
 async function trace(startingRows = true): Promise<ElementSession> {
-    const session = createGraphSession() as ElementSession;
+    const session = createGraphSession({ workingGraph: false }) as ElementSession;
     if (startingRows) {
         await session.config.set({ startingRows: true });
     }

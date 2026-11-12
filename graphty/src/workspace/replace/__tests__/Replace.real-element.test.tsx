@@ -61,8 +61,9 @@ function drop(file: File): void {
  */
 async function holds(session: GraphSession, nodes: number, edges: number): Promise<void> {
     await waitFor(() => {
-        assert.strictEqual(session.data.nodes().length, nodes);
-        assert.strictEqual(session.data.edges().length, edges);
+        // The whole graph, by name: the app reads the working graph, and a filter is on here.
+        assert.strictEqual(session.data.nodes({ scope: "graph" }).length, nodes);
+        assert.strictEqual(session.data.edges({ scope: "graph" }).length, edges);
     });
 }
 

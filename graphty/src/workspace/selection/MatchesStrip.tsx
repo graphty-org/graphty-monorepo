@@ -138,6 +138,9 @@ export function MatchesStrip({
                         matching={typed === "" ? undefined : typed}
                         localSelection={modal}
                         groupColumn={!modal}
+                        // A selection on the full graph (a filter's own) tests degree there, so
+                        // its matches show that degree, not the degree among what is shown.
+                        wholeGraph={rule.within === "graph"}
                     />
                 )}
             </div>

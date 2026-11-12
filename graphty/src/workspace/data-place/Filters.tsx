@@ -39,7 +39,7 @@ import { addStep, editBranch, newSelection } from "../selection/model";
 import { type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
 import { useSteps } from "../selection/useSteps";
 import { filterSelection, type PickSection, ruleOfField, sideOf } from "../selection/values";
-import { cardsWords, rowTest, rowWords, stepWords, VERB_WORDS } from "../selection/words";
+import { cardsWords, rowTest, rowWords, shownWords, stepWords, VERB_WORDS } from "../selection/words";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type CardField, cardFields, type Side } from "../style/cards";
@@ -434,7 +434,7 @@ function CountChips({
             {halves.map(([kind, half]) =>
                 half === null ? null : (
                     <EntityChip key={kind} kind={kind}>
-                        {`${formatNumber(staying(effect, half))} of ${formatNumber(half.total)}`}
+                        {`${formatNumber(staying(effect, half))} of ${formatNumber(half.total)}${effect === "keep" ? shownWords({ count: half.matched, shown: half.shown }) : ""}`}
                     </EntityChip>
                 ),
             )}
@@ -666,7 +666,12 @@ function FilterCard({
               ]),
         { id: "delete", label: "Delete", icon: "delete", group: "remove", key: "Delete", onRun: remove },
     ];
-    const total = selection === null ? undefined : `${formatNumber(matched)} of ${formatNumber(reading.total.of)}`;
+    // A card that removes its matches shows none of them; only the others say how many are shown.
+    const shownSuffix = condition?.effect === "exclude" ? "" : shownWords(reading.total);
+    const ofAll = `${formatNumber(matched)} of ${formatNumber(reading.total.of)}`;
+    const total = selection === null ? undefined : `${ofAll}${shownSuffix}`;
+    // Spoken, the kind of thing counted follows the count, before what is shown: "12 of 77 nodes, 0 shown".
+    const spoken = selection === null ? undefined : `${ofAll} ${things}${shownSuffix}`;
     // While a card's workspace is open the other cards keep their rows but drop their counts.
     const editing = useWorkspaceState((state) => state.selectionWorkspace?.host === "filter");
 
@@ -677,7 +682,7 @@ function FilterCard({
                 role="group"
                 data-id={id}
                 tabIndex={-1}
-                aria-label={total === undefined ? name : `${name}, ${total} ${things}`}
+                aria-label={spoken === undefined ? name : `${name}, ${spoken}`}
                 className="ws-card dp-filter"
                 data-off={on ? undefined : ""}
                 data-open={open ? "" : undefined}
@@ -798,7 +803,7 @@ function FilterCard({
                                         ? ["Edit", ...(on ? [] : ["off"])].join(", ")
                                         : [
                                               title,
-                                              ...(total === undefined ? [] : [`${total} ${things}`]),
+                                              ...(spoken === undefined ? [] : [spoken]),
                                               ...(on ? [] : ["off"]),
                                           ].join(", ")
                                 }
@@ -962,7 +967,7 @@ function TimeRow({ session, store }: Readonly<{ session: GraphSession; store: Wo
     const inside =
         window === null || extent === null
             ? undefined
-            : time.bins({ count: 1, from: Number(window.from), to: Number(window.to) })?.[0]?.[side];
+            : time.bins({ count: 1, from: Number(window.from), to: Number(window.to), scope: "all" })?.[0]?.[side];
     const name = words === null ? TIME_WINDOW : `${TIME_WINDOW} ${words}`;
     const apply = (on: boolean): void => {
         time.pause();

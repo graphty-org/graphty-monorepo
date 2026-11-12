@@ -432,8 +432,11 @@ export const dataManagerInternals = {} as {
      * null for an engine that lays out only `Edge`s, for which every edge gets one.
      */
     setLayoutEdgeRows(manager: DataManager, rows: LayoutEdgeRows | null): void;
-    /** The edge rows of the edges stored with no `Edge` (each one's id and its two node ids). */
-    unbuiltEdgeRows(manager: DataManager): EdgeRow[];
+    /**
+     * The edge rows of the edges stored with no `Edge` (each one's id and its two node ids), only
+     * those whose row `keep` keeps when it is given.
+     */
+    unbuiltEdgeRows(manager: DataManager, keep?: (row: number) => boolean): EdgeRow[];
 };
 
 /** How a layout engine takes and lets go of the edges stored with no `Edge`. See `dataManagerInternals.setLayoutEdgeRows`. */
@@ -716,8 +719,10 @@ export class DataManager implements Manager {
         dataManagerInternals.setLayoutEdgeRows = (manager, rows) => {
             manager.layoutEdgeRows = rows;
         };
-        dataManagerInternals.unbuiltEdgeRows = (manager) =>
-            [...manager.unbuiltEdges.values()].map((stored) => edgeRowOf(stored));
+        dataManagerInternals.unbuiltEdgeRows = (manager, keep) =>
+            [...manager.unbuiltEdges]
+                .filter(([row]) => keep === undefined || keep(row))
+                .map(([, stored]) => edgeRowOf(stored));
         dataManagerInternals.followRenumbering = (manager, follower) => {
             manager.renumberFollowers.add(follower);
             return () => {

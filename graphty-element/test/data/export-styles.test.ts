@@ -40,7 +40,7 @@ const FORMATS: readonly [string, string, Readonly<Record<string, unknown>>][] = 
  * @returns The session, loaded.
  */
 async function chain(): Promise<GraphSession> {
-    const session = createGraphSession();
+    const session = createGraphSession({ workingGraph: false });
     const nodes = Array.from({ length: 8 }, (_unused, i) => ({
         id: `n${String(i)}`,
         group: i % 3 === 0 ? "x" : "y",
@@ -151,7 +151,7 @@ async function styled(): Promise<GraphSession> {
  * @returns The session.
  */
 async function loadBack(text: string | Uint8Array, format: string): Promise<GraphSession> {
-    const session = createGraphSession();
+    const session = createGraphSession({ workingGraph: false });
     await session.data.import({ type: format, config: { data: text } }, { styles: "file" });
     return session;
 }
@@ -289,7 +289,7 @@ describe("a column a format could not keep", () => {
         // Another rule carries `flag` beside the block, so the layer selecting the nodes with no
         // `flag` is drawn by its neutral rule, which selects by membership, not by the column.
         const file = join(__dirname, "..", "..", "..", "graph-io", "test", "corpus", "styles", "cyjs", "adv");
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.data.import(
             { type: "json", config: { data: readFileSync(join(file, "cyjs-selector-zoo.cyjs"), "utf8") } },
             { styles: "file" },
@@ -316,7 +316,7 @@ describe("a layer that selects by id", () => {
             set: { "node.color": "#123456" },
         });
         const result = exportSession(session, "gexf", { styles: true });
-        const back = createGraphSession();
+        const back = createGraphSession({ workingGraph: false });
         await back.data.import({ type: "gexf", config: { data: await result.text() } }, { styles: "file" });
         const layer = back.styles.list().find((one) => one.name === "many");
         assert.strictEqual(layer?.kind, "highlight");

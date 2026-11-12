@@ -6,7 +6,7 @@
  * place; Escape takes a new card back; the card's Nodes | Edges switch starts it again on edges;
  * no card shows Select, Filter to or Filter out, and "Select N" in its "..." selects exactly its
  * matches; a tier 4 Filter out card opens as All nodes / Except and, while its step is selected,
- * what it removes stays drawn faint and still hidden, until Escape.
+ * what it removes stays hidden and is not drawn, until Escape.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -213,7 +213,7 @@ describe("the import filter's cards as selections", () => {
         });
     });
 
-    it("a tier 4 Filter out opens as All nodes / Except; while its step is selected what it removes is drawn faint", async () => {
+    it("a tier 4 Filter out opens as All nodes / Except; while its step is selected what it removes stays hidden, not drawn", async () => {
         const session = await openData();
         await session.visibility.addCondition({
             id: "busy",
@@ -236,11 +236,16 @@ describe("the import filter's cards as selections", () => {
         }
         assert.match(row.getAttribute("aria-label") ?? "", /^Except, Degree min 30/);
         await userEvent.click(row.querySelector(".sel-value") ?? row);
-        await waitFor(async () => {
+        await waitFor(() => {
             assert.isTrue(session.styles.showingBranches);
-            await session.styles.settled();
-            assert.strictEqual(valjeanOpacity(session), 0.2, "what the card removes is drawn faint");
         });
+        // With graphty-element's working graph on, only what is shown is drawn: what the card removes
+        // is not drawn faint over the picture (design/working-graph/design.md, section 3; the owner's
+        // report, 2026-11-07).
+        const element = document.querySelector("graphty-element");
+        await element?.waitForPainted();
+        await element?.waitForStableFrame();
+        assert.isFalse(element?.nodeScreenPosition("Valjean")?.visible ?? false, "what the card removes is not drawn");
         assert.strictEqual(session.visibility.summary.visibleNodes, visible, "and is still filtered out");
         assert.equal(session.visibility.conditions[0]?.rule.kind, "range", "selecting it writes nothing");
         await userEvent.click(within(await ws()).getByRole("button", { name: "Done" }));

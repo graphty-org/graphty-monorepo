@@ -692,7 +692,8 @@ function generateClass(algorithm: CheckedAlgorithm): GeneratedClass {
             // ponytail: the view reads the session's snapshot and records directly -- the minimum
             // internal adapter until the advanced contract's snapshot layout, `input.column` and
             // `input.edgeId` (algorithm.md section 3) are built on master and replace it.
-            const view = createGraphView(viewSourceOf(this.graph.getSession()), {
+            // The run's input: the whole graph, or the working graph's view of what is shown.
+            const view = createGraphView(viewSourceOf(this.graph.getSession(), context.input("declared").subgraph()), {
                 id,
                 directed: algorithm.directed,
             });

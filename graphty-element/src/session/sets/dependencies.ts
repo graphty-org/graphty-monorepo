@@ -206,6 +206,13 @@ class Collector {
                 this.itemRule(node.item);
                 return;
             case "threshold":
+                // Ranked among what is shown, it moves when what is shown does.
+                if (node.within === "visible") {
+                    this.add({ kind: "visible" });
+                }
+
+                this.path(node.path);
+                return;
             case "by-size":
                 this.path(node.path);
                 return;

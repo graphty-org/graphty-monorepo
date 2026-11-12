@@ -81,7 +81,7 @@ const file = (text: string, name: string): { config: { file: File } } => ({ conf
  * @returns the session and the October file's text
  */
 async function supplyChain(edges = 150, count = 40): Promise<{ session: GraphSession; october: string }> {
-    const session = createGraphSession();
+    const session = createGraphSession({ workingGraph: false });
     const { september, october } = shipments(edges, count);
     await (await session.data.prepare(file(suppliersCsv(count), "suppliers.csv"))).load();
     await (await session.data.prepare(file(september, "ships-to-2024-09.csv"))).load({ mode: "merge" });
@@ -165,7 +165,7 @@ describe("replacing a load with a newer copy", () => {
     });
 
     it("removes a node only the load supplied and keeps one another load supplied", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.data.import({ type: "csv", config: { data: "source,target\nA,B\nB,C\n" }, name: "a.csv" });
         await session.data.import(
             { type: "csv", config: { data: "source,target\nC,D\nD,E\n" }, name: "b.csv" },

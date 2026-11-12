@@ -185,8 +185,29 @@ describe("Filter cards on the real element", () => {
         });
         const resting = await card(/value/);
         assert.equal(resting.getByRole("button", { name: /^value/ }).getAttribute("aria-expanded"), "false");
-        assert.isNotNull(resting.getByText("4 of 9"));
+        // Its count reads the whole graph; the label card hides some of its edges, which it says.
+        const shown = session.visibility.conditionCounts()[0]?.edges?.shown ?? 4;
+        assert.isNotNull(resting.getByText(shown < 4 ? `4 of 9, ${String(shown)} shown` : "4 of 9"));
         assert.isNotNull(resting.getByRole("checkbox", { name: /^Use / }));
+    });
+
+    it("a card beside another filter says how many of its matches are shown", async () => {
+        const { session } = await openWithGraph();
+        await session.visibility.addCondition({ effect: "keep", rule: { kind: "degree", min: 3 } });
+        await session.visibility.addCondition({
+            effect: "keep",
+            rule: { kind: "text", reads: "data.label", mode: "substring", text: "e" },
+        });
+        // Its count reads the whole graph (a filter's own conditions do); the degree card hides some
+        // of what it matches, and the card says how many of its matches a reader can see.
+        const label = session.data.nodes({ scope: "graph" }).filter((node) => String(node.label).includes("e"));
+        const visible = new Set([...session.visibility.nodes].map(String));
+        const shown = label.filter((node) => visible.has(String(node.id)));
+        assert.isBelow(shown.length, label.length, "the degree card hides some of them");
+        const resting = await card(/label/);
+        await waitFor(() => {
+            assert.isNotNull(resting.getByText(`${String(label.length)} of 8, ${String(shown.length)} shown`));
+        });
     });
 
     it("Delete in the card's menu takes it out; Undo puts it back", async () => {
@@ -326,7 +347,8 @@ describe("Filter cards on the real element", () => {
         const selects = await card(/^Select /);
         assert.isTrue((selects.getByRole("checkbox", { name: /^Use / }) as HTMLInputElement).checked);
         const matched = session.visibility.conditionCounts().find((each) => each.id === "out")?.nodes?.matched ?? 0;
-        const total = session.data.statistics().nodeCount;
+        // The card counts the whole graph (a filter's own conditions do), not what the filter leaves.
+        const total = session.data.statistics({ scope: "all" }).nodeCount;
         assert.isAbove(matched, 0);
         const removes = [...filters().querySelectorAll<HTMLElement>(":scope > li > [role=group]")][1];
         await waitFor(() => {

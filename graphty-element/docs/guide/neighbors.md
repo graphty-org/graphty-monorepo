@@ -17,7 +17,7 @@ const element = document.querySelector("graphty-element")!;
 const list = document.querySelector("#neighbors")!;
 
 element.addEventListener("graphty-node-click", (e) => {
-    const page = element.session.data.neighbors(e.detail.nodeId, { limit: 10 });
+    const page = element.session.data.neighbors(e.detail.nodeId, { limit: 10, scope: "graph" });
     list.replaceChildren(
         ...page.records.map((n) => {
             const li = document.createElement("li");
@@ -34,7 +34,9 @@ Importing the package registers the tag, so `querySelector("graphty-element")` i
 element, with `session` and the `graphty-node-*` events on it. `e.detail.nodeId` is the clicked
 node's id, a `NodeId` (`string | number`, exported from both entry points; `NodeIdType` is the
 same type). The words, the `"hidden"` class and the aria-label are the example's own; the page
-gives you only values.
+gives you only values. `scope: "graph"` lists the neighbors the filter hides too, marked by
+`excludedBy`; with no scope, the element's `workingGraph` option (on by default) lists only the
+shown ones.
 
 With no `weight` option, the neighbors are weighed by the column the graph was loaded with: the
 element's `edgeWeightPath` setting (`data.knownFields.edgeWeightPath`), `"weight"` unless you set
@@ -50,13 +52,13 @@ The types are exported from both `@graphty/graphty-element` and
 
 Each row is a `Neighbor`:
 
-| Field        | What it holds                                                                                                                                                                                                                                           |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `node`       | The neighbor's record, as `session.data.node(id)` returns it.                                                                                                                                                                                           |
-| `name`       | The value of the node's label column (`data.knownFields.nodeLabelPath`) as text, or its id when it has none or it is empty. Render as text.                                                                                                             |
-| `weight`     | A number: the combined weight of the edges between the two. When `page.measuredBy` is `null` it is the number of edges, the same as `edgeCount`.                                                                                                        |
-| `edgeCount`  | A number: how many edges join the two, each counted once.                                                                                                                                                                                               |
-| `excludedBy` | `{ kind: "filter" }` when the session's visibility hides the neighbor -- `visibility.set()` or `visibility.setWindow()`, which are one filter -- and absent otherwise. `"filter"` is the only kind. Hidden neighbors are listed, marked, never dropped. |
+| Field        | What it holds                                                                                                                                                                                                                                                      |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `node`       | The neighbor's record, as `session.data.node(id)` returns it.                                                                                                                                                                                                      |
+| `name`       | The value of the node's label column (`data.knownFields.nodeLabelPath`) as text, or its id when it has none or it is empty. Render as text.                                                                                                                        |
+| `weight`     | A number: the combined weight of the edges between the two. When `page.measuredBy` is `null` it is the number of edges, the same as `edgeCount`.                                                                                                                   |
+| `edgeCount`  | A number: how many edges join the two, each counted once.                                                                                                                                                                                                          |
+| `excludedBy` | `{ kind: "filter" }` when the session's visibility hides the neighbor -- `visibility.set()` or `visibility.setWindow()`, which are one filter -- and absent otherwise. `"filter"` is the only kind. Over `scope: "graph"`, hidden neighbors are listed and marked. |
 
 The page is a `NeighborPage`: `records`, `offset`, `total` (how many neighbors, not edges) and
 `revision`, as [`nodePage`](./javascript-api.md#reading-records-a-page-at-a-time) returns, plus:
@@ -79,14 +81,14 @@ heading.textContent = `${session.data.name(nodeId)}: ${String(page.total)} conne
 
 Every option is optional.
 
-| Option      | Default                       | What it does                                                                                                                                                                                                                                                                                                                                                       |
-| ----------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `direction` | `"all"`                       | `"out"` follows only edges leaving the node and `"in"` only edges arriving at it. On an undirected graph all three are the same.                                                                                                                                                                                                                                   |
-| `weight`    | the loaded weight, a strength | A `WeightMeaning`: `{ attribute: "calls", meaning: "strength" }`. `attribute` is an edge column; `meaning` is `"strength"` (larger is a stronger tie; several edges add up) or `"distance"` (smaller is closer; the shortest edge counts). `null` counts edges. A column no edge has throws `E_UNKNOWN_ATTRIBUTE`, with the nearest names in `details.candidates`. |
-| `scope`     | `"graph"`                     | Which neighbors are listed: any scope, such as `"visible"`, `"selection"` or `{ set: id }`. The [scope table](./sets.md#kept-sets-and-inline-sets) lists them all. With `"graph"`, hidden neighbors are listed and marked; with `"visible"` they are left out.                                                                                                     |
-| `sort`      | strongest first, else by name | `{ by: "weight" }` or `{ by: "name" }`: smallest first, or largest first with `descending: true`, whatever the weight means. So the default is `{ by: "weight", descending: true }` for a strength and `{ by: "weight" }` for a distance, and to reverse it you flip `descending`. Equal rows keep the order the nodes were added in.                              |
-| `offset`    | `0`                           | Where the page starts.                                                                                                                                                                                                                                                                                                                                             |
-| `limit`     | `100`                         | How many rows the page holds; `Infinity` reads them all, and `0` reads only `total`.                                                                                                                                                                                                                                                                               |
+| Option      | Default                                           | What it does                                                                                                                                                                                                                                                                                                                                                       |
+| ----------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `direction` | `"all"`                                           | `"out"` follows only edges leaving the node and `"in"` only edges arriving at it. On an undirected graph all three are the same.                                                                                                                                                                                                                                   |
+| `weight`    | the loaded weight, a strength                     | A `WeightMeaning`: `{ attribute: "calls", meaning: "strength" }`. `attribute` is an edge column; `meaning` is `"strength"` (larger is a stronger tie; several edges add up) or `"distance"` (smaller is closer; the shortest edge counts). `null` counts edges. A column no edge has throws `E_UNKNOWN_ATTRIBUTE`, with the nearest names in `details.candidates`. |
+| `scope`     | `"visible"`, or `"graph"` with `workingGraph` off | Which neighbors are listed: any scope, such as `"visible"`, `"selection"` or `{ set: id }`. The [scope table](./sets.md#kept-sets-and-inline-sets) lists them all. With `"graph"`, hidden neighbors are listed and marked; with `"visible"` they are left out.                                                                                                     |
+| `sort`      | strongest first, else by name                     | `{ by: "weight" }` or `{ by: "name" }`: smallest first, or largest first with `descending: true`, whatever the weight means. So the default is `{ by: "weight", descending: true }` for a strength and `{ by: "weight" }` for a distance, and to reverse it you flip `descending`. Equal rows keep the order the nodes were added in.                              |
+| `offset`    | `0`                                               | Where the page starts.                                                                                                                                                                                                                                                                                                                                             |
+| `limit`     | `100`                                             | How many rows the page holds; `Infinity` reads them all, and `0` reads only `total`.                                                                                                                                                                                                                                                                               |
 
 ```ts
 // Nearest first, by road distance, following only outgoing edges:

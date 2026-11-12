@@ -1065,6 +1065,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         return value;
     };
 
+    const { visibility } = sources;
     const steps = createScopeSteps({
         read: (leaf) => readUnionLeaf(sources.snapshot(), leaf, filterSourcesIn(context())),
         reading: {
@@ -1094,11 +1095,25 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
                 const index = side === "nodes" ? graph.ids.indexOf(id) : edgeSpaceOf(graph).indexOf(id as EdgeId);
                 return index === INVALID_INDEX ? -1 : index;
             },
+            ...(visibility === undefined
+                ? {}
+                : {
+                      shownOn: (side: "nodes" | "edges") => {
+                          const mask = side === "nodes" ? visibility.nodes() : visibility.edges();
+                          return (index: number) => mask.has(index);
+                      },
+                  }),
         },
         assertRule: (tree) => {
             parseScope({ define: { kind: "rule", where: tree, reading: "clipped" } });
         },
-        signature: (leaf) => scopeSignature({ define: { kind: "rule", where: leaf, reading: "clipped" } }, context()),
+        // What is shown is part of every reading (`total.shown`), so a filter change is heard too.
+        signature: (leaf) => {
+            const own = scopeSignature({ define: { kind: "rule", where: leaf, reading: "clipped" } }, context());
+            return own === null || visibility === undefined
+                ? own
+                : `${own}\n${String(visibility.nodes().version)}:${String(visibility.edges().version)}`;
+        },
         ...(sources.subscribe === undefined ? {} : { subscribe: sources.subscribe }),
         ...(sources.stepRuns === undefined ? {} : { stepRuns: sources.stepRuns }),
         ...(sources.runScopeOf === undefined ? {} : { runScopeOf: sources.runScopeOf }),

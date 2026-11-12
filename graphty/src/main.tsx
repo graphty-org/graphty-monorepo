@@ -10,6 +10,7 @@ import ReactDOM from "react-dom/client";
 
 import { App } from "./App.tsx";
 import { loadGraphtyElement } from "./elementLoader";
+import { startRemoteLogIfAsked } from "./lib/remoteLog";
 import { loadSiteConfig } from "./siteConfig";
 import { theme } from "./theme";
 import { loadFrame } from "./workspace/frameLoader";
@@ -17,6 +18,9 @@ import { startUsageDataIfShared } from "./workspace/privacy/usageData";
 
 // Re-export theme for tests and other modules
 export { theme } from "./theme";
+
+// Diagnostics for a browser we cannot open: only with ?remoteLog in the address (lib/remoteLog.ts).
+startRemoteLogIfAsked();
 
 // Nothing is sent until the reader says Share usage data on the start screen or in Settings >
 // Privacy; a reader who said so on an earlier visit starts sending again here, once the site's

@@ -423,21 +423,10 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
     }
 
     /**
-     * The frame a run would publish over the graph as it stands, without moving a node: over the
-     * part a run lays out, so a node the layout leaves out does not widen it.
+     * The frame a run would publish over the graph as it stands, without moving a node.
      * @param m - The placement module.
      */
     #restoreFrame(m: typeof import("./locationMap/place")): void {
-        this.inKeptPart(() => {
-            this.#restoreFrameNow(m);
-        });
-    }
-
-    /**
-     * {@link LocationMapLayoutEngine.#restoreFrame} over the graph `graph` answers now.
-     * @param m - The placement module.
-     */
-    #restoreFrameNow(m: typeof import("./locationMap/place")): void {
         const n = this.graph.nodeCount;
         const columns = this.#dataColumns(n);
         const answer = resolveLocation(this.#choice(), columns, (name) => named(columns, name), this.#places());

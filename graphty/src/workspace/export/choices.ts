@@ -62,11 +62,11 @@ export const DEFAULT_DATA: DataChoices = { format: "csv", variant: "csv", values
 /**
  * The element's export scope for a scope choice.
  * @param scope - the choice.
- * @returns the scope, or undefined for the whole graph.
+ * @returns the scope.
  */
-export function exportScope(scope: DataScope): ExportScope | undefined {
+export function exportScope(scope: DataScope): ExportScope {
     if (scope === "all") {
-        return undefined;
+        return "all";
     }
     if (scope.startsWith("source:")) {
         return { kind: "source", sources: [scope.slice(7)] };
@@ -202,7 +202,7 @@ export function dataExportOptions(
     }
     return {
         ...options,
-        ...(scope === undefined ? {} : { scope }),
+        scope,
         ...(columns === undefined ? {} : { columns }),
     };
 }

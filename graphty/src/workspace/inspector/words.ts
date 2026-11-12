@@ -562,6 +562,18 @@ export function neighborhoodWords(center: string, around: number, hops = 1): str
 /** What a node's Degree row does: it changes the selection. */
 export const DEGREE_ROW_WORDS = "Select this node and its neighbors";
 
+/**
+ * What a degree is called where it is read: among what is shown while a filter or the time window
+ * hides something ("Degree showing", as "Nodes showing"), else plain "Degree".
+ * @param session - the element's session.
+ * @param name - the degree's name ("Degree", "In-degree").
+ * @returns the label.
+ */
+export function degreeLabel(session: GraphSession, name = "Degree"): string {
+    const { visibleNodes, totalNodes } = session.visibility.summary;
+    return visibleNodes < totalNodes ? `${name} showing` : name;
+}
+
 /** What Filter to neighbors does, and where it is turned off. */
 export const NEIGHBOR_FILTER_WORDS = "Hide every node outside this neighborhood. Its card in Filters turns it off";
 

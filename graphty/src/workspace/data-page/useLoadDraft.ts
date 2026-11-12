@@ -228,7 +228,7 @@ export function useLoadDraft(
         return () => {
             stale = true;
         };
-    }, [draft, choices, mode, fileStyles]);
+    }, [session, draft, choices, mode, fileStyles]);
 
     // The grid's rows. The unmatched and rejected filters are read under the same choices the
     // report counted with: without them the element reads a load that replaces the graph, so an
@@ -254,7 +254,7 @@ export function useLoadDraft(
         return () => {
             stale = true;
         };
-    }, [draft, tableId, filter, choices, mode, fileStyles]);
+    }, [session, draft, tableId, filter, choices, mode, fileStyles]);
 
     const load = useCallback(
         async (history?: LoadChoices["history"]): Promise<boolean> => {

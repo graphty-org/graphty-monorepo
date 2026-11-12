@@ -17,7 +17,7 @@ import { drawnText } from "./config/RichTextStyle";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
-import type { EdgePosition } from "./layout/LayoutEngine";
+import { type EdgePosition, layoutEngineInternals } from "./layout/LayoutEngine";
 import type { LocationMapFrame } from "./layout/locationMap/place";
 import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
@@ -1472,6 +1472,16 @@ export class Edge {
     }
 
     /**
+     * Where the running layout puts this edge, or nowhere without one. An edge the layout's working
+     * graph hides runs straight between its ends.
+     * @returns The position, or undefined.
+     */
+    private laidOutPosition(): EdgePosition | undefined {
+        const engine = this.context.getLayoutManager().layoutEngine;
+        return engine === undefined ? undefined : layoutEngineInternals.edgePositionOf(engine, this);
+    }
+
+    /**
      * Updates the edge's visual representation based on current node positions and style changes.
      * Performs dirty checking to skip updates when nodes haven't moved.
      */
@@ -1527,7 +1537,7 @@ export class Edge {
 
         this.context.getStatsManager().startMeasurement("Edge.update");
 
-        const lnk = this.context.getLayoutManager().layoutEngine?.getEdgePosition(this);
+        const lnk = this.laidOutPosition();
         if (!lnk) {
             this.endsMoving = false;
             this.context.getStatsManager().endMeasurement("Edge.update");

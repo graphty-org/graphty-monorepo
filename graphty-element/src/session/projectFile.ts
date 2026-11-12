@@ -25,6 +25,7 @@ import {
     PROJECT_FILE,
     type ResultShape,
     type RunId,
+    type Scope,
     type SetDefinitionInput,
     type StyleDocument,
 } from "../catalog/types";
@@ -736,9 +737,12 @@ export function dataMember(
         const { "_source.loads": _held, ...rest } = record;
         return (loads === undefined ? rest : { ...rest, "_source.loads": loads }) as unknown as T;
     };
-    const nodes = session.data.nodes().map((node) => withLoads(node, session.data.sourcesOf(node.id)));
+    const nodes = session.data
+        .nodes({ scope: "graph" })
+        .map((node) => withLoads(node, session.data.sourcesOf(node.id)));
+    // The whole graph, as the nodes are: the file is the original, not what a filter shows.
     const edges = session.data
-        .edges()
+        .edges({ scope: "graph" })
         .map((edge) => withLoads(edge, session.data.sourcesOf(edge.id, { kind: "edge" })));
     // Where the graph was loaded from, and what the reader named it: not the rows, which are here.
     const source = session.data.source();
@@ -942,6 +946,9 @@ export function runEntry(sources: ProjectSources, id: RunId, ids: GraphIds): Rec
         shape: result.shape,
         fields: result.fields,
         measured: result.measured,
+        // How many elements it ran over, so an open restores it over the same ones (current) or
+        // marks it out of date, whichever the filter the file holds makes it.
+        ranOn: { nodes: entry.record.scope.nodes, edges: entry.record.scope.edges },
         graph: result.graph,
         caveats: entry.record.caveats,
         durationMs: entry.record.durationMs ?? 0,
@@ -1506,7 +1513,7 @@ async function importInto(
     sources: unknown,
     provenance?: unknown,
 ): Promise<(EdgeId | undefined)[]> {
-    const before = tx.data.edges().length;
+    const before = tx.data.edges({ scope: "graph" }).length;
     await tx.execute({ op: "data.apply", mutation: { kind: "add-nodes", records: graph.nodes, idPath: "id" } });
     await tx.execute({
         op: "data.apply",
@@ -1519,7 +1526,7 @@ async function importInto(
         },
     });
     const edgeIds = tx.data
-        .edges()
+        .edges({ scope: "graph" })
         .slice(before)
         .map((edge) => edge.id);
     if (isObject(source)) {
@@ -1657,6 +1664,8 @@ interface Opening {
     readonly services: Dispatcher["services"];
     /** Marks a restored run as one whose id the element minted. */
     readonly restoreDerived: (id: RunId) => void;
+    /** How many elements a run over a scope (absent: the default run scope) would hold now. */
+    readonly scopeCountOf: (spec?: Scope) => ElementCount | null;
 }
 
 /**
@@ -1815,6 +1824,68 @@ async function addStylesAndNotes(
 }
 
 /**
+ * Put the saved positions and pins back, for the nodes the opened graph holds.
+ * @param opening - The open.
+ * @param arrangement - The file's arrangement member, if it has one.
+ * @param nodeIds - The opened graph's nodes.
+ */
+async function readArrangement(
+    opening: Opening,
+    arrangement: Record<string, unknown> | undefined,
+    nodeIds: ReadonlySet<NodeId>,
+): Promise<void> {
+    if (arrangement === undefined) {
+        return;
+    }
+
+    const { tx } = opening;
+    await attempt(opening, "arrangement", async () => {
+        const ids = arrangement.ids as NodeId[];
+        const [xs, ys, zs] = [arrangement.x, arrangement.y, arrangement.z].map((column) =>
+            decodeColumn(column, ids.length),
+        );
+        await tx.positions.set(
+            ids.flatMap((id, at) =>
+                nodeIds.has(id) ? [{ id, x: xs[at] as number, y: ys[at] as number, z: zs[at] as number }] : [],
+            ),
+        );
+        await tx.positions.pin((arrangement.pins as NodeId[]).filter((id) => nodeIds.has(id)));
+        opening.restored.add("pins");
+    });
+}
+
+/**
+ * Put the saved selection back, for the elements the opened graph holds; a refusal is a problem.
+ * @param opening - The open.
+ * @param saved - The view-state member's selection, if it has one.
+ * @param nodeIds - The opened graph's nodes.
+ * @param edgeIds - The opened graph's edge ids, by the file's edge position.
+ */
+async function readSelection(
+    opening: Opening,
+    saved: unknown,
+    nodeIds: ReadonlySet<NodeId>,
+    edgeIds: readonly (EdgeId | undefined)[],
+): Promise<void> {
+    const view = saved as { nodes?: NodeId[]; edges?: number[] } | undefined;
+    if (view === undefined) {
+        return;
+    }
+
+    try {
+        await opening.tx.selection.apply({
+            nodes: (view.nodes ?? []).filter((node) => nodeIds.has(node)),
+            edges: (view.edges ?? []).flatMap((at) => edgeIds[at] ?? []),
+        });
+    } catch (error) {
+        opening.problems.push({
+            code: isGraphtyError(error) ? error.code : "E_INTERNAL",
+            params: { kind: "graphty-view-state" },
+        });
+    }
+}
+
+/**
  * Read a project into the session, in place of what it holds.
  * @param opening - The open.
  * @param doc - The document.
@@ -1833,7 +1904,7 @@ async function readProject(
 ): Promise<void> {
     // A sources member that was read says where the data came from; else the data member's own fields do.
     const { source, sources, provenance } = openedLoads(loads, doc.members.get("graphty-data")?.[0] ?? {});
-    const { tx, problems } = opening;
+    const { tx } = opening;
     const first = (kind: MemberKind): Record<string, unknown> => doc.members.get(kind)?.[0] ?? {};
     const state = first("graphty-session");
 
@@ -1859,7 +1930,7 @@ async function readProject(
         loads.graph === undefined ? graph : { ...graph, nodes: loads.graph.nodes, links: loads.graph.links };
     const edgeIds = await importInto(tx, records, source, sources, provenance);
     opening.restored.add("graph");
-    const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
+    const nodeIds = new Set(tx.data.nodes({ scope: "graph" }).map((node) => node.id));
     await readDeclarations(opening, state.declarations);
     await readColumnSettings(opening, state.columns);
 
@@ -1887,39 +1958,9 @@ async function readProject(
         });
     }
 
-    const arrangement = doc.members.get("graphty-arrangement")?.[0];
-    if (arrangement !== undefined) {
-        await attempt(opening, "arrangement", async () => {
-            const ids = arrangement.ids as NodeId[];
-            const [xs, ys, zs] = [arrangement.x, arrangement.y, arrangement.z].map((column) =>
-                decodeColumn(column, ids.length),
-            );
-            await tx.positions.set(
-                ids.flatMap((id, at) =>
-                    nodeIds.has(id) ? [{ id, x: xs[at] as number, y: ys[at] as number, z: zs[at] as number }] : [],
-                ),
-            );
-            await tx.positions.pin((arrangement.pins as NodeId[]).filter((id) => nodeIds.has(id)));
-            opening.restored.add("pins");
-        });
-    }
-
+    await readArrangement(opening, doc.members.get("graphty-arrangement")?.[0], nodeIds);
     // Before the runs: a run over the selection reads it. The selection is not project state.
-    const view = doc.members.get("graphty-view-state")?.[0]?.selection as
-        { nodes?: NodeId[]; edges?: number[] } | undefined;
-    if (view !== undefined) {
-        try {
-            await tx.selection.apply({
-                nodes: (view.nodes ?? []).filter((node) => nodeIds.has(node)),
-                edges: (view.edges ?? []).flatMap((at) => edgeIds[at] ?? []),
-            });
-        } catch (error) {
-            problems.push({
-                code: isGraphtyError(error) ? error.code : "E_INTERNAL",
-                params: { kind: "graphty-view-state" },
-            });
-        }
-    }
+    await readSelection(opening, doc.members.get("graphty-view-state")?.[0]?.selection, nodeIds, edgeIds);
 
     // Sets before the runs, so a run over a set finds it. A set is minted a new id when the session
     // has already issued its old one, so every `{ set }` the file names is rewritten to the new id.
@@ -1943,62 +1984,35 @@ async function readProject(
         }
     });
 
+    // Each run is restored over the elements it ran on: a run made before the filter (its scope
+    // held as many elements as it holds with no filter; a filter only takes elements away) before
+    // the filter, so it comes back out of date as it was saved;
+    // the rest after it, so a run over what the file shows comes back current. A file written
+    // before runs saved their counts restores them all before the filter, as it always did. A
+    // filter naming a set that waits for a run's result waits with it.
+    const restoreVisibility = (): Promise<void> => restoreVisibilityOf(opening, state, remap);
+
     const results = first("graphty-results");
     const sameData = results.fingerprint === tx.data.fingerprint();
+    const restoreRun = (run: SavedRun): Promise<void> =>
+        restoreRunOf(opening, run, { nodeIds, edgeIds, sameData, canned, remap });
+    const ranBefore = (run: SavedRun): boolean =>
+        run.ranOn === undefined || sameCount(run.ranOn, opening.scopeCountOf(remap(run).scope));
+    const after: SavedRun[] = [];
     for (const run of (results.runs ?? []) as SavedRun[]) {
-        await attempt(
-            opening,
-            "runs",
-            async () => {
-                if (!sameData) {
-                    problems.push({ code: "W_DATA_DIFFERS", params: { slice: "runs", id: run.id } });
-                }
+        if (waiting.length > 0 || ranBefore(run)) {
+            await restoreRun(run);
+        } else {
+            after.push(run);
+        }
+    }
 
-                // A file written before caveats carried facts has none to read back.
-                const caveats: Caveats = { facts: [], ...run.caveats };
-                const result = createRunResult({
-                    runId: run.id,
-                    shape: run.shape,
-                    fields: run.fields,
-                    measured: run.measured,
-                    graph: run.graph,
-                    nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) => (nodeIds.has(node) ? node : undefined)),
-                    // Edges are keyed by position in the data; data that differs leaves them out.
-                    edges: sameData
-                        ? rowsOf(
-                              edgeIds.map((_, at) => at),
-                              run.edges.columns,
-                              (at) => edgeIds[at],
-                          )
-                        : [],
-                    caveats,
-                    durationMs: run.durationMs,
-                });
-                // The summary too, as a fresh execution hands it over: the run's record (its count,
-                // its groups) is read from it.
-                canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
-                const { algorithm, params, scope, seed, sample, exact } = remap(run);
-                try {
-                    const restoring = tx.runs.start(algorithm, params, {
-                        as: run.id,
-                        style: false,
-                        ...(scope === undefined ? {} : { scope }),
-                        ...(seed === undefined ? {} : { seed }),
-                        ...(sample === undefined ? {} : { sample }),
-                        ...(exact === undefined ? {} : { exact }),
-                    });
-                    // Before it is recorded: a minted id stays minted, so a later start of the
-                    // same question answers to it rather than minting a second one (#6227).
-                    if (run.derived === true) {
-                        opening.restoreDerived(run.id);
-                    }
-                    await restoring;
-                } finally {
-                    canned.delete(run.id);
-                }
-            },
-            run.id,
-        );
+    if (waiting.length === 0) {
+        await restoreVisibility();
+    }
+
+    for (const run of after) {
+        await restoreRun(run);
     }
 
     for (const set of waiting) {
@@ -2013,30 +2027,8 @@ async function readProject(
         );
     }
 
-    const visibility = state.visibility as Record<string, unknown> | undefined;
-    if (visibility !== undefined) {
-        await attempt(opening, "visibility", async () => {
-            if (visibility.filter !== null && visibility.filter !== undefined) {
-                await tx.visibility.set(remap(visibility.filter) as never);
-            }
-
-            if (visibility.window !== null && visibility.window !== undefined) {
-                await (tx.visibility as SessionVisibilityApi).restoreWindow(
-                    visibility.window as TimeWindow,
-                    visibility.windowRaw === true,
-                );
-            }
-
-            await readFilterConditions(opening, visibility, remap);
-        });
-        // Read on their own, so a filter that cannot be read never loses them.
-        await attempt(opening, "visibility", async () => {
-            if (typeof visibility.playback === "object" && visibility.playback !== null) {
-                await (tx.visibility as SessionVisibilityApi).restorePlayback(visibility.playback);
-            }
-
-            tx.visibility.showContext = visibility.showContext === true;
-        });
+    if (waiting.length > 0) {
+        await restoreVisibility();
     }
 
     await addStylesAndNotes(opening, doc.members, remap, name);
@@ -2051,6 +2043,126 @@ async function readProject(
     if (views.length > 0) {
         await attempt(opening, "views", () => tx.views.save(views));
     }
+}
+
+/**
+ * Restore the filter, the time window and the filter conditions a `graphty-session` member holds.
+ * @param opening - The open.
+ * @param state - The `graphty-session` member.
+ * @param remap - Rewrites the set ids a rule names to the ones this session gave.
+ */
+async function restoreVisibilityOf(
+    opening: Opening,
+    state: Readonly<Record<string, unknown>>,
+    remap: <T>(value: T) => T,
+): Promise<void> {
+    const { tx } = opening;
+    const visibility = state.visibility as Record<string, unknown> | undefined;
+    if (visibility === undefined) {
+        return;
+    }
+
+    await attempt(opening, "visibility", async () => {
+        if (visibility.filter !== null && visibility.filter !== undefined) {
+            await tx.visibility.set(remap(visibility.filter) as never);
+        }
+
+        if (visibility.window !== null && visibility.window !== undefined) {
+            await (tx.visibility as SessionVisibilityApi).restoreWindow(
+                visibility.window as TimeWindow,
+                visibility.windowRaw === true,
+            );
+        }
+
+        await readFilterConditions(opening, visibility, remap);
+    });
+    // Read on their own, so a filter that cannot be read never loses them.
+    await attempt(opening, "visibility", async () => {
+        if (typeof visibility.playback === "object" && visibility.playback !== null) {
+            await (tx.visibility as SessionVisibilityApi).restorePlayback(visibility.playback);
+        }
+
+        tx.visibility.showContext = visibility.showContext === true;
+    });
+}
+
+/**
+ * Restore one saved run under its saved id, its saved result answering its execution.
+ * @param opening - The open.
+ * @param run - The saved run.
+ * @param read - What the open has read so far.
+ * @param read.nodeIds - The node ids the session holds.
+ * @param read.edgeIds - The edge ids the session gave, by position in the file.
+ * @param read.sameData - Whether the data is the data the run was saved over.
+ * @param read.canned - Where the saved results wait for their runs.
+ * @param read.remap - Rewrites the set ids a run names to the ones this session gave.
+ */
+async function restoreRunOf(
+    opening: Opening,
+    run: SavedRun,
+    read: {
+        readonly nodeIds: ReadonlySet<NodeId>;
+        readonly edgeIds: readonly (EdgeId | undefined)[];
+        readonly sameData: boolean;
+        readonly canned: CannedOutcomes;
+        readonly remap: <T>(value: T) => T;
+    },
+): Promise<void> {
+    const { tx, problems } = opening;
+    const { nodeIds, edgeIds, sameData, canned, remap } = read;
+    await attempt(
+        opening,
+        "runs",
+        async () => {
+            if (!sameData) {
+                problems.push({ code: "W_DATA_DIFFERS", params: { slice: "runs", id: run.id } });
+            }
+
+            // A file written before caveats carried facts has none to read back.
+            const caveats: Caveats = { facts: [], ...run.caveats };
+            const result = createRunResult({
+                runId: run.id,
+                shape: run.shape,
+                fields: run.fields,
+                measured: run.measured,
+                graph: run.graph,
+                nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) => (nodeIds.has(node) ? node : undefined)),
+                // Edges are keyed by position in the data; data that differs leaves them out.
+                edges: sameData
+                    ? rowsOf(
+                          edgeIds.map((_, at) => at),
+                          run.edges.columns,
+                          (at) => edgeIds[at],
+                      )
+                    : [],
+                caveats,
+                durationMs: run.durationMs,
+            });
+            // The summary too, as a fresh execution hands it over: the run's record (its count,
+            // its groups) is read from it.
+            canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
+            const { algorithm, params, scope, seed, sample, exact } = remap(run);
+            try {
+                const restoring = tx.runs.start(algorithm, params, {
+                    as: run.id,
+                    style: false,
+                    ...(scope === undefined ? {} : { scope }),
+                    ...(seed === undefined ? {} : { seed }),
+                    ...(sample === undefined ? {} : { sample }),
+                    ...(exact === undefined ? {} : { exact }),
+                });
+                // Before it is recorded: a minted id stays minted, so a later start of the
+                // same question answers to it rather than minting a second one (#6227).
+                if (run.derived === true) {
+                    opening.restoreDerived(run.id);
+                }
+                await restoring;
+            } finally {
+                canned.delete(run.id);
+            }
+        },
+        run.id,
+    );
 }
 
 /**
@@ -2242,6 +2354,22 @@ function edgeOf(at: unknown, edgeIds: readonly (EdgeId | undefined)[]): EdgeId |
 }
 
 /** One finished run as a results member keeps it. */
+/** How many nodes and edges a scope holds. */
+interface ElementCount {
+    readonly nodes: number;
+    readonly edges: number;
+}
+
+/**
+ * Whether two counts are the same.
+ * @param a - One.
+ * @param b - The other, or null for a scope that does not resolve.
+ * @returns True when both sides agree.
+ */
+function sameCount(a: ElementCount, b: ElementCount | null): boolean {
+    return b !== null && a.nodes === b.nodes && a.edges === b.edges;
+}
+
 interface SavedRun {
     readonly id: RunId;
     /** Whether the element minted the id rather than the author naming it. */
@@ -2255,6 +2383,8 @@ interface SavedRun {
     readonly shape: ResultShape;
     readonly fields: readonly FieldDescriptor[];
     readonly measured: { readonly nodes: number; readonly edges: number };
+    /** How many elements its scope held when it ran; absent in files written before it was saved. */
+    readonly ranOn?: ElementCount;
     readonly graph: Readonly<Record<string, unknown>>;
     readonly caveats: Caveats | Omit<Caveats, "facts">;
     readonly durationMs: number;
@@ -2376,6 +2506,7 @@ function projectIdOf(value: unknown): string | undefined {
  * @param hooks.announce - Publishes `project:status`.
  * @param hooks.isDerived - Whether the element minted a run's id.
  * @param hooks.restoreDerived - Marks a restored run's id as minted by the element.
+ * @param hooks.scopeCountOf - How many elements a run over a scope would hold now.
  * @param hooks.sources - Writes and restores the loads from network sources.
  * @param hooks.projectChanged - Called once an open has read the project's id, before anything is
  *     fetched, and again once its source loads are restored.
@@ -2389,11 +2520,12 @@ export function projectOf(
         readonly announce: (change: ProjectStatus) => void;
         readonly isDerived: (id: RunId) => boolean;
         readonly restoreDerived: (id: RunId) => void;
+        readonly scopeCountOf: (spec?: Scope) => ElementCount | null;
         readonly sources?: NetworkSourceRecords;
         readonly projectChanged?: () => void;
     },
 ): ProjectApi {
-    const { announce, isDerived, restoreDerived, sources: networkSources, projectChanged } = hooks;
+    const { announce, isDerived, restoreDerived, scopeCountOf, sources: networkSources, projectChanged } = hooks;
     let id = newProjectId();
     // Clean means: the history's cursor is on the save point's step (null: the baseline), and
     // nothing has been merged into that step or cleared from under it. A save made with
@@ -2561,6 +2693,7 @@ export function projectOf(
                             playback: dispatcher.state.visibility.playback,
                             services: dispatcher.services,
                             restoreDerived,
+                            scopeCountOf,
                         },
                         doc,
                         graph,
@@ -2599,13 +2732,21 @@ export function projectOf(
         starts: boolean,
     ): Promise<void> => {
         const data = doc.members.get("graphty-data")?.[0];
-        const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);
+        const graph =
+            data === undefined || session.data.nodes({ scope: "graph" }).length > 0 ? undefined : nodeLinkOf(data);
         await restoreAssetsOf(session, doc, problems);
         fresh = false;
         await session.transaction(
             "Open document",
             async (tx) => {
-                const opening = { tx, problems, restored, services: dispatcher.services, restoreDerived };
+                const opening = {
+                    tx,
+                    problems,
+                    restored,
+                    services: dispatcher.services,
+                    restoreDerived,
+                    scopeCountOf,
+                };
                 if (graph !== undefined) {
                     await importInto(tx, graph, data?.source, data?.sources);
                     restored.add("graph");

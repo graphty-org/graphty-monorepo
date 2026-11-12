@@ -20,6 +20,7 @@ import { DistributionRows } from "./Distribution";
 import { settingsNotInEffect } from "./settingsInEffect";
 import {
     count,
+    degreeLabel,
     directionNote,
     directionWords,
     formatNumber,
@@ -41,9 +42,13 @@ const DEGREE_NOTE =
  * A directed graph offers All, In and Out. Transitivity follows when the element measured it.
  * @param props - Component props
  * @param props.statistics - the element's statistics
+ * @param props.label - the section's name: "Degree showing" while something is hidden
  * @returns The section
  */
-function DegreeSection({ statistics }: Readonly<{ statistics: GraphStatistics }>): React.JSX.Element {
+function DegreeSection({
+    statistics,
+    label,
+}: Readonly<{ statistics: GraphStatistics; label: string }>): React.JSX.Element {
     const [kind, setKind] = useState<DegreeKind>("all");
     const directed = statistics.inDegreeHistogram !== undefined && statistics.outDegreeHistogram !== undefined;
     const histograms: Record<DegreeKind, Histogram | undefined> = {
@@ -61,7 +66,7 @@ function DegreeSection({ statistics }: Readonly<{ statistics: GraphStatistics }>
     const name = { all: "Degree", in: "In-degree", out: "Out-degree" }[shown];
     const last = histogram?.bins.at(-1);
     return (
-        <ControlSection label="Degree" collapsible={false} headingLevel={3} info={DEGREE_NOTE}>
+        <ControlSection label={label} collapsible={false} headingLevel={3} info={DEGREE_NOTE}>
             {directed && (
                 <SegmentedControl
                     fullWidth
@@ -120,7 +125,9 @@ export function Overview(): React.JSX.Element | null {
     if (session === null) {
         return null;
     }
-    const statistics = session.data.statistics();
+    // The whole graph's, named: shown whole when nothing is hidden, and under "Full graph" when
+    // something is.
+    const statistics = session.data.statistics({ scope: "all" });
     // With no time field yet, the column the element reads as time is offered once: a door to its
     // home, Data > Fields, with the Time entry added and that column chosen.
     const found = timelineOn(session) && session.time.field === null ? session.time.candidates().at(0) : undefined;
@@ -204,8 +211,8 @@ export function Overview(): React.JSX.Element | null {
     const otherView = settingsNotInEffect(session).length;
     const tail = (
         <>
-            {/* Over what is showing: its degrees are the legend's. */}
-            <DegreeSection statistics={filtered ? session.data.statistics({ scope: "visible" }) : statistics} />
+            {/* Over what is showing (the working graph): its degrees are the legend's. */}
+            <DegreeSection statistics={session.data.statistics()} label={degreeLabel(session)} />
             {otherView > 0 && (
                 <Text size="xs" c="dimmed" px="md" data-testid="settings-other-view">
                     {`${count(otherView, "graph setting")} ${otherView === 1 ? "applies" : "apply"} only in another view`}

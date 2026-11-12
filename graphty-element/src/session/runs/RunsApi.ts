@@ -340,6 +340,13 @@ export interface SessionRunsApi extends RunsApi {
      */
     restoreDerived(id: RunId): void;
     /**
+     * How many elements a run over a scope would hold if it started now: what a project open
+     * compares with a saved run's, to restore the run over the elements it ran on.
+     * @param spec - The scope; absent, the default run scope.
+     * @returns The counts, or null when the scope does not resolve.
+     */
+    scopeCountOf(spec?: Scope): { readonly nodes: number; readonly edges: number } | null;
+    /**
      * Start one algorithm through a dispatch of the caller's: a transaction's, so the run joins
      * its step, or the one a command hands its deferred members.
      * @param dispatch - Where the run's command is dispatched.
@@ -1203,6 +1210,19 @@ class Runs implements SessionRunsApi {
 
         this.derivedIds.add(id);
         this.names.set(id, suggestRunName(this.descriptorFor(run.algorithm), run.params));
+    }
+
+    scopeCountOf(spec?: Scope): { readonly nodes: number; readonly edges: number } | null {
+        try {
+            const resolved = this.options.resolveScope(spec ?? this.defaultScope);
+            return { nodes: resolved.nodeCount, edges: resolved.edgeCount };
+        } catch (error) {
+            if (!isGraphtyError(error)) {
+                throw error;
+            }
+
+            return null;
+        }
     }
 
     heldOf(id: RunId): HeldCaptures {

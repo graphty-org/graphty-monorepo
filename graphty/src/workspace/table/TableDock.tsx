@@ -593,7 +593,7 @@ function dockScope(session: GraphSession, tab: string, { members, all, rows }: A
     const { summary } = session.visibility;
     const shownCount = kind === "node" ? summary.visibleNodes : summary.visibleEdges;
     const filtered = shownCount < (kind === "node" ? summary.totalNodes : summary.totalEdges);
-    const narrowed: ScopeInput = filtered && !all ? "visible" : "graph";
+    const narrowed: ScopeInput = all ? "graph" : "visible";
     // A reply's rows are listed whole, filter or not: they are the answer the reader asked to see.
     const shownRows = groupRun === undefined && rows?.kind === kind && rows.session === session ? rows : null;
     const membersScope = kind === "node" && shownMembers !== null ? shownMembers.scope : narrowed;

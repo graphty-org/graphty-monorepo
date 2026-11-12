@@ -655,9 +655,11 @@ The same scope is the `layoutScope` property and the `layout-scope` attribute (J
 
 ## Laying out only what the filter shows
 
-By default a layout runs over the whole graph, nodes the [visibility filter](./filter-conditions)
-hides included, so the shown nodes keep the places the whole graph gave them. Set
-`layout.visibleOnly` in the layout behaviour to lay out only what the filter shows:
+A layout runs over what is shown -- the nodes and edges the [visibility filter](./filter-conditions)
+and the time window leave visible -- while the element's `workingGraph` option is on, the default,
+and over the whole graph while it is off. Set `layout.visibleOnly` in the layout behaviour to choose for layouts
+alone: `true` lays out only what is shown, `false` the whole graph, hidden nodes included, so the
+shown nodes keep the places the whole graph gave them.
 
 ```typescript
 element.layoutBehavior = { layout: { visibleOnly: true } };
@@ -668,7 +670,7 @@ await element.session.visibility.set({ kind: "member", of: { nodes: ["a", "b", "
 
 - **A hidden node takes no part.** It pushes and pulls nothing, its edges pull nothing, and a
   circle, a grid or any other layout gives it no slot. Every layout honours it, your own included.
-- **The layout runs again when the filter changes**, and when `visibleOnly` is switched on or off.
+- **The layout runs again when what is shown changes**, and when `visibleOnly` is switched.
 - **A hidden node stays where it was**, so taking the filter away shows it where it last was
   drawn; the layout then runs again over everything shown.
 - **It combines with a scope.** A scoped layout still holds the nodes outside its scope, and

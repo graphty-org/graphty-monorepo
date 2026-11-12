@@ -95,6 +95,8 @@ function createMockGraphWithEvents(): MockGraphResult {
         getNodeCount: () => mockNodes.size,
         getEdgeCount: () => mockEdges.size,
         getDataManager: () => mockDataManager,
+        // A session that reads the whole graph, so the schema covers every node and edge.
+        getSession: () => ({ workingGraph: false }),
         eventManager: mockEventManager,
         is2D: () => false,
         getLayoutManager: () => ({
@@ -176,6 +178,8 @@ describe("AiManager schema lifecycle", () => {
                 getNodeCount: () => 0,
                 getEdgeCount: () => 0,
                 getDataManager: () => mockDataManager,
+                // A session that reads the whole graph, so the schema covers every node and edge.
+                getSession: () => ({ workingGraph: false }),
                 eventManager: mockEventManager,
                 is2D: () => false,
                 getLayoutManager: () => ({ layoutEngine: { type: "ngraph" } }),

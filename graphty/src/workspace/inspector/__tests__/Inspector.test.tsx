@@ -44,8 +44,9 @@ afterEach(() => {
  */
 async function renderInspector(
     execute?: (context: RunExecutionContext) => Promise<RunOutcome>,
+    workingGraph = false,
 ): Promise<{ session: GraphSession; store: WorkspaceStore }> {
-    const made = createGraphSession(execute === undefined ? undefined : { runs: { execute } });
+    const made = createGraphSession({ ...(execute === undefined ? {} : { runs: { execute } }), workingGraph });
     session = made;
     await made.data.addNodes(NODES);
     await made.data.addEdges(EDGES);
@@ -132,6 +133,35 @@ describe("the inspector", () => {
         });
         assert.isNull(screen.queryByRole("group", { name: "Edges showing" }));
         assert.isNull(screen.queryByText("Full graph"));
+    });
+
+    it("counts the whole graph under Full graph while the working graph is on, as the app has it", async () => {
+        const { session: on } = await renderInspector(undefined, true);
+        await act(async () => {
+            await on.visibility.setSteps([
+                { id: "s1", on: true, rule: { kind: "range", attribute: "data.shared", min: 5, nodes: "ends" } },
+            ]);
+        });
+        const { visibleNodes } = on.status.counts;
+        assert.isBelow(visibleNodes, 12);
+        const fullGraph = await screen.findByRole("group", { name: "Full graph" });
+        // The section is labeled the whole graph, so it reads the whole graph by name, never the view.
+        assert.include(within(fullGraph).getByRole("group", { name: "Nodes" }).textContent, "12");
+        assert.include(within(fullGraph).getByRole("group", { name: "Edges" }).textContent, "13");
+    });
+
+    it("names the degrees it reads among what is shown, outside the Full graph section", async () => {
+        const { session: on } = await renderInspector(undefined, true);
+        await act(async () => {
+            await on.visibility.setSteps([
+                { id: "s1", on: true, rule: { kind: "range", attribute: "data.shared", min: 5, nodes: "ends" } },
+            ]);
+        });
+        const fullGraph = await screen.findByRole("group", { name: "Full graph" });
+        // The degree section reads the working graph, so it says so, and is not under Full graph.
+        assert.isNotNull(screen.getByRole("heading", { name: "Degree showing" }));
+        assert.isNull(within(fullGraph).queryByRole("heading", { name: /^Degree/ }));
+        assert.isNull(screen.queryByRole("heading", { name: "Degree" }));
     });
 
     it("keeps the graph's tab, and always opens a single node on Values", async () => {

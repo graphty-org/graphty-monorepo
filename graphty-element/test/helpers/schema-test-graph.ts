@@ -149,6 +149,8 @@ export function createSchemaTestGraph(options: SchemaTestGraphOptions = {}): Gra
         getNodeCount: () => mockNodes.size,
         getEdgeCount: () => mockEdges.size,
         getDataManager: () => mockDataManager,
+        // A session that reads the whole graph, so the schema covers every node and edge above.
+        getSession: () => ({ workingGraph: false }),
     } as unknown as Graph;
 
     return mockGraph;

@@ -39,6 +39,7 @@
 import {
     type F32,
     type GraphSnapshot,
+    INVALID_INDEX,
     makeMask,
     maskSet,
     maskTest,
@@ -67,6 +68,7 @@ import { WRITABLE_LANE } from "../data/lane";
 import type { ElementPositions } from "../data/positions";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
+import { layoutDiag, snapshotId, viewSummary } from "../logging/layoutDiagnostics.js";
 import type { DataManager } from "../managers/DataManager";
 import type { Node } from "../Node";
 import type { DrawnTarget } from "../render/RowTable";
@@ -589,7 +591,17 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     #builtWith: GraphAccelerator | null = null;
     #accelerated = false;
+    /**
+     * The graph the simulation runs on: the element's snapshot, or while the element hands this
+     * engine a working graph, that view's compact snapshot, whose rows are the simulation's.
+     */
     #snapshot: GraphSnapshot | null = null;
+    /** The element's snapshot, whose rows the element's array and every node's index are in. */
+    #elementGraph: GraphSnapshot | null = null;
+    /** Simulation row -> element row while a working graph is laid out; null when they are the same. */
+    #origin: Uint32Array | null = null;
+    /** Element row -> simulation row, INVALID_INDEX for a hidden node; null when they are the same. */
+    #simRows: Uint32Array | null = null;
     #positions: F32 | null = null;
     #mask: NodeMask | null = null;
 
@@ -862,9 +874,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#simulation?.dispose();
         this.#simulation = null;
         this.#syncWork();
-        this.#snapshot = snapshot;
+        const simGraph = this.#adopt(snapshot);
+        this.#snapshot = simGraph;
         this.#positions = positions;
-        const simPositions = this.#adoptPositions(snapshot.nodeCount, positions);
+        const simPositions = this.#adoptPositions(simGraph.nodeCount, positions);
         if (this.#fromSeed) {
             // Every row unplaced, so `#seed` draws the whole graph from the seed alone.
             this.#fromSeed = false;
@@ -895,15 +908,16 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         const simulation = this.#simulation;
-        this.#snapshot = snapshot;
+        const simGraph = this.#adopt(snapshot);
+        this.#snapshot = simGraph;
         this.#positions = positions;
-        const loadable = this.#loadable(snapshot);
+        const loadable = this.#loadable(simGraph);
 
         // BEFORE THE PLAN, and at every reload whether or not the simulation is rebuilt: a freeze
         // renumbers the rows, and the element's array is the copy it renumbered.
-        const simPositions = this.#adoptPositions(snapshot.nodeCount, positions);
+        const simPositions = this.#adoptPositions(simGraph.nodeCount, positions);
 
-        const decision = this.#controller.plan({ capability: this.capability, nodeCount: snapshot.nodeCount });
+        const decision = this.#controller.plan({ capability: this.capability, nodeCount: simGraph.nodeCount });
 
         // A REBUILD IS THE ONLY WAY TO RE-RESOLVE A NODE-MASS RECORD. The masses the element
         // resolved itself were handed to the simulation when it was created, one per row of the
@@ -923,8 +937,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return;
         }
 
-        this.#iterations = this.#resolveIterations(snapshot.nodeCount);
-        this.#seed(snapshot, simPositions);
+        this.#iterations = this.#resolveIterations(simGraph.nodeCount);
+        this.#seed(simGraph, simPositions);
         simulation.load(loadable.graph, simPositions);
         this.#attachDrawn(snapshot.nodeCount);
 
@@ -1171,7 +1185,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // finite, and this runs once per pointer move inside the frame loop, where a throw takes
         // the repaint with it. A node whose row a freeze has not created yet carries
         // `INVALID_INDEX`, and that is not an error -- it is a node with nowhere to be written.
-        if (!this.#hasRow(n.index) || !Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(z)) {
+        const row = this.#simRow(n.index);
+        if (!this.#hasRow(row) || !Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(z)) {
             return;
         }
 
@@ -1189,7 +1204,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         const scale = this.#envelopeScale;
         this.#simulation?.setPosition(
-            n.index,
+            row,
             (p.x - this.#targetCentre[0]) / scale + this.#simCentre[0],
             (p.y - this.#targetCentre[1]) / scale + this.#simCentre[1],
             (z - this.#targetCentre[2]) / scale + this.#simCentre[2],
@@ -1373,15 +1388,17 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const { rows, coords } = this.publishScratch(snapshot.nodeCount);
         let count = 0;
         let first: Node | ElementPositions | undefined;
+        // A working graph is simulated in its own rows: `row` is the element's, `sim` the simulation's.
         const put = (row: number): void => {
-            if (!this.#hasRow(row) || (this.#fixedRows.has(row) && store.isPlaced(row))) {
+            const sim = this.#simRow(row);
+            if (!this.#hasRow(sim) || (this.#fixedRows.has(sim) && store.isPlaced(row))) {
                 return;
             }
 
             rows[count] = row;
-            coords[3 * count] = (simPositions[3 * row] - centre[0]) * scale + target[0];
-            coords[3 * count + 1] = (simPositions[3 * row + 1] - centre[1]) * scale + target[1];
-            coords[3 * count + 2] = (simPositions[3 * row + 2] - centre[2]) * scale + target[2];
+            coords[3 * count] = (simPositions[3 * sim] - centre[0]) * scale + target[0];
+            coords[3 * count + 1] = (simPositions[3 * sim + 1] - centre[1]) * scale + target[1];
+            coords[3 * count + 2] = (simPositions[3 * sim + 2] - centre[2]) * scale + target[2];
             count++;
         };
         if (this.#dataManager.renderLimits?.batched() ?? false) {
@@ -1390,7 +1407,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
             // batches draw nothing for.
             first = store;
             for (let row = 0; row < snapshot.nodeCount; row++) {
-                put(row);
+                put(this.#elementRow(row));
             }
         } else {
             // Under "objects", node by node, as before: a removed node's row lives until the next freeze.
@@ -1410,7 +1427,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // coordinate lands as a placement, and every one after that is the reader's to keep.
         this.publishColumn(first, rows, coords, count, true);
         // A pinned or dragged row was left out of the publish above; it is still drawn, where it is kept.
-        this.keepInPublishedBox(first, this.#fixedRows);
+        this.keepInPublishedBox(
+            first,
+            this.#origin === null ? this.#fixedRows : new Set([...this.#fixedRows].map((row) => this.#elementRow(row))),
+        );
         if (drawn !== null) {
             drawn.stepped ||= landed !== null;
             this.#publishDrawn(drawn, viaCard === null ? null : landed);
@@ -1452,7 +1472,15 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const simulation = this.#simulation;
         const drawn = simulation === null || !this.#accelerated ? null : drawnOf(simulation);
         const target = drawn === null ? null : this.#drawnTarget();
-        if (simulation === null || drawn === null || target === null || target.table.rows < nodeCount) {
+        // A working graph is simulated in its own rows, which the drawn table does not share: its
+        // rows reach the element through the lane, as on the objects path.
+        if (
+            simulation === null ||
+            drawn === null ||
+            target === null ||
+            target.table.rows < nodeCount ||
+            this.#origin !== null
+        ) {
             return;
         }
 
@@ -1649,7 +1677,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const held =
             this.#fixedRows.size === 0
                 ? null
-                : (row: number): boolean => (this.#fixedRows.has(row) && store.isPlaced(row)) || this.isFollower(row);
+                : (row: number): boolean =>
+                      (this.#fixedRows.has(row) && store.isPlaced(this.#elementRow(row))) ||
+                      this.isFollower(this.#elementRow(row));
         const radii = this.#collisionRadii(snapshot.nodeCount);
         const radius = Math.max(this.#options.scalingFactor, this.#packedRadius);
         const measured = measureEnvelope(simPositions, snapshot.nodeCount, radius, held);
@@ -1691,12 +1721,13 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const radii = new Float32Array(nodeCount);
         const byNode = makeMask(nodeCount);
         for (const node of this.nodes) {
-            if (this.#hasRow(node.index) && !this.isFollower(node.index)) {
-                radii[node.index] = node.spacingRadius(dimensions === 2) + gap / 2;
+            const row = this.#simRow(node.index);
+            if (this.#hasRow(row) && !this.isFollower(node.index)) {
+                radii[row] = node.spacingRadius(dimensions === 2) + gap / 2;
             }
 
-            if (this.#hasRow(node.index)) {
-                maskSet(byNode, node.index, true);
+            if (this.#hasRow(row)) {
+                maskSet(byNode, row, true);
             }
         }
 
@@ -1721,7 +1752,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         for (let row = 0; row < radii.length; row++) {
-            const radius = maskTest(byNode, row) || this.isFollower(row) ? null : ofRow(row, flat);
+            // `row` is the simulation's; a working graph's reaches the element through its origin.
+            const element = this.#elementRow(row);
+            const radius = maskTest(byNode, row) || this.isFollower(element) ? null : ofRow(element, flat);
             if (radius !== null) {
                 radii[row] = radius + gap / 2;
             }
@@ -1846,20 +1879,22 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         const { nodeCount } = snapshot;
-        const pins = this.#dataManager[WRITABLE_LANE].pinnedView(nodeCount);
+        // The lane is in the element's rows, the mask in the simulation's.
+        const pins = this.#dataManager[WRITABLE_LANE].pinnedView(this.#elementGraph?.nodeCount ?? nodeCount);
         const mask = makeMask(nodeCount);
         const rows = new Set<number>();
         for (let i = 0; i < nodeCount; i += 1) {
-            if (pins[i] === 1) {
+            if (pins[this.#elementRow(i)] === 1) {
                 maskSet(mask, i, true);
                 rows.add(i);
             }
         }
 
         for (const held of this.#dragging) {
-            if (this.#hasRow(held.index)) {
-                maskSet(mask, held.index, true);
-                rows.add(held.index);
+            const row = this.#simRow(held.index);
+            if (this.#hasRow(row)) {
+                maskSet(mask, row, true);
+                rows.add(row);
             }
         }
 
@@ -1867,7 +1902,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // lane never carries: a hold is not a pin.
         if (this.holdsAny) {
             for (let i = 0; i < nodeCount; i += 1) {
-                if (this.isHeld(i)) {
+                if (this.isHeld(this.#elementRow(i))) {
                     maskSet(mask, i, true);
                     rows.add(i);
                 }
@@ -1893,21 +1928,23 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return new Map();
         }
 
-        const skip = (row: number): boolean => !this.#hasRow(row) || this.isFollower(row);
+        // Read in the element's rows; a working graph's simulation row is found through the row map.
+        const skip = (row: number): boolean => !this.#hasRow(this.#simRow(row)) || this.isFollower(row);
+        const graph = this.#elementGraph ?? this.#snapshot;
         if (this.#dataManager.renderLimits?.batched() ?? false) {
             // Under renderPath "batched" by row, so a row with no Node is read without building one.
             const manager = this.#dataManager;
             return readRowCommunities(
                 clusterBy,
-                this.#snapshot.nodeCount,
+                graph.nodeCount,
                 (row) => manager.nodesByIndex[row]?.data ?? this.rowRecord?.(row),
                 this.clusterColumn,
                 skip,
-                this.#snapshot,
+                graph,
             );
         }
 
-        return readCommunities(clusterBy, this.nodes, this.clusterColumn, skip, this.#snapshot);
+        return readCommunities(clusterBy, this.nodes, this.clusterColumn, skip, graph);
     }
 
     /**
@@ -1925,7 +1962,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         const communities = new Uint32Array(nodeCount).fill(NO_CLUSTER);
         for (const [member, community] of this.#communities) {
-            communities[typeof member === "number" ? member : member.index] = community;
+            communities[this.#simRow(typeof member === "number" ? member : member.index)] = community;
         }
 
         simulation.setClusters?.({ communities, strength: this.#options.clusterStrength });
@@ -1976,7 +2013,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
     #applyInert(simulation: LayoutSimulation, nodeCount: number): void {
         const inert = makeMask(nodeCount);
         for (let i = 0; i < nodeCount && this.holdsAny; i += 1) {
-            if (this.isFollower(i)) {
+            if (this.isFollower(this.#elementRow(i))) {
                 maskSet(inert, i, true);
             }
         }
@@ -2049,6 +2086,15 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#precision = decision.accelerated ? decision.precision : CPU_PRECISION;
         this.#failed = false;
         this.#iterationsDone = 0;
+        layoutDiag.debug("bridge build", {
+            engine: this.type,
+            simulation: this.simulationType,
+            simNodes: snapshot.nodeCount,
+            elementNodes: this.#elementGraph?.nodeCount ?? null,
+            accelerated: decision.accelerated,
+            reason: decision.accelerated ? null : decision.reason,
+            dim: this.#options.model.dim ?? this.#options.dim ?? 3,
+        });
 
         // The simulations require an undirected graph, and the bridge -- not its caller -- is
         // what knows that: callers pass the snapshot `getSnapshot()` handed them.
@@ -2114,9 +2160,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
 
         const scale = this.#envelopeScale;
         for (let row = 0; row < nodeCount; row += 1) {
+            const at = 3 * this.#elementRow(row);
             for (let axis = 0; axis < 3; axis += 1) {
                 simPositions[3 * row + axis] =
-                    (positions[3 * row + axis] - this.#targetCentre[axis]) / scale + this.#simCentre[axis];
+                    (positions[at + axis] - this.#targetCentre[axis]) / scale + this.#simCentre[axis];
             }
         }
 
@@ -2157,10 +2204,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @returns The graph to load, and the `weight` option, undefined when the model reads none.
      */
     #loadable(snapshot: GraphSnapshot): { graph: GraphSnapshot; weight: boolean | string | undefined } {
-        const undirected = this.#dataManager.undirected(snapshot).snapshot;
-        // An edge the filter hides between two shown nodes pulls nothing (see `LayoutEngine.setLeftOut`).
-        const keptEdges = this.keptEdges(undirected);
-        const graph = keptEdges === null ? undirected : undirected.filterEdges(keptEdges).snapshot;
+        // A working graph's snapshot already leaves out the edges the filter hides.
+        const graph = this.#dataManager.undirected(snapshot).snapshot;
         if ((this.#options.model as { weight?: unknown }).weight !== true) {
             return { graph, weight: undefined };
         }
@@ -2190,24 +2235,87 @@ export class SimulationLayoutEngine extends LayoutEngine {
      *
      * A no-op before the first load and while the bridge is stopped: there is no simulation to
      * tell, and the next load packs the whole lane anyway.
-     * @param index - The node's dense row.
+     * @param index - The node's dense row in the element's snapshot.
      * @param fixed - Whether the simulation must hold it still.
      */
     #setFixed(index: number, fixed: boolean): void {
         const mask = this.#mask;
         const simulation = this.#simulation;
-        if (mask === null || simulation === null || !this.#hasRow(index)) {
+        const row = this.#simRow(index);
+        if (mask === null || simulation === null || !this.#hasRow(row)) {
             return;
         }
 
-        maskSet(mask, index, fixed);
+        maskSet(mask, row, fixed);
         if (fixed) {
-            this.#fixedRows.add(index);
+            this.#fixedRows.add(row);
         } else {
-            this.#fixedRows.delete(index);
+            this.#fixedRows.delete(row);
         }
 
         simulation.setFixed(mask);
+    }
+
+    /**
+     * Take the element's snapshot, and the working graph the element hands this engine for it: a
+     * hidden node gets no row in the simulation, so it exerts no force and never moves
+     * (design/working-graph/design.md, section 7).
+     * @param snapshot - The element's snapshot.
+     * @returns The graph the simulation runs on.
+     */
+    #adopt(snapshot: GraphSnapshot): GraphSnapshot {
+        this.#elementGraph = snapshot;
+        const view = this.shownView;
+        if (layoutDiag.isDebugEnabled()) {
+            let used = "view";
+            if (view === null || view === undefined) {
+                used = "whole: no view";
+            } else if (view.graph !== snapshot) {
+                used = "whole: view.graph !== snapshot";
+            } else if (view.nodeOrigin === null || view.nodeRows === null) {
+                used = "whole: view has no row maps";
+            }
+            layoutDiag.debug("bridge adopt", {
+                engine: this.type,
+                simulation: this.simulationType,
+                snapshot: snapshotId(snapshot),
+                snapshotNodes: snapshot.nodeCount,
+                view: viewSummary(view),
+                used,
+            });
+        }
+        if (view?.graph === snapshot && view.nodeOrigin !== null && view.nodeRows !== null) {
+            this.#origin = view.nodeOrigin;
+            this.#simRows = view.nodeRows;
+            return view.snapshot;
+        }
+
+        this.#origin = null;
+        this.#simRows = null;
+        return snapshot;
+    }
+
+    /**
+     * A node's row in the simulation.
+     * @param index - The node's row in the element's snapshot.
+     * @returns Its simulation row, or INVALID_INDEX for a node the simulation does not hold.
+     */
+    #simRow(index: number): number {
+        const rows = this.#simRows;
+        if (rows === null) {
+            return index;
+        }
+
+        return Number.isInteger(index) && index >= 0 && index < rows.length ? rows[index] : INVALID_INDEX;
+    }
+
+    /**
+     * A simulation row's row in the element's snapshot.
+     * @param row - The simulation row.
+     * @returns The element row.
+     */
+    #elementRow(row: number): number {
+        return this.#origin === null ? row : this.#origin[row];
     }
 
     /**

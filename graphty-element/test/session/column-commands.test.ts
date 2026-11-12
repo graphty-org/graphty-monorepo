@@ -16,7 +16,7 @@ const TRANSFERS = "source,target,bait,prey\na,b,c,d\nb,c,d,a\n";
  * @returns the session
  */
 async function accounts(): Promise<GraphSession> {
-    const session = createGraphSession();
+    const session = createGraphSession({ workingGraph: false });
     const draft = await session.data.prepare({ type: "csv", config: { data: ACCOUNTS }, name: "accounts.csv" });
     await draft.load({ mapping: { rowsAre: "nodes", key: "id" } });
     return session;
@@ -241,7 +241,7 @@ describe("data.setHidden", () => {
         assert.strictEqual(session.history.steps.length, steps + 1, "hiding what is hidden records nothing");
 
         const { text } = await session.project.save();
-        const reopened = createGraphSession();
+        const reopened = createGraphSession({ workingGraph: false });
         await reopened.project.open(text, { discard: true });
         assert.deepStrictEqual(
             reopened.data
@@ -264,7 +264,7 @@ describe("data.setHidden", () => {
         const session = await accounts();
         await session.data.setType({ kind: "node", name: "flagged" }, "category");
         const { text } = await session.project.save();
-        const reopened = createGraphSession();
+        const reopened = createGraphSession({ workingGraph: false });
         await reopened.project.open(text, { discard: true });
         assert.strictEqual(column(reopened, "flagged")?.type, "category");
         reopened.dispose();
@@ -296,7 +296,7 @@ describe("data.setRole", () => {
     });
 
     it("makes an edge column the weight, and refuses a new source on loaded edges", async () => {
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.data.import({ type: "csv", config: { data: TRANSFERS }, name: "transfers.csv" });
         const roles = (name: string): readonly string[] | undefined =>
             session.data.attributes().find((each) => each.kind === "edge" && each.name === name)?.roles;

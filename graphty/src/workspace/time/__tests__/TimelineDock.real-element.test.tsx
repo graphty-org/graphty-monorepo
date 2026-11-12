@@ -591,6 +591,17 @@ describe("the timeline dock on the real element", () => {
         within(dock).getByRole("img", { name });
     });
 
+    it("names the whole timeline's total while a filter hides some of it", async () => {
+        const { session, dock } = await openDock();
+        await within(dock).findByRole("img", { name: /^Edges over time, 2,102 edges/ });
+        const people = session.data.nodes({ scope: "graph" }).slice(0, 10);
+        await session.visibility.set({ kind: "member", of: { nodes: people.map(({ id }) => id) } });
+        assert.isBelow(session.visibility.summary.visibleEdges, 2102, "the filter hides some emails");
+
+        // The track is every timed edge, the working graph or not; the bars say what is shown.
+        await within(dock).findByRole("img", { name: /^Edges over time, 2,102 edges/ });
+    });
+
     it("says what entered and left on the status line after a step", async () => {
         const { session, dock } = await openDock();
         await act(async () => {

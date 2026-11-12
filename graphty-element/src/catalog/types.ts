@@ -2246,6 +2246,14 @@ export type RuleTree =
            * @beta
            */
           readonly missing?: MissingValues;
+          /**
+           * Which elements are ranked: `"graph"` (the default) ranks the whole column, so a node's
+           * place does not move as a filter changes; `"visible"` ranks only what the filter and the
+           * time window leave shown. Inside a step, the step's own population is ranked. A filter
+           * cannot rank within what it shows itself.
+           * @since 3.36.0
+           */
+          readonly within?: "graph" | "visible";
       }
     /**
      * The elements whose text for one value passes a text test: "name contains bob", "id matches

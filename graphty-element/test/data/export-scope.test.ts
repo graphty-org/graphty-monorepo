@@ -38,6 +38,8 @@ function rowsOf(text: string): string[] {
 describe("exportGraph scope", () => {
     it("writes only what is shown: 140 of 900 nodes, and the edges between them", async () => {
         const h = chain();
+        // With the working graph off, no scope writes the whole graph.
+        h.session.workingGraph = false;
         await h.session.visibility.set(FIRST_140);
 
         const nodes = rowsOf(await exportSession(h.session, "csv", { table: "nodes", scope: "shown" }).text());
@@ -47,6 +49,21 @@ describe("exportGraph scope", () => {
         assert.strictEqual(nodes.length, 140);
         assert.strictEqual(edges.length, 139);
         assert.strictEqual(all.length, 900, "no scope writes the whole graph");
+        h.session.dispose();
+    });
+
+    it("with the working graph on, writes what is shown with no scope, and the whole graph with all", async () => {
+        const h = chain();
+        h.session.workingGraph = true;
+        await h.session.visibility.set(FIRST_140);
+
+        const shown = rowsOf(await exportSession(h.session, "csv", { table: "nodes" }).text());
+        const edges = rowsOf(await exportSession(h.session, "csv").text());
+        const all = rowsOf(await exportSession(h.session, "csv", { table: "nodes", scope: "all" }).text());
+
+        assert.strictEqual(shown.length, 140, "no scope writes the working graph");
+        assert.strictEqual(edges.length, 139);
+        assert.strictEqual(all.length, 900, "all writes the whole graph");
         h.session.dispose();
     });
 

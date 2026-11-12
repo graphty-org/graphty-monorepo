@@ -110,6 +110,14 @@ import type { GraphtyWarningCode } from "../../errors/codes";
 import { quoteEach } from "../../utils/quote-each";
 import { resolveColumn } from "../columns";
 import {
+    dropUnusedShaderCopies,
+    loadNamedShaders,
+    namedShaders,
+    settleShaderCopies,
+    shaderIdsIn,
+    withoutShaderUses,
+} from "../commands/shaderCopies";
+import {
     STYLE_DEFINITIONS,
     type StyleCommand,
     type StyleEncodeCommand,
@@ -347,10 +355,13 @@ export interface TemplateReport {
     /**
      * What happened to the document's shaders, as codes: `shader.held` with `ids`, the ones that
      * wait for `session.shaders.approve`; `shader.id-taken` with `id`, one the project already
-     * holds with other text (the project's stays). Absent when the document carries none.
+     * holds with other text (the project's stays); `shader.unknown` with `layer`, `channel` (a
+     * shader list or an encode key) and `shader`, a use an opening file names whose text it does
+     * not carry or that does not read, dropped while the rest of the layer opens. Absent when the
+     * document carries none and drops none.
      * @since 3.36.0
      */
-    readonly shaders?: readonly CodedFact<"shader.held" | "shader.id-taken">[];
+    readonly shaders?: readonly CodedFact<"shader.held" | "shader.id-taken" | "shader.unknown">[];
 }
 
 /** What applying a style document accepts beyond the document itself. */
@@ -370,7 +381,7 @@ export interface TemplateOptions extends RunOptions {
     /**
      * What to do with the shaders the document carries, for this call only: `"hold"` until
      * `session.shaders.approve`, `"run"` them, or `"refuse"` them (layers naming them draw what
-     * lies beneath). Absent: the element's `shaderSettings.untrusted`, which holds by default.
+     * lies beneath). A refused shader is still kept, held, so a save carries it back out. Absent: the element's `shaderSettings.untrusted`, which holds by default.
      * A `shaderSettings` member in the document itself is ignored.
      * @since 3.36.0
      */
@@ -1231,6 +1242,10 @@ export interface StylesApi {
      * SYNCHRONOUS. The element's own layers are NOT in it: they come with the element, they cannot
      * be added by a consumer, and a document carrying them would either duplicate them or be
      * refused wherever it was applied. What a document holds is what somebody chose.
+     *
+     * It carries the text of every shader the project holds (`shaders`), so it opens the same on a
+     * build that no longer ships a shader it used. A layer use, an encode key or the background
+     * naming a shader the project does not hold is reported in `problems` as `shader.not-saved`.
      * @returns The document, bottom first.
      */
     toDocument(): StyleDocument;
@@ -2068,12 +2083,15 @@ function documentRowKeys(specs: readonly LayerSpec[], ids: readonly LayerId[]): 
 /** The most pasted shaders one style document carries. */
 const DOCUMENT_SHADER_LIMIT = 64;
 
-/** The most shader text one style document carries, in characters. */
-const DOCUMENT_SHADER_TEXT_LIMIT = 262_144;
+/**
+ * The most shader text one style document carries, in characters: 1 MiB, room for every preset
+ * (about 220 KB) and the reader's own.
+ */
+const DOCUMENT_SHADER_TEXT_LIMIT = 1_048_576;
 
 /**
- * Check a document's shader list: at most 64 entries, each a namespaced id and its text, at most
- * 256 KB of text in all. The text itself is checked when the shader is added to the project.
+ * Check a document's shader list: at most 64 entries, each an id and its text, at most 1 MiB of
+ * text in all. The text itself is checked when the shader is added to the project.
  * @param shaders - The list, as the document carries it.
  * @throws A `GraphtyError` with `E_BAD_COMMAND`, whose `details.code` is `shader.too-many`,
  *   `shader.too-large` or `shader.id-invalid`.
@@ -2095,8 +2113,8 @@ function checkDocumentShaders(shaders: StyleDocument["shaders"]): void {
     let bytes = 0;
     for (const entry of shaders as readonly unknown[]) {
         const { id, text } = (entry ?? {}) as { id?: unknown; text?: unknown };
-        if (!isShaderId(id, true) || typeof text !== "string") {
-            throw badCommand("Each shader in a style document is { id, text }, its id namespaced.", {
+        if (!isShaderId(id) || typeof text !== "string") {
+            throw badCommand("Each shader in a style document is { id, text }.", {
                 code: "shader.id-invalid",
                 id: String(id),
             });
@@ -2106,7 +2124,7 @@ function checkDocumentShaders(shaders: StyleDocument["shaders"]): void {
     }
 
     if (bytes > DOCUMENT_SHADER_TEXT_LIMIT) {
-        throw badCommand("A style document carries at most 256 KB of shader text.", {
+        throw badCommand("A style document carries at most 1 MiB of shader text.", {
             code: "shader.too-large",
             bytes,
             limit: DOCUMENT_SHADER_TEXT_LIMIT,
@@ -3481,6 +3499,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     // Several layers written as one step: a transaction, joining the caller's own
                     // when there is one, since the dispatcher routes it there.
                     const members = command.batch();
+                    const loading = loadNamedShaders(members);
+                    if (loading !== undefined) {
+                        await loading;
+                    }
                     // Dispatched together, not one after another: each member writes its draft as it is
                     // dispatched, and awaiting each in turn would let a repaint pass run between them.
                     const outcomes = await dispatcher.transaction(
@@ -3496,6 +3518,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     return { result: (command.result === undefined ? results : command.result(results)) as T };
                 }
 
+                const loading = loadNamedShaders(command);
+                if (loading !== undefined) {
+                    await loading;
+                }
                 const outcome = (await dispatcher.dispatch(command)) as EditOutcome<T>;
                 await outcome.painted;
 
@@ -3976,18 +4002,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const mode = asked ?? trust?.mode() ?? "hold";
         const writes: { id: string; text: string }[] = [];
         const facts: CodedFact<"shader.held" | "shader.id-taken">[] = [];
-        if (mode === "refuse") {
-            return { mode, writes, facts };
-        }
-
         const held: string[] = [];
         for (const { id, text } of document.shaders ?? []) {
-            // A shader this page registered under the id is the page's own code: the page's
-            // version draws, and the document's copy is not needed.
-            if (trust?.pageOwns(id) === true) {
+            // Text that does not read is not written: an opening file drops the uses naming it.
+            if (trust?.readable(id, text) === false) {
                 continue;
             }
 
+            // Trust is the entry's content hash, read as the project stores it; never its id.
+            const trusted = trust?.trusted(id, text, mode === "refuse") === true;
             const existing = dispatcher.state.shaders.get(id);
             if (existing !== undefined) {
                 // The first loaded wins; a second text under the id is reported, not swapped in.
@@ -3999,7 +4022,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
 
             writes.push({ id, text });
-            if (mode !== "run" && trust?.trusted(text) !== true) {
+            if (mode !== "run" && !trusted) {
                 held.push(id);
             }
         }
@@ -4701,11 +4724,38 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         if (command.op === "style.template") {
-            const plan = planTemplate(command.document, command.templateId, command.at);
             const { facts } = documentShaders(command.document, command.shaders);
-            return facts.length === 0 && command.document.shaders === undefined
+            // A document resolves a use only against the shaders it carries and those the project
+            // holds, never the catalog by id: any other use is dropped and reported, and the rest
+            // of it applies. Whether opening a file or applying a saved document, the same rule.
+            const dropped: { channel: string; shader: string }[][] = [];
+            let { document } = command;
+            // A carried entry keeps its uses when its text reads, whether or not trust lets it
+            // run: refused text draws nothing, but the author's uses survive a save.
+            const readable = SHADER_TRUST.get(api)?.readable;
+            const carried = new Set(
+                (command.document.shaders ?? [])
+                    .filter((entry) => readable?.(entry.id, entry.text) !== false)
+                    .map((entry) => entry.id),
+            );
+            const keep = (id: string): boolean => carried.has(id) || dispatcher.services.shaderReadable?.(id) === true;
+            const layers = document.layers.map((spec, at) => {
+                dropped[at] = [];
+                return withoutShaderUses(spec, keep, dropped[at]);
+            });
+            document = layers.every((spec, at) => spec === document.layers[at]) ? document : { ...document, layers };
+
+            const plan = planTemplate(document, command.templateId, command.at);
+            const unknown = dropped.flatMap((uses, at) =>
+                uses.map((use): CodedFact<"shader.unknown"> => ({
+                    code: "shader.unknown",
+                    params: { layer: plan.layers[at] ?? "", channel: use.channel, shader: use.shader },
+                })),
+            );
+            const all = [...facts, ...unknown];
+            return all.length === 0 && command.document.shaders === undefined
                 ? plan
-                : { ...plan, result: Object.freeze({ ...plan.result, shaders: Object.freeze(facts) }) };
+                : { ...plan, result: Object.freeze({ ...plan.result, shaders: Object.freeze(all) }) };
         }
 
         switch (command.action) {
@@ -4811,12 +4861,22 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     dispatcher.services.styles = {
         previewColumn: (binding, channel, column) => previewColumn(binding, channel, column),
         execute(command, draft) {
+            // Every style write reaches here, run commits and suggested styles included: one that
+            // names a catalog shader the project does not hold copies its text in, in this step. A
+            // document copies nothing: it carries its shaders.
+            const named = namedShaders(dispatcher.state);
+            if (command.op !== "style.template") {
+                settleShaderCopies(shaderIdsIn(command), draft, dispatcher.services);
+            }
+
             const planned = planOf(command);
             if (command.op === "style.template") {
                 // The layers are planned first, so a refused document writes no shader either.
                 const { mode, writes } = documentShaders(command.document, command.shaders);
                 if (mode === "run") {
-                    SHADER_TRUST.get(api)?.trust(writes.map((entry) => entry.text));
+                    SHADER_TRUST.get(api)?.trust(writes);
+                } else if (mode === "refuse") {
+                    SHADER_TRUST.get(api)?.refuse(writes);
                 }
 
                 for (const { id, text } of writes) {
@@ -4849,6 +4909,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 dispatcher.lane.touch("styles", "");
             } else {
                 draft.styles = next;
+                dropUnusedShaderCopies(named, dispatcher.state, draft, dispatcher.services);
             }
 
             let settle: (painted: RepaintReport | null) => void = () => undefined;
@@ -5897,12 +5958,20 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const mine = current().filter((entry) => !entry.layer.locked);
             const layers = mine.map((entry) => specOf(entry.layer));
             const carried = carriedPalettes(layers);
-            // The project's shaders travel with its look, verbatim, beside the palettes, and so do
-            // the page's registered shaders its layers name, so the look opens on a page without them.
-            const shaders = [
-                ...[...dispatcher.state.shaders].map(([id, entry]) => Object.freeze({ id, text: entry.text })),
-                ...(SHADER_TRUST.get(api)?.embedded(layers) ?? []).map((entry) => Object.freeze({ ...entry })),
-            ];
+            // The project's shaders travel with its look, verbatim, beside the palettes. A write
+            // that names a catalog shader copies it into the project, so this is every shader used.
+            const shaders = [...dispatcher.state.shaders].map(([id, entry]) => Object.freeze({ id, text: entry.text }));
+            // Every id a layer, an encode key or the background names must be one the document
+            // carries. One that is not is an element bug, reported rather than written silently.
+            const background = dispatcher.state.config.get("background") as { shader?: { id?: unknown } } | undefined;
+            const named = shaderIdsIn(layers);
+            if (typeof background?.shader?.id === "string") {
+                named.add(background.shader.id);
+            }
+
+            const problems = [...named]
+                .filter((id) => !dispatcher.state.shaders.has(id))
+                .map((id): ShaderProblem => Object.freeze({ code: "shader.not-saved", params: { id } }));
             // Saved by place, since an opened document mints new layer ids.
             const tree = documentRows(rowsOf(current()), (key) => mine.findIndex((entry) => entry.layer.id === key));
 
@@ -5914,6 +5983,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 ...(carried.length === 0 ? {} : { palettes: Object.freeze(carried) }),
                 ...(shaders.length === 0 ? {} : { shaders: Object.freeze(shaders) }),
                 ...(tree === undefined ? {} : { tree }),
+                ...(problems.length === 0 ? {} : { problems: Object.freeze(problems) }),
             });
         },
 
@@ -6105,14 +6175,17 @@ type ShaderTrustMode = "run" | "hold" | "refuse";
 interface ShaderTrust {
     /** The trust a document gets when its call names none. */
     readonly mode: () => ShaderTrustMode;
-    /** Whether a text may run without asking. */
-    readonly trusted: (text: string) => boolean;
-    /** Approve texts for this session. */
-    readonly trust: (texts: readonly string[]) => void;
-    /** The text of each page-registered shader the layers name, to embed in a saved document. */
-    readonly embedded: (layers: readonly LayerSpec[]) => readonly { readonly id: string; readonly text: string }[];
-    /** Whether the page registered a shader under this id, so a document's copy gives way to it. */
-    readonly pageOwns: (id: string) => boolean;
+    /**
+     * Whether a document's entry may run without asking, by its content hash as the project stores it.
+     * A refusing call leaves out the settings' `untrusted: "run"`.
+     */
+    readonly trusted: (id: string, text: string, refusing?: boolean) => boolean;
+    /** Whether a document's entry reads as a shader under its id; one that does not is never written. */
+    readonly readable: (id: string, text: string) => boolean;
+    /** Approve documents' entries for this session. */
+    readonly trust: (entries: readonly { readonly id: string; readonly text: string }[]) => void;
+    /** Hold documents' entries a call refused, until the reader approves one, whatever the settings. */
+    readonly refuse: (entries: readonly { readonly id: string; readonly text: string }[]) => void;
 }
 
 /** Each stack's shader trust, by the API that owns it. */

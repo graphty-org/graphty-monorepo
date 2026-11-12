@@ -1,0 +1,85 @@
+/* graphty-shader 1
+{
+    "id": "shockwave",
+    "name": "Shockwave",
+    "place": "around",
+    "categories": [
+        "Attention"
+    ],
+    "cost": "medium",
+    "motion": "still",
+    "reach": 4,
+    "blend": "over",
+    "reads": [],
+    "webgpu": "translate",
+    "params": [
+        {
+            "name": "ringColor",
+            "type": "color",
+            "default": "#9fd8ff",
+            "primary": true,
+            "plainName": "Color"
+        },
+        {
+            "name": "ringGlow",
+            "type": "number",
+            "default": 0.9,
+            "min": 0,
+            "max": 1.5,
+            "plainName": "Glow"
+        },
+        {
+            "name": "chroma",
+            "type": "number",
+            "default": 1,
+            "min": 0,
+            "max": 4,
+            "plainName": "Color split"
+        },
+        {
+            "name": "ringAge",
+            "type": "number",
+            "default": {
+                "by": "since.matched",
+                "domain": [
+                    0,
+                    0.7
+                ],
+                "range": [
+                    0,
+                    0.7
+                ]
+            }
+        }
+    ]
+}
+*/
+
+float ringAt(float r, float age) {
+    if (age < 0.0 || age > 0.7) {
+        return 0.0;
+    }
+
+    float k = age / 0.7;
+    float radius = 1.0 + 2.7 * (1.0 - (1.0 - k) * (1.0 - k));
+    float width = 0.12 + 0.3 * k;
+    float x = (r - radius) / width;
+    return exp(-x * x) * (1.0 - k) * (1.0 - k);
+}
+
+vec4 shade(NodeInput n) {
+    float age = ringAge;
+    if (age >= 0.7) {
+        return vec4(0.0);
+    }
+
+    float r = length(n.uv);
+    float split = 0.05 * chroma;
+    vec3 ring = vec3(ringAt(r - split, age), ringAt(r, age), ringAt(r + split, age));
+    // the ripple: a fainter ring a little behind the first
+    float ripple = ringAt(r + 0.55, age - 0.08) * 0.35;
+    vec3 c = ringColor * (ring + vec3(ripple)) * ringGlow;
+    float a = clamp(max(max(c.r, c.g), c.b), 0.0, 1.0);
+    // Straight alpha: the ring's light over its coverage.
+    return vec4(c / max(a, 1e-4), a * 0.8);
+}

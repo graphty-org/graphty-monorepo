@@ -170,6 +170,13 @@ export interface LabelStyle {
      */
     wrapSpaceCount?: number;
     /**
+     * The most lines the label draws, a whole number from 1. A label with more lines -- its own, or
+     * the ones `wrapWidth` breaks it into -- keeps the first ones and ends the last one kept in an
+     * ellipsis. Unset, every line is drawn.
+     * @since 3.38.0
+     */
+    maxLines?: number;
+    /**
      * Whether a blank line before or between lines of words is drawn one line of the label's font tall, as a text
      * layout sets it (yEd draws "\nCS" two lines tall). Unset or false, a blank line takes no height. A blank line
      * after the last words takes none either way.
@@ -442,6 +449,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     wrapEllipsis: 0,
     wrapAnywhere: 0,
     wrapSpaceCount: 0,
+    maxLines: 0,
     keepBlankLines: 0,
     runAlign: 0,
     rotation: 0,
@@ -536,6 +544,7 @@ export const RICH_TEXT_KEYS = {
     wrapEllipsis: "wrapEllipsis",
     wrapAnywhere: "wrapAnywhere",
     wrapSpaceCount: "wrapSpaceCount",
+    maxLines: "maxLines",
     keepBlankLines: "keepBlankLines",
     runAlign: "runAlign",
     rotation: "rotation",
@@ -635,3 +644,201 @@ export const LABEL_STYLE_DEFAULTS: Readonly<LabelStyle> = Object.freeze({
     pickable: defaultRichTextLabelStyle.pickable ?? false,
     gradientColors: DEFAULT_LABEL_GRADIENT_COLORS,
 });
+
+/** What kind of value a label style field takes: what a control for it has to offer. */
+export type LabelFieldValueKind = "color" | "colors" | "number" | "text" | "boolean" | "enum";
+
+/**
+ * One field of {@link LabelStyle}, described for a settings panel or a story control that draws a
+ * control per field: what it is called, what it takes, and what is drawn while nothing sets it.
+ * @since 3.38.0
+ */
+export interface LabelStyleFieldDescriptor {
+    /** The field's name in {@link LabelStyle}. */
+    readonly field: keyof LabelStyle;
+    /** The field's default name, for a reader. */
+    readonly plainName: string;
+    /** The kind of value it takes. `"colors"` is a list of colors. */
+    readonly accepts: LabelFieldValueKind;
+    /** Every value it takes, when `accepts` is `"enum"`. */
+    readonly values?: readonly string[];
+    /** The smallest number it takes, when it has one. */
+    readonly min?: number;
+    /** Whether `min` itself is refused, so a value must be above it. */
+    readonly exclusiveMin?: boolean;
+    /** The largest number it takes, when it has one. */
+    readonly max?: number;
+    /** Whether it takes whole numbers only. */
+    readonly integer?: boolean;
+    /** What is drawn while nothing sets it, as {@link LABEL_STYLE_DEFAULTS} says; absent when nothing is. */
+    readonly default?: string | number | boolean | readonly string[];
+}
+
+type FieldRow = Omit<LabelStyleFieldDescriptor, "field" | "default">;
+
+const num = (plainName: string, bounds: Partial<FieldRow> = {}): FieldRow => ({
+    plainName,
+    accepts: "number",
+    ...bounds,
+});
+const flag = (plainName: string): FieldRow => ({ plainName, accepts: "boolean" });
+const color = (plainName: string): FieldRow => ({ plainName, accepts: "color" });
+const text = (plainName: string): FieldRow => ({ plainName, accepts: "text" });
+const choice = (plainName: string, values: readonly string[]): FieldRow => ({ plainName, accepts: "enum", values });
+const fraction = (plainName: string): FieldRow => num(plainName, { min: 0, max: 1 });
+
+const SIDES = ["top", "bottom", "left", "right", "auto"] satisfies readonly LabelPointerDirection[];
+const BOX_OR_WORDS = ["box", "words"] as const;
+
+/** Every label style field's row, keyed so a field without one fails to compile. */
+const FIELD_ROWS = {
+    look: choice("Look", ["default", "card", "dark", "pill", "callout"] satisfies readonly LabelLookId[]),
+    enabled: flag("Enabled"),
+    font: text("Font"),
+    sizePx: num("Font Size"),
+    sizeMode: choice("Size Mode", ["world", "screen"] satisfies readonly LabelSizeMode[]),
+    size: num("Size", { min: 0, exclusiveMin: true }),
+    letterSize: num("Letter Size", { min: 0 }),
+    weight: choice("Weight", ["normal", "bold"]),
+    color: color("Color"),
+    italic: flag("Italic"),
+    wrapWidth: num("Wrap Width", { min: 0 }),
+    wrapTrailingSpace: flag("Wrap Trailing Space"),
+    wrapEllipsis: flag("Wrap Ellipsis"),
+    wrapAnywhere: flag("Wrap Anywhere"),
+    wrapSpaceCount: num("Wrap Space Count", { min: 0 }),
+    maxLines: num("Max Lines", { min: 1, integer: true }),
+    keepBlankLines: flag("Keep Blank Lines"),
+    runAlign: choice("Run Align", ["baseline", "hanging", "middle"]),
+    rotation: num("Rotation"),
+    lineHeight: num("Line Height"),
+    minScreenSize: num("Min Screen Size", { min: 0 }),
+    declutter: choice("Declutter", ["degree", "size"] satisfies readonly LabelDeclutterOrder[]),
+    minNodeScreenSize: num("Min Node Screen Size", { min: 0 }),
+    textAlign: choice("Text Align", ["left", "center", "right"] satisfies readonly LabelTextAlign[]),
+    opacity: fraction("Opacity"),
+    background: color("Background"),
+    backgroundOpacity: fraction("Background Opacity"),
+    padding: num("Padding"),
+    boxPadding: num("Box Padding", { min: 0 }),
+    cornerRadius: num("Corner Radius"),
+    borderWidth: num("Border Width"),
+    borderColor: color("Border Color"),
+    borderOpacity: fraction("Border Opacity"),
+    gradient: flag("Gradient"),
+    gradientType: choice("Gradient Type", ["linear", "radial"] satisfies readonly LabelGradientType[]),
+    gradientColors: { plainName: "Gradient Colors", accepts: "colors" },
+    gradientDirection: choice("Gradient Direction", [
+        "vertical",
+        "horizontal",
+        "diagonal",
+    ] satisfies readonly LabelGradientDirection[]),
+    location: choice("Location", [
+        "top",
+        "top-right",
+        "top-left",
+        "left",
+        "center",
+        "right",
+        "bottom",
+        "bottom-left",
+        "bottom-right",
+        "inside-top",
+        "inside-bottom",
+        "inside-left",
+        "inside-right",
+        "inside-top-left",
+        "inside-top-right",
+        "inside-bottom-left",
+        "inside-bottom-right",
+        "automatic",
+    ] satisfies readonly LabelLocation[]),
+    attachOffset: num("Attach Offset"),
+    offsetX: num("Offset X"),
+    offsetY: num("Offset Y"),
+    shiftX: num("Shift X"),
+    shiftY: num("Shift Y"),
+    shiftOf: choice("Shift Of", BOX_OR_WORDS),
+    gapOf: choice("Gap Of", BOX_OR_WORDS),
+    box: choice("Box", ["words", "words-at-side", "target-width"]),
+    keepInView: flag("Keep In View"),
+    marginTop: num("Margin Top"),
+    marginBottom: num("Margin Bottom"),
+    marginLeft: num("Margin Left"),
+    marginRight: num("Margin Right"),
+    pointer: flag("Pointer"),
+    pointerDirection: choice("Pointer Direction", SIDES),
+    pointerWidth: num("Pointer Width"),
+    pointerHeight: num("Pointer Height"),
+    pointerOffset: num("Pointer Offset"),
+    pointerCurve: flag("Pointer Curve"),
+    outline: color("Outline"),
+    outlineWidth: num("Outline Width"),
+    outlineOpacity: fraction("Outline Opacity"),
+    shadow: flag("Shadow"),
+    shadowColor: color("Shadow Color"),
+    shadowBlur: num("Shadow Blur"),
+    shadowOffsetX: num("Shadow Offset X"),
+    shadowOffsetY: num("Shadow Offset Y"),
+    panelShadow: flag("Panel Shadow"),
+    panelShadowColor: color("Panel Shadow Color"),
+    panelShadowBlur: num("Panel Shadow Blur", { min: 0 }),
+    panelShadowOffsetX: num("Panel Shadow Offset X"),
+    panelShadowOffsetY: num("Panel Shadow Offset Y"),
+    animation: choice("Animation", [
+        "none",
+        "pulse",
+        "bounce",
+        "shake",
+        "glow",
+        "fill",
+    ] satisfies readonly LabelAnimation[]),
+    animationSpeed: num("Animation Speed"),
+    depthFade: flag("Depth Fade"),
+    depthFadeNear: num("Depth Fade Near"),
+    depthFadeFar: num("Depth Fade Far"),
+    onTop: flag("On Top"),
+    pickable: flag("Pickable"),
+    badge: choice("Badge", [
+        "notification",
+        "label",
+        "label-success",
+        "label-warning",
+        "label-danger",
+        "count",
+        "icon",
+        "progress",
+        "dot",
+    ] satisfies readonly LabelBadge[]),
+    icon: text("Icon"),
+    iconPosition: choice("Icon Position", ["left", "right"] satisfies readonly LabelIconPosition[]),
+    progress: fraction("Progress"),
+    smartOverflow: flag("Smart Overflow"),
+    maxNumber: num("Max Number"),
+    overflowSuffix: text("Overflow Suffix"),
+    closeButton: flag("Close Button"),
+} satisfies Record<keyof LabelStyle, FieldRow>;
+
+/**
+ * Every field of {@link LabelStyle}, described, in the order {@link LABEL_STYLE_FIELDS} lists them:
+ * what a settings panel needs to draw a control for each without restating any of them.
+ * @since 3.38.0
+ * @example
+ * ```ts
+ * import { LABEL_STYLE_DESCRIPTORS } from "@graphty/graphty-element/catalog";
+ *
+ * const wrap = LABEL_STYLE_DESCRIPTORS.find((d) => d.field === "maxLines");
+ * wrap?.accepts; // "number"
+ * wrap?.min; // 1
+ * ```
+ */
+export const LABEL_STYLE_DESCRIPTORS: readonly LabelStyleFieldDescriptor[] = Object.freeze(
+    LABEL_STYLE_FIELDS.map((field): LabelStyleFieldDescriptor => {
+        const value = LABEL_STYLE_DEFAULTS[field];
+        return Object.freeze({
+            field,
+            ...FIELD_ROWS[field],
+            ...(value === undefined ? {} : { default: value }),
+        });
+    }),
+);

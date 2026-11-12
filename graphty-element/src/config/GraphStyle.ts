@@ -15,7 +15,12 @@ export const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
 
 /** A background shader drawn over the colour and the image: its id and its parameters. */
 const GraphBackgroundShaderLook = z.strictObject({
-    /** A background shader id: a preset (`"nebula"`), a registered or a pasted shader. */
+    /**
+     * The id of one of the project's own background shaders (`session.shaders.list()`). Writing a
+     * catalog id (a preset such as `"nebula"`, or a registered shader) copies that shader's text
+     * into the project first, so a saved file carries it; opening a file resolves the id against
+     * the file's own shaders only, never the reading build's catalog.
+     */
     id: z.string().min(1).max(81),
     /** Its parameters, by the names its catalog entry declares. */
     params: z

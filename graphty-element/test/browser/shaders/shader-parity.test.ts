@@ -172,11 +172,14 @@ describe("saving a registered shader with the look", () => {
             [["parity/heat", "held"]],
         );
 
-        // A page that registered it: its own body draws, and nothing joins the project.
+        // A page that registered it: the text is that shader's own, so its copy joins the project unheld.
         defineShader({ id: "parity/heat", params: { hot: "#ff5500" }, glsl: HEAT });
         const here = await mounted();
         await here.element.session.styles.applyTemplate(saved);
-        assert.lengthOf(here.element.session.shaders.list(), 0);
+        assert.deepEqual(
+            here.element.session.shaders.list().map((shader) => shader.id),
+            ["parity/heat"],
+        );
         assert.notStrictEqual(here.element.session.shaders.status("parity/heat").state, "held");
     });
 });

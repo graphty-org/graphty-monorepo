@@ -19,6 +19,7 @@ import {
     open,
     running,
     startLayout,
+    submitLayout,
     textureDiff,
 } from "./shared-device";
 
@@ -101,6 +102,31 @@ describe("the layout filling the row table on a shared device", () => {
         const diff = await textureDiff(graph);
         assert.isBelow(diff.worst, 1e-6);
         assert.isBelow(diff.wWorst, 1e-6);
+    });
+
+    it("draws its first landings at the size the layout measures", async () => {
+        adapterSays("test-hardware");
+        const graph = await open();
+        graph.setRenderPath("batched");
+        await submitLayout(graph);
+        // the farthest any node stands from the origin, over the first landings: a seeded ForceAtlas2
+        // spreads some 3,000 times over in its first batches, and a landing drawn with the map measured
+        // before them stood some 2,000 times the size of the next (#6584)
+        const reach = (): number =>
+            Math.max(
+                ...Array.from({ length: 200 }, (_, i) => {
+                    const { x, y, z } = graph.getNode(`n${String(i)}`)?.getPosition() ?? { x: 0, y: 0, z: 0 };
+                    return Math.max(Math.abs(x), Math.abs(y), Math.abs(z));
+                }),
+            );
+        const reaches: number[] = [];
+        for (let i = 0; i < 4; i++) {
+            await landed(graph);
+            reaches.push(reach());
+        }
+
+        assert.isAbove(graph.getRowTable()?.copies ?? 0, 0);
+        assert.isBelow(Math.max(...reaches) / Math.min(...reaches), 2, reaches.join(", "));
     });
 
     it("selects the node a click lands on while the layout copies", async () => {

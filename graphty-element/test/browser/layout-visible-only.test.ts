@@ -160,6 +160,24 @@ describe("a layout over only what the filter shows", () => {
         await graph.waitForSettled();
         assert.strictEqual(layoutsRun, 3, "switching it off lays out the whole graph");
     });
+
+    it("lays out once for the filter changes that arrive while a layout is being built, as a play's frames do", async () => {
+        await graph.setLayout("circular", { dim: 2 });
+        graph.setLayoutBehavior({ layout: { visibleOnly: true } });
+        await graph.waitForSettled();
+        layoutsRun = 0;
+
+        // A layout being built holds the queue; every change after it is one waiting relayout.
+        const building = graph.setLayout("circular", { dim: 2 });
+        const changes = [6, 5, 4, 3].map((count) =>
+            session.visibility.set({ kind: "member", of: { nodes: SHOWN.slice(0, count) } }),
+        );
+        await Promise.all([building, ...changes]);
+        await graph.waitForSettled();
+        assert.strictEqual(layoutsRun, 2, "the layout asked for, then one relayout for the four changes");
+        // The last filter's three nodes on a circle of their own, 120 degrees apart.
+        assert.closeTo(smallestGap(anglesOf(positionsOf(graph), SHOWN.slice(0, 3))), 120, 0.5);
+    });
 });
 
 /** A clique of ten nodes, a component of its own beside the path. */

@@ -58,6 +58,24 @@ import { DEFAULT_ASSISTANT_GATE_LIMITS, type GateKind, type MessageState, type T
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "ai"]);
 
+/**
+ * The one ask to go on, after a turn that read tool results and then said nothing and called
+ * nothing. Gemini Live does that about one message in six after a `catalog` search (#6712): the
+ * empty turn is not an answer, so it is asked once, and an empty turn again ends the message
+ * `AI_NO_RESPONSE`, never as a silent success.
+ */
+const GO_ON: SavedMessage = {
+    id: "go-on",
+    role: "user",
+    parts: [
+        {
+            type: "text",
+            origin: "graphty",
+            text: "You have the tool results and said nothing. Go on: call the next tool my request needs, or answer me in plain text.",
+        },
+    ],
+};
+
 /** How many tool rounds one message may take before it must answer in text. */
 export const MAX_ASSISTANT_TOOL_TURNS = 8;
 
@@ -1387,6 +1405,10 @@ interface Loop {
     heldResults: SavedMessage | undefined;
     /** Paused turns sent back to continue so far. */
     resent: number;
+    /** An empty turn after tool results: `asking` sends `GO_ON` with the next turn, `asked` once it went. */
+    goOn: "asking" | "asked" | undefined;
+    /** The last turn was empty again after `GO_ON`: the message ends `AI_NO_RESPONSE`. */
+    silent: boolean;
 }
 
 /**
@@ -1432,6 +1454,8 @@ function startLoop(run: ConversationRun): Loop {
         },
         heldResults: undefined,
         resent: 0,
+        goOn: undefined,
+        silent: false,
     };
 }
 
@@ -1606,7 +1630,7 @@ async function modelStep(loop: Loop, turn: number): Promise<boolean> {
 
     // A provider that ignores toolMode may still call tools on the answer-only ask: they do not run.
     if (answerOnly || said.calls.length === 0 || said.paused) {
-        return answered(loop, said);
+        return answered(loop, said, answerOnly);
     }
 
     run.sink.status.startExecuting();
@@ -1632,12 +1656,21 @@ function askModel(loop: Loop, offered: readonly GraphCommand[], answerOnly: bool
     const history = profile === "small" ? trimmedHistory(shown) : shown;
     const hostedTools =
         run.hostedTools === undefined || answerOnly ? [] : turnHostedTools(run.hostedTools, loop.readerText, loop.uses);
+    // The ask to answer says more than the ask to go on, so a turn that may only answer sends it alone.
+    const closing = answerOnly ? [ANSWER_NOW] : [];
+    if (loop.goOn === "asking") {
+        loop.goOn = "asked";
+        if (!answerOnly) {
+            closing.push(GO_ON);
+        }
+    }
+
     return modelTurn(
         run,
         {
             model: run.model,
             system: run.conversation.system,
-            messages: answerOnly ? [...history, ANSWER_NOW] : history,
+            messages: [...history, ...closing],
             tools: [
                 ...offered.map(toolSpec),
                 ...(run.delegation === undefined ? [] : [run.delegation.tool]),
@@ -1653,13 +1686,14 @@ function askModel(loop: Loop, offered: readonly GraphCommand[], answerOnly: bool
 }
 
 /**
- * A turn that called no tools (or may not): its answer is kept, and a turn the provider paused
- * is sent back to continue, a few times.
+ * A turn that called no tools (or may not): its answer is kept, a turn the provider paused
+ * is sent back to continue, a few times, and an empty one after tool results is asked to go on once.
  * @param loop - The message's loop.
  * @param said - What the turn said.
- * @returns True when the message ends; false to send the paused turn back.
+ * @param answerOnly - Whether the turn could only answer.
+ * @returns True when the message ends; false to send the paused turn back, or to ask an empty one to go on.
  */
-function answered(loop: Loop, said: Said): boolean {
+function answered(loop: Loop, said: Said, answerOnly: boolean): boolean {
     const { run, tally, heldResults } = loop;
     const { text, hosted, paused } = said;
     const { messages } = run.conversation;
@@ -1697,7 +1731,35 @@ function answered(loop: Loop, said: Said): boolean {
         tally.paused = { provider: run.engine.providerName };
     }
 
-    return true;
+    return !emptyAfterResults(loop, said, answerOnly);
+}
+
+/**
+ * Whether a turn that read tool results, in a message that has changed nothing yet, said nothing
+ * and called nothing: the first such turn is asked to go on (`GO_ON`), and the next one ends the
+ * message `AI_NO_RESPONSE`.
+ * @param loop - The message's loop.
+ * @param said - What the turn said.
+ * @param answerOnly - Whether the turn could only answer.
+ * @returns True when the turn is asked to go on.
+ */
+function emptyAfterResults(loop: Loop, said: Said, answerOnly: boolean): boolean {
+    const { tally } = loop;
+    // A turn that may only answer and called a tool anyway said nothing too: its calls do not run.
+    const empty = said.text.trim() === "" && said.hosted.length === 0 && (answerOnly || said.calls.length === 0);
+    // Only a message that changed nothing yet: after a write, the change is what the reader sees.
+    const looked = tally.results.length > 0 && tally.committed === 0;
+    if (!empty || said.paused || !looked || tally.held !== undefined || loop.heldResults !== undefined) {
+        return false;
+    }
+
+    if (loop.goOn === undefined) {
+        loop.goOn = "asking";
+        return true;
+    }
+
+    loop.silent = true;
+    return false;
 }
 
 /** A turn's calls, sorted by how they run. */
@@ -1903,6 +1965,11 @@ function finishMessage(loop: Loop): ExecutionResult {
     let result = combineResults(tally, joinTexts(loop.texts));
     if (tally.decision !== undefined) {
         result = { ...result, success: tally.decision.code !== "AI_APPROVAL_STALE", ...tally.decision };
+    }
+
+    if (loop.silent && result.code === "AI_COMPLETED") {
+        // Asked to go on, the model was empty again: the reader is told nothing came back.
+        result = { ...result, code: "AI_NO_RESPONSE", params: { toolCalls: tally.results.length } };
     }
 
     if (tally.pending !== undefined && tally.held === undefined && tally.asked === undefined && tally.committed > 0) {

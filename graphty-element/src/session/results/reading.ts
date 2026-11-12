@@ -166,7 +166,7 @@ export function readingFactOf(result: RunResult): CodedFact<ReadingCode> {
             return {
                 code: "reading.groups",
                 params: {
-                    groups: groups.length,
+                    groups: summary.groupCount ?? groups.length,
                     largest: groups[0].size,
                     measured: summary.measured,
                     modularity: graphNumber(result, "modularity") ?? null,

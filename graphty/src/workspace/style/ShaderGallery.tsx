@@ -5,6 +5,7 @@ import { Chip, Group, Menu, Text, TextInput, Tooltip, UnstyledButton, VisuallyHi
 import React, { useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
+import { roveTiles } from "./tileRoving";
 import {
     GALLERY_WORDS,
     layersWord,
@@ -157,51 +158,35 @@ function onTab(descriptor: ShaderDescriptor, tab: ShaderTab): boolean {
  * @returns true when it shows.
  */
 function inOrigin(descriptor: ShaderDescriptor, origin: string): boolean {
+    const catalogId = catalogIdOf(descriptor);
     if (origin === "builtIn") {
-        return descriptor.origin === "element";
+        return catalogId !== undefined && !catalogId.includes("/");
     }
-    return origin === "project" ? descriptor.origin === "pasted" : true;
+    return origin === "project" ? catalogId === undefined : true;
 }
 
 /**
- * Where a shader that is not built in came from: "This project", or its registrant's namespace.
+ * The catalog entry a shader is filed with: a project copy's (`copyOf`), a catalog entry's own id,
+ * nothing for the project's own text.
+ * @param descriptor - the catalog's entry.
+ * @returns the catalog id, or undefined.
+ */
+function catalogIdOf(descriptor: ShaderDescriptor): string | undefined {
+    return descriptor.copyOf ?? (descriptor.origin === "pasted" ? undefined : descriptor.id);
+}
+
+/**
+ * Where a shader that is not built in came from: "This project", or its registrant's namespace (a
+ * registered id is `<namespace>/<name>`, a preset's is bare).
  * @param descriptor - the catalog's entry.
  * @returns the words, or undefined for a built-in shader.
  */
 function originWords(descriptor: ShaderDescriptor): string | undefined {
-    if (descriptor.origin === "pasted") {
+    const catalogId = catalogIdOf(descriptor);
+    if (catalogId === undefined) {
         return GALLERY_WORDS.project;
     }
-    return descriptor.origin === "registered" ? descriptor.id.split("/")[0] : undefined;
-}
-
-/**
- * Moves focus among the gallery's tiles, one Tab stop for all of them (decided.md's grids): the
- * arrows move by one tile or one row and stop at the ends, Home and End go to the first and last.
- * Disabled tiles are passed over.
- * @param event - the key, on a tile.
- * @param root - the gallery.
- */
-function roveKey(event: React.KeyboardEvent, root: HTMLElement | null): void {
-    const tiles = [...(root?.querySelectorAll<HTMLElement>(".ws-gallery-tile:not([aria-disabled])") ?? [])];
-    const at = tiles.indexOf(event.target as HTMLElement);
-    if (at < 0) {
-        return;
-    }
-    const moves: Record<string, number> = {
-        ArrowRight: at + 1,
-        ArrowLeft: at - 1,
-        ArrowDown: at + COLUMNS,
-        ArrowUp: at - COLUMNS,
-        Home: 0,
-        End: tiles.length - 1,
-    };
-    const next = moves[event.key];
-    if (next === undefined) {
-        return;
-    }
-    event.preventDefault();
-    tiles[Math.max(0, Math.min(next, tiles.length - 1))]?.focus();
+    return catalogId.includes("/") ? catalogId.split("/")[0] : undefined;
 }
 
 /** Props for ShaderGallery. */
@@ -274,7 +259,18 @@ export function ShaderGallery({
         ...found.map((option) => `option:${option.key}`),
         ...shaders.filter((descriptor) => reasons.get(descriptor.id) === undefined).map((descriptor) => descriptor.id),
     ];
-    const tabStop = [stop, ...marked].find((id) => id !== null && pickable.includes(id)) ?? pickable[0];
+    // A tile is in use when a use names it: a project shader by its own id, a catalog entry when a
+    // use's shader is a copy of it, never by comparing a use's id with a catalog id.
+    const inUse = new Set(
+        shaders
+            .filter((descriptor) =>
+                descriptor.origin === "pasted"
+                    ? marked.includes(descriptor.id)
+                    : marked.some((use) => session.shaders.describe(use)?.copyOf === descriptor.id),
+            )
+            .map((descriptor) => descriptor.id),
+    );
+    const tabStop = [stop, ...inUse].find((id) => id !== null && pickable.includes(id)) ?? pickable[0];
     const pick = (id: string): void => {
         if (id.startsWith("option:")) {
             onOption?.(id.slice("option:".length));
@@ -293,11 +289,11 @@ export function ShaderGallery({
     };
     const tile = (descriptor: ShaderDescriptor): React.JSX.Element => {
         const reason = reasons.get(descriptor.id);
-        const inUse = marked.includes(descriptor.id);
+        const used = inUse.has(descriptor.id);
         // What a screen reader hears after the name: what the tile shows besides it.
         const description = [
             reason,
-            inUse ? GALLERY_WORDS.inUse : undefined,
+            used ? GALLERY_WORDS.inUse : undefined,
             tab === "background" ? undefined : placeWords(descriptor.place, tab),
             ...factsOf(descriptor).map((fact) => fact.words),
             reason === undefined ? originWords(descriptor) : undefined,
@@ -322,12 +318,12 @@ export function ShaderGallery({
                 second={reason ?? originWords(descriptor)}
                 description={description}
                 disabled={reason !== undefined}
-                marked={inUse}
+                marked={used}
                 stop={tabStop === descriptor.id}
                 onPick={pick}
             />
         );
-        if (descriptor.origin !== "pasted" || onDelete === undefined) {
+        if (catalogIdOf(descriptor) !== undefined || onDelete === undefined) {
             return button;
         }
         return (
@@ -352,7 +348,8 @@ export function ShaderGallery({
             data-testid="shader-gallery"
             data-tab={tab}
             onKeyDown={(event) => {
-                roveKey(event, root.current);
+                // Disabled tiles are passed over.
+                roveTiles(event, COLUMNS, ".ws-gallery-tile:not([aria-disabled])");
             }}
             onFocus={(event) => {
                 const id = (event.target as HTMLElement).dataset.shader;

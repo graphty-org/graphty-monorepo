@@ -11,13 +11,17 @@ import {
     Title,
     useMantineColorScheme,
 } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { siteFileStyles } from "../../siteConfig";
+import { AI_PROVIDER_SECTION, AiProviderPage, type PageCommit } from "../assistant-door/AssistantPlace";
+import { assistantOn } from "../assistant-door/commands";
+import { providerDisclosure } from "../assistant-door/provider";
 import { fileStylesOn } from "../features";
 import { useAccelerationStatus } from "../frame/useAccelerationStatus";
 import { answerUsageData, useUsageAnswer } from "../privacy/usageData";
 import { UsageDataText } from "../privacy/UsageDataText";
+import { useAssistantSendsTo } from "../privacy/useAssistantSendsTo";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { setNumberFormat, useNumberFormats } from "./numberFormat";
 import {
@@ -37,7 +41,7 @@ const SECTIONS = [
     { id: "performance", name: "Performance" },
 ] as const;
 
-type SectionId = (typeof SECTIONS)[number]["id"];
+type SectionId = (typeof SECTIONS)[number]["id"] | typeof AI_PROVIDER_SECTION.id;
 
 /**
  * General: Theme (the app's chrome only), Number format and Import styles from files.
@@ -101,11 +105,14 @@ function General(): React.JSX.Element {
 }
 
 /**
- * Privacy: the usage data switch with the owner's words, and where the reader's data goes.
+ * Privacy: the usage data switch with the owner's words, and where the reader's data goes. With
+ * the assistant experiment on and a provider saved, the provider is named and no line says otherwise.
  * @returns The section
  */
 function Privacy(): React.JSX.Element {
     const on = useUsageAnswer() === "share";
+    const sendsTo = useAssistantSendsTo();
+    const usageOff = sendsTo === null ? "Usage data: off. Nothing is sent." : "Usage data: off.";
     return (
         <Stack gap="md">
             <Stack gap={6}>
@@ -116,18 +123,21 @@ function Privacy(): React.JSX.Element {
                         answerUsageData(event.currentTarget.checked ? "share" : "declined");
                     }}
                 />
-                <UsageDataText headline={false} />
+                <UsageDataText headline={false} assistantSends={sendsTo !== null} />
             </Stack>
             <Stack gap={4}>
                 <Text size="sm" fw={600}>
                     Where your data goes
                 </Text>
-                <Text size="xs">Files you open: read on this computer, never uploaded.</Text>
+                <Text size="xs">
+                    {sendsTo === null
+                        ? "Files you open: read on this computer, never uploaded."
+                        : "Files you open: read on this computer. Only what the assistant reads from them is sent."}
+                </Text>
+                {sendsTo === null ? null : <Text size="xs">Assistant: {providerDisclosure(sendsTo)}</Text>}
                 <Text size="xs">Your project: saved where you save it.</Text>
                 <Text size="xs">
-                    {on
-                        ? "Usage data: sent with content masked, only while Share usage data is on."
-                        : "Usage data: off. Nothing is sent."}
+                    {on ? "Usage data: sent with content masked, only while Share usage data is on." : usageOff}
                 </Text>
             </Stack>
         </Stack>
@@ -218,14 +228,32 @@ function Performance(): React.JSX.Element {
  * @returns The dialog
  */
 export function SettingsDialog(): React.JSX.Element {
-    const { store } = useWorkspace();
+    const { store, element } = useWorkspace();
     const dialog = useWorkspaceState((state) => state.dialog);
     const opened = dialog === "settings" || (dialog?.startsWith("settings:") ?? false);
     const asked = dialog?.split(":")[1];
-    const section: SectionId = SECTIONS.find((s) => s.id === asked)?.id ?? "general";
+    const sections = assistantOn(element) === true ? [...SECTIONS, AI_PROVIDER_SECTION] : SECTIONS;
+    const section: SectionId = sections.find((s) => s.id === asked)?.id ?? "general";
     const close = (): void => {
         store.set({ dialog: null });
     };
+    // Done commits what the open page holds, as its own Save does; X and Esc cancel.
+    const commit: PageCommit = useRef(null);
+    const done = async (): Promise<void> => {
+        const taken = section === AI_PROVIDER_SECTION.id && (await commit.current?.()) === true;
+        if (!taken) {
+            close();
+        }
+    };
+    // Mantine's modal sees Escape before anything inside it: a pop-out on a page closes alone.
+    const [popoutOpen, setPopoutOpen] = useState(false);
+    // Saving a provider sends focus to the composer, not back to what opened Settings.
+    const [toComposer, setToComposer] = useState(false);
+    useEffect(() => {
+        if (opened) {
+            setToComposer(false);
+        }
+    }, [opened]);
 
     // The single-key choice is the reader's, kept in this browser; the key map reads it from
     // the workspace state, which starts with it on.
@@ -237,13 +265,15 @@ export function SettingsDialog(): React.JSX.Element {
 
     // Opened from the start page (no project open), it takes the page's look: start.css.
     const onStart = useWorkspaceState((state) => state.project === null);
-    const title = SECTIONS.find((s) => s.id === section)?.name ?? "";
+    const title = sections.find((s) => s.id === section)?.name ?? "";
     return (
         <Modal
             opened={opened}
             onClose={close}
+            closeOnEscape={!popoutOpen}
             title="Settings"
             size="lg"
+            returnFocus={!toComposer}
             withOverlay={onStart ? true : undefined}
             overlayProps={onStart ? { color: "#0a0c12", backgroundOpacity: 0.45 } : undefined}
             radius={onStart ? 16 : undefined}
@@ -252,7 +282,7 @@ export function SettingsDialog(): React.JSX.Element {
             <div className="ws-dialog-columns">
                 <PageList
                     label="Settings sections"
-                    items={SECTIONS}
+                    items={sections}
                     current={section}
                     onCurrentChange={(id) => {
                         store.set({ dialog: `settings:${id}` });
@@ -266,10 +296,24 @@ export function SettingsDialog(): React.JSX.Element {
                     {section === "privacy" ? <Privacy /> : null}
                     {section === "accessibility" ? <Accessibility /> : null}
                     {section === "performance" ? <Performance /> : null}
+                    {section === AI_PROVIDER_SECTION.id ? (
+                        <AiProviderPage
+                            onSaved={() => {
+                                setToComposer(true);
+                            }}
+                            commit={commit}
+                            onPopoutOpen={setPopoutOpen}
+                        />
+                    ) : null}
                 </section>
             </div>
             <ModalFooter>
-                <Button className={onStart ? "ws-land-settings-done" : undefined} onClick={close}>
+                <Button
+                    className={onStart ? "ws-land-settings-done" : undefined}
+                    onClick={() => {
+                        void done();
+                    }}
+                >
                     Done
                 </Button>
             </ModalFooter>

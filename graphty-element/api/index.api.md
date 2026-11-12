@@ -208,7 +208,7 @@ export type AdHocData<KeyType extends string | number = string> = Record<KeyType
     readonly __brand?: "AdHocData";
 };
 
-// @public (undocumented)
+// @public
 export type AiEventType = AiEvent["type"];
 
 // @public
@@ -335,6 +335,9 @@ export interface AnimationResult {
 }
 
 // @public
+export type AssetStorage = "embed" | "url";
+
+// @public
 export interface AutosaveApi {
     discard(): Promise<void>;
     flush(): Promise<void>;
@@ -386,6 +389,7 @@ export interface AutosaveOptions {
     readonly dataMaxWaitMs: number;
     readonly delayMs: number;
     readonly keep: number;
+    readonly keepCamera: boolean;
     readonly key: string;
     readonly maxWaitMs: number;
     readonly persist: boolean;
@@ -1062,6 +1066,8 @@ export class Edge {
     get arrowTailStackCaps(): readonly ArrowCap[];
     // (undocumented)
     arrowTailText: RichTextLabel | null;
+    // @internal
+    columnEnd(end: "source" | "target"): ColumnRow | undefined;
     get data(): AdHocData;
     dispose(): void;
     get drawnCaps(): {
@@ -1088,8 +1094,14 @@ export class Edge {
     get drawnPattern(): readonly ArrowCap[];
     // (undocumented)
     readonly dstId: NodeIdType;
-    // (undocumented)
-    dstNode: Node_2;
+    get dstNode(): Node_2;
+    set dstNode(node: Node_2);
+    // @internal
+    endRow(end: "source" | "target"): number;
+    // @internal
+    followRenumberedRows(): void;
+    // @internal
+    get followsRows(): boolean;
     getInterceptPoints(): InterceptPoint;
     readonly id: string;
     get index(): number;
@@ -1120,8 +1132,8 @@ export class Edge {
     shaderDataChanged(): void;
     // (undocumented)
     readonly srcId: NodeIdType;
-    // (undocumented)
-    srcNode: Node_2;
+    get srcNode(): Node_2;
+    set srcNode(node: Node_2);
     // @internal
     supportEdge(centerOf?: (node: Node_2) => Readonly<Vector3>): SupportEdge | null;
     // @internal
@@ -1311,6 +1323,7 @@ export const EdgeStyle: z.ZodObject<{
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+            maxLines: z.ZodOptional<z.ZodNumber>;
             keepBlankLines: z.ZodOptional<z.ZodBoolean>;
             runAlign: z.ZodOptional<z.ZodEnum<{
                 baseline: "baseline";
@@ -1587,6 +1600,7 @@ export const EdgeStyle: z.ZodObject<{
             wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
             wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
             wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+            maxLines: z.ZodOptional<z.ZodNumber>;
             keepBlankLines: z.ZodOptional<z.ZodBoolean>;
             runAlign: z.ZodOptional<z.ZodEnum<{
                 baseline: "baseline";
@@ -2014,6 +2028,7 @@ export const EdgeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        maxLines: z.ZodOptional<z.ZodNumber>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -2237,6 +2252,7 @@ export const EdgeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        maxLines: z.ZodOptional<z.ZodNumber>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -2450,6 +2466,7 @@ export type ElementAtResult = {
 // @public
 export interface EnabledFeatures {
     readonly enabled: readonly FeatureId[];
+    has(id: FeatureId): boolean;
     readonly unknown: readonly string[];
 }
 
@@ -2526,7 +2543,7 @@ export class EventManager implements Manager {
     withRetry<T>(operation: () => Promise<T>, context: GraphErrorEvent["context"], graph: Graph | GraphContext | null, details?: Record<string, unknown>): Promise<T>;
 }
 
-// @public (undocumented)
+// @public
 export type EventType = GraphEventType | NodeEventType | EdgeEventType | AiEventType;
 
 // @public
@@ -2573,13 +2590,15 @@ export interface ExportResult {
 // @public
 export type ExportScope = RuleTree | "shown" | "selection" | {
     readonly set: SetId;
+} | {
+    readonly nodes: readonly NodeId[];
 };
 
 // @public
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "network-data" | "file-styles";
+export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "file-styles" | "node-models";
 
 // @public
 export interface FindAtLeastRow {
@@ -2744,7 +2763,9 @@ export class Graph implements GraphContext {
     addListener<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): symbol;
     addNode(node: AdHocData, idPath?: string, options?: QueueableOptions): Promise<void>;
     addNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
-    aiCommand(input: string): Promise<ExecutionResult>;
+    aiCommand(input: string, options?: AiCommandOptions): Promise<ExecutionResult>;
+    aiTalk(down: boolean, options?: AiTalkOptions): void;
+    answerAiQuestion(id: string, answer: string | readonly string[], options?: AiAnswerOptions): Promise<ExecutionResult>;
     readonly antialias: boolean;
     applyCameraView(id: string, options?: {
         scope?: ScopeInput;
@@ -2763,8 +2784,12 @@ export class Graph implements GraphContext {
     canvas: HTMLCanvasElement;
     captureAnimation(options: AnimationOptions): Promise<AnimationResult>;
     captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult>;
+    clearAiHistory(options?: {
+        readonly database?: string;
+    }): Promise<void>;
     clearData(): void;
-    static createApiKeyManager(): Promise<ApiKeyManager>;
+    static createApiKeyManager(options?: ApiKeyManagerOptions): Promise<ApiKeyManager>;
+    deleteAiConversation(id: string): Promise<void>;
     deselectNode(): void;
     disableAiControl(): void;
     dispose(): void;
@@ -2779,6 +2804,7 @@ export class Graph implements GraphContext {
     enableAiControl(config: AiManagerConfig): Promise<void>;
     // (undocumented)
     enableDetailedProfiling?: boolean;
+    endAiLive(): void;
     // (undocumented)
     engine: WebGPUEngine | Engine;
     enterXR(mode: "immersive-vr" | "immersive-ar"): Promise<void>;
@@ -2787,16 +2813,24 @@ export class Graph implements GraphContext {
     exitXR(): Promise<void>;
     // @internal
     expectRenderer(): void;
+    exportAiConversation(id: string): Promise<string | null>;
     exportCameraPresets(): Record<string, CameraState>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
     // (undocumented)
     fetchEdges?: FetchEdgesFn;
     // (undocumented)
     fetchNodes?: FetchNodesFn;
+    forgetAiKeys(options?: {
+        readonly provider?: ProviderType;
+        readonly prefix?: string;
+    }): Promise<void>;
     get framing(): boolean;
     getAcceleration(): AccelerationController;
+    getAiCapabilities(): AiCapabilities | null;
+    getAiConversation(): AiConversationSnapshot | null;
     getAiManager(): AiManager | null;
     getAiStatus(): AiStatus | null;
+    getAiVoiceSupport(): Promise<AiVoiceSupport>;
     getApiKeyManager(): ApiKeyManager | null;
     getAutoFrame(): boolean;
     getCameraController(): CameraController | null;
@@ -2812,6 +2846,8 @@ export class Graph implements GraphContext {
     getEdgeCount(): number;
     // @internal
     getEdgeIdTarget(): EdgeIdTarget | null;
+    // @internal
+    getEdgeRowLines(): EdgeRowLines | null;
     getEdges(): Edge[];
     getEventManager(): EventManager;
     getGlobeLook(): GlobeLook;
@@ -2828,6 +2864,8 @@ export class Graph implements GraphContext {
     getNodeIdTarget(): NodeIdTarget | null;
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
+    getPendingAiApprovals(): readonly AiApprovalRequest[];
+    getPendingAiQuestions(): readonly AiQuestionRequest[];
     // @internal
     getRowTable(): RowTable | null;
     getScene(): Scene;
@@ -2857,6 +2895,7 @@ export class Graph implements GraphContext {
     // @deprecated
     is2D(): boolean;
     isAiEnabled(): boolean;
+    isAiTalking(): boolean;
     isAnimationCapturing(): boolean;
     isARSupported(): Promise<boolean>;
     isCameraPlaced(): boolean;
@@ -2871,6 +2910,9 @@ export class Graph implements GraphContext {
     // @internal
     leansLines(): boolean;
     get limits(): Readonly<LimitsOption>;
+    listAiConversations(options?: {
+        readonly allKeys?: boolean;
+    }): Promise<readonly AiConversationSummary[]>;
     listenerCount(): number;
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
     loadFromFile(file: File, options?: {
@@ -2902,16 +2944,19 @@ export class Graph implements GraphContext {
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
+    modelThumbnail(ref: string, options?: ModelThumbnailOptions): Promise<string>;
     // @deprecated
     needRays: boolean;
     // @deprecated
     needsRayUpdate(): boolean;
+    newAiConversation(): Promise<AiConversationSnapshot | null>;
     get nodeLabelCounts(): NodeLabelCounts;
     nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined;
     nodeThumbnail(options: NodeThumbnailOptions): Promise<string>;
     on<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): () => void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
     readonly onNodeLabelCounts: Observable<NodeLabelCounts>;
+    openAiConversation(id: string): Promise<AiConversationSnapshot | null>;
     // @internal
     openRowTable(): RowTable;
     // (undocumented)
@@ -2921,6 +2966,7 @@ export class Graph implements GraphContext {
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeListener(id: symbol): boolean;
     removeNodes(nodeIds: (string | number)[], options?: QueueableOptions): Promise<void>;
+    renameAiConversation(id: string, name: string | null): Promise<void>;
     render(): void;
     get rendererRequest(): RendererRequest;
     get rendererStatus(): RendererStatus | null;
@@ -2928,6 +2974,7 @@ export class Graph implements GraphContext {
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
     // @internal
     resize(): void;
+    resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult>;
     resolveCameraPreset(preset: string, options?: {
         nodes?: Iterable<string | number>;
         params?: Readonly<Record<string, unknown>>;
@@ -3014,6 +3061,7 @@ export class Graph implements GraphContext {
         onTranscript?: (text: string, isFinal: boolean) => void;
         onStart?: (started: boolean, error?: string) => void;
     }): boolean;
+    stopAiSpeech(): void;
     stopInputRecording(): RecordedInputEvent[];
     stopVoiceInput(): void;
     get styles(): Styles;
@@ -3092,6 +3140,8 @@ export interface GraphContext {
     getDataManager(): DataManager;
     // @internal
     getDrawnTarget?(): DrawnTarget | null;
+    // @internal
+    getEdgeRowLines?(): EdgeRowLines | null;
     getEventManager?(): EventManager | undefined;
     getLayoutManager(): LayoutManager;
     getMeshCache(): MeshCache;
@@ -3237,9 +3287,11 @@ export class Graphty extends LitElement {
     addListener(type: EventType, callback: EventCallbackType): void;
     addNode(node: AdHocData, idPath?: string, options?: QueueableOptions): Promise<void>;
     addNodes(nodes: AdHocData[], idPath?: string, options?: QueueableOptions): Promise<void>;
-    aiCommand(message: string): Promise<ExecutionResult>;
+    aiCommand(message: string, options?: AiCommandOptions): Promise<ExecutionResult>;
+    aiTalk(down: boolean, options?: AiTalkOptions): void;
     get algorithmsOnLoad(): readonly AlgorithmOnLoad[] | undefined;
     set algorithmsOnLoad(value: readonly AlgorithmOnLoad[] | undefined);
+    answerAiQuestion(id: string, answer: string | readonly string[], options?: AiAnswerOptions): Promise<ExecutionResult>;
     get antialias(): boolean;
     set antialias(value: boolean);
     applyCameraView(id: string, options?: {
@@ -3275,6 +3327,9 @@ export class Graphty extends LitElement {
     cancelAnimationCapture(): boolean;
     captureAnimation(options: AnimationOptions): Promise<AnimationResult>;
     captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult>;
+    clearAiHistory(options?: {
+        readonly database?: string;
+    }): Promise<void>;
     clearData(): void;
     connectedCallback(): void;
     static createApiKeyManager(): Promise<ApiKeyManager>;
@@ -3283,6 +3338,7 @@ export class Graphty extends LitElement {
     set dataSource(value: string | undefined);
     get dataSourceConfig(): Record<string, unknown> | undefined;
     set dataSourceConfig(value: Record<string, unknown> | undefined);
+    deleteAiConversation(id: string): Promise<void>;
     deselectNode(): void;
     get directed(): boolean | "auto" | undefined;
     set directed(value: boolean | "auto" | undefined);
@@ -3291,7 +3347,7 @@ export class Graphty extends LitElement {
     downloadGraph(format: FormatId, options?: ExportGraphOptions & {
         readonly fileName?: string;
     }): Promise<ExportResult>;
-    downloadProject(options?: Omit<ProjectSaveOptions, "markSaved"> & {
+    downloadProject(options?: ProjectSaveOptions & {
         readonly fileName?: string;
     }): Promise<ProjectSaveReport>;
     drawnShaders(): DrawnShaders;
@@ -3323,8 +3379,10 @@ export class Graphty extends LitElement {
     get enableDetailedProfiling(): boolean | undefined;
     set enableDetailedProfiling(value: boolean | undefined);
     get enabledFeatures(): EnabledFeatures;
+    endAiLive(): void;
     estimateAnimationCapture(options: Pick<AnimationOptions, "duration" | "fps" | "width" | "height">): Promise<CaptureEstimate>;
     exitXR(): Promise<void>;
+    exportAiConversation(id: string): Promise<string | null>;
     exportCameraPresets(): Record<string, CameraState>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
     get features(): readonly string[] | undefined;
@@ -3332,9 +3390,13 @@ export class Graphty extends LitElement {
     firstUpdated(changedProperties: Map<string, unknown>): void;
     get fitInsets(): FitInsets;
     set fitInsets(value: Partial<FitInsets>);
+    forgetAiKeys(options?: Parameters<Graph["forgetAiKeys"]>[0]): Promise<void>;
     get framing(): boolean;
+    getAiCapabilities(): AiCapabilities | null;
+    getAiConversation(): AiConversationSnapshot | null;
     getAiManager(): AiManager | null;
     getAiStatus(): AiStatus | null;
+    getAiVoiceSupport(): Promise<AiVoiceSupport>;
     getApiKeyManager(): ApiKeyManager | null;
     getCameraController(): CameraController | null;
     getCameraPresets(): Record<string, CameraState | {
@@ -3350,6 +3412,8 @@ export class Graphty extends LitElement {
     getNodeCount(): number;
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
+    getPendingAiApprovals(): readonly AiApprovalRequest[];
+    getPendingAiQuestions(): readonly AiQuestionRequest[];
     getScene(): Scene;
     getSelectedNode(): Node_2 | null;
     getSelectionManager(): SelectionManager;
@@ -3373,6 +3437,7 @@ export class Graphty extends LitElement {
     importCameraPresets(presets: Record<string, CameraState>): void;
     is2D(): boolean;
     isAiEnabled(): boolean;
+    isAiTalking(): boolean;
     isAnimationCapturing(): boolean;
     isARSupported(): Promise<boolean>;
     get isFrameStable(): boolean;
@@ -3401,6 +3466,9 @@ export class Graphty extends LitElement {
     set lighting(value: Lighting);
     get limits(): Readonly<LimitsOption>;
     set limits(value: LimitsOption);
+    listAiConversations(options?: {
+        readonly allKeys?: boolean;
+    }): Promise<readonly AiConversationSummary[]>;
     listenerCount(): number;
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
     loadFromFile(file: File, options?: {
@@ -3435,6 +3503,8 @@ export class Graphty extends LitElement {
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
+    modelThumbnail(ref: string, options?: ModelThumbnailOptions): Promise<string>;
+    newAiConversation(): Promise<AiConversationSnapshot | null>;
     get nodeData(): Record<string, unknown>[] | undefined;
     set nodeData(value: Record<string, unknown>[] | undefined);
     get nodeIdPath(): string | undefined;
@@ -3462,6 +3532,7 @@ export class Graphty extends LitElement {
     static get observedAttributes(): string[];
     on(type: EventType, callback: EventCallbackType): void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
+    openAiConversation(id: string): Promise<AiConversationSnapshot | null>;
     pin(ids: (string | number) | readonly (string | number)[]): void;
     get pinnedNodes(): ReadonlySet<string | number>;
     get pixelRatio(): PixelRatio;
@@ -3475,6 +3546,7 @@ export class Graphty extends LitElement {
     removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
     removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
     removeNodes(nodeIds: (string | number)[], options?: QueueableOptions): Promise<void>;
+    renameAiConversation(id: string, name: string | null): Promise<void>;
     render(): Element;
     get renderer(): RendererRequest;
     set renderer(value: RendererRequest);
@@ -3487,6 +3559,7 @@ export class Graphty extends LitElement {
     get repeatedEdges(): DuplicatePolicy | undefined;
     set repeatedEdges(value: DuplicatePolicy | undefined);
     resetCamera(options?: CameraAnimationOptions): Promise<void>;
+    resolveAiApproval(id: string, answer: AiApprovalAnswer): Promise<ExecutionResult>;
     resolveCameraPreset(preset: string, options?: {
         nodes?: Iterable<string | number>;
         params?: Readonly<Record<string, unknown>>;
@@ -3558,6 +3631,7 @@ export class Graphty extends LitElement {
         onTranscript?: (text: string, isFinal: boolean) => void;
         onStart?: (started: boolean, error?: string) => void;
     }): boolean;
+    stopAiSpeech(): void;
     stopVoiceInput(): void;
     static styles: CSSResult;
     unpin(ids: (string | number) | readonly (string | number)[]): void;
@@ -4325,6 +4399,45 @@ export type GraphtyErrorCode =
 | "E_IMAGE_LOAD" | "E_INTERNAL";
 
 // @public
+export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
+
+// @public
+export interface GraphtyErrorDetailsMap {
+    E_DUPLICATE_ID: {
+        readonly id?: string | number;
+    };
+    E_PARSE_FAILED: {
+        readonly format?: string;
+        readonly line?: number;
+    };
+    E_TOO_LARGE: {
+        readonly limit?: number;
+        readonly count?: number;
+        readonly of?: string;
+        readonly graph?: {
+            readonly nodes: number;
+            readonly edges: number;
+        };
+    };
+    E_UNKNOWN_ATTRIBUTE: {
+        readonly candidates?: readonly string[];
+        readonly available?: readonly string[];
+        readonly run?: string;
+        readonly field?: string;
+    };
+    E_UNKNOWN_LAYOUT: {
+        readonly layout?: string;
+        readonly available?: readonly string[];
+    };
+}
+
+// @public
+export type GraphtyErrorFor<C extends GraphtyErrorCode = GraphtyErrorCode> = C extends GraphtyErrorCode ? GraphtyError & {
+    readonly code: C;
+    readonly details: GraphtyErrorDetails<C>;
+} : never;
+
+// @public
 export interface GraphtyErrorInit {
     cause?: unknown;
     code: GraphtyErrorCode;
@@ -4783,7 +4896,7 @@ export interface InputWheelEvent {
 export function isAccelerationPolicy(value: unknown): value is AccelerationPolicy;
 
 // @public
-export function isGraphtyError(value: unknown): value is GraphtyError;
+export function isGraphtyError(value: unknown): value is GraphtyErrorFor;
 
 // @public
 export function isGraphtyErrorCode(value: unknown): value is GraphtyErrorCode;
@@ -4842,11 +4955,19 @@ export abstract class LayoutEngine {
     static honoursWeights: boolean;
     // (undocumented)
     abstract init(): Promise<void>;
+    protected isEdgeLeftOut(edge: Edge): boolean;
     protected isFollower(index: number): boolean;
     protected isHeld(index: number): boolean;
+    protected isLeftOut(index: number): boolean;
     isNodeXlabelLeftOut(_n: Node_2): boolean;
     // (undocumented)
     abstract get isSettled(): boolean;
+    // @internal
+    protected keepInPublishedBox(n: Node_2 | ElementPositions | undefined, rows: ReadonlySet<number>): void;
+    protected keptEdges(graph: GraphSnapshot): EdgeMask | null;
+    protected keptRows(rows: number): NodeMask | null;
+    // @internal
+    protected lastPublishedBox(): Readonly<Float64Array> | null;
     loadArrangement(): void;
     // (undocumented)
     static maxDimensions: number;
@@ -4860,6 +4981,8 @@ export abstract class LayoutEngine {
     protected abstract pin(n: Node_2): void;
     // @internal
     protected publishColumn(n: Node_2 | ElementPositions | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
+    // @internal
+    publishedBounds(): Readonly<Float64Array> | null;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     // @internal
@@ -4872,12 +4995,18 @@ export abstract class LayoutEngine {
         y: number;
         z: number;
     }): boolean;
+    protected readRowPosition(row: number, out: {
+        x: number;
+        y: number;
+        z: number;
+    }): boolean;
     static register<T extends LayoutEngineClass>(cls: T, options?: RegisterOptions): T;
     protected removeEdge(_e: Edge): void;
     protected removeNode(_n: Node_2): void;
     static scoped: boolean;
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
+    protected setLeftOut(mask: NodeMask | null, rows: number, edges?: ReadonlySet<Edge> | null): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
     // @internal
     get spacesBySize(): boolean;
@@ -4930,6 +5059,8 @@ export class LayoutManager implements Manager {
     placeGroups(): void;
     // @internal
     get preStepsInFlight(): boolean;
+    // @internal
+    relayoutForVisibility(): void;
     // @internal
     releaseDetachedScope(): void;
     replacing: () => boolean;
@@ -5062,6 +5193,12 @@ export interface MarkSuggestion {
     readonly as: "mark";
     readonly channels: readonly Channel[];
     readonly spec: MarkSpec;
+}
+
+// @public
+export interface ModelThumbnailOptions {
+    readonly size?: number;
+    readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
 }
 
 // @public
@@ -5265,6 +5402,8 @@ class Node_2 implements ModelUser {
     get surfaceIsClosedForm(): boolean;
     // @internal
     syncXlabelPlace(): void;
+    // @internal
+    takeDrawnPaint(paint: NodePaint): void;
     // @internal
     get teardownMesh(): TransformNode;
     // @internal
@@ -5963,6 +6102,7 @@ export const NodeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        maxLines: z.ZodOptional<z.ZodNumber>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -6186,6 +6326,7 @@ export const NodeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        maxLines: z.ZodOptional<z.ZodNumber>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -6409,6 +6550,7 @@ export const NodeStyle: z.ZodObject<{
         wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
         wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
         wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+        maxLines: z.ZodOptional<z.ZodNumber>;
         keepBlankLines: z.ZodOptional<z.ZodBoolean>;
         runAlign: z.ZodOptional<z.ZodEnum<{
             baseline: "baseline";
@@ -6949,6 +7091,7 @@ export const PROJECT_FILE: Readonly<{
 
 // @public
 export interface ProjectApi {
+    assetChoices(): ProjectAssetChoice[];
     readonly dirty: boolean;
     readonly id: string;
     markSaved(saved: SavedProject): void;
@@ -6956,6 +7099,17 @@ export interface ProjectApi {
     open(source: ProjectSource, options?: ProjectOpenOptions): Promise<ProjectOpenReport>;
     rename(name: string | null): Promise<void>;
     save(options?: ProjectSaveOptions): Promise<SavedProject>;
+}
+
+// @public
+export interface ProjectAssetChoice {
+    readonly byteLength: number;
+    readonly id: AssetId;
+    readonly kind: "model" | "image";
+    readonly layerIds: readonly LayerId[];
+    readonly storage: AssetStorage;
+    readonly url: string;
+    readonly urlRefused?: CodedFact<"W_MODEL_NOT_KEPT_BY_URL">;
 }
 
 // @public
@@ -6988,11 +7142,11 @@ export interface ProjectOpenReport {
 }
 
 // @public
-export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
+export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | "shader.unknown" | "shader.not-saved">;
 
 // @public
 export interface ProjectSaveOptions {
-    readonly assets?: Readonly<Record<string, "embed" | "url">>;
+    readonly assets?: Readonly<Record<string, AssetStorage>>;
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
     readonly markSaved?: boolean;
@@ -7199,6 +7353,7 @@ export const RichTextStyle: z.ZodObject<{
     wrapEllipsis: z.ZodOptional<z.ZodBoolean>;
     wrapAnywhere: z.ZodOptional<z.ZodBoolean>;
     wrapSpaceCount: z.ZodOptional<z.ZodNumber>;
+    maxLines: z.ZodOptional<z.ZodNumber>;
     keepBlankLines: z.ZodOptional<z.ZodBoolean>;
     runAlign: z.ZodOptional<z.ZodEnum<{
         baseline: "baseline";
@@ -7864,6 +8019,13 @@ export interface SourcePreviewRow {
 export { SourceProbe }
 
 // @public
+export interface SourceRead extends SourceInput {
+    readonly edges: number;
+    readonly nodes: number;
+    readonly rows: unknown;
+}
+
+// @public
 export interface SourceRefreshReport {
     readonly added: SourceCounts;
     readonly fact: CodedFact<"I_SOURCE_REFRESHED" | "I_SOURCE_UNCHANGED">;
@@ -7881,6 +8043,11 @@ export { SourceRuntimeReason }
 
 // @public
 export const SOURCES_MEMBER_VERSION = 2;
+
+// @public
+export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "config" | "expand"> & {
+    readonly limits?: SourceLimitOptions;
+};
 
 export { SourceValidators }
 
@@ -8017,6 +8184,8 @@ export const TOL_VIBRANT_COLORS: readonly ["#0077BB", "#33BBEE", "#009988", "#EE
 // @public
 export class UpdateManager implements Manager {
     constructor(eventManager: EventManager, statsManager: StatsManager, layoutManager: LayoutManager, dataManager: DataManager, camera: CameraManager, graphContext: GraphContext, config?: UpdateManagerConfig);
+    // @internal
+    adoptBuiltNode(node: Node_2): void;
     autoTurning: boolean;
     bindViewMasks(masks: ViewMasks | null): void;
     // @internal
@@ -8054,6 +8223,8 @@ export class UpdateManager implements Manager {
     // @internal
     repaintNodes(nodes: readonly Node_2[]): void;
     static readonly RETRIM_COUNTER = "edges.retrimmedForNodeScale";
+    // @internal
+    rowsRenumbered(): void;
     stepFrames(count: number): void;
     stopAutoZoomToFit(): void;
     syncStyles(budgetMs?: number): void;
@@ -8101,6 +8272,24 @@ export interface WorkerCapability {
 }
 
 // @public
+export interface XRAiConfig {
+    labels?: Readonly<Record<string, string>>;
+    panel?: boolean;
+    pendingButtons?: {
+        approve?: readonly XRControllerButton[];
+        deny?: readonly XRControllerButton[];
+    };
+    pendingControl?: boolean;
+    pushToTalk?: {
+        buttons?: readonly XRControllerButton[];
+        wristOrb?: boolean;
+    };
+}
+
+// @public
+export type XRAiControlCode = "XR_APPROVE" | "XR_DENY" | "XR_TRANSCRIPT" | (string & {});
+
+// @public
 export interface XrCapability {
     readonly active: "vr" | "ar" | null;
     readonly ar: boolean;
@@ -8113,6 +8302,7 @@ export interface XrCapability {
 
 // @public
 export interface XRConfig {
+    ai?: XRAiConfig;
     ar: XRModeConfig;
     enabled: boolean;
     input: XRInputConfig;
@@ -8120,6 +8310,9 @@ export interface XRConfig {
     ui: XRUIConfig;
     vr: XRModeConfig;
 }
+
+// @public
+export type XRControllerButton = "a" | "b" | "x" | "y";
 
 // @public
 export interface XRInputConfig {

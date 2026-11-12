@@ -141,7 +141,7 @@ const algoRun: UndoableDefinition<AlgorithmRunCommand> = {
     // Written only in the commit tail, which is synchronous, so a run holds nothing while it
     // computes and never blocks a style edit.
     // `valueLabels`: a re-run carries the names given to its groups to the groups they became.
-    keys: () => ["runs", "styles", "valueLabels"],
+    keys: () => ["runs", "styles", "valueLabels", "shaders"],
     lane: { kind: "queued", category: "algorithm-run" },
     execute: (command, ctx) => required(ctx.services.runs).run(command, ctx),
 };
@@ -157,7 +157,7 @@ const algoLegacy: UndoableDefinition<AlgoLegacyCommand> = {
     draws: true,
     renderer: true,
     // The whole graph: a plugin may write any record, and add or remove rows through the facade.
-    keys: () => ["graph", "styles"],
+    keys: () => ["graph", "styles", "shaders"],
     lane: { kind: "queued", category: "algorithm-run" },
     execute: (command, ctx) => {
         if (ctx.services.legacy === undefined) {
@@ -187,7 +187,7 @@ const algoRemove: UndoableDefinition<AlgoRemoveCommand> = {
     },
     moves: false,
     draws: true,
-    keys: () => ["runs", "styles"],
+    keys: () => ["runs", "styles", "shaders"],
     lane: { kind: "immediate" },
     execute: (command, ctx) => required(ctx.services.runs).remove(command, ctx.draft),
 };

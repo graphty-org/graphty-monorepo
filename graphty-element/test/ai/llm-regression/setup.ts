@@ -13,10 +13,15 @@ afterEach(() => {
     (globalThis as { __GRAPHTY_STRICT_SWEEP__?: () => void }).__GRAPHTY_STRICT_SWEEP__?.();
 });
 
-// What a run cost: the harness counts every request it sends to the model.
-const counter = globalThis as { __LLM_REGRESSION_API_CALLS__?: number };
+// What a run cost: the harness counts every request it sends to the model (each live response is
+// one) and sums the tokens the provider reports.
+const counter = globalThis as {
+    __LLM_REGRESSION_API_CALLS__?: number;
+    __LLM_REGRESSION_TOKENS__?: { input: number; output: number };
+};
 beforeAll(() => {
     counter.__LLM_REGRESSION_API_CALLS__ = 0;
+    counter.__LLM_REGRESSION_TOKENS__ = { input: 0, output: 0 };
 });
 // On Google, the run's transport (test/helpers/llm-regression-gemini.ts) deletes its caches and adds the tokens and
 // the cost at the tier and cache prices to the line; tools/llm-spend.mjs sums the costs of a run's lines.
@@ -24,5 +29,9 @@ afterAll(async () => {
     const gemini = (globalThis as { __LLM_REGRESSION_GEMINI__?: { close(): Promise<unknown>; summary(): string } })
         .__LLM_REGRESSION_GEMINI__;
     await gemini?.close();
-    console.log(`[llm-regression] API calls: ${counter.__LLM_REGRESSION_API_CALLS__ ?? 0}${gemini?.summary() ?? ""}`);
+    const tokens = counter.__LLM_REGRESSION_TOKENS__ ?? { input: 0, output: 0 };
+    console.log(
+        `[llm-regression] API calls: ${counter.__LLM_REGRESSION_API_CALLS__ ?? 0}; ` +
+            `tokens in: ${tokens.input}, out: ${tokens.output}${gemini?.summary() ?? ""}`,
+    );
 });

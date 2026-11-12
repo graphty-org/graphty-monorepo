@@ -324,6 +324,16 @@ reader changes the key or the options:
 Every shape, choice and count, with linking by a shared value, merging and comparing two lists,
 is in [Joining Data](./joins).
 
+A table whose two columns name edges the graph already holds (at least 80% of its rows) reads as
+values for those edges: its keys are `{ file: "from", graph: "source" }` and
+`{ file: "to", graph: "target" }`, and on an undirected graph a pair matches either way round.
+
+A row of a `"node-values"` join that matches no node is left out. Pass `unmatchedRows: "add"` (on one
+key, with no `via`) to make it a new node; the report's `newNodes` counts them, and undoing, editing
+or removing the join takes them back.
+
+A node table can give every row one kind with `mapping: { rowsAre: "nodes", key: "id", kindName: "people" }`.
+
 `load({ join })` is one undoable step. The table stays a source: `data.sources()` lists it with
 `kind: "join"` and `joinedOnto`, and `data.joins()` lists the join with its choices and counts. The
 join is saved with the project; `data.editJoin(key, choices)` takes it back and joins the table
@@ -361,8 +371,9 @@ try {
 | `E_DUPLICATE_ID`              | `load` with `duplicateIds: "refuse"` meets a repeated node id; `details.id` |
 | `E_DISPOSED`                  | The draft was loaded or disposed                                            |
 
-`details` is typed `Readonly<Record<string, unknown>>` for every code, so check a value's type
-before using it (`Array.isArray(error.details.candidates)`).
+Checking `code` narrows `details` to that code's facts (`GraphtyErrorDetailsMap`): after
+`error.code === "E_UNKNOWN_ATTRIBUTE"`, `error.details.candidates` is a `readonly string[]` or
+`undefined`. Every documented fact is optional, so check it before using it.
 
 Only one draft is held at a time. A new `prepare`, and any `import`, disposes the one before it,
 and a successful `load` disposes its own. Disposing lets go of the rows only: `draft.type`,

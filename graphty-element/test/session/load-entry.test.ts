@@ -22,7 +22,7 @@ import { createGraphSession, defineSource, type GraphSession, registerSource } f
 import { type Door, DOOR_ROOTS, type DoorCall, LOAD_ORDER } from "../../src/session/commands/doors";
 import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
 import { loadLineOf } from "../../src/session/loadLine";
-import { callOf } from "./history/door-harness";
+import { callOf, pinLoadedAt } from "./history/door-harness";
 
 /** The ops that write the graph's rows. */
 const GRAPH_OPS = new Set([
@@ -168,7 +168,7 @@ afterEach(() => {
  * @returns The session.
  */
 function fresh(): GraphSession {
-    const session = createGraphSession({ features: ["network-data"] });
+    const session = createGraphSession();
     sessions.push(session);
     return session;
 }
@@ -302,7 +302,7 @@ describe("every ordered door, called while a load is held in line", () => {
 
         it(`${label} keeps to its ordering (${order})`, async () => {
             const [root, member] = label.split(".");
-            const session = createElementSession({ features: () => ["network-data"] });
+            const session = createElementSession();
             sessions.push(session);
             const door = doors.get(label) as Door;
             const extra = EXTRA_CALLS[label] as ((session: GraphSession) => Promise<DoorCall>) | undefined;
@@ -342,7 +342,11 @@ describe("every ordered door, called while a load is held in line", () => {
                 reading.leave();
                 await result;
                 if (door.kind === "dispatches") {
-                    assert.deepEqual(seen, door.expect, `${label} dispatched something other than its row expects`);
+                    assert.deepEqual(
+                        pinLoadedAt(seen),
+                        door.expect,
+                        `${label} dispatched something other than its row expects`,
+                    );
                 } else {
                     assert.isNotEmpty(seen, `${label} dispatched nothing once the load ahead of it left`);
                 }

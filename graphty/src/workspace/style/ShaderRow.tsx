@@ -1,20 +1,20 @@
 import { ContextMenu, Popout, PopoutButton } from "@graphty/compact-mantine";
-import { formatShaderText, parseShaderText } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
 import { ActionIcon, Button, Menu, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import type { PasteInit } from "./PasteShaderDialog";
 import type { RowContext } from "./PropertyRow";
 import { type DataChoice, sourceName } from "./row";
+import type { PasteInit } from "./ShaderEditorDialog";
 import { PlaceDiagram } from "./ShaderGallery";
 import { ShaderParams } from "./ShaderParams";
 import {
     bindingsOf,
     copyShaderText,
     fixedParams,
+    namedCopy,
     paramsOf,
     placeOf,
     removeShader,
@@ -28,7 +28,6 @@ import {
 import { focusSectionNext } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
 import {
-    copyNameWords,
     effectOffWords,
     failureWords,
     GROUP_BY_WORDS,
@@ -71,8 +70,8 @@ interface ShaderRowProps {
 
 /**
  * Duplicate and edit: opens the code dialog on a copy of the row's shader, named apart from it
- * ("Pearl copy"), at the row's place. None for a project shader, an unknown one, or with no
- * dialog to open.
+ * ("Pearl copy"), at the row's place, for every shader the row names. None for an unknown one,
+ * or with no dialog to open.
  * @param ctx - the row
  * @param entry - the row's use
  * @param name - the row's name
@@ -88,21 +87,14 @@ function duplicateAction(
     fail: Fail,
 ): (() => void) | undefined {
     const { descriptor } = entry;
-    if (onCode === undefined || descriptor === undefined || descriptor.origin === "pasted") {
+    if (onCode === undefined || descriptor === undefined) {
         return undefined;
     }
     return (): void => {
         ctx.session.shaders
-            .source(entry.use.shader, { duplicate: true, params: fixedParams(entry) })
+            .source(entry.use.shader, { duplicate: true, params: fixedParams(entry), derived: "omit" })
             .then((text) => {
-                const read = parseShaderText(text);
-                const named = read.ok
-                    ? formatShaderText({
-                          ...read.registration,
-                          descriptor: { ...read.registration.descriptor, plainName: copyNameWords(name) },
-                      })
-                    : text;
-                onCode({ text: named, duplicateOf: entry.use.shader, place: placeOf(entry) });
+                onCode({ text: namedCopy(text, name), duplicateOf: entry.use.shader, place: placeOf(entry) });
             })
             .catch(fail("copied"));
     };

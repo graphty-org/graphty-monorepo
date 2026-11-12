@@ -26,12 +26,23 @@ import {
     type ResultShape,
     type RunId,
     type SetDefinitionInput,
+    type StyleDocument,
 } from "../catalog/types";
 import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
-import { ASSETS_MEMBER, assetsMember, restoreAssets, withAcceptedAssetIds } from "./assets/projectMember";
+import type { AssetsApiInternal } from "./assets/AssetsApi";
+import {
+    assetChoices,
+    ASSETS_MEMBER,
+    assetsMember,
+    type AssetStorage,
+    type ProjectAssetChoice,
+    restoreAssets,
+    withAcceptedAssetIds,
+} from "./assets/projectMember";
 import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
+import { shaderIdsIn } from "./commands/shaderCopies";
 import type { SessionData } from "./data";
 import { ISSUES_VALUE, type IssueState } from "./issues";
 import { loadLineOf } from "./loadLine";
@@ -126,12 +137,18 @@ const EXTENSION_NAME = /^(?!graphty(\.|$))[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
 /**
  * Something about a save or an open, as a code and the values it is about.
  *
- * The codes are the element's error and warning codes. The params a project problem may carry:
+ * The codes are the element's error and warning codes, and two shader codes: `shader.unknown`, a
+ * shader use an opened file names whose text it does not carry or that does not read, dropped
+ * while the rest opens (`slice` `"styles"` with the layer's `id` and the `channel`, or `slice`
+ * `"config"` with `channel` `"background"`; `shader` names the id); and `shader.not-saved`, a
+ * shader the saved file names but does not carry (`id`). The params a project problem may carry:
  * `slice` (the {@link ProjectSlice} it concerns), `id` (the run, layer or set), `index` (the
  * member's position in the file), `kind` (the member's kind), `found` (a version), `needs` (the
  * paths a layer reads that nothing answers) and `pointer` (a JSON pointer inside a member).
  */
-export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
+export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | "shader.unknown" | "shader.not-saved">;
+
+export type { AssetStorage, ProjectAssetChoice } from "./assets/projectMember";
 
 /** How `project.save` writes the file. */
 export interface ProjectSaveOptions {
@@ -154,9 +171,12 @@ export interface ProjectSaveOptions {
      * files into the project (the default), so it opens offline; `"url"` writes only the URL and
      * the file's digest, so the file is fetched again when the project opens (after the reader
      * allows it) and reported with `W_MODEL_CHANGED` when it is no longer the same file.
-     * `session.assets.list()` gives each asset's `url`.
+     * `session.assets.list()` gives each asset's `url`, and `project.assetChoices()` lists the ones
+     * to ask about. A URL with no entry is embedded; with the `node-models` experiment on, it is
+     * kept as the project last kept it (as the file it was opened from, or the last written save
+     * that had an entry for it), else embedded.
      */
-    readonly assets?: Readonly<Record<string, "embed" | "url">>;
+    readonly assets?: Readonly<Record<string, AssetStorage>>;
 }
 
 /** What the session lends the project file for the loads. */
@@ -333,6 +353,22 @@ export interface ProjectApi {
      *     is not reverse-domain or a value over 64 KB.
      */
     save(options?: ProjectSaveOptions): Promise<SavedProject>;
+    /**
+     * The models and pictures a layer names by URL that a save can either embed or keep by URL,
+     * each with its size, the layers naming it and what a save without a choice for it does:
+     * what to ask the reader before `save({ assets })`. Samples and assets added from files are
+     * not listed; a save always embeds them.
+     * @returns One entry per URL, in the order the layers first name them; empty when there is
+     *     nothing to ask.
+     * @example
+     * ```typescript
+     * const assets = Object.fromEntries(
+     *     session.project.assetChoices().map((choice) => [choice.url, choice.urlRefused ? "embed" : "url"]),
+     * );
+     * await session.project.save({ assets });
+     * ```
+     */
+    assetChoices(): ProjectAssetChoice[];
     /**
      * Record that a file `save({ markSaved: false })` produced has been written. `dirty` clears
      * unless something changed since that save, and undo returns to it as the save point.
@@ -933,7 +969,30 @@ export function resultsMember(
  * @returns The member.
  */
 export function styleMember(session: GraphSession): Record<string, unknown> {
-    return { kind: "graphty-style", ...withAcceptedAssetIds(session, session.styles.toDocument()) };
+    // What the document found wrong is reported in the save's `leftOut`, not written to the file.
+    const { problems: _problems, ...document } = session.styles.toDocument();
+    return { kind: "graphty-style", ...withAcceptedAssetIds(session, document) };
+}
+
+/**
+ * The shaders a save names but does not carry: what `toDocument` reports, and the background's
+ * shader when the style member, which carries the project's shaders, is left out.
+ * @param sources - The session and its dispatcher.
+ * @param leaveOut - The members left out.
+ * @returns One `shader.not-saved` per id.
+ */
+function shadersNotSaved(sources: ProjectSources, leaveOut: ReadonlySet<string>): ProjectProblem[] {
+    const { session, dispatcher } = sources;
+    if (!leaveOut.has("graphty-style")) {
+        return (session.styles.toDocument().problems ?? []).map((problem) => ({
+            code: "shader.not-saved",
+            params: { id: String(problem.params.id) },
+        }));
+    }
+
+    const background = dispatcher.state.config.get("background") as { shader?: { id?: unknown } } | undefined;
+    const id = background?.shader?.id;
+    return typeof id === "string" ? [{ code: "shader.not-saved", params: { id } }] : [];
 }
 
 /**
@@ -1040,6 +1099,7 @@ function write(
             .map((run): ProjectProblem => ({ code: "W_RUN_PENDING", params: { slice: "runs", id: run.id } })),
         ...assets.leftOut,
         ...(file?.problems ?? []),
+        ...shadersNotSaved(sources, leaveOut),
     ];
     return { document: documentAround(session, members, extensions), leftOut };
 }
@@ -1645,6 +1705,71 @@ async function attempt(
 }
 
 /**
+ * Copy in the catalog's text for each shader id a file names but does not carry, where the project
+ * does not hold it either. Files saved before files carried their shaders named presets by id
+ * alone, and meant the catalog's shader: this keeps their look. A file saved since carries every
+ * shader it names, so for it this copies nothing.
+ * @param opening - The open.
+ * @param styles - The file's style members.
+ * @param config - The file's saved settings, for the background's shader.
+ */
+async function addLegacyShaders(
+    opening: Opening,
+    styles: readonly Record<string, unknown>[],
+    config: unknown,
+): Promise<void> {
+    const carried = new Set(
+        styles.flatMap((style) =>
+            Array.isArray(style.shaders) ? (style.shaders as { id?: unknown }[]).map((entry) => entry.id) : [],
+        ),
+    );
+    const named = shaderIdsIn([
+        styles.map((style) => style.layers),
+        (config as { background?: unknown } | undefined)?.background,
+    ]);
+    const shaders: { id: string; text: string }[] = [];
+    for (const id of named) {
+        if (carried.has(id) || opening.services.shaderReadable?.(id) === true) {
+            continue;
+        }
+
+        const text = await opening.services.legacyShaderText?.(id);
+        if (text !== undefined) {
+            shaders.push({ id, text });
+        }
+    }
+
+    if (shaders.length > 0) {
+        await attempt(opening, "styles", async () => {
+            await opening.tx.styles.applyTemplate({ version: 1, layers: [], shaders });
+        });
+    }
+}
+
+/**
+ * Saved settings without a background shader the project cannot read (its file does not carry it,
+ * or its text does not parse): that shader is dropped and reported, and the rest of the
+ * background opens.
+ * @param opening - The open.
+ * @param config - The saved settings.
+ * @returns The settings to write.
+ */
+function withReadableBackground(opening: Opening, config: Record<string, unknown>): Record<string, unknown> {
+    const background = config.background as { shader?: { id?: unknown } } | undefined;
+    const id = background?.shader?.id;
+    if (id === undefined || (typeof id === "string" && opening.services.shaderReadable?.(id) === true)) {
+        return config;
+    }
+
+    const { shader: _shader, ...rest } = background as Record<string, unknown>;
+    opening.problems.push({
+        code: "shader.unknown",
+        params: { slice: "config", channel: "background", shader: typeof id === "string" ? id : JSON.stringify(id) },
+    });
+    return { ...config, background: rest };
+}
+
+/**
  * Add the style and notes members.
  * @param opening - The open.
  * @param members - The document's members.
@@ -1661,6 +1786,13 @@ async function addStylesAndNotes(
     for (const { kind: _kind, ...style } of members.get("graphty-style") ?? []) {
         await attempt(opening, "styles", async () => {
             const report = await tx.styles.applyTemplate(remap(style) as never);
+            for (const fact of report.shaders ?? []) {
+                if (fact.code === "shader.unknown") {
+                    const { layer, channel, shader } = fact.params;
+                    problems.push({ code: "shader.unknown", params: { slice: "styles", id: layer, channel, shader } });
+                }
+            }
+
             for (const unbound of report.unbound) {
                 problems.push({
                     code: "E_UNKNOWN_ATTRIBUTE",
@@ -1706,7 +1838,23 @@ async function readProject(
     const state = first("graphty-session");
 
     await clearInto(tx, opening.playback);
-    await attempt(opening, "config", () => tx.config.set({ ...withAddedDefaults(state.config), name }));
+    await addLegacyShaders(opening, doc.members.get("graphty-style") ?? [], state.config);
+    // The style member's shaders first, so the background never names one the project lacks.
+    for (const style of doc.members.get("graphty-style") ?? []) {
+        if (Array.isArray(style.shaders)) {
+            await attempt(opening, "styles", async () => {
+                await tx.styles.applyTemplate({
+                    version: 1,
+                    layers: [],
+                    shaders: style.shaders as StyleDocument["shaders"],
+                });
+            });
+        }
+    }
+
+    await attempt(opening, "config", () =>
+        tx.config.set({ ...withReadableBackground(opening, withAddedDefaults(state.config)), name }),
+    );
     const records =
         loads.graph === undefined ? graph : { ...graph, nodes: loads.graph.nodes, links: loads.graph.links };
     const edgeIds = await importInto(tx, records, source, sources, provenance);
@@ -2255,6 +2403,8 @@ export function projectOf(
     // only weakly, so a write that failed and is never marked keeps no copy of the file alive.
     const waiting = new Set<SavePoint>();
     const pointOf = new WeakMap<SavedProject, SavePoint>();
+    // An unmarked save's asset choices, remembered when it is marked saved.
+    const rememberOf = new WeakMap<SavedProject, () => void>();
     let seq = 0;
     let top: string | null = null;
     let last: ProjectStatus = { name: null, dirty: false };
@@ -2369,6 +2519,8 @@ export function projectOf(
         if (state?.network !== undefined) {
             problems.push({ code: "W_NETWORK_POLICY_IGNORED", params: { kind: "graphty-session" } });
         }
+        // How the project it replaces kept its URLs is not this project's.
+        (session.assets as AssetsApiInternal).forgetProjectStorage();
         await restoreAssetsOf(session, doc, problems);
         const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
         // A project opens with a fresh history: its opened state is the baseline, and the steps
@@ -2378,28 +2530,15 @@ export function projectOf(
             fact: { code: "project.open", params: { name: name ?? null } },
             starts: true,
         };
-        // Only a member that holds a server load: file and inline loads are recorded there too.
-        const holdsServerLoad =
-            Array.isArray(member?.loads) &&
-            member.loads.some((entry: unknown) => (entry as { kind?: unknown } | null)?.kind === "source");
-        const networkOff = dispatcher.services.network?.() === false && holdsServerLoad;
-        // With the network-data experiment off, the member is kept exactly as the file held it.
-        const loads: SourcesRead = networkOff
-            ? {
-                  problems: [{ code: "E_FEATURE_OFF", params: { feature: "network-data", key: "graphty-sources" } }],
-                  records: [],
-                  facts: new Map(),
-                  skipped: member,
-              }
-            : readSourcesMember(member, {
-                  pointer: `/members/${String(member === undefined ? -1 : doc.positions.get(member))}`,
-                  data,
-                  nodes: graph.nodes,
-                  links: graph.links,
-                  isRegistered: (id) => sourceDescriptors().some((entry) => entry.id === id),
-                  isGenerator: (generator) => GENERATOR_CATALOG.some((entry) => entry.name === generator),
-                  now: new Date().toISOString(),
-              });
+        const loads: SourcesRead = readSourcesMember(member, {
+            pointer: `/members/${String(member === undefined ? -1 : doc.positions.get(member))}`,
+            data,
+            nodes: graph.nodes,
+            links: graph.links,
+            isRegistered: (id) => sourceDescriptors().some((entry) => entry.id === id),
+            isGenerator: (generator) => GENERATOR_CATALOG.some((entry) => entry.name === generator),
+            now: new Date().toISOString(),
+        });
         problems.push(...loads.problems);
         if (dispatcher.services.timeline?.() === false) {
             problems.push(...timelineLeftOff(state));
@@ -2484,6 +2623,7 @@ export function projectOf(
                     }
                 }
 
+                await addLegacyShaders(opening, doc.members.get("graphty-style") ?? [], undefined);
                 await addStylesAndNotes(opening, doc.members, (value) => value, doc.name ?? null);
             },
             starts ? { ...OPEN_DOCUMENT, starts } : OPEN_DOCUMENT,
@@ -2503,8 +2643,20 @@ export function projectOf(
         rename(name) {
             return session.config.set({ name });
         },
+        assetChoices() {
+            return assetChoices(session);
+        },
         save(options = {}) {
             const { document, leftOut } = write({ session, dispatcher, isDerived }, options);
+            // What this save was told is how the next save without a choice keeps the same URL,
+            // once its file is written: now, or at `markSaved` for a save that waits on its write.
+            // A copy that is never marked saved, or a write that failed, changes nothing.
+            const remember = (): void => {
+                for (const [url, storage] of Object.entries(options.assets ?? {})) {
+                    (session.assets as AssetsApiInternal).rememberStorage(url, storage);
+                }
+            };
+
             const text = JSON.stringify(document);
             const saved: SavedProject = Object.freeze({
                 text,
@@ -2519,13 +2671,17 @@ export function projectOf(
                 const waited = pointNow();
                 waiting.add(waited);
                 pointOf.set(saved, waited);
+                rememberOf.set(saved, remember);
             } else {
                 adopt(pointNow());
+                remember();
             }
 
             return Promise.resolve(saved);
         },
         markSaved(saved) {
+            rememberOf.get(saved)?.();
+            rememberOf.delete(saved);
             const waited = pointOf.get(saved);
             if (waited !== undefined && waiting.has(waited)) {
                 adopt(waited);

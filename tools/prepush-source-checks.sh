@@ -232,6 +232,10 @@ else
     # release-hold.json names only real nx projects, each with a reason and a date.
     run_step "Release hold list" "pnpm run check:release-hold"
 
+    # A published package's peer dependencies change only in a major: no peer removed, added, made
+    # required, moved into dependencies or narrowed since origin/master without a breaking commit
+    # scoped to the package. Reads package.json and git only, under a second.
+    run_step "Peer dependencies stable" "pnpm run check:peer-deps"
     # When the push adds or changes a package.json, a project.json, nx.json or release-hold.json:
     # `nx release --dry-run --skip-publish`, so a project the release train cannot version fails this
     # push instead of holding every release (#3318). See tools/release-dry-run.mjs.
@@ -266,6 +270,12 @@ else
     # their harness or the theme's token values needs a `Figma-Approved: <reason>` trailer, which only the
     # owner adds, on the commit that makes it. See tools/check-figma-lock.mjs.
     run_step "compact-mantine Figma lock" "node \"$GATE_TOOLS/check-figma-lock.mjs\""
+
+    # Save files carry what they use: a commit that adds a known exception to graphty-element's
+    # saved-format checks, removes a self-contained kind or a saved-format test, or changes the shader
+    # library snapshot needs the owner's `Saved-Format-Exception-Approved: <reason>` trailer; removing a
+    # shipped shader hash without revoking it always fails. See tools/check-saved-format-allowlist.mjs.
+    run_step "Saved-format exceptions" "node \"$GATE_TOOLS/check-saved-format-allowlist.mjs\""
 
     # Dead relative links and #anchors in the Markdown, MDX and HTML, and links to this repository's own
     # files on GitHub, resolved against the working tree. Offline: the network half of the check

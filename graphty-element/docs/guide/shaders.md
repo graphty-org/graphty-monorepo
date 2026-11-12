@@ -168,10 +168,11 @@ long-form entries, each with a `name`.
 `@graphty/graphty-element/extend`, which is free of the renderer and runs in Node.
 `parseShaderText`, `formatShaderText` and `shaderTemplate` are in `@graphty/graphty-element/catalog`.
 
-Shader text is also how a shader goes into the graphty app. In a layer's Style tab, the Shaders
-section's **+** opens the gallery, and its last tile, **New shader...**, opens a code box: paste the
-text there and press Add. A `place` in the header is where the shader draws, and the dialog's Place
-field follows it; text with no `place` draws at the place the field shows.
+For building an editor over shader text, the same entry point has `splitShaderText`,
+`formatShaderDraft`, `shaderIdForName`, `shaderParamPlainName`, `shaderParamShape`,
+`changeShaderParamType`, `renameShaderParam`, `removeShaderParam`, `shaderPlaceUsesReach`,
+`minSizeApplies`, `SHADER_PARAM_TYPES`, `SHADER_CLOCKS`, `SHADER_REACH_RANGE` and
+`SHADER_MIN_SIZE_RANGE`. See [Building your own editor](#building-your-own-editor).
 
 ### The name and the id
 
@@ -181,10 +182,160 @@ field follows it; text with no `place` draws at the place the field shows.
 - An id is `"<namespace>/<name>"`: lowercase letters, digits and hyphens, one slash, at most 40
   characters. A bare id (`"heat"`) is refused with `E_BAD_COMMAND`: bare ids belong to the shaders
   the element ships.
-- Registering an id the element ships (`"pearl"`) throws `E_DUPLICATE_PLUGIN`, so a saved project
-  that names it always means the same shader.
+- Registering an id the element ships (`"pearl"`) throws `E_DUPLICATE_PLUGIN`.
 - Defining the same id again replaces the shader, which is how hot reload works. Pass
   `{ strict: true }` as the second argument to throw `E_DUPLICATE_PLUGIN` instead.
+
+### Writing a shader in the graphty app
+
+Open the editor from the Main menu's **Add Shader...**, or from **New shader...** in the gallery
+that a Shaders section's **+** opens.
+
+**Node, Edge, Background** at the top say what the shader draws on. Each keeps its own draft for as
+long as the page is open, so you can switch to another and come back to what you typed. A shader
+for a whole group is a Node shader: choose the place **Around the group** and the code box changes
+to `shade(GroupInput g)`.
+
+Each target and place opens on a working starter, so there is always a shader to change. To begin
+from a shader a layer already uses, choose **Duplicate and edit** from its row's menu in a Shaders
+section.
+
+**Name** is what pickers show. **Place** is where the shader draws, and its list follows what you
+are drawing on. **Reach**, how many times the node's radius the shader draws out to, shows at the
+places that use it. **Minimum size**, the smallest size in pixels the shader is drawn at so that a
+far node stays findable, shows at the places where it applies.
+
+The code box holds only the body of the shader, starting at `vec4 shade(...)`. Keywords, types,
+built-in functions, comments and numbers are colored.
+
+**Parameters** are the values a layer can set. Press **+** to add a row, give it a name, a type and
+a default, and open its gear for the rest:
+
+| Type    | Default           | In the gear                                  |
+| ------- | ----------------- | -------------------------------------------- |
+| Number  | a number          | Display name, Min, Max, Step, Varies, Starts |
+| Integer | a whole number    | Display name, Min, Max, Step, Varies         |
+| Switch  | on or off         | Display name                                 |
+| Choice  | one of its labels | Display name, Choices                        |
+| Color   | a color           | Display name, Varies, Starts                 |
+
+- A parameter's name is used bare in the code, with no declaration: a row named `glow` is read as
+  `glow`. The arrow on a row writes its name at the cursor in the code box. It is unavailable until
+  you have clicked in the code, so that it has a place to write.
+- A Choice is read in the code as its position in the list, starting from 0, which the gear shows
+  beside each label.
+- **Starts** makes a value run from one setting to another over some seconds after something
+  happens, such as a node being selected. Pick the moment, then the From and To seconds. A Color
+  also takes the two colors to run between.
+- Renaming a row does not rewrite the code. The problem list points at the line still using the
+  old name.
+
+**Problems** are listed below the box, and marked where they belong: on a line of the code, or on
+the field or the parameter row at fault. Select a row of the list to go there. The header is
+checked before the code, so fix a bad parameter first to see problems in the code. The preview
+keeps its last good picture until the shader works again.
+
+**Full text** switches the box to the whole shader text, with its header, for the keys the form
+does not show. Press it again to go back to the form. **Copy code** copies the whole text, ready to
+paste or save. Pasting a whole shader text into the code box fills the form from its header and
+leaves the body in the box, and Control+V on a Shaders section opens the editor with the text on
+the clipboard. A `place` in the header sets Place; text with no `place` draws at the place Place
+shows.
+
+| Key                           | Does                                                                                 |
+| ----------------------------- | ------------------------------------------------------------------------------------ |
+| Tab, Shift+Tab                | Indents and outdents in the code box                                                 |
+| Ctrl+M (Shift+Alt+M on a Mac) | Makes Tab move to the next field instead; the button below the box shows and does it |
+| Ctrl+Z, Ctrl+Y                | Undoes and redoes typing in the code box                                             |
+| Escape                        | Closes an open popout, else the editor, keeping your draft                           |
+
+**Add** depends on where you came from. From a list of shaders, it adds the shader to that list.
+From the Main menu, or after switching to another target than the list's, the button reads **Add
+to project**: the shader joins the project without being drawn anywhere, and the notice's **Show
+in Style** takes you to the Shaders section where you can apply it.
+
+### Building your own editor
+
+`splitShaderText` gives a text's header as written and its body, and `formatShaderDraft` writes them
+back. Neither judges anything, so a half-typed form survives the trip and `check` says what is
+wrong with it, field by field.
+
+```ts
+import type { Graphty } from "@graphty/graphty-element";
+import { formatShaderDraft, shaderParamShape, splitShaderText } from "@graphty/graphty-element/catalog";
+
+export async function saveEdited(g: Graphty, text: string): Promise<void> {
+    const { draft, body, problems } = splitShaderText(text); // fill your form from draft and body
+    if (draft === undefined) {
+        console.log(problems); // the header is not a JSON object: show the whole text and these
+        return;
+    }
+    const glow = { name: "glow", type: "number", default: shaderParamShape("number").default };
+    const edited = formatShaderDraft({ ...draft, name: "My paint", params: [...(draft.params ?? []), glow] }, body);
+    const options = { asNew: true, onTaken: "rename" } as const;
+    const checked = await g.session.shaders.check(edited, { ...options, picture: true });
+    if (!checked.ok) {
+        console.log(checked.problems); // { code, params }: your words, your list
+        return;
+    }
+    await g.session.shaders.add(edited, options);
+}
+```
+
+**What a split gives.** `body` is the GLSL after the header. `draft` is the header's keys as
+written, typed `unknown` because a reader may have typed anything: narrow each one before showing
+it. A text with no header (`headed: false`) is all body, with the placeholder draft
+`{ id: "user/shader", params: [] }`. A header that is not a JSON object, or whose `params` is not a
+list of objects, has no draft: `problems` says why, and an editor shows the whole text instead of a
+form. Otherwise `problems` lists what `check` will refuse in the header, and the draft is kept as
+written, wrong values included.
+
+| Draft key                                                                                  | Holds when well formed                                                                                                                                               |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`, `name`                                                                               | Strings                                                                                                                                                              |
+| `place`, `places`                                                                          | A place, a list of places                                                                                                                                            |
+| `reach`, `minSize`                                                                         | Numbers, within `SHADER_REACH_RANGE` and `SHADER_MIN_SIZE_RANGE`                                                                                                     |
+| `reachParam`                                                                               | The name of a Number or Integer row                                                                                                                                  |
+| `params`                                                                                   | A list of rows: `name`, `type` and `default`, and `min`, `max`, `step`, `values`, `varies`, `plainName`, `description`, `primary`, `choices` where the type has them |
+| `motion`, `preview`                                                                        | `"still"`, `"loop"` or `{ loop: { speedParam } }`; `{ params, time }`                                                                                                |
+| `categories`, `cost`, `thumbnail`, `blend`, `form`, `bloom`, `requires`, `reads`, `webgpu` | As `defineShader` takes them                                                                                                                                         |
+
+**Editing rows.** A row's `default`, `min`, `max`, `step`, `plainName` and `varies` are edited by
+replacing the field on the row, as in `{ ...row, default: 0.5 }`: nothing else in the header
+depends on them. A row's type, name and removal go through `retypeShaderParam`,
+`renameShaderParam` and `removeShaderParam`, which also keep `reachParam`, a loop's `speedParam`
+and `preview.params` right. Pass the row's index to them, so a row whose name is a duplicate or
+empty is the one that changes. `shaderParamShape` says which fields a type has, a valid default,
+and whether its default may be bound to a clock (`clock`); `bindShaderParamClock` binds or unbinds
+one, and `shaderParamClock` reads a binding back.
+
+**Placing problems.** Each problem is `{ code, params }`. `params.line` and `params.column` count
+from the start of the whole text, so an editor that shows only the body subtracts `bodyLine - 1`,
+where `bodyLine` comes from splitting the text that was checked. `shader.header-key` names the key
+in `params.key`. `shader.param-invalid` names the row in `params.param` (its name, or `#<index>`
+for a row with no name; of two rows with one name, the last) and its field in `params.field`;
+`shader.reserved` names the row in `params.param`.
+
+**`asNew` and `onTaken`** mean the same in `check` and `add`, so pass both the same options and
+`check` reports what `add` will do.
+
+- Without `asNew`, text whose body equals a known shader's reports that shader as `sameAs`, with
+  `params` holding the defaults the text differs by. An unchanged copy under the shader's own id
+  (Copy code's text, or `source` without `duplicate`) adds nothing: with `apply`, those values are
+  written to the layer, and without it nothing is written. Any other text is added.
+- With `asNew`, there is no `sameAs` and the text always joins the project as a new shader. A
+  preset's bare id reads as `user/<id>`.
+- When the id is taken (a preset, a registered shader, or a project shader, an equal text included
+  under `asNew`), `onTaken: "refuse"`, the default, fails with `shader.id-taken` and
+  `{ id, free }`; `onTaken: "rename"` adds it under `free`, and the result's `descriptor.id` is the
+  id it got.
+
+**Saving and starting.** `session.shaders.replace(id, text)` saves an edit over a project shader in
+place, keeping its id and the layers that draw it. `check` compiles the text and draws a test frame
+when a canvas is attached; `compile: false` gives the static checks alone.
+`session.shaders.source(id, { duplicate: true, derived: "omit" })` gives a copy of a shader to start
+from, with a `user/` id and without `reads`, `cost` and a still `motion`, which are worked out again
+from the edited body.
 
 ## Parameters
 
@@ -374,6 +525,119 @@ else if (!checked.ok) console.log(checked.problems);
 The picture is drawn in the element's own engine, framed by what the shader draws on, as
 `session.shaders.thumbnail` draws one; nothing is added to the project and the graph is not redrawn.
 
+## Saving and opening
+
+A saved project carries the code of every shader it uses. That holds for a project file
+(`session.project.save()`), autosave, and a style file (`session.styles.toFile()`): each lists its
+shaders under `shaders` as `{ id, text }`, the whole shader text with its header, and every layer,
+parameter binding and background that names a shader names one of those. A file therefore opens the
+same on any later release and on any page, including one that no longer ships, or never registered,
+a shader the file used.
+
+- **Using a shader copies it into the project.** Name a shader the element ships (`pearl`) or one
+  your page registered in a layer or the background, and its text joins the project in the same
+  undoable step. `session.shaders.list()` lists the copy. A copy that nothing uses any more is
+  dropped by the change that stopped using it, so trying shaders out does not fill the project's 64.
+- **An id means the project's own shader.** In a file, an id is only a key into that file's
+  `shaders`: `pearl` in someone else's file is whatever text that file carries under `pearl`, which
+  need not be the element's Pearl.
+- **A layer saves only the parameters it changed.** The defaults are in the carried text, so a
+  later release cannot change them.
+- **A project keeps the code it was saved with.** A release that changes or removes a shipped
+  shader, or a page that updates its own, changes no saved project. To take the new code, pick the
+  shader again.
+
+A gallery that offers the shipped and registered shaders writes the id `fromCatalog` returns, and
+marks a tile picked by comparing `copyOf`, never the ids:
+
+```ts
+import type { Graphty } from "@graphty/graphty-element";
+
+export async function pick(g: Graphty, layerId: string, catalogId: string): Promise<void> {
+    const id = await g.session.shaders.fromCatalog(catalogId); // the id to write in this project
+    await g.session.styles.update(layerId, { set: { "node.shaders": [{ shader: id }] } });
+}
+
+export function isPicked(g: Graphty, usedId: string, catalogId: string): boolean {
+    return g.session.shaders.describe(usedId)?.copyOf === catalogId;
+}
+```
+
+`fromCatalog` returns the project's id for a shader it already holds with the same code (under any
+id), else the catalog id. When the project holds that id with other code, such as a file's own
+`pearl`, it copies the catalog's code in under a fresh id, so both looks survive.
+`describe(id)` gives the project's shader for an id the project holds, with `copyOf` set to the
+shipped or registered shader whose code it equals, and the catalog's entry otherwise.
+
+A style file applied to a project that already holds one of its ids with other code gets a fresh id
+for its own, and its layers are rewritten to match.
+
+### Opening files from someone else
+
+Shader code runs on the reader's graphics card, so a shader that arrives in a file (a project, a
+style file, an AI command) is held: its status is `held`, it draws nothing, the layers beneath it
+show, and `shader:held` (on the element, `graphty-shader-held`) lists the held ids. Whether a
+shader is held depends only on its code, never on its id. It runs at once when its code is exactly
+the code of:
+
+- a shader any release of graphty-element shipped, under whatever id the file gives it;
+- a shader your page registered whose body has loaded;
+- a shader the reader approved in this session, or whose hash the page lists in
+  `shaderSettings.trustedHashes`.
+
+Any change to the code, even reformatting it, makes it a different shader that is held.
+`session.shaders.approve(id)` runs the full checks and then runs a held shader, and fires
+`shader:approved` (`graphty-shader-approved`) with its hash, which an application may remember:
+
+```ts
+import type { Graphty } from "@graphty/graphty-element";
+
+export function trustShaders(
+    element: Graphty,
+    remembered: string[],
+    offerToRun: (ids: readonly string[]) => void,
+): void {
+    element.shaderSettings = { trustedHashes: remembered }; // hashes the reader approved before
+    element.session.on("shader:held", ({ ids }) => offerToRun(ids));
+    element.session.on("shader:approved", ({ hash }) => remembered.push(hash)); // store it somewhere lasting
+}
+
+// When the reader agrees to run one: await element.session.shaders.approve(id);
+```
+
+`shaderSettings.untrusted` changes the default for every shader that is not trusted: `"hold"` (the
+default), `"run"`, or `"refuse"`, which leaves such shaders out of what opens and draws what lies
+beneath in their place. A file can never set these: they are the reader's and the page's, never
+saved. Two shaders stay off whatever the settings say: code that was drawing when the graphics card
+was lost on this machine, and code withdrawn after release (held with `shader.revoked`, which
+`approve` does not run).
+
+When a carried text no longer reads, or a layer names a shader the file does not carry, the open
+drops the uses of that shader, opens everything else, and lists each in `report.problems` as
+`shader.unknown`, with the layer's `id` and `channel` (or `channel` `"background"`) and the
+`shader` id. A file never falls back to a shader of the same id on the reading page.
+
+### If you register shaders
+
+- **Files carry your code.** A project that used your shader keeps working on a page that no longer
+  registers it, under an id you renamed, and after you removed it. Nothing you change later reaches
+  a saved file; a reader picks your shader again to get the new code.
+- **A file with your code runs at once on a page that registered and loaded the same code.** A body
+  given as a loader is not loaded because a file opens, so a file opened before your shader is first
+  drawn arrives held. To trust it from the start, add your shader's hash to
+  `shaderSettings.trustedHashes`. Its hash is the `hash` that `session.shaders.list()` gives once a
+  project uses it: SHA-256 of the text with the header's `id` left out.
+- **Changing your code changes its hash**, so files saved with the old code arrive held on pages
+  that trust only the new one. Keep the old hashes in `trustedHashes` for as long as such files are
+  around.
+- **Writing a shader whose body has not loaded waits for the load.** The asynchronous calls
+  (`styles.add` and the other style writes, `fromCatalog`, the background) load it first, and a
+  load that fails refuses the write with the load's problem.
+- **A native `wgsl` body is not saved.** A project carries the shader's GLSL text, and draws it
+  translated on WebGPU, so make the `glsl` body draw what the `wgsl` one does.
+- **`tags`** on the descriptor are other words a gallery search may find the shader by
+  (`["shiny"]`). They are catalog data, not part of the saved text.
+
 ## When something is wrong
 
 - `defineShader` and `registerShader` are synchronous. A definition that is wrong throws
@@ -386,9 +650,12 @@ The picture is drawn in the element's own engine, framed by what the shader draw
   problem's first code and values are also in `error.details.code` and `error.details.params`.
 - A body given as a loader is checked when it loads. If it fails, the shader draws nothing and
   `session.shaders.status(id)` reports `failed` with the problem.
-- `styles.add` refuses a layer that names an id the catalog does not list with
-  `E_UNKNOWN_SHADER`, listing the ids that would fit there. A layer read from a saved project that
-  names one draws what lies beneath until the shader is defined, and
-  `session.styles.counts(layer).undrawn` reports `shader.unknown`.
+- `styles.add` refuses a layer that names an id neither the project nor the catalog holds with
+  `E_UNKNOWN_SHADER`, listing the ids that would fit there.
+- A shader whose body has not loaded yet is loaded before a write that names it. If the load
+  fails, the write is refused with the load's problem.
+- Opening a file whose shader text no longer reads, or that names a shader it does not carry,
+  drops the uses of that shader and opens the rest; the open's report lists each as
+  `shader.unknown` (see [Saving and opening](#saving-and-opening)).
 - A driver that cannot compile a body that passed the checks reports `shader.compile`, with the
   driver's message.

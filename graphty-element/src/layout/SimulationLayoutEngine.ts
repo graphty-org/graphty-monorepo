@@ -36,7 +36,15 @@
  * that costs and why the repair that suggests itself is worse.
  */
 
-import { type F32, type GraphSnapshot, makeMask, maskSet, type NodeId, type NodeMask } from "@graphty/graph-format";
+import {
+    type F32,
+    type GraphSnapshot,
+    makeMask,
+    maskSet,
+    maskTest,
+    type NodeId,
+    type NodeMask,
+} from "@graphty/graph-format";
 import {
     type CommonLayoutOptions,
     createSimulation,
@@ -62,7 +70,7 @@ import { GraphtyError } from "../errors";
 import type { DataManager } from "../managers/DataManager";
 import type { Node } from "../Node";
 import type { DrawnTarget } from "../render/RowTable";
-import { readCommunities, sameCommunities } from "./clusterForce";
+import { readCommunities, readRowCommunities, sameCommunities } from "./clusterForce";
 import { type EdgePosition, LayoutEngine, type Position } from "./LayoutEngine";
 
 /**
@@ -345,6 +353,22 @@ export interface SimulationEngineInit {
     /** The data manager the snapshot, its undirected copy and the position array come from. */
     readonly dataManager: DataManager;
     /**
+     * The edges that have an `Edge` (`dataManagerInternals.builtEdges`), which {@link SimulationLayoutEngine.edges}
+     * hands out. Omitted, every edge of the data manager, building any `Edge` not yet built.
+     */
+    readonly builtEdges?: () => Iterable<Edge>;
+    /**
+     * The nodes that have a `Node` (`dataManagerInternals.builtNodes`) under renderPath "batched", which
+     * {@link SimulationLayoutEngine.nodes} hands out. Omitted, every node of the data manager, building any `Node`
+     * not yet built.
+     */
+    readonly builtNodes?: () => Iterable<Node>;
+    /**
+     * The spacing radius (`Node.spacingRadius`) of a row with no `Node`, read from how it is drawn, for `nodeGap`;
+     * null for a row it cannot answer. Omitted, such a row is kept apart by nothing.
+     */
+    readonly rowSpacingRadius?: (row: number, flat: boolean) => number | null;
+    /**
      * Start the first load from the seed rather than from the arrangement the element holds: the
      * rebuild a seeded layout makes when new data arrives, so the frames that stepped the graph
      * as it stood before do not decide where it settles (issue #3379). Pinned rows are replayed
@@ -416,6 +440,14 @@ interface DrawnRun {
     skip: Uint32Array;
     /** As the target said at the last publish: no copy while a transition draws the rows. */
     suspended: boolean;
+    /**
+     * Rows the table told the ring, each with the batches submitted by then. The ring writes a told
+     * row into every slot at once, so a batch already in flight lands holding the told row while its
+     * readback moves the row on the CPU: its copy must not stand for those rows.
+     */
+    readonly told: Map<number, number>;
+    /** The mirror this run gave the table, which only this run takes back. */
+    readonly mirror: (row: number, x: number, y: number, z: number, w: number) => void;
 }
 
 /**
@@ -461,6 +493,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
     readonly #controller: AccelerationController;
     readonly #report: (error: GraphtyError) => void;
     readonly #dataManager: DataManager;
+    readonly #builtEdges: () => Iterable<Edge>;
+    readonly #builtNodes: () => Iterable<Node>;
+    readonly #rowSpacingRadius: ((row: number, flat: boolean) => number | null) | undefined;
     readonly #weightMeaning: () => "strength" | "distance" | null;
     readonly #drawnTarget: () => DrawnTarget | null;
     /** The simulation filling the row table on the card, or null on the upload path. */
@@ -531,8 +566,15 @@ export class SimulationLayoutEngine extends LayoutEngine {
      */
     #nodeMass: F32 | null = null;
 
-    /** The last read of `clusterBy`. */
-    #communities: ReadonlyMap<Node, number> = new Map();
+    /**
+     * The stored record of a row with no `Node`, which the layout manager fills in; read for `clusterBy` under
+     * renderPath "batched".
+     * @internal
+     */
+    rowRecord: ((row: number) => unknown) | null = null;
+
+    /** The last read of `clusterBy`: by `Node` under renderPath "objects", by row under "batched". */
+    #communities: ReadonlyMap<Node | number, number> = new Map();
 
     /** One radius per row in scene units, gap included, while `nodeGap` is set; see `#collisionRadii`. */
     #radii: F32 | null = null;
@@ -612,6 +654,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
         this.#controller = built.controller;
         this.#report = built.report as (error: GraphtyError) => void;
         this.#dataManager = built.dataManager as DataManager;
+        this.#builtEdges = built.builtEdges ?? ((): Iterable<Edge> => this.#dataManager.edges.values());
+        this.#builtNodes = built.builtNodes ?? ((): Iterable<Node> => this.#dataManager.nodes.values());
+        this.#rowSpacingRadius = built.rowSpacingRadius;
         this.#fromSeed = built.fromSeed === true;
         this.#weightMeaning = built.weightMeaning ?? ((): "strength" => "strength");
         this.#drawnTarget = built.drawnTarget ?? ((): null => null);
@@ -1104,9 +1149,29 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @returns The pair, valid until the next call; the origin for an endpoint nothing has placed.
      */
     getEdgePosition(e: Edge): EdgePosition {
-        this.#readInto(e.srcNode, this.#edgePair.src);
-        this.#readInto(e.dstNode, this.#edgePair.dst);
+        this.#readEnd(e, "source", this.#edgePair.src);
+        this.#readEnd(e, "target", this.#edgePair.dst);
         return this.#edgePair;
+    }
+
+    /**
+     * Reads one end of an edge into its half of the pair: by its row for an end drawn with no `Node`.
+     * @param e - The edge.
+     * @param end - Which end.
+     * @param out - The half of the pair it goes in.
+     * @param out.x - receives the scene-unit x.
+     * @param out.y - receives the scene-unit y.
+     * @param out.z - receives the scene-unit z.
+     */
+    #readEnd(e: Edge, end: "source" | "target", out: { x: number; y: number; z: number }): void {
+        const row = e.columnEnd(end);
+        if (row === undefined) {
+            this.#readInto(end === "source" ? e.srcNode : e.dstNode, out);
+        } else if (!this.readRowPosition(row.index, out)) {
+            out.x = 0;
+            out.y = 0;
+            out.z = 0;
+        }
     }
 
     /**
@@ -1153,18 +1218,25 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * iterable would let the simulation rewrite the position array every frame while not one mesh
      * moved. So they answer with the data manager's own collections, which hold exactly what
      * `LayoutManager` hands every other engine through `addNodes` / `addEdges`.
+     *
+     * A row stored with no `Node` (only under renderPath "batched") is drawn and moved by its row, so it is left
+     * out, as d3 and ngraph leave it out: reading the store's `values()` built a `Node` for every row the first
+     * frame after the layout started, the 100k-row graph's seconds before its first layout frame (#6389).
      * @returns The graph's live node collection.
      */
     get nodes(): Iterable<Node> {
-        return this.#dataManager.nodes.values();
+        return this.#builtNodes();
     }
 
     /**
-     * Every edge of the graph; see {@link SimulationLayoutEngine.nodes}.
-     * @returns The graph's live edge collection.
+     * Every edge of the graph that has an `Edge`; see {@link SimulationLayoutEngine.nodes}. An edge stored with no
+     * `Edge` (only under renderPath "batched") is simulated by row and drawn by its row line, so it is left out, as
+     * d3 and ngraph leave out their edge rows: reading the store's `values()` would build an `Edge` for every one of
+     * them on every frame. On the objects path every edge has its `Edge`, so this is every edge, as before.
+     * @returns The graph's built edges, live.
      */
     get edges(): Iterable<Edge> {
-        return this.#dataManager.edges.values();
+        return this.#builtEdges();
     }
 
     /**
@@ -1276,9 +1348,20 @@ export class SimulationLayoutEngine extends LayoutEngine {
         // coordinate at all and would render at the origin for the rest of its life. So its FIRST
         // coordinate lands as a placement, and every one after that is the reader's to keep.
         this.publishColumn(first, rows, coords, count, true);
+        // A pinned or dragged row was left out of the publish above; it is still drawn, where it is kept.
+        this.keepInPublishedBox(first, this.#fixedRows);
         if (drawn !== null) {
             this.#publishDrawn(drawn, viaCard === null ? null : landed);
         }
+    }
+
+    /**
+     * The box the last publish left the rows in: one {@link LayoutEngine.publishColumn} per publish.
+     * @returns The box, or null.
+     * @internal
+     */
+    override publishedBounds(): Readonly<Float64Array> | null {
+        return this.lastPublishedBox();
     }
 
     /**
@@ -1308,13 +1391,16 @@ export class SimulationLayoutEngine extends LayoutEngine {
             n: nodeCount,
             skip: new Uint32Array(Math.ceil(nodeCount / 32)),
             suspended: false,
+            told: new Map(),
+            mirror: (row, x, y, z, w): void => {
+                if (this.#drawn === run && row < nodeCount) {
+                    drawn.writeDrawn(row, x, y, z, w);
+                    run.told.set(row, this.#landed + this.#inFlight);
+                }
+            },
         };
         this.#drawn = run;
-        target.table.drawnMirror = (row, x, y, z, w): void => {
-            if (this.#drawn === run && row < nodeCount) {
-                drawn.writeDrawn(row, x, y, z, w);
-            }
-        };
+        target.table.drawnMirror = run.mirror;
         this.#sendDrawnTransform(run);
     }
 
@@ -1326,7 +1412,9 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return;
         }
 
-        if (run.target.table.drawnMirror !== null) {
+        // Only its own: a layout set over this one attaches its ring before this engine is disposed,
+        // and clearing the table's mirror then left the new ring told of no write the table made.
+        if (run.target.table.drawnMirror === run.mirror) {
             run.target.table.drawnMirror = null;
         }
 
@@ -1374,12 +1462,29 @@ export class SimulationLayoutEngine extends LayoutEngine {
                 run.target.table.dropCopy();
             } else {
                 run.target.table.copyLanded(run.target.device, landed, run.n);
+                this.#resendTold(run);
             }
 
             this.#sendDrawnTransform(run);
         } catch (error) {
             if (simulation !== null) {
                 this.#onError(error, simulation);
+            }
+        }
+    }
+
+    /**
+     * After a copy of the newest landing: sends the rows told to the ring while that batch was in
+     * flight, whose copied rows are the told ones and not what the publish wrote, and forgets the
+     * rows told before it was submitted, which every later landing holds.
+     * @param run - The run.
+     */
+    #resendTold(run: DrawnRun): void {
+        for (const [row, submitted] of run.told) {
+            if (submitted >= this.#landed) {
+                run.target.table.resend(row);
+            } else {
+                run.told.delete(row);
             }
         }
     }
@@ -1500,16 +1605,43 @@ export class SimulationLayoutEngine extends LayoutEngine {
         const dimensions =
             this.#options.nodeGapFront === true ? 2 : (this.#options.model.dim ?? this.#options.dim ?? 3);
         const radii = new Float32Array(nodeCount);
+        const byNode = makeMask(nodeCount);
         for (const node of this.nodes) {
             if (this.#hasRow(node.index) && !this.isFollower(node.index)) {
                 radii[node.index] = node.spacingRadius(dimensions === 2) + gap / 2;
             }
+
+            if (this.#hasRow(node.index)) {
+                maskSet(byNode, node.index, true);
+            }
         }
 
+        this.#rowRadii(radii, byNode, dimensions === 2, gap);
         this.#radii = radii;
         this.#radiiStale = false;
         this.#packedRadius = packedRadius(radii, dimensions);
         return radii;
+    }
+
+    /**
+     * Writes the `nodeGap` radius of every row with no `Node` (renderPath "batched"), spaced by how it is drawn.
+     * @param radii - The radii, written in place.
+     * @param byNode - The rows a `Node` already answered for.
+     * @param flat - Whether depth does not count.
+     * @param gap - The `nodeGap`.
+     */
+    #rowRadii(radii: F32, byNode: NodeMask, flat: boolean, gap: number): void {
+        const ofRow = this.#rowSpacingRadius;
+        if (ofRow === undefined) {
+            return;
+        }
+
+        for (let row = 0; row < radii.length; row++) {
+            const radius = maskTest(byNode, row) || this.isFollower(row) ? null : ofRow(row, flat);
+            if (radius !== null) {
+                radii[row] = radius + gap / 2;
+            }
+        }
     }
 
     /**
@@ -1671,19 +1803,27 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * Reads `clusterBy` over the loaded snapshot.
      * @returns Each member's community.
      */
-    #readCommunities(): ReadonlyMap<Node, number> {
+    #readCommunities(): ReadonlyMap<Node | number, number> {
         const { clusterBy } = this.#options;
         if (clusterBy === undefined || clusterBy === null || this.#snapshot === null) {
             return new Map();
         }
 
-        return readCommunities(
-            clusterBy,
-            this.nodes,
-            this.clusterColumn,
-            (row) => !this.#hasRow(row) || this.isFollower(row),
-            this.#snapshot,
-        );
+        const skip = (row: number): boolean => !this.#hasRow(row) || this.isFollower(row);
+        if (this.#dataManager.renderLimits?.batched() ?? false) {
+            // Under renderPath "batched" by row, so a row with no Node is read without building one.
+            const manager = this.#dataManager;
+            return readRowCommunities(
+                clusterBy,
+                this.#snapshot.nodeCount,
+                (row) => manager.nodesByIndex[row]?.data ?? this.rowRecord?.(row),
+                this.clusterColumn,
+                skip,
+                this.#snapshot,
+            );
+        }
+
+        return readCommunities(clusterBy, this.nodes, this.clusterColumn, skip, this.#snapshot);
     }
 
     /**
@@ -1700,8 +1840,8 @@ export class SimulationLayoutEngine extends LayoutEngine {
         }
 
         const communities = new Uint32Array(nodeCount).fill(NO_CLUSTER);
-        for (const [node, community] of this.#communities) {
-            communities[node.index] = community;
+        for (const [member, community] of this.#communities) {
+            communities[typeof member === "number" ? member : member.index] = community;
         }
 
         simulation.setClusters?.({ communities, strength: this.#options.clusterStrength });
@@ -1933,7 +2073,10 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @returns The graph to load, and the `weight` option, undefined when the model reads none.
      */
     #loadable(snapshot: GraphSnapshot): { graph: GraphSnapshot; weight: boolean | string | undefined } {
-        const graph = this.#dataManager.undirected(snapshot).snapshot;
+        const undirected = this.#dataManager.undirected(snapshot).snapshot;
+        // An edge the filter hides between two shown nodes pulls nothing (see `LayoutEngine.setLeftOut`).
+        const keptEdges = this.keptEdges(undirected);
+        const graph = keptEdges === null ? undirected : undirected.filterEdges(keptEdges).snapshot;
         if ((this.#options.model as { weight?: unknown }).weight !== true) {
             return { graph, weight: undefined };
         }

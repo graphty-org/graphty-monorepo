@@ -1,8 +1,11 @@
 import { ComboInput, CompactColorInput, PanelField } from "@graphty/compact-mantine";
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
+import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import { Text, TextInput } from "@mantine/core";
 import React from "react";
 
+import { useModelPicture } from "../canvas/models";
+import { GLYPHS } from "../glyphs";
 import { channelWord, colorName, enumWords, GLYPH_TABLES, hexOf, isPercent, TWO_WORDS, valueFieldKind } from "./words";
 
 /**
@@ -74,10 +77,31 @@ interface ValueFieldProps {
         readonly value: string;
         readonly label: string;
         readonly picture?: string;
+        /** A drawing in place of a picture (the Shape list's Model... entry). */
+        readonly glyph?: React.ReactNode;
         readonly disabled?: boolean;
     }[];
     /** Writes a value, once per gesture. */
     readonly onChange: (value: string | number | boolean) => void;
+    /**
+     * The model a Shape field holds in place of a built-in shape (the node-models experiment): the
+     * field shows its picture (else the cube) and its name, and its list checks no shape.
+     */
+    readonly model?: { readonly name: string; readonly thumbnail?: string };
+}
+
+/**
+ * A model's picture in a 16 px field slot: its thumbnail, else the cube.
+ * @param props - Component props
+ * @param props.thumbnail - the picture's URL
+ * @returns The picture
+ */
+function ModelGlyph({ thumbnail }: Readonly<{ thumbnail?: string }>): React.JSX.Element {
+    return thumbnail === undefined ? (
+        <GLYPHS.model size={14} aria-hidden />
+    ) : (
+        <img src={thumbnail} alt="" width={16} height={16} aria-hidden />
+    );
 }
 
 /**
@@ -95,6 +119,7 @@ interface ValueFieldProps {
  * @param props.swatches - the swatches a color's picker offers
  * @param props.extraChoices - choices a select lists after its own
  * @param props.onChange - writes a value
+ * @param props.model - the model a Shape field holds
  * @returns The field, or a dash for a property no field draws
  */
 export function ValueField({
@@ -108,9 +133,10 @@ export function ValueField({
     swatches,
     extraChoices = [],
     onChange,
+    model,
 }: Readonly<ValueFieldProps>): React.JSX.Element {
     const kind = valueFieldKind(descriptor);
-    const props = { descriptor, label, value, shown, mixed, waiting, compact, swatches, extraChoices, onChange };
+    const props = { descriptor, label, value, shown, mixed, waiting, compact, swatches, extraChoices, onChange, model };
     if (kind === "color") {
         return <ColorValueField {...props} />;
     }
@@ -242,7 +268,7 @@ function choiceName(
  * @returns The field
  */
 function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
-    const { descriptor, label, value, shown, mixed, extraChoices = [], onChange } = props;
+    const { descriptor, label, value, shown, mixed, extraChoices = [], onChange, model } = props;
     const boolean = descriptor.accepts === "boolean";
     const options = choiceOptions(descriptor, value);
     // Nothing set here: the value shown is the one in force by default, and is read as that.
@@ -259,15 +285,29 @@ function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
                   ]),
                   ...extraChoices.map((o) => [
                       o.value,
-                      o.picture === undefined ? null : (
+                      o.picture === undefined ? (
+                          (o.glyph ?? null)
+                      ) : (
                           <img src={o.picture} alt="" aria-hidden width={14} height={14} style={{ borderRadius: 3 }} />
                       ),
                   ]),
               ]);
     const pictured = glyphs === undefined || mixed ? undefined : (choiceText(value) ?? choiceText(shown));
+    let glyph: React.ReactNode =
+        pictured === undefined ? undefined : <CatalogGlyph channel={descriptor.channel} value={pictured} />;
+    let placeholder = unset ? inForce : undefined;
+    let name = choiceName(label, mixed, unset ? inForce : undefined, chosen);
+    if (model !== undefined) {
+        // A model is no built-in shape: the list checks none, and the field shows the model's name
+        // where a value would be (compact-mantine's select shows only its own choices, so it is the
+        // placeholder until it can show another value, issue #6233).
+        glyph = <ModelGlyph thumbnail={model.thumbnail} />;
+        placeholder = model.name;
+        name = `${label}, ${model.name}`;
+    }
     return (
         <PanelField
-            label={choiceName(label, mixed, unset ? inForce : undefined, chosen)}
+            label={name}
             kind="select"
             width="fill"
             data={[
@@ -276,11 +316,11 @@ function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
             ]}
             // Unset, the field holds nothing and shows the default in force as its placeholder,
             // so the open list checks no choice as if it were set.
-            value={mixed ? null : (choiceText(value) ?? null)}
-            placeholder={unset ? inForce : undefined}
+            value={mixed || model !== undefined ? null : (choiceText(value) ?? null)}
+            placeholder={placeholder}
             mixed={mixed}
             optionGlyphs={glyphs}
-            glyph={pictured === undefined ? undefined : <CatalogGlyph channel={descriptor.channel} value={pictured} />}
+            glyph={glyph}
             onChange={(next) => {
                 onChange(boolean ? next === "true" : String(next));
             }}
@@ -319,6 +359,49 @@ function TextValueField(props: KindFieldProps): React.JSX.Element {
                     event.currentTarget.blur();
                 }
             }}
+        />
+    );
+}
+
+/**
+ * The Shape field holding a model: its name, and its picture drawn by graphty-element.
+ * @param props - Component props
+ * @param props.descriptor - the Shape property
+ * @param props.label - the field's name
+ * @param props.model - what the layer's `node.model` names
+ * @param props.style - the layer's color and model settings, so the picture is drawn as its nodes are
+ * @param props.name - the model's name
+ * @param props.extraChoices - the list's Model... entry
+ * @param props.onChange - a choice from the list
+ * @returns The field
+ */
+export function ModelValueField({
+    descriptor,
+    label,
+    model,
+    style,
+    name,
+    extraChoices,
+    onChange,
+}: Readonly<{
+    descriptor: ChannelDescriptor;
+    label: string;
+    model: string;
+    style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
+    name: string;
+    extraChoices: React.ComponentProps<typeof ValueField>["extraChoices"];
+    onChange: (value: ChannelValue) => void;
+}>): React.JSX.Element {
+    const thumbnail = useModelPicture(model, 16, style);
+    return (
+        <ValueField
+            descriptor={descriptor}
+            label={label}
+            value={undefined}
+            shown={undefined}
+            model={{ name, ...(thumbnail === undefined ? {} : { thumbnail }) }}
+            extraChoices={extraChoices}
+            onChange={onChange}
         />
     );
 }

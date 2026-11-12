@@ -682,25 +682,38 @@ async function graphtyAdapter({
             return out;
         },
         async layoutFps(count, capMs) {
+            const tCall = now();
             await el.setLayout("ngraph");
             const t0 = now();
             // wait for the engine to exist
             while (!graph.getLayoutManager().layoutEngine && now() - t0 < 30000) await raf();
             const eng = graph.getLayoutManager().layoutEngine;
             const it0 = eng.iterationsDone ?? null;
+            // Batches of positions that came back from the device and were published: what moved
+            // the picture. Iterations count what was asked for, which rises with nothing landing.
+            const landed0 = eng.landedBatchesPublished ?? null;
             stamps.length = 0;
             const t = now();
             while (stamps.length < count + 1 && now() - t < capMs) await raf();
             const st = stamps.slice();
             const it1 = eng.iterationsDone ?? null;
+            const landed = landed0 === null ? null : eng.landedBatchesPublished - landed0;
             const wall = (st[st.length - 1] ?? now()) - (st[0] ?? t);
             return {
                 ...(st.length > 2 ? stats(intervals(st)) : { n: st.length - 1 }),
                 frames: st.length - 1,
                 setupMs: +(t - t0).toFixed(0),
+                // From the setLayout call to the first frame drawn after the engine exists: what a
+                // reader waits between starting the layout and seeing it run.
+                setLayoutMs: +(t0 - tCall).toFixed(0),
+                startToFirstFrameMs: st.length ? +(st[0] - tCall).toFixed(0) : null,
                 engine: eng?.type,
                 accelerated: eng?.isAccelerated ?? false,
                 iterationsPerSec: it0 === null ? null : +((it1 - it0) / ((now() - t) / 1000)).toFixed(1),
+                landedBatches: landed,
+                // A GPU layout whose positions never came back did not move: its frames time a still
+                // scene, so the row is refused rather than reported as a layout frame.
+                refused: eng?.isAccelerated && landed === 0 ? "no layout batch landed" : undefined,
                 wallMs: +wall.toFixed(0),
                 acceleration: el.session.capabilities.acceleration,
             };

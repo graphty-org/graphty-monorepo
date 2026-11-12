@@ -42,6 +42,7 @@ import type {
     LayoutId,
     MeasurementDeclaration,
     Path,
+    Query,
     ReadableValue,
     RuleTree,
     RunId,
@@ -109,7 +110,9 @@ import type {
     SourceMoreOptions,
     SourcePreview,
     SourcePreviewOptions,
+    SourceRead,
     SourceRefreshReport,
+    SourceSettings,
 } from "./sources/types";
 import type { ElementPaint, SessionStylesApi, StyleBatchChange, StyleChange, StyleRefusal, StylesApi } from "./styles";
 import type { FileStyleOptions } from "./styles/fileStyles/translate";
@@ -294,6 +297,18 @@ export interface RecordPageOptions {
          */
         readonly names?: boolean;
     };
+    /**
+     * Only the records an expression matches, read the way a style layer's selector reads it: a
+     * node page tests each node, an edge page each edge, so `data.weight > \`0.5\`` pages the
+     * heavy edges where `scope: { where }` names nodes only. Combines with every other option;
+     * `total` counts the matches. Selects nothing. An expression that does not parse is refused
+     * with `E_BAD_SELECTOR`.
+     *
+     * ```ts
+     * session.data.edgePage({ where: "data.weight > `0.5`", limit: 0 }).total; // how many heavy edges
+     * ```
+     */
+    readonly where?: Query;
     /**
      * Only the records an open issue is on: one issue's id, or the word `"any"` for every open
      * issue (no issue id is `"any"`).
@@ -1170,10 +1185,15 @@ export interface SessionDataApi {
      *     `status: "ignored"` (default false)
      * @param options.includeFixed - list the issues `data.fix` settled too, after the rest, each with
      *     `status: "fixed"` and `fixedBy`, as they stood then (default false)
+     * @param options.source - list only this load's issues
      * @returns the issues, those a load saw first
      * @since 3.30.0
      */
-    issues(options?: { readonly includeIgnored?: boolean; readonly includeFixed?: boolean }): readonly DataIssue[];
+    issues(options?: {
+        readonly includeIgnored?: boolean;
+        readonly includeFixed?: boolean;
+        readonly source?: SourceKey;
+    }): readonly DataIssue[];
     /**
      * Apply one of an issue's fixes, as one undoable step: `session.undo()` puts the data back.
      *
@@ -1286,13 +1306,20 @@ export interface SessionDataApi {
      * }
      * ```
      * @param key - The load's key, from {@link SessionDataApi.sources}.
-     * @param source - The newer copy, as `import` takes it.
-     * @param choices - How to read it, as `draft.load` takes them; `mode` is ignored.
+     * @param source - The newer copy, as `import` takes it. A network source (`source: "<id>"`) is read with the options below and replaces the load under the
+     *     same key and name; with no credential given, the one remembered for the endpoint is used.
+     *     See {@link SessionDataApi.sourceSettings} for what such a load holds now.
+     * @param choices - How to read it, as `draft.load` takes them; `mode` is ignored. For a network
+     *     source, the same load options `import` takes (`endpoint`, `limits`, `credential`, `signal`).
      * @returns What was added, removed and changed, and what no longer matches anything.
      * @throws A `GraphtyError` (as a rejection) with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
      * @since 3.30.0
      */
-    replaceSource(key: SourceKey, source: DataSourceInput, choices?: LoadChoices): Promise<ReplaceReport>;
+    replaceSource(
+        key: SourceKey,
+        source: DataSourceInput,
+        choices?: LoadChoices & SourceLoadOptions,
+    ): Promise<ReplaceReport>;
     /**
      * Read one load again from what it was read from, with changed choices -- another id, source
      * or target column, the kinds of its ends, kept or scoped ids -- as one undoable step that
@@ -1710,6 +1737,19 @@ export interface SessionDataApi {
      *     source holds more, the server's facts and the read's issues; rejects with the source's code.
      */
     previewSource(source: SourceInput, options?: SourcePreviewOptions): Promise<SourcePreview>;
+
+    /**
+     * Read one of a source's examples and change nothing, for what `loadExample` loads, with the
+     * example's endpoint, published login and first page. Pass the result to `import`, on this
+     * session or another, and it loads without reading the service again.
+     * Experimental.
+     * @param source - The source id, such as `"neo4j"`.
+     * @param example - The example's id within that source, such as `"neo4j-movies"`.
+     * @param options - Anything `import` takes; the import that takes the read keeps them.
+     * @returns The read and how many nodes and edges it holds; rejects with `E_SOURCE_UNKNOWN`
+     *     when the source lists no such example.
+     */
+    readExample(source: string, example: string, options?: SourceLoadOptions): Promise<SourceRead>;
     /**
      * Ask a load's source whether its data changed since the load, loading nothing. Experimental.
      * @param load - The load's key, from `sources()` or `loads()`.
@@ -1741,14 +1781,13 @@ export interface SessionDataApi {
      * public server and the params that load a known graph from it), as one undoable step: the
      * example's params, its endpoint, the login its service publishes and, for one too big to
      * load whole, its first page, so `loadExample("neo4j", "neo4j-movies")` is the whole call.
-     * graph-samples' datasets are not examples: load those with `loadDataset`. Needs the
-     * `network-data` experiment. Experimental.
+     * graph-samples' datasets are not examples: load those with `loadDataset`. Experimental.
      * @param source - The source id, such as `"neo4j"`.
      * @param example - The example's id within that source, such as `"neo4j-movies"`.
      * @param options - Anything `import` takes; a `credential` or `endpoint` given here wins.
      * @returns Settles once the example is in the graph; rejects with `E_SOURCE_UNKNOWN`
      *     (`{ source, id, known }`, `known` listing the source's example ids) when the source lists
-     *     no such example, and with `E_FEATURE_OFF` while the `network-data` experiment is off.
+     *     no such example.
      */
     loadExample(source: string, example: string, options?: LoadChoices & SourceLoadOptions): Promise<void>;
     /**
@@ -1757,6 +1796,15 @@ export interface SessionDataApi {
      * @returns The records.
      */
     loads(): readonly SourceLoadRecord[];
+    /**
+     * What a network source connects to and fetches, for showing it or filling a form to edit it:
+     * its source id, address, params, limits and expand behavior. The params are redacted as a
+     * saved file has them and no credential is in it, so it is safe to display; a query source's
+     * params say the `mode` it read in. Experimental.
+     * @param key - The entry's key, from {@link SessionDataApi.sources}.
+     * @returns The settings, or undefined for a source that is not a network load.
+     */
+    sourceSettings(key: SourceKey): SourceSettings | undefined;
     /**
      * The source loads an opened project holds but has not run: nothing fetches by itself.
      * Experimental.
@@ -1975,7 +2023,7 @@ export interface LoadDraft {
      * never become nodes or edges. Any draft answers, prepared onto the graph or not.
      * @returns The table: its name, columns and rows.
      * @throws `E_DISPOSED` once the draft has been loaded or disposed.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     lookup(): JoinLookup;
     /** Let go of the held rows. */
@@ -2156,6 +2204,8 @@ export interface TableMapping {
     readonly edgeId?: string | null;
     /** The column naming each row's kind, which loads as the node's or edge's `kind` attribute. */
     readonly kind?: string | null;
+    /** A node table's kind: a kind name every row takes, as its `kind` attribute. Wins over `kind`. */
+    readonly kindName?: string | null;
     /**
      * An edge table's source nodes' kind: a kind name every source node takes, or `{ column }`
      * whose values name each row's. The node loads with it as its `kind` attribute. Unlike every
@@ -2189,6 +2239,11 @@ export interface LoadMappingRead {
 
 /** What `import` and `LoadDraft.load` take. */
 export interface LoadChoices extends ImportOptions {
+    /**
+     * Say a load read from a URL is one of the application's own samples, so `data.sources()`
+     * lists it as `"sample"` rather than `"url"`. @since 3.38.0
+     */
+    readonly origin?: "sample";
     /** The column roles; a role left out is the element's own reading. */
     readonly mapping?: LoadMapping;
     /**
@@ -2280,6 +2335,8 @@ export interface DataSourceDescriptor {
     readonly name?: string;
     /** The file's size in bytes, when a file was read. */
     readonly size?: number;
+    /** The name of the file it was read from; `name` is the reader's and can change. */
+    readonly fileName?: string;
     /** The source's options, without `data` and `file`: the `url`, and what the source reads besides. */
     readonly config?: Readonly<Record<string, unknown>>;
 }
@@ -2329,6 +2386,17 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly tableRows?: readonly ("nodes" | "edges")[];
     /** How many nodes and edges the load added to the graph. */
     readonly added: { readonly nodes: number; readonly edges: number };
+    /**
+     * When this load last read its data, as RFC 3339. Absent in a project saved before it was kept.
+     * @since 3.38.0
+     */
+    readonly loadedAt?: string;
+    /**
+     * Where it was read from, without credentials: a URL load's address, or a network load's origin
+     * and path. Absent for anything else.
+     * @since 3.38.0
+     */
+    readonly url?: string;
     /**
      * Edge rows the load left out because they named a node no node row held (`unmatched:
      * "leave-out"`), and how many distinct such names, as `LoadReport.unmatched` counts them.
@@ -2437,13 +2505,13 @@ export type JoinShape = "node-values" | "edge-values" | "edges" | "rows" | "repl
  * table order. Blank values are skipped.
  *
  * OPEN UNION: reductions may be added in a minor release.
- * @since 3.37.0
+ * @since 3.38.0
  */
 export type JoinReduce = "count" | "sum" | "min" | "max" | "mean" | "first" | "last" | "list";
 
 /**
  * Linking nodes whose rows share a value ({@link JoinChoices.link}, shape `"link"`).
- * @since 3.37.0
+ * @since 3.38.0
  */
 export interface JoinLink {
     /** The columns whose values link nodes: a phone, a device, an email. */
@@ -2464,7 +2532,7 @@ export interface JoinLink {
 
 /**
  * How a mapping table is read ({@link JoinChoices.mapping}).
- * @since 3.37.0
+ * @since 3.38.0
  */
 export interface JoinMapping {
     /** The mapping table's column holding the incoming keys, then its column holding the graph's. */
@@ -2475,8 +2543,10 @@ export interface JoinMapping {
 
 /**
  * A node's region when a join compares two graphs ({@link JoinChoices.compare}): the value
- * written to its membership column.
- * @since 3.37.0
+ * written to its membership column. `"from"` is the data being joined in and `"onto"` the graph
+ * already loaded: `"both"` (a node in both), `"only-from"` (a node only the joined data holds) or
+ * `"only-onto"` (a node only the loaded graph holds). These values are saved in projects.
+ * @since 3.38.0
  */
 export type JoinRegion = "both" | "only-from" | "only-onto";
 
@@ -2489,7 +2559,7 @@ export type JoinRegion = "both" | "only-from" | "only-onto";
  * const via = crosswalk.lookup();
  * crosswalk.dispose();
  * ```
- * @since 3.37.0
+ * @since 3.38.0
  */
 export interface JoinLookup {
     /** Its name, as a source's. */
@@ -2507,7 +2577,10 @@ export interface JoinLookup {
 export interface JoinKey {
     /** The incoming table's column. */
     readonly file: string;
-    /** The graph value: `"id"` (the node id, or the edge id) or `"data.<column>"`. */
+    /**
+     * The graph value: `"id"` (the node id, or the edge id), an edge's `"source"` or `"target"`, or
+     * `"data.<column>"`.
+     */
     readonly graph: Path;
 }
 
@@ -2527,9 +2600,14 @@ export interface JoinSuggestion {
      * phone, a device), so a join of `shape: "link"` on them would link those nodes. Absent when no
      * column fits. The shape stays the values join; linking is the reader's choice:
      * `{ ...suggestion, shape: "link" }`.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly link?: JoinLink;
+    /**
+     * For `"edges"`: `"both"` when rows naming the same source and target say different things, so
+     * each is its own event. Absent otherwise. @since 3.38.0
+     */
+    readonly repeated?: "both";
 }
 
 /**
@@ -2577,7 +2655,7 @@ export interface JoinChoices {
      * A mapping table held apart from the graph (`LoadDraft.lookup()`), read as `via` reads one:
      * its rows never become nodes or edges, and it is saved with the join. Giving both `lookup` and
      * `via` is refused (`E_BAD_COMMAND`, `details.reason` `"via-and-lookup"`).
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly lookup?: JoinLookup;
     /**
@@ -2585,20 +2663,20 @@ export interface JoinChoices {
      * its column holding the graph's (by default the columns whose values meet the incoming keys
      * and the graph's most); `many` what a key mapped to several values matches: the `"first"`
      * (the default) or every one (`"list"`).
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly mapping?: JoinMapping;
     /**
      * For `"edges"`: the `kind` the nodes the join makes take, by end. A node the graph holds is
      * left as it is.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly endKinds?: { readonly source?: string; readonly target?: string };
     /**
      * For `"edges"` with `endKinds`: `"shared"` (the default) matches an end to a node of any kind;
      * `"scoped"` matches it only to a node of its end's kind, and an end it makes whose id a node
      * of another kind holds becomes `<kind>:<value>`, as `LoadChoices.kindIds` does.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly kindIds?: "shared" | "scoped";
     /**
@@ -2608,10 +2686,10 @@ export interface JoinChoices {
      * names). Every node is kept: a filter on the membership column keeps the union, the
      * intersection (`"both"`) or a difference. A clashing column of the table is always written as
      * `<column> (<table name>)`, so the two graphs' values sit side by side.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly compare?: boolean;
-    /** For `compare`: the column the regions are written to. Default `"membership"`. @since 3.37.0 */
+    /** For `compare`: the column the regions are written to. Default `"membership"`. @since 3.38.0 */
     readonly membership?: string;
     /**
      * For `"edges"`: a row with an end the graph lacks either `"add"`s that end as a new node
@@ -2625,24 +2703,31 @@ export interface JoinChoices {
      * column's name, or several, each written as `<column> (<reduction>)`. A column may be a key
      * column (count the rows). A brought column named here takes its first value. When present,
      * `repeated` is ignored and every row of a key counts; for `"edges"`, one edge per pair.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly aggregate?: Readonly<Record<string, JoinReduce | readonly JoinReduce[]>>;
-    /** For `"link"`: what links nodes. Required for `"link"`. @since 3.37.0 */
+    /** For `"link"`: what links nodes. Required for `"link"`. @since 3.38.0 */
     readonly link?: JoinLink;
     /**
      * For `"merge"`: a row naming no node is kept as a new node (`"keep"`, the default), its id
      * the key's value, or `"drop"`ped.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly unmatchedFrom?: "keep" | "drop";
     /**
      * The names to write in place of the ones the join derives, by the derived name: a reduction's
      * `<column> (<reduction>)`, a clashing column's `<column> (<table name>)`, a link edge's
      * `shared`. `{ "amount (count)": "orders", shared: "overlap" }`.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly names?: Readonly<Record<string, string>>;
+    /**
+     * For `"node-values"` on one key with no `via` or `lookup`: a row matching no node is `"leave-out"`, left
+     * out of the join (the default), or `"add"`ed as a new node named by its key. Undone, edited
+     * and removed with the join.
+     * @since 3.38.0
+     */
+    readonly unmatchedRows?: "leave-out" | "add";
 }
 
 /**
@@ -2650,7 +2735,8 @@ export interface JoinChoices {
  *
  * - `"joined"`: its values reach the elements it matches, or (for `"edges"`) it becomes an edge
  *   between two nodes the graph holds.
- * - `"new-end"`: (`"edges"`) it becomes an edge, and an end the graph lacks becomes a new node.
+ * - `"new-end"`: (`"edges"`) it becomes an edge, and an end the graph lacks becomes a new node; or
+ *   (`"node-values"` with `unmatchedRows: "add"`) it matches no node and becomes a new one.
  * - `"repeat"`: its key repeats another row's and `repeated` keeps the other one.
  * - `"left-out"`: the join leaves it out: its key matches nothing, a key value is blank, (for
  *   `"edges"` with `unknownEnds: "leave-out"`) an end is not in the graph, (for `"merge"` with
@@ -2720,31 +2806,37 @@ export interface JoinReport {
      * @since 3.33.0
      */
     readonly rowFates: readonly JoinRowFate[];
-    /** Rows whose key matches more than one element. @since 3.37.0 */
+    /** Rows whose key matches more than one element. @since 3.38.0 */
     readonly fanOut: number;
-    /** For `"merge"`: the nodes rows merge into. 0 otherwise. @since 3.37.0 */
+    /** For `"merge"`: the nodes rows merge into. 0 otherwise. @since 3.38.0 */
     readonly merged: number;
-    /** For `"merge"`: the keys only the table holds, kept or dropped. 0 otherwise. @since 3.37.0 */
+    /** For `"merge"`: the keys only the table holds, kept or dropped. 0 otherwise. @since 3.38.0 */
     readonly onlyFrom: number;
-    /** For `"merge"`: the nodes no row merges into. 0 otherwise. @since 3.37.0 */
+    /** For `"merge"`: the nodes no row merges into. 0 otherwise. @since 3.38.0 */
     readonly onlyOnto: number;
-    /** For `"link"`: the node pairs linked. 0 otherwise. @since 3.37.0 */
+    /** For `"link"`: the node pairs linked. 0 otherwise. @since 3.38.0 */
     readonly pairsLinked: number;
-    /** For `"link"`: the shared values left unused because more than `maxShared` nodes hold them. @since 3.37.0 */
+    /** For `"link"`: the shared values left unused because more than `maxShared` nodes hold them. @since 3.38.0 */
     readonly valuesOverCap: number;
-    /** For `"link"`: the pairs sharing fewer values than `minShared`, so not linked. @since 3.37.0 */
+    /** For `"link"`: the pairs sharing fewer values than `minShared`, so not linked. @since 3.38.0 */
     readonly pairsBelowMin: number;
-    /** With `via`: the distinct incoming keys the mapping table lacks. 0 otherwise. @since 3.37.0 */
+    /** With `via`: the distinct incoming keys the mapping table lacks. 0 otherwise. @since 3.38.0 */
     readonly unmapped: number;
-    /** With `via`: the distinct incoming keys the mapping table maps to more than one value. @since 3.37.0 */
+    /** With `via`: the distinct incoming keys the mapping table maps to more than one value. @since 3.38.0 */
     readonly mappedToMany: number;
     /**
      * With `compare`: the nodes in each region ({@link JoinRegion}). Absent otherwise.
-     * @since 3.37.0
+     * @since 3.38.0
      */
     readonly regions?: {
         readonly nodes: Readonly<Record<JoinRegion, number>>;
     };
+    /**
+     * Rows of the file its reader could not read (a line with too many or too few fields), so the
+     * join never saw them.
+     * @since 3.38.0
+     */
+    readonly unreadRows: number;
 }
 
 /**
@@ -2772,6 +2864,8 @@ export interface JoinRecord {
         readonly name: string;
         readonly columns: readonly string[];
         readonly rows: readonly Readonly<Record<string, unknown>>[];
+        /** Rows of the file its reader could not read. Absent when there were none. @since 3.38.0 */
+        readonly unreadRows?: number;
     };
     /**
      * For values: each element's values before the join wrote over them, by id, null for a value
@@ -2798,6 +2892,11 @@ export interface RemoveSourceResult {
     readonly removed: { readonly nodes: number; readonly edges: number };
     /** The load's nodes and edges that stayed, because another load also supplied them. */
     readonly kept: { readonly nodes: number; readonly edges: number };
+    /**
+     * The joins that went with it: joined onto it, through it as a mapping table, or keyed on a column it wrote.
+     * @since 3.38.0
+     */
+    readonly alsoRemoved: readonly SourceKey[];
 }
 
 /**
@@ -3359,6 +3458,8 @@ export interface SessionEventMap {
     "source:expanded": SourceExpanded;
     /** An expansion failed: the source's code and params. Mirrored as `graphty-source-expand-failed`. Experimental. */
     "source:expand-failed": SourceExpandFailed;
+    /** A network load read its source again (More or Refresh), so its `loadedAt` moved. Experimental. */
+    "source:refreshed": { readonly load: string };
     /**
      * The project's name or whether it has unsaved changes (`session.project.name`, `.dirty`)
      * changed. Mirrored on the element as `graphty-project-status`.

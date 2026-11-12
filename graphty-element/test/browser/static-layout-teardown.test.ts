@@ -16,6 +16,7 @@ import { afterEach, assert, beforeEach, it } from "vitest";
 
 import { type Graph, operationQueueOf } from "../../src/Graph";
 import { simpleLayoutInternals, StaticLayoutEngine } from "../../src/layout/LayoutEngine";
+import { dataManagerInternals } from "../../src/managers/DataManager";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 const NODES = 200;
@@ -23,6 +24,33 @@ const NODES = 200;
 type StrictScope = { __GRAPHTY_STRICT_STATE__?: boolean };
 let graph: Graph | null = null;
 let strictBefore: boolean | undefined;
+
+/**
+ * The `Node`s the data manager built: every row on the object path, and under renderPath
+ * "batched" none until one is asked for, since a static layout arranges such a row by row.
+ * @param g - The graph.
+ * @returns How many there are.
+ */
+function built(g: Graph): number {
+    return [...dataManagerInternals.builtNodes(g.getDataManager())].length;
+}
+
+/**
+ * What the engine should hold, and what the data manager holds, after a load of `edges` edges: the
+ * engine every built `Edge`; under renderPath "batched", which stores an edge with no `Edge`, the
+ * rest are rows the data manager keeps, and a torn-down edge left among them is the same leak.
+ * @param g - The graph.
+ * @param edges - The edges the graph holds now.
+ * @param what - The step being checked.
+ */
+function assertHeld(g: Graph, edges: number, what: string): void {
+    const manager = g.getDataManager();
+    const builtEdges = dataManagerInternals.builtEdges(manager).size;
+    const engine = g.getLayoutManager().layoutEngine;
+    assert(engine instanceof StaticLayoutEngine, "the random layout is a static layout");
+    assert.deepEqual(simpleLayoutInternals.held(engine), { nodes: built(g), edges: builtEdges }, what);
+    assert.strictEqual(builtEdges + dataManagerInternals.unbuiltEdgeRows(manager).length, edges, what);
+}
 
 beforeEach(() => {
     // Strict state checks after every pass that the engine can place every drawn edge, and that
@@ -56,7 +84,7 @@ it("a replacing import and its undo leave no torn-down edge in a static layout",
     await queue.waitForCompletion();
     const engine = graph.getLayoutManager().layoutEngine;
     assert(engine instanceof StaticLayoutEngine, "the random layout is a static layout");
-    assert.deepEqual(simpleLayoutInternals.held(engine), { nodes: NODES, edges: NODES / 2 }, "the graph is held");
+    assertHeld(graph, NODES / 2, "the graph is held");
 
     await session.data.import(
         { type: "json", config: { data: '{"nodes":[{"id":"r"}],"edges":[]}' } },
@@ -64,13 +92,13 @@ it("a replacing import and its undo leave no torn-down edge in a static layout",
     );
     await queue.waitForCompletion();
     assert.strictEqual(graph.getLayoutManager().layoutEngine, engine, "the same engine arranged the new graph");
-    assert.deepEqual(simpleLayoutInternals.held(engine), { nodes: 1, edges: 0 }, "a replacing import");
+    assertHeld(graph, 0, "a replacing import");
 
     await session.undo();
     await queue.waitForCompletion();
-    assert.deepEqual(simpleLayoutInternals.held(engine), { nodes: NODES, edges: NODES / 2 }, "its undo");
+    assertHeld(graph, NODES / 2, "its undo");
 
     await session.redo();
     await queue.waitForCompletion();
-    assert.deepEqual(simpleLayoutInternals.held(engine), { nodes: 1, edges: 0 }, "its redo");
+    assertHeld(graph, 0, "its redo");
 });

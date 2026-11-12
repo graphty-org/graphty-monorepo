@@ -32,14 +32,16 @@ import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
 import { GraphtyLogger } from "./logging/GraphtyLogger.js";
+import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
-import { batchableOf, type BatchView, bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
+import { batchableOf, type BatchView, bootstrapNodePaint, type NodePaint, shaderPartOf } from "./managers/StylePainter";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { labelFitExtent } from "./meshes/labelFit";
 import { layoutLabelTable, readLabelTable } from "./meshes/labelTable";
+import { drawLast, moveInstance } from "./meshes/moveInstance";
 import type { PieceBox } from "./meshes/nodeDecoration";
 import {
     createNodeDecorations,
@@ -159,6 +161,16 @@ const GROUP_RESIZE_EPSILON = 0.01;
 /** How opaque a group following its members is drawn when no layer styled it: a faint region. */
 const GROUP_REGION_OPACITY = 0.25;
 
+/**
+ * A node style with its fill's color and opacity left out: what two paints must agree on for a
+ * node to keep its mesh when only its source changes (`Node.movesFor`).
+ * @param style - The style.
+ * @returns The style without `texture.color`.
+ */
+function withoutFill(style: NodeStyleConfig): NodeStyleConfig {
+    return { ...style, texture: { ...style.texture, color: undefined } };
+}
+
 /** The flat shape a group following its members is drawn as when its style names a solid. */
 const GROUP_REGION_SHAPE = "round-rectangle";
 
@@ -259,6 +271,9 @@ export function releaseNodeMesh(node: Node): void {
 /** Collects the nodes whose size or shape changed while {@link collectResizedNodes} runs. */
 let resizedSink: Set<Node> | null = null;
 
+/** Collects the meshes moved onto another source while {@link collectResizedNodes} runs (`drawLast`). */
+let movedSink: AbstractMesh[] | null = null;
+
 /**
  * Run a repaint and collect the nodes whose size or shape it changed, instead of each of them
  * walking every edge in the graph to find its own. The caller then finds their edges in one walk
@@ -268,11 +283,15 @@ let resizedSink: Set<Node> | null = null;
  */
 export function collectResizedNodes(work: () => void): Set<Node> {
     const resized = new Set<Node>();
+    const moved: AbstractMesh[] = [];
     resizedSink = resized;
+    movedSink = moved;
     try {
         work();
     } finally {
         resizedSink = null;
+        movedSink = null;
+        drawLast(moved);
     }
 
     return resized;
@@ -369,16 +388,6 @@ function namesShader(uses: readonly ShaderUse[] | undefined): boolean {
 }
 
 /**
- * The shader path part of a mesh key (`|shader:<path>:<id>`), or "" for a node drawn plainly.
- * @param meshKey - The key.
- * @returns The part.
- */
-function shaderPartOf(meshKey: string): string {
-    const at = meshKey.indexOf("|shader:");
-    return at === -1 ? "" : meshKey.slice(at);
-}
-
-/**
  * A color for the shader batch, as `#rrggbb`, with its alpha apart.
  * @param value - The color as a style holds it.
  * @param fallback - The color when it does not read.
@@ -415,7 +424,10 @@ export class Node implements ModelUser {
             }
 
             const shaded = node.shadedPaint(paint.meshKey, paint.style);
-            return !node.keepsMeshFor(shaded.meshKey, shaded.style, paint.color);
+            return (
+                !node.keepsMeshFor(shaded.meshKey, shaded.style, paint.color) &&
+                !node.movesFor(shaded.meshKey, shaded.style)
+            );
         };
     }
 
@@ -973,6 +985,35 @@ export class Node implements ModelUser {
     }
 
     /**
+     * The border to draw and the mesh key to draw it under: a screen-pixel border turned into scene units at the
+     * current zoom, under a key of its own per zoom step; any other border as it is, under the node's key.
+     * @param meshKey - The source mesh key the node is drawn under.
+     * @param border - The resolved style's border.
+     * @param scale - Scene units per screen pixel, or null when the node is not sized on the screen.
+     * @param perSize - The shape's extent per unit of size.
+     * @returns The border and its mesh key.
+     */
+    private scaledBorder(
+        meshKey: string,
+        border: NodeStyleConfig["border"],
+        scale: number | null,
+        perSize: number,
+    ): { border: NodeStyleConfig["border"]; key: string } {
+        if (scale === null || border?.screenWidth === undefined) {
+            return { border, key: meshKey };
+        }
+        // Never wider than the node, as vis-network caps it (NodeBase.initContextForDraw).
+        const box = this.bounds().boundingBox.extendSize;
+        const across = 2 * Math.min(box.x * Math.abs(this.#anchor.scaling.x), box.y * Math.abs(this.#anchor.scaling.y));
+        // ponytail: a ring per style and zoom step stays in the mesh cache until the scene
+        // goes; a reader zooms over a few dozen steps, so it is a few dozen small rings.
+        return {
+            border: { ...border, width: Math.min(border.screenWidth / scale, across) / perSize },
+            key: `${meshKey}|screen${String(scale)}`,
+        };
+    }
+
+    /**
      * Build this node's border from its style, as a child of its mesh so it moves, hides and is
      * disposed with the node. Called after every new mesh: the old border went with the old mesh.
      * @param meshKey - The source mesh key the node is drawn under.
@@ -983,18 +1024,7 @@ export class Node implements ModelUser {
         this.groupBorderSource = null;
         const scale = this.screenScale(style);
         const perSize = NodeMesh.extentPerSize(style.shape);
-        let { border } = style;
-        let key = meshKey;
-        if (scale !== null && border?.screenWidth !== undefined) {
-            // Never wider than the node, as vis-network caps it (NodeBase.initContextForDraw).
-            const box = this.bounds().boundingBox.extendSize;
-            const across =
-                2 * Math.min(box.x * Math.abs(this.#anchor.scaling.x), box.y * Math.abs(this.#anchor.scaling.y));
-            border = { ...border, width: Math.min(border.screenWidth / scale, across) / perSize };
-            // ponytail: a ring per style and zoom step stays in the mesh cache until the scene
-            // goes; a reader zooms over a few dozen steps, so it is a few dozen small rings.
-            key = `${meshKey}|screen${String(scale)}`;
-        }
+        const { border, key } = this.scaledBorder(meshKey, style.border, scale, perSize);
 
         this.borderBuilt = { meshKey, style, scale };
         this.borderWidth = this.drawnBorderWidth(style, border, perSize);
@@ -2132,6 +2162,18 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Take the paint a batch drew this node's row with, on the source this node was built from, as
+     * if it had painted it: the next paint then keeps or rebuilds the mesh as it would have.
+     * @param paint - The row's paint.
+     * @internal
+     */
+    takeDrawnPaint(paint: NodePaint): void {
+        this.meshKey = paint.meshKey;
+        this.drawnStyle = paint.style;
+        this.drawnColor = paint.color;
+    }
+
+    /**
      * Draw this node as the session's style stack resolved it.
      * @param paint - The source mesh, the style behind it and the per-instance colour.
      */
@@ -2632,11 +2674,94 @@ export class Node implements ModelUser {
         this.setDrawn(null, image);
         return NodeMesh.create(
             this.context.getMeshCache(),
+            ...this.sourceArgs(meshKey, o, image),
+            this.context.getScene(),
+        );
+    }
+
+    /**
+     * What {@link NodeMesh.create} and {@link NodeMesh.source} are asked for this node's source mesh.
+     * @param meshKey - The source mesh key.
+     * @param o - The resolved style.
+     * @param image - The picture on its shape, or null.
+     * @returns The mesh options and the creation options.
+     */
+    private sourceArgs(
+        meshKey: string,
+        o: NodeStyleConfig,
+        image: BaseTexture | null,
+    ): [Parameters<typeof NodeMesh.source>[1], Parameters<typeof NodeMesh.source>[2]] {
+        return [
             // A source mesh with its picture is another source mesh than the one drawn while it loads.
             { styleId: image === null ? meshKey : `${meshKey}|image`, is2D: this.context.is2D(), size: this.size },
             { shape: o.shape, texture: o.texture, effect: o.effect, border: o.border, picture: image },
-            this.context.getScene(),
+        ];
+    }
+
+    /**
+     * Whether a paint that does not keep this node's mesh can move the mesh onto its source instead
+     * of building another (`moveInstance`): a paint that differs from the drawn one only in its
+     * fill's color and opacity, which are in the source's material and `visibility` alone, so the
+     * geometry, the label, the border and every other part hanging from the mesh stay as they are.
+     * A faint view moves every node outside its branches this way (issue #6047). See `paintFrom`.
+     * @param meshKey - Which source mesh the paint draws from.
+     * @param o - The resolved style.
+     * @returns Whether the mesh moves.
+     */
+    private movesFor(meshKey: string, o: NodeStyleConfig): boolean {
+        const mesh = this.#mesh;
+        const drawn = this.drawnStyle;
+        return (
+            mesh instanceof InstancedMesh &&
+            mesh === this.#anchor &&
+            !mesh.isDisposed() &&
+            drawn !== null &&
+            this.drawnModel === null &&
+            shaderPartOf(meshKey) === shaderPartOf(this.meshKey) &&
+            isEqual(withoutFill(o), withoutFill(drawn)) &&
+            !this.fitIsStale(o) &&
+            this.modelFor(o) === null &&
+            this.imageFor(o) === this.drawnImage
         );
+    }
+
+    /**
+     * Draw this node's mesh from the source a paint names, keeping the mesh: see `movesFor`.
+     * @param meshKey - Which source mesh the paint draws from.
+     * @param o - The resolved style.
+     * @param color - The per-instance color.
+     */
+    private moveTo(meshKey: string, o: NodeStyleConfig, color: Rgba | null): void {
+        const mesh = this.#mesh as InstancedMesh;
+        const fit = this.fitToLabel(meshKey, o);
+        const scene = this.context.getScene();
+        const source = NodeMesh.source(
+            this.context.getMeshCache(),
+            ...this.sourceArgs(fit.meshKey, fit.style, this.drawnImage),
+            scene,
+        );
+        moveInstance(mesh, source);
+        // A repaint of many nodes reorders the scene's list once, after it (see collectResizedNodes).
+        if (movedSink === null) {
+            drawLast([mesh]);
+        } else {
+            movedSink.push(mesh);
+        }
+        this.#fit = { meshKey: fit.meshKey, style: fit.style };
+        this.#source = source;
+        this.meshKey = meshKey;
+        this.drawnStyle = o;
+        this.drawnColor = color;
+        const metadata = mesh.metadata as { styleId?: string } | null | undefined;
+        if (metadata) {
+            metadata.styleId = meshKey;
+        }
+        // A pie or a stripe is drawn in the fill's opacity: they are built again, the mesh is not.
+        this.syncDecorations(fit.meshKey, fit.style);
+        this.applyInstancePaint(o, color);
+        this.syncLabel(o, false);
+        this.syncTooltip(o);
+        this.syncHalo();
     }
 
     /**
@@ -2702,8 +2827,10 @@ export class Node implements ModelUser {
             return;
         }
 
-        for (const edge of this.context.getDataManager().edges.values()) {
-            if (edge.srcNode === this || edge.dstNode === this) {
+        // Built `Edge`s only: an edge stored with no `Edge` keeps no cached ends to invalidate.
+        for (const edge of dataManagerInternals.builtEdges(this.context.getDataManager()).values()) {
+            // By id: reading an end's `Node` would build one for a row drawn with none.
+            if (edge.srcId === this.id || edge.dstId === this.id) {
                 edge.invalidatePositionCache();
             }
         }
@@ -2788,6 +2915,12 @@ export class Node implements ModelUser {
             this.syncLabel(o, false);
             this.syncTooltip(o);
             this.syncHalo();
+            this.context.getStatsManager().endMeasurement("Node.updateMesh");
+            return;
+        }
+
+        if (this.movesFor(meshKey, o)) {
+            this.moveTo(meshKey, o, color);
             this.context.getStatsManager().endMeasurement("Node.updateMesh");
             return;
         }

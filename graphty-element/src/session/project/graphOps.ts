@@ -1486,6 +1486,11 @@ function bumpFields(
     seen: Bumped,
     announce = false,
 ): void {
+    // A new row whose fields this batch bumped already, as every edge of a load after its first is, bumps nothing.
+    if (prior === undefined && next !== undefined && Object.keys(next).every((key) => seen[target].has(key))) {
+        return;
+    }
+
     const fields = new Set<string>();
     for (const key of [...Object.keys(prior ?? {}), ...Object.keys(next ?? {})]) {
         if ((prior?.[key] !== next?.[key] || prior === undefined || next === undefined) && !seen[target].has(key)) {
@@ -1645,7 +1650,15 @@ class Writer implements GraphWriter {
         this.begin();
         const record = frozenRecord(given);
         const { builder } = this.store;
-        const created = [source, target].filter((id, at, both) => !builder.hasNode(id) && both.indexOf(id) === at);
+        const created: NodeId[] = [];
+        if (!builder.hasNode(source)) {
+            created.push(source);
+        }
+
+        if (target !== source && !builder.hasNode(target)) {
+            created.push(target);
+        }
+
         const index = builder.addEdge(source, target, weight);
         const edgeId = this.store.nextEdgeId();
         this.store.stampEdgeId(index, edgeId);

@@ -49,6 +49,12 @@ export const OPENALEX_SOURCE_ID = "openalex";
 export const SPARQL_SOURCE_ID = "sparql";
 
 /**
+ * The URL source: a graph file at a web address. Experimental.
+ * @category Network sources
+ */
+export const URL_SOURCE_ID = "url";
+
+/**
  * The prefix of the reserved attribute namespace sources and graphty-element write facts under.
  * @category Network sources
  */

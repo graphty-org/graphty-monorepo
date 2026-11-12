@@ -5,7 +5,14 @@
 // It waits while CAP or more other pull request runs of ci.yml created before this one are still active
 // (queued or running), and while a release.yml run waits for a GitHub-hosted runner and holds fewer than
 // RELEASE_SHARE of them (the full run goes first up to its share; GitHub Actions has no job priority; ci.yml's
-// max-parallel keeps the full run's matrices within that share, so past it pull requests take the rest). A run whose "All Checks Pass" job has already completed (only its
+// max-parallel keeps the full run's matrices within that share, so past it pull requests take the rest).
+// A release run is judged by its jobs, never by its run status: GitHub reports a whole run as "queued" while
+// its own max-parallel holds back one matrix leg, and the jobs API shows that leg as "queued" too, the same as
+// a leg waiting for a runner. So a queued hosted job counts as waiting for a runner only when its matrix
+// (the job name before " (", as "Story tests" in "CI / Story tests (layout)") runs fewer legs than its
+// full-run max-parallel (FULL_RUN_MAX_PARALLEL; a job not listed there counts whenever it is queued). The
+// release run is waiting when it has such a job and holds fewer than RELEASE_SHARE in-progress hosted jobs.
+// A run whose "All Checks Pass" job has already completed (only its
 // screenshot tail is left) does not count; one GraphQL query asks that of every counted run. Only earlier runs count, so the oldest waiting run always
 // proceeds: no deadlock. A cancelled or superseded run is completed and frees its place at once.
 //
@@ -28,8 +35,10 @@ export const MAX_WAIT_MINUTES = 25;
 const ACTIVE = new Set(["queued", "in_progress", "requested", "pending", "waiting"]);
 const HOSTED = /^(ubuntu|windows|macos)-/;
 const SUMMARY_CHECK = "All Checks Pass";
-// ci.yml's full-run max-parallel: 14 test shards + 6 story test legs
-export const RELEASE_SHARE = 20;
+// ci.yml's full-run max-parallel per matrix, by job name (ci-run-cap.test.mjs checks it against ci.yml)
+export const FULL_RUN_MAX_PARALLEL = { Test: 14, "Story tests": 6 };
+// the full run's share of runners: its matrices' max-parallel together
+export const RELEASE_SHARE = Object.values(FULL_RUN_MAX_PARALLEL).reduce((a, b) => a + b);
 
 /**
  * The parsed cap.
@@ -84,17 +93,19 @@ export async function unfinished(runs, api) {
 /**
  * Whether a release run is waiting for a GitHub-hosted runner while it holds fewer than RELEASE_SHARE of them.
  * @param runs workflow_runs of a release.yml runs listing
- * @param jobsOf run id -> jobs of that run (only asked for a running run)
+ * @param jobsOf run id -> jobs of that run
  * @returns the id of the waiting release run, or null
  */
 export async function releaseWaiting(runs, jobsOf) {
     for (const r of runs) {
-        if (r.status === "queued") return r.id;
-        if (r.status !== "in_progress") continue;
         const jobs = await jobsOf(r.id);
         const hosted = jobs.filter((j) => (j.labels ?? []).some((l) => HOSTED.test(l)));
-        const running = hosted.filter((j) => j.status === "in_progress").length;
-        if (running < RELEASE_SHARE && hosted.some((j) => j.status === "queued")) return r.id;
+        const running = hosted.filter((j) => j.status === "in_progress");
+        if (running.length >= RELEASE_SHARE) continue;
+        const matrix = (j) => /([^/]+?) \(/.exec(j.name ?? "")?.[1].trim();
+        const legs = (m) => running.filter((j) => matrix(j) === m).length;
+        const heldBack = (j) => legs(matrix(j)) >= (FULL_RUN_MAX_PARALLEL[matrix(j)] ?? Infinity);
+        if (hosted.some((j) => j.status === "queued" && !heldBack(j))) return r.id;
     }
     return null;
 }

@@ -65,7 +65,8 @@ export function boundaryOf(
         readonly mutation?: { readonly kind?: string };
         readonly source?: DataSourceDescriptor;
     };
-    if (fields.op === "data.import") {
+    // A load from a network source (`data.import-source`) replaces the project as a file load does.
+    if (fields.op === "data.import" || fields.op === "data.import-source") {
         return fields.mode === "merge" ? null : "import";
     }
 

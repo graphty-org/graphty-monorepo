@@ -28,6 +28,16 @@ import type { Node, NodeIdType } from "../Node";
 import type { ReadonlyElementPositions } from "../session/types";
 import type { ClusterColumn } from "./clusterForce";
 
+/**
+ * An edge stored with no `Edge`, under renderPath "batched": its id and its two nodes' ids. A
+ * freeze renumbers rows, the ids stay.
+ */
+export interface EdgeRow {
+    readonly key: string;
+    readonly source: NodeIdType;
+    readonly target: NodeIdType;
+}
+
 export interface Position {
     x: number;
     y: number;
@@ -468,6 +478,14 @@ export abstract class LayoutEngine {
     private scratchRows = new Float64Array(0);
     private scratchCoords = new Float64Array(0);
 
+    /**
+     * The box the last {@link LayoutEngine.publishColumn} left the rows it was handed in: min x, y, z
+     * then max x, y, z, in scene units. A row it kept (pinned or held) counts where it is kept.
+     */
+    private readonly publishedBox = new Float64Array(6);
+    /** Whether {@link LayoutEngine.publishedBox} holds a row. */
+    private publishedBoxHolds = false;
+
     /** The rows the element is holding still, or null when nothing is held. See {@link setHoldMask}. */
     private hold: NodeMask | null = null;
 
@@ -826,6 +844,14 @@ export abstract class LayoutEngine {
     }
 
     /**
+     * Whether the layout leaves any edge out, so {@link LayoutEngine.keptEdges} has edges to drop.
+     * @returns true when an edge is left out
+     */
+    protected get leavesEdgesOut(): boolean {
+        return this.leftOutEdges !== null;
+    }
+
+    /**
      * The edges of a graph over the element's rows that the layout keeps, when the filter hides
      * some edge between two nodes it shows. An edge whose end is left out is not cleared here:
      * {@link LayoutEngine.keptRows} drops it with its end.
@@ -1149,6 +1175,9 @@ export abstract class LayoutEngine {
         let pins = positions.pinnedView(live);
         let written = 0;
         let changed = 0;
+        const box = this.publishedBox;
+        box.fill(Infinity, 0, 3);
+        box.fill(-Infinity, 3, 6);
         for (let i = 0; i < count; i++) {
             const row = rows[i];
             const x = coords[3 * i];
@@ -1162,8 +1191,12 @@ export abstract class LayoutEngine {
             const placed = row < live && isStorableCoordinate(array[base]);
             const guarded = placed || !firstPlacement;
             if (guarded && (pins[row] === 1 || (holds && placed && this.isHeld(row)))) {
+                // A kept row is still drawn, where it was kept; an unplaced one is not drawn.
+                grow(box, array[base], array[base + 1], array[base + 2], placed);
                 continue;
             }
+
+            grow(box, x, y, z);
 
             if (row >= live) {
                 positions.grow(row + 1);
@@ -1187,6 +1220,56 @@ export abstract class LayoutEngine {
         }
 
         positions.moved(written, changed);
+        this.publishedBoxHolds = box[0] <= box[3];
+    }
+
+    /**
+     * The box, in scene units, the rows of the last publish were left in, measured in the publish's
+     * own loop so that reading it walks no row. Null before a publish that placed a row, and from an
+     * engine that holds rows outside its publish (a scope or followers), whose box it is not.
+     * Only engines whose one publish is one {@link LayoutEngine.publishColumn} answer it.
+     * @returns Min x, y, z then max x, y, z, live until the next publish; or null.
+     * @internal
+     */
+    publishedBounds(): Readonly<Float64Array> | null {
+        return null;
+    }
+
+    /**
+     * Take rows an engine left out of its last {@link LayoutEngine.publishColumn} (rows it keeps
+     * itself, such as pinned or dragged ones) into {@link LayoutEngine.publishedBounds}, where they
+     * are drawn now. An unplaced row is not drawn and does not count.
+     * @param n - The element's array, or a node of its graph; undefined when nothing was published.
+     * @param rows - The kept rows.
+     * @internal
+     */
+    protected keepInPublishedBox(n: Node | ElementPositions | undefined, rows: ReadonlySet<number>): void {
+        if (n === undefined || rows.size === 0) {
+            return;
+        }
+
+        const positions = this.positionsFor(n);
+        const live = positions.count;
+        const array = positions.view(live);
+        const box = this.publishedBox;
+        for (const row of rows) {
+            const base = POSITION_COMPONENTS * row;
+            if (row < live && isStorableCoordinate(array[base])) {
+                grow(box, array[base], array[base + 1], array[base + 2]);
+            }
+        }
+
+        this.publishedBoxHolds = box[0] <= box[3];
+    }
+
+    /**
+     * {@link LayoutEngine.publishedBounds} for an engine that publishes in one
+     * {@link LayoutEngine.publishColumn}.
+     * @returns The box, or null.
+     * @internal
+     */
+    protected lastPublishedBox(): Readonly<Float64Array> | null {
+        return this.publishedBoxHolds && !this.holdsAny ? this.publishedBox : null;
     }
 
     /**
@@ -1705,6 +1788,10 @@ export const simpleLayoutInternals = {
     hostGraph(engine: StaticLayoutEngine): GraphContext | undefined;
     /** Whether the engine has nothing to arrange: no node handed to it, and no row it lays out by row. */
     empty(engine: StaticLayoutEngine): boolean;
+    /** Whether the engine lays out by row (renderPath "batched", a row stored), so a freeze, not a `Node` or `Edge` handed to it, says the graph changed. */
+    byRow(engine: StaticLayoutEngine): boolean;
+    /** Hold an `Edge` built late for an edge the engine already laid out by row, without marking the layout stale. */
+    adoptEdge(engine: StaticLayoutEngine, e: Edge): void;
 };
 
 /**
@@ -1741,6 +1828,14 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             engine._nodes[0]?.parentGraph ??
             (engine.#rowSource() === null ? undefined : (engine.#rows?.graph?.() ?? undefined));
         simpleLayoutInternals.empty = (engine) => engine._nodes.length === 0 && engine.#rowSource() === null;
+        simpleLayoutInternals.byRow = (engine) => engine.#rowSource() !== null;
+        simpleLayoutInternals.adoptEdge = (engine, e) => {
+            if (engine.#goneEdges.has(e)) {
+                compact(engine.#edges, engine.#goneEdges);
+            }
+
+            engine.#edges.push(e);
+        };
     }
 
     static type: string;
@@ -1888,12 +1983,14 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * @returns the start rows, or null
      */
     protected startPositions(dim: 2 | 3): F32 | null {
-        const { snapshot, positions } = this.#loaded ?? this.#load();
+        const loaded = this.#loaded ?? this.#load();
+        const { positions } = loaded;
         if (this.#keep === null || positions === null) {
             return null;
         }
 
-        return fromPositionColumn(positions.view(snapshot.nodeCount), dim, this.scalingFactor, null);
+        const { nodeCount } = loaded.source ?? loaded.snapshot;
+        return fromPositionColumn(positions.view(nodeCount), dim, this.scalingFactor, null);
     }
 
     /**
@@ -1905,11 +2002,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * @returns the row, or `INVALID_INDEX` when the graph has no such node
      */
     protected rowOfId(id: string | number): number {
-        const { ids } = this.graph;
-        const row = rowOfEitherSpelling(ids, id);
-        // ponytail: the Number() retry reads " 1", "1e0" and "0x1" as 1 too, which the either-spelling
-        // rule does not; it shipped that way, so dropping it waits for a major.
-        return row === INVALID_INDEX && typeof id === "string" && id.trim() !== "" ? ids.indexOf(Number(id)) : row;
+        return rowOfEitherSpelling(this.graph.ids, id);
     }
 
     /**
@@ -2311,12 +2404,19 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         const source = manager as Partial<GraphSource> | undefined;
         if (typeof source?.getSnapshot === "function" && typeof source.undirected === "function") {
             const store = source.getSnapshot();
-            const { snapshot } = source.undirected(store);
+            const { undirected } = source;
+            // Made undirected on first read: a layout that reads no edges (fixed) never builds a
+            // second graph over every edge, which at a million edges is about 180 ms of a load.
+            // The undirected graph keeps the stored node rows, so a row is found in either.
+            let snapshot: GraphSnapshot | null = null;
             return {
-                snapshot,
+                get snapshot(): GraphSnapshot {
+                    snapshot ??= undirected.call(source, store).snapshot;
+                    return snapshot;
+                },
                 source: store,
                 positions: writableLane(manager) ?? null,
-                rowOf: (n) => (n.index < snapshot.nodeCount ? n.index : INVALID_INDEX),
+                rowOf: (n) => (n.index < store.nodeCount ? n.index : INVALID_INDEX),
             };
         }
 
@@ -2409,7 +2509,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             return idKeyed && this.#publishIdKeyedRows(loaded);
         }
 
-        const count = Math.min(column.length / 3, loaded.snapshot.nodeCount);
+        const count = Math.min(column.length / 3, loaded.source.nodeCount);
         const { rows, coords } = this.publishScratch(count);
         for (let row = 0; row < count; row++) {
             rows[row] = row;
@@ -2534,4 +2634,25 @@ export abstract class SimpleLayoutEngine extends StaticLayoutEngine {}
  */
 export function layoutDim(dim: number): 2 | 3 {
     return dim === 3 ? 3 : 2;
+}
+
+/**
+ * Grow a min x, y, z / max x, y, z box to take in a point.
+ * @param box - The box.
+ * @param x - X.
+ * @param y - Y.
+ * @param z - Z.
+ * @param counts - False to leave the box as it is.
+ */
+function grow(box: Float64Array, x: number, y: number, z: number, counts = true): void {
+    if (!counts) {
+        return;
+    }
+
+    box[0] = Math.min(box[0], x);
+    box[1] = Math.min(box[1], y);
+    box[2] = Math.min(box[2], z);
+    box[3] = Math.max(box[3], x);
+    box[4] = Math.max(box[4], y);
+    box[5] = Math.max(box[5], z);
 }

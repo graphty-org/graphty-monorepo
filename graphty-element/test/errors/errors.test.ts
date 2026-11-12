@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { assert, describe, it } from "vitest";
+import { assert, describe, expectTypeOf, it } from "vitest";
 
 import {
     ACCELERATION_ERROR_CODES,
@@ -755,6 +755,27 @@ describe("the error module stays Node-safe", () => {
             for (const pattern of banned) {
                 assert.notMatch(code, pattern);
             }
+        }
+    });
+});
+
+describe("isGraphtyError narrows details by code", () => {
+    it("types a documented code's facts once the code is checked", () => {
+        const thrown: unknown = new GraphtyError({
+            code: "E_UNKNOWN_ATTRIBUTE",
+            message: "no column named nmae",
+            source: "data",
+            details: { candidates: ["name"] },
+        });
+
+        assert.isTrue(isGraphtyError(thrown));
+        if (isGraphtyError(thrown) && thrown.code === "E_UNKNOWN_ATTRIBUTE") {
+            expectTypeOf(thrown.details.candidates).toEqualTypeOf<readonly string[] | undefined>();
+            assert.deepEqual(thrown.details.candidates, ["name"]);
+        }
+
+        if (isGraphtyError(thrown) && thrown.code === "E_TOO_LARGE") {
+            expectTypeOf(thrown.details.limit).toEqualTypeOf<number | undefined>();
         }
     });
 });

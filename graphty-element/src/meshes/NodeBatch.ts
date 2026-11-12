@@ -69,7 +69,8 @@ export class NodeBatch {
     /** Each slot's draw key, kept through a hole so a returning row keeps its place. */
     private keys = new Float64Array(FIRST_CAPACITY);
     private colors = new Float32Array(FIRST_CAPACITY * COLOR_FLOATS);
-    private matrices = identities(FIRST_CAPACITY);
+    /** Each slot's matrix, or none while every row is unscaled: 20 bytes a row instead of 84. */
+    private matrices: Float32Array<ArrayBuffer> | undefined;
     private unsorted = false;
     private rowsDirty = false;
     private colorsDirty = false;
@@ -88,7 +89,7 @@ export class NodeBatch {
         source.geometry?.copy(`${source.name}-batch-geometry-${String(this.mesh.uniqueId)}`).applyToMesh(this.mesh);
         this.mesh.material = source.material;
         this.mesh.parent = root;
-        this.mesh.metadata = { rowPlaces: places };
+        this.mesh.metadata = { rowPlaces: places, rowUnscaled: true };
         this.mesh.alwaysSelectAsActiveMesh = true;
         this.mesh.doNotSyncBoundingInfo = true;
         this.mesh.isPickable = false;
@@ -155,8 +156,9 @@ export class NodeBatch {
         }
 
         const m = slot * MATRIX_FLOATS;
-        if (this.matrices[m] !== Math.fround(scale)) {
-            this.matrices[m] = this.matrices[m + 5] = this.matrices[m + 10] = scale;
+        const matrices = this.matrices ?? (Math.fround(scale) === 1 ? undefined : this.scaleRows());
+        if (matrices !== undefined && matrices[m] !== Math.fround(scale)) {
+            matrices[m] = matrices[m + 5] = matrices[m + 10] = scale;
             this.matricesDirty = true;
         }
     }
@@ -195,14 +197,14 @@ export class NodeBatch {
 
         if (this.rowsDirty || whole) {
             this.mesh.thinInstanceBufferUpdated("graphtyRow");
-            this.mesh.thinInstanceCount = this.slots;
+            this.setCount();
         }
 
         if (this.colorsDirty || whole) {
             this.mesh.thinInstanceBufferUpdated("color");
         }
 
-        if (this.matricesDirty || whole) {
+        if (this.matrices !== undefined && (this.matricesDirty || whole)) {
             this.mesh.thinInstanceBufferUpdated("matrix");
         }
 
@@ -236,14 +238,14 @@ export class NodeBatch {
         live.sort((a, b) => a.key - b.key);
         const { colors, matrices } = this;
         this.colors = new Float32Array(colors.length);
-        this.matrices = identities(this.rows.length);
+        this.matrices = matrices === undefined ? undefined : identities(this.rows.length);
         this.slotOf.clear();
         live.forEach(({ row, key, from }, slot) => {
             this.rows[slot] = row;
             this.keys[slot] = key;
             this.colors.set(colors.subarray(from * COLOR_FLOATS, (from + 1) * COLOR_FLOATS), slot * COLOR_FLOATS);
-            this.matrices.set(
-                matrices.subarray(from * MATRIX_FLOATS, (from + 1) * MATRIX_FLOATS),
+            this.matrices?.set(
+                matrices?.subarray(from * MATRIX_FLOATS, (from + 1) * MATRIX_FLOATS) ?? [],
                 slot * MATRIX_FLOATS,
             );
             this.slotOf.set(row, slot);
@@ -274,17 +276,55 @@ export class NodeBatch {
         this.colors = new Float32Array(next * COLOR_FLOATS);
         this.colors.set(colors);
         const { matrices } = this;
-        this.matrices = identities(next);
-        this.matrices.set(matrices);
+        if (matrices !== undefined) {
+            this.matrices = identities(next);
+            this.matrices.set(matrices);
+        }
+
         this.setBuffers();
     }
 
-    /** Hand the arrays to Babylon, which draws `thinInstanceCount` of them. */
+    /** Hand the arrays to Babylon. */
     private setBuffers(): void {
-        this.mesh.thinInstanceSetBuffer("matrix", this.matrices, MATRIX_FLOATS, false);
+        if (this.matrices !== undefined) {
+            this.mesh.thinInstanceSetBuffer("matrix", this.matrices, MATRIX_FLOATS, false);
+        }
+
         this.mesh.thinInstanceSetBuffer("color", this.colors, COLOR_FLOATS, false);
         this.mesh.thinInstanceSetBuffer("graphtyRow", this.rows, 1, false);
-        this.mesh.thinInstanceCount = this.slots;
+        this.setCount();
+    }
+
+    /**
+     * Draw the slots: Babylon counts thin instances by their matrices, so a batch with none
+     * forces the count.
+     */
+    private setCount(): void {
+        if (this.matrices === undefined) {
+            this.mesh.forcedInstanceCount = this.slots;
+        } else {
+            this.mesh.thinInstanceCount = this.slots;
+        }
+    }
+
+    /**
+     * A row is scaled: give every slot a matrix, for good, and have the material read them again
+     * (it is frozen, so it would not look at this mesh's defines on its own).
+     * @returns The matrices.
+     */
+    private scaleRows(): Float32Array<ArrayBuffer> {
+        const matrices = identities(this.rows.length);
+        this.matrices = matrices;
+        this.mesh.metadata = { ...(this.mesh.metadata as object), rowUnscaled: false };
+        this.mesh.forcedInstanceCount = 0;
+        for (const subMesh of this.mesh.subMeshes ?? []) {
+            subMesh.materialDefines?.markAllAsDirty();
+            subMesh.resetDrawCache();
+        }
+
+        this.setBuffers();
+        this.matricesDirty = true;
+        return matrices;
     }
 }
 
@@ -596,6 +636,25 @@ interface RowLook {
     readonly source: Mesh;
 }
 
+/**
+ * Whether two paints of a row are drawn the same size and shape, as `RowTable.measure` records it.
+ * @param a - One paint.
+ * @param b - The other.
+ * @returns True when they measure the same.
+ */
+function sameSize(a: RowMeasure, b: RowMeasure): boolean {
+    const ah = a.drawnHalfExtents;
+    const bh = b.drawnHalfExtents;
+    return (
+        a.drawnScale === b.drawnScale &&
+        a.roundRadius === b.roundRadius &&
+        a.borderReach === b.borderReach &&
+        ah.x === bh.x &&
+        ah.y === bh.y &&
+        ah.z === bh.z
+    );
+}
+
 /** What {@link NodeBatches} needs of the graph. */
 export interface NodeBatchHost {
     readonly cache: MeshCache;
@@ -610,6 +669,8 @@ export interface NodeBatchHost {
     sourceOf(paint: NodePaint): Mesh;
     /** Babylon's list of active meshes no longer holds. */
     meshesChanged(): void;
+    /** A row drawn with no `Node` changed its drawn size or shape, which a `nodeGap` layout spaces it by. */
+    resized?(): void;
 }
 
 /** Decides which rows are batched and keeps the batches up to date, once a frame. */
@@ -871,6 +932,11 @@ export class NodeBatches {
         this.columnRows.set(index, row);
         // what a fit, an edge's trim and a layout's gap read of the row, which no `Node` measures
         this.host.places.measure(row);
+        if (had === undefined || !sameSize(had, row)) {
+            // as `Node` tells the layout when it is resized: nothing else re-reads a row's size
+            this.host.resized?.();
+        }
+
         this.sync(row);
         return true;
     }

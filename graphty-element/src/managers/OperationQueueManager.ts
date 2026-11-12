@@ -574,15 +574,12 @@ export class OperationQueueManager implements Manager {
                         signal: operation.abortController?.signal,
                     },
                 )
-                .catch((error: unknown) => {
-                    if (error && (error as Error).name === "AbortError") {
-                        this.eventManager.emit("operation-obsoleted", {
-                            id: operation.id,
-                            category: operation.category,
-                            reason: "Obsoleted by newer operation",
-                        });
-                    }
-                });
+                // p-queue rejects here only when the operation's signal aborted. Whoever aborted it
+                // already said why: `obsolete()` emits `operation-obsoleted` with the operation that
+                // replaced it, `cancelOperation()` and `clear()` emit `operation-cancelled`, and a
+                // disposed queue has nobody left to tell. Emitting again here reported every
+                // obsoleted operation twice, and called a manual cancel an obsolescence.
+                .catch(() => undefined);
         }
 
         // Emit batch complete event after all operations
@@ -727,12 +724,8 @@ export class OperationQueueManager implements Manager {
                 this.settleRejected(operation, error);
             }
 
-            if (error instanceof Error && error.name === "AbortError") {
-                // Remove from running on abort
-                this.runningOperations.delete(operation.id);
-                throw error; // Let p-queue handle abort errors
-            }
-
+            // The name of the error does not decide this either: an `AbortError` the body raised
+            // itself, with the operation's signal untouched, is a failure like any other.
             if (!cancelled) {
                 this.handleOperationError(operation, error);
             }
@@ -951,10 +944,11 @@ export class OperationQueueManager implements Manager {
             if (!controller.signal.aborted) {
                 controller.abort();
                 this.eventManager.emit("operation-cancelled", {
+                    type: "operation-cancelled",
                     id,
                     code: "queue-cleared",
                     reason: "Queue cleared",
-                } satisfies Omit<OperationCancelledEvent, "type">);
+                } satisfies OperationCancelledEvent);
             }
         });
 
@@ -1105,10 +1099,11 @@ export class OperationQueueManager implements Manager {
 
             // Emit cancellation event
             this.eventManager.emit("operation-cancelled", {
+                type: "operation-cancelled",
                 id: operationId,
                 code: "cancelled",
                 reason: "Manual cancellation",
-            } satisfies Omit<OperationCancelledEvent, "type">);
+            } satisfies OperationCancelledEvent);
 
             return true;
         }

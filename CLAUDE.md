@@ -165,10 +165,10 @@ APIs, you can make them without getting my approval."
   entry point, or a new optional parameter or option whose default keeps today's behavior. Choose
   its name and shape yourself, state the choice in one line where the work is recorded (the issue,
   the pull request), and build it. Do not label it `needs-decision` and do not ask.
-- **Breaking** changes are still one-way doors that need the owner: removing or renaming anything
-  public, changing what an existing API does or returns, changing a default, or anything that
-  publishes a major version.
-- When unsure whether a change breaks a consumer, it is breaking.
+- **Breaking** changes (removing or renaming anything public, changing what an existing API does or
+  returns, changing a default) need no owner approval either while nobody outside consumes the
+  packages (owner, 2026-11-10): see "Public API and breaking changes". Ask him again only when a
+  real outside consumer appears.
 
 ### Why
 
@@ -298,7 +298,8 @@ From the root (Nx, cached): `pnpm run build`, `pnpm run test`, `pnpm run lint`; 
   mechanism and fix it, never by a longer timeout, a fixed wait or deleting the test, and close its issue with
   `Fixes #N`. Never add a test to `tools/test-quarantine.json` by hand, and never re-run hoping for a pass. Full
   rules: tools/README.md, "Quarantined tests".
-- Coverage thresholds in every package: 80% lines, functions and statements, 75% branches.
+- Coverage thresholds: at least 80% lines, functions and statements and 75% branches; 90% in all four for the
+  packages already there (tools/README.md, "Coverage Thresholds"). Never lower one.
 
 ### Secrets, checks and what only the owner does
 
@@ -324,9 +325,9 @@ From the root (Nx, cached): `pnpm run build`, `pnpm run test`, `pnpm run lint`; 
 - graphty-element's public API is committed as `graphty-element/api/<entry>.api.md`: after an API change, build,
   run `npm run api:report` and commit the report. A result type never gains a plain `string` field; the API report
   check enforces it (graphty-element/CLAUDE.md, "Public API review").
-- Keep majors few. Before a breaking (`!`) commit to a published package, find the other breaking changes planned
-  or in flight for it and group them on one branch as one pull request; prefer deprecating now and removing in a
-  major already planned. Details: .github/workflows/README.md, "Breaking changes and major releases".
+- No majors while nobody outside consumes the packages (owner, 2026-11-10): a change that would be breaking lands
+  as an ordinary `feat`/`fix` commit with no `!` and no major version, through its own pull request, and its commit
+  message says what changed for callers. Details: .github/workflows/README.md, "Breaking changes and major releases".
 
 ## Shipping a change
 
@@ -355,10 +356,10 @@ the 6-hour full run to nightly.graphty.app and npm `next`; only the owner's `pro
    and returns in seconds. Never wait for CI.
 4. A red pull request stays open with auto-merge armed: fix it with ordinary commits and push them once. Never
    merge past a check, never `--admin`.
-5. Auto-merge stays off, and the owner merges, for a breaking commit, a change to a file guarding the owner
-   (`GUARD_PATHS` in `pr-open.sh`) and a pull request someone else opened. Any other change to CI or to what guards
-   the owner merges like any other once green (owner, 2026-10-25). `Lint PR Title` fails a breaking commit until the
-   owner adds `breaking-go`.
+5. Auto-merge stays off, and the owner merges, for a change to a file guarding the owner (`GUARD_PATHS` in
+   `pr-open.sh`) and a pull request someone else opened. Any other change to CI or to what guards the owner merges
+   like any other once green (owner, 2026-10-25). `Lint PR Title` fails a `!` commit until the owner adds
+   `breaking-go`, so commits carry no `!`.
 
 - **Never copy, always merge.** Never cherry-pick or rebase; the hooks refuse both.
 - **Agents act as graphty-agent, never as the owner**; never work around the credential guard. Servers under
@@ -370,7 +371,7 @@ the 6-hour full run to nightly.graphty.app and npm `next`; only the owner's `pro
   commits, pushes and marks itself `ready`, and opens once master is green. Taking a change out of master is
   `git revert -m 1 <merge sha>` on a branch, then `pr-open.sh`.
 - Every pull request names its issue (`Fixes #N`, `Refs #N`, ...) or has the line `No issue`; put what a
-  description must say (a breaking change's list, an API report change) in the commit message.
+  description must say (what changed for callers, an API report change) in the commit message.
 - A broken story (`[BROKEN]`, `[UNSTABLE]`) fails its pull request; a changed picture only holds nightly for the
   owner's review, so it needs no `ACTION NEEDED` line.
 - An issue labeled `in-progress` belongs to the session that labeled it. The `pipeline-round` skill handles alarms

@@ -170,6 +170,8 @@ export interface AutosaverOptions {
 export interface RecoverOptions {
     /** This tab's own previous entry, which comes first; null or absent when the tab has none. */
     readonly own?: string | null;
+    /** The entry this tab named before `own`, for when `own` was never written or was replaced. */
+    readonly ownBefore?: string | null;
     /** `"manual"` restores nothing and only reports the newest entry; `"auto"` by default. */
     readonly restore?: "auto" | "manual";
     /** Every setting the page made, by name, as it is now. */
@@ -348,6 +350,24 @@ function errorName(error: unknown): string {
 }
 
 /**
+ * This tab's own entry among the listed ones: the one it named before, while that is open, else
+ * the one it names. A reload that comes while a page is reopening the tab's work finds the tab
+ * naming the entry that page started for its own setup, and the work as the one named before.
+ * @param metas - Every entry of the key.
+ * @param own - The entry this tab names, if any.
+ * @param before - The entry it named before, if any.
+ * @returns The entry id.
+ */
+export function ownAmong(
+    metas: readonly AutosaveEntryMeta[],
+    own: string | null,
+    before: string | null,
+): string | null {
+    const open = before !== null && metas.some((meta) => meta.id === before && meta.ended !== "replaced");
+    return open ? before : own;
+}
+
+/**
  * The entries a load tries to restore, in order: this tab's own entry alone when it has one (none
  * when it was replaced), else every open entry, newest first.
  * @param open - The entries not replaced, oldest first.
@@ -451,6 +471,8 @@ export class Autosaver {
     };
     /** The page's settings, digested, as written with every meta. */
     #pageConfig: Record<string, string> = {};
+    /** An entry an open read with losses, kept as it was until the reader saves the project. */
+    #kept: string | null = null;
     /** The restored entry, until the first change or the first page load after the restore. */
     #absorb: AutosaveEntryMeta | null = null;
     #restored: AutosaveRestored | null = null;
@@ -753,7 +775,8 @@ export class Autosaver {
         }
 
         // This tab's own entry, and never an unrelated one when it has one; else the newest first.
-        const own = metas.find((meta) => meta.id === options.own);
+        const ownId = ownAmong(metas, options.own ?? null, options.ownBefore ?? null);
+        const own = metas.find((meta) => meta.id === ownId);
         // The first candidate another tab claimed after the listing: two pages opened on one key
         // at once both list it unheld, and only one claim succeeds (#4148).
         let taken: AutosaveEntryMeta | null = null;
@@ -1537,7 +1560,14 @@ export class Autosaver {
         }
 
         this.#absorb = current;
-        if (Number(current.formatVersion) < AUTOSAVE_FORMAT_VERSION) {
+        if (report.problems.some((problem) => problem.code === "shader.unknown")) {
+            // The open dropped shader uses the entry could not resolve. The entry stays as it was
+            // read, until the reader saves, and the work goes to a new entry, so a lossy open is
+            // never written over the only copy.
+            this.#kept = current.id;
+            this.#conflict(entry.id);
+            this.#kick();
+        } else if (Number(current.formatVersion) < AUTOSAVE_FORMAT_VERSION) {
             // Rewritten whole in the current format, flushed to disk.
             this.#strict = true;
             EVERY_PART.forEach((tag) => entry.unwritten.add(tag));
@@ -1869,6 +1899,13 @@ export class Autosaver {
 
                 if (entry === this.#entry) {
                     this.#saved = { at: meta.savedAt as string, revision: meta.revision as number };
+                }
+
+                const kept = this.#kept;
+                if (kept !== null && meta.dirty === false) {
+                    // The reader saved the project: what the lossy open left out is theirs to drop.
+                    this.#kept = null;
+                    this.#store.remove(kept).catch(() => undefined);
                 }
             });
             job.undo.push(() => {

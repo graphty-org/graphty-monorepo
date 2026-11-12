@@ -582,8 +582,8 @@ export function suggestJoin(
         endpoints === undefined ? undefined : [matchOf(endpoints.source), matchOf(endpoints.target)];
     const pair = given ?? guessed;
     if (pair !== undefined) {
-        const columns = { source: pair[0].column, target: pair[1].column };
-        const valuesOnEdges = pairValues(table, graph, columns);
+        const ends = { source: pair[0].column, target: pair[1].column };
+        const valuesOnEdges = pairValues(table, graph, ends);
         if (valuesOnEdges !== undefined) {
             return valuesOnEdges;
         }
@@ -594,7 +594,7 @@ export function suggestJoin(
                 shape: "edges",
                 keys: Object.freeze(pair.map((end) => Object.freeze({ file: end.column, graph: end.path }))),
                 confident: share >= CONFIDENT,
-                ...(repeatsDiffer(table, columns) ? { repeated: "both" as const } : {}),
+                ...(repeatsDiffer(table, ends) ? { repeated: "both" as const } : {}),
             });
         }
     }
@@ -686,17 +686,12 @@ function pairValues(
  */
 function checked(table: JoinTable, choices: JoinChoices, shape: JoinShape): JoinShape {
     const chosen = choices.shape ?? shape;
-    for (const key of choices.keys) {
-        if (!table.columns.includes(key.file)) {
-            throw badJoin(`The table has no column ${JSON.stringify(key.file)}.`, {
-                reason: "unknown-column",
-                column: key.file,
-                columns: [...table.columns],
-            });
-        }
-    }
-
-    for (const column of [...Object.keys(choices.aggregate ?? {}), ...(choices.link?.columns ?? [])]) {
+    const named = [
+        ...choices.keys.map((key) => key.file),
+        ...Object.keys(choices.aggregate ?? {}),
+        ...(choices.link?.columns ?? []),
+    ];
+    for (const column of named) {
         if (!table.columns.includes(column)) {
             throw badJoin(`The table has no column ${JSON.stringify(column)}.`, {
                 reason: "unknown-column",
@@ -1274,30 +1269,7 @@ export function joinReport(given: JoinTable, graph: JoinGraph, choices: JoinChoi
         mappedToMany: now.translation.mappedToMany,
     };
     if (chosen === "merge") {
-        const merge = mergeOf(table, graph, choices);
-        const kept = choices.unmatchedFrom === "drop" ? 0 : merge.onlyFrom;
-        return report(
-            {
-                ...base,
-                rowFates: frozen(merge.fates),
-                merged: now.matched.size,
-                onlyFrom: merge.onlyFrom,
-                onlyOnto: elements.length - now.matched.size,
-                newNodes: kept,
-                ...(choices.compare === true
-                    ? {
-                          regions: frozen({
-                              nodes: {
-                                  "only-from": kept,
-                                  both: now.matched.size,
-                                  "only-onto": elements.length - now.matched.size,
-                              },
-                          }),
-                      }
-                    : {}),
-            },
-            elements,
-        );
+        return report(mergeCounts(table, graph, choices, base, now.matched.size), elements);
     }
 
     if (chosen === "link") {
@@ -1306,6 +1278,37 @@ export function joinReport(given: JoinTable, graph: JoinGraph, choices: JoinChoi
     }
 
     return report(base, elements);
+}
+
+/**
+ * A merge's counts: the values join's, with the merge's fates and, with `compare`, its regions.
+ * @param table - The incoming table.
+ * @param graph - The graph.
+ * @param choices - The join.
+ * @param base - The values join's counts.
+ * @param merged - The nodes rows merge into.
+ * @returns The counts.
+ */
+function mergeCounts(
+    table: JoinTable,
+    graph: JoinGraph,
+    choices: JoinChoices,
+    base: Partial<JoinReport>,
+    merged: number,
+): Partial<JoinReport> {
+    const merge = mergeOf(table, graph, choices);
+    const kept = choices.unmatchedFrom === "drop" ? 0 : merge.onlyFrom;
+    const onlyOnto = graph.nodes.length - merged;
+    const regions = { "only-from": kept, both: merged, "only-onto": onlyOnto };
+    return {
+        ...base,
+        rowFates: frozen(merge.fates),
+        merged,
+        onlyFrom: merge.onlyFrom,
+        onlyOnto,
+        newNodes: kept,
+        ...(choices.compare === true ? { regions: frozen({ nodes: regions }) } : {}),
+    };
 }
 
 /**

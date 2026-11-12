@@ -1215,6 +1215,10 @@ const SHADERS_API: Readonly<Record<string, Door>> = {
         "Lets a shader the project already holds run; whether it may run is the reader's trust, never saved in a project file.",
     ),
     thumbnail: CAPTURE,
+    describe: READ,
+    fromCatalog: exempt(
+        "Names the project's copy of a catalog shader for a write to use; it dispatches a shader.set only when the project holds that id with other text, and the write that names the copy records it.",
+    ),
 };
 
 const STYLES_API: Readonly<Record<string, Door>> = {
@@ -1510,6 +1514,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             xr: XR,
             captureScreenshot: CAPTURE,
             nodeThumbnail: CAPTURE,
+            modelThumbnail: CAPTURE,
             canCaptureScreenshot: READ,
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
@@ -1883,6 +1888,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             waitForPainted: READ,
             captureScreenshot: CAPTURE,
             nodeThumbnail: CAPTURE,
+            modelThumbnail: CAPTURE,
             canCaptureScreenshot: READ,
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
@@ -2503,6 +2509,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: RENDER,
     },
     {
+        // The painter's queue of rows waiting to draw.
+        name: "PendingRows",
+        file: "src/managers/StylePainter.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
         name: "InputManager",
         file: "src/managers/InputManager.ts",
         half: "renderer",
@@ -2639,6 +2652,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edge: READ,
             nodes: READ,
             edges: READ,
+            // Two numbers off the snapshot.
+            count: READ,
             // Deep-frozen records, read a window at a time.
             nodePage: READ,
             edgePage: READ,
@@ -3095,6 +3110,18 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             fingerprint: READ,
             addNodes: calls([[{ id: "door-a" }]], [addNodes({ id: "door-a" })]),
             addEdges: calls([[{ src: "door-a", dst: "door-b" }]], [addEdges({ src: "door-a", dst: "door-b" })]),
+            importColumns: calls(
+                [{ sources: [0], targets: [1], nodeCount: 2, ids: ["door-c", "door-d"] }],
+                batchOf("Set the graph data", addNodesBy("id", { id: "door-c" }, { id: "door-d" }), {
+                    op: "data.apply",
+                    mutation: {
+                        kind: "add-edges",
+                        records: [{ source: "door-c", target: "door-d" }],
+                        source: "source",
+                        target: "target",
+                    },
+                }),
+            ),
             updateNodes: calls(
                 [[{ id: "door-a", values: { weight: 2 } }]],
                 [updateRow("node", "door-a", { weight: 2 })],
@@ -3792,6 +3819,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             clusterColumn: READ,
             // A node's community changed, so a layout pulling communities together starts again.
             wakeForClusters: TRANSPORT,
+            // The box the last publish left the rows in, read by the batched fit; walks no row.
+            publishedBounds: READ,
         },
     },
     {
@@ -4118,6 +4147,7 @@ export const GESTURE_DOORS: Readonly<Record<string, string>> = {
 export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear">> = {
     "SessionDataApi.addNodes": "edit",
     "SessionDataApi.addEdges": "edit",
+    "SessionDataApi.importColumns": "edit",
     "SessionDataApi.updateNodes": "edit",
     "SessionDataApi.updateEdges": "edit",
     "SessionDataApi.removeNodes": "edit",

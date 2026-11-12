@@ -568,6 +568,9 @@ describe("checking what the Assistant says", () => {
         await waitFor(() => {
             assert.strictEqual(document.activeElement, field);
         });
+        // The declined turn starts once the element has claimed the request, after an async store
+        // write: until its declined line shows, Send stands while that turn is still to come.
+        await within(log()).findByText("Declined. Nothing changed.");
         await finished();
 
         model.asked = 0;
@@ -814,11 +817,26 @@ describe("checking what the Assistant says", () => {
             assert.isTrue(model.held);
         });
         await userEvent.click(screen.getByRole("button", { name: "Close" }));
-        const counted = store.get().announced;
+        // Only its own words are counted: the status line also says other things meanwhile (Working,
+        // once the run has gone a second).
+        // Each write is a reading, the same words twice included.
+        const said: string[] = [];
+        let counted = store.get().announced;
+        store.subscribe(() => {
+            const { announcement, announced } = store.get();
+            if (announced !== counted) {
+                counted = announced;
+                said.push(announcement);
+            }
+        });
         model.release();
         const slot = await waitFor(notice);
         await within(slot).findByText("Colored 3 nodes");
-        assert.strictEqual(store.get().announced, counted + 1, "its words go through the status line once");
+        assert.lengthOf(
+            said.filter((line) => line === "Colored 3 nodes"),
+            1,
+            "its words go through the status line once",
+        );
         await userEvent.click(within(slot).getByRole("button", { name: "Undo" }));
         await waitFor(() => {
             assert.strictEqual(session.styles.list().length, layers);

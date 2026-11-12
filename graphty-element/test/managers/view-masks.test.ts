@@ -168,7 +168,12 @@ describe("UpdateManager view masks", () => {
      */
     function buildManager(): UpdateManager {
         // Every node is built here, as under renderPath "objects"; the mask walk reads the built ones.
-        const dataManager = { nodes, edges, nodeMap: { built: () => nodes.values() } } as unknown as DataManager;
+        const dataManager = {
+            nodes,
+            edges,
+            nodeMap: { built: () => nodes.values() },
+            edgeMap: { builtView: () => edges },
+        } as unknown as DataManager;
         const observable = { add: () => null, remove: () => true };
         const scene = {
             onAfterRenderObservable: observable,

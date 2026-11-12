@@ -20,6 +20,7 @@ import React, { useEffect, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { AddButton } from "./Section";
 import { ParamControl } from "./ShaderParams";
+import { GEAR_FIELDS } from "./shaderSlots";
 import { CLOCK_WORDS, clockWords, EDITOR_WORDS, type ShaderTab } from "./words";
 
 /** The gear's width, as the style rows' pop-outs. */
@@ -27,20 +28,6 @@ const GEAR_WIDTH = 240;
 
 /** The value of the Starts select that means no clock. */
 const NO_CLOCK = "none";
-
-/**
- * The fields in a row's gear, whose problems mark the gear. `clock` is the dialog's name for a
- * problem with a default bound to a clock, which the gear's Starts fields edit.
- */
-export const GEAR_FIELDS: ReadonlySet<string> = new Set([
-    "plainName",
-    "min",
-    "max",
-    "step",
-    "values",
-    "varies",
-    "clock",
-]);
 
 /** A problem on one field of one parameter row. */
 interface ParamMark {

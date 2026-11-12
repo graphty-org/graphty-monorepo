@@ -41,7 +41,7 @@ import { loadLineOf, supersededError } from "../session/loadLine";
 import type { SessionCommand } from "../session/planning";
 import type { Dispatcher, UndoableContext } from "../session/project/Dispatcher";
 import type { Draft } from "../session/project/draft";
-import { GraphOps, type GraphWriter } from "../session/project/graphOps";
+import { forEachEdgeOfKey, GraphOps, type GraphWriter } from "../session/project/graphOps";
 import {
     type AddEdgesOptions,
     type Ceilings,
@@ -1342,6 +1342,12 @@ export class DataManager implements Manager {
         for (const key of dirty) {
             if (key.startsWith("e:")) {
                 edgeKeys.push(key.slice(2));
+            } else if (key.startsWith("e+:")) {
+                // A forward batched add's range: its edges were drawn as they were ingested, so it
+                // is walked only when the slice moved some other way (cosmos-gap.md G4).
+                if (cause !== "command") {
+                    forEachEdgeOfKey(key, (id) => edgeKeys.push(id));
+                }
             } else if (key.startsWith("n:")) {
                 addedNodes += this.reconcileNode(JSON.parse(key.slice(2)) as NodeIdType, slice, doomed, moves);
             }

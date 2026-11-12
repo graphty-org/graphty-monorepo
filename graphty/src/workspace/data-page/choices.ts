@@ -344,6 +344,53 @@ function mappedColumn(table: DraftTable, value: unknown): string | undefined {
 }
 
 /**
+ * Each table's mapping in a load's choices, by table id: a bare mapping is the draft's one table's.
+ * @param draft - the draft.
+ * @param mapping - the load's mapping.
+ * @returns the mappings.
+ */
+function tablesOf(draft: LoadDraft, mapping: LoadChoices["mapping"]): Readonly<Record<string, TableMapping>> {
+    if (mapping === undefined) {
+        return {};
+    }
+    if ("tables" in mapping) {
+        return mapping.tables;
+    }
+    const [only] = draft.tables;
+    return only === undefined ? {} : { [only.id]: mapping };
+}
+
+/**
+ * Lays one table's mapping from a load's choices onto the page's choices.
+ * @param draft - the draft.
+ * @param table - the table.
+ * @param read - the table's mapping.
+ * @param start - the page's choices so far.
+ * @returns the new choices.
+ */
+function carryTable(draft: LoadDraft, table: DraftTable, read: TableMapping, start: PageChoices): PageChoices {
+    let choices = read.rowsAre === undefined ? start : setRowsAre(draft, table, read.rowsAre, start);
+    for (const role of LOAD_ROLES[rowsAreOf(draft, table, choices)].takes) {
+        const value = (read as Readonly<Record<string, unknown>>)[role];
+        // A null role is one the load took off the column the element gave it.
+        const column =
+            value === null
+                ? table.columns.find((each) => roleOf(draft, table, each.name, choices) === role)?.name
+                : mappedColumn(table, value);
+        if (column !== undefined) {
+            choices = setRole(draft, table, column, value === null ? "attribute" : role, choices);
+        }
+    }
+    if (read.weightMeaning !== undefined && read.weightMeaning !== null) {
+        choices = setWeightMeaning(table, read.weightMeaning, choices);
+    }
+    if (read.timeUnit !== undefined && read.timeUnit !== null) {
+        choices = setTimeUnit(table, read.timeUnit, choices);
+    }
+    return choices;
+}
+
+/**
  * The page's choices for a load's own `LoadChoices` (`LoadedSource.choices`), read onto a draft of
  * the same data or of a newer copy, so Edit source... and Replace with file... open on the roles
  * the load was read with. A role naming a column the draft lacks is left to the element's reading.
@@ -359,42 +406,11 @@ export function carriedChoices(draft: LoadDraft, carried: LoadChoices, fileStyle
         ...(carried.directed === undefined ? {} : { directed: carried.directed }),
         ...(fileStyles && carried.styles !== undefined ? { styles: carried.styles } : {}),
     };
-    const { mapping } = carried;
-    const [only] = draft.tables;
-    let tables: Readonly<Record<string, TableMapping>> = {};
-    if (mapping !== undefined) {
-        if ("tables" in mapping) {
-            ({ tables } = mapping);
-        } else if (only !== undefined) {
-            tables = { [only.id]: mapping };
-        }
-    }
+    const tables = tablesOf(draft, carried.mapping);
     for (const table of draft.tables) {
         const read = tables[table.id];
-        if (read === undefined) {
-            continue;
-        }
-        if (read.rowsAre !== undefined) {
-            choices = setRowsAre(draft, table, read.rowsAre, choices);
-        }
-        for (const role of LOAD_ROLES[rowsAreOf(draft, table, choices)].takes) {
-            const value = (read as Readonly<Record<string, unknown>>)[role];
-            const column = mappedColumn(table, value);
-            if (column !== undefined) {
-                choices = setRole(draft, table, column, role, choices);
-            } else if (value === null) {
-                // The load took the role off the column the element gave it.
-                const holder = table.columns.find((each) => roleOf(draft, table, each.name, choices) === role);
-                if (holder !== undefined) {
-                    choices = setRole(draft, table, holder.name, "attribute", choices);
-                }
-            }
-        }
-        if (read.weightMeaning !== undefined && read.weightMeaning !== null) {
-            choices = setWeightMeaning(table, read.weightMeaning, choices);
-        }
-        if (read.timeUnit !== undefined && read.timeUnit !== null) {
-            choices = setTimeUnit(table, read.timeUnit, choices);
+        if (read !== undefined) {
+            choices = carryTable(draft, table, read, choices);
         }
     }
     return choices;

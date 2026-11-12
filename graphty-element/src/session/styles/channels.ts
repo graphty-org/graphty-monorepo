@@ -4002,6 +4002,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         shortName: "Gradient color",
         group: "color",
         accepts: "color",
+        // Unset, the fill runs from `node.color` into `node.color`: flat.
+        follows: "node.color",
         stylePath: "texture.color.colors",
         renderable: true,
         caveat:

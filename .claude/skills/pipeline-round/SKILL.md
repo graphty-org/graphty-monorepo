@@ -87,7 +87,7 @@ incident with a named cause (#5052).
   `blocking`), the open `Nightly missed slot <date hh:mm> UTC: <cause>` issue (filed by release.yml's slot job when a
   full, restart or candidate run ends without moving nightly; `Nightly stalled since` is only the fallback for a slot
   with no run at all) and the `Nightly held on <sha12>` issue.
-- **An unreviewable or stale hold is fixed this round:** a held head judged red, owner-item or rejected while
+- **An unreviewable or stale hold is fixed this round:** a held head judged red, owner-item, rejected or refused while
   newer green runs could not replace it, a hold whose fix forward is not moving, or one older than a slot with no
   fix in flight. Fix forward (step 6), or end it with
   `gh workflow run nightly-abandon.yml --ref master -f reason="<why>"` (allowed, needs no owner).
@@ -224,8 +224,11 @@ version` (409) means it is propagating (minutes); otherwise re-run the failed pu
 A full run that is green but changed screenshots (`green-images`), or not green-clean after its one re-run, holds its
 commit H on `channel/candidate` with a `Nightly held on <sha12>` issue (CLAUDE.md, "The held nightly candidate"). A
 red cause is fixed forward from `origin/channel/candidate` (step 1's fix prompt, that base, `Refs #<hold issue>`). A
-newer commit's green-clean or green-images verdict replaces a held head judged red, owner-item or rejected on its
-own (`hold.mjs replace`); a held green-images head awaiting review is never replaced.
+newer commit's green-clean or green-images verdict replaces a held head judged red, owner-item, rejected, refused or
+green-images on its own (`hold.mjs replace`): a held head awaiting the owner's review is replaced too, so nightly
+never waits behind it (#6604); only an approved head is never replaced. An approval the promotion gate refused
+records `refused`: once its cause is fixed on master, re-dispatch the command the hold issue names (it tries the same
+approval again, #6783).
 
 - **Before asking the owner,** open his proofroom review page (servherd `proofroom-review`, cwd
   `.worktrees/proofroom-review`; command in CLAUDE.md, "Visual review") in your own browser tab and confirm it lists

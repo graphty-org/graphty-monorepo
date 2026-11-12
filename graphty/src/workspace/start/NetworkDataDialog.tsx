@@ -4,14 +4,11 @@ import type React from "react";
 
 import { GLYPHS } from "../glyphs";
 import { ariaKey, formatKey } from "../keys/keys";
-import { openServerForm, serverKinds } from "../server/commands";
+import { NETWORK_DIALOG, openServerForm, serverKinds } from "../server/commands";
 import { kindName } from "../server/words";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import NETWORK_SAMPLES from "./network-samples.json";
-import { openFiles, openUrl } from "./open";
-
-/** The workspace dialog id of Open network data. */
-export const NETWORK_DIALOG = "network";
+import { addUrl, openFiles } from "./open";
 
 /** The badge on each kind of network's card, and what the kind is. */
 const CARD_WORDS: Readonly<Record<string, { readonly badge: string; readonly what: string }>> = {
@@ -22,9 +19,11 @@ const CARD_WORDS: Readonly<Record<string, { readonly badge: string; readonly wha
 };
 
 /**
- * Open network data, the start page's door to data on the network: one card for each kind of
- * network the start page has a sample of, a web address box and Open a file. A card opens the app
- * on an empty project with the network form popped up on that kind.
+ * Open network data, the door to data on the network from the start page and from the Sources "+"
+ * (Network data...): one card for each kind of network the start page has a sample of, a web
+ * address box and Open a file. From the start page a card opens the app on an empty project with
+ * the network form popped up on that kind, and a web address or a file opens as a new project; in
+ * a project each adds a source to it, as Paste and File... do.
  * @returns The chooser, open while the workspace dialog is "network"
  */
 export function NetworkDataDialog(): React.JSX.Element {
@@ -84,7 +83,7 @@ export function NetworkDataDialog(): React.JSX.Element {
                             openLabel="Open"
                             onUrl={(url) => {
                                 close();
-                                openUrl(store, url);
+                                addUrl(ctx, url);
                             }}
                             onFiles={(files) => {
                                 close();

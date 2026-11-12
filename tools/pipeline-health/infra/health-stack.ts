@@ -24,7 +24,7 @@ export const CI_ISSUER = "https://token.actions.githubusercontent.com";
 export const CI_AUDIENCE = "graphty-health";
 export const READ_THROTTLE = { rate: 20, burst: 40 };
 export const WRITE_THROTTLE = { rate: 50, burst: 100 };
-export const MONTHLY_BUDGET_USD = 10;
+export const MONTHLY_BUDGET_USD = 50;
 /**
  * The tag on every resource of the stack. The Budget cannot filter on it: this project's account is
  * a linked account, and Billing refuses to activate cost-allocation tags there ("Linked account

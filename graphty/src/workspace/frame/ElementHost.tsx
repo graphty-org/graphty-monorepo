@@ -55,8 +55,8 @@ interface ElementHostProps {
  */
 export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostProps>): React.JSX.Element {
     const ref = useRef<GraphtyElement>(null);
-    // Labels that would land on each other are thinned out until the reader turns on Show all
-    // labels (tier1-design.md section 2.7), and a still graph is not drawn again on every animation
+    // Every label a style asks for is drawn, overlapping or not, unless the reader turns on Graph
+    // settings' "Hide overlapping labels" (owner 2026-11-11), and a still graph is not drawn again on every animation
     // frame: the workspace never changes the Babylon scene behind the element's back, so nothing it
     // shows needs those frames, and on a software GPU each one holds the page's main thread for
     // tens of milliseconds (issue #1943). View settings written on the tag; they record no step.

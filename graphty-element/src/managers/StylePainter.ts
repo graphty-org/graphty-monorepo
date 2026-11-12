@@ -116,6 +116,47 @@ export function batchableOf(paint: Pick<NodePaint, "style">, view: BatchView): b
     );
 }
 
+/**
+ * The paint a row past `limits.objectRows` is drawn with: its own, less everything no batch draws
+ * (a border, an outline, a model, a picture, a label or tooltip), so a batch draws it as a plain body.
+ * @param paint - The row's paint.
+ * @returns The plain paint, keyed apart from the full one.
+ */
+export function plainNodePaint(paint: NodePaint): NodePaint {
+    const { style } = paint;
+    const only = <T extends object>(bag: T | undefined, keys: ReadonlySet<string>): T | undefined =>
+        bag === undefined ? undefined : (Object.fromEntries(Object.entries(bag).filter(([key]) => keys.has(key))) as T);
+    const plain: NodeStyleConfig = {
+        ...(style.visible === undefined ? {} : { visible: style.visible }),
+        shape: only(style.shape, BATCHABLE_SHAPE_KEYS),
+        texture: only(style.texture, PLAIN_TEXTURE_KEYS),
+        effect: only(style.effect, BATCHABLE_EFFECT_KEYS),
+    };
+    return { meshKey: `plain|${paint.meshKey}`, style: plain, color: paint.color };
+}
+
+/** The line keys a plain line keeps. */
+const PLAIN_LINE_KEYS: ReadonlySet<string> = new Set(["width", "color", "opacity", "minScreenWidth"]);
+
+/**
+ * The paint an edge past `limits.objectEdges` is drawn with: its line's width, color and opacity
+ * alone, as a solid straight line with no caps, label or band.
+ * @param paint - The edge's paint.
+ * @returns The plain paint, keyed apart from the full one.
+ */
+export function plainEdgePaint(paint: EdgePaint): EdgePaint {
+    const { style } = paint;
+    const line = Object.fromEntries(Object.entries(style.line ?? {}).filter(([key]) => PLAIN_LINE_KEYS.has(key)));
+    const plain = {
+        ...(style.visible === undefined ? {} : { visible: style.visible }),
+        line,
+    } as EdgeStyleConfig;
+    return { meshKey: `plain|${paint.meshKey}`, style: plain };
+}
+
+/** The texture a plain body keeps: its color, never a picture. */
+const PLAIN_TEXTURE_KEYS: ReadonlySet<string> = new Set(["color"]);
+
 /** The colour a source mesh's material is built in when the instance carries the real one. */
 const NEUTRAL_HEX = "#FFFFFF";
 

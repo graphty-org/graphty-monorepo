@@ -208,12 +208,14 @@ registerSource(
 );
 
 /**
- * Opens the server form from the Sources "+".
+ * Opens the server form from the Sources "+": Network data..., then the NDEx card in the chooser.
  * @returns the form.
  */
 async function openForm(): Promise<HTMLElement> {
     await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
+    const chooser = await screen.findByRole("dialog", { name: "Open network data" });
+    await userEvent.click(within(chooser).getByRole("button", { name: /^NDEx/ }));
     return screen.findByRole("form", { name: "Network data" });
 }
 
@@ -392,7 +394,7 @@ describe("server sources on the real element", () => {
         await page.viewport(1366, 900);
     });
 
-    it("opens Network data... from an open project, on NDEx, the first listed", async () => {
+    it("opens Network data... from an open project, and its NDEx card opens the form on NDEx", async () => {
         await openDataPlace();
         const form = await openForm();
         await waitFor(() => {
@@ -407,9 +409,7 @@ describe("server sources on the real element", () => {
     it("tests, loads with a limit, loads more, expands, collapses and refreshes", async () => {
         const { element, session } = await openDataPlace();
 
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
-        const form = await screen.findByRole("form", { name: "Network data" });
+        const form = await openForm();
         await pick(form, "Kind", "People server");
         // A server with a Start shows it; Query is its first, with the query box.
         assert.isNotNull(within(form).getByRole("radio", { name: "Query" }));
@@ -520,9 +520,7 @@ describe("server sources on the real element", () => {
 
     it("offers no Sign in, Start or Expand rows a source cannot use", async () => {
         await openDataPlace();
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
-        const form = await screen.findByRole("form", { name: "Network data" });
+        const form = await openForm();
         await pick(form, "Kind", "OpenAlex");
         assert.isNull(within(form).queryByRole("radio", { name: "Query" }), "OpenAlex has no Start");
         assert.isNull(within(form).queryByLabelText("Password"));

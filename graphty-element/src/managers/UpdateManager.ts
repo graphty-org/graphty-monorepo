@@ -48,7 +48,7 @@ import type { LayoutManager } from "./LayoutManager";
 import { MINIMUM_PAINT_BATCH, minimumWorkPerFrame } from "./minimumWork";
 import { attachPendingWork, PendingWork } from "./PendingWork";
 import type { StatsManager } from "./StatsManager";
-import type { NodePaint, StylePainter } from "./StylePainter";
+import { type NodePaint, plainEdgePaint, plainNodePaint, type StylePainter } from "./StylePainter";
 
 /** How much room a framed globe leaves around itself, as a share of its radius: its air's glow. */
 const GLOBE_FRAMING = 1.1;
@@ -1554,6 +1554,7 @@ export class UpdateManager implements Manager {
         // places is all of it, unless it painted an edge with a support point: a layer can change
         // who has one and the forces on it.
         if (!painter.hasPendingEdges) {
+            this.reportObjectCap("edges");
             if (this.edgePoolsArmed) {
                 clearPoolReserve(scene);
                 this.edgePoolsArmed = false;
@@ -1607,16 +1608,28 @@ export class UpdateManager implements Manager {
         const lines = this.graphContext.getEdgeRowLines?.() ?? null;
         const paint = painter.edgePaint(index);
         const [source, target] = ends;
-        if (
+        this.heldPlainEdges.delete(index);
+        const lineable =
             lines !== null &&
             paint !== null &&
             source !== target &&
             !this.mapArcsEdges() &&
             !this.endBehindEdges(source) &&
             !this.endBehindEdges(target) &&
-            !this.rowMasked(index) &&
-            lines.paintRow(index, source, target, paint)
+            !this.rowMasked(index);
+        if (lineable && lines.paintRow(index, source, target, paint)) {
+            return undefined;
+        }
+
+        // Past `limits.objectEdges`, an edge whose look no row line draws is drawn as a plain line,
+        // and keeps no `Edge` (design/rendering/row-renderer.md section 8).
+        const cap = this.dataManager.renderLimits?.objectEdges?.() ?? Number.POSITIVE_INFINITY;
+        if (
+            lineable &&
+            dataManagerInternals.edgesLive(this.dataManager) >= cap &&
+            lines.paintRow(index, source, target, plainEdgePaint(paint))
         ) {
+            this.heldPlainEdges.add(index);
             return undefined;
         }
 
@@ -1739,15 +1752,58 @@ export class UpdateManager implements Manager {
         // one style per look, not per row (`StylePainter.rowPaint`); a row that needs a `Node` is
         // painted again below through `nodePaint`, so the Node never holds a shared style
         const paint = id === undefined ? null : painter.rowPaint(index);
+        const batches = this.graphContext.getNodeBatches?.() ?? null;
+        this.heldPlain.delete(index);
+        if (id === undefined || paint === null || batches?.paintRow(index, paint) === true) {
+            return undefined;
+        }
+
+        // Past `limits.objectRows`, a row whose look no batch draws is drawn as a plain body, and
+        // keeps no `Node` (design/rendering/row-renderer.md section 8).
+        const cap = this.dataManager.renderLimits?.objectRows?.() ?? Number.POSITIVE_INFINITY;
         if (
-            id === undefined ||
-            paint === null ||
-            this.graphContext.getNodeBatches?.()?.paintRow(index, paint) === true
+            batches !== null &&
+            dataManagerInternals.nodesLive(this.dataManager) >= cap &&
+            batches.paintRow(index, plainNodePaint(paint))
         ) {
+            this.heldPlain.add(index);
             return undefined;
         }
 
         return dataManagerInternals.buildRow(this.dataManager, id);
+    }
+
+    /**
+     * Rows past `limits.objectRows` drawn as plain bodies.
+     * ponytail: a removed row's index stays until that index is painted again, so `wanted` can
+     * overcount after a removal; key it by row id if the count must be exact.
+     */
+    private readonly heldPlain = new Set<number>();
+    /** Edge rows past `limits.objectEdges` drawn as plain lines. */
+    private readonly heldPlainEdges = new Set<number>();
+    /** How many rows of each kind the last `W_OBJECT_CAP` reported. */
+    private readonly reportedPlain = { nodes: 0, edges: 0 };
+
+    /**
+     * Say once a repaint settles, as `W_OBJECT_CAP`, that rows past an object budget are drawn plain.
+     * @param of - Which rows.
+     */
+    private reportObjectCap(of: "nodes" | "edges"): void {
+        const held = (of === "nodes" ? this.heldPlain : this.heldPlainEdges).size;
+        if (held === this.reportedPlain[of]) {
+            return;
+        }
+
+        this.reportedPlain[of] = held;
+        const limits = this.dataManager.renderLimits;
+        const cap = of === "nodes" ? limits?.objectRows?.() : limits?.objectEdges?.();
+        const built =
+            of === "nodes"
+                ? dataManagerInternals.nodesLive(this.dataManager)
+                : dataManagerInternals.edgesLive(this.dataManager);
+        if (held > 0 && cap !== undefined) {
+            limits?.objectCap?.(of, built + held, cap);
+        }
     }
 
     /** How many nodes the last node batch painted a millisecond, or 0 before one has been timed. */
@@ -1820,6 +1876,10 @@ export class UpdateManager implements Manager {
         // repaint was spread over. A frame that resized a node places only that node's edges again.
         // A time window's slide changes nothing but the rows it painted, and the lines above placed
         // the edges of any node of those that changed size or was rebuilt.
+        if (!painter.hasPendingNodes) {
+            this.reportObjectCap("nodes");
+        }
+
         if (!painter.hasPendingNodes && !painter.takeNodesRowsOnly()) {
             this.forceEdgeWalk();
             this.paintIndex = { rows: null, incident: null };

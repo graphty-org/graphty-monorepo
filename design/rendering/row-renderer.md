@@ -1221,6 +1221,15 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   in `GraphOps.addEdge` 2.7 s, `DataManager.builtUnpainted` 2.1 s (one `e:` key into `unpainted` and one
   `StylePainter.queue` per edge), `edgePaint` 1.1 s, the first frame's
   `readPixels` 0.5 s and garbage collection 0.5 s: per-edge bookkeeping, which the later pull requests of G8 take on.
+  The "install as a load" item is written off for the same reason: an `importColumns` install outside
+  `openLoad`/`closeLoad` sends `GraphStore.completeIdentity` down its per-cell branch, which costs 1.9 ms of that
+  11.6 s profile. G8's proving test is therefore its parity half (`test/session/columns-parity.test.ts`): every
+  graph-io corpus file the element reads, every graph-samples generator and every sample dataset, read back and
+  loaded through `importColumns` and through `addNodes`/`addEdges`, gives the same digest, counts and graph-level
+  values on both render paths. Its two counted halves (an ineligible load taking the records path whole, records
+  built during an eligible import at 0) wait with `columnsEligible` for stage 29. Building it found one defect, fixed
+  on both paths: with no `weights` column `importColumns` named `weight` as the weight key, so a `value` attribute,
+  which `addEdges` reads as the weight, was not one; now the edges are read as `addEdges` reads them.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.

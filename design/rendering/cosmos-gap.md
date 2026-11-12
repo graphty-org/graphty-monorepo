@@ -201,6 +201,12 @@ passes them limits. Stage 30 then adds only the object budgets (`objectRows`, `o
       The comparison harness gains a `columns` mode that hands graphty-element the typed arrays cosmos.gl gets, and keeps the
       record mode, so both are measured.
 
+    Correction (G8's first pull request): `importColumns` builds the records the record doors take, so there is no column
+    path to route record arrays to yet. `columnsEligible`, the routing and the report's path wait for stage 29's
+    records-into-columns; install-as-a-load is written off (1.9 ms of an 11.6 s 100k + 1M load). G8 is now the harness
+    `columns` mode, the parity half of its proving test, and the per-edge bookkeeping its profile found
+    (row-renderer.md, "Every feeder through the column door").
+
 ### 3.4 The million-edge frame: an option for cheaper lines (G5, G12)
 
 No CPU change moves a fill-bound frame. Two picture changes do, so both are opt-in:
@@ -279,11 +285,11 @@ build on one are follow-on pull requests after its last pull request merges, nev
 - Proving test: Stage 27's counted test (`Edge`s built 0 on the lean load), in 2D and 3D; undo across a load.
 - Measured target: 100k + 1M records: first frame at most 17 s (12 s needs G4 too, which does not depend on G7).
 
-**G8. Every feeder through the column door.** `columnsEligible`; record arrays routed under `"batched"` (stage 28 already routes graph-io and graph-samples); path in the import report; install as a load; harness `columns` mode.
+**G8. Every feeder through the column door.** Harness `columns` mode; the per-edge load bookkeeping (`GraphOps.addEdge`, `DataManager.builtUnpainted`, `edgePaint`). `columnsEligible`, routing and the report's path wait for stage 29; install as a load is written off (section 3.3 item 5).
 
 - Depends on: stage 28, G4, G7.
-- Proving test: Digest and import report equal the records path on every sample dataset and every graph-io fixture format; an ineligible load takes the records path whole, counted; records built during an eligible file import counted at 0.
-- Measured target: 100k + 1M typed: first frame at most 5 s; records at most 6.5 s; 100k + 1k typed at most 1.9 s.
+- Proving test: Digest, counts and graph-level values of `importColumns` equal the record doors' on every sample dataset, generator and graph-io corpus format, both render paths (built). With stage 29: an ineligible load takes the records path whole, counted; records built during an eligible file import counted at 0.
+- Measured target: 100k + 1M typed: first frame at most 5 s; records at most 6.5 s; 100k + 1k typed at most 0.8 s (raised from 1.9 s, already met at 1.30 s on 2026-11-11).
 
 **G9. The million-row run.** Harness matrix at 1M + 10k and 1M + 1M, typed and records, 3 rounds, GPU timer probe; committed to `benchmarks/results/cosmos-gap/`.
 

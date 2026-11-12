@@ -115,6 +115,14 @@ export function columnMutations(columns: ImportColumnsInput): [DataMutation, Dat
     });
     return [
         { kind: "add-nodes", records: nodes, idPath: "id" },
-        { kind: "add-edges", records: edges, source: "source", target: "target", weight: "weight" },
+        // Without a weights column the edges are read as the record doors read them (a `value`
+        // column is still a weight), so the graph is theirs.
+        {
+            kind: "add-edges",
+            records: edges,
+            source: "source",
+            target: "target",
+            ...(weights === undefined ? {} : { weight: "weight" }),
+        },
     ];
 }

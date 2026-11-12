@@ -129,4 +129,9 @@ describe("sniffing APOC exports", () => {
         expect(sniffed("graph.json", '{"nodes":[{"id":"a"}],"edges":[]}')).toBe("json");
         expect(sniffed("graph.json", '[{"data":{"id":"a"}}]')).toBe("json");
     });
+
+    it("leaves an edge list with an _id column (mongoexport) to the csv format", () => {
+        expect(sniffed("edges.csv", '_id,source,target,weight\n"1","a","b","2"\n')).toBe("csv");
+        expect(sniffed(null, '_id,source,target,weight\n"1","a","b","2"\n')).toBe("csv");
+    });
 });

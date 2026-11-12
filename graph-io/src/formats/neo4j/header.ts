@@ -230,14 +230,15 @@ export function formatHeaderField(name: string, type: string, space: string | nu
 }
 
 /**
- * Whether a header row is the `apoc.export.csv` layout: it has an `_id` column (nodes) or `_start`
- * and `_end` columns (relationships).
+ * Whether a header row is the `apoc.export.csv` layout: it has `_id` and `_labels` columns (nodes) or
+ * `_start` and `_end` columns (relationships). `_id` alone is not enough: other tools (mongoexport)
+ * write an `_id` column into ordinary edge lists.
  * @param names - the header cells, unquoted and trimmed
  * @returns true for an APOC CSV header
  * @category Plugin helpers
  */
 export function isApocCsvHeader(names: readonly string[]): boolean {
-    return names.includes("_id") || (names.includes("_start") && names.includes("_end"));
+    return (names.includes("_id") && names.includes("_labels")) || (names.includes("_start") && names.includes("_end"));
 }
 
 /**

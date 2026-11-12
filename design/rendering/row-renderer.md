@@ -1139,6 +1139,16 @@ eight corners are the framing's spots, so `camera.fitBounds` "turning" keeps the
 nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attributes` are optional. Same ceilings, report and undo step,
   with one range entry in the op log, the only bulk history entry (cosmos-gap.md G4 reuses it). Rows are placed by the element's `layout`, as
   `nodeData`'s are. graph-io and graph-samples route through it.
+  Built (third pull request of stage 28): `importColumns` checks the columns line up (`E_BAD_COMMAND`, nothing
+  added) and dispatches one batch of the two record adds the record doors make (`add-nodes` read by `id`, then
+  `add-edges` read by `source`, `target` and `weight`), so its digest equals the record path's by construction
+  (`test/session/import-columns.test.ts`). It still builds a record per row: staging straight into the builder,
+  no id maps and 20-byte batches are the next pull requests. The range entry is built in `graphOps.ts` and is
+  not specific to the door: under `"batched"` every forward add of edges (`addEdges`, an import, `importColumns`)
+  keeps each run of consecutive edge counters as one `edges` op holding columns (sources, targets, weights,
+  records, file ids, created endpoints by place) instead of one op object per edge; undo and redo walk it in one
+  op, touching each edge by its own `e:` key as before. Under `"objects"` the op log is unchanged. This is the
+  entry G4 waits for: a forward `addNodes`/`addEdges` load already records it.
 - **Bulk lane keys (cosmos-gap.md G4, first pull request).** Under `"batched"` a forward add marks its edges dirty as
   one range key per run of consecutive edges, `e+:<first edge counter>:<count>`, through `DerivationLane.touchLater`,
   whose key is read when the next pass starts. Correction to cosmos-gap.md section 3.3 item 2: the range is over the
@@ -1150,6 +1160,12 @@ nodeCount })` takes zero-based row numbers; `ids`, `weights`, `positions`, `attr
   the per-edge keys it names, so a paged batched import is drawn page by page as on `"objects"`. Under `"objects"`
   every edge is touched as before (`test/session/bulk-lane-keys.test.ts`,
   `test/browser/autosave/bulk-lane-keys-element.test.ts`, `test/browser/styles-from-the-first-frame.test.ts`).
+- **Bulk lane keys, second pull request.** A batched run also touches the rows-added and rows-moved keys once, when the
+  run starts, instead of twice per edge; the lane's touch count for a batched load no longer grows with the edge count.
+  Measured on Lean 100k + 1M (`lean-m`, batched, `BENCH_PROFILE_TIMED`, one run each, same session): `touch` plus
+  `reconcile` 145 ms before, 41 ms after, under G4's 0.1 s target; first frame 18.1 s and 17.1 s. The one range
+  history entry is now built (stage 28, third pull request): a batched run of edges is one `edges` op in the
+  op log.
 - **Staging.** Stage 28 releases `GraphBuilder`'s staging arrays after load, skips id maps for typed input (without both its 400 MB has no
   margin) and cuts batch data toward 20 bytes. New `session.data.count()` (built: `{ nodes, edges }`, read off the snapshot with no record built) serves
   the join screen's node and edge chips, which read `nodes().length` and `edges().length` before.

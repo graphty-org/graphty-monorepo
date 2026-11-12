@@ -76,6 +76,22 @@ describe("bulk lane keys", () => {
         assert.strictEqual(counts[0], counts[1]);
     });
 
+    it("a batched load touches the lane as often at 50,000 edges as at 500", async () => {
+        const touches: number[] = [];
+        for (const size of [500, 50_000]) {
+            const { session } = recording(true);
+            const { lane } = dispatcherOf(session);
+            await session.data.addNodes(Array.from({ length: 100 }, (_, id) => ({ id })));
+            const before = lane.writes("graph");
+            await session.data.addEdges(
+                Array.from({ length: size }, (_, i) => ({ source: i % 100, target: (i * 31 + 1) % 100 })),
+            );
+            touches.push(lane.writes("graph") - before);
+        }
+
+        assert.strictEqual(touches[0], touches[1]);
+    });
+
     it("an objects load touches every edge, as before", async () => {
         const { session, passes } = recording(false);
         await session.data.addEdges(ring(300));

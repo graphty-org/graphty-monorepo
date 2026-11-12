@@ -101,6 +101,7 @@ import {
     LOAD_ROLES,
     readSource,
 } from "./draft";
+import { columnMutations } from "./importColumns";
 import {
     type DataIssue,
     findIssues,
@@ -188,6 +189,7 @@ import type {
     FindOptions,
     FindResult,
     GraphStatistics,
+    ImportColumnsInput,
     ImportOptions,
     JoinChoices,
     JoinRecord,
@@ -903,6 +905,30 @@ export class SessionData implements SessionDataApi {
     async addEdges(records: readonly EdgeRecordInput[]): Promise<void> {
         this.requireLive("addEdges");
         await this.edit({ kind: "add-edges", records });
+    }
+
+    /**
+     * Load a graph from column arrays, as one undoable step: the nodes, then the edges.
+     * @param columns - The columns.
+     * @returns Settles once the rows are in the graph and drawn.
+     */
+    async importColumns(columns: ImportColumnsInput): Promise<void> {
+        this.requireLive("importColumns");
+        const [nodes, edges] = columnMutations(columns);
+        const send = this.writes.importer();
+        await this.loadLine.edit(
+            () =>
+                send({
+                    op: "batch",
+                    label: "Set the graph data",
+                    fact: { code: "data.set", params: {} },
+                    steps: [
+                        { op: "data.apply", mutation: nodes },
+                        { op: "data.apply", mutation: edges },
+                    ],
+                }),
+            undefined,
+        );
     }
 
     /**

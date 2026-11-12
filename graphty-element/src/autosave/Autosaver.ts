@@ -170,6 +170,8 @@ export interface AutosaverOptions {
 export interface RecoverOptions {
     /** This tab's own previous entry, which comes first; null or absent when the tab has none. */
     readonly own?: string | null;
+    /** The entry this tab named before `own`, for when `own` was never written or was replaced. */
+    readonly ownBefore?: string | null;
     /** `"manual"` restores nothing and only reports the newest entry; `"auto"` by default. */
     readonly restore?: "auto" | "manual";
     /** Every setting the page made, by name, as it is now. */
@@ -345,6 +347,24 @@ interface WriteRetries {
  */
 function errorName(error: unknown): string {
     return error instanceof Error ? error.name : "Error";
+}
+
+/**
+ * This tab's own entry among the listed ones: the one it named before, while that is open, else
+ * the one it names. A reload that comes while a page is reopening the tab's work finds the tab
+ * naming the entry that page started for its own setup, and the work as the one named before.
+ * @param metas - Every entry of the key.
+ * @param own - The entry this tab names, if any.
+ * @param before - The entry it named before, if any.
+ * @returns The entry id.
+ */
+export function ownAmong(
+    metas: readonly AutosaveEntryMeta[],
+    own: string | null,
+    before: string | null,
+): string | null {
+    const open = before !== null && metas.some((meta) => meta.id === before && meta.ended !== "replaced");
+    return open ? before : own;
 }
 
 /**
@@ -755,7 +775,8 @@ export class Autosaver {
         }
 
         // This tab's own entry, and never an unrelated one when it has one; else the newest first.
-        const own = metas.find((meta) => meta.id === options.own);
+        const ownId = ownAmong(metas, options.own ?? null, options.ownBefore ?? null);
+        const own = metas.find((meta) => meta.id === ownId);
         // The first candidate another tab claimed after the listing: two pages opened on one key
         // at once both list it unheld, and only one claim succeeds (#4148).
         let taken: AutosaveEntryMeta | null = null;

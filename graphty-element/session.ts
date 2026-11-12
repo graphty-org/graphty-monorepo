@@ -107,6 +107,7 @@ export type {
     HistoryRestoreOptions,
     HistoryStep,
     HistoryStepId,
+    ImportColumnsInput,
     ImportOptions,
     JoinChoices,
     JoinKey,

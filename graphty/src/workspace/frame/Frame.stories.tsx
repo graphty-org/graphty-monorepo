@@ -2,6 +2,7 @@
 import "@graphty/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/react";
+import { userEvent } from "storybook/test";
 
 import { Workspace } from "../Workspace";
 

@@ -54,6 +54,13 @@ interface GraphHome {
     readonly session: boolean;
     /** Whether anything reads {@link GraphOps.rewrites}: the timeline's experiment is on. */
     readonly countsRewrites?: () => boolean;
+    /**
+     * Whether the rows are drawn on the `"batched"` render path: a forward add then marks its
+     * edges dirty as one range key, not one key per edge. Absent reads `false`.
+     */
+    readonly batched?: () => boolean;
+    /** A key of the slice changed whose text is read when the next pass starts; see `DerivationLane.touchLater`. */
+    readonly touchLater?: (key: () => string) => void;
 }
 
 /**
@@ -76,6 +83,39 @@ export const nodeOfKey = (key: string): NodeId => JSON.parse(key.slice(2)) as No
  * @returns The key.
  */
 export const edgeKey = (id: EdgeId): string => `e:${id}`;
+
+/**
+ * The lane key of a run of edges with consecutive element ids, which a forward add on the
+ * `"batched"` render path marks instead of one {@link edgeKey} per edge.
+ * @param first - The run's first edge counter.
+ * @param count - How many edges it holds.
+ * @returns The key, `e+:<first>:<count>`.
+ */
+const edgeRangeKey = (first: number, count: number): string => `e+:${String(first)}:${String(count)}`;
+
+/**
+ * Whether a lane key names edges: one ({@link edgeKey}) or a run ({@link edgeRangeKey}).
+ * @param key - The lane key.
+ * @returns True for an edge key.
+ */
+export const namesEdges = (key: string): boolean => key.startsWith("e:") || key.startsWith("e+:");
+
+/**
+ * Call `visit` with each edge id a lane key names: one for an edge key, every id of a range key,
+ * none for any other key.
+ * @param key - The lane key.
+ * @param visit - Called per edge id.
+ */
+export function forEachEdgeOfKey(key: string, visit: (id: EdgeId) => void): void {
+    if (key.startsWith("e:")) {
+        visit(key.slice(2));
+    } else if (key.startsWith("e+:")) {
+        const [first, count] = key.slice(3).split(":").map(Number);
+        for (let at = 0; at < count; at++) {
+            visit(edgeIdOf(first + at));
+        }
+    }
+}
 
 /** The lane key marking that node rows were added: a forward pass starts the layout and frames. */
 export const NODES_ADDED = "rows:nodes";
@@ -514,6 +554,26 @@ export class GraphOps {
      */
     touch(key: string): void {
         this.home.touch(key);
+    }
+
+    /**
+     * Whether a forward add marks its edges as one range key (the `"batched"` render path).
+     * @returns True when it does.
+     */
+    get touchesRanges(): boolean {
+        return this.home.touchLater !== undefined && this.home.batched?.() === true;
+    }
+
+    /**
+     * Mark a key whose text is read when the next pass starts.
+     * @param key - Gives the key.
+     */
+    touchLater(key: () => string): void {
+        if (this.home.touchLater === undefined) {
+            this.home.touch(key());
+        } else {
+            this.home.touchLater(key);
+        }
     }
 
     /**
@@ -1272,6 +1332,8 @@ class Writer implements GraphWriter {
     /** The fields this command's writes bumped already: each moves once per command. */
     private readonly bumped = bumped();
     private begun = false;
+    /** The run of consecutive edges marked as one range key; see `extendRun`. */
+    private run: { readonly first: number; count: number; read: boolean } | null = null;
 
     constructor(
         private readonly graph: GraphOps,
@@ -1339,11 +1401,16 @@ class Writer implements GraphWriter {
         }
 
         bumpFields(this.store, "edge", undefined, record, this.bumped);
+        const ranged = this.entry !== null && this.graph.touchesRanges;
         this.record(
             { kind: "edge", edgeId, source, target, weight, record, created, fileId },
-            edgeKey(edgeIdOf(edgeId)),
+            ranged ? null : edgeKey(edgeIdOf(edgeId)),
             EDGES_ADDED,
         );
+        if (ranged) {
+            this.extendRun(edgeId);
+        }
+
         return { index, edgeId };
     }
 
@@ -1562,6 +1629,26 @@ class Writer implements GraphWriter {
         return { nodes: rows.nodes.map((node) => node.id), edges: rows.edges.map((edge) => edgeIdOf(edge.edgeId)) };
     }
 
+    /**
+     * Add an edge to the run of consecutive edges this writer is marking as one range key, or
+     * start a new run when it does not follow on or a pass already read the run's key.
+     * @param edgeId - The edge's counter.
+     */
+    private extendRun(edgeId: number): void {
+        const { run } = this;
+        if (run !== null && !run.read && edgeId === run.first + run.count) {
+            run.count++;
+            return;
+        }
+
+        const next = { first: edgeId, count: 1, read: false };
+        this.run = next;
+        this.graph.touchLater(() => {
+            next.read = true;
+            return edgeRangeKey(next.first, next.count);
+        });
+    }
+
     /** Before the first write: a fresh token, and the entry a recorded writer logs into. */
     private begin(): void {
         if (this.begun) {
@@ -1582,16 +1669,19 @@ class Writer implements GraphWriter {
     /**
      * Keep an op in the entry, and mark its key dirty, when the writer records.
      * @param op - The op.
-     * @param key - Its lane key.
+     * @param key - Its lane key, or null when the caller marks it (an edge in a range).
      * @param rows - The key marking the rows it added, or null.
      */
-    private record(op: GraphOp, key: string, rows: string | null): void {
+    private record(op: GraphOp, key: string | null, rows: string | null): void {
         if (this.entry === null) {
             return;
         }
 
         this.entry.push(op);
-        this.graph.touch(key);
+        if (key !== null) {
+            this.graph.touch(key);
+        }
+
         if (rows !== null) {
             this.graph.touch(rows);
         }

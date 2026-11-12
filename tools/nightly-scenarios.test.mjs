@@ -1135,7 +1135,7 @@ describe("the nightly path's static rules", () => {
 
     // 2026-10-29/30 (#5052): a4c81c3 was held red by workflow skew alone (#4522); the green-images runs on e87f65b and
     // 6ee5bc7 could not hold, nightly sat 18 hours, and the owner was never offered a review
-    describe("(19) a red hold is replaced by a newer green run, never a hold awaiting the owner's review", () => {
+    describe("(19) a held head is replaced by a newer green run, even one awaiting the owner's review", () => {
         const A = "a4c81c3".padEnd(40, "0");
         const E = "e87f65b".padEnd(40, "0");
         const S = "6ee5bc7".padEnd(40, "0");
@@ -1160,18 +1160,27 @@ describe("the nightly path's static rules", () => {
             ran(r, "slot");
             assert.match(slotFacts(r).cause, /^waiting on the owner's screenshot review of e87f65b$/);
         });
-        it("green-images on 6ee5bc7 behind e87f65b awaiting review: nothing replaced, the review stays pending", () => {
+        // 2026-11-09 (#6604): three green runs waited 23 hours behind one held review; a newer green run replaces it
+        it("green-images on 6ee5bc7 behind e87f65b awaiting review: that hold ends and 6ee5bc7 is reviewed instead", () => {
             const r = fullRun({
                 pick: { sha: S, held: E },
                 judged: { held: E, heldState: "green-images", images: 4 },
             });
             const v = r.jobs.verdict;
-            assert.deepEqual([v.outputs.hold, v.outputs.replaced ?? ""], ["none", ""]);
-            assert.ok(!stepRan(r, "verdict", "hold"));
-            skipped(r, "keep_builds", "candidate_branch");
+            assert.deepEqual([v.outputs.state, v.outputs.hold, v.outputs.replaced], ["green-images", "start", E]);
+            ran(r, "keep_builds", "candidate_branch");
+            const b = r.jobs.candidate_branch.steps["Push channel/candidate"].env;
+            assert.deepEqual([b.REPLACED, b.HOLD, b.SHA], [E, "start", S], "e87f65b's branch goes, 6ee5bc7's comes");
             const ann = v.steps["Announce a red run, an owner item or changed screenshots"];
-            assert.equal(ann.env.HOLD ?? "", "", "not announced as held: release-status says it is not");
-            assert.match(slotFacts(r).cause, /review of the held e87f65b/);
+            assert.equal(ann.env.HOLD, "start", "announced as held, so the owner reviews the newest candidate");
+            assert.match(slotFacts(r).cause, /^waiting on the owner's screenshot review of 6ee5bc7$/);
+        });
+        it("green-clean behind a hold awaiting review: the hold ends and the commit promotes (#6604)", () => {
+            const r = fullRun({ pick: { sha: S, held: E }, judged: { held: E, heldState: "green-images" } });
+            const v = r.jobs.verdict;
+            assert.deepEqual([v.outputs.hold, v.outputs.replaced], ["replace", E]);
+            assert.equal(v.outputs.promote, "true");
+            ran(r, "version", "land", "candidate_branch");
         });
         it("green-clean behind the red hold: the hold ends, the commit promotes, the missed-slot alarm closes", () => {
             const r = fullRun({ pick: { sha: E, held: A }, judged: { held: A, heldState: "red" } });

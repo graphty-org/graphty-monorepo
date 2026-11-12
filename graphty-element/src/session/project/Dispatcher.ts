@@ -109,6 +109,8 @@ interface CommandServices {
     config?: () => ProjectConfig;
     /** Whether the timeline experiment is on; absent reads on, as a store with no session has no switch. */
     timeline?: () => boolean;
+    /** Whether the rows are drawn on the `"batched"` render path; absent reads `false`. */
+    batched?: () => boolean;
     /** Whether the file styles experiment is on; absent reads on, as a store with no session has no switch. */
     fileStyles?: () => boolean;
     /**
@@ -929,6 +931,10 @@ export class Dispatcher {
             strict: this.strict,
             session: true,
             countsRewrites: () => this.services.timeline?.() === true,
+            batched: () => this.services.batched?.() === true,
+            touchLater: (key) => {
+                this.lane.touchLater("graph", key);
+            },
         });
         this.events = { ...options.events };
         // A pass with no commit behind it (a deferred repaint, an import's end) is owed an event

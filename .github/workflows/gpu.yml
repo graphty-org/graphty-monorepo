@@ -244,20 +244,12 @@ jobs:
             - run: pnpm install --frozen-lockfile
               working-directory: .
               env: { HUSKY: "0" }
-            - name: Build the package and what it depends on (nx follows ^build, so layout builds through its real edge; the negated implicit dependency keeps algorithms out)
-              run: pnpm exec nx run-many -t build --projects=graph-format,webgpu-graph-algorithms
-              working-directory: .
-            - name: Adapter report (fails loudly on a software adapter; samples GPU utilisation for 10 s)
-              run: node scripts/gpu-report.js > gpu-report.json && cat gpu-report.json # no pipe into tee: the report's non-zero exit must reach the step
-            - name: graph-format GPU audit on NVIDIA (canary)
-              if: ${{ !inputs.files }}
-              working-directory: graph-format
-              run: pnpm exec vitest run test/audit/gpu-upload.test.ts 2>&1 | tee canary.log && grep -q "adapter vendor=nvidia" canary.log # the audit skips on acquisition failure; the grep turns a skip or a lavapipe pick into a red step
             # A forked vitest worker that crashes must not spend minutes writing a multi-gigabyte core dump.
             # scripts/run-node-shard.js runs vitest under `ulimit -c 0`, but the kernel ignores RLIMIT_CORE when
             # core_pattern pipes to a program (core(5)); a plain file pattern makes the limit bind. core_pattern is
             # global to the host; the job container is --privileged (above), so /proc/sys is writable from inside it
-            # and the write reaches the host's kernel. Issue #273.
+            # and the write reaches the host's kernel. Issue #273. It runs before the nx build so a crash there
+            # leaves a core in the working directory instead of going to the host's apport (issue #6728).
             - name: Write core dumps to a file so the shard's ulimit -c 0 holds
               run: |
                   echo "core_pattern was $(cat /proc/sys/kernel/core_pattern)"
@@ -265,6 +257,38 @@ jobs:
                   sysctl -w kernel.core_pattern=core
                   [ "$(cat /proc/sys/kernel/core_pattern)" = core ] \
                     || { echo "::error::kernel.core_pattern is still $(cat /proc/sys/kernel/core_pattern): the container is not privileged and issue #273's guard does not hold"; exit 1; }
+            # nx was killed by SIGSEGV here once (run 43073891211, 1.2 s in, no output) and passed on the re-run; a
+            # one-off left nothing to name the cause (issue #6728). The build may dump core, and when it crashes the
+            # next step prints every thread's backtrace and keeps the core, so the next crash names the frame.
+            - name: Build the package and what it depends on (nx follows ^build, so layout builds through its real edge; the negated implicit dependency keeps algorithms out)
+              id: nx-build
+              run: |
+                  ulimit -c unlimited
+                  pnpm exec nx run-many -t build --projects=graph-format,webgpu-graph-algorithms
+              working-directory: .
+            - name: Backtrace of a crashed nx build (issue #6728)
+              if: ${{ failure() && steps.nx-build.outcome == 'failure' }}
+              working-directory: .
+              run: |
+                  ls -l core* 2>/dev/null || { echo "no core file: nx failed without dumping core"; exit 0; }
+                  node --version; ls node_modules/.pnpm | grep -E '^@nx\+nx-linux' || true
+                  apt-get install -y --no-install-recommends gdb >/dev/null || { apt-get update >/dev/null && apt-get install -y --no-install-recommends gdb >/dev/null; }
+                  for c in core*; do gdb -batch -ex 'info sharedlibrary' -ex 'thread apply all bt' "$(command -v node)" "$c"; done
+            - uses: actions/upload-artifact@v7
+              if: ${{ failure() && steps.nx-build.outcome == 'failure' }}
+              with:
+                  {
+                      name: "nx-build-core-${{ github.run_id }}-${{ github.run_attempt }}",
+                      path: "core*",
+                      retention-days: 14,
+                      if-no-files-found: ignore,
+                  }
+            - name: Adapter report (fails loudly on a software adapter; samples GPU utilisation for 10 s)
+              run: node scripts/gpu-report.js > gpu-report.json && cat gpu-report.json # no pipe into tee: the report's non-zero exit must reach the step
+            - name: graph-format GPU audit on NVIDIA (canary)
+              if: ${{ !inputs.files }}
+              working-directory: graph-format
+              run: pnpm exec vitest run test/audit/gpu-upload.test.ts 2>&1 | tee canary.log && grep -q "adapter vendor=nvidia" canary.log # the audit skips on acquisition failure; the grep turns a skip or a lavapipe pick into a red step
             # Every node project goes through scripts/run-node-shard.js: it forwards every argument, exits with
             # vitest's own code, and on a non-zero exit or 90 seconds of silence prints the test files that started
             # but never reported, the process table and a Node diagnostic report per surviving process (G4-F14).

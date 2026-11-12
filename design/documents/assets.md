@@ -12,7 +12,7 @@ in [container.md](container.md); edge-case rulings are rows of [conformance.md](
 interface AssetsMember {
     kind: "graphty-assets";
     version: 1;
-    assets: AssetEntry[]; // one per model a layer names; at least one
+    assets: AssetEntry[]; // one per model a layer names or the session holds accepted; at least one
     extensions?: Record<string, unknown>;
 }
 
@@ -25,6 +25,7 @@ interface AssetEntry {
     stored?: "url"; // kept by URL: no files; source is required
     files?: AssetFile[]; // absent (and not stored by URL): the files of the earlier entry with the same sha256
     skipped?: string[]; // parts drawn without: pictures and .mtl files, by path in the set; not in the digest
+    plainName?: string; // the reader's name for it (assets.rename), at most 256 characters; not in the digest
 }
 
 interface AssetFile {
@@ -71,7 +72,8 @@ digest, so the same files have the same id in every file and every release.
 
 1. A writer embeds every model a node style layer names: the `node.model` of its `set`, and every
    asset id (or URL the session holds) an encoding of `node.model` lists. Layers that are switched
-   off count.
+   off count. Every other model the session holds accepted is embedded too, by its id, so a model
+   added to the project for later is kept.
 2. Files are written exactly as the session holds them: the set as given, after its paths were
    normalized and the one folder every file shared was removed. Nothing is converted, so ids stay
    stable.

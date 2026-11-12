@@ -10,7 +10,6 @@ import { useLeftPanel } from "../assistant-door/leftPanel";
 import { AutosaveChip } from "../autosave/AutosaveChip";
 import { CanvasMenu } from "../canvas/CanvasMenu";
 import { CanvasOverlays } from "../canvas/CanvasOverlays";
-import { useCanvasDrop } from "../canvas/useCanvasDrop";
 import { DataPage } from "../data-page/DataPage";
 import { DataPlace } from "../data-place/DataPlace";
 import { selectionWorkspaceOn } from "../features";
@@ -33,6 +32,7 @@ import { Header } from "./Header";
 import { NoticeSlot } from "./NoticeSlot";
 import { PanelBoundary } from "./PanelBoundary";
 import { Rail } from "./Rail";
+import { SiteChip } from "./SiteChip";
 import { WebGpuChip } from "./WebGpuChip";
 
 /** What each rail place draws in the left panel. */
@@ -61,7 +61,6 @@ interface FrameProps {
  */
 export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Element {
     const { store, element, session } = useWorkspace();
-    const canvasDrop = useCanvasDrop();
     const projectId = useWorkspaceState((state) => state.project?.id ?? 0);
     const page = useWorkspaceState((state) => state.page);
     const place = useWorkspaceState((state) => state.place);
@@ -161,7 +160,6 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         className="ws-canvas"
                         aria-label="Graph drawing"
                         data-testid="canvas"
-                        {...canvasDrop}
                         inert={dockOpen && dockMaximized}
                     >
                         <CanvasMenu>
@@ -245,7 +243,8 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 )}
             </div>
             {/* State the reader reads rather than acts on: the autosave state (with the workspace's
-                polite status region), whether WebGPU is on, and the privacy chip. */}
+                polite status region), whether WebGPU is on, the site when it is canary or
+                nightly, and the privacy chip. */}
             <StatusBar
                 role="contentinfo"
                 aria-label="Status"
@@ -253,6 +252,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     <>
                         <AutosaveChip />
                         <WebGpuChip />
+                        <SiteChip />
                     </>
                 }
                 right={<PrivacyChip />}

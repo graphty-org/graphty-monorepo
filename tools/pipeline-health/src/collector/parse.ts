@@ -361,6 +361,11 @@ export interface RunnerUse {
     queued: number;
     /** Linux and Windows jobs waiting for a runner (status "queued") over 2 minutes, and runs queued with no jobs. */
     queuedOver2: number;
+    /**
+     * Linux and Windows jobs "queued" over 2 minutes that wait on their own workflow, not on GitHub: a job created
+     * later already holds a runner, so a runner was free. A matrix job held back by its `max-parallel` reads "queued".
+     */
+    heldByRun: number;
     longestQueuedMs: number;
 }
 
@@ -383,15 +388,20 @@ export function waitsForRunner(j: GhJob, nowMs: number): boolean {
  * @param j - the job
  * @param p - the job's pool
  * @param nowMs - the current epoch ms
+ * @param newestRunning - the creation epoch ms of the newest Linux or Windows job that holds a runner
  */
-function countWaiting(use: RunnerUse, j: GhJob, p: JobItem["pool"], nowMs: number): void {
+function countWaiting(use: RunnerUse, j: GhJob, p: JobItem["pool"], nowMs: number, newestRunning: number): void {
     if (p === "other") {
         return;
     } // machine.dev and self-hosted pools are outside GitHub's limit
     const age = nowMs - Date.parse(j.created_at);
     use.queued++;
     if (waitsForRunner(j, nowMs)) {
-        use.queuedOver2++;
+        if (Date.parse(j.created_at) < newestRunning - 2 * MIN) {
+            use.heldByRun++;
+        } else {
+            use.queuedOver2++;
+        }
     }
     use.longestQueuedMs = Math.max(use.longestQueuedMs, age);
 }
@@ -408,8 +418,17 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
         running: { linux_windows: 0, macos: 0, other: 0 },
         queued: 0,
         queuedOver2: 0,
+        heldByRun: 0,
         longestQueuedMs: 0,
     };
+    // ponytail: assumes GitHub hands Linux runners out roughly first come, first served; a job created over 2 minutes
+    // after a queued one that already runs means runners were free. Exact per-matrix max-parallel needs the workflow files.
+    const newestRunning = Math.max(
+        0,
+        ...jobs
+            .filter((j) => j.status === "in_progress" && pool(j.labels) === "linux_windows")
+            .map((j) => Date.parse(j.created_at)),
+    );
     for (const j of jobs) {
         const p = pool(j.labels);
         if (j.status === "in_progress") {
@@ -418,7 +437,7 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
                 use.running.linux_windows++;
             } // a macOS job counts against the 60 too
         } else if (j.status === "queued" || j.status === "waiting" || j.status === "pending") {
-            countWaiting(use, j, p, nowMs);
+            countWaiting(use, j, p, nowMs, newestRunning);
         }
     }
     for (const r of runsWithoutJobs) {

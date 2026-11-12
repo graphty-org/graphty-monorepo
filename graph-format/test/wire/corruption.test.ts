@@ -380,17 +380,23 @@ describe("core data corruption", () => {
     });
 
     it("unsorting a row fails full validation with I4 and passes structure", () => {
-        const start = segmentStart(bytes, "colIdx");
-        const row = Array.from(s.colIdx.subarray(s.rowPtr[0], s.rowPtr[1]));
-        expect(row.length).toBeGreaterThan(1);
-        const unsorted = bytes.slice();
-        const view = new Uint32Array(unsorted.buffer, start, s.arcCount);
-        view[s.rowPtr[0]] = row[row.length - 1];
-        view[s.rowPtr[1] - 1] = row[0];
-        if (row[0] !== row[row.length - 1]) {
-            expect(expectError(() => fromBytes(unsorted), "E_INVALID_SNAPSHOT").details.invariant).toBe("I4");
-        }
-        expect(fromBytes(unsorted, { validate: "structure" }).nodeCount).toBe(4);
+        // the rich fixture has no row with two different targets, so use row 0 = [1, 2, 3]
+        const b = new GraphBuilder({ directed: true });
+        b.addNodes([0, 1, 2, 3]);
+        b.addEdge(0, 1);
+        b.addEdge(0, 2);
+        b.addEdge(0, 3);
+        const fan = b.freeze();
+        const fanBytes = fan.toBytes();
+        expect(Array.from(fan.colIdx.subarray(fan.rowPtr[0], fan.rowPtr[1]))).toEqual([1, 2, 3]);
+        const unsorted = fanBytes.slice();
+        const view = new Uint32Array(unsorted.buffer, segmentStart(fanBytes, "colIdx"), fan.arcCount);
+        view[0] = 3;
+        view[2] = 1;
+        expect(unsorted).not.toEqual(fanBytes);
+        const error = expectError(() => fromBytes(unsorted), "E_INVALID_SNAPSHOT");
+        expect(error.details).toMatchObject({ invariant: "I4", row: 0 });
+        expect(Array.from(fromBytes(unsorted, { validate: "structure" }).colIdx)).toEqual([3, 2, 1]);
     });
 
     it("breaking a permutation fails full validation with I5 or I6", () => {

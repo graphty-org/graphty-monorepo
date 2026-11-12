@@ -335,16 +335,39 @@ export function planUpload(s: GraphSnapshot, caps: PlanCaps, need: readonly Core
     if (names.includes("edgeToArc") && !fits(lengths.edgeToArc)) {
         throw tooLarge(lengths.edgeToArc, violated(lengths.edgeToArc), "binding");
     }
-    const arcsPerWindow = Math.min(arcsPerWindowFor(limits), alignDown(Math.floor(bufferLimit / 4)));
-    if (arcsPerWindow < ARC_WINDOW_ALIGN) {
-        throw tooLarge(4 * ARC_WINDOW_ALIGN, binding, "binding");
-    }
-    const windows = planArcWindows(s.rowPtr, s.arcCount, arcsPerWindow);
-    const { buffers, placed } = placeWindows(windows, 4 * s.arcCount, bufferLimit);
+    const { buffers, windows, arcsPerWindow } = planWindowLayout(s.rowPtr, s.arcCount, limits);
     const arrays: PlannedArray[] = names.map((name) =>
         ARC_INDEXED.has(name)
             ? { name, byteLength: lengths[name], buffers }
             : { name, byteLength: lengths[name], buffers: [{ byteOffset: 0, byteLength: lengths[name] }] },
     );
-    return { kind: "windowed", arrays, windows: placed, arcsPerWindow };
+    return { kind: "windowed", arrays, windows, arcsPerWindow };
+}
+
+/**
+ * The windows of one CSR adjacency and the buffer ranges its arc-indexed arrays are split into (pure): the windowed
+ * tail of planUpload, shared with the residency's windowed reverse adjacency (issue #471), whose rowPtr is the
+ * reverse's own.
+ * @param rowPtr - nodeCount + 1 row offsets (rowPtr[nodeCount] === arcCount)
+ * @param arcCount - the arc count
+ * @param limits - the device limits
+ * @returns the buffer ranges, the placed windows and the arcs per window; E_TOO_LARGE when a binding holds fewer than
+ *   ARC_WINDOW_ALIGN arcs
+ */
+export function planWindowLayout(
+    rowPtr: Uint32Array,
+    arcCount: number,
+    limits: PlanLimits,
+): { readonly buffers: BufferRange[]; readonly windows: ArcWindow[]; readonly arcsPerWindow: number } {
+    const bufferLimit = limits.maxBufferSize;
+    const arcsPerWindow = Math.min(arcsPerWindowFor(limits), alignDown(Math.floor(bufferLimit / 4)));
+    if (arcsPerWindow < ARC_WINDOW_ALIGN) {
+        throw tooLarge(4 * ARC_WINDOW_ALIGN, limits.maxStorageBufferBindingSize, "binding");
+    }
+    const { buffers, placed } = placeWindows(
+        planArcWindows(rowPtr, arcCount, arcsPerWindow),
+        4 * arcCount,
+        bufferLimit,
+    );
+    return { buffers, windows: placed, arcsPerWindow };
 }

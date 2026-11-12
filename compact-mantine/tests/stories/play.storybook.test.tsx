@@ -1,5 +1,6 @@
 import { composeStories, type Meta, setProjectAnnotations, type StoryFn } from "@storybook/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { userEvent as storyUserEvent } from "storybook/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
 import preview from "../../.storybook/preview";
@@ -19,6 +20,13 @@ import { AXE_EXCEPTIONS, axeFindings, OFF_BY_DESIGN } from "../a11y/axe";
 // Real input for the play functions (stories/helpers/real-input.ts): Playwright drives the browser,
 // so a scrub or a key press is a trusted event with pointer capture and hit testing, as a reader's is.
 setProjectAnnotations([preview, { parameters: { realInput: { userEvent, commands } } }]);
+
+// Real input for every play function's `userEvent` (vitest.real-user-event.mjs at the root): Playwright drives the
+// browser, as a reader's mouse and keyboard do. Storybook's own UI keeps its replay.
+vi.mock("storybook/test", async (importOriginal) => {
+    const { withRealUserEvent } = await import("../../../vitest.real-user-event.mjs");
+    return withRealUserEvent(await importOriginal(), (await import("vitest/browser")).userEvent);
+});
 
 const MODULES = import.meta.glob<Record<string, StoryFn> & { default: Meta }>(
     // a brace list, not an extglob @(js|...): Vite 8 matches no file with an extglob
@@ -53,4 +61,16 @@ describe.each(Object.entries(MODULES))("%s", (_file, module) => {
         const off = [...(OFF_BY_DESIGN[module.default.title ?? ""] ?? []), ...(AXE_EXCEPTIONS[Story.id]?.rules ?? [])];
         expect(await axeFindings("figma", off)).toEqual([]);
     });
+});
+
+// The play functions' `userEvent` is the mocked one: a click it makes is the browser's own.
+it("a play function's userEvent clicks with the browser's own pointer", async () => {
+    const button = document.createElement("button");
+    button.textContent = "Press";
+    document.body.appendChild(button);
+    const clicked = new Promise<boolean>((resolve) => {
+        button.addEventListener("click", (event) => resolve(event.isTrusted), { once: true });
+    });
+    await storyUserEvent.click(button);
+    expect(await clicked).toBe(true);
 });

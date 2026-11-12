@@ -476,6 +476,7 @@ async function graphtyAdapter({
     glyphs,
     curves,
     threeD,
+    columns,
     renderPath,
     renderer,
     antialias,
@@ -534,10 +535,23 @@ async function graphtyAdapter({
             acceleration: el.session.capabilities.acceleration,
         }),
         async load() {
-            const nodes = new Array(G.n);
-            for (let i = 0; i < G.n; i++) nodes[i] = { id: i, position: { x: G.xy[2 * i], y: G.xy[2 * i + 1], z: 0 } };
-            const edges = new Array(G.m);
-            for (let e = 0; e < G.m; e++) edges[e] = { src: G.src[e], dst: G.dst[e] };
+            let nodes = null,
+                edges = null,
+                positions = null;
+            if (columns) {
+                // The typed arrays cosmos.gl gets: zero-based endpoints and x, y, z per node.
+                positions = new Float32Array(3 * G.n);
+                for (let i = 0; i < G.n; i++) {
+                    positions[3 * i] = G.xy[2 * i];
+                    positions[3 * i + 1] = G.xy[2 * i + 1];
+                }
+            } else {
+                nodes = new Array(G.n);
+                for (let i = 0; i < G.n; i++)
+                    nodes[i] = { id: i, position: { x: G.xy[2 * i], y: G.xy[2 * i + 1], z: 0 } };
+                edges = new Array(G.m);
+                for (let e = 0; e < G.m; e++) edges[e] = { src: G.src[e], dst: G.dst[e] };
+            }
             let tLoaded = null,
                 tStable = null,
                 tFirst = null;
@@ -550,8 +564,15 @@ async function graphtyAdapter({
             );
             const t0 = now();
             try {
-                el.nodeData = nodes;
-                el.edgeData = edges;
+                if (columns) {
+                    // Not awaited, as the record doors are not: the first frame is what is timed.
+                    el.session.data
+                        .importColumns({ nodeCount: G.n, sources: G.src, targets: G.dst, positions })
+                        .catch((e) => errors.push(String(e?.code ?? "") + " " + String(e?.message ?? e)));
+                } else {
+                    el.nodeData = nodes;
+                    el.edgeData = edges;
+                }
             } catch (e) {
                 return { error: String(e?.code ?? "") + " " + String(e?.message ?? e) };
             }
@@ -682,6 +703,7 @@ async function graphtyAdapter({
             return out;
         },
         async layoutFps(count, capMs) {
+            const tCall = now();
             await el.setLayout("ngraph");
             const t0 = now();
             // wait for the engine to exist
@@ -702,6 +724,10 @@ async function graphtyAdapter({
                 ...(st.length > 2 ? stats(intervals(st)) : { n: st.length - 1 }),
                 frames: st.length - 1,
                 setupMs: +(t - t0).toFixed(0),
+                // From the setLayout call to the first frame drawn after the engine exists: what a
+                // reader waits between starting the layout and seeing it run.
+                setLayoutMs: +(t0 - tCall).toFixed(0),
+                startToFirstFrameMs: st.length ? +(st[0] - tCall).toFixed(0) : null,
                 engine: eng?.type,
                 accelerated: eng?.isAccelerated ?? false,
                 iterationsPerSec: it0 === null ? null : +((it1 - it0) / ((now() - t) / 1000)).toFixed(1),

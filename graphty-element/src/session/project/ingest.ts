@@ -145,6 +145,20 @@ export function isStorableId(id: unknown): id is string | number {
 }
 
 /**
+ * The options an `add-edges` mutation names, with the ones it leaves out absent.
+ * @param mutation - The mutation.
+ * @returns The options.
+ */
+function addEdgesOptions(mutation: Extract<DataMutation, { kind: "add-edges" }>): AddEdgesOptions {
+    return {
+        ...(mutation.source === undefined ? {} : { source: mutation.source }),
+        ...(mutation.target === undefined ? {} : { target: mutation.target }),
+        ...(mutation.repeated === undefined ? {} : { repeated: mutation.repeated }),
+        ...(mutation.weight === undefined ? {} : { weight: mutation.weight }),
+    };
+}
+
+/**
  * Whether a weight can be STORED: the snapshot keeps its arc weights as f32, so a finite double
  * above the f32 range (about 3.4e38) would become Infinity there, and every algorithm that needs
  * finite weights would refuse the whole graph. Such a weight is treated like an infinite one.
@@ -489,6 +503,18 @@ function tablesOf(command: DataImportCommand): readonly string[] {
     return Object.freeze([...(command.tables ?? (command.source.name === undefined ? [] : [command.source.name]))]);
 }
 
+/** The ordered pairs a batched load stored; see `Ingest.storedPairs`. */
+interface StoredPairs {
+    /** The store the edges are in. */
+    readonly store: GraphStore;
+    /** The load they belong to, or null for one batch outside a load. */
+    readonly load: ImportTally | null;
+    /** How many edges the store held after the last one stored here. */
+    edges: number;
+    /** The target ids stored from each source id. */
+    readonly bySource: Map<NodeIdType, Set<NodeIdType>>;
+}
+
 /**
  * Turns node and edge records, and whole data sources, into the graph a host holds.
  *
@@ -505,6 +531,15 @@ export class Ingest<K extends KnownEdge> {
      * `knownFields.edgeIdPath` names one. Empty when it does not, which is the default.
      */
     private readonly edgesByRecordId = new Map<string | number, number>();
+
+    /**
+     * On the "batched" render path, every ordered pair the batch (or the load) in progress stored,
+     * kept while those are ALL the edges the store holds. A record whose pair is not in it repeats
+     * nothing, so the host is asked for the edges between a pair only for a real repeat, rather
+     * than per edge, which walks the builder's adjacency (0.7-1.0 s at 100k nodes + 1M edges).
+     * Null on the "objects" path and whenever the store held edges this ingest did not store.
+     */
+    private storedPairs: StoredPairs | null = null;
 
     /**
      * The endpoint expressions the load in progress resolved, so a chunked load probes ONCE.
@@ -613,6 +648,7 @@ export class Ingest<K extends KnownEdge> {
     /** Forget everything about the graph that was: called when the host discards its store. */
     reset(): void {
         this.edgesByRecordId.clear();
+        this.storedPairs = null;
     }
 
     /**
@@ -645,15 +681,7 @@ export class Ingest<K extends KnownEdge> {
                     this.applyDeclaredDirection("data.apply", { directed, statedBy, conflictingEdges: 0 }, writer);
                 }
 
-                this.addEdges(
-                    mutation.records,
-                    {
-                        ...(mutation.source === undefined ? {} : { source: mutation.source }),
-                        ...(mutation.target === undefined ? {} : { target: mutation.target }),
-                        ...(mutation.repeated === undefined ? {} : { repeated: mutation.repeated }),
-                    },
-                    writer,
-                );
+                this.addEdges(mutation.records, addEdgesOptions(mutation), writer);
                 return;
             case "set-attributes":
                 for (const id of mutation.ids) {
@@ -970,6 +998,7 @@ export class Ingest<K extends KnownEdge> {
             supplied: this.supplied,
         };
         this.loadTally = null;
+        this.storedPairs = null;
         this.loadEndpoints = null;
         this.loadMadeEndpoints.clear();
         this.leaveOutUnmatched = false;
@@ -1191,6 +1220,7 @@ export class Ingest<K extends KnownEdge> {
         const legacyFallback = options?.weight === undefined;
         const tally = this.loadTally ?? newImportTally();
         let legacyWeights = 0;
+        this.storedPairs = this.pairsFor();
 
         // Decided before any record is stored: a batch the renderer cannot hold is refused whole,
         // so a caller never finds the first part of it held and the rest missing.
@@ -1329,6 +1359,7 @@ export class Ingest<K extends KnownEdge> {
         }
 
         batch.ownEdges?.add(edgeIndex);
+        this.notePair(srcNodeId, dstNodeId, writer.store);
         tally.edgeIds.push(edgeIdOf(edgeId));
         this.noteSupplied(edgeIdOf(edgeId), srcNodeId, dstNodeId);
         this.host.edgeStored({ record, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId });
@@ -1568,6 +1599,55 @@ export class Ingest<K extends KnownEdge> {
     }
 
     /**
+     * The pair map a batch starting now may use: the load's own while the store holds exactly the
+     * edges it stored, a new one when the store holds no edge, else none.
+     * @returns the map, or null to ask the host per pair
+     */
+    private pairsFor(): StoredPairs | null {
+        if (this.host.batched?.() !== true) {
+            return null;
+        }
+
+        const store = this.host.store();
+        const edges = store.builder.edgeCount;
+        const held = this.storedPairs;
+        // Outside a load each batch starts its own: between two pushes anything may write edges.
+        if (
+            held !== null &&
+            this.loadTally !== null &&
+            held.load === this.loadTally &&
+            held.store === store &&
+            held.edges === edges
+        ) {
+            return held;
+        }
+
+        return edges === 0 ? { store, load: this.loadTally, edges: 0, bySource: new Map() } : null;
+    }
+
+    /**
+     * Remember the pair an edge was stored between, when a pair map is kept.
+     * @param sourceId - its source
+     * @param targetId - its target
+     * @param store - the store it went into
+     */
+    private notePair(sourceId: NodeIdType, targetId: NodeIdType, store: GraphStore): void {
+        const pairs = this.storedPairs;
+        if (pairs === null) {
+            return;
+        }
+
+        pairs.edges = store.builder.edgeCount;
+        let targets = pairs.bySource.get(sourceId);
+        if (targets === undefined) {
+            targets = new Set();
+            pairs.bySource.set(sourceId, targets);
+        }
+
+        targets.add(targetId);
+    }
+
+    /**
      * The edge a record repeats, or null when it repeats none.
      * @param sourceId - the source endpoint id
      * @param targetId - the target endpoint id
@@ -1584,6 +1664,12 @@ export class Ingest<K extends KnownEdge> {
 
         // The oldest edge between the pair is the one a merge policy folds into, so that `first`
         // and `last` mean what they say when three records name one pair.
+        // A pair the map has never seen has no edge; one it has is asked of the host, which
+        // knows the oldest of them, built or pending. Only a real repeat pays that question.
+        if (this.storedPairs !== null && this.storedPairs.bySource.get(sourceId)?.has(targetId) !== true) {
+            return null;
+        }
+
         return this.host.edgesBetween(sourceId, targetId)[0] ?? null;
     }
 
@@ -2085,6 +2171,7 @@ export class Ingest<K extends KnownEdge> {
             // Whatever happened, this load is over: the next one probes for itself and counts into
             // its own tally.
             this.loadTally = null;
+            this.storedPairs = null;
             this.loadEndpoints = null;
             this.loadMadeEndpoints.clear();
         }

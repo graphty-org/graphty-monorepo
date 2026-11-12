@@ -1,0 +1,159 @@
+{
+    "selfContained": ["shaders"],
+    "exceptions": [
+        {
+            "kind": "palette",
+            "paths": ["graphty-style.layers[].encode.node.color.palette"],
+            "catalogs": ["palettes"],
+            "issue": 6500,
+            "finding": "A binding names a built-in palette by bare id; only registered palettes are carried, so removing a built-in palette changes the colors of every file that named it."
+        },
+        {
+            "kind": "scale",
+            "paths": [],
+            "catalogs": ["scales"],
+            "issue": 6501,
+            "finding": "A binding names its scale (Binding.scale) by id, plugin scales included; the reading build must still have that scale."
+        },
+        {
+            "kind": "label-look",
+            "paths": [],
+            "catalogs": ["labelLooks"],
+            "issue": 6502,
+            "finding": "A label style names its look (LabelStyle.look: card, pill, ...) by id; removing a look changes old files' labels."
+        },
+        {
+            "kind": "node-shape",
+            "paths": ["graphty-style.layers[].set.node.shape"],
+            "catalogs": ["nodeShapes"],
+            "issue": 6503,
+            "finding": "node.shape, underlayShape, overlayShape and encode choices name built-in node shapes by id."
+        },
+        {
+            "kind": "edge-arrow-and-line",
+            "paths": [],
+            "catalogs": ["edgeArrows", "edgeLines"],
+            "issue": 6504,
+            "finding": "Arrowheads, edge.style and edge.outlineStyle name built-in arrowheads and line patterns by id."
+        },
+        {
+            "kind": "overflow-lists",
+            "paths": [],
+            "catalogs": ["overflowLists"],
+            "issue": 6505,
+            "finding": "An overflow policy (overflow: shape or pattern) steps through fixed lists in encoding.ts that the file does not carry; changing a list changes old files' drawings."
+        },
+        {
+            "kind": "closed-look-lists",
+            "paths": [],
+            "catalogs": [],
+            "issue": 6506,
+            "finding": "Border styles, chart kinds, stripe directions, route, support model, image fit and repeat, model fit, center and up axis are closed lists saved by name, with no catalog table; the scan does not list their ids yet."
+        },
+        {
+            "kind": "transition",
+            "paths": [],
+            "catalogs": ["transitions"],
+            "issue": 6507,
+            "finding": "layoutTransition in the configuration names a transition preset by id (glide)."
+        },
+        {
+            "kind": "sample-model",
+            "paths": [],
+            "catalogs": ["models"],
+            "issue": 6508,
+            "finding": "A node model saved as asset:sample/<name> names a shipped sample by name, and embedding one is refused."
+        },
+        {
+            "kind": "sample-source",
+            "paths": [],
+            "catalogs": ["generators", "datasets"],
+            "issue": 6509,
+            "finding": "A project's data source names a generator or dataset by name, resolved against the current generator catalog."
+        },
+        {
+            "kind": "row-template",
+            "paths": [],
+            "catalogs": ["rowTemplates"],
+            "issue": 6510,
+            "finding": "The Starting, Ghost and Pinned rows carry template ids that code branches on."
+        },
+        {
+            "kind": "algorithm",
+            "paths": [],
+            "catalogs": ["algorithms"],
+            "issue": 6511,
+            "finding": "Saved runs, run-on-load entries and filter measure leaves name an algorithm by key and run it again on open."
+        },
+        {
+            "kind": "layout",
+            "paths": ["graphty-session.layout.id"],
+            "catalogs": ["layouts"],
+            "issue": 6512,
+            "finding": "The layout is saved by id and engine and run again on open, plus the legacy layoutBehavior.type."
+        },
+        {
+            "kind": "basemap",
+            "paths": [],
+            "catalogs": ["basemaps"],
+            "issue": 6513,
+            "finding": "A map layout names its basemap by MapSourceId, and no map means the bundled world image."
+        },
+        {
+            "kind": "default-palette",
+            "paths": [],
+            "catalogs": [],
+            "issue": 6514,
+            "finding": "A binding naming no palette paints with the build's default (ylorbr, okabe-ito), which the file does not record."
+        },
+        {
+            "kind": "default-settings",
+            "paths": [],
+            "catalogs": [],
+            "issue": 6515,
+            "finding": "Settings equal to the default are omitted from the file and filled from the reader's defaults, so a changed default changes old files."
+        },
+        {
+            "kind": "style-tree-mode",
+            "paths": [],
+            "catalogs": [],
+            "issue": 6516,
+            "finding": "startingRows, editableBase and runPlacement are not saved, and the app reapplies them."
+        },
+        {
+            "kind": "edge-routes",
+            "paths": [],
+            "catalogs": [],
+            "issue": 6517,
+            "finding": "Graphviz edge routes are not saved; they are computed again on open."
+        },
+        {
+            "kind": "gazetteer",
+            "paths": [],
+            "catalogs": [],
+            "issue": 6518,
+            "finding": "Place names are looked up at a graphty.app URL when the layout reruns, so the file depends on that service."
+        },
+        {
+            "kind": "data-fingerprint",
+            "paths": [],
+            "catalogs": [],
+            "issue": 6519,
+            "finding": "Saved runs match data by an unversioned FNV-1a hash; a change to the hash orphans every saved run."
+        },
+        {
+            "kind": "project-format-tag",
+            "paths": ["graphty-data.format"],
+            "catalogs": ["formats"],
+            "issue": null,
+            "finding": "Not a dependency: the data member's own encoding tag (format json, dialect node-link), which projectFile.ts reads itself without the format catalog. Listed so that any other place a save names a format fails the scan."
+        }
+    ],
+    "notSaved": {
+        "logSinks": "never part of a file",
+        "shaderLibrary": "part of the graphty-shader 1 format, which carried text calls; shader-library.test.ts snapshots it",
+        "cameras": "camera presets are commands that move the camera; a saved view holds the camera's numbers, never a preset id",
+        "screenshotPresets": "settings for one capture; nothing a file saves names a preset"
+    },
+    "volatile": []
+}

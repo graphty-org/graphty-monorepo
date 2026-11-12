@@ -116,6 +116,14 @@ export const DEFAULT_LIMITS: Readonly<DefaultableLimits> = Object.freeze({
      * `exactComputationSeconds`, which is a duration and answers a different question.
      */
     approximateAboveNodes: 2_000,
+    /**
+     * The most nodes drawn as objects of their own on `render-path="batched"`; past it a row whose
+     * look no batch draws is drawn as a plain body. The default ceiling, so it cannot bind at the
+     * defaults.
+     */
+    objectRows: 100_000,
+    /** The most edges drawn as objects of their own on `render-path="batched"`. The default ceiling. */
+    objectEdges: 1_000_000,
 });
 
 /**
@@ -149,17 +157,18 @@ export function tooLargeError(
 }
 
 /**
- * The ceilings a consumer asks for through `limits`: the most nodes and edges a load may bring.
+ * The ceilings a consumer asks for through `limits`: the most nodes and edges a load may bring,
+ * and the most of each drawn as objects of their own (`objectRows`, `objectEdges`).
  *
  * Honored under `render-path="batched"`, whose rows cost no meshes of their own; under
  * `"objects"` the {@link DEFAULT_LIMITS} stand, because their reason (the heap a node of meshes
  * costs) still holds there. A field left out keeps its default.
  * @experimental cosmograph
  */
-export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn">>;
+export type LimitsOption = Partial<Pick<Limits, "renderCeiling" | "edgesDrawn" | "objectRows" | "objectEdges">>;
 
-/** The two fields of {@link LimitsOption}, in a fixed order. */
-const CEILING_KEYS = ["renderCeiling", "edgesDrawn"] as const;
+/** The fields of {@link LimitsOption}, in a fixed order. */
+const CEILING_KEYS = ["renderCeiling", "edgesDrawn", "objectRows", "objectEdges"] as const;
 
 /**
  * The ceilings asked for and the ceilings in force, which differ while they are not honored.

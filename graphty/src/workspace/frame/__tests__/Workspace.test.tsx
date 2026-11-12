@@ -200,9 +200,10 @@ describe("the workspace frame", () => {
             .getAllByRole("menuitem")
             .map(rowLabel);
         assert.equal(rows[0], "Back to start");
-        for (const name of ["New project", "Open project or file...", "Open sample", "Save as...", "Rename"]) {
+        for (const name of ["New project", "Open project or file...", "Save as...", "Rename"]) {
             assert.include(rows, name);
         }
+        assert.notInclude(rows, "Open sample");
         assert.lengthOf(new Set(rows), rows.length, rows.join(", "));
         await userEvent.keyboard("{Escape}");
 

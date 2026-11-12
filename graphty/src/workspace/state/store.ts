@@ -264,8 +264,9 @@ export interface WorkspaceState {
      */
     readonly legendAsked: boolean;
     /**
-     * Show all labels (section 2.7): off, a label that would overlap another is hidden. The
-     * reader's preference, not the project's; the element's tag carries it.
+     * Whether every label is drawn, overlapping or not (on by default, owner 2026-11-11); off
+     * (Graph settings' "Hide overlapping labels"), a label that would overlap another is hidden.
+     * The reader's preference, not the project's; the element's tag carries it.
      */
     readonly allLabelsShown: boolean;
     /**
@@ -416,7 +417,7 @@ const INITIAL: WorkspaceState = {
     legendShown: true,
     keyHasEntries: false,
     legendAsked: false,
-    allLabelsShown: false,
+    allLabelsShown: true,
     textNext: null,
     shaderNext: null,
     labelsAvoid: true,

@@ -161,4 +161,15 @@ describe("audit: a snapshot's id map survives every later builder mutation", () 
         expect(b.indexOf(3)).toBe(INVALID_INDEX);
         expect(b.hasNode(2)).toBe(true);
     });
+
+    it("keepIds lets anonymous nodes keep their ids through a compaction", () => {
+        const b = new GraphBuilder({ directed: false });
+        b.addAnonymousNodes(3);
+        b.keepIds();
+        b.removeNodeByIndex(0);
+        const s = b.freeze();
+        expect(s.ids.toArray()).toEqual([1, 2]);
+        expect(b.indexOf(2)).toBe(1);
+        expect(b.hasNode(0)).toBe(false);
+    });
 });

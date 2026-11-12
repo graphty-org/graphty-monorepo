@@ -181,7 +181,9 @@ describe("xgmmlExporter", () => {
         const notes = codes(first);
         const second = await again(first);
         const diffs = compareSnapshots(first, second, { tolerance: 1e-9 });
-        expect(notes.length > 0 || diffs.length === 0, describeDiffs(diffs)).toBe(true);
+        // This graph needs no announced loss, so the read-back must be identical.
+        expect(notes).toEqual([]);
+        expect(diffs, describeDiffs(diffs)).toEqual([]);
         expect(second.edgeCount).toBe(1);
         expect(second.directed).toBe(false);
     });
@@ -264,13 +266,8 @@ describe("xgmmlExporter", () => {
 
     it("round-trips the real Cytoscape 3.10 export of the yeast network", async () => {
         const path = new URL("../../conformance/fixtures/xgmml/leovan/yeast_perturbation.xgmml", import.meta.url);
-        let text: string;
-        try {
-            text = readFileSync(path, "utf-8");
-        } catch {
-            return;
-        }
-        const first = await read(text);
+        // the fixture is committed: a missing one fails rather than skipping the round trip
+        const first = await read(readFileSync(path, "utf-8"));
         const second = await again(first);
         const diffs = compareSnapshots(first, second, { tolerance: 1e-6, limit: 5 });
         expect(diffs, describeDiffs(diffs)).toEqual([]);

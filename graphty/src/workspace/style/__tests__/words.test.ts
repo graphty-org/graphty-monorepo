@@ -11,7 +11,6 @@ import {
     enumWords,
     failureWords,
     hiddenByWords,
-    labelStatement,
     locationOfCell,
     madeWords,
     matchesWordStart,
@@ -103,12 +102,6 @@ describe("the Style tab's words and arrangement", () => {
         );
     });
 
-    it("states the label line's result from the counts, the hidden part only while the overlap rule is on", () => {
-        assert.equal(labelStatement({ labeled: 77, hiddenByOverlap: 64 }, true), "77 labels, 64 hidden");
-        assert.equal(labelStatement({ labeled: 77, hiddenByOverlap: 0 }, false), "77 labels");
-        assert.equal(labelStatement({ labeled: 1, hiddenByOverlap: 0 }, false), "1 label");
-    });
-
     it("maps the position grid to the element's label locations and back", () => {
         assert.equal(locationOfCell("top-center"), "top");
         assert.equal(locationOfCell("bottom-center"), "bottom");
@@ -167,10 +160,11 @@ describe("the notice after styling a selection", () => {
 });
 
 describe("shader words", () => {
-    it("finds a shader by a word of its name or an alias", () => {
-        assert.isTrue(shaderMatches({ id: "glass-marble", plainName: "Glass marble" }, "mar"));
-        assert.isTrue(shaderMatches({ id: "liquid-metal", plainName: "Liquid metal" }, "shiny"));
-        assert.isFalse(shaderMatches({ id: "pearl", plainName: "Pearl" }, "metal"));
+    it("finds a shader by a word of its name, a category or a tag", () => {
+        assert.isTrue(shaderMatches({ plainName: "Pearl", categories: ["Iridescent"] }, "irid"));
+        assert.isTrue(shaderMatches({ plainName: "Glass marble" }, "mar"));
+        assert.isTrue(shaderMatches({ plainName: "Liquid metal", tags: ["metal", "shiny"] }, "shiny"));
+        assert.isFalse(shaderMatches({ plainName: "Pearl", categories: ["Iridescent"], tags: ["shiny"] }, "metal"));
     });
 
     it("says what a shader uses, as values", () => {

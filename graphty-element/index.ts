@@ -389,7 +389,7 @@ export type {
 } from "./src/screenshot/types";
 
 // One node drawn alone, for a key or a picker (element.nodeThumbnail)
-export type { NodeThumbnailOptions } from "./src/meshes/NodeThumbnail";
+export type { ModelThumbnailOptions, NodeThumbnailOptions } from "./src/meshes/NodeThumbnail";
 
 // Capability check for screenshot support
 export type { CapabilityCheck } from "./src/screenshot/capability-check";
@@ -420,6 +420,9 @@ export { BUILTIN_PRESETS } from "./src/camera/presets";
 export type {
     AccelerationErrorCode,
     GraphtyErrorCode,
+    GraphtyErrorDetails,
+    GraphtyErrorDetailsMap,
+    GraphtyErrorFor,
     GraphtyErrorInit,
     GraphtyErrorJson,
     GraphtyErrorSource,

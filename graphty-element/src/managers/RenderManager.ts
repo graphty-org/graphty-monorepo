@@ -25,7 +25,6 @@ import { OrbitCameraController } from "../cameras/OrbitCameraController";
 import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
-import { shaderDescriptor } from "../catalog/shaderRegistry";
 import type { ShaderParams, ShaderUse } from "../catalog/shaders";
 import type { NodeId } from "../catalog/types";
 import { backgroundColorOf, DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig } from "../config/GraphStyle";
@@ -156,7 +155,8 @@ interface ShaderCompilers {
 let shaderCompilers: Promise<ShaderCompilers> | null = null;
 
 /**
- * Loads one compiler's script from Babylon's CDN and instantiates its WebAssembly.
+ * Loads one compiler's script from Babylon's CDN, or from `Tools.ScriptBaseUrl` when the page set it,
+ * and instantiates its WebAssembly.
  * @param name - Which compiler; its script defines a global of the same name.
  * @returns The instantiated compiler.
  */
@@ -170,7 +170,9 @@ async function loadCompiler(name: "glslang" | "twgsl"): Promise<unknown> {
         throw new Error(`${name}.js loaded but defined no ${name}`);
     }
 
-    return factory(`${base}.wasm`);
+    // Resolved as Babylon resolves the script: its versioned CDN path, or under `Tools.ScriptBaseUrl`
+    // when the page serves Babylon's scripts itself, so the .wasm always comes from where its script did.
+    return factory(Tools.GetBabylonScriptURL(`${base}.wasm`));
 }
 
 /**
@@ -683,9 +685,8 @@ class ShaderScene {
         }
 
         const project = shadersControllerOf(session)?.descriptors() ?? [];
-        const bloomy = (id: string): boolean =>
-            (shaderDescriptor(id) ?? project.find((descriptor) => descriptor.id === id))?.bloom === true;
-        const wantsBloom = layers.some((layer) => [...idsNamedBy(layer)].some(bloomy));
+        const bloomy = (id: string): boolean => project.find((descriptor) => descriptor.id === id)?.bloom === true;
+        const wantsBloom = layers.some((layer) => [...idsNamedBy(layer, true)].some(bloomy));
         if (wantsBloom) {
             void this.loadBloom();
         } else if (this.bloom !== null) {

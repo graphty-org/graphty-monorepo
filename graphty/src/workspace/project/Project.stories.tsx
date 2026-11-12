@@ -2,6 +2,7 @@
 import "@graphty/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/react";
+import { userEvent } from "storybook/test";
 
 import { freshStore, storeOf } from "../../stories/freshStore";
 import { answerUsageData, forgetUsageAnswer } from "../privacy/usageData";
@@ -112,7 +113,7 @@ export const RecentMissing: Story = {
             };
             find();
         });
-        row.click();
+        await userEvent.click(row);
         await new Promise<void>((resolve) => {
             const wait = (): void => {
                 if (row.textContent?.includes("can no longer be read") === true) {

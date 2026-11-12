@@ -1,7 +1,7 @@
 /**
  * The site's site.json, on the REAL graphty-element: with a file, the element the workspace mounts
- * gets the site's experiments plus the address's ?features=, and the header names a nightly site;
- * with none, or an invalid one, every experiment is off and the header names no site.
+ * gets the site's experiments plus the address's ?features=, and the status bar names a nightly site
+ * right of the WebGPU chip; with none, or an invalid one, every experiment is off and no site is named.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -10,7 +10,7 @@ import "@graphty/graphty-element";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { loadSiteConfig, resetSiteConfig } from "../siteConfig";
-import { render, screen, waitFor } from "../test/test-utils";
+import { render, screen, waitFor, within } from "../test/test-utils";
 import { createWorkspaceStore } from "../workspace/state/store";
 import { Workspace } from "../workspace/Workspace";
 
@@ -63,7 +63,12 @@ describe("site.json", () => {
         // This build has the timeline and not the map, so the element reports only the map as unknown.
         assert.deepEqual(element.enabledFeatures.enabled, ["timeline"]);
         assert.deepEqual(element.enabledFeatures.unknown, ["location-map"]);
-        await screen.findByLabelText("Site: nightly");
+        // The status bar names the site, directly right of the WebGPU chip; the header does not.
+        const status = screen.getByRole("contentinfo", { name: "Status" });
+        const chip = await within(status).findByLabelText("Site: nightly");
+        const webGpu = await within(status).findByTestId("webgpu-chip");
+        assert.strictEqual(webGpu.nextElementSibling, chip);
+        assert.isNull(within(screen.getByRole("banner")).queryByLabelText(/^Site: /));
     });
 
     it("switches every experiment off when the site serves no site.json", async () => {

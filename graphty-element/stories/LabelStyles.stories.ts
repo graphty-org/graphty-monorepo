@@ -1420,6 +1420,58 @@ export const MaxNumber: Story = {
 };
 
 /**
+ * A long label wrapped to a width and cut to a number of lines.
+ *
+ * Every cat is named "Department of Health and Human Services", wrapped to a width of about three
+ * words. The indoor cats keep one line and the rest keep two, each ending in an ellipsis where the
+ * rest of the name was cut.
+ */
+export const WrappedLabels: Story = {
+    args: {
+        ...CAT_NETWORK,
+        setup: storySetup({
+            node: {
+                "node.label": "Department of Health and Human Services",
+                "node.labelStyle": { wrapWidth: 4, maxLines: 2 },
+            },
+            layers: [
+                {
+                    name: "Indoor cats keep one line",
+                    target: "node",
+                    selector: { match: "expression", where: "data.indoor_outdoor == 'indoor'" },
+                    set: { "node.labelStyle": { wrapWidth: 4, maxLines: 1 } },
+                },
+            ],
+        }),
+    },
+    parameters: {
+        controls: {
+            include: ["node.labelStyle.wrapWidth", "node.labelStyle.maxLines", "node.label"],
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await labelled(canvasElement, "WrappedLabels");
+        const labels = labelGeometry(scene);
+        const one = new Set(labels.filter((label) => INDOOR.includes(label.id)).map((label) => label.texture.height));
+        const two = new Set(labels.filter((label) => !INDOOR.includes(label.id)).map((label) => label.texture.height));
+
+        await holds(
+            one.size === 1 && two.size === 1,
+            `Styles/Label WrappedLabels: each half of the graph draws one string, so each should be one height; ` +
+                `the seven drew ${String(one.size)} heights and the thirteen drew ${String(two.size)}`,
+        );
+
+        await holds(
+            [...one][0] < [...two][0],
+            `Styles/Label WrappedLabels: one line should be shorter than two, and the indoor cats drew ` +
+                `${String([...one][0])} pixels tall against ${String([...two][0])}`,
+        );
+
+        await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
+    },
+};
+
+/**
  * What is drawn after a number that has been shortened.
  *
  * Both halves of the graph stop counting at 99. The indoor cats finish with a single `+` and the

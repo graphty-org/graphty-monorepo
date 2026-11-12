@@ -30,6 +30,7 @@ import { isRowBatch } from "../../src/meshes/RowPullPlugin";
 import { rowScanOf } from "../../src/render/PickService";
 import { RowTable } from "../../src/render/RowTable";
 import { defineLayout } from "../../src/simple/defineLayout";
+import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
 import { click, drag, hover, nextFrame, wheel } from "../helpers/real-input";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas as readFrame } from "../helpers/whole-canvas";
 import { nextModelEvent } from "./models/helpers";
@@ -112,16 +113,20 @@ async function layer(element: Graphty, ids: number[], set: Record<string, unknow
  * Load the nodes and paint them by their data, in a view.
  * @param element - The element.
  * @param view - The view.
+ * @param sized - Whether half the nodes are drawn bigger.
  */
-async function loaded(element: Graphty, view: "2d" | "3d"): Promise<void> {
+async function loaded(element: Graphty, view: "2d" | "3d", sized = true): Promise<void> {
     await element.session.data.addNodes(NODES);
     await element.graph.setLayout("fixed", { dim: 3 });
     await element.setViewMode(view);
-    await layer(
-        element,
-        NODES.filter((node) => node.big).map((node) => node.id),
-        { "node.size": 1.6 },
-    );
+    if (sized) {
+        await layer(
+            element,
+            NODES.filter((node) => node.big).map((node) => node.id),
+            { "node.size": 1.6 },
+        );
+    }
+
     for (const [tone, color] of Object.entries(TONES)) {
         await layer(
             element,
@@ -145,6 +150,23 @@ async function frameOn(graph: Graph, path: "objects" | "batched"): Promise<Frame
     const frame = await readFrame(graph);
     assert.isAbove(drawn(frame), 500, "the frame holds a graph");
     return frame;
+}
+
+/**
+ * The bytes a batch sends the GPU for each row: its per-instance vertex buffers.
+ * @param mesh - The batch.
+ * @returns The bytes.
+ */
+function bytesPerRow(mesh: Mesh): number {
+    let bytes = 0;
+    for (const kind of mesh.getVerticesDataKinds()) {
+        const buffer = mesh.getVertexBuffer(kind);
+        if (buffer?.getIsInstanced() === true) {
+            bytes += buffer.getSize() * 4;
+        }
+    }
+
+    return bytes;
 }
 
 /**
@@ -174,6 +196,28 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(overBar(objects, batched), 0);
         // One draw per shape: the two sizes share a batch, each row scaled in its matrix.
         assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled()).length, 1);
+    });
+
+    it("send 20 bytes a row while no row of a batch is scaled, 84 once one is, with the object rows' picture", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d", false);
+        const { graph } = element;
+        const objects = await frameOn(graph, "objects");
+        const batched = await frameOn(graph, "batched");
+        assert.equal(overBar(objects, batched), 0);
+        const [batch] = batches(graph.getScene()).filter((mesh) => mesh.isEnabled());
+        assert.equal(bytesPerRow(batch), 20, "a row color and a row number, no matrix");
+
+        const big = await layer(element, [0, 5], { "node.size": 1.6 });
+        await element.waitForStableFrame();
+        assert.equal(bytesPerRow(batch), 84, "a scaled row brings the matrices back");
+        const scaled = await readFrame(graph);
+        assert.notEqual(overBar(batched, scaled), 0);
+        assert.equal(overBar(scaled, await frameOn(graph, "objects")), 0);
+
+        await element.session.styles.remove(big);
+        await operationQueueOf(element.graph).waitForCompletion();
+        assert.equal(overBar(objects, await frameOn(graph, "batched")), 0);
     });
 
     it("keep no mesh for a batched row, and give each row its mesh back on the object path", async () => {
@@ -1274,6 +1318,51 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         );
     });
 
+    // A simulation handed the frame loop the store's every node, so the first frame after a layout started built a
+    // Node for every row and painted each: at 100k rows, seconds before the first layout frame (#6389).
+    it("start and switch a simulation layout building no Node and repainting nothing", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        graph.acceleration.setAccelerator(createFakeAccelerator());
+        await element.session.data.addNodes(NODES);
+        await element.session.data.addEdges(NODES.slice(1).map((node) => ({ source: node.id - 1, target: node.id })));
+        await operationQueueOf(graph).waitForCompletion();
+        await nextFrame();
+        const manager = graph.getDataManager();
+        const table = graph.getRowTable();
+        assert.isNotNull(table);
+        if (table === null) {
+            return;
+        }
+
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "loaded with no Node");
+        const snapshot = manager.getSnapshot();
+        const paints = vi.spyOn(NodeBatches.prototype, "paintRow");
+        cleanups.push(() => {
+            paints.mockRestore();
+        });
+
+        for (const layout of ["spring-electrical", "ngraph", "spring-electrical"]) {
+            const before = table.centerOf(3).clone();
+            await graph.setLayout(layout, { dim: 2, seed: 5 });
+            await operationQueueOf(graph).waitForCompletion();
+            // The layout draws: its rows move with no Node, frame by frame.
+            while (table.centerOf(3).equals(before)) {
+                await nextFrame();
+            }
+
+            const engine = graph.getLayoutManager().layoutEngine;
+            assert.isTrue(
+                layout === "ngraph" ? engine instanceof NGraphEngine : engine instanceof SimulationLayoutEngine,
+                `${layout}: the engine it names`,
+            );
+            assert.equal(dataManagerInternals.nodesBuilt(manager), 0, `${layout}: no row has a Node`);
+            assert.equal(paints.mock.calls.length, 0, `${layout}: no row was repainted`);
+            assert.strictEqual(manager.getSnapshot(), snapshot, `${layout}: the snapshot was reused`);
+        }
+    });
+
     // Removing a row with no Node used to forget it everywhere but the simulation: its d3 or
     // ngraph body stayed in and kept pushing every other node.
     it("take a removed row with no Node out of a d3 or ngraph simulation", async () => {
@@ -1550,6 +1639,8 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         const rows = vi.spyOn(PulledLineBatch.prototype, "setRows");
         cleanups.push(() => rows.mockRestore());
 
+        // The edge gets its `Edge`, whose pull this reads: a batched load would store it with none.
+        dataManagerInternals.storeEdgesUnbuilt(manager, false);
         // The graph is directed, so the edge would start with a head, and a capped line is never pulled.
         await element.session.styles.add({
             name: "uncapped",

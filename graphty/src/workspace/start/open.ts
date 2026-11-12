@@ -14,7 +14,6 @@ import {
     type GeneratorParams,
 } from "@graphty/graphty-element/catalog";
 import {
-    type AssetSource,
     createGraphSession,
     type DataSourceInput,
     type GraphSession,
@@ -24,10 +23,9 @@ import { useCallback, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
 import { siteConfig } from "../../siteConfig";
-import { holdsAsset, holdsModel, putAssetOnNodes, putModelOnNodes } from "../canvas/models";
 import type { CommandContext } from "../commands/registry";
 import { refusalFor } from "../data-page/words";
-import { fileStylesOn, nodeModelsOn } from "../features";
+import { fileStylesOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { openProjectFile } from "../project/actions";
 import { notReadWords } from "../project/words";
@@ -425,6 +423,16 @@ export function openUrl(workspace: WorkspaceStore, url: string): void {
 }
 
 /**
+ * The graph file at a web address, added as any source is (Paste of an address, the Web address
+ * box): on the start screen it opens as a new project; in a project it is added to it.
+ * @param ctx - the command context.
+ * @param url - the address.
+ */
+export function addUrl(ctx: CommandContext, url: string): void {
+    addSource(ctx, urlSource(url));
+}
+
+/**
  * Loads a source the reader brought by any door (drop, File..., Paste, Samples): from the start
  * screen as a new project named after it; into an empty project as its first source; into a graph
  * that holds data as a replacement or a join.
@@ -589,26 +597,6 @@ export function readDataUrl(file: File): Promise<string> {
 }
 
 /**
- * Opens files dropped or chosen on the start screen: a model, or with the node-models experiment
- * a picture too, opens a new project drawing it (graphty-element says which it is); anything else
- * opens as {@link openFiles} opens it. The drop and Open a file share it, so neither is the only way.
- * @param ctx - the command context.
- * @param files - the files; nothing happens without one.
- * @param session - the start screen's element session, whose experiments decide.
- */
-export async function openOnStart(
-    ctx: CommandContext,
-    files: readonly File[],
-    session: GraphSession | null,
-): Promise<void> {
-    if (await (nodeModelsOn(session) ? holdsAsset : holdsModel)(files)) {
-        openModel(ctx.workspace, files[0]?.name ?? "Model", files);
-    } else {
-        openFiles(ctx, files);
-    }
-}
-
-/**
  * Open project or file... and File...: the browser's file picker, then the files open.
  * @param ctx - the command context.
  */
@@ -643,12 +631,11 @@ export async function pasteSource(ctx: CommandContext): Promise<void> {
         ctx.workspace.set({ notice: { message: "Clipboard empty" } });
         return;
     }
-    addSource(
-        ctx,
-        pasted.kind === "url"
-            ? urlSource(pasted.url)
-            : { name: "Pasted data", source: { config: { data: pasted.text }, name: "Pasted data" } },
-    );
+    if (pasted.kind === "url") {
+        addUrl(ctx, pasted.url);
+        return;
+    }
+    addSource(ctx, { name: "Pasted data", source: { config: { data: pasted.text }, name: "Pasted data" } });
 }
 
 /**
@@ -664,19 +651,4 @@ export function useDropToOpen(ctx: CommandContext): void {
         openFiles(latest.current, files);
     }, []);
     useFileDrop("window", open, { disabled: !inProject });
-}
-
-/**
- * Opens a new project, named after a model file dropped on the start screen, that draws every node
- * as that model: the model is added to the project and one undoable layer names it, so the graph
- * data the reader adds next is drawn with it.
- * @param workspace - the workspace store.
- * @param fileName - the model's main file name.
- * @param source - the model's files.
- */
-function openModel(workspace: WorkspaceStore, fileName: string, source: AssetSource): void {
-    openProject(workspace, fileName.replace(/\.[^.]*$/, "") || fileName, async (session) => {
-        // The node-models experiment draws a dropped picture as well.
-        await (nodeModelsOn(session) ? putAssetOnNodes : putModelOnNodes)(session, workspace, source);
-    });
 }

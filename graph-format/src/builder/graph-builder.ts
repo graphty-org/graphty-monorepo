@@ -477,6 +477,15 @@ export class GraphBuilder implements GraphBuilderContract {
     }
 
     /**
+     * Give every anonymous node its current index as a lasting id, so a later removal and freeze
+     * keeps it instead of renumbering it; a no-op once the builder holds ids.
+     */
+    keepIds(): void {
+        this.check();
+        this.staging.materialiseIds();
+    }
+
+    /**
      * Whether a live node has this id (total: an illegal id is simply absent).
      * @param id - the id
      * @returns true when present and alive

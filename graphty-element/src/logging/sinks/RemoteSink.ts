@@ -24,6 +24,7 @@
 import { RemoteLogClient, type ThrottlePattern } from "@graphty/remote-logger";
 
 import { formatLogRecord } from "../format.js";
+import { redactSecrets } from "../redactSecrets.js";
 import { LOG_LEVEL_TO_NAME, type LogRecord, type Sink } from "../types.js";
 
 /**
@@ -84,7 +85,40 @@ function formatRecord(record: LogRecord): string {
 }
 
 /**
- * Create a remote sink for sending logs to a log server.
+ * One structured value with credentials removed: a string under a credential's name (`apiKey`,
+ * `token`, `password`) is dropped whole, and any other string loses what is shaped like a key.
+ * @param key - The value's name
+ * @param value - The value
+ * @returns The value after `redactSecrets`
+ */
+function redactValue(key: string, value: unknown): unknown {
+    if (typeof value !== "string") {
+        return value;
+    }
+    return redactSecrets(`${key}=x`) === `${key}=x` ? redactSecrets(value) : "[redacted]";
+}
+
+/**
+ * The record's structured facts with credentials removed, as they leave the page.
+ * @param data - The record's structured facts
+ * @returns The facts with every string redacted, or undefined when there are none or they
+ * cannot be serialized
+ */
+function redactData(data: LogRecord["data"]): Record<string, unknown> | undefined {
+    if (!data) {
+        return undefined;
+    }
+    try {
+        return JSON.parse(JSON.stringify(data, redactValue)) as Record<string, unknown>;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Create a remote sink for sending logs to a log server. Everything it sends -- the line and the
+ * structured facts -- goes through `redactSecrets` first, so a key in a record never leaves the
+ * page.
  * @param options - Sink configuration options
  * @returns A Sink that sends logs to the remote server
  */
@@ -118,9 +152,9 @@ export function createRemoteSink(options: RemoteSinkOptions): Sink {
         name: "remote",
 
         write(record: LogRecord): void {
-            const message = formatRecord(record);
+            const message = redactSecrets(formatRecord(record));
             const level = LOG_LEVEL_TO_NAME[record.level];
-            client.log(level, message, record.data);
+            client.log(level, message, redactData(record.data));
         },
 
         async flush(): Promise<void> {

@@ -5,7 +5,7 @@
  * caused it. A notice's sentences are `modelWords` in words.ts.
  */
 
-import type { CodedFact, GraphtyErrorCode, GraphtyWarningCode } from "@graphty/graphty-element/session";
+import type { CodedFact, GraphtyErrorCode, GraphtyWarningCode, ModelPart } from "@graphty/graphty-element/session";
 
 import { formatCount } from "../settings/numberFormat";
 
@@ -192,6 +192,10 @@ export function chipLine(fact: CodedFact): string {
  */
 export function roleWord(role: CodedFact["params"][string] | undefined): string {
     switch (role) {
+        case "model":
+            return "Model";
+        case "other":
+            return "Not used";
         case "geometry":
             return "Mesh";
         case "materials":
@@ -200,6 +204,31 @@ export function roleWord(role: CodedFact["params"][string] | undefined): string 
             return "Texture";
         default:
             return "Part";
+    }
+}
+
+/**
+ * A model part's state chip (node-models design 14.6), or none for a part found as named, found
+ * under its own file name in another folder, or a file nothing names (its role says "Not used").
+ * @param part - the part, from the element's `record.parts`.
+ * @returns the chip's words, or undefined.
+ */
+export function partChip(part: ModelPart): ModelChipWords | undefined {
+    const file = part.name.split("/").pop() ?? part.name;
+    switch (part.state) {
+        case "missing":
+            return { word: "Missing", tip: `${file} is not among the files` };
+        case "ambiguous":
+            return { word: "Which file?", tip: `more than one file could be ${file}` };
+        case "substituted":
+            // The file the model names, found elsewhere in the set: matched, nothing to flag.
+            return (part.file ?? "").split("/").pop() === file
+                ? undefined
+                : { word: "Substituted", tip: `used ${part.file ?? ""} for ${part.name}` };
+        case "skipped":
+            return { word: "Skipped", tip: `drawn without ${file}` };
+        default:
+            return undefined;
     }
 }
 

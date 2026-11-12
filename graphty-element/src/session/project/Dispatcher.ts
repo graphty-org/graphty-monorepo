@@ -26,6 +26,7 @@
  * one called from inside a listener runs after the current call has returned.
  */
 
+import type { ShaderProblem } from "../../catalog/shaders";
 import type { NodeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { OperationCategory } from "../../managers/OperationQueueManager";
@@ -108,8 +109,25 @@ interface CommandServices {
     config?: () => ProjectConfig;
     /** Whether the timeline experiment is on; absent reads on, as a store with no session has no switch. */
     timeline?: () => boolean;
+    /** Whether the rows are drawn on the `"batched"` render path; absent reads `false`. */
+    batched?: () => boolean;
     /** Whether the file styles experiment is on; absent reads on, as a store with no session has no switch. */
     fileStyles?: () => boolean;
+    /**
+     * The text to copy into the project for a shader id a write names that the project does not
+     * hold: a catalog entry's canonical text, the problem when its body has not loaded, or
+     * undefined when the project holds it or nothing lists it.
+     */
+    shaderCopy?: (id: string) => string | ShaderProblem | undefined;
+    /** Whether the project holds this id as an unchanged copy of the catalog shader of the same id. */
+    shaderIsCopy?: (id: string) => boolean;
+    /** Whether the project holds a shader under this id whose text reads; a use naming any other is dropped on open. */
+    shaderReadable?: (id: string) => boolean;
+    /**
+     * The catalog's text for a shader id, its body loaded first: what a file saved before files
+     * carried their shaders meant by that id. Undefined when the catalog lists no such shader.
+     */
+    legacyShaderText?: (id: string) => Promise<string | undefined>;
     /** True while a project open restores the style values its file saved, which it does with the experiment off. */
     restoringFileStyles?: boolean;
     /** Tells `time:field` listeners the designated field changed other than through `time.setField`. */
@@ -913,6 +931,10 @@ export class Dispatcher {
             strict: this.strict,
             session: true,
             countsRewrites: () => this.services.timeline?.() === true,
+            batched: () => this.services.batched?.() === true,
+            touchLater: (key) => {
+                this.lane.touchLater("graph", key);
+            },
         });
         this.events = { ...options.events };
         // A pass with no commit behind it (a deferred repaint, an import's end) is owed an event

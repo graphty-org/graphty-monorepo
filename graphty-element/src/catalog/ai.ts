@@ -551,7 +551,8 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * - `AI_COMPLETED` -- the model answered, running every tool it called. `{ toolCalls }`: how many ran.
  *   A helper with web tools also states `{ hostedToolUses }` on its `delegate` result: how many
  *   searches and page reads ran, 0 when it answered from the model's own knowledge.
- * - `AI_NO_RESPONSE` -- the model wrote nothing and called no tool.
+ * - `AI_NO_RESPONSE` -- the model wrote nothing and called no tool. After tool results, it is asked once
+ *   to go on; empty again, the message ends with this code and `{ toolCalls }`: how many ran.
  *
  * Failed (`success: false`):
  * - `AI_NOT_ENABLED` -- the assistant is not switched on (`enableAiControl()` not called).
@@ -627,7 +628,7 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * - `AI_TOOL_NOT_RUN` -- a saved tool result: the call did not run, because an earlier call in its
  *   batch failed or the batch was taken back. `{ tool }`, and `reason`: `"held"` when a held batch
  *   of its turn kept it from running, `"limit"` for a hand-off past the turn's
- *   `MAX_HELPERS_PER_TURN`.
+ *   `MAX_HELPERS_PER_TURN`, or for a live call made after the message's tool turns ran out.
  * - `AI_HISTORY_UNAVAILABLE` -- saved history cannot be used. `{ reason }`: `"invalid-record"`
  *   for a saved conversation that is not a valid record (it is skipped, never thrown);
  *   `"storage-unavailable"` when the browser's storage cannot open, and history is kept in memory;

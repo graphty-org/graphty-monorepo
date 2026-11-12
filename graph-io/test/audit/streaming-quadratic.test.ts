@@ -8,7 +8,7 @@
  * The work is counted, not timed: the characters the importer examines through the string
  * primitives it scans with (test/helpers/work-meter.ts). A count is the same on every run, so
  * the bounds hold on a loaded host; the pinned defects missed them by an order of magnitude or
- * more. Gated on IO_BENCH=1 for the size of the generated fixtures.
+ * more. The fixtures are generated once (benchmarks/fixtures.ts) and kept as small as the bounds allow.
  */
 
 import { readFileSync } from "node:fs";
@@ -26,8 +26,6 @@ import { graphmlImporter } from "../../src/formats/graphml/index.js";
 import { pajekImporter } from "../../src/formats/pajek/index.js";
 import { type GraphImporter, type ImportInput } from "../../src/types.js";
 import { charactersExamined } from "../helpers/work-meter.js";
-
-const BENCH = process.env.IO_BENCH === "1";
 
 /** The most a doubling of the input may multiply the work by and still count as linear. */
 const DOUBLING_BOUND = 2.5;
@@ -68,16 +66,16 @@ async function linesWork(input: AsyncIterable<string>): Promise<number> {
     return work;
 }
 
-describe.skipIf(!BENCH)("streaming audit: linearity and chunk-shape independence (IO_BENCH=1)", () => {
-    it("CSV: doubling the edge count doubles the work (125k -> 250k -> 500k, 64 KiB chunks)", async () => {
+describe("streaming audit: linearity and chunk-shape independence", () => {
+    it("CSV: doubling the edge count doubles the work (50k -> 100k -> 200k, 64 KiB chunks)", async () => {
         const work: number[] = [];
-        for (const edges of [125_000, 250_000, 500_000]) {
+        for (const edges of [50_000, 100_000, 200_000]) {
             const bytes = new Uint8Array(readFileSync(csvEdgeList(edges, edges / 10)));
             const run = await importWork(csvImporter, byteChunks(bytes, CHUNK));
             expect(run.edges).toBe(edges);
             work.push(run.work);
         }
-        console.log(`csv 125k/250k/500k (64 KiB chunks): ${work.join(" / ")} characters examined`);
+        console.log(`csv 50k/100k/200k (64 KiB chunks): ${work.join(" / ")} characters examined`);
         expect(work[1] / work[0]).toBeLessThan(DOUBLING_BOUND);
         expect(work[2] / work[1]).toBeLessThan(DOUBLING_BOUND);
     });
@@ -94,35 +92,34 @@ describe.skipIf(!BENCH)("streaming audit: linearity and chunk-shape independence
         expect(asString.work / chunked.work).toBeLessThan(SHAPE_BOUND);
     });
 
-    it("GraphML: doubling the edge count doubles the work (50k -> 100k -> 200k, 64 KiB chunks)", async () => {
+    it("GraphML: doubling the edge count doubles the work (25k -> 50k -> 100k, 64 KiB chunks)", async () => {
         const work: number[] = [];
-        for (const edges of [50_000, 100_000, 200_000]) {
+        for (const edges of [25_000, 50_000, 100_000]) {
             const bytes = new Uint8Array(readFileSync(graphmlDocument(edges, edges / 10)));
             const run = await importWork(graphmlImporter, byteChunks(bytes, CHUNK));
             expect(run.edges).toBe(edges);
             work.push(run.work);
         }
-        console.log(`graphml 50k/100k/200k (64 KiB chunks): ${work.join(" / ")} characters examined`);
+        console.log(`graphml 25k/50k/100k (64 KiB chunks): ${work.join(" / ")} characters examined`);
         expect(work[1] / work[0]).toBeLessThan(DOUBLING_BOUND);
         expect(work[2] / work[1]).toBeLessThan(DOUBLING_BOUND);
     });
 
-    it("GEXF: doubling the edge count doubles the work (50k -> 100k -> 200k, Uint8Array)", async () => {
-        // linear, but 9x the input in heap: see the memory suite
+    it("GEXF: doubling the edge count doubles the work (25k -> 50k -> 100k, Uint8Array)", async () => {
         const work: number[] = [];
-        for (const edges of [50_000, 100_000, 200_000]) {
+        for (const edges of [25_000, 50_000, 100_000]) {
             const bytes = new Uint8Array(readFileSync(gexfDocument(edges, edges / 10)));
             const run = await importWork(gexfImporter, bytes);
             expect(run.edges).toBe(edges);
             work.push(run.work);
         }
-        console.log(`gexf 50k/100k/200k (Uint8Array): ${work.join(" / ")} characters examined`);
+        console.log(`gexf 25k/50k/100k (Uint8Array): ${work.join(" / ")} characters examined`);
         expect(work[1] / work[0]).toBeLessThan(DOUBLING_BOUND);
         expect(work[2] / work[1]).toBeLessThan(DOUBLING_BOUND);
     });
 
-    it("LineReader: the cost of a chunk is linear in its size for LF-terminated text (PINS a defect)", async () => {
-        // FAILS: LineReader (src/common/input.ts) calls text.indexOf("\r", start) for EVERY line;
+    it("LineReader: the cost of a chunk is linear in its size for LF-terminated text (once quadratic)", async () => {
+        // A fixed defect, as it was: LineReader (src/common/input.ts) called text.indexOf("\r", start) for EVERY line;
         // in a file without any CR (every Unix-written file) the search runs to the end of the
         // chunk each time, so one chunk of L lines costs O(L x chunk length). Observed for
         // `i i*7 1.5` lines: 10k lines in one chunk 15 ms, 20k 45 ms, 40k 125 ms, 80k 511 ms,
@@ -141,9 +138,9 @@ describe.skipIf(!BENCH)("streaming audit: linearity and chunk-shape independence
         expect(whole / pieces, "one chunk versus 64 KiB pieces").toBeLessThan(SHAPE_BOUND);
     });
 
-    it("Pajek: a Uint8Array input examines about the same as 64 KiB chunks (PINS the LineReader defect)", async () => {
-        // FAILS: the Uint8Array path decodes 4 MiB slices, each a single LineReader chunk, so a
-        // Pajek file pays the quadratic scan above. Observed: 100k vertices + 200k arcs (5.5 MB)
+    it("Pajek: a Uint8Array input examines about the same as 64 KiB chunks (once quadratic)", async () => {
+        // A fixed defect, as it was: the Uint8Array path decodes 4 MiB slices, each a single
+        // LineReader chunk, so a Pajek file paid the LineReader scan above. Observed: 100k vertices + 200k arcs (5.5 MB)
         // 270 ms chunked versus 14.7 s as one string; the 1M-arc file (23 MB) 1.2 s chunked
         // versus 68.9 s as a Uint8Array (57x) and longer still as a string.
         const path = pajekNetwork(100_000, 100_000);
@@ -158,8 +155,8 @@ describe.skipIf(!BENCH)("streaming audit: linearity and chunk-shape independence
         expect(asBytes.work / chunked.work, "Uint8Array versus 64 KiB chunks").toBeLessThan(SHAPE_BOUND);
     });
 
-    it("GraphML: a document without line breaks examines as much as one with them (PINS a defect)", async () => {
-        // FAILS: the GraphML tokenizer's advanceLine() (src/formats/graphml/xml.ts) counts lines
+    it("GraphML: a document without line breaks examines as much as one with them (once quadratic)", async () => {
+        // A fixed defect, as it was: the GraphML tokenizer's advanceLine() (src/formats/graphml/xml.ts) counted lines
         // with buffer.indexOf("\n", start) after every token; when the buffer holds no further
         // line break the search runs to its end, so a single-line document costs O(tokens x
         // buffer) per buffer. Observed for the 25k-edge document (2.2 MB): 137 ms in 64 KiB

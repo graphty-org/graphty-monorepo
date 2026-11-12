@@ -25,7 +25,8 @@
  * linear reader examines each input character a small constant number of times, while the
  * re-scanning readers examined a 1 MB token in 16 KB chunks about 32 times over (the carry is
  * re-read once per chunk, 64 chunks, half the token on average) and more at larger sizes.
- * The 50 MB end-to-end imports of the task run under IO_BENCH=1 as a measurement.
+ * The 50 MB end-to-end imports of the task check that each value arrives whole (or, for an unclosed quote, that
+ * the import fails).
  */
 
 import { GraphBuilder } from "@graphty/graph-format";
@@ -41,7 +42,6 @@ import { charactersExamined, countColumnReads } from "../helpers/work-meter.js";
 
 const MB = 1024 * 1024;
 const CHUNK = 16 * 1024;
-const BENCH = process.env.IO_BENCH === "1";
 
 /**
  * The most characters a linear reader may examine per input character. The linear readers examine
@@ -258,59 +258,67 @@ describe("fuzz audit: the number of declared columns", () => {
     });
 });
 
-describe.skipIf(!BENCH)("fuzz audit: 50 MB end-to-end import times, a measurement (IO_BENCH=1)", () => {
-    async function timeImport(format: string, input: string | ReadableStream<Uint8Array>): Promise<number> {
+describe("fuzz audit: 50 MB values end to end", () => {
+    /**
+     * Imports one input into a fresh builder.
+     * @param format - the importer
+     * @param input - the input
+     * @returns the builder
+     */
+    async function importInto(format: string, input: string | ReadableStream<Uint8Array>): Promise<GraphBuilder> {
         const sink = new GraphBuilder({ directed: true, weightDtype: "f64" });
-        const t0 = performance.now();
-        try {
-            await registry.importer(format).import(input, sink, {});
-        } catch (err) {
-            if (!(err instanceof ImportError)) {
-                throw err;
-            }
-        }
-        return performance.now() - t0;
+        await registry.importer(format).import(input, sink, {});
+        return sink;
     }
 
-    it("CSV: a 50 MB quoted cell in 16 KB chunks imports", async () => {
-        const ms = await timeImport("csv", chunkedBytes(csvCell(50), CHUNK));
-        console.log(`csv 50 MB cell in 16 KB chunks: ${ms.toFixed(0)} ms`);
+    it("CSV: a 50 MB quoted cell in 16 KB chunks imports whole", async () => {
+        const sink = await importInto("csv", chunkedBytes(csvCell(50), CHUNK));
+        expect(sink.edgeCount).toBe(1);
+        const snapshot = sink.freeze();
+        expect(String(snapshot.edges.value("label", 0)).length).toBe(50 * MB);
     });
 
-    it("CSV: an unclosed quote followed by 50 MB of rows in 16 KB chunks fails", async () => {
-        const ms = await timeImport(
-            "csv",
-            chunkedBytes(`source,target,label\na,b,"oops\n${"a,b,c\n".repeat((50 * MB) / 6)}`, CHUNK),
-        );
-        console.log(`csv unclosed quote + 50 MB in 16 KB chunks: ${ms.toFixed(0)} ms`);
+    it("CSV: an unclosed quote followed by 50 MB of rows in 16 KB chunks fails with an ImportError", async () => {
+        const text = `source,target,label\na,b,"oops\n${"a,b,c\n".repeat((50 * MB) / 6)}`;
+        await expect(importInto("csv", chunkedBytes(text, CHUNK))).rejects.toBeInstanceOf(ImportError);
     });
 
-    it("Pajek: a 50 MB label in 16 KB chunks imports", async () => {
-        const ms = await timeImport("pajek", chunkedBytes(`*Vertices 1\n${line(50)}*Edges\n1 1\n`, CHUNK));
-        console.log(`pajek 50 MB label in 16 KB chunks: ${ms.toFixed(0)} ms`);
+    it("Pajek: a 50 MB label in 16 KB chunks imports whole", async () => {
+        const sink = await importInto("pajek", chunkedBytes(`*Vertices 1\n${line(50)}*Edges\n1 1\n`, CHUNK));
+        expect(sink.edgeCount).toBe(1);
+        const snapshot = sink.freeze();
+        expect(snapshot.nodeCount).toBe(1);
+        expect(String(snapshot.nodes.value("label", 0)).length).toBe(50 * MB);
     });
 
-    it("GraphML: a 50 MB attribute value in 16 KB chunks imports", async () => {
-        const doc = `<?xml version="1.0"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns"><graph id="G" edgedefault="directed"><node id="${"x".repeat(50 * MB)}"/></graph></graphml>`;
-        const ms = await timeImport("graphml", chunkedBytes(doc, CHUNK));
-        console.log(`graphml 50 MB attribute in 16 KB chunks: ${ms.toFixed(0)} ms`);
+    it("GraphML: a 50 MB attribute value in 16 KB chunks imports whole", async () => {
+        const id = "x".repeat(50 * MB);
+        const doc = `<?xml version="1.0"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns"><graph id="G" edgedefault="directed"><node id="${id}"/></graph></graphml>`;
+        const snapshot = (await importInto("graphml", chunkedBytes(doc, CHUNK))).freeze();
+        expect(snapshot.nodeCount).toBe(1);
+        expect(snapshot.ids.idOf(0)).toBe(id);
     });
 
     it("GraphML: a 50 MB comment in 16 KB chunks imports", async () => {
         const doc = `<?xml version="1.0"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns"><!-- ${"x".repeat(50 * MB)} --><graph id="G" edgedefault="directed"><node id="a"/></graph></graphml>`;
-        const ms = await timeImport("graphml", chunkedBytes(doc, CHUNK));
-        console.log(`graphml 50 MB comment in 16 KB chunks: ${ms.toFixed(0)} ms`);
+        const snapshot = (await importInto("graphml", chunkedBytes(doc, CHUNK))).freeze();
+        expect(snapshot.nodeCount).toBe(1);
+        expect(snapshot.ids.idOf(0)).toBe("a");
     });
 
-    it("JSON: a node with 100k keys imports", async () => {
+    it("JSON: a node with 100k keys imports every key as a column", async () => {
         const keys = Array.from({ length: 100_000 }, (_, i) => `"k${i}":${i}`).join(",");
-        const ms = await timeImport("json", `{"nodes":[{"id":"a",${keys}}],"links":[]}`);
-        console.log(`json 100k keys: ${ms.toFixed(0)} ms`);
+        const snapshot = (await importInto("json", `{"nodes":[{"id":"a",${keys}}],"links":[]}`)).freeze();
+        expect(snapshot.nodeCount).toBe(1);
+        expect(snapshot.nodes.names().filter((n) => /^k\d+$/.test(n))).toHaveLength(100_000);
     });
 
-    it("CSV: a 100k-column header imports", async () => {
+    it("CSV: a 100k-column header imports every column", async () => {
         const header = ["source", "target", ...Array.from({ length: 100_000 }, (_, i) => `c${i}`)].join(",");
-        const ms = await timeImport("csv", `${header}\na,b,${new Array<string>(100_000).fill("1").join(",")}\n`);
-        console.log(`csv 100k columns: ${ms.toFixed(0)} ms`);
+        const snapshot = (
+            await importInto("csv", `${header}\na,b,${new Array<string>(100_000).fill("1").join(",")}\n`)
+        ).freeze();
+        expect(snapshot.edgeCount).toBe(1);
+        expect(snapshot.edges.names().filter((n) => /^c\d+$/.test(n))).toHaveLength(100_000);
     });
 });

@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { hostileProblems, writeProblems, writeSlice } from "./harness-cases.js";
+import { expectKnownWriteFailure, hostileProblems, writeProblems, writeSlice } from "./harness-cases.js";
 
 describe.each(writeSlice(1))("%s", (_format, writer, { pass, fail, hostile }) => {
     it.each(pass)("%s writes styles that read back as the same rules and values", async (_name, input) => {
@@ -14,11 +14,9 @@ describe.each(writeSlice(1))("%s", (_format, writer, { pass, fail, hostile }) =>
         expect(await hostileProblems(writer, input)).toEqual([]);
     });
     if (fail.length > 0) {
-        it.fails.each(fail)(
-            "%s writes styles that read back as the same rules and values (known failure)",
-            async (_name, input) => {
-                expect(await writeProblems(writer, input)).toEqual([]);
-            },
+        it.each(fail)(
+            "%s writes styles that read back as the same rules and values but its label offsets (known failure #7365)",
+            (_name, input) => expectKnownWriteFailure(writer, input),
         );
     }
 });

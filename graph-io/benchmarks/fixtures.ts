@@ -2,7 +2,7 @@
  * Deterministic large fixtures for the streaming / performance audit (design sections 8.4 and
  * 15.5 item 5): edge lists of one million edges and XML documents of hundreds of thousands of
  * edges, generated once under `<workspace>/tmp/io-bench/` (two levels above this package) and
- * reused by `test/audit/streaming-*.test.ts` (gated on IO_BENCH=1) and `benchmarks/import.bench.ts`.
+ * reused by `test/audit/streaming-*.test.ts` and `benchmarks/import.bench.ts`.
  *
  * Every file is generated from a linear congruential generator seeded by the file name, so the
  * same name always yields the same bytes and a missing file is rebuilt identically. Generation is

@@ -23,7 +23,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { itemAt } from "../../common/text.js";
 import { canonColor } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
-import { canonBoolean, canonNumber, canonOpacity } from "../../styles/canon/number.js";
+import { canonBoolean, canonNumber, canonOpacity, num6 } from "../../styles/canon/number.js";
 import type { CanonSite } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
@@ -1974,6 +1974,14 @@ function visNodeRow(
         }
     }
     Object.assign(row, shaped);
+    // a derived offset is canonical (6 significant digits) like every value read from a file, so a file graphty
+    // writes holds the same number in its native slot and its block
+    for (const p of ["labelOffsetX", "labelOffsetY"] as const) {
+        const v = row[p];
+        if (typeof v === "number") {
+            row[p] = num6(v);
+        }
+    }
     const labelSize = visLabelScaled(merged, range);
     if (labelSize !== null) {
         row.labelSize = labelSize;

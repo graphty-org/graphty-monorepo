@@ -8,6 +8,8 @@
 import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
+import { expect } from "vitest";
+
 import { extractStyles } from "../../src/styles/internal.js";
 import { RANDOM_10000, RANDOM_10000_CUT } from "./formats/dot.js";
 import {
@@ -34,58 +36,34 @@ const unregistered: StyleFormat[] = readdirSync(STYLE_CORPUS)
     .map((name) => ({ name, mutantsPerFile: 1 }));
 export const FORMATS = [...registered, ...unregistered];
 
+/** The one problem the vis writer's fitted ellipse defect leaves (issue #7365). */
+const VIS_FITTED_ELLIPSE = "node.labelOffsetY comes back as exceptions, and no loss note says so";
+
 /**
- * Checks that do not hold yet, by `<input> plans` or `<input> writes`, with the defect: each runs as an expected
- * failure, so the fix turns it red until it is removed from here. All found by the style fidelity fixtures.
+ * Round trips that do not hold yet, by input, with the defect: the vis writer writes a label-fitted vis-network
+ * ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4), issue #7365. Each checks that its
+ * only problems are that defect's (expectKnownWriteFailure), so another regression on it still fails, and the fix
+ * turns it red until it is removed from here. All found by the style fidelity fixtures.
  */
-const KNOWN_FAILURES: ReadonlyMap<string, string> = new Map([
-    [
-        "json/fidelity/vis-siblings.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
-    [
-        "json/fidelity/vis-synth.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
-    [
-        "json/fidelity/vis-transparency.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
-    [
-        "json/fidelity/vis-unix.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
-    [
-        "json/fidelity/vis-world.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
-    [
-        "json/vis-dot-to-graph-softmaint.json writes",
-        "the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs below it (labelOffsetY 4)",
-    ],
-    [
-        "json/generated/cytoscape-graphty-written.json plans",
-        "the Cytoscape.js writer rounds a label offset to 5 decimals (4.33333) where the rules give 4.333333333333334",
-    ],
-    [
-        "json/generated/cytoscape-tamper-native-edited.json plans",
-        "the Cytoscape.js writer rounds a label offset to 5 decimals (4.33333) where the rules give 4.333333333333334",
-    ],
+const KNOWN_FAILURES: ReadonlySet<string> = new Set([
+    "json/fidelity/vis-siblings.json",
+    "json/fidelity/vis-synth.json",
+    "json/fidelity/vis-transparency.json",
+    "json/fidelity/vis-unix.json",
+    "json/fidelity/vis-world.json",
+    "json/vis-dot-to-graph-softmaint.json",
 ]);
 
 /**
- * The inputs a check runs on, each with whether it is a known failure.
+ * The inputs of a round trip, each with whether it is a known failure.
  * @param inputs - the inputs
- * @param check - the check
  * @returns the inputs that should pass and the known failures
  */
-export function split<T extends { readonly name: string }>(
+function split<T extends { readonly name: string }>(
     inputs: readonly T[],
-    check: "plans" | "writes",
 ): { readonly pass: (readonly [string, T])[]; readonly fail: (readonly [string, T])[] } {
     const rows = inputs.map((input) => [input.name, input] as const);
-    const isKnown = ([name]: readonly [string, T]): boolean => KNOWN_FAILURES.has(`${name} ${check}`);
-    return { pass: rows.filter((r) => !isKnown(r)), fail: rows.filter(isKnown) };
+    return { pass: rows.filter(([n]) => !KNOWN_FAILURES.has(n)), fail: rows.filter(([n]) => KNOWN_FAILURES.has(n)) };
 }
 
 /**
@@ -137,7 +115,7 @@ export function writeSlice(slice: number): (readonly [string, StyleWriter, Write
         const hostile = inputs
             .filter((input) => !SCALE_POINTS.has(input.name))
             .map((input) => [input.name, input] as const);
-        return [[format.name, format.writer, { ...split(inputs, "writes"), hostile }] as const];
+        return [[format.name, format.writer, { ...split(inputs), hostile }] as const];
     });
 }
 
@@ -151,6 +129,18 @@ export async function writeProblems(writer: StyleWriter, input: StyleInput): Pro
     const loaded = await input.load();
     const ex = extractStyles(loaded.importer, loaded.snapshot, loaded.report);
     return ex === null ? [] : roundTrip(writer, loaded, ex, !SCALE_POINTS.has(input.name));
+}
+
+/**
+ * Checks a known failure's round trip (KNOWN_FAILURES): it shows the vis writer's fitted ellipse defect, and every
+ * problem it has is about the label offset that defect moves.
+ * @param writer - the format's style writer
+ * @param input - the input
+ */
+export async function expectKnownWriteFailure(writer: StyleWriter, input: StyleInput): Promise<void> {
+    const problems = await writeProblems(writer, input);
+    expect(problems).toContain(VIS_FITTED_ELLIPSE);
+    expect(problems.filter((p) => !p.includes("labelOffsetY"))).toEqual([]);
 }
 
 /**

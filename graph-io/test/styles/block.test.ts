@@ -237,39 +237,41 @@ describe("a block that is not to be trusted", () => {
 describe("an opaque color another program wrote over a translucent one graphty wrote", () => {
     // node 0 of this file is drawn #ccccff with fillOpacity 0 by a class rule
     const gml = readFileSync(resolve(import.meta.dirname, "../corpus/styles/gml/generated/graphty-written.gml"));
-    // where each format writes node 0's fill, translucent, and the same fill made opaque
-    const slots: [string, string | undefined, RegExp, string][] = [
-        ["gml", undefined, /fill "#CCCCFF00"/, 'fill "#CCCCFF"'],
-        ["graphml", undefined, /<y:Fill color="#CCCCFF00"/, '<y:Fill color="#CCCCFF"'],
-        ["gexf", undefined, /r="204" g="204" b="255" a="0"/, 'r="204" g="204" b="255"'],
-        ["json", "graphology", /rgba\(204,204,255,0\)/, "#CCCCFF"],
+    // where each format writes node 0's fill, translucent, and the same fill made opaque, and the exceptions
+    // columns its reading back holds: none, but vis's, whose writer writes a fitted vis-network ellipse as a sized dot
+    // whose label the reader hangs below it, so labelOffsetY comes back as exceptions (known failure, issue #7365)
+    const slots: [string, string | undefined, RegExp, string, string[]][] = [
+        ["gml", undefined, /fill "#CCCCFF00"/, 'fill "#CCCCFF"', []],
+        ["graphml", undefined, /<y:Fill color="#CCCCFF00"/, '<y:Fill color="#CCCCFF"', []],
+        ["gexf", undefined, /r="204" g="204" b="255" a="0"/, 'r="204" g="204" b="255"', []],
+        ["json", "graphology", /rgba\(204,204,255,0\)/, "#CCCCFF", []],
+        ["json", "vis", /rgba\(204,204,255,0\)/, "#CCCCFF", ["exceptions.labelOffsetY"]],
     ];
 
-    // known failure: the vis writer writes a fitted vis-network ellipse as a sized dot, whose label the reader hangs
-    // below it, so labelOffsetY comes back as exceptions too (ISSUES.md, Specimen sheets: vis-network)
-    const known: typeof slots = [["json", "vis", /rgba\(204,204,255,0\)/, "#CCCCFF"]];
-
-    const check = async (format: string, dialect: string | undefined, slot: RegExp, opaque: string): Promise<void> => {
-        const registry = createRegistry();
-        const first = await registry.importGraph(new Uint8Array(gml), { format: "gml", styles: true });
-        const written = await registry.exportGraphToString(first.snapshot, format, {
-            styles: first.styles ?? undefined,
-            ...(dialect === undefined ? {} : { dialect }),
-        });
-        expect(written).toMatch(slot);
-        const unedited = await registry.importGraph(written, { format, styles: true });
-        const edited = await registry.importGraph(written.replace(slot, opaque), { format, styles: true });
-        const opacity = (r: typeof first): readonly unknown[] =>
-            resolveStyles(r.styles as ExtractedStyles, "node", "fillOpacity", r.snapshot);
-        expect(opacity(unedited)[0]).toBe(0);
-        expect(opacity(edited)[0]).toBe(1);
-        expect(opacity(edited).slice(1)).toEqual(opacity(unedited).slice(1));
-        expect(
-            [...(unedited.styles as ExtractedStyles).columns.node.keys()].filter((k) => k.startsWith("exceptions.")),
-        ).toEqual([]);
-    };
-    it.each(slots)("is read as opacity 1 in %s %s, as one exception over the same rules", check);
-    it.fails.each(known)("is read as opacity 1 in %s %s, as one exception over the same rules (known failure)", check);
+    it.each(slots)(
+        "is read as opacity 1 in %s %s, as one exception over the same rules",
+        async (format, dialect, slot, opaque, exceptions) => {
+            const registry = createRegistry();
+            const first = await registry.importGraph(new Uint8Array(gml), { format: "gml", styles: true });
+            const written = await registry.exportGraphToString(first.snapshot, format, {
+                styles: first.styles ?? undefined,
+                ...(dialect === undefined ? {} : { dialect }),
+            });
+            expect(written).toMatch(slot);
+            const unedited = await registry.importGraph(written, { format, styles: true });
+            const edited = await registry.importGraph(written.replace(slot, opaque), { format, styles: true });
+            const opacity = (r: typeof first): readonly unknown[] =>
+                resolveStyles(r.styles as ExtractedStyles, "node", "fillOpacity", r.snapshot);
+            expect(opacity(unedited)[0]).toBe(0);
+            expect(opacity(edited)[0]).toBe(1);
+            expect(opacity(edited).slice(1)).toEqual(opacity(unedited).slice(1));
+            expect(
+                [...(unedited.styles as ExtractedStyles).columns.node.keys()].filter((k) =>
+                    k.startsWith("exceptions."),
+                ),
+            ).toEqual(exceptions);
+        },
+    );
 });
 
 describe("a block graphty writes that its reader would refuse", () => {

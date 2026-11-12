@@ -21,7 +21,7 @@ import {
     type StyleResult,
     styleTruth,
 } from "./harness.js";
-import { FORMATS, registered, SCALE_POINTS, sharedInputs, split, WRITE_SLICES } from "./harness-cases.js";
+import { FORMATS, registered, SCALE_POINTS, sharedInputs, WRITE_SLICES } from "./harness-cases.js";
 import { resultsTable } from "./results.js";
 
 const results: StyleResult[] = [];
@@ -45,7 +45,6 @@ function ruleKinds(ex: ExtractedStyles | null): string[] {
 describe.each(FORMATS.map((f) => [f.name, f] as const))("%s", (_name, format) => {
     const inputs = sharedInputs(format);
 
-    const plans = split(inputs, "plans");
     const plan = async (input: (typeof inputs)[number]): Promise<void> => {
         const checked = await checkInput(input);
         results.push(checked.result);
@@ -59,12 +58,10 @@ describe.each(FORMATS.map((f) => [f.name, f] as const))("%s", (_name, format) =>
         }
         expect(failures).toEqual([]);
     };
-    it.each(plans.pass)("%s plans to rules that reproduce what its reader read", (_name, input) => plan(input));
-    if (plans.fail.length > 0) {
-        it.fails.each(plans.fail)("%s plans to rules that reproduce what its reader read (known failure)", (_n, i) =>
-            plan(i),
-        );
-    }
+    it.each(inputs.map((input) => [input.name, input] as const))(
+        "%s plans to rules that reproduce what its reader read",
+        (_name, input) => plan(input),
+    );
 });
 
 describe.each([...SCALE_POINTS].map(([large, small]) => [large, small] as const))("%s", (large, small) => {

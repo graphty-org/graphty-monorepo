@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../src/registry.js";
+import { num6 } from "../../src/styles/canon/number.js";
 import { resolveStyles, type StyleProperty, type StyleTarget } from "../../src/styles/internal.js";
 
 const registry = createRegistry();
@@ -35,8 +36,8 @@ describe("vis-network labels below a node sized by `size`", () => {
             options: { physics: false },
         });
         expect(await value(doc(6), "node", "labelPosition", 0)).toBe("bottom");
-        expect(await value(doc(6), "node", "labelOffsetY", 0)).toBeCloseTo(3, 9);
-        expect(await value(doc(40), "node", "labelOffsetY", 0)).toBeCloseTo(2 + 40 / 6, 9);
+        expect(await value(doc(6), "node", "labelOffsetY", 0)).toBe(3);
+        expect(await value(doc(40), "node", "labelOffsetY", 0)).toBe(num6(2 + 40 / 6));
     });
 
     it("leaves a node with no label, and a label inside a node sized by it, where they were", async () => {

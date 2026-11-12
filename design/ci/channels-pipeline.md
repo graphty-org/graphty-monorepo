@@ -231,11 +231,20 @@ build`, outside the verdict. The `verdict` job ends in `green-clean`, `green-ima
   announced on the Release status issue and Pushover. Master keeps merging; master slots still run
   and file red issues, but never promote past C, with one exception (#5052; owner, 2026-10-30: a red
   hold must never outlive a green run behind it): a newer master commit (C in its history) whose
-  verdict is `green-clean` or `green-images` replaces a held head judged `red`, `owner-item` or
-  `rejected` (`hold=replace`, `tools/channel/hold.mjs replace`): the hold ends (its issue closed,
-  `channel/candidate` deleted by lease at that head), then a green-clean commit promotes in the same
-  run and a green-images one is held in its place. A head judged `green-images` (the owner's pending
-  review), `approved` or not judged yet is never replaced. Catch-up order: a due promotion, an untested
+  verdict is `green-clean` or `green-images` replaces a held head judged `red`, `owner-item`,
+  `rejected`, `refused` or `green-images` (`hold=replace`, `tools/channel/hold.mjs replace`): the hold
+  ends (its issue closed, `channel/candidate` deleted by lease at that head), then a green-clean
+  commit promotes in the same run and a green-images one is held in its place. Only a head judged
+  `approved` (its promotion is due) or not judged yet is never replaced.
+  **A pending screenshot review is replaced too (#6604).** Until 2026-11-11 a held `green-images` head
+  was never replaced, so the owner never reviewed a moving target; its cost was that one unreviewed
+  hold stopped every slot (2026-11-09: three newer green runs waited 23 hours behind one review, and
+  nightly then moved to the oldest of them). Chosen: a newer green run replaces it. A newer
+  `green-clean` run has no changed screenshots against the baselines, so the held changes are already
+  in the baselines or gone, and it promotes at once; a newer `green-images` run is held in its place,
+  so the owner reviews the newest candidate once, and the review page carries his per-file decisions
+  over, so the older review is not wasted. An approval of the replaced head that merges later promotes
+  nothing (it is not the held head, or nightly is past it). Catch-up order: a due promotion, an untested
   candidate head, the master slot. A hold ends only when C promotes (land deletes the branch and
   closes the issue) or it is abandoned; newer master supersedes it only through an abandon, which
   records `rejected` on the held head, so an approval of it that merges later promotes nothing.
@@ -402,8 +411,12 @@ Detail: [stories-as-tests.md](channels-pipeline/stories-as-tests.md).
   publish hold open), so a slot that replaced a pending `promote-nightly` run loses nothing. The run
   that holds a green-images head keeps its builds as `release-builds-<H>` (30 days), which the
   promotion ships, and the site deployed is H's own `site-<H>`, which master built; P changes only
-  baselines and approvals. A gate refusal records `rejected` on H and comments on the hold issue, so
-  no later slot retries that approval; an open publish hold only delays it. The gate and
+  baselines and approvals. A gate refusal records `refused` on H (#6783), not the owner's `rejected`
+  or an abandon's: its lane keeps the run that judged H, so a later `promote-nightly` dispatch of the
+  same candidate (once the cause is fixed on master) tries again, while no full slot's catch-up
+  retries it (it would refuse every slot and test nothing). It comments on the hold issue with the
+  dispatch that retries it; a `refused` head is replaceable by a newer green run. An open publish
+  hold only delays it. The gate and
   capture code come from master's tip at the run's start (code-owned paths), recorded in
   `channel.json`.
 - **Parity is a bug class:** different bytes in two environments are filed and fixed, never absorbed;

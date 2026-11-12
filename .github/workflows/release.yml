@@ -32,8 +32,10 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 #   - a deciding verdict that is not green-clean holds its commit while nothing is held: branch channel/candidate,
 #     the results store's hold and a "Nightly held on <sha12>" issue. While a hold stands, a slot first tests the held
 #     head if no run judged it, else master's newest commit, whose verdict files red issues but never promotes past
-#     the hold -- except that its green-clean or green-images verdict replaces a held head judged red, owner-item or
-#     rejected (hold=replace, #5052), never one awaiting the owner's review. The held candidate promoting ends the hold (land), and so does an abandon: anyone's
+#     the hold -- except that its green-clean or green-images verdict replaces a held head judged red, owner-item,
+#     rejected, refused or green-images (hold=replace, #5052, #6604): a newer green-clean run promotes, a newer
+#     green-images one is held in its place for the owner's review, and only an approved head (its promotion due) is
+#     never replaced. The held candidate promoting ends the hold (land), and so does an abandon: anyone's
 #     nightly-abandon.yml, or candidate_fix's automatic abandon before a full or restart pick (tools/channel/hold.mjs
 #     autoAbandon; owner, 2026-10-27).
 #   - fix forward (tools/channel/candidate-fix.mjs): a held candidate is fixed on branches made from its head, named
@@ -59,7 +61,9 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 # publish and site run on P with the builds that run kept (P changes only baselines and approvals), and the unhold
 # job records `approved` and ends the hold. It promotes once: an approval nightly already holds,
 # one for a head that is not the held one, one behind nightly, or one whose head's latest verdict is not green-images
-# is refused, and the land job never moves channel/nightly backwards.
+# is refused, and the land job never moves channel/nightly backwards. A refusal by the resume job's screenshot gate
+# records `refused` (not the owner's `rejected`, #6783), so promote-nightly of the same candidate tries again once the
+# cause is fixed on master; a full slot's catch-up never retries it.
 #
 # And the two of rollout step 3 (design/ci/channels-pipeline/migration.md section 3; issue #3424):
 #
@@ -1511,7 +1515,7 @@ jobs:
             # what the hold step did, not what the pick's view of the hold asked for: another run may have held its
             # commit since, and then this one is not held (channel/candidate and the kept builds stay put)
             hold: ${{ steps.hold.outputs.action || steps.verdict.outputs.hold }}
-            # the red held head a newer green run replaced (#5052), whose channel/candidate candidate_branch deletes
+            # the held head a newer green run replaced (#5052, #6604), whose channel/candidate candidate_branch deletes
             replaced: ${{ steps.hold.outputs.replaced }}
             owner: ${{ steps.verdict.outputs.owner }}
             # for the missed-slot alarm (the slot job): what the verdict found, its red issue, the held head's own
@@ -1603,7 +1607,8 @@ jobs:
             # section 3): the results store's hold and the "Nightly held on <sha12>" issue here, branch
             # channel/candidate in the candidate_branch job (the deploy key). A verdict on the held head comments on
             # that issue. A newer commit's green-clean or green-images verdict replaces a held head judged red,
-            # owner-item or rejected (replace, #5052): the red hold ends, and green-images holds this commit instead.
+            # owner-item, rejected, refused or green-images (replace, #5052, #6604): that hold ends, and green-images holds
+            # this commit instead.
             # The store is what the next slot reads, so a failed store write fails the job.
             - name: Hold the candidate
               id: hold
@@ -1797,10 +1802,13 @@ jobs:
                   HELD: ${{ needs.pick.outputs.held }}
               run: node tools/channel/nightly.mjs decide
 
+            # `refused`, never the owner's `rejected` (#6783): a later promote-nightly of this candidate may retry, and
+            # the lane keeps the judging run whose captures and builds it needs
             - name: Record a refused approval
               if: ${{ steps.gate.outputs.outcome == 'failure' }}
               env:
-                  STATE: rejected
+                  STATE: refused
+                  SOURCE_RUN: ${{ needs.pick.outputs.source_run }}
                   TESTED: ${{ needs.pick.outputs.tested }}
                   WHY: ${{ steps.promote.outputs.why }}
                   RESULTS_URL: ${{ vars.RESULTS_URL }}

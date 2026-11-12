@@ -36,8 +36,9 @@
 //
 // Held candidate (section 3): the deciding verdict of a run that is not green-clean holds its commit when nothing is
 // held yet (output hold=start, tools/channel/hold.mjs); a verdict on the held head updates the hold (hold=update);
-// a newer commit's green-clean or green-images verdict replaces a held head judged red, owner-item or rejected
-// (hold=replace, #5052: a red hold never outlives a green run behind it); any other commit's verdict leaves the hold
+// a newer commit's green-clean or green-images verdict replaces a held head judged red, owner-item, rejected, refused
+// or green-images (hold=replace, #5052, #6604: no hold outlives a green run behind it, not even one awaiting the
+// owner's review); any other commit's verdict leaves the hold
 // alone and never promotes (tools/channel/nightly.mjs). The verdict reads
 // the hold from the store when it decides (output held), never from the pick: a re-run attempt keeps attempt 1's pick
 // outputs, and another run may have held its commit since. An attempt-1 red that waits for its re-run is recorded as
@@ -380,10 +381,13 @@ export function t4Refusal(failedSteps) {
 }
 
 /**
- * The held head's verdicts a newer green run replaces (#5052): nothing waits on the owner's review of them. Never
- * green-images (his pending review), approved (its promotion is due) or a head no run judged yet (being tested).
+ * The held head's verdicts a newer green run replaces (#5052, #6604): every judged one but approved (its promotion is
+ * due) and a head no run judged yet (being tested). A green-images head awaiting the owner's review is replaced too
+ * (#6604): a newer green-clean run has no changed screenshots, so it promotes and ends the review; a newer
+ * green-images one is held in its place, so the owner reviews the newest candidate once (the review page keeps his
+ * per-file decisions) and nightly never waits behind an older review.
  */
-export const REPLACEABLE = new Set(["red", "owner-item", "rejected"]);
+export const REPLACEABLE = new Set(["red", "owner-item", "rejected", "refused", "green-images"]);
 
 /**
  * What the deciding verdict does to the held candidate (channels-pipeline.md section 3).
@@ -393,7 +397,7 @@ export const REPLACEABLE = new Set(["red", "owner-item", "rejected"]);
  * @param o.state the verdict
  * @param [o.heldState] the held head's own latest verdict ("" when no run judged it)
  * @param [o.newer] whether the judged commit is newer on master than the held one (its history holds it)
- * @returns "start" (hold this commit), "update" (a verdict on the held head), "replace" (end a red hold: a newer
+ * @returns "start" (hold this commit), "update" (a verdict on the held head), "replace" (end the held head: a newer
  *   green-clean commit then promotes, a green-images one is held in its place) or "none"
  */
 export function holdAction({ held, sha, state, heldState = "", newer = false }) {

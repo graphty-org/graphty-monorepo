@@ -17,7 +17,8 @@ const FORWARDED = ["log", "info", "warn", "error"] as const;
  */
 function format(p: unknown): string {
     if (p instanceof Error) {
-        return `${p.name}: ${p.message}${p.stack ? `\n${p.stack}` : ""}`;
+        const stack = p.stack ? `\n${p.stack}` : "";
+        return `${p.name}: ${p.message}${stack}`;
     }
     if (typeof p === "string") {
         return p;

@@ -20,6 +20,7 @@ import {
     EDGE_STATIC_ATTRIBUTES,
     JOIN_TEMPLATE_INDICES,
     JOIN_TEMPLATE_POSITIONS,
+    NEAR_TRIM_GLSL,
 } from "./edgeJoinShader";
 import type { EdgeAgeState } from "./FrameRoster";
 import { PerSceneMaterials } from "./PerSceneMaterials";
@@ -316,15 +317,6 @@ export class CustomLineRenderer {
             return;
         }
 
-        // CRITICAL FIX: Register shaders in BOTH shader stores
-        // When running in Storybook, there are TWO instances of BabylonJS:
-        // 1. The global BABYLON loaded via <script> tag
-        // 2. The ES module import from @babylonjs/core
-        // We need to register in both because ShaderMaterial might use either one
-        // `unknown` first: babylonjs-gltf2interface (a dependency of @babylonjs/loaders) declares a
-        // global `BABYLON` namespace of glTF types, which this shape does not overlap.
-        const globalShaderStore = (globalThis as unknown as { BABYLON?: { Effect: typeof Effect } }).BABYLON?.Effect
-            .ShadersStore;
         const moduleShaderStore = Effect.ShadersStore;
 
         // Vertex Shader: Screen-space width expansion
@@ -357,6 +349,7 @@ varying float vCoverage;  // How much of the one pixel a sub-pixel line is widen
 
 // Instance support - BabylonJS include provides finalWorld matrix
 #include<instancesDeclaration>
+${NEAR_TRIM_GLSL}
 
 void main() {
     // Compute finalWorld matrix (handles both instanced and non-instanced meshes)
@@ -369,6 +362,18 @@ void main() {
     // This ensures both start and end vertices use the SAME perpendicular direction
     vec4 segmentStartClip = viewProjection * finalWorld * vec4(segmentStart, 1.0);
     vec4 segmentEndClip = viewProjection * finalWorld * vec4(segmentEnd, 1.0);
+
+    // An end behind the camera is trimmed to the near plane first, so it is never divided by a w
+    // of 0 or less (issue #7126); a segment wholly behind the camera draws nothing.
+    if (nearBehind(segmentStartClip) && nearBehind(segmentEndClip)) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        return;
+    }
+    vec4 startTrimmed = nearTrim(segmentStartClip, segmentEndClip);
+    vec4 endTrimmed = nearTrim(segmentEndClip, segmentStartClip);
+    vertexClip = position == segmentStart ? startTrimmed : endTrimmed;
+    segmentStartClip = startTrimmed;
+    segmentEndClip = endTrimmed;
 
     // Calculate line direction in screen space (after perspective divide)
     vec2 startScreen = segmentStartClip.xy / segmentStartClip.w;
@@ -434,11 +439,7 @@ void main() {
     vDistance = lineDistance;
 }
 `;
-        // Register in both stores
         moduleShaderStore.customLineVertexShader = vertexShaderCode;
-        if (globalShaderStore) {
-            globalShaderStore.customLineVertexShader = vertexShaderCode;
-        }
 
         // Fragment Shader: Pattern rendering
         // Updated to support 7 pattern types:
@@ -464,11 +465,7 @@ void main() {
     gl_FragColor = vec4(color, opacity * vCoverage);
 }
 `;
-        // Register in both stores
         moduleShaderStore.customLineFragmentShader = fragmentShaderCode;
-        if (globalShaderStore) {
-            globalShaderStore.customLineFragmentShader = fragmentShaderCode;
-        }
 
         // Point Sprite Vertex Shader for circular dots
         const circularDotVertexShaderCode = `
@@ -487,11 +484,7 @@ void main(void) {
     gl_PointSize = pointSize;
 }
 `;
-        // Register in both stores
         moduleShaderStore.circularDotVertexShader = circularDotVertexShaderCode;
-        if (globalShaderStore) {
-            globalShaderStore.circularDotVertexShader = circularDotVertexShaderCode;
-        }
 
         // Point Sprite Fragment Shader with perfect circles
         const circularDotFragmentShaderCode = `
@@ -518,18 +511,10 @@ void main(void) {
     gl_FragColor = vec4(color, opacity * alpha);
 }
 `;
-        // Register in both stores
         moduleShaderStore.circularDotFragmentShader = circularDotFragmentShaderCode;
-        if (globalShaderStore) {
-            globalShaderStore.circularDotFragmentShader = circularDotFragmentShaderCode;
-        }
 
         moduleShaderStore.edgeJoinVertexShader = EDGE_JOIN_VERTEX_SHADER;
         moduleShaderStore.edgeJoinFragmentShader = EDGE_JOIN_FRAGMENT_SHADER;
-        if (globalShaderStore) {
-            globalShaderStore.edgeJoinVertexShader = EDGE_JOIN_VERTEX_SHADER;
-            globalShaderStore.edgeJoinFragmentShader = EDGE_JOIN_FRAGMENT_SHADER;
-        }
 
         this.shadersRegistered = true;
     }

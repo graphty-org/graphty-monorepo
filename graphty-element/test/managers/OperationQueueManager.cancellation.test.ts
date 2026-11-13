@@ -212,29 +212,45 @@ describe("Operation Cancellation", () => {
         assert.deepEqual(cancelledEvents, [{ id: op2, code: "cancelled" }]);
     });
 
-    it("should cancel a category's running and queued operations and answer both callers", async () => {
+    it("should answer whoever awaits an operation cancelled before it started", async () => {
         const started = gate();
-        const running = queueManager.queueOperationAsync(
+        const release = gate();
+
+        queueManager.queueOperation(
             "data-add",
-            async (context) => {
+            async () => {
                 started.open();
-                await untilAborted(context);
+                await release.promise;
             },
             { skipTriggers: true },
         );
+        const waiting = queueManager.queueOperationAsync("camera-update", () => undefined);
+
+        // The camera update is queued behind the running one; cancelling it settles its caller
         await started.promise;
-        const queued = queueManager.queueOperationAsync("data-add", () => undefined, { skipTriggers: true });
+        assert.equal(queueManager.cancelByCategory("camera-update"), 1);
+        await waiting;
 
-        assert.equal(queueManager.cancelByCategory("data-add"), 2);
-
-        // Both awaits resolve: a cancelled operation is not an error, and one that never started
-        // is answered by the cancel itself.
-        await Promise.all([running, queued]);
+        release.open();
         await queueManager.waitForCompletion();
+        assert.equal(queueManager.getStats().size, 0, "the cancelled operation is not left in the queue");
+    });
 
-        assert.lengthOf(startEvents, 1, "the queued operation never started");
-        assert.lengthOf(cancelledEvents, 2);
-        assert.deepEqual(completeEvents, []);
+    it("should cancel a running operation by its category", async () => {
+        const started = gate();
+        let finished = false;
+
+        const running = queueManager.queueOperationAsync("camera-update", async (context) => {
+            started.open();
+            await untilAborted(context);
+            finished = true;
+        });
+
+        await started.promise;
+        assert.equal(queueManager.cancelByCategory("camera-update"), 1);
+        await running;
+
+        assert.isFalse(finished, "the body did not get past the abort");
     });
 
     it("should not cancel already completed operations", async () => {

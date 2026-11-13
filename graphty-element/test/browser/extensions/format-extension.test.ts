@@ -653,9 +653,6 @@ const ROSTER_THAT_GOES_BAD_EARLY = [
 // Mounting an element, and reading back what it holds
 // -------------------------------------------------------------------------------------------
 
-/** How long a test waits for an event the element should already be emitting. */
-const EVENT_TIMEOUT_MS = 10000;
-
 let element: Graphty;
 let container: HTMLDivElement;
 
@@ -700,14 +697,9 @@ async function loadRoster(opts: RosterConfig): Promise<void> {
  * @returns Its detail.
  */
 function nextEvent<T>(type: string): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-        const timer = setTimeout(() => {
-            element.removeEventListener(type, handler);
-            reject(new Error(`the element emitted no "${type}" within ${EVENT_TIMEOUT_MS}ms`));
-        }, EVENT_TIMEOUT_MS);
-
+    // No deadline of its own: the one hang guard (tools/test-wait-guard.mjs) ends a wait for an event that never comes.
+    return new Promise<T>((resolve) => {
         function handler(event: Event): void {
-            clearTimeout(timer);
             element.removeEventListener(type, handler);
             resolve((event as CustomEvent<T>).detail);
         }

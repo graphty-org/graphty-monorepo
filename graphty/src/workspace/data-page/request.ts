@@ -5,10 +5,9 @@
  * reads it once when it opens.
  */
 
-import type { GraphSession, LoadedSource } from "@graphty/graphty-element/session";
+import type { GraphSession, LoadChoices, LoadedSource, SourceKey } from "@graphty/graphty-element/session";
 
 import { newProjectId, type WorkspaceStore } from "../state/store";
-import type { PageChoices } from "./choices";
 
 /** What a door hands the Data page. */
 export interface DataPageRequest {
@@ -16,75 +15,66 @@ export interface DataPageRequest {
      * `"new"` opens the data as a new graph ("Open as a new graph") and Cancel returns to the start
      * screen; `"add"` adds it to the open project ("Add to <project>") and Cancel returns to the
      * panels. Inside a project the page never opens a new graph (section 2.10), so `"new"` with a
-     * project open is read as `"add"`. `"replace"` loads the file in place of the graph's one
-     * source ("Replace: <file>", tier2-design.md section 7): runs, styles and notes stay.
+     * project open is read as `"add"`. `"replace"` loads the file in place of one load, `replaces`
+     * ("Replace: <file>", tier2-design.md section 7): runs, styles, notes and every other load stay.
      */
     readonly intent: "new" | "add" | "replace";
     /** Files the reader already chose or dropped: one, or a node table and an edge table. */
     readonly files?: readonly File[];
-    /** The roles and the rest the reader chose last time, when the page reopens a load (Edit source...). */
-    readonly choices?: PageChoices;
-}
-
-/** What a load read: the reader's files and the choices it loaded with. */
-interface LoadInput {
-    readonly files: readonly File[];
-    readonly choices?: PageChoices;
+    /** The choices the load being replaced was read with (`LoadedSource.choices`). */
+    readonly choices?: LoadChoices;
+    /** With `intent: "replace"`, the load the page's Load replaces. */
+    readonly replaces?: SourceKey;
 }
 
 /**
- * The files and choices behind each load this page made, keyed by the element's own entry in
- * `data.sources()`, so Edit source... can open the Data page on them again.
- * ponytail: the element keeps neither a load's input nor the roles it loaded with (a
- * `LoadedSource` names its tables only), so a load from a reopened project, or one made outside
- * the app, opens Edit source... without its files. Move this into the element when a consumer
- * needs it there.
+ * The files graphty-element read a load from, when it read them itself this session.
+ * @param session - the session.
+ * @param key - the load.
+ * @returns the files, or none: a load from a reopened project, a URL or text has none to give.
  */
-const inputs = new WeakMap<LoadedSource, LoadInput>();
-
-/**
- * Remembers what the load just made read, against the newest entry in `data.sources()`.
- * @param session - the session the load went into.
- * @param input - the files and the choices.
- */
-export function rememberLoad(session: GraphSession, input: LoadInput): void {
-    const loaded = session.data.sources().at(-1);
-    if (loaded !== undefined) {
-        inputs.set(loaded, input);
-    }
+function filesOf(session: GraphSession, key: SourceKey): File[] {
+    const config = session.data.sourceInput(key)?.config ?? {};
+    return [config.file, config.nodeFile, config.edgeFile].filter((each): each is File => each instanceof File);
 }
 
 /**
- * Opens the Data page to replace the graph's one source on its own files and roles (Edit
- * source...), so Load swaps the source rather than adding a second copy; a load the app did not
- * see opens the page empty, to choose its files again. Offered only where `canReplace` holds.
+ * The request that replaces a load, on its own choices.
+ * @param loaded - the load.
+ * @param files - the files to read in its place.
+ * @returns the request.
+ */
+function replaceRequest(loaded: LoadedSource, files: readonly File[]): DataPageRequest {
+    return {
+        intent: "replace",
+        replaces: loaded.key,
+        ...(files.length > 0 ? { files } : {}),
+        ...(loaded.choices === undefined ? {} : { choices: loaded.choices }),
+    };
+}
+
+/**
+ * Opens the Data page to replace one load on its own files and roles (Edit source...), so Load
+ * swaps that load rather than adding a second copy. A load whose files graphty-element does not
+ * hold (one from a reopened project) opens the page empty, to choose its files again, and the
+ * roles it was read with are laid onto them.
  * @param store - the workspace store.
- * @param loaded - the source, `data.sources()[0]`.
+ * @param session - the session.
+ * @param loaded - the load.
  */
-export function editSource(store: WorkspaceStore, loaded: LoadedSource): void {
-    openDataPage(store, { intent: "replace", ...inputs.get(loaded) });
+export function editSource(store: WorkspaceStore, session: GraphSession, loaded: LoadedSource): void {
+    openDataPage(store, replaceRequest(loaded, filesOf(session, loaded.key)));
 }
 
 /**
- * Whether Replace with file... is offered: only on a graph made by one load of one table, since
- * replacing one source among several needs per-source rows the element does not track.
- * @param sources - `data.sources()`.
- * @returns true when the graph's one source can be replaced.
- */
-export function canReplace(sources: readonly LoadedSource[]): boolean {
-    return sources.length === 1 && sources[0].tables.length <= 1;
-}
-
-/**
- * Opens the Data page to replace the graph's one source with a file the reader already chose,
- * with the roles that source loaded with when this page loaded it.
+ * Opens the Data page to replace one load with a file the reader already chose, read with the
+ * roles that load was read with.
  * @param store - the workspace store.
- * @param loaded - the source being replaced, `data.sources()[0]`.
+ * @param loaded - the load being replaced.
  * @param file - the new file.
  */
 export function replaceSource(store: WorkspaceStore, loaded: LoadedSource, file: File): void {
-    const choices = inputs.get(loaded)?.choices;
-    openDataPage(store, { intent: "replace", files: [file], ...(choices === undefined ? {} : { choices }) });
+    openDataPage(store, replaceRequest(loaded, [file]));
 }
 
 /** One request per store, read once by the page that opens on it. */

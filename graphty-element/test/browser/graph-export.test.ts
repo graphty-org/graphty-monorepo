@@ -158,7 +158,7 @@ describe("what an export carries", () => {
         await operationQueueOf(graph).waitForCompletion();
         const session = graph.getSession();
         // The circular layout places every node in one pass; wait for that pass, not for a clock.
-        for (let frame = 0; frame < 600 && session.positions.placedCount < session.data.nodes().length; frame++) {
+        while (session.positions.placedCount < session.data.nodes().length) {
             await new Promise((resolve) => requestAnimationFrame(resolve));
         }
 

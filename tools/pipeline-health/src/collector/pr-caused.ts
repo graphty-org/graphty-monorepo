@@ -116,13 +116,12 @@ async function ownFailures(
     const unmarked = new Map<number, RunItem>();
     const history = new Map<string, Promise<Item[]>>();
     const rowsOf = (file: string): Promise<Item[]> => {
-        let rows = history.get(file);
-        if (!rows) {
-            rows = store
+        const rows =
+            history.get(file) ??
+            store
                 .query(`TESTH#${file}`, { from: skTime(now - 2 * SHARED_MS) })
                 .then((all) => all.filter((r) => isLive(r, now)));
-            history.set(file, rows);
-        }
+        history.set(file, rows);
         return rows;
     };
     for (const r of cands) {
@@ -136,10 +135,8 @@ async function ownFailures(
                 files.push(t.file);
             }
             // An earlier run of another pull request counted on the same test is not its change's either.
-            for (const o of shared) {
-                if (o.prCaused && !judged.has(o.runId) && !unmarked.has(o.runId)) {
-                    unmarked.set(o.runId, { ...o, prCaused: false });
-                }
+            for (const o of shared.filter((x) => x.prCaused && !judged.has(x.runId))) {
+                unmarked.set(o.runId, { ...o, prCaused: false });
             }
         }
         if (files.length) {

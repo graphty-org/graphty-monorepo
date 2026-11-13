@@ -1,94 +1,60 @@
+/// <reference types="vite/client" />
 /**
- * Forwards this page's console output, uncaught errors and unhandled rejections to the dev box's remote log server
- * (the remote-logger MCP, https://dev.ato.ms:9087/log), so a browser without reachable devtools (an iPad, a headset)
- * can be debugged from the terminal. Batched POSTs, plain fetch, no dependency; never throws into the page.
+ * Forwards this page's console output, uncaught errors and unhandled rejections to a remote-logger server, so a
+ * browser without reachable devtools (an iPad, a headset) can be debugged from a terminal. Off unless
+ * `VITE_REMOTE_LOG_URL` names the server's base URL (start `npx remote-log-server --port {{port}}` from the
+ * remote-logger package through servherd and set the variable to the URL it gives). Batching and retries are
+ * `RemoteLogClient`'s.
  */
+import { RemoteLogClient } from "@graphty/remote-logger/client";
 
-const ENDPOINT = "https://dev.ato.ms:9087/log";
+const FORWARDED = ["log", "info", "warn", "error"] as const;
 
 /**
- * The kind of device a user agent names, for the session id.
- * @param userAgent - navigator.userAgent
- * @returns "ipad", "mac" or "browser"
+ * One console argument as text.
+ * @param p - What was passed to the console.
+ * @returns The text sent to the server.
  */
-function deviceKind(userAgent: string): string {
-    if (userAgent.includes("iPad")) {
-        return "ipad";
+function format(p: unknown): string {
+    if (p instanceof Error) {
+        const stack = p.stack ? `\n${p.stack}` : "";
+        return `${p.name}: ${p.message}${stack}`;
     }
-    return userAgent.includes("Macintosh") ? "mac" : "browser";
-}
-const SESSION = `${deviceKind(navigator.userAgent)}-${Date.now().toString(36)}`;
-const PROJECT = "webgpu-fa2-demo";
-
-interface LogEntry {
-    readonly time: string;
-    readonly level: "DEBUG" | "INFO" | "WARN" | "ERROR";
-    readonly message: string;
-}
-
-let queue: LogEntry[] = [];
-let timer: number | null = null;
-
-function flush(): void {
-    timer = null;
-    if (queue.length === 0) {
-        return;
+    if (typeof p === "string") {
+        return p;
     }
-    const logs = queue;
-    queue = [];
-    void fetch(ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: SESSION, projectMarker: PROJECT, logs }),
-        keepalive: true,
-    }).catch(() => undefined);
-}
-
-function push(level: LogEntry["level"], parts: unknown[]): void {
-    const message = parts
-        .map((p) => {
-            if (p instanceof Error) {
-                const stack = p.stack ? `\n${p.stack}` : "";
-                return `${p.name}: ${p.message}${stack}`;
-            }
-            if (typeof p === "string") {
-                return p;
-            }
-            try {
-                return JSON.stringify(p);
-            } catch {
-                return String(p);
-            }
-        })
-        .join(" ");
-    queue.push({ time: new Date().toISOString(), level, message: `[${SESSION}] ${message}` });
-    if (timer === null) {
-        timer = window.setTimeout(flush, 500);
+    try {
+        return JSON.stringify(p);
+    } catch {
+        return String(p);
     }
 }
 
-/** Installs the console / error hooks once; returns the session id shown in the terminal's log listing. */
-export function installRemoteLog(): string {
-    const original = { log: console.log, info: console.info, warn: console.warn, error: console.error };
-    console.log = (...a: unknown[]) => {
-        original.log(...a);
-        push("INFO", a);
-    };
-    console.info = (...a: unknown[]) => {
-        original.info(...a);
-        push("INFO", a);
-    };
-    console.warn = (...a: unknown[]) => {
-        original.warn(...a);
-        push("WARN", a);
-    };
-    console.error = (...a: unknown[]) => {
-        original.error(...a);
-        push("ERROR", a);
-    };
-    globalThis.addEventListener("error", (e) => push("ERROR", [`uncaught: ${e.message} (${e.filename}:${e.lineno})`]));
-    globalThis.addEventListener("unhandledrejection", (e) => push("ERROR", ["unhandled rejection:", e.reason]));
-    window.addEventListener("pagehide", flush);
-    push("INFO", [`page ${location.pathname} loaded; ${navigator.userAgent}`]);
-    return SESSION;
+/**
+ * Installs the console and error hooks when `VITE_REMOTE_LOG_URL` is set.
+ * @returns The session id shown in the server's log listing, or undefined when nothing is forwarded.
+ */
+export function installRemoteLog(): string | undefined {
+    const serverUrl = import.meta.env.VITE_REMOTE_LOG_URL as string | undefined;
+    if (!serverUrl) {
+        return undefined;
+    }
+    const client = new RemoteLogClient({ serverUrl, sessionPrefix: "webgpu-demo", projectMarker: "webgpu-fa2-demo" });
+    const send = (level: string, parts: unknown[]): void => client.log(level, parts.map(format).join(" "));
+    for (const method of FORWARDED) {
+        const original = console[method].bind(console);
+        console[method] = (...a: unknown[]) => {
+            original(...a);
+            // The client reports its own failed sends on the console; forwarding those would loop.
+            if (typeof a[0] === "string" && a[0].startsWith("[RemoteLogClient]")) {
+                return;
+            }
+            send(method === "log" ? "INFO" : method.toUpperCase(), a);
+        };
+    }
+    globalThis.addEventListener("error", (e) => send("ERROR", [`uncaught: ${e.message} (${e.filename}:${e.lineno})`]));
+    globalThis.addEventListener("unhandledrejection", (e) => send("ERROR", ["unhandled rejection:", e.reason]));
+    globalThis.addEventListener("pagehide", () => void client.flush());
+    send("INFO", [`page ${location.pathname} loaded; ${navigator.userAgent}`]);
+    return client.sessionId;
 }

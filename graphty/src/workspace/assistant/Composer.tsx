@@ -14,10 +14,10 @@ import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../settings/numberFormat";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useSessionVersion } from "../toolbar/useSessionVersion";
-import { answerQuestion, link, type ScopeKind, scopeKind, send } from "./connection";
+import { answerQuestion, failureOf, link, type ScopeKind, scopeKind, send } from "./connection";
 import { Talk } from "./Talk";
 import { type AssistantView, isRunning } from "./useAssistantView";
-import { effortRows, optionsSelectionTip, WORDS } from "./words";
+import { effortRows, endWords, optionsSelectionTip, WORDS } from "./words";
 
 /** The scope a message goes with. */
 interface Scope {
@@ -145,9 +145,25 @@ function Options({ choice, scope, running, model }: Readonly<OptionsProps>): Rea
                                                 return;
                                             }
                                             const next = { ...choice, effort: row.value };
-                                            writeAssistantChoice(next);
-                                            // The assistant takes a new level by being set up again, as Settings' Save does.
-                                            void link(element, store, next).catch(() => undefined);
+                                            // The assistant takes a new level by being set up again, as Settings' Save does;
+                                            // the choice is kept only once it has, so the two never disagree.
+                                            link(element, store, next).then(
+                                                () => {
+                                                    writeAssistantChoice(next);
+                                                },
+                                                (error: unknown) => {
+                                                    const failed = failureOf(error, "AI_NOT_ENABLED");
+                                                    const words = endWords(
+                                                        failed.code,
+                                                        failed.params,
+                                                        next.provider,
+                                                        false,
+                                                    );
+                                                    store.set({
+                                                        notice: { message: words?.line ?? failed.code, error: true },
+                                                    });
+                                                },
+                                            );
                                         }}
                                     >
                                         {row.label}

@@ -59,6 +59,7 @@ describe("XRInputHandler", () => {
     // Mock XR experience
     interface MockObservable<T> {
         add: ReturnType<typeof vi.fn>;
+        remove: ReturnType<typeof vi.fn>;
         handlers: ((item: T) => void)[];
     }
 
@@ -125,12 +126,28 @@ describe("XRInputHandler", () => {
                 onControllerAddedObservable: {
                     add: vi.fn((handler) => {
                         mockXRExperience.input.onControllerAddedObservable.handlers.push(handler);
+                        return handler;
+                    }),
+                    remove: vi.fn((handler) => {
+                        const { handlers } = mockXRExperience.input.onControllerAddedObservable;
+                        const index = handlers.indexOf(handler);
+                        if (index >= 0) {
+                            handlers.splice(index, 1);
+                        }
                     }),
                     handlers: [],
                 },
                 onControllerRemovedObservable: {
                     add: vi.fn((handler) => {
                         mockXRExperience.input.onControllerRemovedObservable.handlers.push(handler);
+                        return handler;
+                    }),
+                    remove: vi.fn((handler) => {
+                        const { handlers } = mockXRExperience.input.onControllerRemovedObservable;
+                        const index = handlers.indexOf(handler);
+                        if (index >= 0) {
+                            handlers.splice(index, 1);
+                        }
                     }),
                     handlers: [],
                 },
@@ -191,6 +208,37 @@ describe("XRInputHandler", () => {
             handler.enable();
             handler.disable();
             assert.isFalse(handler.isEnabled());
+        });
+
+        test("should unsubscribe from controller observables on disable (#7239)", () => {
+            handler.enable();
+            handler.disable();
+            assert.lengthOf(mockXRExperience.input.onControllerAddedObservable.handlers, 0);
+            assert.lengthOf(mockXRExperience.input.onControllerRemovedObservable.handlers, 0);
+        });
+
+        test("should not set up a controller whose delayed setup was pending at disable (#7239)", () => {
+            // Only the timers: the input switch delay reads the real performance.now().
+            vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+            try {
+                handler.enable();
+                const motionController = createMockMotionController();
+                const controller: MockInputSource = {
+                    inputSource: { handedness: "left", profiles: [] },
+                    motionController,
+                    uniqueId: "left-delayed",
+                };
+                // A removal just before an add delays the add's setup by the input switch delay.
+                const [added] = mockXRExperience.input.onControllerAddedObservable.handlers;
+                const [removed] = mockXRExperience.input.onControllerRemovedObservable.handlers;
+                removed(controller);
+                added(controller);
+                handler.disable();
+                vi.runAllTimers();
+                assert.equal(motionController.getComponent.mock.calls.length, 0);
+            } finally {
+                vi.useRealTimers();
+            }
         });
 
         test("should not fail when disabling without enable", () => {

@@ -126,6 +126,22 @@ describe("Unified Drag Handler", () => {
         place.mockRestore();
     });
 
+    test("an update after the drag ended moves nothing", () => {
+        // XRInputHandler can deliver a controller update late, after the drop.
+        assert.exists(node.dragHandler, "dragHandler should exist");
+        const place = vi.spyOn(layoutEngineInternals, "setNodePosition");
+        const before = node.mesh.position.clone();
+
+        node.dragHandler.onDragStart(new Vector3(0, 0, 0));
+        node.dragHandler.onDragEnd();
+        place.mockClear();
+        node.dragHandler.onDragUpdate(new Vector3(10, 20, 30));
+
+        assert.strictEqual(place.mock.calls.length, 0, "the layout engine was not told of a new position");
+        assert.deepEqual(node.mesh.position.asArray(), before.asArray(), "the node did not move");
+        place.mockRestore();
+    });
+
     test("should pin node after drag when configured", () => {
         assert.exists(node.dragHandler, "dragHandler should exist");
         // Set pinOnDrag = true (should be default)

@@ -166,7 +166,7 @@ first-parent merges since the last green full run.
   `Refs #<red issue>` and a Proof naming the red run (a mechanical revert auto-merges on the light check; its merge
   starts the restart). Comment on the culprit's issue, and start the fix forward on an ordinary branch with a fix
   subagent. Fix forward instead of reverting when the revert conflicts or the fix is smaller.
-- **A full run red twice running** (the two newest completed full runs failed): swarm it. Start one fix subagent
+- **A full run red twice running** (the two newest full-run verdicts are `red`): swarm it. Start one fix subagent
   per failing test group or job, not one fix job for the whole run, each on its own issue (the `Full run red` issue
   for the first, one filed per further group), each with step 1's fix prompt plus: reproduce it under `taskset -c 0`,
   name the mechanism, fix it there, never a longer wait or a raised timeout. Skip a group another session already
@@ -384,6 +384,12 @@ Each: signal, meaning, action. Add to this list (see the next section).
   `tools/worktree-cleanup.mjs`, not a forced removal.
 - **The loop stopped running.** CronCreate jobs expire 7 days after they are created (the 2026-11-04 loop ran its last
   round 2026-11-11 and nobody noticed for a day). Start it again and follow "Renewing the loop" in `shared.md`.
+- **A full run cancelled with every lane green.** An advisory `continue-on-error` job that hits its timeout (ci.yml's
+  Performance Benchmarks, #7507) leaves a full run's GitHub conclusion `cancelled` (or `failure`) although every lane
+  passed and the Verdict job recorded `green-clean` or `green-images` (runs 43389691481 and 43421576817 on
+  2026-11-13). Judge master by that verdict (the `release.yml verdict` line of `shared.md`'s state block), never by
+  the conclusion: such a run is green, master is not red, and nothing is bisected or reverted for it. Reading the
+  conclusion and skipping cancelled runs kept master red for hours on an older failure.
 - **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, and the
   Release status issue.
 

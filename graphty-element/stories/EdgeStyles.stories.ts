@@ -2,6 +2,7 @@
 import "../src/graphty-element";
 
 import {
+    type AbstractMesh,
     type GreasedLineBaseMesh,
     type InstancedMesh,
     type StandardMaterial,
@@ -1884,6 +1885,13 @@ export const TwoDLineAngles: Story = {
 
         for (const edge of scene.graph.getDataManager().edges.values()) {
             const elements = edge.drawnPattern;
+            // a dash or diamond line's shader lays its elements along the line itself (issue #7404)
+            if (elements.length === 0) {
+                if ((edge.drawnLine?.pattern ?? null) === null) {
+                    across.push(`${String(edge.srcId)}: drawn with no pattern`);
+                }
+                continue;
+            }
             const along = elements[elements.length - 1].position.subtract(elements[0].position).normalize();
 
             for (const element of elements) {
@@ -1964,7 +1972,7 @@ export const TwoDLineAngles: Story = {
 const movingTextureOf = (scene: Drawn, source: string): Texture | null => {
     const edges = [...scene.graph.getDataManager().edges.values()];
     const edge = edges.find((candidate) => candidate.srcNode.id === source);
-    const material = edge?.mesh.material as StandardMaterial | null | undefined;
+    const material = (edge?.mesh as AbstractMesh | undefined)?.material as StandardMaterial | null | undefined;
 
     return (material?.emissiveTexture as Texture | null | undefined) ?? null;
 };

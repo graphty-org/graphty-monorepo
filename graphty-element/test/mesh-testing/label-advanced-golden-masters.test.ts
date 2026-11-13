@@ -208,10 +208,16 @@ describe("Label Golden Masters - Advanced Features", () => {
             assert.deepEqual(fills(), ["#00FF00"]);
         });
 
-        test("a numeric notification badge over 999 is abbreviated", () => {
+        test("a numeric notification badge over 999 is capped at 999+", () => {
             build({ text: "1500", badge: "notification" });
 
-            assert.deepEqual(drawnText(), ["1k"]);
+            assert.deepEqual(drawnText(), ["999+"]);
+        });
+
+        test("a notification badge honors maxNumber and overflowSuffix for counts in the thousands", () => {
+            build({ text: "1000000", badge: "notification", maxNumber: 99, overflowSuffix: "++" });
+
+            assert.deepEqual(drawnText(), ["99++"]);
         });
 
         test("a non-numeric notification badge is left alone", () => {

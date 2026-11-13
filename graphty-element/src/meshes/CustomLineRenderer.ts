@@ -20,6 +20,7 @@ import {
     EDGE_STATIC_ATTRIBUTES,
     JOIN_TEMPLATE_INDICES,
     JOIN_TEMPLATE_POSITIONS,
+    NEAR_TRIM_GLSL,
 } from "./edgeJoinShader";
 import type { EdgeAgeState } from "./FrameRoster";
 import { PerSceneMaterials } from "./PerSceneMaterials";
@@ -62,6 +63,16 @@ export interface EdgeFade {
     readonly opacity: number;
 }
 
+/**
+ * The pattern each element shape a joined line draws in its fragment shader is, by the number the shader reads
+ * (`pattern.y` in `EDGE_JOIN_FRAGMENT_SHADER`): a dash or a box is a run of the line's full width, a dot a disc, a
+ * diamond and a star the shapes `PatternedLineRenderer` draws, each as wide as the line.
+ */
+export const JOINED_PATTERN_KINDS = { dash: 1, box: 1, dot: 2, diamond: 3, star: 4 } as const;
+
+/** A line type a joined line draws as its own pattern, one slot per piece of its route whatever its length. */
+export type JoinedPatternKind = keyof typeof JOINED_PATTERN_KINDS;
+
 /** How a joined line mesh looks; see {@link CustomLineRenderer.createJoinedLineMesh}. */
 export interface JoinedLineOptions {
     /** The line's width: screen width (the 3D line's own scale), or world units with `worldWidth`. */
@@ -81,8 +92,13 @@ export interface JoinedLineOptions {
     fade?: EdgeFade | undefined;
     /** Draw without alpha blending (`line.blending` false): every fragment at full strength. */
     opaque?: boolean | undefined;
-    /** A dashed or dotted line: its element's length along the line (world units), its kind, count and gap. */
-    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined; gap?: number | undefined };
+    /** A patterned line: its element's length along the line (world units), its kind, count and gap. */
+    pattern?: {
+        kind: JoinedPatternKind;
+        elementLength: number;
+        count?: number | undefined;
+        gap?: number | undefined;
+    };
     /**
      * Whether its slots carry the static values a taper or a shader reads (`EDGE_WIDENED`). A
      * plain line leaves it out and draws exactly as before.
@@ -316,15 +332,6 @@ export class CustomLineRenderer {
             return;
         }
 
-        // CRITICAL FIX: Register shaders in BOTH shader stores
-        // When running in Storybook, there are TWO instances of BabylonJS:
-        // 1. The global BABYLON loaded via <script> tag
-        // 2. The ES module import from @babylonjs/core
-        // We need to register in both because ShaderMaterial might use either one
-        // `unknown` first: babylonjs-gltf2interface (a dependency of @babylonjs/loaders) declares a
-        // global `BABYLON` namespace of glTF types, which this shape does not overlap.
-        const globalShaderStore = (globalThis as unknown as { BABYLON?: { Effect: typeof Effect } }).BABYLON?.Effect
-            .ShadersStore;
         const moduleShaderStore = Effect.ShadersStore;
 
         // Vertex Shader: Screen-space width expansion
@@ -357,6 +364,7 @@ varying float vCoverage;  // How much of the one pixel a sub-pixel line is widen
 
 // Instance support - BabylonJS include provides finalWorld matrix
 #include<instancesDeclaration>
+${NEAR_TRIM_GLSL}
 
 void main() {
     // Compute finalWorld matrix (handles both instanced and non-instanced meshes)
@@ -369,6 +377,18 @@ void main() {
     // This ensures both start and end vertices use the SAME perpendicular direction
     vec4 segmentStartClip = viewProjection * finalWorld * vec4(segmentStart, 1.0);
     vec4 segmentEndClip = viewProjection * finalWorld * vec4(segmentEnd, 1.0);
+
+    // An end behind the camera is trimmed to the near plane first, so it is never divided by a w
+    // of 0 or less (issue #7126); a segment wholly behind the camera draws nothing.
+    if (nearBehind(segmentStartClip) && nearBehind(segmentEndClip)) {
+        gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        return;
+    }
+    vec4 startTrimmed = nearTrim(segmentStartClip, segmentEndClip);
+    vec4 endTrimmed = nearTrim(segmentEndClip, segmentStartClip);
+    vertexClip = position == segmentStart ? startTrimmed : endTrimmed;
+    segmentStartClip = startTrimmed;
+    segmentEndClip = endTrimmed;
 
     // Calculate line direction in screen space (after perspective divide)
     vec2 startScreen = segmentStartClip.xy / segmentStartClip.w;
@@ -434,11 +454,7 @@ void main() {
     vDistance = lineDistance;
 }
 `;
-        // Register in both stores
         moduleShaderStore.customLineVertexShader = vertexShaderCode;
-        if (globalShaderStore) {
-            globalShaderStore.customLineVertexShader = vertexShaderCode;
-        }
 
         // Fragment Shader: Pattern rendering
         // Updated to support 7 pattern types:
@@ -464,11 +480,7 @@ void main() {
     gl_FragColor = vec4(color, opacity * vCoverage);
 }
 `;
-        // Register in both stores
         moduleShaderStore.customLineFragmentShader = fragmentShaderCode;
-        if (globalShaderStore) {
-            globalShaderStore.customLineFragmentShader = fragmentShaderCode;
-        }
 
         // Point Sprite Vertex Shader for circular dots
         const circularDotVertexShaderCode = `
@@ -487,11 +499,7 @@ void main(void) {
     gl_PointSize = pointSize;
 }
 `;
-        // Register in both stores
         moduleShaderStore.circularDotVertexShader = circularDotVertexShaderCode;
-        if (globalShaderStore) {
-            globalShaderStore.circularDotVertexShader = circularDotVertexShaderCode;
-        }
 
         // Point Sprite Fragment Shader with perfect circles
         const circularDotFragmentShaderCode = `
@@ -518,18 +526,10 @@ void main(void) {
     gl_FragColor = vec4(color, opacity * alpha);
 }
 `;
-        // Register in both stores
         moduleShaderStore.circularDotFragmentShader = circularDotFragmentShaderCode;
-        if (globalShaderStore) {
-            globalShaderStore.circularDotFragmentShader = circularDotFragmentShaderCode;
-        }
 
         moduleShaderStore.edgeJoinVertexShader = EDGE_JOIN_VERTEX_SHADER;
         moduleShaderStore.edgeJoinFragmentShader = EDGE_JOIN_FRAGMENT_SHADER;
-        if (globalShaderStore) {
-            globalShaderStore.edgeJoinVertexShader = EDGE_JOIN_VERTEX_SHADER;
-            globalShaderStore.edgeJoinFragmentShader = EDGE_JOIN_FRAGMENT_SHADER;
-        }
 
         this.shadersRegistered = true;
     }
@@ -624,8 +624,9 @@ void main(void) {
         material.setFloat("opacity", opacity);
         material.setFloat("miterLimit", EDGE_MITER_LIMIT);
         const { pattern } = options;
-        // (element length, kind: 0 solid, 1 dash, 2 dot, half the width), read by the fragment shader.
-        const kind = pattern?.kind === "dash" ? 1 : 2;
+        // (element length, kind: 0 solid, 1 dash or box, 2 dot, 3 diamond, 4 star, half the width), read by the
+        // fragment shader.
+        const kind = pattern === undefined ? 0 : JOINED_PATTERN_KINDS[pattern.kind];
         material.setVector3(
             "pattern",
             pattern ? new Vector3(pattern.elementLength, kind, options.width / 2) : Vector3.Zero(),

@@ -90,6 +90,6 @@ describe("layout 1.x drawings of the seeded layouts", () => {
     });
 
     it("kamadaKawai in 3D draws the story graph as kamadaKawaiLayout did", () => {
-        assertRows(kamadaKawai(storyGraph(), { scale: 1, center: [0, 0, 0], dim: 3 }), KAMADA_KAWAI_3D_1X);
+        assertRows(kamadaKawai(storyGraph(), { scale: 1, center: [0, 0, 0], dim: 3, seed: 42 }), KAMADA_KAWAI_3D_1X);
     });
 });

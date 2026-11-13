@@ -50,6 +50,17 @@ import type { CodedFact, CodedFactParam } from "../shared";
  * - `sampled.still-past-cap` -- the sampled run is itself estimated past the cap: `{ seconds,
  *   cap }`.
  *
+ * About a run of an algorithm registered with `defineAlgorithm`, whose catalog key is
+ * `algorithm`:
+ *
+ * - `defined.nothing-measured` -- the function returned no number for any element it was asked
+ *   about: `{ algorithm, kind }`, `"node"` or `"edge"`.
+ * - `defined.long-task` -- the function held the page for longer than `ms` at a time:
+ *   `{ algorithm, member, ms }`, the definition's member (`"node"`, `"edge"`, `"nodes"` or
+ *   `"groups"`) and the limit in milliseconds.
+ * - `defined.inputs-read` -- the paths the run read: `{ algorithm, targets, paths }`, two lists of
+ *   the same length, each target `"node"` or `"edge"` with the path read on it.
+ *
  * One algorithm's own:
  *
  * - `astar.straight-line` -- A* was steered by straight-line distance, so its route is the
@@ -139,6 +150,9 @@ export type CaveatCode =
     | "scope.subgraph"
     | "parallel-edges.merged"
     | "input.empty"
+    | "defined.nothing-measured"
+    | "defined.long-task"
+    | "defined.inputs-read"
     | "sampled.instead-of-exact"
     | "sampled.exact-past-cap"
     | "sampled.still-past-cap"
@@ -275,6 +289,21 @@ const CAVEAT_SENTENCES: Readonly<Record<CaveatCode, (text: Text, params: CodedFa
         "because this algorithm runs over a graph that holds one edge per pair. Every member of a merged " +
         "group carries the merged value.",
     "input.empty": () => "The graph had nothing for this algorithm to measure.",
+    "defined.nothing-measured": (text) =>
+        `${text("algorithm")}: no ${text("kind")} was measured -- did the function return NaN or undefined for every ${text("kind")}?`,
+    "defined.long-task": (text, params) => {
+        const fix =
+            params.member === "node" || params.member === "edge"
+                ? "each call should take a moment, with the slow work moved to a whole-graph function."
+                : "await context.progress(i / n) inside its loop.";
+        return `${text("algorithm")}: ${text("member")}() held the page for over ${text("ms")} ms at a time; ${fix}`;
+    },
+    "defined.inputs-read": (text, params) => {
+        const targets = Array.isArray(params.targets) ? params.targets : [];
+        const paths = Array.isArray(params.paths) ? params.paths : [];
+        const read = targets.map((target, i) => `${String(target)} ${JSON.stringify(paths[i])}`).join(", ");
+        return `${text("algorithm")} read: ${read}.`;
+    },
     "sampled.instead-of-exact": (text, params) =>
         `Sampled rather than exact: ${text("name")} over ${grouped(params.sampleSize)} of ${grouped(params.nodes)} nodes.`,
     "sampled.exact-past-cap": (text, params) =>

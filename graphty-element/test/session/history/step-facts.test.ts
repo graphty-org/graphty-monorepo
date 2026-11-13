@@ -37,6 +37,7 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "algo.legacy": ["algo.legacy"],
     "algo.remove": ["algo.remove"],
     "algo.move": ["algo.move"],
+    "algo.rename": ["algo.rename"],
     batch: [
         "batch",
         "data.replace-nodes",
@@ -141,6 +142,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "algo.legacy": ["algorithm"],
     "algo.remove": ["algorithm", "run"],
     "algo.move": ["algorithm", "run"],
+    "algo.rename": ["algorithm", "name", "run"],
     "algo.batch": ["count", "label"],
     "algo.template": [],
     batch: ["label", "steps"],

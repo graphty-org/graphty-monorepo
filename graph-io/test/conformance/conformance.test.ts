@@ -180,6 +180,22 @@ describe("generative: minimal cases", () => {
     }
 });
 
+describe("expected failures", () => {
+    it("each names the issue that tracks its bug (#N)", () => {
+        const markers = [
+            ...loadManifests().flatMap((m) =>
+                m.fixtures.flatMap((f) =>
+                    [f.knownFailure, f.roundTripFailure].map((t) => [`${m.format}/${f.file}`, t]),
+                ),
+            ),
+            ...cases.map((c) => [`generative case ${c.name}`, c.knownFailure]),
+            ...KNOWN_FAILURES.map((k) => [`KNOWN_FAILURES ${k.target}`, k.cause]),
+        ];
+        const untracked = markers.filter(([, t]) => t !== undefined && !/#\d+/.test(t)).map(([where]) => where);
+        expect(untracked).toEqual([]);
+    });
+});
+
 let schemaResult: SchemaResult | null = null;
 const python = schemaPython();
 

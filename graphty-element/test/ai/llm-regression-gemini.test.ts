@@ -267,18 +267,20 @@ describe("GeminiTransport", () => {
         });
 
         it("hands the caller's own abort back as it is, never resent", async () => {
-            const api = fakeGemini();
             const caller = new AbortController();
             caller.abort(new Error("caller stopped"));
-            const fetch = (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
-                Promise.reject(init?.signal?.reason as Error);
+            const sent: string[] = [];
+            const fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+                sent.push(input instanceof Request ? input.url : input.toString());
+                return Promise.reject(init?.signal?.reason as Error);
+            };
             const transport = new GeminiTransport({ apiKey: "k", tier: "standard", fetch });
 
             let error: unknown;
             await transport.fetch(GENERATE, { ...request(), signal: caller.signal }).catch((e: unknown) => (error = e));
             assert.ok(error instanceof Error);
             assert.strictEqual(error.message, "caller stopped");
-            assert.strictEqual(api.sent.length, 0);
+            assert.deepStrictEqual(sent, [GENERATE], "sent once, never resent");
         });
     });
 

@@ -1,8 +1,10 @@
+import { ConvergenceError } from "@graphty/algorithms";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { z } from "zod";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import { GraphtyError } from "../errors";
 import type { ResultElementValues } from "../session/results";
 import { caveat, noted } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
@@ -220,13 +222,31 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
             phase: "iterating",
             completed: 0,
             total: nodeIds.length,
-            message: `Attenuated path sums, up to ${String(maxIterations)} passes.`,
+            params: { maxIterations },
         });
         let outcome;
         try {
             outcome = await run((dispatch, s) =>
                 dispatch.katzCentrality(transposed ?? s, { alpha, beta, maxIterations, tolerance, normalized }),
             );
+        } catch (error) {
+            // On the device path the controller reports the failure as its own, with the
+            // algorithm's error as the cause; either way an unconverged run is E_NOT_CONVERGED.
+            const convergence = error instanceof Error && !(error instanceof ConvergenceError) ? error.cause : error;
+            if (!(convergence instanceof ConvergenceError)) {
+                throw error;
+            }
+            const algorithm = `${KatzCentralityAlgorithm.namespace}:${KatzCentralityAlgorithm.type}`;
+            throw new GraphtyError({
+                code: "E_NOT_CONVERGED",
+                message:
+                    `Katz centrality did not converge in ${String(maxIterations)} iterations (tolerance ${String(tolerance)}). ` +
+                    "Lower alpha below 1 / lambda_max of the graph, raise maxIterations, or loosen tolerance, and run it again.",
+                source: "run",
+                target: { kind: "run", id: context.runId },
+                details: { algorithm, maxIterations, tolerance },
+                cause: convergence,
+            });
         } finally {
             if (transposed !== null) {
                 releaseOnAccelerator(this.graph, transposed);
@@ -237,7 +257,7 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
 
         const { ids } = snapshot;
         const nodes: ResultElementValues[] = [];
-        await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
+        await walkInChunks(nodeIds, context, "reading-scores", (nodeId) => {
             const index = ids.indexOf(nodeId);
             nodes.push({ id: nodeId, values: index === INVALID_INDEX ? {} : { value: result.scores[index] } });
         });
@@ -259,7 +279,6 @@ export class KatzCentralityAlgorithm extends MetricAlgorithm<KatzCentralityOptio
                     caveat("katz.attenuation", { beta, alpha }),
                     caveat("katz.direction", { mode }),
                     caveat("iteration.stop-rule", { tolerance, maxIterations }),
-                    ...(result.converged ? [] : [caveat("iteration.cap-reached", { maxIterations })]),
                     caveat("weights.unread"),
                 ]),
             },

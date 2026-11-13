@@ -625,7 +625,9 @@ describe("batches", () => {
         assert.strictEqual(result.completed, 2);
         assert.strictEqual(result.partial, true);
         assert.strictEqual(result.steps[1].ok, false);
-        assert.strictEqual(result.steps[1].reason, "this member failed");
+        assert.strictEqual(result.steps[1].failure?.code, "E_INTERNAL", "a plain throw is wrapped, never a sentence");
+        assert.isUndefined(result.steps[0].failure);
+        assert.isNull(result.label, "an unnamed batch is not given words of the element's");
     });
 
     it("keeps the members that finished when it is cancelled", async () => {
@@ -652,6 +654,10 @@ describe("batches", () => {
             params: { completed: 1, total: 3 },
         });
         assert.strictEqual(batch.caveats.partialReason, "1 of 3 members finished.");
+        assert.deepStrictEqual(
+            result.steps.map((step) => step.failure?.code),
+            [undefined, "canceled", "not-started"],
+        );
 
         const finished = runs.list().filter((run) => run.status === "succeeded");
         assert.strictEqual(finished.length, 1);

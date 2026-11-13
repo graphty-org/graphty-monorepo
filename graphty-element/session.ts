@@ -312,6 +312,7 @@ export {
 export type {
     BatchResult,
     BatchStep,
+    BatchStepFailure,
     CaveatCode,
     Caveats,
     EngineVersions,
@@ -584,6 +585,7 @@ export type {
     TimeCounts,
     TimeExtent,
     TimeField,
+    TimeFieldOptions,
     TimeFieldResult,
     TimeIds,
     TimeMeasure,

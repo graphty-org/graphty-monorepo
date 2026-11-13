@@ -139,6 +139,36 @@ function expectMetricsMatch(actual: object, expected: object, at: string): void 
     }
 }
 
+/**
+ * The metrics by definition: the AUC over every pair of a held-out edge and a non-edge, a tie
+ * counting half, and the best F1 over every distinct score as a threshold, highest first.
+ */
+function metricsOracle(
+    edges: ArrayLike<number>,
+    nonEdges: ArrayLike<number>,
+): { precision: number; recall: number; f1Score: number; auc: number } {
+    const e = Array.from(edges);
+    const f = Array.from(nonEdges);
+    let wins = 0;
+    for (const x of e) {
+        for (const y of f) {
+            wins += Math.sign(x - y) / 2 + 0.5;
+        }
+    }
+    let best = { precision: 0, recall: 0, f1Score: 0 };
+    for (const t of [...new Set([...e, ...f])].sort((a, b) => b - a)) {
+        const tp = e.filter((x) => x >= t).length;
+        const fp = f.filter((x) => x >= t).length;
+        const precision = tp / (tp + fp);
+        const recall = tp / e.length;
+        const f1Score = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
+        if (f1Score > best.f1Score) {
+            best = { precision, recall, f1Score };
+        }
+    }
+    return { ...best, auc: e.length > 0 && f.length > 0 ? wins / (e.length * f.length) : 0.5 };
+}
+
 /** Ordered pairs among the first twelve nodes, self-pairs included, then one pair with an absent node. */
 function pairsOf(s: GraphSnapshot): { ids: [NodeId, NodeId][]; sources: number[]; targets: number[] } {
     const k = Math.min(12, s.nodeCount);
@@ -311,26 +341,24 @@ describe("indexed link prediction, against legacy", () => {
             });
 
             it("evaluation and comparison metrics", () => {
+                // Legacy counted a held-out edge tied with a non-edge as a win and could cut a
+                // threshold inside a run of tied scores (issue #6882), so the metrics are checked
+                // against their definition; the legacy records are still read so none goes stale.
                 const { test, non } = evaluationSets(c);
                 for (const o of OPTIONS) {
                     const at = `${c.name} ${JSON.stringify(o)}`;
-                    expectMetricsMatch(
-                        evaluateCommonNeighbors(s, test, non, o),
-                        legacyResult() as { precision: number; recall: number; f1Score: number; auc: number },
-                        `common neighbours ${at}`,
-                    );
-                    expectMetricsMatch(
-                        evaluateAdamicAdar(s, test, non, o),
-                        legacyResult() as { precision: number; recall: number; f1Score: number; auc: number },
-                        `Adamic-Adar ${at}`,
-                    );
+                    const cn = metricsOracle(commonNeighborsForPairs(s, test, o), commonNeighborsForPairs(s, non, o));
+                    const aa = metricsOracle(adamicAdarForPairs(s, test, o), adamicAdarForPairs(s, non, o));
+                    expectMetricsMatch(evaluateCommonNeighbors(s, test, non, o), cn, `common neighbours ${at}`);
+                    expectMetricsMatch(evaluateAdamicAdar(s, test, non, o), aa, `Adamic-Adar ${at}`);
                     const both = compareAdamicAdarWithCommonNeighbors(s, test, non, o);
-                    const legacyBoth = legacyResult() as {
-                        adamicAdar: { precision: number; recall: number; f1Score: number; auc: number };
-                        commonNeighbors: { precision: number; recall: number; f1Score: number; auc: number };
-                    };
-                    expectMetricsMatch(both.adamicAdar, legacyBoth.adamicAdar, `compare, Adamic-Adar ${at}`);
-                    expectMetricsMatch(both.commonNeighbors, legacyBoth.commonNeighbors, `compare, CN ${at}`);
+                    expectMetricsMatch(both.adamicAdar, aa, `compare, Adamic-Adar ${at}`);
+                    // The comparison's common-neighbour side ignores the options (see its doc).
+                    const cnOut = metricsOracle(commonNeighborsForPairs(s, test), commonNeighborsForPairs(s, non));
+                    expectMetricsMatch(both.commonNeighbors, cnOut, `compare, CN ${at}`);
+                    legacyResult();
+                    legacyResult();
+                    legacyResult();
                 }
                 s.validate({ checksum: true });
             });
@@ -450,7 +478,8 @@ describe("indexed link prediction", () => {
             expectClose(scores[k], x.score, `${String(x.source)}-${String(x.target)}`);
         });
         const metrics = evaluateAdamicAdar(s, indexed(test), indexed(non), o);
-        expect(metrics).toEqual({ precision: 1, recall: 1, f1Score: 1, auc: 1 });
+        // Every pair ties, so the one threshold takes all four and a tie counts half: no better than chance.
+        expect(metrics).toEqual({ precision: 0.5, recall: 1, f1Score: 2 / 3, auc: 0.5 });
         s.validate({ checksum: true });
     });
 
@@ -481,17 +510,33 @@ describe("indexed link prediction", () => {
     });
 
     it("keeps the first threshold when two give the same best F1", () => {
-        // Ranked: edge b-d (2), non-edge a-c (2), non-edge a-b (1), then an edge to an absent node
-        // (0). F1 is 2/3 after the first pair and 2/3 again after all four; the first one is kept.
+        // Ranked: edge b-d (2), non-edges a-b and c-d (1, tied), then an edge to an absent node (0).
+        // F1 is 2/3 at the threshold 2 and 2/3 again at 0; the first one is kept.
         const s = square();
         const m = evaluateCommonNeighbors(
             s,
             { sources: [1, 0], targets: [3, INVALID_INDEX] },
-            { sources: [0, 0], targets: [2, 1] },
+            { sources: [0, 2], targets: [1, 3] },
         );
         expect(m.precision).toBe(1);
         expect(m.recall).toBe(0.5);
         expect(m.f1Score).toBeCloseTo(2 / 3, 12);
+        expect(m.auc).toBe(0.5);
+        s.validate({ checksum: true });
+    });
+
+    it("never puts a threshold inside a run of tied scores, and counts a tie half in the AUC", () => {
+        // Edge b-d and non-edge a-c both score 2, non-edge a-b scores 1. Legacy ranked the edge
+        // first among the tie and reported F1 1 and AUC 1; no threshold separates b-d from a-c.
+        const s = square();
+        const m = evaluateCommonNeighbors(s, { sources: [1], targets: [3] }, { sources: [0, 0], targets: [2, 1] });
+        expect(m).toEqual({ precision: 0.5, recall: 1, f1Score: 2 / 3, auc: 0.75 });
+        const zero = evaluateCommonNeighbors(
+            s,
+            { sources: [0], targets: [INVALID_INDEX] },
+            { sources: [1], targets: [INVALID_INDEX] },
+        );
+        expect(zero.auc).toBe(0.5);
         s.validate({ checksum: true });
     });
 });

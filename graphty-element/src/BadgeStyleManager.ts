@@ -128,10 +128,13 @@ export const BadgeStyleManager = {
     applyBadgeBehaviors(options: RichTextLabelOptions, userOptions: RichTextLabelOptions): void {
         const badgeType = options._badgeType;
 
-        if (options._paddingRatio && !userOptions.marginTop) {
+        if (options._paddingRatio) {
+            // Each side the caller left unset takes the badge's padding; a side set to 0 stays 0.
             const padding = (options.fontSize ?? 48) * options._paddingRatio;
-            options.marginTop = options.marginBottom = padding;
-            options.marginLeft = options.marginRight = padding;
+            options.marginTop = userOptions.marginTop ?? padding;
+            options.marginBottom = userOptions.marginBottom ?? padding;
+            options.marginLeft = userOptions.marginLeft ?? padding;
+            options.marginRight = userOptions.marginRight ?? padding;
         }
 
         // Every label, not only a badge: `smartOverflow` is a published label field, so a plain
@@ -155,19 +158,22 @@ export const BadgeStyleManager = {
     },
 
     applySmartOverflow(options: RichTextLabelOptions, userOptions: RichTextLabelOptions): void {
-        if (options.smartOverflow && !Number.isNaN(Number(userOptions.text))) {
-            const num = Number.parseInt(userOptions.text ?? "0");
-            const maxNumber = options.maxNumber ?? 999;
-            const overflowSuffix = options.overflowSuffix ?? "+";
-
-            if (num > maxNumber) {
-                if (num >= 1000) {
-                    options.text = `${Math.floor(num / 1000)}k`;
-                } else {
-                    options.text = `${maxNumber}${overflowSuffix}`;
-                }
-            }
+        if (options.smartOverflow && userOptions.text !== undefined) {
+            options.text = BadgeStyleManager.overflowText(userOptions.text, options.maxNumber, options.overflowSuffix);
         }
+    },
+
+    /**
+     * The text a smart-overflow label draws: a whole number above `maxNumber` becomes `maxNumber`
+     * followed by `overflowSuffix`; any other text is returned unchanged.
+     * @param text - The label's text.
+     * @param maxNumber - The largest number drawn in full.
+     * @param overflowSuffix - What is drawn after a capped number.
+     * @returns The text to draw.
+     */
+    overflowText(text: string, maxNumber = 999, overflowSuffix = "+"): string {
+        const num = text.trim() === "" ? Number.NaN : Number(text);
+        return Number.isInteger(num) && num > maxNumber ? `${maxNumber}${overflowSuffix}` : text;
     },
 
     applyIconBehavior(options: RichTextLabelOptions, userOptions: RichTextLabelOptions): void {

@@ -165,7 +165,11 @@ function latestOfKind(sameSeed: PowerIterationRun, otherSeed: PowerIterationRun)
 
 /**
  * Eigenvector centrality on the device (spec 3.3, 8.2): the L2-normalised power iteration over the forward
- * adjacency, converging on `delta < n * tolerance`; the scores are L2-normalised.
+ * adjacency, stopping at the first pass whose L1 change is below `tolerance` times the pass's L1 size; the scores
+ * are L2-normalised. On an undirected snapshot each pass is `(A + cI) x` with `@graphty/algorithms`' shift
+ * `c = max(1, sqrt(h) / 2)`, `h` the largest sum of squared weights of a node's arcs to other nodes (its neighbour
+ * count when unweighted), from 0 at a node with no arcs; so a bipartite graph or a star converges, and the CPU and
+ * the device stop at the same pass. A directed snapshot iterates `A` itself from 1 / n everywhere.
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
  * @param options - maxIterations 100 / tolerance 1e-6 / weighted true, plus dest / signal / onProgress
@@ -181,13 +185,16 @@ export async function eigenvectorCentrality(
     if (r.n === 0) {
         return empty(r.dest, r.maxIterations, options?.onProgress);
     }
+    const shifted = !s.directed;
     const run = await runPowerIteration(ctx, r.n, {
         normMode: 2,
         adjacency: coreOf(ctx, s, algorithm),
         alternate: null,
         alpha: 1,
-        beta: 0,
+        beta: shifted ? hubShift(s, r.weights === undefined ? s.weights : null) : 0,
         uniformP: 0,
+        betaTimesIterate: shifted,
+        seed: shifted ? seedOf(s) : undefined,
         maxIterations: r.maxIterations,
         tolerance: r.tolerance,
         weights: r.weights,
@@ -196,6 +203,43 @@ export async function eigenvectorCentrality(
         onProgress: options?.onProgress,
     });
     return scoresOf(run, r.dest, "l2");
+}
+
+/**
+ * The identity shift of an undirected snapshot: half the square root of the largest sum of squared weights over a
+ * node's arcs to other nodes, at least 1. A node with those arcs bounds the largest eigenvalue from below by that
+ * square root, so the shift never outweighs it. Mirrors `hubShift` in @graphty/algorithms' eigenvector centrality.
+ * @param s - the snapshot
+ * @param weights - the arc weights the pull folds, or null for 1 per arc
+ * @returns the shift
+ */
+function hubShift(s: GraphSnapshot, weights: ArrayLike<number> | null): number {
+    let most = 0;
+    for (let v = 0; v < s.nodeCount; v++) {
+        let sum = 0;
+        for (let arc = s.rowPtr[v]; arc < s.rowPtr[v + 1]; arc++) {
+            if (s.colIdx[arc] !== v) {
+                const w = weights === null ? 1 : weights[arc];
+                sum += w * w;
+            }
+        }
+        most = Math.max(most, sum);
+    }
+    return Math.max(1, Math.sqrt(most) / 2);
+}
+
+/**
+ * x(0) of the shifted iteration: 1 / n at a node with an arc, 0 at one without, which the shift would otherwise
+ * keep alive (the CPU starts it at 0 too).
+ * @param s - the snapshot
+ * @returns the seed
+ */
+function seedOf(s: GraphSnapshot): F32 {
+    const seed = new Float32Array(s.nodeCount);
+    for (let v = 0; v < s.nodeCount; v++) {
+        seed[v] = s.rowPtr[v + 1] > s.rowPtr[v] ? 1 / s.nodeCount : 0;
+    }
+    return seed;
 }
 
 /**

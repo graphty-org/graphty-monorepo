@@ -19,7 +19,6 @@ import {
     Vector3,
 } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
-import jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
 import omit from "lodash/omit.js";
@@ -27,7 +26,7 @@ import omit from "lodash/omit.js";
 import type { ShaderUse } from "./catalog/shaders";
 import type { Rgba } from "./catalog/types";
 import { AdHocData, DEFAULT_SELECTION_STYLE, type GraphSelectionStyleConfig, NodeStyleConfig } from "./config";
-import { drawnText } from "./config/RichTextStyle";
+import { drawnText, labelTextOf, richTextLabelOptions } from "./config/RichTextStyle";
 import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
@@ -310,46 +309,6 @@ const BOX_OR_ELLIPSE: ReadonlySet<string> = new Set(["rectangle", "none", "ellip
 
 /** The shapes whose mesh is its box, see {@link Node.surfaceIsClosedForm}. */
 const CLOSED_FORM_SHAPES: ReadonlySet<string> = new Set(["box", "rectangle"]);
-
-type LabelStyle = NonNullable<NodeStyleConfig["label"]>;
-
-/**
- * A label's background color as the one string the label renderer takes: an advanced color style's solid value,
- * or a gradient's first color as a fallback.
- * @param color - The style's background color.
- * @returns The color, or undefined for none.
- */
-function labelBackgroundColor(color: LabelStyle["backgroundColor"]): string | undefined {
-    if (!color) {
-        return undefined;
-    }
-    if (typeof color === "string") {
-        return color;
-    }
-    if (color.colorType === "solid") {
-        return color.value;
-    }
-    if (color.colorType === "gradient") {
-        return color.colors[0];
-    }
-    return undefined;
-}
-
-/**
- * A label's borders with a color each, the only ones the label renderer can draw.
- * @param borders - The style's borders.
- * @returns The borders, or undefined when none has a color, so the renderer's default empty list is used.
- */
-function labelBorders(borders: LabelStyle["borders"]): { width: number; color: string; spacing: number }[] | undefined {
-    const valid = (borders ?? [])
-        .filter((border): border is typeof border & { color: string } => border.color !== undefined)
-        .map((border) => ({
-            width: border.width,
-            color: border.color,
-            spacing: border.spacing,
-        }));
-    return valid.length > 0 ? valid : undefined;
-}
 
 /** The colour a node is drawn in when no layer a reader added colours it. */
 const DEFAULT_NODE_COLOR = String(CHANNEL_DESCRIPTORS["node.color"].default ?? "").toLowerCase();
@@ -4281,33 +4240,13 @@ export class Node implements ModelUser {
         return label;
     }
 
+    /**
+     * The words this node's label or tooltip block draws: its own, or its id when the block names none.
+     * @param labelConfig - The block.
+     * @returns The words.
+     */
     private extractLabelText(labelConfig?: Record<string, unknown>): string {
-        if (!labelConfig) {
-            return this.id.toString();
-        }
-
-        // Check if text is directly provided
-        if (labelConfig.text !== undefined && labelConfig.text !== null) {
-            // Only convert to string if it's a primitive type
-            if (
-                typeof labelConfig.text === "string" ||
-                typeof labelConfig.text === "number" ||
-                typeof labelConfig.text === "boolean"
-            ) {
-                return String(labelConfig.text);
-            }
-        } else if (labelConfig.textPath && typeof labelConfig.textPath === "string") {
-            try {
-                const result = jmespath.search(this.data, labelConfig.textPath);
-                if (result !== null && result !== undefined) {
-                    return String(result);
-                }
-            } catch {
-                // Ignore jmespath errors
-            }
-        }
-
-        return this.id.toString();
+        return labelTextOf(this.data, labelConfig) ?? this.id.toString();
     }
 
     /**
@@ -4337,45 +4276,13 @@ export class Node implements ModelUser {
         }
         const attachOffset = (labelStyle.attachOffset ?? this.getDefaultAttachOffset(placed)) + along;
 
-        const backgroundColor = labelBackgroundColor(labelStyle.backgroundColor);
-
-        // Filter out undefined values from backgroundGradientColors
-        let backgroundGradientColors: string[] | undefined = undefined;
-        if (labelStyle.backgroundGradientColors) {
-            backgroundGradientColors = labelStyle.backgroundGradientColors.filter(
-                (color): color is string => color !== undefined,
-            );
-            if (backgroundGradientColors.length === 0) {
-                backgroundGradientColors = undefined;
-            }
-        }
-
-        const borders = labelBorders(labelStyle.borders);
-
-        // Create label options by spreading the entire labelStyle object
-        const labelOptions: RichTextLabelOptions = {
-            ...labelStyle,
-            // Override with computed values
+        return richTextLabelOptions(labelStyle, {
             text: labelText,
             attachTo: this.labelTarget(),
             attachPosition,
             attachOffset,
             ...(this.shapeType === "polygon" && { centerAtOrigin: true }),
-            backgroundColor,
-            backgroundGradientColors,
-            ...(borders !== undefined && { borders }),
-        };
-
-        // Handle special case for transparent background
-        if (labelOptions.backgroundColor === "transparent") {
-            labelOptions.backgroundColor = undefined;
-        }
-
-        // Remove properties that shouldn't be passed to RichTextLabel
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { location, textPath, enabled, ...finalLabelOptions } = labelOptions;
-
-        return finalLabelOptions;
+        });
     }
 
     /**

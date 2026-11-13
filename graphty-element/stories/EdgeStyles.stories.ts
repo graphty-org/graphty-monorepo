@@ -2,6 +2,7 @@
 import "../src/graphty-element";
 
 import {
+    type AbstractMesh,
     type GreasedLineBaseMesh,
     type InstancedMesh,
     type StandardMaterial,
@@ -1964,7 +1965,7 @@ export const TwoDLineAngles: Story = {
 const movingTextureOf = (scene: Drawn, source: string): Texture | null => {
     const edges = [...scene.graph.getDataManager().edges.values()];
     const edge = edges.find((candidate) => candidate.srcNode.id === source);
-    const material = edge?.mesh.material as StandardMaterial | null | undefined;
+    const material = (edge?.mesh as AbstractMesh | undefined)?.material as StandardMaterial | null | undefined;
 
     return (material?.emissiveTexture as Texture | null | undefined) ?? null;
 };

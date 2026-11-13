@@ -62,6 +62,16 @@ export interface EdgeFade {
     readonly opacity: number;
 }
 
+/**
+ * The pattern each element shape a joined line draws in its fragment shader is, by the number the shader reads
+ * (`pattern.y` in `EDGE_JOIN_FRAGMENT_SHADER`): a dash or a box is a run of the line's full width, a dot a disc, a
+ * diamond and a star the shapes `PatternedLineRenderer` draws, each as wide as the line.
+ */
+export const JOINED_PATTERN_KINDS = { dash: 1, box: 1, dot: 2, diamond: 3, star: 4 } as const;
+
+/** A line type a joined line draws as its own pattern, one slot per piece of its route whatever its length. */
+export type JoinedPatternKind = keyof typeof JOINED_PATTERN_KINDS;
+
 /** How a joined line mesh looks; see {@link CustomLineRenderer.createJoinedLineMesh}. */
 export interface JoinedLineOptions {
     /** The line's width: screen width (the 3D line's own scale), or world units with `worldWidth`. */
@@ -81,8 +91,13 @@ export interface JoinedLineOptions {
     fade?: EdgeFade | undefined;
     /** Draw without alpha blending (`line.blending` false): every fragment at full strength. */
     opaque?: boolean | undefined;
-    /** A dashed or dotted line: its element's length along the line (world units), its kind, count and gap. */
-    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined; gap?: number | undefined };
+    /** A patterned line: its element's length along the line (world units), its kind, count and gap. */
+    pattern?: {
+        kind: JoinedPatternKind;
+        elementLength: number;
+        count?: number | undefined;
+        gap?: number | undefined;
+    };
     /**
      * Whether its slots carry the static values a taper or a shader reads (`EDGE_WIDENED`). A
      * plain line leaves it out and draws exactly as before.
@@ -624,8 +639,9 @@ void main(void) {
         material.setFloat("opacity", opacity);
         material.setFloat("miterLimit", EDGE_MITER_LIMIT);
         const { pattern } = options;
-        // (element length, kind: 0 solid, 1 dash, 2 dot, half the width), read by the fragment shader.
-        const kind = pattern?.kind === "dash" ? 1 : 2;
+        // (element length, kind: 0 solid, 1 dash or box, 2 dot, 3 diamond, 4 star, half the width), read by the
+        // fragment shader.
+        const kind = pattern === undefined ? 0 : JOINED_PATTERN_KINDS[pattern.kind];
         material.setVector3(
             "pattern",
             pattern ? new Vector3(pattern.elementLength, kind, options.width / 2) : Vector3.Zero(),

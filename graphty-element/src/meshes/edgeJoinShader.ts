@@ -651,7 +651,7 @@ void main() {
 
 /**
  * The fragment shader. `pattern` is (element length along the line, kind, half the line's width),
- * all in world units; kind 0 is solid, 1 dash, 2 dot.
+ * all in world units; kind 0 is solid, 1 dash or box, 2 dot, 3 diamond, 4 star.
  */
 export const EDGE_JOIN_FRAGMENT_SHADER = `
 precision highp float;
@@ -750,7 +750,24 @@ bool patternOn(float dist, float across, float spacing) {
     if (pattern.y < 1.5) {
         return abs(off) <= r;
     }
-    return off * off + across * across <= r * r;
+    if (pattern.y < 2.5) {
+        return off * off + across * across <= r * r;
+    }
+    if (pattern.y < 3.5) {
+        // a diamond: its points r along the line and half the line's width across it
+        return abs(off) / r + abs(across) / max(pattern.z, 1e-6) <= 1.0;
+    }
+    // a five-pointed star, r to its points and 0.4 r to the corners between them, a point along the line
+    // (PatternedLineRenderer.createStarGeometry): fold the angle into half of one point and test the edge from the
+    // point to the corner beside it
+    float len = length(vec2(off, across));
+    float sector = 6.2831853 / 5.0;
+    float a = mod(atan(across, off), sector);
+    a = min(a, sector - a);
+    vec2 q = len * vec2(cos(a), sin(a));
+    vec2 tip = vec2(r, 0.0);
+    vec2 side = 0.4 * r * vec2(cos(sector * 0.5), sin(sector * 0.5)) - tip;
+    return side.x * (q.y - tip.y) - side.y * (q.x - tip.x) >= 0.0;
 }
 
 void main() {

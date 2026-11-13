@@ -3,12 +3,21 @@ import { maskTest } from "@graphty/graph-format";
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { type Graph, operationQueueOf } from "../../src/Graph";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import type { Node } from "../../src/Node";
-import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
+import { click, drag, nodePoint } from "../helpers/real-input";
+import { cleanupTestGraph, configureGraph, createTestGraph } from "../helpers/testSetup";
 
+/**
+ * The drag handler every node carries, which the mouse and an XR controller both drive.
+ *
+ * The first cases drive it with the real mouse (test/helpers/real-input.ts). The rest call its
+ * `onDragStart`, `onDragUpdate` and `onDragEnd` directly: that is the handler's own contract, the
+ * calls the scene's pointer roster and `XRInputHandler` make, and they pin the handler's logic --
+ * pinning, the layout's fixed bit, depth -- rather than any pointer path.
+ */
 describe("Unified Drag Handler", () => {
     let graph: Graph;
     let node: Node;
@@ -17,10 +26,11 @@ describe("Unified Drag Handler", () => {
         // Create test graph using the helper (properly sets up styles)
         graph = await createTestGraph();
 
-        // Create test node using DataManager
-        const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node", label: "Test Node" });
-        const retrievedNode = dataManager.getNode("test-node");
+        await configureGraph(graph, { viewMode: "2d", layout: "fixed", layoutOptions: { dim: 2 } });
+        await graph.addNodes([{ id: "test-node", label: "Test Node", position: { x: 0, y: 0, z: 0 } }]);
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForStableFrame();
+        const retrievedNode = graph.getNode("test-node");
         assert.exists(retrievedNode, "Node should be created");
         node = retrievedNode;
     });
@@ -29,31 +39,43 @@ describe("Unified Drag Handler", () => {
         cleanupTestGraph(graph);
     });
 
-    test("should handle desktop pointer down → move → up sequence", () => {
-        // Verify drag handler exists
-        assert.exists(node.dragHandler, "Node should have dragHandler");
+    test("a real mouse press, move and release on a node drags it to the pointer", async () => {
+        const events: { type: string; pinned: boolean }[] = [];
+        graph.addListener("node-drag-start", (event) => events.push({ type: event.type, pinned: event.pinned }));
+        graph.addListener("node-drag-end", (event) => events.push({ type: event.type, pinned: event.pinned }));
+        const from = nodePoint(graph, "test-node");
+        const to = { x: from.x + 50, y: from.y + 30 };
 
-        const startPosition = node.mesh.position.clone();
+        let draggingWhileHeld = false;
+        await drag(graph.canvas, from, to, 8, () => {
+            draggingWhileHeld = node.dragging;
+            return Promise.resolve();
+        });
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForStableFrame();
 
-        // Simulate drag start
-        node.dragHandler.onDragStart(startPosition);
+        assert.isTrue(draggingWhileHeld, "the node was being dragged while the button was down");
+        assert.isFalse(node.dragging, "and is not once it is released");
+        assert.deepEqual(events, [
+            { type: "node-drag-start", pinned: false },
+            { type: "node-drag-end", pinned: true },
+        ]);
+        const at = nodePoint(graph, "test-node");
+        assert.closeTo(at.x, to.x, 2, "the node is drawn where it was dropped");
+        assert.closeTo(at.y, to.y, 2);
+    });
 
-        // Verify drag started
-        assert.isTrue(node.dragging, "node.dragging should be true after drag start");
+    test("a real mouse click on a node does not pin it", async () => {
+        // A click runs through drag start and drag end. `pinOnDrag` pins what the reader PLACED,
+        // and a click places nothing: pinning it left every node a reader inspected stuck.
+        const ends: boolean[] = [];
+        graph.addListener("node-drag-end", (event) => ends.push(event.pinned));
 
-        // Simulate drag move
-        const newPosition = startPosition.add(new Vector3(1, 1, 0));
-        node.dragHandler.onDragUpdate(newPosition);
+        await click(graph.canvas, nodePoint(graph, "test-node"));
+        await graph.waitForStableFrame();
 
-        // Verify position updated (allowing for some tolerance)
-        const currentPosition = node.mesh.position;
-        assert.notDeepEqual(currentPosition, startPosition, "Mesh position should have changed");
-
-        // Simulate drag end
-        node.dragHandler.onDragEnd();
-
-        // Verify drag ended
-        assert.isFalse(node.dragging, "node.dragging should be false after drag end");
+        assert.deepEqual(ends, [false], "a press and release in place ends a drag that pins nothing");
+        assert.isFalse(node.isPinned());
     });
 
     test("should set node.dragging flag during drag", () => {
@@ -116,24 +138,12 @@ describe("Unified Drag Handler", () => {
             originalPin();
         };
 
-        // Use dragHandler directly (as in node-behavior.test.ts)
+        // The handler's own calls, as the pointer roster and XRInputHandler make them
         node.dragHandler.onDragStart(new Vector3(0, 0, 0));
         node.dragHandler.onDragUpdate(new Vector3(1, 0, 0));
         node.dragHandler.onDragEnd();
 
         assert.isTrue(pinCalled, "node.pin() should be called when pinOnDrag is true");
-    });
-
-    test("does not pin a node the pointer picked up and put down without moving", () => {
-        // A click runs through drag start and drag end. `pinOnDrag` pins what the reader PLACED,
-        // and a click places nothing: pinning it left every node a reader inspected stuck.
-        assert.exists(node.dragHandler, "dragHandler should exist");
-        node.pinOnDrag = true;
-
-        node.dragHandler.onDragStart(new Vector3(0, 0, 0));
-        node.dragHandler.onDragEnd();
-
-        assert.isFalse(node.isPinned(), "a press and release in place must not pin the node");
     });
 
     test("reports on the drag-end event whether the drop left the node pinned", () => {
@@ -201,7 +211,7 @@ describe("Unified Drag Handler", () => {
             originalPin();
         };
 
-        // Use dragHandler directly (as in node-behavior.test.ts)
+        // The handler's own calls, as the pointer roster and XRInputHandler make them
         node.dragHandler.onDragStart(new Vector3(0, 0, 0));
         node.dragHandler.onDragEnd();
 

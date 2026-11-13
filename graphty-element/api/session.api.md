@@ -3731,6 +3731,13 @@ export interface Neighbor {
 }
 
 // @public
+export interface NeighborhoodWindow {
+    readonly from: number | string;
+    readonly path: Path;
+    readonly to: number | string;
+}
+
+// @public
 export interface NeighborOptions {
     readonly direction?: SelectionDirection;
     readonly limit?: number;
@@ -5533,7 +5540,7 @@ export interface SelectionApi {
     // @deprecated
     promote(name: string): ScopeId;
     readonly size: number;
-    statistics(): Promise<SelectionStatistics>;
+    statistics(options?: SelectionStatisticsOptions): Promise<SelectionStatistics>;
     readonly truncated: boolean;
 }
 
@@ -5557,6 +5564,7 @@ export interface SelectionAttributeStatistics {
     readonly min?: number;
     readonly path: Path;
     readonly plainName: string;
+    readonly sum?: number;
 }
 
 // @public
@@ -5589,9 +5597,15 @@ export interface SelectionStatistics {
         readonly min: number;
         readonly max: number;
     };
+    readonly edgeAttributes: readonly SelectionAttributeStatistics[];
     readonly edges: number;
     readonly inducedEdges: number;
     readonly nodes: number;
+}
+
+// @public
+export interface SelectionStatisticsOptions {
+    readonly scope?: ScopeInput;
 }
 
 // @public

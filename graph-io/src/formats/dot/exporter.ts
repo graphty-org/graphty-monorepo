@@ -5,8 +5,9 @@
  * container node with its members nested inside), then every logical edge in index order with its
  * explicit weight, `key` (the edge id role), ports and attributes.
  *
- * What the format keeps and what check() reports: any id and any text (written quoted, except a text the
- * importer recorded as an HTML string in `meta.extra.dot.html`, written bare; a text with a backslash
+ * What the format keeps and what check() reports: any id and any text (written quoted, except an HTML
+ * string, written bare: one the importer listed in `meta.extra.dot.html`, or, for a graph with no such
+ * list, any text shaped like `<...>` with balanced brackets; a text with a backslash
  * before a quote or a line break, or at its end, cannot be quoted and fails the save); bool / i32 / f64 cells
  * (f64 written with a decimal point so the dtype survives re-import; other numeric dtypes are
  * written and read back inferred); containment through the parent role (clusters); graph
@@ -522,7 +523,7 @@ class ExportPlan {
 
     private readonly extraNotes: LossNote[] = [];
 
-    /** The texts the file this graph was read from wrote as HTML strings (`meta.extra.dot.html`). */
+    /** The texts written as HTML strings (styles.ts dotHtmlTexts). */
     private readonly html: ReadonlySet<string>;
 
     /**
@@ -1108,8 +1109,8 @@ class ExportPlan {
     }
 
     /**
-     * Write a text as a DOT ID: one the file wrote as an HTML string bare, everything else through quoteDotId (a
-     * quoted `"<init>"` decodes to the same text as the HTML `<init>`, so the text alone cannot tell them apart).
+     * Write a text as a DOT ID: an HTML string (styles.ts dotHtmlTexts) bare, everything else through quoteDotId (a
+     * quoted `"<init>"` decodes to the same text as the HTML `<init>`, so the DOT importer records which was which).
      * @param text - the text
      * @returns the DOT ID
      */

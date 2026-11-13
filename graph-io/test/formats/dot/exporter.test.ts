@@ -135,13 +135,23 @@ describe("dot exporter: capabilities and shape", () => {
         ]);
     });
 
-    it("quotes a text shaped like HTML that no DOT file wrote as an HTML string (#6859)", async () => {
+    it("quotes a text shaped like HTML that the DOT file did not write as an HTML string (#6859)", async () => {
         const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
         builder.addNode("<init>");
         builder.addNode("init");
         builder.setNodeValue("label", 1, "<<b>x</b>>");
+        builder.setMeta({ extra: { dot: { html: [] } } });
         const text = await dotExporter.exportToString(builder.freeze());
         expect(lines(text).slice(1, 3)).toEqual(['"<init>";', 'init [label="<<b>x</b>>"];']);
+    });
+
+    it("writes a text shaped like HTML bare when the graph has no DOT record of its HTML strings", async () => {
+        // a graph rebuilt by an application keeps no meta (#7600): the text's shape decides
+        const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
+        builder.addNode("a");
+        builder.setNodeValue("label", 0, "<<b>x</b>>");
+        const text = await dotExporter.exportToString(builder.freeze());
+        expect(lines(text)[1]).toBe("a [label=<<b>x</b>>];");
     });
 
     it("round trips a quoted label shaped like HTML as quoted, and an HTML label bare (#6859)", async () => {

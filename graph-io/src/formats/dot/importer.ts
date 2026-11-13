@@ -5,8 +5,8 @@
  *
  * - `graph` / `digraph` set the direction through the DirectionResolver (rule 1 of 8.4); `strict`
  *   merges parallel edges as cgraph does and is recorded in `meta.extra.dot.strict`; the graph name
- *   becomes `meta.name`. The texts written as HTML strings (`<...>`) are listed in `meta.extra.dot.html`, since
- *   their cells hold the same text as a quoted string with the same brackets.
+ *   becomes `meta.name`. The texts written as HTML strings (`<...>`) are listed in `meta.extra.dot.html` (empty
+ *   when there are none), since their cells hold the same text as a quoted string with the same brackets.
  * - node, edge and graph attribute statements (`node [..]`, `edge [..]`, `graph [..]`, `ID = ID`)
  *   are stateful, scoped defaults applied to the elements created after them in the same or a
  *   nested subgraph; every element receives its effective attributes as plain cells, so the
@@ -934,19 +934,14 @@ class DotParser {
             throw new DotSyntaxError(`expected "{" after the graph header, found ${describeToken(token)}`, token.line);
         }
         this.resolver.setHeader(this.directed, { line: headerLine });
-        this.sink.setMeta({
-            name,
-            sourceFormat: DOT_FORMAT,
-            ...(this.strict ? { extra: { dot: { strict: true } } } : {}),
-        });
+        this.sink.setMeta({ name, sourceFormat: DOT_FORMAT });
         const root = this.newScope(null, headerLine, true, null);
         this.statementList(root);
         this.applyInherited();
-        if (lexer.htmlTexts.size > 0) {
-            // which texts were HTML strings, since the text alone cannot say (a quoted "<init>" is plain text)
-            const dot = { ...(this.strict ? { strict: true } : {}), html: [...lexer.htmlTexts] };
-            this.sink.setMeta({ extra: { [DOT_META_KEY]: dot } });
-        }
+        // which texts were HTML strings, since the text alone cannot say (a quoted "<init>" is plain text); recorded
+        // even when empty, so the exporter knows the file named every one
+        const dot = { ...(this.strict ? { strict: true } : {}), html: [...lexer.htmlTexts] };
+        this.sink.setMeta({ extra: { [DOT_META_KEY]: dot } });
         return lexer.next();
     }
 

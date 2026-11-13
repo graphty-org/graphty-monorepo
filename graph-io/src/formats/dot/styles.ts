@@ -2544,16 +2544,65 @@ function graphvizArrows(raw: string): GraphvizArrowShape[] | null {
 }
 
 /**
- * The HTML strings of a file, outer brackets kept: what the DOT importer recorded in `meta.extra.dot.html`. A text is
- * HTML only when the file wrote it as one: a quoted `"<init>"` holds the same text and is plain, and a graph from any
- * other format holds none.
+ * The HTML strings of a file, outer brackets kept. A graph read from DOT carries the list in `meta.extra.dot.html`,
+ * since a quoted `"<init>"` holds the same text as an HTML `<init>` and is plain. A graph with no such record (from
+ * another format, or rebuilt by an application) has every id and text cell shaped like an HTML string counted as one.
  * @param snapshot - the graph
  * @returns the strings
  */
 export function dotHtmlTexts(snapshot: GraphSnapshot): Set<string> {
     const dot: unknown = snapshot.meta.extra[DOT_META_KEY];
-    const html = typeof dot === "object" && dot !== null ? (dot as { html?: unknown }).html : undefined;
-    return new Set(Array.isArray(html) ? html.filter((t): t is string => typeof t === "string") : []);
+    const recorded = typeof dot === "object" && dot !== null ? (dot as { html?: unknown }).html : undefined;
+    if (Array.isArray(recorded)) {
+        return new Set(recorded.filter((t): t is string => typeof t === "string"));
+    }
+    // ponytail: no record, so the text's shape decides; graphty-element's export keeps no meta (#7600)
+    const out = new Set<string>();
+    for (let i = 0; i < snapshot.nodeCount; i++) {
+        const id = snapshot.ids.idOf(i);
+        if (typeof id === "string" && isHtmlString(id)) {
+            out.add(id);
+        }
+    }
+    for (const [table, n] of [
+        [snapshot.nodes, snapshot.nodeCount],
+        [snapshot.edges, snapshot.edgeCount],
+        [snapshot.graph, 1],
+    ] as const) {
+        for (const name of table.names()) {
+            for (let i = 0; i < n; i++) {
+                const v = cellText(table, name, i);
+                if (v !== null && isHtmlString(v)) {
+                    out.add(v);
+                }
+            }
+        }
+    }
+    return out;
+}
+
+/**
+ * Whether a text is shaped like an HTML string: balanced angle brackets around the whole text.
+ * @param text - the text
+ * @returns true for that shape
+ */
+function isHtmlString(text: string): boolean {
+    if (text.length < 2 || !text.startsWith("<") || !text.endsWith(">")) {
+        return false;
+    }
+    let depth = 0;
+    for (let i = 0; i < text.length; i++) {
+        const c = text.codePointAt(i);
+        if (c === 0x3c) {
+            depth++;
+        } else if (c === 0x3e) {
+            depth--;
+            if (depth === 0 && i !== text.length - 1) {
+                return false;
+            }
+        }
+    }
+    return depth === 0;
 }
 
 /**

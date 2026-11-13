@@ -28,6 +28,8 @@ const SECTIONS: Record<string, { ranges: string[]; kinds?: string[] }> = {
 };
 const ALIAS: Record<string, string> = { local: "local-runs" };
 const HISTORY_PATHS = new Set(["/v1/test-history", "/v1/page/flaky/test"]);
+/** The longest file or test name a history query accepts; far above any real path, far below the key limit. */
+const MAX_KEY_FIELD_BYTES = 512;
 
 let store: Store | undefined;
 
@@ -137,6 +139,12 @@ async function drillDown(event: APIGatewayProxyEventV2): Promise<APIGatewayProxy
     }
     if (!run && range !== "7d" && range !== "28d") {
         return json(400, { code: "bad_range" }, "max-age=300");
+    }
+    // A DynamoDB key over its size limit throws, which the catch below would report as an outage.
+    for (const field of ["file", "test"] as const) {
+        if (!run && Buffer.byteLength(q[field] ?? "") > MAX_KEY_FIELD_BYTES) {
+            return json(400, { code: "bad_field", field }, "max-age=300");
+        }
     }
     try {
         const db = (store ??= dynamoStore(process.env.TABLE_NAME ?? "graphty-health"));

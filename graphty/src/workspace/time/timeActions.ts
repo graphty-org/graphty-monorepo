@@ -51,7 +51,7 @@ interface PlayTally {
     stop: () => void;
 }
 
-/** Each session's play, from Play to the Pause that reads it. */
+/** Each session's play, from Play to the pause that ends it, whatever pauses it. */
 const plays = new WeakMap<GraphSession, PlayTally>();
 
 /**
@@ -64,18 +64,44 @@ function movedBy(event: TimeStepEvent): WindowMoved {
 }
 
 /**
- * Starts counting what a play moves, frame by frame: a pause has only the sum to report, since
- * `time.changes()` then holds the last frame alone.
+ * Stops counting the session's play, if one is counted.
  * @param session - the element's session.
+ * @returns the play's counts, or undefined when none was counted.
  */
-function tallyPlay(session: GraphSession): void {
-    plays.get(session)?.stop();
+function endTally(session: GraphSession): PlayTally | undefined {
+    const tally = plays.get(session);
+    tally?.stop();
+    plays.delete(session);
+    return tally;
+}
+
+/**
+ * Starts counting what a play moves, frame by frame: a pause has only the sum to report, since
+ * `time.changes()` then holds the last frame alone. The element's `time:pause` ends the count and
+ * says it, whether the Play button, another control or the end of the data paused the play
+ * (`time:end` is always followed by `time:pause`).
+ * @param session - the element's session.
+ * @param store - the chrome store.
+ */
+function tallyPlay(session: GraphSession, store: WorkspaceStore): void {
+    endTally(session);
     const tally: PlayTally = { entered: 0, left: 0, stop: () => undefined };
-    tally.stop = session.on("time:step", (event) => {
+    const offStep = session.on("time:step", (event) => {
         const moved = movedBy(event);
         tally.entered += moved.entered;
         tally.left += moved.left;
     });
+    const offPause = session.on("time:pause", () => {
+        // A speed change pauses and plays on with the same count: it sets the count aside first.
+        if (plays.get(session) === tally) {
+            endTally(session);
+            announceWindow(session, store, tally);
+        }
+    });
+    tally.stop = () => {
+        offStep();
+        offPause();
+    };
     plays.set(session, tally);
 }
 
@@ -107,23 +133,41 @@ export function announceWindow(session: GraphSession, store: WorkspaceStore, mov
  */
 export function stepWindow(session: GraphSession, store: WorkspaceStore, count: number): void {
     session.time.pause();
-    session.time.stepBy(count).then(
-        (event) => {
-            announceWindow(session, store, movedBy(event));
-        },
-        () => {
-            store.set({ notice: { message: "The time window could not move." } });
-        },
-    );
+    session.time.stepBy(count).then((event) => {
+        announceWindow(session, store, movedBy(event));
+    }, reportTimeError(store));
 }
 
 /**
- * Starts playback at a speed. Stepped playback waits for each frame, so it never outruns the drawing.
+ * Starts playback at a speed. Stepped playback waits for each frame, so it never outruns the
+ * drawing. When the element refuses, the count stops and the reader is told why.
  * @param session - the element's session.
+ * @param store - the chrome store.
  * @param speed - the speed.
  */
-export function playAt(session: GraphSession, speed: number): void {
-    session.time.play({ interval: intervalOf(speed), waitForRender: true });
+function playAt(session: GraphSession, store: WorkspaceStore, speed: number): void {
+    try {
+        session.time.play({ interval: intervalOf(speed), waitForRender: true });
+    } catch (error) {
+        endTally(session);
+        reportTimeError(store, "The timeline could not play")(error);
+    }
+}
+
+/**
+ * Goes on with a play at a new speed, counting on from where it was.
+ * @param session - the element's session.
+ * @param store - the chrome store.
+ * @param speed - the new speed.
+ */
+export function changeSpeed(session: GraphSession, store: WorkspaceStore, speed: number): void {
+    const tally = plays.get(session);
+    plays.delete(session);
+    session.time.pause();
+    if (tally !== undefined) {
+        plays.set(session, tally);
+    }
+    playAt(session, store, speed);
 }
 
 /**
@@ -134,19 +178,16 @@ export function playAt(session: GraphSession, speed: number): void {
 export function togglePlay(session: GraphSession, store: WorkspaceStore): void {
     const { time } = session;
     if (time.playing) {
+        const counted = plays.has(session);
+        // The element's time:pause says what the play moved; a play not counted here says only where it is.
         time.pause();
-        const tally = plays.get(session);
-        tally?.stop();
-        plays.delete(session);
-        announceWindow(session, store, tally);
+        if (!counted) {
+            announceWindow(session, store);
+        }
         return;
     }
-    tallyPlay(session);
-    try {
-        playAt(session, store.get().timeSpeed);
-    } catch {
-        store.set({ notice: { message: "The timeline could not play." } });
-    }
+    tallyPlay(session, store);
+    playAt(session, store, store.get().timeSpeed);
 }
 
 /**
@@ -240,7 +281,7 @@ export function designate(session: GraphSession, store: WorkspaceStore, field: T
             (error: unknown) => {
                 const column = field?.edges?.start ?? field?.nodes?.start ?? "";
                 const reason = (error as { details?: { reason?: unknown } }).details?.reason;
-                store.set({ notice: { message: refusalWords(column, reason) } });
+                store.set({ notice: { message: refusalWords(column, reason), error: true } });
             },
         );
 }
@@ -253,14 +294,9 @@ export function designate(session: GraphSession, store: WorkspaceStore, field: T
  */
 export function seekEdge(session: GraphSession, store: WorkspaceStore, end: "start" | "end"): void {
     session.time.pause();
-    session.time.seek(end).then(
-        (event) => {
-            announceWindow(session, store, movedBy(event));
-        },
-        () => {
-            store.set({ notice: { message: "The time window could not move." } });
-        },
-    );
+    session.time.seek(end).then((event) => {
+        announceWindow(session, store, movedBy(event));
+    }, reportTimeError(store));
 }
 
 /**
@@ -340,15 +376,19 @@ export function focusBrush(session: GraphSession, store: WorkspaceStore): void {
 /**
  * Says in words why the element refused a timeline change, instead of discarding it.
  * @param store - the chrome store.
+ * @param fallback - the words for a refusal with no words of its own.
  * @returns a rejection handler.
  */
-export function reportTimeError(store: WorkspaceStore): (error: unknown) => void {
+export function reportTimeError(
+    store: WorkspaceStore,
+    fallback = "The time window could not change",
+): (error: unknown) => void {
     return (error) => {
         const { code, details } = error as { code?: string; details?: { reason?: unknown } };
         const words =
             code === "E_BAD_COMMAND" && details?.reason === "calendar-step-on-ordinal"
                 ? "A number timeline steps by numbers"
-                : "The time window could not change";
+                : fallback;
         store.set({ notice: { message: words, error: true } });
     };
 }

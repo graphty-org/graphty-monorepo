@@ -89,8 +89,8 @@ async function openRow(name: string, tab: "Style" | "Values"): Promise<HTMLEleme
 }
 
 /**
- * The Which nodes (or edges) outline at rest of the open Style tab.
- * @returns the outline.
+ * The open Style tab's Which nodes (or edges): at rest, its Style Nodes... line.
+ * @returns the picker.
  */
 async function whichLine(): Promise<HTMLElement> {
     return screen.findByTestId("which-picker");
@@ -106,8 +106,9 @@ describe("one name per value, rules in words", () => {
         }
         await openRow(rows.route, "Style");
         const line = await whichLine();
-        assert.match(line.textContent, /On the route\s*Yes/);
-        await userEvent.click(within(line).getByRole("button", { name: /^Edit Which edges/ }));
+        // At rest the line is Style Edges... alone (issue #6810); the rule is read in its workspace.
+        assert.strictEqual(line.textContent, "Style Edges...");
+        await userEvent.click(within(line).getByRole("button", { name: /^Style Edges\.\.\./ }));
         const card = await screen.findByRole("group", { name: /^On the route(,|$)/ });
         const match = within(card).getByRole<HTMLInputElement>("combobox", { name: "On the route is" });
         assert.equal(match.value, "Yes");
@@ -162,7 +163,7 @@ describe("one name per value, rules in words", () => {
         await screen.findByRole("textbox", { name: "Layer name" });
         await userEvent.keyboard("{Escape}");
         // A new layer's Which nodes is edited in the selection workspace: its first step's value.
-        await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
         await userEvent.click(await screen.findByRole("button", { name: "Value" }));
         await screen.findByRole("combobox", { name: "Find attributes, results" });
         await userEvent.keyboard("name{Enter}");

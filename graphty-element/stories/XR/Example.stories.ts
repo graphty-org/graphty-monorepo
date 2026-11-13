@@ -6,7 +6,7 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { assertGraphLoaded, assertLayoutPlaced, drawn, holds } from "../assertions";
 import {
     eventWaitingDecorator,
-    remoteLoggingDecorator,
+    remoteLogging,
     renderFn,
     type StoryArgs,
     storySetup,
@@ -33,7 +33,8 @@ const meta: Meta = {
     title: "XR",
     component: "graphty-element",
     render: renderFn,
-    decorators: [eventWaitingDecorator, remoteLoggingDecorator],
+    decorators: [eventWaitingDecorator],
+    beforeEach: remoteLogging,
     parameters: {
         layout: "fullscreen",
         chromatic: {

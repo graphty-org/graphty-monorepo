@@ -40,10 +40,10 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useBoxSize } from "../useBoxSize";
 import {
     announceWindow,
+    changeSpeed,
     jumpToSelection,
     openTimeSheet,
     PHONE_WIDTH,
-    playAt,
     reportTimeError,
     selectionSpan,
     stepWindow,
@@ -540,8 +540,7 @@ function SpeedButton({
                     store.set({ timeSpeed: nextSpeed });
                     // A play in progress goes on at the new speed.
                     if (session.time.playing) {
-                        session.time.pause();
-                        playAt(session, nextSpeed);
+                        changeSpeed(session, store, nextSpeed);
                     }
                 }}
             >

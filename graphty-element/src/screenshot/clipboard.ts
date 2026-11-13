@@ -1,4 +1,4 @@
-import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
+import { captureError } from "./captureError.js";
 import type { ClipboardStatus } from "./types.js";
 
 interface ClipboardResult {
@@ -18,10 +18,9 @@ export async function copyToClipboard(blobOrPromise: Blob | Promise<Blob>): Prom
     if (!globalThis.isSecureContext) {
         return {
             status: "not-secure-context",
-            error: new ScreenshotError(
-                "Clipboard API requires a secure context (HTTPS)",
-                ScreenshotErrorCode.CLIPBOARD_NOT_SECURE_CONTEXT,
-            ),
+            error: captureError("E_UNSUPPORTED", "Clipboard API requires a secure context (HTTPS)", {
+                reason: "clipboard-insecure-context",
+            }),
         };
     }
 
@@ -30,20 +29,18 @@ export async function copyToClipboard(blobOrPromise: Blob | Promise<Blob>): Prom
     if (!navigator.clipboard) {
         return {
             status: "not-supported",
-            error: new ScreenshotError(
-                "Clipboard API not supported in this browser",
-                ScreenshotErrorCode.CLIPBOARD_NOT_SUPPORTED,
-            ),
+            error: captureError("E_UNSUPPORTED", "Clipboard API not supported in this browser", {
+                reason: "clipboard",
+            }),
         };
     }
 
     if (!navigator.clipboard.write) {
         return {
             status: "not-supported",
-            error: new ScreenshotError(
-                "Clipboard write API not supported in this browser",
-                ScreenshotErrorCode.CLIPBOARD_NOT_SUPPORTED,
-            ),
+            error: captureError("E_UNSUPPORTED", "Clipboard write API not supported in this browser", {
+                reason: "clipboard",
+            }),
         };
     }
 
@@ -58,10 +55,9 @@ export async function copyToClipboard(blobOrPromise: Blob | Promise<Blob>): Prom
             if (permission.state === "denied") {
                 return {
                     status: "permission-denied",
-                    error: new ScreenshotError(
-                        "Clipboard permission is denied",
-                        ScreenshotErrorCode.CLIPBOARD_PERMISSION_DENIED,
-                    ),
+                    error: captureError("E_UNSUPPORTED", "Clipboard permission is denied", {
+                        reason: "clipboard-permission",
+                    }),
                 };
             }
         }
@@ -92,9 +88,10 @@ export async function copyToClipboard(blobOrPromise: Blob | Promise<Blob>): Prom
         if (error instanceof Error && error.name === "NotAllowedError") {
             return {
                 status: "permission-denied",
-                error: new ScreenshotError(
+                error: captureError(
+                    "E_UNSUPPORTED",
                     "Clipboard permission denied",
-                    ScreenshotErrorCode.CLIPBOARD_PERMISSION_DENIED,
+                    { reason: "clipboard-permission" },
                     error,
                 ),
             };
@@ -103,9 +100,10 @@ export async function copyToClipboard(blobOrPromise: Blob | Promise<Blob>): Prom
         // Other error
         return {
             status: "failed",
-            error: new ScreenshotError(
+            error: captureError(
+                "E_CAPTURE_FAILED",
                 "Failed to write to clipboard",
-                ScreenshotErrorCode.CLIPBOARD_WRITE_FAILED,
+                { media: "image", destination: "clipboard" },
                 error,
             ),
         };

@@ -2,12 +2,12 @@ import { afterEach, assert, test, vi } from "vitest";
 
 import type { AuthoredLayoutDescriptor } from "../../../src/catalog/types";
 import type { Edge } from "../../../src/Edge";
+import { GraphtyError } from "../../../src/errors";
 import { type Graph, operationQueueOf } from "../../../src/Graph";
 import { type EdgePosition, LayoutEngine, type Position } from "../../../src/layout/LayoutEngine";
 import { layoutManagerInternals } from "../../../src/managers/LayoutManager";
 import type { Node } from "../../../src/Node";
 import { SCREENSHOT_CONSTANTS } from "../../../src/screenshot/constants";
-import { ScreenshotError, ScreenshotErrorCode } from "../../../src/screenshot/ScreenshotError";
 import { drawnFrames } from "../../helpers/drawn-frames";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
@@ -165,8 +165,8 @@ test("waitForSettle times out if layout never settles", async () => {
     await vi.advanceTimersByTimeAsync(SCREENSHOT_CONSTANTS.LAYOUT_SETTLE_TIMEOUT_MS);
 
     const error = await outcome;
-    assert.ok(error instanceof ScreenshotError, "Should throw a ScreenshotError");
-    assert.equal(error.code, ScreenshotErrorCode.LAYOUT_SETTLE_TIMEOUT);
+    assert.ok(error instanceof GraphtyError, "Should throw a GraphtyError");
+    assert.equal(error.code, "E_NOT_SETTLED");
 });
 
 test("timing.settleTimeoutMs sets how long waitForSettle waits", async () => {

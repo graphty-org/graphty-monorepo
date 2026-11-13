@@ -407,7 +407,7 @@ export function openSample(workspace: WorkspaceStore, sample: StartSample): void
  * @param url - the address.
  * @returns the source.
  */
-function urlSource(url: string): Incoming {
+export function urlSource(url: string): Incoming {
     const name = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "") || new URL(url).hostname;
     return { name, source: { config: { url }, name } };
 }

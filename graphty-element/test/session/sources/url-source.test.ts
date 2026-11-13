@@ -7,7 +7,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession, credentials, type GraphSession, replayFetch } from "../../../session";
+import { createGraphSession, credentials, type GraphSession, GraphtyError, replayFetch } from "../../../session";
 import { attachCredentials } from "../../../src/session/sources/credentialLookup";
 
 const HOST = "https://files.example.com";
@@ -115,6 +115,22 @@ describe("the url source in a session", () => {
                 ["p1", "p2", "p3"],
                 "the same nodes, none added under other ids",
             );
+        });
+    });
+
+    it("refuses a file at the address its format cannot read as E_PARSE_FAILED, naming the format", async () => {
+        await withSession(async (session) => {
+            const url = `${HOST}/friends.csv`;
+            const fetch = replayFetch([{ url, body: "user_id,friend_id\nu1,u2\nu2,u3\n" }]);
+            const error: unknown = await session.data.import({ source: "url", config: { url } }, { fetch }).then(
+                () => null,
+                (caught: unknown) => caught,
+            );
+            if (!(error instanceof GraphtyError)) {
+                assert.fail("expected a GraphtyError");
+            }
+            assert.strictEqual(error.code, "E_PARSE_FAILED");
+            assert.strictEqual(error.details.format, "csv");
         });
     });
 });

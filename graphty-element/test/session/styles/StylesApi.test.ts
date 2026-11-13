@@ -1606,21 +1606,39 @@ describe("a style document, out and back in", () => {
         assert.strictEqual(code, "E_PROTECTED");
     });
 
-    it("refuses a palette it does not have, rather than painting colours nobody chose", async () => {
+    it("applies a document naming a palette this page never registered when the document carries it", async () => {
+        // A save file carries every palette its layers name, so a palette the reading page lacks
+        // paints the colors the file was saved with (design/architecture/self-contained-save-files.md).
         const { styles } = makeStyles();
 
+        await styles.applyTemplate({
+            version: 1,
+            layers: [
+                {
+                    name: "House",
+                    target: "node",
+                    selector: { match: "has", path: "data.rank" },
+                    encode: { "node.color": { by: "data.rank", palette: DOCUMENT_PALETTE.id } },
+                },
+            ],
+            palettes: [DOCUMENT_PALETTE],
+        });
+
+        assert.deepStrictEqual(namesOf(styles), ["Default", "House"]);
+        assert.deepStrictEqual(styles.toDocument().palettes, [DOCUMENT_PALETTE], "and saves it again");
+    });
+
+    it("refuses a document naming a palette it neither carries nor this page has", async () => {
+        const { styles } = makeStyles();
         const code = await codeOfRejection(
             styles.applyTemplate({
                 version: 1,
-                layers: [...DOCUMENT.layers],
-                palettes: [
+                layers: [
                     {
-                        id: "house-style",
-                        plainName: "House Style",
-                        kind: "categorical",
-                        colors: ["#112233"],
-                        capacity: 1,
-                        colorblindSafe: [],
+                        name: "House",
+                        target: "node",
+                        selector: { match: "has", path: "data.rank" },
+                        encode: { "node.color": { by: "data.rank", palette: "house-style" } },
                     },
                 ],
             }),
@@ -1628,6 +1646,88 @@ describe("a style document, out and back in", () => {
 
         assert.strictEqual(code, "E_UNKNOWN_PALETTE");
         assert.deepStrictEqual(namesOf(styles), ["Default"]);
+    });
+
+    it("refuses a carried palette that is not an id, a kind and colors", async () => {
+        const { styles } = makeStyles();
+        const fromDisk = JSON.parse(
+            '{"version":1,"layers":[],"palettes":[{"id":"bad","kind":"sequential","colors":[]}]}',
+        ) as StyleDocument;
+
+        assert.strictEqual(await codeOfRejection(styles.applyTemplate(fromDisk)), "E_BAD_COMMAND");
+    });
+
+    it("paints a carried palette's colors over the catalog's palette of the same name", async () => {
+        const { styles } = makeStyles();
+        const older = { ...DOCUMENT_PALETTE, id: "viridis", kind: "sequential" as const, capacity: null };
+
+        await styles.applyTemplate({
+            version: 1,
+            layers: [
+                {
+                    name: "Old viridis",
+                    target: "node",
+                    selector: { match: "has", path: "data.rank" },
+                    encode: { "node.color": { by: "data.rank", palette: "viridis" } },
+                },
+            ],
+            palettes: [older],
+        });
+
+        assert.deepStrictEqual(styles.toDocument().palettes, [older], "the file's colors, not this build's");
+    });
+
+    it("reads a document written before palettes were carried, and carries them from then on", async () => {
+        // A file saved before built-in palettes and label looks were carried names them only by
+        // id; it still opens, resolved against this build's catalog.
+        const { styles } = makeStyles();
+
+        await styles.applyTemplate({
+            version: 1,
+            layers: [
+                {
+                    name: "Old",
+                    target: "node",
+                    selector: { match: "has", path: "data.rank" },
+                    set: { "node.labelStyle": { look: "card" } },
+                    encode: { "node.color": { by: "data.rank", palette: "viridis" } },
+                },
+            ],
+        });
+
+        const document = styles.toDocument();
+        assert.deepStrictEqual(
+            document.palettes?.map((each) => each.id),
+            ["viridis"],
+        );
+        assert.deepStrictEqual(
+            document.labelLooks?.map((each) => each.id),
+            ["card"],
+        );
+    });
+
+    it("applies a document naming a label look this build lacks when the document carries it", async () => {
+        const { styles } = makeStyles();
+        const look = { id: "gone", plainName: "Gone", style: { color: "#123456" } };
+
+        await styles.applyTemplate(
+            JSON.parse(
+                JSON.stringify({
+                    version: 1,
+                    layers: [
+                        {
+                            name: "Gone look",
+                            target: "node",
+                            selector: { match: "has", path: "data.rank" },
+                            set: { "node.labelStyle": { look: "gone" } },
+                        },
+                    ],
+                    labelLooks: [look],
+                }),
+            ) as StyleDocument,
+        );
+
+        assert.deepEqual(JSON.parse(JSON.stringify(styles.toDocument().labelLooks)), [look]);
     });
 
     it("applies a document that carries a palette this page has registered", async () => {
@@ -1653,7 +1753,7 @@ describe("a style document, out and back in", () => {
         }
     });
 
-    it("writes the palettes its layers name that the element does not ship, so a saved look is self-describing", async () => {
+    it("writes every palette its layers name, so a saved look is self-describing", async () => {
         registerPalette(DOCUMENT_PALETTE);
 
         try {
@@ -1675,10 +1775,10 @@ describe("a style document, out and back in", () => {
             const document = styles.toDocument();
 
             assert.deepStrictEqual(
-                document.palettes,
-                [DOCUMENT_PALETTE],
-                "the registered palette travels with the document; the element's own does not, " +
-                    "because viridis means the same thing on every page",
+                document.palettes?.map((each) => each.id),
+                [DOCUMENT_PALETTE.id, "viridis"],
+                "every palette a layer names travels with the document, the element's own included, " +
+                    "so a later build that drops or changes viridis paints what this one did",
             );
         } finally {
             clearRegisteredPalettesForTesting();

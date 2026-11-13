@@ -9,6 +9,7 @@
  * entry from `exceptions` in `saved-format-lists.json`, in one commit.
  */
 
+import { LABEL_LOOKS } from "../../src/catalog/label-looks";
 import type { ShaderDescriptor } from "../../src/catalog/shaders";
 import type { GraphSession } from "../../src/session";
 
@@ -122,6 +123,43 @@ async function useEveryShader(session: GraphSession): Promise<UsedEvery> {
     return { used, listed: presets.length, saves };
 }
 
+/**
+ * Use every palette the catalog lists: one layer per palette, coloring nodes by a measurement.
+ * @param session - The session.
+ * @returns What was used.
+ */
+async function useEveryPalette(session: GraphSession): Promise<UsedEvery> {
+    const palettes = session.catalog.palettes();
+    for (const [at, palette] of palettes.entries()) {
+        await session.styles.add({
+            name: `Palette ${at}`,
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.color": { by: "data.weight", palette: palette.id } },
+        });
+    }
+
+    return { used: palettes.map((each) => each.id), listed: palettes.length, saves: [] };
+}
+
+/**
+ * Use every label look: one layer per look, on node labels.
+ * @param session - The session.
+ * @returns What was used.
+ */
+async function useEveryLabelLook(session: GraphSession): Promise<UsedEvery> {
+    for (const look of LABEL_LOOKS) {
+        await session.styles.add({
+            name: `Look ${look.id}`,
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labelStyle": { look: look.id } },
+        });
+    }
+
+    return { used: LABEL_LOOKS.map((each) => each.id), listed: LABEL_LOOKS.length, saves: [] };
+}
+
 /** Every kind a save file carries in full. The census requires each `selfContained` kind of `saved-format-lists.json` here. */
 export const SELF_CONTAINED_KINDS: readonly SelfContainedKind[] = [
     {
@@ -130,6 +168,30 @@ export const SELF_CONTAINED_KINDS: readonly SelfContainedKind[] = [
         builtInModules: {
             "../../src/shaders/presets/index.ts": { SHADER_PRESETS: [] },
             "../../src/shaders/presets/bodies.ts": { SHADER_PRESET_BODIES: {} },
+        },
+    },
+    {
+        kind: "palettes",
+        useEvery: useEveryPalette,
+        builtInModules: {
+            "../../src/catalog/palettes.ts": {
+                PALETTE_DESCRIPTORS: [],
+                paletteDescriptor: () => undefined,
+                palettesOfKind: () => [],
+                knownPaletteIds: () => [],
+            },
+        },
+    },
+    {
+        kind: "labelLooks",
+        useEvery: useEveryLabelLook,
+        builtInModules: {
+            "../../src/catalog/label-looks.ts": {
+                LABEL_LOOKS: [],
+                labelLook: () => undefined,
+                labelLookChanges: () => [],
+                builtInIdsForTesting: () => ({ kind: "labelLooks", ids: [] }),
+            },
         },
     },
 ];

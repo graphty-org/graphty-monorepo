@@ -34,6 +34,7 @@ import { SCALE_DESCRIPTORS } from "../../catalog/scales";
 import type { PaletteDescriptor, ScaleDescriptor } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { clamp } from "../../utils/clamp";
+import { type CarriedLooks, createCarriedLooks } from "./carried";
 
 // ---------------------------------------------------------------------------------------------
 // What a scale is handed
@@ -534,6 +535,12 @@ export interface ScaleRegistry {
     describe(name: string): ScaleDescriptor | undefined;
     /** Every registered name, built-ins first and in catalogue order. */
     names(): readonly string[];
+    /**
+     * The palettes and label looks an opened file carried, read before the catalog. Held here, in
+     * the one registry the stack checks a layer against and the repaint paints from, for the same
+     * reason the scales are: a layer is never accepted against a palette the repaint cannot find.
+     */
+    readonly carried: CarriedLooks;
 }
 
 /**
@@ -561,6 +568,7 @@ export function createScaleRegistry(): ScaleRegistry {
     }
 
     return {
+        carried: createCarriedLooks(),
         register({ map, ...descriptor }: ScalePlugin): void {
             if (registered.has(descriptor.name)) {
                 throw new GraphtyError({

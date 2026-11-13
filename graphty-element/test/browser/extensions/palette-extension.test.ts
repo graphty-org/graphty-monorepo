@@ -669,11 +669,10 @@ describe("a third party's palette, in a document somebody saved", () => {
         assert.strictEqual(paintedColor("b1"), HEAT_HEXES.at(-1));
     });
 
-    it("is refused, rather than half-applied, when the document describes a palette nobody registered", async () => {
+    it("is refused, rather than half-applied, when the document names a palette it neither carries nor finds registered", async () => {
         const document: StyleDocument = {
             version: 1,
-            layers: [heatLayer()],
-            palettes: [{ ...ACME_HEAT, id: "acme-nothing" }],
+            layers: [heatLayer({ palette: "acme-nothing" })],
         };
 
         const code = await codeOf(() => session.styles.applyTemplate(document));

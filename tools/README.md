@@ -358,8 +358,9 @@ requests an hour, shared by everything acting as it. Until the limit resets, eve
 
 - **Read pull request status from the local broker, not from GitHub.** `tools/pr-status-broker.mjs`
   runs under servherd and writes every open pull request's labels, draft and merge state, rollup
-  and checks to `<main checkout>/tmp/pr-status/status.json` once a minute, in one GraphQL query
-  (about 3 points a query, 180 an hour; the file's `rateLimit.cost` has the real figure). Where a
+  and checks to `<main checkout>/tmp/pr-status/status.json` once a minute, in GraphQL pages of 10
+  pull requests (1 point a page: about 4 points a minute, 240 an hour for 35 open; the file's
+  `rateLimit.cost` has the real figure). Where a
   check ran more than once on the head commit, the file keeps the newest; `truncated` or
   `checksTruncated` means the list is incomplete.
   Read that file (check `fetchedAt` and `error`). If `servherd_list` does not show

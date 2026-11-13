@@ -59,6 +59,9 @@ patchedDependencies:
   '@babylonjs/core@8.56.2':
     hash: f71e421b4152b5355eaabfafbfa1e5e5abb2e7e82368f194fce01990693321e2
     path: patches/@babylonjs__core@8.56.2.patch
+  '@mantine/core@8.3.18':
+    hash: 4d46aecd05e300ebc202d529cab88d03dbe72870b28631081ee379fd14fe8848
+    path: patches/@mantine__core@8.3.18.patch
   '@tanstack/ai-gemini@0.37.2':
     hash: 3c06607cba01b73aa29822c88ef3160f018ac85fd69fb5fbc8d37e12b0d986f7
     path: patches/@tanstack__ai-gemini@0.37.2.patch
@@ -381,7 +384,7 @@ importers:
     devDependencies:
       '@mantine/core':
         specifier: ^8.3.10
-        version: 8.3.18(@mantine/hooks@8.3.18(react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 8.3.18(patch_hash=4d46aecd05e300ebc202d529cab88d03dbe72870b28631081ee379fd14fe8848)(@mantine/hooks@8.3.18(react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@mantine/hooks':
         specifier: ^8.3.10
         version: 8.3.18(react@19.3.0)
@@ -754,7 +757,7 @@ importers:
         version: 1.2.5
       '@mantine/core':
         specifier: ^8.1.3
-        version: 8.3.18(@mantine/hooks@8.3.18(react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 8.3.18(patch_hash=4d46aecd05e300ebc202d529cab88d03dbe72870b28631081ee379fd14fe8848)(@mantine/hooks@8.3.18(react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@mantine/hooks':
         specifier: ^8.1.3
         version: 8.3.18(react@19.3.0)
@@ -12033,7 +12036,7 @@ snapshots:
     dependencies:
       '@lit-labs/ssr-dom-shim': 1.6.0
 
-  '@mantine/core@8.3.18(@mantine/hooks@8.3.18(react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
+  '@mantine/core@8.3.18(patch_hash=4d46aecd05e300ebc202d529cab88d03dbe72870b28631081ee379fd14fe8848)(@mantine/hooks@8.3.18(react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@floating-ui/react': 0.27.20(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@mantine/hooks': 8.3.18(react@19.3.0)

@@ -33,8 +33,9 @@ const css = `
 
 /* Figma's scroll chevron rows: 24 tall, the menu's fill, a 5 x 3 chevron (the register's
    chevronUp / chevronDown polyline drawn in a 10px box; white on a dark menu, the menu's dark ink
-   on a light one). src/components/overlays/overlayBehavior.ts sets data-cm-scroll-up / -down on a
-   clamped menu for each end it can still scroll towards, and scrolls it while one is hovered.
+   on a light one; a field's listbox is inverse when its dropdown is).
+   src/components/overlays/overlayBehavior.ts sets data-cm-scroll-up / -down on a clamped menu
+   for each end it can still scroll towards, and scrolls it while one is hovered.
    The rows are sticky pseudo elements laid over the first and last visible rows. */
 .cm-menu[data-cm-scroll-up]::before,
 .cm-menu[data-cm-scroll-down]::after {
@@ -57,10 +58,10 @@ const css = `
     margin-bottom: -8px;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpolyline points='4,6 8,10 12,6' fill='none' stroke='%23fff' stroke-width='1.6'/%3E%3C/svg%3E");
 }
-:where([data-mantine-color-scheme="light"]) .cm-menu:not(.cm-menu-inverse)[data-cm-scroll-up]::before {
+:where([data-mantine-color-scheme="light"]) .cm-menu:not(.cm-menu-inverse, .cm-menu-inverse .cm-menu)[data-cm-scroll-up]::before {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpolyline points='4,10 8,6 12,10' fill='none' stroke='%23000' stroke-opacity='.9' stroke-width='1.6'/%3E%3C/svg%3E");
 }
-:where([data-mantine-color-scheme="light"]) .cm-menu:not(.cm-menu-inverse)[data-cm-scroll-down]::after {
+:where([data-mantine-color-scheme="light"]) .cm-menu:not(.cm-menu-inverse, .cm-menu-inverse .cm-menu)[data-cm-scroll-down]::after {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpolyline points='4,6 8,10 12,6' fill='none' stroke='%23000' stroke-opacity='.9' stroke-width='1.6'/%3E%3C/svg%3E");
 }
 

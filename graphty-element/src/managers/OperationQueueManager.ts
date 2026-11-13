@@ -1134,21 +1134,20 @@ export class OperationQueueManager implements Manager {
     }
 
     /**
-     * Cancel all operations of a specific category
+     * Cancel all operations of a specific category: pending, queued and running.
      * @param category - The operation category to cancel
      * @returns Number of operations cancelled
      */
     cancelByCategory(category: OperationCategory): number {
         let cancelledCount = 0;
 
-        // Cancel pending operations
-        this.pendingOperations.forEach((operation) => {
-            if (operation.category === category) {
-                if (this.cancelOperation(operation.id)) {
-                    cancelledCount++;
-                }
+        // Running ones too: only looking at the pending ones left a running camera animation going
+        // after the camera was placed elsewhere, and it then moved the camera off that placement.
+        for (const operation of this.liveOf(new Set([category]), false)) {
+            if (this.cancelOperation(operation.id)) {
+                cancelledCount++;
             }
-        });
+        }
 
         return cancelledCount;
     }

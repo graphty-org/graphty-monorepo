@@ -128,7 +128,7 @@ export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagatio
 
         /* The CPU ports report their iterations and whether they converged; an accelerator's
            result does not. */
-        context.report({ phase: "Spreading labels", total: null });
+        context.report({ phase: "spreading-labels", total: null });
         const { value, precision } = await run((dispatch, s) =>
             synchronous
                 ? dispatch.labelPropagationSynchronous(s, { maxIterations })
@@ -138,7 +138,7 @@ export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagatio
         const iterations = "iterations" in value && typeof value.iterations === "number" ? value.iterations : undefined;
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+        await forEachChunked(context, "grouping-nodes", nodeIds, (nodeId) => {
             nodes.push({ id: nodeId, values: { group: value.labels[ids.indexOf(nodeId)] ?? 0 } });
         });
 

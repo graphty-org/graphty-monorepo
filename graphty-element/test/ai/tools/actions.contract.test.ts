@@ -70,6 +70,13 @@ interface Row {
 const TOUCHED = new Map<string, Set<string>>();
 
 /**
+ * The reference tests that fill `TOUCHED`, and those that finished: the reach check reads `TOUCHED`
+ * only when every one of them ran and passed, so a filtered run or an earlier failure is reported as
+ * that, never as a list of unverified claims.
+ */
+const REFERENCE = { expected: new Set<string>(), kept: new Set<string>() };
+
+/**
  * An assistant over a session that records what each action touches into `TOUCHED`.
  * @param session - The session.
  * @param options - The assistant's options.
@@ -91,8 +98,10 @@ function recordingAssistant(
 /**
  * File what a recorder saw under each action.
  * @param recorder - The recorder.
+ * @param test - The reference test's name.
  */
-function keep(recorder: ReachRecorder): void {
+function keep(recorder: ReachRecorder, test: string): void {
+    REFERENCE.kept.add(test);
     for (const [action, touched] of recorder.touched) {
         const own = TOUCHED.get(action) ?? new Set<string>();
         for (const item of touched) {
@@ -483,6 +492,7 @@ const ROWS: Record<string, Row> = {
     "export_graph.export": { args: { format: "graphml" } },
     "project.settings": { args: { action: "settings", runAlgorithmsOnLoad: true } },
     "project.rename": { args: { action: "rename", name: "Network" } },
+    "project.rename_run": { args: { action: "rename_run", run: "degree", runName: "Hubs" }, setup: withRun },
     "project.declare": { args: { action: "declare", column: "load", measurement: "quantitative" } },
     "project.status": { args: { action: "status" } },
     "capture.screenshot": { args: { action: "screenshot", width: 100, height: 100 } },
@@ -527,7 +537,9 @@ describe("every generated action", () => {
             continue;
         }
 
-        it(`${key}: ${effect === "write" ? "one undo step that one undo takes back" : "no step, nothing saved changes"}`, async () => {
+        const reference = `${key}: ${effect === "write" ? "one undo step that one undo takes back" : "no step, nothing saved changes"}`;
+        REFERENCE.expected.add(reference);
+        it(reference, async () => {
             const session = await (row.session ?? assistantSession)();
             await row.setup?.(session);
             await session.styles.settled();
@@ -565,7 +577,7 @@ describe("every generated action", () => {
                 assert.strictEqual(await digest(session), before, `${key} changes nothing a project saves`);
             }
 
-            keep(recorder);
+            keep(recorder, reference);
         });
 
         it(`${key}: refuses a field it does not take, running nothing`, async () => {
@@ -955,7 +967,9 @@ describe("actions whose reference call stops short", () => {
 
     for (const [key, rows] of Object.entries(MORE)) {
         for (const row of rows) {
-            it(`${key}: ${typeof row.args === "function" ? "computed" : JSON.stringify(row.args)}`, async () => {
+            const reference = `${key}: ${typeof row.args === "function" ? "computed" : JSON.stringify(row.args)}`;
+            REFERENCE.expected.add(reference);
+            it(reference, async () => {
                 const session = await (row.session ?? assistantSession)();
                 const [tool] = key.split(".");
                 const { assistant, recorder } = recordingAssistant(session, {
@@ -975,7 +989,7 @@ describe("actions whose reference call stops short", () => {
                 await assistant.say(`do ${key}`, [{ tool, args: { ...argsOf(row, session) } }]);
                 const [read] = assistant.lastResults();
                 assert.strictEqual(read.code, row.code ?? "AI_OK", JSON.stringify(read));
-                keep(recorder);
+                keep(recorder, reference);
             });
         }
     }
@@ -997,6 +1011,8 @@ function claimOf(reach: Reach): string | undefined {
 
 describe("what each action claims to reach", () => {
     it("is a member or an op its reference calls touch", () => {
+        const missing = [...REFERENCE.expected].filter((test) => !REFERENCE.kept.has(test));
+        assert.deepStrictEqual(missing, [], "reference calls that did not run or did not pass; run the whole file");
         const unverified: string[] = [];
         for (const tool of buildToolset(createGraphSession()).tools) {
             for (const action of tool.definition.actions) {

@@ -1,278 +1,113 @@
 /**
- * Mouse Controls Integration Tests
+ * @file The mouse in the 3D view: which way a drag across empty canvas turns the camera, in
+ * proportion to how far it went, and the wheel zooming without scrolling the page. Real mouse
+ * input (test/helpers/real-input.ts), the render loop running, the outcome read from
+ * `element.getCameraState()`.
  *
- * These tests verify mouse interactions in a real browser environment
- * by creating Graph instances directly and driving them with real mouse and keyboard input
- * (test/helpers/real-input.ts).
+ * Panning and zooming the 2D view with the mouse, and clicking and dragging nodes, are in
+ * test/interactions/real-input.test.ts.
  */
 
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { assert, describe, it } from "vitest";
 
-import { Graph, operationQueueOf } from "../../../src/Graph";
-import { click, drag, holdKey, releaseHeldKeys, releaseKey, wheel } from "../../helpers/real-input";
-import { configureGraph } from "../../helpers/testSetup";
+import type { Graphty } from "../../../index.js";
+import { drag, wheel } from "../../helpers/real-input";
+import { applied, EMPTY, HEIGHT, mounted, onCleanup, WIDTH } from "../helpers/mounted-element";
 
-const TEST_NODES = [{ id: 1 }, { id: 2 }, { id: 3 }];
+/**
+ * The 3D camera's turn about one axis, as the element reports it.
+ * @param element - The element.
+ * @param axis - The axis.
+ * @returns The angle, in radians.
+ */
+function turn(element: Graphty, axis: "x" | "y"): number {
+    const rotation = element.getCameraState().pivotRotation;
+    assert.isDefined(rotation, "the 3D camera reports its turn");
+    return rotation[axis];
+}
 
-const TEST_EDGES = [
-    { src: 1, dst: 2 },
-    { src: 2, dst: 3 },
-];
+/**
+ * Drag across empty canvas from {@link EMPTY} and wait for the camera to come to rest.
+ * @param element - The element.
+ * @param dx - How far right, in CSS pixels.
+ * @param dy - How far down, in CSS pixels.
+ */
+async function dragEmpty(element: Graphty, dx: number, dy: number): Promise<void> {
+    await drag(element, EMPTY, { x: EMPTY.x + dx, y: EMPTY.y + dy });
+    await applied(element);
+}
 
-describe("Mouse Controls Integration", () => {
-    let graph: Graph;
-    let container: HTMLDivElement;
+/**
+ * A 3D element with its camera square to the graph, so a turn reads as one axis.
+ * @returns The element.
+ */
+async function level(): Promise<Graphty> {
+    const element = await mounted("3d");
+    await element.setCameraState({ pivotRotation: { x: 0, y: 0, z: 0 } });
+    await applied(element);
+    return element;
+}
 
-    describe("2D Mode", () => {
-        beforeEach(async () => {
-            container = document.createElement("div");
-            container.style.width = "800px";
-            container.style.height = "600px";
-            document.body.appendChild(container);
+describe("a drag across empty canvas in 3D", () => {
+    it("to the right turns the camera about the vertical, and to the left turns it back", async () => {
+        const element = await level();
 
-            graph = new Graph(container);
-            await graph.init();
+        await dragEmpty(element, 100, 0);
+        const right = turn(element, "y");
+        await dragEmpty(element, -100, 0);
 
-            // Set up 2D mode
-            await configureGraph(graph, { viewMode: "2d", layout: "circular", layoutOptions: { dim: 2 } });
-            await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
-            await operationQueueOf(graph).waitForCompletion();
-
-            // Wait for rendering to stabilize
-            await graph.waitForStableFrame();
-        });
-
-        afterEach(async () => {
-            await releaseHeldKeys();
-            graph.dispose();
-            document.body.removeChild(container);
-        });
-
-        test("drag to pan in 2D mode", async () => {
-            // Get the camera controller
-            const cameraController = graph.camera.getActiveController();
-            assert.isDefined(cameraController, "Camera controller should be defined");
-
-            // Access the 2D camera controller directly to spy on pan method
-
-            const cameraManager = graph.camera as any;
-            const twoDController = cameraManager.activeCameraController;
-            assert.isDefined(twoDController, "2D camera controller should be defined");
-
-            // Spy on the pan method to verify it's being called
-            const panSpy = vi.spyOn(twoDController, "pan");
-
-            // A real drag from 100, 100 to 200, 150 (right and down)
-            await drag(graph.canvas, { x: 100, y: 100 }, { x: 200, y: 150 });
-
-            // Pan method should have been called during the drag
-            assert.isAbove(panSpy.mock.calls.length, 0, "pan() should be called during mouse drag");
-        });
-
-        test("wheel to zoom in 2D mode", async () => {
-            // Get the camera controller
-            const cameraController = graph.camera.getActiveController();
-            if (!cameraController) {
-                throw new Error("Camera controller should be defined");
-            }
-
-            const { camera } = cameraController;
-            const initialOrthoTop = camera.orthoTop ?? 10;
-            const initialOrthoBottom = camera.orthoBottom ?? -10;
-            const initialRange = initialOrthoTop - initialOrthoBottom;
-
-            // A real wheel turn up (negative deltaY)
-            await wheel(graph.canvas, { x: 200, y: 150 }, -100);
-
-            // Zoom in should decrease ortho range
-            await expect
-                .poll(() => (camera.orthoTop ?? 10) - (camera.orthoBottom ?? -10), {
-                    message: "Wheel up should zoom in (decrease ortho range)",
-                })
-                .toBeLessThan(initialRange);
-        });
-
-        test("wheel down to zoom out in 2D mode", async () => {
-            // Get the camera controller
-            const cameraController = graph.camera.getActiveController();
-            if (!cameraController) {
-                throw new Error("Camera controller should be defined");
-            }
-
-            const { camera } = cameraController;
-            const initialOrthoTop = camera.orthoTop ?? 10;
-            const initialOrthoBottom = camera.orthoBottom ?? -10;
-            const initialRange = initialOrthoTop - initialOrthoBottom;
-
-            // A real wheel turn down (positive deltaY)
-            await wheel(graph.canvas, { x: 200, y: 150 }, 100);
-
-            // Zoom out should increase ortho range
-            await expect
-                .poll(() => (camera.orthoTop ?? 10) - (camera.orthoBottom ?? -10), {
-                    message: "Wheel down should zoom out (increase ortho range)",
-                })
-                .toBeGreaterThan(initialRange);
-        });
+        assert.isAbove(Math.abs(right), 0.05, "the drag right turned the camera");
+        assert.closeTo(turn(element, "y"), 0, Math.abs(right) / 10, "the drag left turned it back");
+        assert.closeTo(turn(element, "x"), 0, Math.abs(right) / 10, "neither tilted it");
     });
 
-    describe("3D Mode", () => {
-        beforeEach(async () => {
-            container = document.createElement("div");
-            container.style.width = "800px";
-            container.style.height = "600px";
-            document.body.appendChild(container);
+    it("down tilts the camera, the other way from up", async () => {
+        const element = await level();
 
-            graph = new Graph(container);
-            await graph.init();
+        await dragEmpty(element, 0, -100);
+        const up = turn(element, "x");
+        await dragEmpty(element, 0, 100);
 
-            // Set up 3D mode
-            await configureGraph(graph, { viewMode: "3d", layout: "circular", layoutOptions: { dim: 3 } });
-            await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
-            await operationQueueOf(graph).waitForCompletion();
-
-            // Wait for rendering to stabilize
-            await graph.waitForStableFrame();
-        });
-
-        afterEach(async () => {
-            await releaseHeldKeys();
-            graph.dispose();
-            document.body.removeChild(container);
-        });
-
-        test("drag to orbit in 3D mode", async () => {
-            // Get the camera controller - 3D mode uses OrbitCameraController
-            const cameraController = graph.camera.getActiveController();
-            assert.isDefined(cameraController, "Camera controller should be defined");
-
-            // Access the orbit controller and input controller
-
-            const cameraManager = graph.camera as any;
-            const orbitController = cameraManager.activeCameraController;
-            const inputController = cameraManager.activeInputHandler;
-
-            assert.isDefined(orbitController, "Orbit camera controller should be defined");
-            assert.isDefined(inputController, "Input controller should be defined");
-
-            // Spy on the rotate method to verify it's called during drag
-            const rotateSpy = vi.spyOn(orbitController, "rotate");
-
-            const { canvas } = graph;
-
-            // 3D mode uses direct canvas events
-            await drag(canvas, { x: 100, y: 100 }, { x: 200, y: 150 }, 1);
-
-            // Verify rotate was called with the movement delta
-            assert.isAbove(rotateSpy.mock.calls.length, 0, "rotate() should be called during drag");
-            const [dx, dy] = rotateSpy.mock.calls[0];
-            assert.equal(dx, 100, "dx should be the difference in clientX (200 - 100)");
-            assert.equal(dy, 50, "dy should be the difference in clientY (150 - 100)");
-        });
-
-        test("keyboard W to zoom in 3D mode", async () => {
-            // Get the camera controller - 3D mode uses OrbitCameraController
-
-            const cameraManager = graph.camera as any;
-            const orbitController = cameraManager.activeCameraController;
-            const inputController = cameraManager.activeInputHandler;
-
-            assert.isDefined(orbitController, "Orbit camera controller should be defined");
-            assert.isDefined(inputController, "Input controller should be defined");
-
-            const initialDistance = orbitController.cameraDistance;
-
-            const { canvas } = graph;
-            canvas.focus();
-
-            // 3D mode uses W key for zoom in (decrease distance)
-            await holdKey("w");
-            inputController.update();
-
-            assert.isBelow(
-                orbitController.cameraDistance,
-                initialDistance,
-                "W key should zoom in (decrease camera distance)",
-            );
-
-            await releaseKey("w");
-        });
-
-        test("keyboard S to zoom out in 3D mode", async () => {
-            // Get the camera controller - 3D mode uses OrbitCameraController
-
-            const cameraManager = graph.camera as any;
-            const orbitController = cameraManager.activeCameraController;
-            const inputController = cameraManager.activeInputHandler;
-
-            assert.isDefined(orbitController, "Orbit camera controller should be defined");
-            assert.isDefined(inputController, "Input controller should be defined");
-
-            const initialDistance = orbitController.cameraDistance;
-
-            const { canvas } = graph;
-            canvas.focus();
-
-            // 3D mode uses S key for zoom out (increase distance)
-            await holdKey("s");
-            inputController.update();
-
-            assert.isAbove(
-                orbitController.cameraDistance,
-                initialDistance,
-                "S key should zoom out (increase camera distance)",
-            );
-
-            await releaseKey("s");
-        });
+        assert.isAbove(Math.abs(up), 0.05, "the drag up tilted the camera");
+        assert.closeTo(turn(element, "x"), 0, Math.abs(up) / 10, "the drag down tilted it back");
     });
 
-    describe("Node Interaction", () => {
-        beforeEach(async () => {
-            container = document.createElement("div");
-            container.style.width = "800px";
-            container.style.height = "600px";
-            document.body.appendChild(container);
+    it("turns the camera twice as far for twice the distance", async () => {
+        const short = await level();
+        await dragEmpty(short, 60, 0);
+        const long = await level();
+        await dragEmpty(long, 120, 0);
 
-            graph = new Graph(container);
-            await graph.init();
+        assert.closeTo(turn(long, "y") / turn(short, "y"), 2, 0.2, "the turn is in proportion to the drag");
+    });
+});
 
-            // Set up 3D mode
-            await configureGraph(graph, { viewMode: "3d", layout: "circular", layoutOptions: { dim: 3 } });
-            await graph.addNodes(TEST_NODES);
-            await graph.addEdges(TEST_EDGES);
-            await operationQueueOf(graph).waitForCompletion();
-
-            // Wait for rendering to stabilize
-            await graph.waitForStableFrame();
+describe("the wheel in 3D", () => {
+    it("zooms in and back out, and does not scroll the page", async () => {
+        const element = await mounted("3d");
+        const center = { x: WIDTH / 2, y: HEIGHT / 2 };
+        const distance = (): number => element.getCameraState().cameraDistance ?? Number.NaN;
+        // Whether each real wheel event reaching the page was cancelled, read once it is handled.
+        const cancelled: boolean[] = [];
+        const onWheel = (event: WheelEvent): void => {
+            cancelled.push(event.defaultPrevented);
+        };
+        globalThis.addEventListener("wheel", onWheel);
+        onCleanup(() => {
+            globalThis.removeEventListener("wheel", onWheel);
         });
+        const start = distance();
 
-        afterEach(async () => {
-            await releaseHeldKeys();
-            graph.dispose();
-            document.body.removeChild(container);
-        });
+        await wheel(element, center, -100);
+        await applied(element);
+        const zoomedIn = distance();
+        await wheel(element, center, 100);
+        await applied(element);
 
-        test("canvas has tabindex for keyboard focus", () => {
-            const { canvas } = graph;
-            // Canvas should have tabindex attribute for keyboard focus
-            assert.equal(canvas.getAttribute("tabindex"), "0", "Canvas should have tabindex='0' for focus");
-        });
-
-        test("pointer down triggers canvas focus", async () => {
-            const { canvas } = graph;
-
-            // Mock focus method
-            const focusSpy = vi.spyOn(canvas, "focus").mockImplementation(() => undefined);
-
-            // A real click on the canvas
-            await click(canvas, { x: 200, y: 150 });
-
-            // Canvas should have been focused
-            assert.isAbove(focusSpy.mock.calls.length, 0, "Canvas should be focused on pointer down");
-        });
+        assert.lengthOf(cancelled, 2, "the page got both wheel turns");
+        assert.deepEqual(cancelled, [true, true], "the element kept the wheel from scrolling the page");
+        assert.isBelow(zoomedIn, start * 0.95, "wheel up moved the camera closer");
+        assert.isAbove(zoomedIn, start * 0.5, "one notch did not jump the camera");
+        assert.isAbove(distance(), zoomedIn, "wheel down moved the camera away");
     });
 });

@@ -73,7 +73,7 @@ async function laidOut(
     });
     await element.session.layout.setDimension("2d");
     await element.session.layout.set(layout, {
-        options: layout === "forceatlas2" ? { seed: 42, weighted } : { weighted },
+        options: { seed: 42, weighted },
     });
     await element.waitForStableFrame();
     return { element, warnings };

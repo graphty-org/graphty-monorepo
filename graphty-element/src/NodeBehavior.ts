@@ -639,7 +639,9 @@ export class NodeDragHandler {
         const context = this.getContext();
         const { gesture } = this;
         this.gesture = null;
-        const pins = this.node.pinOnDrag && this.placedByPointer();
+        // `layoutBehavior.node.pinOnDrag` read at the drop, so a change reaches nodes already drawn
+        const pins =
+            this.node.pinOnDrag && context.getStyles().config.behavior.node.pinOnDrag && this.placedByPointer();
         // An undo during the drag already released the node, put everything back and stopped
         // the layout: the drop of that gesture does nothing.
         if (gesture?.aborted !== true) {

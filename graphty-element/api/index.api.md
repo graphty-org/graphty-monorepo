@@ -652,16 +652,14 @@ export interface Capabilities {
     readonly xr: XrCapability;
 }
 
-// @public (undocumented)
+// @public
 export interface CapabilityCheck {
     // (undocumented)
     estimatedMemoryMB: number;
-    // (undocumented)
-    reason?: string;
+    reason?: CodedFact<ScreenshotErrorCode>;
     // (undocumented)
     supported: boolean;
-    // (undocumented)
-    warnings?: string[];
+    warnings?: CodedFact<ScreenshotWarningCode>[];
 }
 
 // @public
@@ -692,8 +690,8 @@ export interface CaptureEstimate {
 // @public
 export const CARBON_COLORS: readonly ["#6929C4", "#1192E8", "#005D5D", "#9F1853", "#FA4D56"];
 
-// @public (undocumented)
-export type ClipboardStatus = "success" | "not-supported" | "permission-denied" | "not-secure-context" | "failed";
+// @public
+export type ClipboardStatus = "success" | "not-requested" | "not-supported" | "permission-denied" | "not-secure-context" | "failed";
 
 // @public
 export interface CodedFact<Code extends string = string> {
@@ -813,7 +811,6 @@ export interface DataLoadingErrorSummaryEvent {
 
 // @public (undocumented)
 export interface DataLoadingProgressEvent {
-    // (undocumented)
     bytesProcessed: number;
     // (undocumented)
     chunksProcessed: number;
@@ -822,9 +819,7 @@ export interface DataLoadingProgressEvent {
     format: string;
     loadId?: number;
     nodeRecordsLoaded: number;
-    // (undocumented)
     percentage?: number;
-    // (undocumented)
     totalBytes?: number;
     // (undocumented)
     type: "data-loading-progress";
@@ -840,6 +835,7 @@ export class DataManager implements Manager {
         generation?: number;
         coalesce?: string;
         setup?: boolean;
+        signal?: AbortSignal;
     }): Promise<void>;
     addEdge(edge: AdHocData, options?: AddEdgesOptions): void;
     addEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void;
@@ -937,6 +933,7 @@ export class DataManager implements Manager {
 // @public
 export abstract class DataSource {
     constructor(errorLimit?: number, chunkSize?: number);
+    bytesRead: number | undefined;
     protected chunkData(nodes: AdHocData[], edges: AdHocData[]): Generator<DataSourceChunk, void, unknown>;
     // (undocumented)
     protected chunkSize: number;
@@ -1095,6 +1092,7 @@ export class Edge {
         width: number;
         visibility: number;
         centre: Vector3;
+        pattern: JoinedPatternKind | null;
     } | null;
     get drawnPattern(): readonly ArrowCap[];
     // (undocumented)
@@ -2760,6 +2758,7 @@ export class Graph implements GraphContext {
     readonly acceleration: AccelerationController;
     addDataFromSource(type: string, opts?: object, options?: {
         replace?: boolean;
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -2931,6 +2930,7 @@ export class Graph implements GraphContext {
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
         layout?: "recommended" | "keep";
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -2945,6 +2945,7 @@ export class Graph implements GraphContext {
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
         layout?: "recommended" | "keep";
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -3281,6 +3282,7 @@ export class Graphty extends LitElement {
     set accelerationMinNodes(value: number);
     addDataFromSource(type: string, opts?: object, options?: {
         replace?: boolean;
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -3487,6 +3489,7 @@ export class Graphty extends LitElement {
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
         layout?: "recommended" | "keep";
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -3504,6 +3507,7 @@ export class Graphty extends LitElement {
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
         layout?: "recommended" | "keep";
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -7011,6 +7015,34 @@ export type PartialXRConfig = z.input<typeof xrConfigSchema>;
 export const PASTEL_COLORS: readonly ["#FFD699", "#A8D8F0", "#66C9B2", "#FFF099", "#669DD6", "#FF9980", "#EBB8D2", "#CCCCCC"];
 
 // @public
+export class PatternedLineMesh {
+    constructor(pattern: PatternType, start: Vector3, end: Vector3, scene: Scene, options: PatternedLineOptions);
+    // @internal
+    dispose(): void;
+    // @internal
+    drawnEnds(): [Vector3, Vector3] | null;
+    // @internal
+    drawnRoute(): Vector3[] | null;
+    elements: ArrowCap[];
+    isDisposed(): boolean;
+    lineDirection: Vector3;
+    // @internal
+    park(): void;
+    pattern: PatternType;
+    // @internal
+    routeMiddle(): Vector3;
+    // @internal
+    setDrawn(drawn: boolean): void;
+    // @internal
+    unpark(): boolean;
+    // @internal
+    update(start: Vector3, end: Vector3): void;
+    // @internal
+    updatePath(route: readonly Vector3[]): void;
+    readonly wave: WaveShape | undefined;
+}
+
+// @public
 export interface PendingSourceLoad {
     readonly authRequired: "required" | "optional" | "none";
     readonly credentialSlot?: string;
@@ -7076,7 +7108,6 @@ export interface Position {
 export interface Problem {
     readonly code: GraphtyErrorCode | GraphtyWarningCode;
     readonly details?: Readonly<Record<string, unknown>>;
-    readonly reason: string;
     readonly what: string;
 }
 
@@ -7715,6 +7746,9 @@ export interface ScreenshotResult {
         enhancementTime?: number;
     };
 }
+
+// @public
+export type ScreenshotWarningCode = "W_LARGE_CAPTURE" | "W_HIGH_MEMORY";
 
 // @public
 export class SelectionManager implements Manager {

@@ -24,6 +24,12 @@ function httpGet(
     });
 }
 
+// Upstream event streams held open by the target server, ended after each test
+const openStreams: http.ServerResponse[] = [];
+
+// "\u65e5\u672c\u8a9e" (Japanese) in Shift_JIS
+const SHIFT_JIS_WORD = Buffer.from([0x93, 0xfa, 0x96, 0x7b, 0x8c, 0xea]);
+
 // Target test server that serves various content types
 function createTargetServer(): Promise<{ server: http.Server; port: number }> {
     return new Promise((resolve) => {
@@ -48,8 +54,9 @@ function createTargetServer(): Promise<{ server: http.Server; port: number }> {
             }
 
             if (url === "/style.css") {
-                res.writeHead(200, { "Content-Type": "text/css" });
-                res.end("body { color: red; }");
+                const css = "body { color: red; }";
+                res.writeHead(200, { "Content-Type": "text/css", "Content-Length": css.length });
+                res.end(css);
                 return;
             }
 
@@ -73,6 +80,44 @@ function createTargetServer(): Promise<{ server: http.Server; port: number }> {
                     "Set-Cookie": ["session=abc; Domain=example.com; Path=/", "token=xyz; Path=/"],
                 });
                 res.end("<html><body>cookies</body></html>");
+                return;
+            }
+
+            if (url === "/events") {
+                res.writeHead(200, { "Content-Type": "text/event-stream" });
+                res.write("data: first\n\n");
+                openStreams.push(res);
+                return;
+            }
+
+            if (url === "/shift-jis") {
+                res.writeHead(200, { "Content-Type": "text/html; charset=Shift_JIS" });
+                res.end(
+                    Buffer.concat([
+                        Buffer.from("<html><head></head><body><p>"),
+                        SHIFT_JIS_WORD,
+                        Buffer.from("</p></body></html>"),
+                    ]),
+                );
+                return;
+            }
+
+            if (url === "/meta-shift-jis") {
+                res.writeHead(200, { "Content-Type": "text/html" });
+                res.end(
+                    Buffer.concat([
+                        Buffer.from('<html><head><meta charset="shift_jis"></head><body><p>'),
+                        SHIFT_JIS_WORD,
+                        Buffer.from("</p></body></html>"),
+                    ]),
+                );
+                return;
+            }
+
+            if (url === "/huge.html") {
+                const page = `<html><head></head><body>${"x".repeat(17 * 1024 * 1024)}</body></html>`;
+                res.writeHead(200, { "Content-Type": "text/html", "Content-Length": page.length });
+                res.end(page);
                 return;
             }
 
@@ -114,6 +159,9 @@ describe("Reverse proxy", () => {
     });
 
     afterEach(async () => {
+        for (const stream of openStreams.splice(0)) {
+            stream.end();
+        }
         await dualServer.shutdown();
         await new Promise<void>((resolve) => {
             target.server.close(() => {
@@ -163,6 +211,57 @@ describe("Reverse proxy", () => {
 
         expect(jsonRes.status).toBe(200);
         expect(JSON.parse(jsonRes.body)).toEqual({ key: "value" });
+    });
+
+    test("streams non-HTML responses as they arrive", async () => {
+        // The upstream sends one event and holds the connection open
+        const firstChunk = await new Promise<{ headers: http.IncomingHttpHeaders; body: string }>((resolve, reject) => {
+            const req = http.get(
+                `http://127.0.0.1:${proxyPort}/proxy/http://127.0.0.1:${target.port}/events`,
+                (res) => {
+                    res.once("data", (chunk: Buffer) => {
+                        resolve({ headers: res.headers, body: chunk.toString() });
+                        req.destroy();
+                    });
+                },
+            );
+            req.on("error", reject);
+        });
+
+        expect(firstChunk.headers["content-type"]).toBe("text/event-stream");
+        expect(firstChunk.body).toBe("data: first\n\n");
+    });
+
+    test("keeps the upstream Content-Length on non-HTML responses", async () => {
+        const res = await httpGet(proxyPort, `/proxy/http://127.0.0.1:${target.port}/style.css`);
+
+        expect(res.headers["content-length"]).toBe(String("body { color: red; }".length));
+    });
+
+    test("decodes HTML in the charset its Content-Type declares", async () => {
+        const res = await httpGet(proxyPort, `/proxy/http://127.0.0.1:${target.port}/shift-jis`);
+
+        expect(res.headers["content-type"]).toBe("text/html; charset=utf-8");
+        expect(res.body).toContain("<p>\u65e5\u672c\u8a9e</p>");
+        expect(res.body).toContain("remote-logger.js");
+    });
+
+    test("decodes HTML in the charset its meta tag declares", async () => {
+        const res = await httpGet(proxyPort, `/proxy/http://127.0.0.1:${target.port}/meta-shift-jis`);
+
+        expect(res.body).toContain("<p>\u65e5\u672c\u8a9e</p>");
+    });
+
+    test("passes HTML too large to rewrite through unmodified", async () => {
+        const res = await httpGet(proxyPort, `/proxy/http://127.0.0.1:${target.port}/huge.html`);
+
+        expect(res.status).toBe(200);
+        expect(res.headers["content-length"]).toBe(
+            String(17 * 1024 * 1024 + "<html><head></head><body></body></html>".length),
+        );
+        expect(res.body.length).toBe(Number(res.headers["content-length"]));
+        expect(res.body.endsWith("</body></html>")).toBe(true);
+        expect(res.body).not.toContain("remote-logger.js");
     });
 
     test("rewrites Location headers on redirects", async () => {

@@ -97,6 +97,8 @@ import { fileURLToPath } from "node:url";
 
 import { PNG } from "pngjs";
 
+import { profileOf, sweepProfiles } from "./profiles.mjs";
+
 import {
     activeInView,
     axeViolations,
@@ -251,6 +253,8 @@ const briefed = (dir) => {
 // git ignores; only a walk's report.md belongs in the studio's files. On 2026-10-21 golden held
 // 83,000 walk screenshots (9.9 GB in Git LFS) because walks wrote them beside their reports.
 const WALKS = join(MAIN, "tmp/design-studio");
+// the browser profiles of sessions and warm browsers, under the repo tmp/ like every temporary file
+const PROFILES = join(WALKS, "profiles");
 // a studio folder under rounds/ as its place under WALKS (tier 1's rounds/ has no tier folder), or null
 const walksOf = (dir) => {
     const m = under(dir, STUDIO) && dir.slice(STUDIO.length + 1).match(/^(?:(tier\d+)\/)?rounds\/(.+)$/);
@@ -1309,12 +1313,10 @@ async function serve(dir, sr) {
     // memory, which the app reads as a private window, so every session showed a false "This looks
     // like a private window" notice (round 1's tool dry run 2). Outside the session folder, so the
     // profile is never copied to the round's folder.
-    // a warm browser (dir null) has no session folder yet: its profile is named by its process
-    const profile = join(
-        homedir(),
-        ".cache/graphty-real-profiles",
-        dir ? basename(sockOf(dir), ".sock") : `warm-${process.pid}`,
-    );
+    // a warm browser (dir null) has no session folder yet. Every profile ends in its owner's pid, so
+    // one left by a killed or crashed browser (no close ran) is removed by the next one to start.
+    sweepProfiles(PROFILES);
+    const profile = profileOf(PROFILES, dir ? basename(sockOf(dir), ".sock") : "warm");
     await rm(profile, { recursive: true, force: true });
     const context = await chromium.launchPersistentContext(profile, {
         ...LAUNCH,

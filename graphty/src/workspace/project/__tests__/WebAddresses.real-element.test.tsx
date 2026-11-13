@@ -14,6 +14,7 @@ import { browserProjects, createGraphSession, type GraphSession } from "@graphty
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { OPEN_PROJECT_URLS, PROJECT_HOSTS_KEY, readPreference, readProjectHosts } from "../../settings/preferences";
 import { createWorkspaceStore } from "../../state/store";
@@ -21,6 +22,10 @@ import { addModel, openCustom, openShapes, written } from "../../style/__tests__
 import { dotPng, quadGlb } from "../../style/__tests__/quadGlb";
 import { Workspace } from "../../Workspace";
 import { clearRecent } from "../recent";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 const MODEL = "https://models.example.com/kit/panel.glb";
 const PICTURE = "https://pictures.example.com/dot.png";

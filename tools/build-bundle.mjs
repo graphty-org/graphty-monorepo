@@ -59,7 +59,8 @@ export function writeDeclarationShims({ packageRoot, entries, extraShims = {} })
             .relative(path.dirname(target), path.resolve(distDir, source.replace(/\.ts$/, ".js")))
             .split(path.sep)
             .join("/");
-        shims[name] = `export * from "${specifier.startsWith(".") ? specifier : `./${specifier}`}";\n`;
+        const relativeSpecifier = specifier.startsWith(".") ? specifier : "./" + specifier;
+        shims[name] = `export * from "${relativeSpecifier}";\n`;
     }
     Object.assign(shims, extraShims);
     for (const [name, content] of Object.entries(shims)) {

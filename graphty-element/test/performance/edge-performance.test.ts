@@ -65,7 +65,17 @@ function countDrawn(graph: Graph): DrawnEdges {
 
     return {
         edges: edges.length,
-        patterned: edges.filter((edge) => edge.drawnPattern.length > 0).length,
+        // pattern elements, or a joined line whose shader draws its pattern (issue #7404)
+        patterned: edges.filter(
+            (edge) =>
+                edge.drawnPattern.length > 0 ||
+                (
+                    (edge as unknown as { lineBatch: { mesh: { metadata: unknown } } | null }).lineBatch?.mesh
+                        .metadata as {
+                        pattern?: unknown;
+                    } | null
+                )?.pattern !== undefined,
+        ).length,
         heads: heads.filter((caps) => caps.length === 1).length,
         tails: tails.filter((caps) => caps.length === 1).length,
         headShapes: [...new Set(heads.flat())],

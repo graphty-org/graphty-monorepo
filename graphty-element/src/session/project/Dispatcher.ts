@@ -1823,10 +1823,7 @@ export class Dispatcher {
             group.keys.add(key);
         }
 
-        if (options.signal !== undefined) {
-            this.cancelOnAbort(job, options.signal);
-        }
-
+        this.cancelOnAbort(job, options.signal);
         this.launch(job, concrete, group, options.beside === true, state);
         if (options.signal?.aborted === true) {
             this.obsolete(job, "cancel");
@@ -1839,9 +1836,13 @@ export class Dispatcher {
      * Cancel a job when its caller's signal aborts, and stop listening once it settles: a signal
      * that outlives the job would otherwise keep it, and its command's records, alive.
      * @param job - The job.
-     * @param signal - The caller's signal.
+     * @param signal - The caller's signal, if it passed one.
      */
-    private cancelOnAbort(job: Job, signal: AbortSignal): void {
+    private cancelOnAbort(job: Job, signal: AbortSignal | undefined): void {
+        if (signal === undefined) {
+            return;
+        }
+
         const cancel = (): void => {
             this.obsolete(job, "cancel");
         };

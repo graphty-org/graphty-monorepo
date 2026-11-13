@@ -49,13 +49,13 @@ export class KCoreAlgorithm extends MetricAlgorithm {
         // shipped accelerator computes cores, so this runs the index-based CPU port.
         const { snapshot, run } = this.accelerated("kCoreDecomposition", "undirected");
 
-        context.report({ phase: "peeling cores", total: null });
+        context.report({ phase: "peeling-cores", total: null });
         const { value, precision } = await run((dispatch, s) => dispatch.kCoreDecomposition(s));
         context.signal.throwIfAborted();
 
         const { ids } = snapshot;
         const nodes: ResultElementValues[] = [];
-        await walkInChunks(nodeIds, context, "reading core numbers", (nodeId) => {
+        await walkInChunks(nodeIds, context, "reading-core-numbers", (nodeId) => {
             const index = ids.indexOf(nodeId);
             nodes.push({ id: nodeId, values: index === INVALID_INDEX ? {} : { value: value.coreness[index] } });
         });

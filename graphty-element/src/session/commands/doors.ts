@@ -3184,6 +3184,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             list: READ,
             remove: calls(["door-run"], [{ op: "algo.remove", runId: "door-run" }]),
             move: calls(["door-run", null], [{ op: "algo.move", runId: "door-run", before: null }]),
+            rename: calls(["door-run", "Influence"], [{ op: "algo.rename", runId: "door-run", name: "Influence" }]),
             bindings: READ,
             readers: READ,
             painting: READ,

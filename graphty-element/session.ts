@@ -312,6 +312,7 @@ export {
 export type {
     BatchResult,
     BatchStep,
+    BatchStepFailure,
     CaveatCode,
     Caveats,
     EngineVersions,

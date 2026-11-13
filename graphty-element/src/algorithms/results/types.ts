@@ -227,7 +227,7 @@ export function detachedRunContext(): AlgorithmRunContext {
  * Every per-element pass in every algorithm goes through this, so "report progress and yield"
  * is one decision made once rather than a loop each author writes their own way.
  * @param context - What the element gave the run.
- * @param phase - What to call this pass in a progress line.
+ * @param phase - The pass, as a kebab-case code (`"grouping-nodes"`) an application words; never a sentence.
  * @param items - The elements to walk.
  * @param step - What to do with one element.
  * @returns A promise that settles when every element has been walked.

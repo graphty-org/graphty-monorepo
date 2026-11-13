@@ -13,6 +13,9 @@ import { toJson } from "../shape";
 import { type ActionContext, type ActionSpec, type ToolDefinition, ToolRefusal } from "../types";
 import { coded, ok } from "./common";
 
+/** The longest run name `runs.rename` takes. */
+const MAX_RUN_NAME = 1024;
+
 /**
  * The project's setting groups, each a field of `config.set`. The session validates the values;
  * each group is a catalog entry `catalog` search finds.
@@ -132,6 +135,26 @@ export const projectTool: ToolDefinition = {
             run: async ({ tx }, args) => {
                 await coded(() => tx.project.rename(text(args.name)));
                 return ok(undefined, { name: text(args.name) });
+            },
+        },
+        {
+            name: "rename_run",
+            summary: "Give an algorithm run its own name; null for the default.",
+            fields: {
+                run: z.string().max(200).describe("The run's id."),
+                runName: z.string().max(MAX_RUN_NAME).nullable().describe("The new name."),
+            },
+            effect: "write",
+            reaches: [{ door: "RunsApi.rename" }, { op: "algo.rename" }],
+            run: async ({ tx }, args) => {
+                const run = text(args.run);
+                const name = args.runName === null ? null : text(args.runName);
+                if (tx.runs.get(run) === undefined) {
+                    throw new ToolRefusal("AI_UNKNOWN_RUN", { run, runs: tx.runs.list().map((each) => each.id) });
+                }
+
+                await coded(() => tx.runs.rename(run, name));
+                return ok(undefined, { run, name });
             },
         },
         {

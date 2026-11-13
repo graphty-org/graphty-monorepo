@@ -3943,7 +3943,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // airline routes rebuilt every edge's paint in one frame, about 5.8 seconds on a phone-class
     // CPU, for a run that colours nodes alone.
     dispatcher.lane.register("runs", async (rendered, target, dirty) => {
-        const changed = new Set([...dirty].filter((id) => rendered.runs.get(id) !== target.runs.get(id)));
+        // By result: an entry that changed only around its columns (a rename) repaints nothing.
+        const changed = new Set(
+            [...dirty].filter((id) => rendered.runs.get(id)?.result !== target.runs.get(id)?.result),
+        );
         if (changed.size === 0) {
             return;
         }

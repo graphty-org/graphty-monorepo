@@ -10,7 +10,6 @@ import { tabStops } from "../frame/focus";
 import { CommandMenuItem, Sections } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { focusPathValuesNext } from "../inspector/reads";
-import { xrRows } from "../inspector/words";
 import { ariaKey, formatKey } from "../keys/keys";
 import { LayoutPopover } from "../layout/LayoutPopover";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -132,8 +131,8 @@ const MODE_WORDS = { "2d": "2D", "3d": "3D", vr: "VR", ar: "AR" } as const;
 const MODE_GLYPHS = { "2d": GLYPHS.mode2d, "3d": GLYPHS.mode3d, vr: GLYPHS.modeVr, ar: GLYPHS.modeAr } as const;
 
 /**
- * The Mode menu: Exit VR or AR while immersive; then the modes (2D, 3D, then one "VR / AR" row
- * when neither can be entered for the same reason, else a row each).
+ * The Mode menu: Exit VR or AR while immersive; then the modes, 2D, 3D, VR and AR, a row each. A
+ * mode that cannot be entered is disabled and says only "Not available".
  * @param props - Component props
  * @param props.session - The element's session, or null
  * @returns The menu's rows
@@ -142,11 +141,6 @@ function ModeMenuRows({ session }: Readonly<{ session: GraphSession | null }>): 
     const dimension = session?.layout.dimension ?? "3d";
     const active = immersiveMode(session);
     const exit = useCommand("view.exit-xr");
-    const xr = session?.capabilities.xr;
-    const rows =
-        xr === undefined
-            ? []
-            : xrRows(xr).map((row) => ({ ...row, checked: row.mode !== "both" && row.mode === active }));
     // Key 5 switches 2D and 3D; it is shown on the row it would switch to.
     const keyOn = (mode: "2d" | "3d"): string | undefined => (mode === dimension ? undefined : "5");
     return (
@@ -174,35 +168,24 @@ function ModeMenuRows({ session }: Readonly<{ session: GraphSession | null }>): 
                 checked={active === null && dimension === "3d"}
                 shortcut={keyOn("3d")}
             />
-            {rows.map((row) =>
-                row.mode === "both" ? (
-                    <MenuCheckItem
-                        key="both"
-                        radio
-                        checked={false}
-                        closeMenuOnClick={false}
-                        aria-disabled
-                        data-disabled
-                    >
-                        VR / AR
-                        <MenuItemDescription>{row.reason}</MenuItemDescription>
-                    </MenuCheckItem>
-                ) : (
-                    <CheckItem
-                        key={row.mode}
-                        command={`view.enter-${row.mode}`}
-                        label={MODE_WORDS[row.mode]}
-                        checked={row.checked}
-                    />
-                ),
-            )}
+            {session === null
+                ? null
+                : (["vr", "ar"] as const).map((mode) => (
+                      <CheckItem
+                          key={mode}
+                          command={`view.enter-${mode}`}
+                          label={MODE_WORDS[mode]}
+                          checked={active === mode}
+                      />
+                  ))}
         </>
     );
 }
 
 /**
  * The Camera menu: Fit and Frame selection; the four standard views, disabled with their reason in
- * 2D; zoom in and out in 2D; then the Auto-rotate switch.
+ * 2D; zoom in and out in 2D; the Auto-rotate switch; then Export image and Record video, which
+ * reads Stop recording while it records.
  * @param props - Component props
  * @param props.session - The element's session, or null
  * @returns The menu's rows
@@ -210,6 +193,8 @@ function ModeMenuRows({ session }: Readonly<{ session: GraphSession | null }>): 
 function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>): React.JSX.Element {
     const flat = session?.layout.dimension === "2d";
     const autoRotate = useWorkspaceState((state) => state.autoRotate);
+    const recording = useWorkspaceState((state) => state.recording);
+    const record = useCommand("view.record-video");
     return (
         <>
             <Sections
@@ -224,8 +209,19 @@ function CameraMenuRows({ session }: Readonly<{ session: GraphSession | null }>)
                 command="view.auto-rotate"
                 label="Auto-rotate"
                 checked={autoRotate && !reducedMotion()}
+                shortcut="9"
                 radio={false}
             />
+            <Menu.Divider />
+            <Sections sections={[["view.export-image"]]} />
+            {record === null ? null : (
+                <CommandMenuItem
+                    label={recording ? "Stop recording" : record.command.label}
+                    shortcut={record.command.keys?.[0]}
+                    reason={record.disabledReason}
+                    onRun={record.run}
+                />
+            )}
         </>
     );
 }

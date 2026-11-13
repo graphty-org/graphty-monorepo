@@ -3,7 +3,7 @@ import { type GraphSession, isGraphtyError, type NodeId } from "@graphty/graphty
 import { type CommandContext, defineRegistration } from "../commands/registry";
 import { openFilterDraft, PLUS } from "../data-place/filterCards";
 import { neighborhoodKey } from "../inspector/inspected";
-import { framedWords, neighborhoodWords, selectionWords, xrEntryFailureWords, xrReasonWords } from "../inspector/words";
+import { framedWords, neighborhoodWords, selectionWords, xrEntryFailureWords } from "../inspector/words";
 import { togglePopover } from "./popover";
 import { nothingDrawn } from "./useSessionVersion";
 
@@ -66,7 +66,8 @@ export function immersiveMode(session: GraphSession | null): "vr" | "ar" | null 
 }
 
 /**
- * The Enter VR and Enter AR commands: disabled with the element's reason in the app's words;
+ * The Enter VR and Enter AR commands: disabled, saying only "Not available", when the element
+ * gives a reason the mode cannot be entered;
  * running one asks the element for the session (from 2D it switches to 3D in the same step), and
  * a refusal becomes a notice.
  * @param mode - VR or AR.
@@ -89,7 +90,7 @@ function enterImmersive(mode: "vr" | "ar"): {
             return (
                 nothingDrawn(session) ??
                 (active === null ? null : `Already in ${active.toUpperCase()}`) ??
-                (reason === null ? null : xrReasonWords(reason, mode))
+                (reason === null ? null : "Not available")
             );
         },
         run: async ({ session, workspace }) => {
@@ -150,6 +151,7 @@ export const registration = defineRegistration({
             id: "view.auto-rotate",
             label: "Auto-rotate",
             group: "View",
+            keys: ["9"],
             // The element turns only the 3D view, and the host keeps it still for reduced motion.
             disabled: ({ session }) =>
                 nothingDrawn(session) ??

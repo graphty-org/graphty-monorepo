@@ -182,6 +182,27 @@ test("supports cancellation", async () => {
     graph.dispose();
 });
 
+test("stopAnimationCapture ends a recording early and keeps it", async () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 800;
+    canvas.height = 600;
+    const graph = new Graph(canvas);
+
+    assert.equal(graph.stopAnimationCapture(), false, "nothing to stop before a capture");
+    const recording = graph.eventManager.waitFor("animation-progress");
+    const capturePromise = graph.captureAnimation({ duration: 300_000, fps: 30, cameraMode: "stationary" });
+    await recording;
+
+    assert.ok(graph.stopAnimationCapture(), "stopAnimationCapture should return true while recording");
+    const result = await capturePromise;
+    assert.ok(result.blob instanceof Blob);
+    assert.isBelow(result.metadata.duration, 300_000, "the duration is how long it ran");
+    assert.equal(graph.isAnimationCapturing(), false);
+    assert.equal(graph.stopAnimationCapture(), false, "nothing to stop after it ended");
+
+    graph.dispose();
+});
+
 test("cancelAnimationCapture returns false when no capture is in progress", () => {
     const canvas = document.createElement("canvas");
     canvas.width = 800;

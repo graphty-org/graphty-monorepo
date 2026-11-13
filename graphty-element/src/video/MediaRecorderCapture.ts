@@ -58,6 +58,8 @@ export class MediaRecorderCapture {
     private activeRecorder: MediaRecorder | null = null;
     /** Flag to track cancellation state - set BEFORE stopping recorder */
     private isCancelled = false;
+    /** Set by stop(): the recording ends before its duration and keeps what it has */
+    private stoppedEarly = false;
     /** Stored reject callback for cancellation - cleared after use */
     private cancelReject: ((error: Error) => void) | null = null;
     /** Debug logging enabled */
@@ -172,6 +174,7 @@ export class MediaRecorderCapture {
     ): Promise<AnimationResult> {
         // Reset cancellation state for new capture
         this.isCancelled = false;
+        this.stoppedEarly = false;
         this.cancelReject = null;
 
         const codec = this.getSupportedCodec(options.format);
@@ -212,6 +215,7 @@ export class MediaRecorderCapture {
             let progressInterval: ReturnType<typeof setInterval> | undefined;
             let durationTimer: ReturnType<typeof setTimeout> | undefined;
             let started = false;
+            let startTime = 0;
 
             // Ended with the recording: a canvas capture track left live keeps the browser copying
             // every frame of the canvas for a recorder that is gone.
@@ -236,7 +240,7 @@ export class MediaRecorderCapture {
                 started = true;
                 clearTimeout(startTimer);
 
-                const startTime = Date.now();
+                startTime = Date.now();
                 progressInterval = setInterval(() => {
                     // Stop progress tracking if cancelled
                     if (this.isCancelled) {
@@ -281,7 +285,10 @@ export class MediaRecorderCapture {
                 }
 
                 const blob = new Blob(chunks, { type: recorder.mimeType });
-                const expectedFrames = Math.floor((options.duration / 1000) * fps);
+                // A recording stopped early (stop()) lasts until it stopped, not the duration asked.
+                const ran = started ? Date.now() - startTime : 0;
+                const duration = this.stoppedEarly ? Math.min(options.duration, ran) : options.duration;
+                const expectedFrames = Math.floor((duration / 1000) * fps);
 
                 // Determine format from MIME type
                 // Safari/iOS sometimes returns empty blob.type, so we fall back to requested codec
@@ -305,7 +312,7 @@ export class MediaRecorderCapture {
                 resolve({
                     blob,
                     metadata: {
-                        duration: options.duration,
+                        duration,
                         fps,
                         format,
                         width,
@@ -383,6 +390,20 @@ export class MediaRecorderCapture {
 
         // Step 4: Clear state to prevent any further handling
         this.activeRecorder = null;
+        return true;
+    }
+
+    /**
+     * End an ongoing capture now and keep what was recorded: the capture's promise resolves with
+     * the video so far, as if its duration had run out.
+     * @returns true if a capture was stopped, false if no capture was in progress
+     */
+    stop(): boolean {
+        if (!this.activeRecorder || this.isCancelled || this.activeRecorder.state === "inactive") {
+            return false;
+        }
+        this.stoppedEarly = true;
+        this.activeRecorder.stop();
         return true;
     }
 

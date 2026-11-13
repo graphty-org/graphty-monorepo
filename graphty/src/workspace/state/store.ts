@@ -297,6 +297,8 @@ export interface WorkspaceState {
     readonly lighting: Lighting;
     /** Camera > Auto-rotate: whether the 3D view turns on its own. A view preference, never saved. */
     readonly autoRotate: boolean;
+    /** Camera > Record video: whether a recording of the canvas is running, until it is stopped. */
+    readonly recording: boolean;
     /** Graph settings, Outline width: every outline's width, or null for the element's own. */
     readonly outlineWidth: number | null;
     /**
@@ -420,6 +422,7 @@ const INITIAL: WorkspaceState = {
     sameSizeAtAnyDepth: null,
     lighting: "studio",
     autoRotate: false,
+    recording: false,
     outlineWidth: null,
     exportOn: "image",
     exportSource: null,

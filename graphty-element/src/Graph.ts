@@ -970,6 +970,8 @@ export class Graph implements GraphContext {
 
     // Active video capture for cancellation support
     private activeCapture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture | null = null;
+    /** The camera flight of an animated capture, so stopAnimationCapture can end it with the recording */
+    private activeAnimator: import("./video/CameraPathAnimator.js").CameraPathAnimator | null = null;
 
     /**
      * Whether the canvas multisamples, as the engine was built: the constructor's `antialias`.
@@ -7213,11 +7215,14 @@ export class Graph implements GraphContext {
 
         // Start camera animation (will run concurrently with recording)
         const animationPromise = animator.startRealtimeAnimation();
+        this.activeAnimator = animator;
 
         // Wait for both to complete
         // Recording duration is controlled by options.duration
         // Animation should complete around the same time
-        const [result] = await Promise.all([recordingPromise, animationPromise]);
+        const [result] = await Promise.all([recordingPromise, animationPromise]).finally(() => {
+            this.activeAnimator = null;
+        });
 
         // Handle download if requested
         this.handleVideoDownload(result, options);
@@ -7317,6 +7322,27 @@ export class Graph implements GraphContext {
         }
 
         return cancelled;
+    }
+
+    /**
+     * End an ongoing animation capture now and keep what was recorded: the `captureAnimation`
+     * promise resolves with the video so far (and downloads it when it was asked to), where
+     * `cancelAnimationCapture` throws it away. A camera tour stops where it is.
+     * @returns true if a capture was stopped, false if no capture was in progress
+     * @example
+     * ```typescript
+     * // Record until the reader stops it: a long duration as the limit, then stop.
+     * const recording = graph.captureAnimation({ duration: 300_000, cameraMode: "stationary" });
+     * stopButton.onclick = () => graph.stopAnimationCapture();
+     * const { blob, metadata } = await recording; // metadata.duration is how long it ran
+     * ```
+     */
+    stopAnimationCapture(): boolean {
+        if (!this.activeCapture?.stop()) {
+            return false;
+        }
+        this.activeAnimator?.stopAnimation();
+        return true;
     }
 
     /**

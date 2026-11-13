@@ -23,6 +23,11 @@ export interface PartItem {
     readonly id: string;
     /** What the panel calls it. */
     readonly name: string;
+    /**
+     * The words its settings' names start with, when not its name ("Shadow" for Drop shadow's
+     * "Shadow blur"): under the item's heading a setting drops them ("Blur").
+     */
+    readonly prefix?: string;
     /** Its channels drawn by default. */
     readonly main?: readonly Channel[];
     /** Its channels drawn once set. */
@@ -69,7 +74,9 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                         "node.shapeRotation",
                         "node.shapeParts",
                         "node.wireframe",
+                        "node.meshDetail",
                         "node.unlit",
+                        "node.flat",
                     ],
                     quiet: ["node.sizeMode"],
                 },
@@ -300,6 +307,7 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
                 {
                     id: "shadow",
                     name: "Drop shadow",
+                    prefix: "Shadow",
                     main: [
                         "node.shadowColor",
                         "node.shadowOpacity",
@@ -629,10 +637,29 @@ export const PARTS: Readonly<Record<"node" | "edge", readonly PartSpec[]>> = {
     ],
 };
 
+/**
+ * One kind's parts without the properties an experiment that is off keeps out (see
+ * `experimentChannelsOff` in ../words): an item left with none is dropped.
+ * @param side - nodes or edges.
+ * @param off - the properties to leave out.
+ * @returns the parts.
+ */
+export function partsFor(side: "node" | "edge", off: ReadonlySet<Channel>): readonly PartSpec[] {
+    if (off.size === 0) {
+        return PARTS[side];
+    }
+    const keep = (channels: readonly Channel[] | undefined): readonly Channel[] =>
+        (channels ?? []).filter((channel) => !off.has(channel));
+    return PARTS[side].map((part) => ({
+        ...part,
+        items: part.items
+            .map((item) => ({ ...item, main: keep(item.main), tail: keep(item.tail), quiet: keep(item.quiet) }))
+            .filter((item) => itemChannels(item).length > 0),
+    }));
+}
+
 /** The channels the panel offers nowhere, and why. */
 export const NOT_OFFERED: Readonly<Partial<Record<Channel, string>>> = {
-    "node.meshDetail": "written by the Wireframe row with the wireframe",
-    "node.flat": "nothing draws it; the graph's flat lighting gives the look",
     "node.marker": "graphty-element refuses it",
 };
 
@@ -642,12 +669,12 @@ export const PART_WORDS: Readonly<Partial<Record<Channel, string>>> = {
     "node.drawOrder": "Draw order",
     "node.zIndex": "Stacking",
     "node.cornerRadius": "Corner",
-    "node.underlayCornerRadius": "Corner",
-    "node.overlayCornerRadius": "Corner",
     "edge.arrowHead": "Target",
     "edge.arrowHeadSize": "Size",
     "edge.arrowTail": "Source",
     "edge.arrowTailSize": "Size",
+    "edge.arrowMiddleHead": "Middle target",
+    "edge.arrowMiddleTail": "Middle source",
 };
 
 /** Where one channel sits in the panel. */

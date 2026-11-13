@@ -296,6 +296,7 @@ function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
                 label={label}
                 value={mixed ? undefined : value}
                 shown={shown}
+                mixed={mixed}
                 extraChoices={extraChoices}
                 onPick={onChange}
             />

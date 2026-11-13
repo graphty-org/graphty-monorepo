@@ -21,7 +21,7 @@ import { WireframeRow } from "../Section";
 import { writeWireframe } from "../shaderSlots";
 import { focusLineNext } from "../useFocusLine";
 import { failureWords } from "../words";
-import { partWord } from "./find";
+import { itemWord, partWord } from "./find";
 import type { PartItem, PartSpec } from "./parts";
 
 /**
@@ -30,12 +30,14 @@ import type { PartItem, PartSpec } from "./parts";
  * @param props - Component props
  * @param props.ctx - the row
  * @param props.channel - the setting
+ * @param props.word - its name on the line, where its item is already said ("Blur" under Drop shadow)
  * @returns The line, or nothing for a setting the element does not offer here
  */
 export function ChannelLine({
     ctx,
     channel,
-}: Readonly<{ ctx: RowContext; channel: Channel }>): React.JSX.Element | null {
+    word = partWord(channel),
+}: Readonly<{ ctx: RowContext; channel: Channel; word?: string }>): React.JSX.Element | null {
     const { store } = useWorkspace();
     const [waiting, setWaiting] = useState(false);
     const held = lineIn(ctx, channel) !== undefined || partlySet(ctx, channel) !== undefined;
@@ -43,7 +45,6 @@ export function ChannelLine({
     if (descriptor?.renderable !== true) {
         return null;
     }
-    const word = partWord(channel);
     if (channel === "node.wireframe" && held) {
         return <WireframeRow ctx={ctx} />;
     }
@@ -60,17 +61,18 @@ export function ChannelLine({
             />
         );
     }
-    const label = `Add ${ctx.side} ${word.toLowerCase()}`;
+    // Named in full, as it is away from its item's heading: "Add node shadow blur".
+    const label = `Add ${ctx.side} ${partWord(channel).toLowerCase()}`;
     const add = (): void => {
         focusLineNext(ctx.session, channel);
         if (channel === "node.wireframe") {
             writeWireframe(ctx, true).catch((error: unknown) => {
-                store.set({ notice: { message: failureWords(word, "added", error), error: true } });
+                store.set({ notice: { message: failureWords(partWord(channel), "added", error), error: true } });
             });
             return;
         }
         setWaiting(true);
-        store.set({ announcement: `${word} added: pick a value` });
+        store.set({ announcement: `${partWord(channel)} added: pick a value` });
     };
     return (
         // Not a `data-line`: focus asked for the line "+" adds goes to its field, never to this "+".
@@ -119,7 +121,7 @@ function ItemSettings({
                 </Text>
             ) : null}
             {own.map((channel) => (
-                <ChannelLine key={channel} ctx={ctx} channel={channel} />
+                <ChannelLine key={channel} ctx={ctx} channel={channel} word={itemWord(channel, item)} />
             ))}
             {pages.length === 0 ? null : (
                 <>
@@ -132,7 +134,7 @@ function ItemSettings({
                         onChange={setPage}
                     />
                     {(item.pages?.[page] ?? []).map((channel) => (
-                        <ChannelLine key={channel} ctx={ctx} channel={channel} />
+                        <ChannelLine key={channel} ctx={ctx} channel={channel} word={itemWord(channel, item)} />
                     ))}
                 </>
             )}
@@ -157,7 +159,7 @@ export function PartPage({
     const title = `${kind} ${(item?.name ?? part.title).toLowerCase()}`;
     const items = item === undefined ? part.items : [item];
     return (
-        <SettingsPopout label={`${title} settings`} title={title}>
+        <SettingsPopout label={`${title} settings`} title={title} icon={<GLYPHS.sliders size={14} aria-hidden />}>
             {items.map((each) => (
                 <ItemSettings key={each.id} ctx={ctx} item={each} named={items.length > 1} />
             ))}

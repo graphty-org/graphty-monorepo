@@ -13,16 +13,18 @@ import type { Channel } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import React, { useRef, useState } from "react";
 
+import { cosmographOn, nodeModelsOn } from "../../features";
 import { findTreeRow } from "../../graph-place/rows";
 import { isTypingTarget } from "../../keys/keys";
 import { useWorkspace } from "../../state/WorkspaceContext";
 import { LabelSection } from "../LabelSection";
 import type { RowContext } from "../PropertyRow";
 import { Section } from "../Section";
-import type { SectionSpec } from "../words";
+import { experimentChannelsOff, type SectionSpec } from "../words";
+import { itemWord, partWord } from "./find";
 import { FindSettingBox, FindSettingResults } from "./FindSetting";
 import { PartPage } from "./PartPage";
-import { itemChannels, PART_WORDS, PARTS, type PartSpec } from "./parts";
+import { itemChannels, partChannels, partsFor, type PartSpec } from "./parts";
 
 /**
  * Every channel the row's layers write, a label style's fields counted as their own channels.
@@ -47,14 +49,24 @@ function writesOf(session: GraphSession, ctx: RowContext): ReadonlySet<Channel> 
  */
 function sectionOf(part: PartSpec, writes: (channel: Channel) => boolean): SectionSpec {
     const channels = part.items.flatMap((item) => [...(item.main ?? []), ...(item.tail ?? []), ...(item.quiet ?? [])]);
+    // A part with no common property (Order and groups) offers its others from "+", so its "+" is never dead.
+    const main = part.items.flatMap((item) => item.main ?? []);
     return {
         id: part.id,
         title: part.title,
         channels,
-        offer: part.items.flatMap((item) => item.main ?? []),
+        offer: main.length > 0 ? main : part.items.flatMap((item) => item.tail ?? []),
         quiet: part.items.flatMap((item) => item.quiet ?? []),
         configured: part.items.some((item) => itemChannels(item).some(writes)),
-        words: PART_WORDS,
+        // A list's lines sit under their item's heading, and drop the words it already says.
+        words: Object.fromEntries(
+            part.items.flatMap((item) =>
+                itemChannels(item).map((channel) => [
+                    channel,
+                    part.list === true ? itemWord(channel, item) : partWord(channel),
+                ]),
+            ),
+        ),
         ...(part.together === true ? { together: part.items.flatMap((item) => item.main ?? []) } : {}),
         ...(part.id === "shaders" ? { shaders: true } : {}),
         ...(part.list === true
@@ -80,6 +92,10 @@ export function PartsPanel({ ctx: row }: Readonly<{ ctx: RowContext }>): React.J
     const [query, setQuery] = useState("");
     const box = useRef<HTMLInputElement>(null);
     const ctx: RowContext = { ...row, pickers: "listbox" };
+    const parts = partsFor(
+        ctx.side,
+        experimentChannelsOff({ cosmograph: cosmographOn(ctx.session), nodeModels: nodeModelsOn(ctx.session) }),
+    );
     const writes = writesOf(ctx.session, ctx);
     const written = (channel: Channel): boolean => writes.has(channel) || (ctx.many?.count(channel) ?? 0) > 0;
     // "/" in the panel, outside a text field, is Find a setting's: the graph's Find keeps it elsewhere.
@@ -106,13 +122,14 @@ export function PartsPanel({ ctx: row }: Readonly<{ ctx: RowContext }>): React.J
             <section className="ws-style-group" data-group={ctx.side} data-style-parts="">
                 <FindSettingBox query={query} onQuery={setQuery} inputRef={box} />
                 {query.trim() === "" ? (
-                    PARTS[ctx.side].map((part) =>
+                    parts.map((part) =>
                         part.id === "text" ? (
                             <LabelSection
                                 key={part.id}
                                 ctx={ctx}
                                 configured={part.items.some((item) => itemChannels(item).some(written))}
                                 actions={page(part)}
+                                loose={partChannels(part)}
                             />
                         ) : (
                             <Section
@@ -125,7 +142,7 @@ export function PartsPanel({ ctx: row }: Readonly<{ ctx: RowContext }>): React.J
                         ),
                     )
                 ) : (
-                    <FindSettingResults ctx={ctx} query={query} />
+                    <FindSettingResults ctx={ctx} query={query} parts={parts} />
                 )}
             </section>
         </div>

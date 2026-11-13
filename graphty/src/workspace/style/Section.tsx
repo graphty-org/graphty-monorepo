@@ -95,6 +95,9 @@ function optionsFor(descriptor: ChannelDescriptor): AddOption[] {
     return [{ key: descriptor.channel, label: channelWord(descriptor.channel) }];
 }
 
+/** A list section's "+" menu key for one of its items. */
+const ITEM_KEY = "item:";
+
 /** Why an undirected graph's Arrowheads add nothing: its edges have no direction to point. */
 const NO_ARROWHEADS = "Not available: undirected graph";
 
@@ -308,6 +311,23 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
             />
         );
     };
+    // A list section's "+" offers its items (a paint, an effect), each one the row has not started.
+    const itemOptions = spec.items?.flatMap((item) => {
+        const started = [...set, ...pending].some((d) => item.channels.includes(d.channel));
+        const offered = unset.some((d) => item.channels.includes(d.channel));
+        return started || !offered ? [] : [{ key: `${ITEM_KEY}${item.id}`, label: item.name }];
+    });
+    // Adding an item adds every property "+" offers of it, waiting for values, in one go.
+    const addItem = (id: string): void => {
+        const item = spec.items?.find((each) => each.id === id);
+        const adds = unset.filter((d) => item?.channels.includes(d.channel) === true).map((d) => d.channel);
+        if (item === undefined || adds.length === 0) {
+            return;
+        }
+        focusLineNext(ctx.session, adds[0]);
+        setWaiting((now) => [...now, ...adds.filter((channel) => !now.includes(channel))]);
+        store.set({ announcement: `${item.name} added: pick its values` });
+    };
     // A list section's item heading, before the first line of each item the row sets.
     const headed = new Set<string>();
     const itemHead = (d: ChannelDescriptor): React.ReactNode => {
@@ -345,9 +365,13 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
                         <AddButton
                             kind={ctx.side}
                             title={spec.title}
-                            options={unset.filter((d) => !isSetting(d)).flatMap(optionsFor)}
+                            options={itemOptions ?? unset.filter((d) => !isSetting(d)).flatMap(optionsFor)}
                             disabledReason={notAvailable(ctx, spec) ?? undefined}
                             onAdd={(key) => {
+                                if (key.startsWith(ITEM_KEY)) {
+                                    addItem(key.slice(ITEM_KEY.length));
+                                    return;
+                                }
                                 const [channel, pick] = key.split("=");
                                 const descriptor = unset.find((d) => d.channel === channel);
                                 if (descriptor !== undefined) {
@@ -405,10 +429,12 @@ function specialLine(ctx: RowContext, spec: SectionSpec, d: ChannelDescriptor): 
     if (spec.items !== undefined && d.channel === "node.gradientColors") {
         return <GradientRow key={d.channel} ctx={ctx} />;
     }
+    // The stops row edits the stops too: they keep a line of their own only where a layer sets
+    // them without colors, so that value can be seen and removed.
     if (
         spec.items !== undefined &&
         d.channel === "node.gradientStops" &&
-        lineIn(ctx, "node.gradientColors") !== undefined
+        (lineIn(ctx, "node.gradientColors") !== undefined || lineIn(ctx, "node.gradientStops") === undefined)
     ) {
         return false;
     }

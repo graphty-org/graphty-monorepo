@@ -249,6 +249,19 @@ export interface SectionFlags {
 }
 
 /**
+ * The properties an experiment that is off keeps out of the Style tab: with `cosmograph` off, Line's
+ * fade and blending; with `node-models` off, the model's settings and Picture.
+ * @param flags - which experiments are on.
+ * @returns the properties to leave out.
+ */
+export function experimentChannelsOff(flags: SectionFlags): ReadonlySet<Channel> {
+    return new Set<Channel>([
+        ...(flags.cosmograph ? [] : COSMOGRAPH_LINE_CHANNELS),
+        ...(flags.nodeModels ? [] : ["node.texture" as const, ...MODEL_CHANNELS]),
+    ]);
+}
+
+/**
  * A group's sections, with what the experiments switched on add.
  * @param kind - nodes or edges.
  * @param flags - which experiments are on.

@@ -79,4 +79,29 @@ describe("the Style panel on a file's layers", () => {
             await shownOrFailed(() => screen.queryByTestId("style-tab"), names[index]);
         }
     });
+
+    it("a file's layer says which nodes it styles in words, never by the file's marks", async () => {
+        await openGalaxy();
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        const items = await within(tree).findAllByRole("treeitem");
+        const exceptions = items.find((item) =>
+            (item.getAttribute("aria-label") ?? item.textContent ?? "").startsWith("Exceptions from the file"),
+        );
+        assert.isDefined(exceptions);
+        if (exceptions === undefined) {
+            return;
+        }
+        await userEvent.click(exceptions);
+        const inspector = screen.getByRole("complementary", { name: "Inspector" });
+        const style = await within(inspector).findByRole("tab", { name: "Style" });
+        if (style.getAttribute("aria-selected") !== "true") {
+            await userEvent.click(style);
+        }
+        const tab = await screen.findByTestId("style-tab");
+        const row = await within(tab).findByRole("button", { name: /^Which (nodes|edges), / });
+        await waitFor(() => {
+            assert.match(row.textContent ?? "", /the file styles one by one/);
+        });
+        assert.notMatch(row.getAttribute("aria-label") ?? "", /graphty\.style/);
+    });
 });

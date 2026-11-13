@@ -13,7 +13,7 @@ import type { ChannelDescriptor, ShaderUse } from "@graphty/graphty-element/cata
 import type { Binding, Channel, ChannelValue, CombineMode, LayerId } from "@graphty/graphty-element/schema";
 import { type ColumnRef, type GraphSession, type Layer, OVERFLOW_SHAPES } from "@graphty/graphty-element/session";
 
-import { findTreeRow, rowLayers as treeRowLayers } from "../graph-place/rows";
+import { findTreeRow, rowLayers as treeRowLayers, rowName } from "../graph-place/rows";
 import { DEFAULT_NAME_KEY } from "./cards";
 import type { BeneathValue, RowContext } from "./PropertyRow";
 import { channelPhrase, hexOf, OPACITY_OF, readableName } from "./words";
@@ -346,6 +346,7 @@ function sameSelector(a: Layer["selector"], b: Layer["selector"]): boolean {
  *   undefined for a row that adds none (a run's row): the write then fails rather than land on a
  *   layer the row does not name.
  * @param also - values for other channels written in the same step where the layer has none.
+ * @param alsoReplaces - write `also` over the values the layer has (one edit of several channels).
  * @returns the id of the layer written to.
  */
 export async function writeLine(
@@ -356,6 +357,7 @@ export async function writeLine(
     write: LiteralWrite | { readonly binding: DataBinding } | TemplateWrite,
     fresh: NewLayer | undefined,
     also?: Readonly<Partial<Record<Channel, ChannelValue>>>,
+    alsoReplaces = false,
 ): Promise<LayerId> {
     const layers = rowLayers(session, ids, target);
     const everything = fresh?.selector.match === "everything";
@@ -369,7 +371,7 @@ export async function writeLine(
     const literal = "value" in write && !combined ? { [channel]: write.value } : undefined;
     // Values written with it in the same step (a new label's size), where the layer has none.
     const extra = Object.fromEntries(
-        Object.entries(also ?? {}).filter(([c]) => own?.set?.[c as Channel] === undefined),
+        Object.entries(also ?? {}).filter(([c]) => alsoReplaces || own?.set?.[c as Channel] === undefined),
     );
     const set = literal === undefined && Object.keys(extra).length === 0 ? undefined : { ...extra, ...literal };
     const encode = encodeOf(write, channel, combined);
@@ -543,6 +545,7 @@ export function carriedOpacity(ctx: Pick<RowContext, "many" | "layers">, channel
  * @param channel - the channel.
  * @param write - the value or the binding.
  * @param also - values for other channels written with it where the row has none.
+ * @param alsoReplaces - write `also` over the values the row has.
  * @returns when it is written.
  */
 export function writeIn(
@@ -550,16 +553,17 @@ export function writeIn(
     channel: Channel,
     write: LiteralWrite | { readonly binding: DataBinding },
     also?: Readonly<Partial<Record<Channel, ChannelValue>>>,
+    alsoReplaces = false,
 ): Promise<unknown> {
     const { many } = ctx;
     if (many === undefined) {
-        return writeLine(ctx.session, ctx.row, ctx.side, channel, write, ctx.fresh, also);
+        return writeLine(ctx.session, ctx.row, ctx.side, channel, write, ctx.fresh, also, alsoReplaces);
     }
     // ponytail: several rows take the extra values as separate writes, one undo step each.
     return many.write(channel, write).then(() =>
         Promise.all(
             Object.entries(also ?? {})
-                .filter(([c, value]) => value !== undefined && many.line(c as Channel) === undefined)
+                .filter(([c, value]) => value !== undefined && (alsoReplaces || many.line(c as Channel) === undefined))
                 .map(([c, value]) => many.write(c as Channel, { value })),
         ),
     );
@@ -726,7 +730,9 @@ export function layerWord(session: GraphSession, id: LayerId): string | undefine
     if (layer.source.by === "element" && layer.source.reason === "default") {
         return undefined;
     }
-    return findTreeRow(session.styles.tree(), layer.row ?? layer.id)?.row.name ?? layer.name;
+    // A row made from a file's styles goes by the words for its facts, as the tree names it.
+    const row = layer.row ?? layer.id;
+    return findTreeRow(session.styles.tree(), row) === undefined ? layer.name : rowName(session, row);
 }
 
 /**

@@ -28,7 +28,7 @@ interface ExtraChoice {
  * @returns The picture
  */
 function Glyph({ svg }: Readonly<{ svg: string }>): React.JSX.Element {
-    return <span aria-hidden dangerouslySetInnerHTML={{ __html: svg }} style={{ display: "inline-flex" }} />;
+    return <span aria-hidden className="ws-value-glyph" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
 /**
@@ -83,6 +83,7 @@ function valueRows(
  * @param props.label - its accessible name, such as "Node shape"
  * @param props.value - the value set here, or undefined
  * @param props.shown - what it draws now, shown while nothing is set
+ * @param props.mixed - whether the things it stands for hold different values
  * @param props.extraChoices - choices listed after the property's own
  * @param props.onPick - writes the value picked
  * @returns The picker
@@ -93,6 +94,7 @@ export function ValueListbox({
     label,
     value,
     shown,
+    mixed = false,
     extraChoices = [],
     onPick,
 }: Readonly<{
@@ -101,15 +103,21 @@ export function ValueListbox({
     label: string;
     value: unknown;
     shown: unknown;
+    mixed?: boolean;
     extraChoices?: readonly ExtraChoice[];
     onPick: (value: string) => void;
 }>): React.JSX.Element {
     const [opened, setOpened] = useState(false);
     const [query, setQuery] = useState("");
     const values = session.catalog.channelValues(descriptor.channel);
-    const current = values.find((each) => each.id === (value ?? shown));
+    const current = mixed ? undefined : values.find((each) => each.id === String(value ?? shown));
     const things = `${channelWord(descriptor.channel).toLowerCase()}s`;
-    const name = current === undefined ? label : `${label}, ${current.plainName}`;
+    // As the shared choice field reads it: "mixed", or the default in force when nothing is set.
+    const unset = value === undefined && !mixed;
+    let name = current === undefined ? label : `${label}, ${unset ? "default " : ""}${current.plainName}`;
+    if (mixed) {
+        name = `${label}, mixed`;
+    }
     return (
         <Popout
             opened={opened}
@@ -125,9 +133,12 @@ export function ValueListbox({
                     fullWidth
                     aria-label={name}
                     data-value-listbox={descriptor.channel}
+                    justify="flex-start"
+                    className="ws-value-listbox"
+                    data-unset={unset ? "" : undefined}
                     leftSection={current?.glyph === undefined ? undefined : <Glyph svg={current.glyph} />}
                 >
-                    {current?.plainName ?? ""}
+                    {mixed ? "Mixed" : (current?.plainName ?? "")}
                 </Button>
             </Popout.Trigger>
             <Popout.Panel
@@ -144,6 +155,7 @@ export function ValueListbox({
                     width={240}
                     height={320}
                     descriptions="end"
+                    {...(current === undefined ? {} : { highlight: current.id })}
                     query={query}
                     onQueryChange={setQuery}
                     actions={opened ? valueRows(session, descriptor, extraChoices) : []}

@@ -455,7 +455,7 @@ function kindControl(
                 rows={layerRows.filter((id) => has(id, side))}
                 side={side}
                 autoOpen={justOn}
-                {...(side === "node" && fileStylesOn(session) ? { summary: ruleLine } : {})}
+                {...(fileStylesOn(session) ? { summary: ruleLine } : {})}
                 {...elsewhere}
             />
         ),

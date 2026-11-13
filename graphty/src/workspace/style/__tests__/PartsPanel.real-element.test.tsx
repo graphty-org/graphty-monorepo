@@ -336,4 +336,83 @@ describe("the node tab by part of the drawing", () => {
             assert.deepEqual(colors, ["#0000FF", "#0000FF"]);
         });
     });
+
+    it("Effects' + offers whole effects and adding the drop shadow draws its settings under its heading", async () => {
+        await openProject([everyNode("Key", { "node.shape": "box" })]);
+        const tab = await openStyle("Key");
+        await userEvent.click(within(section(tab, "effects")).getByRole("button", { name: "Add to node effects" }));
+        const menu = await screen.findByRole("menu");
+        assert.deepEqual(
+            within(menu)
+                .getAllByRole("menuitem")
+                .map((item) => item.textContent),
+            ["Drop shadow", "Glow", "Halo", "Underlay", "Overlay"],
+        );
+        await userEvent.click(within(menu).getByRole("menuitem", { name: "Drop shadow" }));
+        const effects = section(tab, "effects");
+        await waitFor(() => {
+            assert.isNotNull(effects.querySelector('[data-item="shadow"]'));
+            assert.isNotNull(effects.querySelector('.ws-row[data-line="node.shadowBlur"]'));
+        });
+        within(effects).getByText("Blur");
+    });
+
+    it("editing a gradient stop keeps every color's transparency and writes colors and stops together", async () => {
+        const session = await openProject([
+            everyNode("Key", {
+                "node.gradientKind": "linear",
+                "node.gradientColors": "#ff000080 #0000ff",
+                "node.gradientStops": "0 1",
+            }),
+        ]);
+        const tab = await openStyle("Key");
+        const editor = await within(section(tab, "fill")).findByTestId("gradient-editor");
+        const [first] = within(editor).getAllByTestId("gradient-editor-stop-hex");
+        await userEvent.tripleClick(first);
+        await userEvent.keyboard("00ff00{Enter}");
+        await waitFor(() => {
+            const set = session.styles.list().find((each) => each.name === "Key")?.set;
+            const colors = set?.["node.gradientColors"];
+            assert.strictEqual(typeof colors === "string" ? colors.toLowerCase() : colors, "#00ff0080 #0000ff");
+            assert.strictEqual(set?.["node.gradientStops"], "0 1");
+        });
+    });
+
+    it("the shape list marks the value the layer sets", async () => {
+        await openProject([everyNode("Key", { "node.shape": "box" })]);
+        const tab = await openStyle("Key");
+        await userEvent.click(await within(section(tab, "shape")).findByRole("button", { name: /^Node shape, Box/ }));
+        const list = await screen.findByRole("group", { name: /values$/ });
+        const selected = within(list)
+            .getAllByRole("option")
+            .filter((option) => option.getAttribute("aria-selected") === "true");
+        assert.deepEqual(
+            selected.map((option) => option.textContent?.replace(/\d+ nodes?$/, "")),
+            ["Box"],
+        );
+    });
+
+    it("a folder whose layers set different shapes reads its shape as mixed", async () => {
+        const session = await openProject([
+            everyNode("One", { "node.shape": "box" }),
+            everyNode("Two", { "node.shape": "sphere" }),
+        ]);
+        const folder = await session.styles.addFolder("Both");
+        for (const layer of session.styles.list().filter((each) => ["One", "Two"].includes(each.name ?? ""))) {
+            await session.styles.moveRow(layer.row ?? layer.id, { parent: folder.id });
+        }
+        await session.styles.settled();
+        const tab = await openStyle("Both");
+        const button = await within(section(tab, "shape")).findByRole("button", { name: "Node shape, mixed" });
+        assert.strictEqual(button.textContent, "Mixed");
+    });
+
+    it("a label size set with no label words still has its line in Text", async () => {
+        await openProject([everyNode("Key", { "node.labelSize": 20 })]);
+        const tab = await openStyle("Key");
+        await waitFor(() => {
+            assert.isNotNull(section(tab, "text").querySelector('.ws-row[data-line="node.labelSize"]'));
+        });
+        assert.isTrue(dotted(tab, "text"));
+    });
 });

@@ -113,6 +113,7 @@ import {
     Share2,
     Shuffle,
     Sigma,
+    SlidersHorizontal,
     Spline,
     Square,
     SquareArrowOutUpRight,
@@ -261,6 +262,8 @@ export const GLYPHS = {
     open: FolderOpen,
     upload: Upload,
     settings: Settings,
+    // A part's settings page in the Style panel by part.
+    sliders: SlidersHorizontal,
     // A shader's facts in the gallery and its settings: it moves, what it costs, it reacts to light.
     animates: Activity,
     cost: Gauge,

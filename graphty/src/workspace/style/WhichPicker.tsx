@@ -400,8 +400,11 @@ interface WhichPickerProps {
     readonly adding?: string;
     /** Goes to the other kind's tab with a card on a field it carries. */
     readonly onElsewhere?: (field: CardField) => void;
-    /** Given, the folded row reads the cards as this one line instead of a chip per card. */
-    readonly summary?: (session: GraphSession, cards: readonly Card[]) => string;
+    /**
+     * Given, the folded row reads the cards as this one line instead of a chip per card, unless it
+     * has no words for them.
+     */
+    readonly summary?: (session: GraphSession, cards: readonly Card[], rows: readonly string[], side: Side) => string;
 }
 
 /**
@@ -515,7 +518,9 @@ export function WhichPicker({
                             : summary(
                                   session,
                                   shown.map((each) => each.card),
-                              )
+                                  ids,
+                                  side,
+                              ) || undefined
                     }
                     onOpen={(key) => {
                         // With no card, focus lands on Add a condition, whose list opens on a

@@ -12,8 +12,8 @@ import { type GraphSnapshot } from "@graphty/graph-format";
 import { allPairsShortestPath } from "../../src/algorithms/all-pairs.js";
 import { APSP_TILE } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
-import { isWebGpuGraphError } from "../../src/errors.js";
 import { floydWarshallOracle } from "../oracle/all-pairs.js";
+import { refusedReport } from "./check-report.js";
 import { type EdgeSpec, gridEdges, KARATE_EDGES, randomEdges, randomEdgesLoose, snapshotOf } from "./graphs.js";
 import { type CheckReport, mergeReports } from "./sabotage.js";
 import { weightedEdges } from "./sssp.js";
@@ -87,10 +87,7 @@ export async function allPairsReport(ctx: GpuContext): Promise<CheckReport> {
             const { dist } = await allPairsShortestPath(ctx, s);
             reports.push(matrixReport(`${name}.dist`, dist, want));
         } catch (err) {
-            if (!isWebGpuGraphError(err)) {
-                throw err;
-            }
-            reports.push({ worst: Infinity, worstLabel: `${name}: ${err.code}`, samples: 1 });
+            reports.push(refusedReport(name, err));
         } finally {
             ctx.release(s);
         }

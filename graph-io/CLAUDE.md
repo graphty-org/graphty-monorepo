@@ -177,7 +177,7 @@ method (`@param name - description`, `@returns`); explicit return types; `import
 inline qualifiers; `.js` suffixes on relative imports; camelCase fields; `curly`; `default-case`;
 no default exports; no `console.log` in `src/`; no `eslint-disable` / `ts-expect-error`; plain
 ASCII in every source and test file (non-ASCII fixture data is data; non-ASCII test constants are
-built with `String.fromCharCode`).
+written as `\uXXXX` escapes or built with `String.fromCharCode`; lint rejects raw non-ASCII literals).
 
 ## Distribution
 

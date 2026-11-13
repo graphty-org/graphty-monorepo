@@ -116,7 +116,11 @@ class Visit {
             if (this.side === "edge") {
                 await this.page.getByRole("tab", { name: /^Edge/ }).first().click();
             }
-            await this.page.getByRole("button", { name: new RegExp(`^Edit Which ${this.many}`) }).click();
+            await this.page
+                .getByRole("button", {
+                    name: `Style ${this.many[0].toUpperCase()}${this.many.slice(1)}...`,
+                })
+                .click();
             await this.ws.waitFor();
         } else {
             await this.page.getByRole("button", { name: "Data", exact: true }).click();
@@ -1030,7 +1034,7 @@ async function walkRow(page, row) {
 // A layer saved by Done opens again as the same cards with the same counts.
 async function reopenSame(v) {
     await v.page.getByRole("button", { name: "Graph", exact: true }).click();
-    await v.page.getByRole("button", { name: /^Edit Which nodes/ }).click();
+    await v.page.getByRole("button", { name: /^Style Nodes\.\.\./ }).click();
     await v.ws.waitFor();
     await v.check("reopen");
     await assertOrder(v, "reopen");
@@ -1263,7 +1267,7 @@ const reopenOrder = async (page) => {
     await v.page.mouse.click(520, 80);
     await v.leave("done");
     await v.page.getByRole("button", { name: "Graph", exact: true }).click();
-    await v.page.getByRole("button", { name: /^Edit Which nodes/ }).click();
+    await v.page.getByRole("button", { name: /^Style Nodes\.\.\./ }).click();
     await v.ws.waitFor();
     await v.unfold(0);
     await v.step(0, 0).getByRole("checkbox").first().waitFor();
@@ -1667,7 +1671,7 @@ const flagOff = async (page) => {
     await page.getByRole("menuitem", { name: "Layer", exact: true }).click();
     await page.getByRole("textbox", { name: "Layer name" }).waitFor();
     await page.keyboard.press("Escape");
-    const edit = page.getByRole("button", { name: /^Edit Which nodes/ });
+    const edit = page.getByRole("button", { name: /^Style Nodes\.\.\./ });
     await page.mouse.move(0, 0);
     const opacity = await edit.evaluate((each) => getComputedStyle(each).opacity);
     if (opacity !== "0") {

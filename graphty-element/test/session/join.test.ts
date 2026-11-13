@@ -8,6 +8,7 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
+import { withConsumerStrictState } from "./helpers";
 
 /** Sixty gene symbols around TP53: TP53, then G02 to G60. */
 const SYMBOLS = ["TP53", ...Array.from({ length: 59 }, (_unused, at) => `G${String(at + 2).padStart(2, "0")}`)];
@@ -478,11 +479,8 @@ describe("join cost", () => {
      * @param size - how many
      * @returns the session and the join's key
      */
-    async function joined(size: number): Promise<{ session: GraphSession; key: string }> {
-        const scope = globalThis as { __GRAPHTY_STRICT_STATE__?: boolean };
-        const strict = scope.__GRAPHTY_STRICT_STATE__;
-        scope.__GRAPHTY_STRICT_STATE__ = false;
-        try {
+    function joined(size: number): Promise<{ session: GraphSession; key: string }> {
+        return withConsumerStrictState(async () => {
             const session = createGraphSession();
             await session.data.addNodes(Array.from({ length: size }, (_, at) => ({ id: `n${String(at)}` })));
             const rows = Array.from({ length: size }, (_, at) => `N${String(at)},${String(at)}`).join("\n");
@@ -492,9 +490,7 @@ describe("join cost", () => {
             );
             await draft.load({ join: { keys: [{ file: "name", graph: "id" }], ignoreCase: true } });
             return { session, key: session.data.joins()[0].source };
-        } finally {
-            scope.__GRAPHTY_STRICT_STATE__ = strict;
-        }
+        });
     }
 
     it("draft.joinReport on a key every element shares: no more than linear in the graph", async () => {

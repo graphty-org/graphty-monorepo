@@ -109,24 +109,36 @@ created; a one-client loop running both skills keeps it under `tmp/pipeline-roun
 a job CronList no longer shows, or is 6 days old or more: CronCreate a new recurring job with the same cron and prompt,
 CronDelete the old one if it is still listed, and rewrite the file.
 
+**A lapsed issue loop.** issue-round writes `tmp/issue-round/last-round` every round (an ISO time and its session).
+Every pipeline-round reads it. When it is more than 75 minutes old and the owner did not stop that loop on purpose
+(a loop the owner stopped is a pause, not a lapse), send one `SendMessage` to that session if `ListAgents` finds it,
+saying its loop lapsed and to run "Renewing the loop", and write `tmp/pipeline-round/lapse-messaged` (the
+`last-round` line it answered): message once per lapse, never again while `last-round` is unchanged. When no such
+session is found, put
+`issue loop lapsed <N> h, no session` in the round's last line; pipeline-round never starts issue work itself. The
+2026-11-12 lapse went unnoticed for 10 hours.
+
 ## While master is red
 
 Work continues; pull requests wait. A pull request opened onto a red master only queues behind its fix and lands on a
 base nobody has tested.
 
-- **Jobs still start**, up to the free test slots (issue-round's step 1). CI's runners are not checked for them: they
+- **Jobs still start**, by issue-round's step 1. CI's runners are not checked for them: they
   open nothing until master is green.
 - **A job stops before its pull request.** Just before opening it, the job reads master's state itself (see "Subagent
   rules"); while master is red it stops after its commit, its push and `pipeline-round: ready <branch> <sha>`, and runs
   no `pr-open.sh`.
 - **Master's fix and its reverts open at once**, and a fix job for a red master or a red full run takes a test slot
   before any issue job: issue-round starts no job while one waits for a slot.
-- **When master is green**, each pipeline-round opens the queued `ready` branches (its step 9), oldest first, a few
-  at a time, as many as CI's runners allow (the `pipeline-health` MCP tool `runners`), each through `tools/pr-open.sh`,
-  which merges master first.
-- **The ready queue's cap is 20** branches whose newest marker is `ready` with no open pull request. At the cap,
-  issue-round starts no new fix job and does no-PR work instead (its step 1), so the queue does not bury master in
-  conflicts when it opens.
+- **When master is green**, each pipeline-round opens the queued `ready` branches (its step 9), oldest first, one
+  after another while CI's runners allow (the `pipeline-health` MCP tool `runners`, checked again after each), each
+  through `tools/pr-open.sh`, which merges master first. Queued branches can conflict with each other as master moves:
+  an exit 2 goes to a fix subagent.
+- **No cap on the ready queue.** A cap stops issue work to protect master from a burst that step 9 already paces; on
+  2026-11-13 eighteen finished branches waited about 6 hours behind a red master while the queue was frozen.
+- **Master red for more than 1 hour with no fix job running is pipeline-round's first item**, including a red
+  verdict with every test green (a full run whose benchmark job hit its time limit held everything for 5.3 hours on
+  2026-11-13). Never call such a run green: fix or re-run what made the verdict red.
 
 ## Markers
 

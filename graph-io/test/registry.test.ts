@@ -236,7 +236,7 @@ describe("importGraph (design 8.4)", () => {
             });
         }
         // tabs, CRLF, a UTF-8 BOM and a DOS end-of-file marker are text, so such CSVs are still detected
-        for (const text of ["﻿source,target\r\na,b\r\n", "source\ttarget\na\tb\n", "source,target\na,b\n\u001a"]) {
+        for (const text of ["\uFEFFsource,target\r\na,b\r\n", "source\ttarget\na\tb\n", "source,target\na,b\n\u001a"]) {
             const result = await importGraph(text, { format: "auto" });
             expect(result.format).toBe("csv");
             expect(result.snapshot.edgeCount).toBe(1);

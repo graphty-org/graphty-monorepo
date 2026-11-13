@@ -15,7 +15,7 @@ import {
     type Lighting,
     LIGHTING_VALUES,
 } from "@graphty/graphty-element/schema";
-import type { GraphSession, GraphSettingKey } from "@graphty/graphty-element/session";
+import type { GraphSession, GraphSettingKey, TransactionScope } from "@graphty/graphty-element/session";
 import { ActionIcon, Menu, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
@@ -285,7 +285,7 @@ function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): Re
     const settle = (kind: BackgroundKind): void => {
         setWaiting((now) => now.filter((each) => each !== kind));
     };
-    const write = (next: Partial<BackgroundParts>, scope: GraphSession = session): Promise<void> =>
+    const write = (next: Partial<BackgroundParts>, scope: TransactionScope = session): Promise<void> =>
         scope.config.set({ background: backgroundOf({ ...parts, ...next }) });
     const add = (kind: BackgroundKind): void => {
         if (kind === "color") {

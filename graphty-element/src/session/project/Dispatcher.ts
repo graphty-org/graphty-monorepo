@@ -1823,19 +1823,34 @@ export class Dispatcher {
             group.keys.add(key);
         }
 
-        options.signal?.addEventListener(
-            "abort",
-            () => {
-                this.obsolete(job, "cancel");
-            },
-            { once: true },
-        );
+        this.cancelOnAbort(job, options.signal);
         this.launch(job, concrete, group, options.beside === true, state);
         if (options.signal?.aborted === true) {
             this.obsolete(job, "cancel");
         }
 
         return job.promise;
+    }
+
+    /**
+     * Cancel a job when its caller's signal aborts, and stop listening once it settles: a signal
+     * that outlives the job would otherwise keep it, and its command's records, alive.
+     * @param job - The job.
+     * @param signal - The caller's signal, if it passed one.
+     */
+    private cancelOnAbort(job: Job, signal: AbortSignal | undefined): void {
+        if (signal === undefined) {
+            return;
+        }
+
+        const cancel = (): void => {
+            this.obsolete(job, "cancel");
+        };
+        const off = (): void => {
+            signal.removeEventListener("abort", cancel);
+        };
+        signal.addEventListener("abort", cancel, { once: true });
+        job.promise.then(off, off);
     }
 
     /**

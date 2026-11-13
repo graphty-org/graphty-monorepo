@@ -705,6 +705,27 @@ const ACCELERATOR_METHOD = {
 } as const satisfies Record<SimulationType, keyof LayoutAccelerator>;
 
 /**
+ * The accelerator that runs this type: the given one when it implements the type's method, else null (the CPU), with
+ * `layout.backend` saying why.
+ * @param layout - the layout
+ * @param type - the simulation type
+ * @param given - the accelerator
+ * @returns the accelerator, or null
+ */
+function acceleratorFor(
+    layout: LayoutThis,
+    type: SimulationType,
+    given: LayoutAccelerator | null,
+): LayoutAccelerator | null {
+    const method = ACCELERATOR_METHOD[type];
+    if (given === null || given[method] !== undefined) {
+        return given;
+    }
+    layout.backend = { ran: "cpu", reason: `the accelerator has no ${method} simulation`, device: null };
+    return null;
+}
+
+/**
  * Runs a simulation on an accelerator (null: the CPU). An accelerator without this type's method runs it as null
  * would, and `layout.backend` says so.
  * @param layout - the layout
@@ -713,12 +734,7 @@ const ACCELERATOR_METHOD = {
  */
 function simulate(layout: LayoutThis, type: SimulationType, given: LayoutAccelerator | null): void {
     const o = layout.options;
-    let accelerator = given;
-    if (accelerator !== null && accelerator[ACCELERATOR_METHOD[type]] === undefined) {
-        const reason = `the accelerator has no ${ACCELERATOR_METHOD[type]} simulation`;
-        layout.backend = { ran: "cpu", reason, device: null };
-        accelerator = null;
-    }
+    const accelerator = acceleratorFor(layout, type, given);
     if (accelerator === null && type === "spring-electrical") {
         const reason = layout.backend?.reason ?? "none was available";
         // nothing ran, so no backend: "cpu" would say the layout ran there (as with gpu: "require")

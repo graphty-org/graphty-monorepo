@@ -218,7 +218,18 @@ describe.skipIf(skipIfNoApiKey())("Style Commands LLM Regression", () => {
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
             assertAction(result, "style", ["clear_mine", "remove"]);
-            // No highlight exists yet: clearing the assistant's layers, or naming one, both do.
+            // Clearing the assistant's layers, or removing the highlight by name, both do; either
+            // way the highlight is gone and the server nodes are no longer painted with it.
+            assert.notInclude(
+                session.styles.list().map((layer) => layer.name),
+                "highlight",
+                "the highlight layer is gone",
+            );
+            assert.notStrictEqual(
+                nodeChannel(session, "node.color").get("1"),
+                "#ffcc00",
+                "server node 1 is no longer highlighted",
+            );
         });
     });
 

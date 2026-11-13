@@ -16,7 +16,7 @@ import { type ColumnRef, type GraphSession, type Layer, OVERFLOW_SHAPES } from "
 import { findTreeRow, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { DEFAULT_NAME_KEY } from "./cards";
 import type { BeneathValue, RowContext } from "./PropertyRow";
-import { channelPhrase, hexOf, OPACITY_OF, readableName } from "./words";
+import { channelPhrase, hexOf, logUnexpected, OPACITY_OF, readableName } from "./words";
 
 /** Which side of the Style tab: nodes or edges. */
 export type Target = "node" | "edge";
@@ -750,8 +750,10 @@ function agreementBeneath(
     }
     try {
         return session.styles.agreement("graph", channel, { below: row, over: row });
-    } catch {
-        // A row the element's tree does not hold (a run's own layers) has no "beneath" to read.
+    } catch (error) {
+        // A row the element's tree does not hold (an element-owned layer, or one removed since) has no "beneath"
+        // to read: the stack as it is, as for a row not written yet.
+        logUnexpected("styles.agreement", error, ["E_UNKNOWN_LAYER"]);
         return session.styles.agreement("graph", channel);
     }
 }
@@ -814,7 +816,8 @@ export function paintedOverOf(
     let agreement: ReturnType<GraphSession["styles"]["agreement"]>;
     try {
         agreement = session.styles.agreement("graph", undefined, { over: row });
-    } catch {
+    } catch (error) {
+        logUnexpected("styles.agreement", error, ["E_UNKNOWN_LAYER"]);
         return () => undefined;
     }
     if (agreement.readOver !== "row") {
@@ -1050,7 +1053,8 @@ export function layerValues(
                 }),
             ),
         ];
-    } catch {
+    } catch (error) {
+        logUnexpected("styles.layerGroups", error);
         return null;
     }
 }

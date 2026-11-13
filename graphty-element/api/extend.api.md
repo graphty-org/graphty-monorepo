@@ -2670,6 +2670,7 @@ export interface Progress {
     readonly etaMs: number | null;
     readonly fraction: number | null;
     readonly message?: string;
+    readonly params?: Readonly<Record<string, CodedFactParam>>;
     readonly phase: string;
     readonly total: number | null;
 }

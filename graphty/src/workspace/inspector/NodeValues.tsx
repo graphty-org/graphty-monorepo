@@ -19,7 +19,7 @@ import { edgeEnds } from "../table/columns";
 import { timeValue } from "../time/timeActions";
 import { useAsyncValue } from "./hooks";
 import { groupInspected, neighborhoodKey, nodeKey } from "./inspected";
-import { finishedRuns, selectNode, takeValuesFocus } from "./reads";
+import { finishedRuns, hidden, selectNode, takeValuesFocus } from "./reads";
 import {
     attributeSummary,
     count,
@@ -364,8 +364,9 @@ export function NeighborList({
         try {
             // By name, as past one hop, where there are no tie values to rank by.
             page = session.data.neighbors(center, { limit: Infinity, direction: follow, sort: { by: "name" } });
-        } catch {
+        } catch (error) {
             // E_UNKNOWN_ELEMENT: the node left the graph.
+            hidden("data.neighbors", error, "E_UNKNOWN_ELEMENT");
             return null;
         }
         tie = page.measuredBy?.attribute;

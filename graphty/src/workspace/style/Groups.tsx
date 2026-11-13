@@ -22,7 +22,16 @@ import { offeredChannel } from "./offered";
 import { type DataBinding, type LayerBinding, sourceName, startingValue } from "./row";
 import { focusLineNext } from "./useFocusLine";
 import { ValueField } from "./ValueField";
-import { channelWord, failureWords, SECTIONS, sectionsFor, takesBinding, valueFieldKind, valueWords } from "./words";
+import {
+    channelWord,
+    failureWords,
+    logUnexpected,
+    SECTIONS,
+    sectionsFor,
+    takesBinding,
+    valueFieldKind,
+    valueWords,
+} from "./words";
 
 /** How many groups the list shows before "N more" (tier3 decisions, round 6). */
 const GROUPS_SHOWN = 8;
@@ -123,8 +132,9 @@ function paintsOf(session: GraphSession, layer: Layer, path: string): Map<Channe
             if (binding !== undefined && "by" in binding) {
                 try {
                     ({ bins } = session.styles.preview(binding, { channel, span: "data" }));
-                } catch {
+                } catch (error) {
                     // A binding the element refuses paints nothing to show.
+                    logUnexpected("styles.preview", error);
                 }
             }
             return [channel, new Map(bins.map((bin) => [String(bin.value), bin.paints]))];
@@ -439,8 +449,9 @@ function heldSource(
     let bins: readonly { value?: unknown; count: number; paints: unknown }[] = [];
     try {
         ({ bins } = session.styles.preview(binding, { channel, span: "data" }));
-    } catch {
+    } catch (error) {
         // A binding the element refuses has no groups to list.
+        logUnexpected("styles.preview", error);
     }
     const labels = session.data.valueLabels(path);
     const hidden = new Set((binding.hidden ?? []).map(String));
@@ -514,7 +525,9 @@ function pinnedGroup(
         }
         const has = "node" in at ? (session.data.name(at.node) ?? String(at.node)) : "the selected edge";
         return { pinned: { key: String(value), has } };
-    } catch {
+    } catch (error) {
+        // An element gone since it was selected pins nothing.
+        logUnexpected("styles.valueAt", error, ["E_BAD_COMMAND"]);
         return {};
     }
 }
@@ -557,7 +570,8 @@ export function LayerGroupList({
     let groups: readonly LayerGroup[];
     try {
         groups = session.styles.layerGroups(layers, binding, { channel });
-    } catch {
+    } catch (error) {
+        logUnexpected("styles.layerGroups", error);
         return null;
     }
     const fail = (error: unknown): void => {

@@ -18,11 +18,9 @@
 
 import type {
     AlgorithmKey,
-    EdgeId,
     EdgeReading,
     FieldDescriptor,
     LayerId,
-    NodeId,
     PaletteId,
     ResultShape,
     RunId,
@@ -34,7 +32,8 @@ import type { GraphtyErrorCode } from "../../errors/codes";
 import type { GraphtyError } from "../../errors/GraphtyError";
 import type { JournalId } from "../journal";
 import type { ResultSummary, RunResult } from "../results/types";
-import type { CodedFact } from "../shared";
+import type { ResolvedScope } from "../scope/ScopeApi";
+import type { CodedFact, CodedFactParam } from "../shared";
 import type { StyleSuggestion } from "../styles/derive";
 import type { CaveatCode, PartialCode } from "./caveatFacts";
 
@@ -147,8 +146,18 @@ export interface RunChange {
  * reader a lie they will time their patience against.
  */
 export interface Progress {
-    /** What the run is doing now, in words a progress line can show. */
+    /**
+     * What the run is doing now, as a code an application words: `"queued"`, `"running"` and
+     * `"failed"` for the run itself, or the step an algorithm names, in kebab case
+     * (`"iterating"`, `"grouping-nodes"`, `"reading-scores"`). Never a sentence.
+     */
     readonly phase: string;
+    /**
+     * The figures the phase is about, by name: `{ maxIterations }` while `"iterating"`, the
+     * member's `{ algorithm }` while a batch is `"running"`. Absent when the phase has none.
+     * @since 3.40.0
+     */
+    readonly params?: Readonly<Record<string, CodedFactParam>>;
     /** Whether the total is known. False means the run cannot say how much is left. */
     readonly determinate: boolean;
     /** How many units are done. */
@@ -159,7 +168,11 @@ export interface Progress {
     readonly fraction: number | null;
     /** How much longer, in milliseconds, or null when that cannot be projected. */
     readonly etaMs: number | null;
-    /** A sentence about the current step, when the run has one to offer. */
+    /**
+     * Text an algorithm registered by a consumer chose to report, passed through as it wrote it.
+     * graphty-element's own algorithms never fill it: word {@link Progress.phase} and
+     * {@link Progress.params}.
+     */
     readonly message?: string;
 }
 
@@ -334,37 +347,7 @@ export interface Caveats {
 // Scope, as a run records it
 // ---------------------------------------------------------------------------------------------
 
-/**
- * A scope specification resolved against the graph as it stands.
- *
- * Declared here because a run carries the scope it ran over and the scope API has not landed.
- * It moves to the scope module when that arrives; nothing should declare a second one in the
- * meantime.
- */
-export interface ResolvedScope {
-    /**
-     * The nodes in scope. Lazy: built on the first read, then the same set on every read. It yields
-     * each id as the graph holds it, but `has` takes an integer id written either way: with node
-     * `34` in scope, `nodes.has("34")` is true.
-     */
-    readonly nodes: ReadonlySet<NodeId>;
-    /** The edges in scope. Lazy: built on the first read, then the same set on every read. */
-    readonly edges: ReadonlySet<EdgeId>;
-    /** How many nodes are in scope. */
-    readonly nodeCount: number;
-    /** How many edges are in scope. */
-    readonly edgeCount: number;
-    /**
-     * Equal digests mean equal scopes, which is how staleness is derived rather than tracked.
-     * Versioned: `d1:` and 16 hex digits, comparable only within one session and store. Computed
-     * on first read.
-     */
-    readonly digest: string;
-    /** What was asked for, before it was resolved. */
-    readonly spec: Scope;
-    /** When it was resolved, as an ISO 8601 timestamp. */
-    readonly resolvedAt: string;
-}
+export type { ResolvedScope } from "../scope/ScopeApi";
 
 /** The scope a run ran over, in the structured-cloneable form a record carries. */
 export interface RunScopeRecord {
@@ -625,8 +608,24 @@ export interface BatchStep {
     readonly runId?: RunId;
     /** Whether it succeeded. */
     readonly ok: boolean;
-    /** Why it did not, when it did not. */
-    readonly reason?: string;
+    /** Why it did not, when it did not; absent when it succeeded. */
+    readonly failure?: BatchStepFailure;
+}
+
+/**
+ * Why one member of a batch did not succeed, as a code an application words.
+ *
+ * - `"not-started"`: the batch was stopped before this member started.
+ * - `"canceled"`: the batch, or an undo, stopped this member while it ran.
+ * - Any {@link GraphtyErrorCode}: the member was refused or failed with that error; `details` are
+ *   the error's own details.
+ * @since 3.40.0
+ */
+export interface BatchStepFailure {
+    /** What happened. */
+    readonly code: "not-started" | "canceled" | GraphtyErrorCode;
+    /** The facts behind it: the error's details, or empty. */
+    readonly details: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -637,8 +636,8 @@ export interface BatchStep {
  * on the consumer's behalf that partial work is worthless.
  */
 export interface BatchResult {
-    /** What the batch is called. */
-    readonly label: string;
+    /** What the caller named the batch (`batch(specs, { label })`), or null when it named none. */
+    readonly label: string | null;
     /** How many members it had. */
     readonly total: number;
     /** How many finished. */
@@ -698,6 +697,11 @@ export interface RunRecord {
      * @since 3.18.0
      */
     readonly siblingsDifferBy: readonly string[] | null;
+    /**
+     * The name the reader gave the run with {@link RunsApi.rename}, or null while it has none.
+     * @since 3.40.0
+     */
+    readonly name: string | null;
 
     /** Which algorithm ran. */
     readonly algorithm: AlgorithmKey;
@@ -1084,6 +1088,23 @@ export interface RunsApi {
      *     `E_BAD_COMMAND` when `before` is one of the run's own layers.
      */
     move(id: RunId, before: LayerId | null, options?: { readonly signal?: AbortSignal }): Promise<void>;
+    /**
+     * Give a finished run the reader's own name, as one step that undo takes back. The name shows
+     * as {@link RunRecord.name}; null takes it away.
+     *
+     * ```ts
+     * const run = await session.runs.start("pagerank");
+     * await session.runs.rename(run.runId, "Influence");
+     * session.runs.get(run.runId)?.record.name; // "Influence"
+     * await session.undo(); // back to null
+     * ```
+     * @param id - The run id.
+     * @param name - The new name, 1 to 1,024 characters and not all spaces, or null.
+     * @returns Settles once the name is recorded. Rejects with `E_UNKNOWN_RUN` for a run this
+     *     session holds no finished result of, and `E_OPTION_RANGE` for an empty or overlong name.
+     * @since 3.40.0
+     */
+    rename(id: RunId, name: string | null): Promise<void>;
     /**
      * Which style layers read a run.
      *

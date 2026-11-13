@@ -7076,7 +7076,6 @@ export interface Position {
 export interface Problem {
     readonly code: GraphtyErrorCode | GraphtyWarningCode;
     readonly details?: Readonly<Record<string, unknown>>;
-    readonly reason: string;
     readonly what: string;
 }
 

@@ -1211,6 +1211,27 @@ export function failureWords(what: string, verb: string, error: unknown): string
     return reason === undefined ? `${what} could not be ${verb}.` : `${what} could not be ${verb}: ${reason}.`;
 }
 
+/**
+ * Logs what a graphty-element call threw when it is not a refusal the caller expects, so a catch
+ * that answers a refusal quietly never hides a bug: anything that is not a GraphtyError, the
+ * element's own `E_INTERNAL`, or a code outside `expected`. A disposed session is never logged.
+ * @param where - the call, such as "styles.preview".
+ * @param error - what it threw.
+ * @param expected - the refusal codes the caller answers; left out, every code but `E_INTERNAL`.
+ * @returns whether it was logged.
+ */
+export function logUnexpected(where: string, error: unknown, expected?: readonly GraphtyErrorCode[]): boolean {
+    if (
+        error instanceof GraphtyError &&
+        (error.code === "E_DISPOSED" ||
+            (expected === undefined ? error.code !== "E_INTERNAL" : expected.includes(error.code)))
+    ) {
+        return false;
+    }
+    console.error(`[style] ${where} failed:`, error);
+    return true;
+}
+
 /** The control a value of one property is edited with: one per kind of property. */
 export type ValueFieldKind = "color" | "number" | "choice" | "text";
 

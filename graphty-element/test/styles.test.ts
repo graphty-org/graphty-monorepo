@@ -17,6 +17,7 @@
 import { assert, describe, it, vi } from "vitest";
 
 import { colorToHex } from "../src/config";
+import { ColorStyle } from "../src/config/common";
 import { GraphtyError } from "../src/errors/GraphtyError";
 import { Styles } from "../src/Styles";
 import badLayer from "./helpers/styles-bad-layer.json";
@@ -228,6 +229,20 @@ describe("Styles", () => {
 
         it("converted by hwba, keeping its alpha like every other form", () => {
             assert.strictEqual(colorToHex("hwb(60, 3%, 60%, 0.6)"), "#66660899");
+        });
+
+        it("expands a collapsed #RGBA to eight digits", () => {
+            assert.strictEqual(colorToHex("#f008"), "#FF000088");
+        });
+
+        it("answers undefined for a string that is not a color", () => {
+            assert.isUndefined(colorToHex("notacolor"));
+        });
+
+        it("reports a style color that is not a color as an issue rather than throwing", () => {
+            const result = ColorStyle.safeParse("notacolor");
+            assert.isFalse(result.success);
+            assert.strictEqual(ColorStyle.parse("red"), "#FF0000");
         });
     });
 });

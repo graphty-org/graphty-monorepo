@@ -492,6 +492,7 @@ const ROWS: Record<string, Row> = {
     "export_graph.export": { args: { format: "graphml" } },
     "project.settings": { args: { action: "settings", runAlgorithmsOnLoad: true } },
     "project.rename": { args: { action: "rename", name: "Network" } },
+    "project.rename_run": { args: { action: "rename_run", run: "degree", runName: "Hubs" }, setup: withRun },
     "project.declare": { args: { action: "declare", column: "load", measurement: "quantitative" } },
     "project.status": { args: { action: "status" } },
     "capture.screenshot": { args: { action: "screenshot", width: 100, height: 100 } },

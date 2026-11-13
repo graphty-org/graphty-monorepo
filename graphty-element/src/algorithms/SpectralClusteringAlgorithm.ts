@@ -125,12 +125,12 @@ export class SpectralClusteringAlgorithm extends DeclaredAlgorithm<SpectralClust
         const { snapshot } = input.derived();
         const { clusters, laplacian, maxIterations, seed } = this.schemaOptions;
 
-        context.report({ phase: "Embedding nodes", total: null });
+        context.report({ phase: "embedding-nodes", total: null });
         const value = spectralClustering(snapshot, { k: clusters, laplacianType: laplacian, maxIterations, seed });
         context.signal.throwIfAborted();
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+        await forEachChunked(context, "grouping-nodes", nodeIds, (nodeId) => {
             nodes.push({ id: nodeId, values: { group: value.labels[snapshot.ids.indexOf(nodeId)] ?? 0 } });
         });
 

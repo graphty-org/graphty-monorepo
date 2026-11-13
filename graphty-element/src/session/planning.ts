@@ -42,7 +42,7 @@ import {
     type LocationDesignation,
     resolveLocation,
 } from "../layout/locationMap/source";
-import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand } from "./commands/algo";
+import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand, AlgoRenameCommand } from "./commands/algo";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
 import type { BatchCommand } from "./commands/index";
@@ -129,6 +129,7 @@ export type SessionCommand =
     | AlgoLegacyCommand
     | AlgoRemoveCommand
     | AlgoMoveCommand
+    | AlgoRenameCommand
     | DataCommand
     | DataIssuesCommand
     | SourceExpandOpCommand

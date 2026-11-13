@@ -9,7 +9,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { FactChip, ModelChip } from "./ModelChip";
 import { AddressForm, FileInput } from "./ModelsPopover";
 import { countChip, middleCut, PART_CODES, roleWord } from "./modelWords";
-import { CUSTOM_MODEL } from "./words";
+import { CUSTOM_MODEL, logUnexpected } from "./words";
 
 /** The pop-over's width: room for a part's name and its address. */
 const WIDTH = 280;
@@ -465,7 +465,10 @@ function PartsPopover({
         void (async () => {
             const notes: CodedFact[] = [];
             for (const file of files) {
-                const after = await session.assets.supply(modelRef, { file }).catch(() => undefined);
+                const after = await session.assets.supply(modelRef, { file }).catch((error: unknown) => {
+                    logUnexpected("assets.supply", error, []);
+                    return undefined;
+                });
                 notes.push(
                     ...(after?.problems ?? []).filter(
                         (p) => p.code === "W_MODEL_PART_UNUSED" && p.params.fileName === file.name,

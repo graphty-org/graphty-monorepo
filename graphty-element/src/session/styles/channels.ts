@@ -173,7 +173,7 @@ function parseHex(text: string): Rgba | null {
  * @returns The colour, or null when the value is not one.
  */
 export function asColorValue(value: unknown): ColorValue | null {
-    if (typeof value !== "object" || value === null || !("hex" in value)) {
+    if (typeof value !== "object" || value === null || !("hex" in value) || typeof value.hex !== "string") {
         return null;
     }
 
@@ -210,15 +210,9 @@ export function toColorValue(value: string | Rgba | null | undefined): ColorValu
         return fromComponents(direct);
     }
 
-    try {
-        const normalised = colorToHex(value);
+    const normalised = colorToHex(value);
 
-        return normalised === undefined ? null : toColorValue(normalised);
-    } catch {
-        // colorjs.io throws on a string it cannot parse. A colour nobody can read is a value
-        // this function answers for, not a frame it takes down.
-        return null;
-    }
+    return normalised === undefined ? null : toColorValue(normalised);
 }
 
 /**

@@ -37,6 +37,7 @@ export { createRunsApi } from "./RunsApi";
 export type {
     BatchResult,
     BatchStep,
+    BatchStepFailure,
     Caveats,
     EngineVersions,
     Precision,

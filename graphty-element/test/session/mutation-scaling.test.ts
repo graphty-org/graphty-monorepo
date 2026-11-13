@@ -945,6 +945,17 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "RunsApi.rename",
+        growth: "constant",
+        prepare: async (session) => {
+            const run = await session.runs.start("louvain", {});
+            await session.styles.settled();
+            return async () => {
+                await session.runs.rename(run.runId, "Groups");
+            };
+        },
+    },
+    {
         method: "StylesApi.setHighlightColor",
         growth: "constant",
         prepare: (session) =>

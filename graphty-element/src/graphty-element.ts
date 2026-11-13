@@ -3854,7 +3854,7 @@ export class Graphty extends LitElement {
      *   },
      *   input: {
      *     handTracking: true,
-     *     controllers: true
+     *     zAxisAmplification: 10
      *   }
      * };
      * ```

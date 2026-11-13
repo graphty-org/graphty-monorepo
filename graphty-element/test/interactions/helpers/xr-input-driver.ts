@@ -6,7 +6,14 @@
  * joints -- so every frame of gesture maths, pinch hysteresis and gesture state runs in the
  * handler itself.
  */
-import { Observable, type Scene, Vector3, type WebXRDefaultExperience, type WebXRInputSource } from "@babylonjs/core";
+import {
+    Observable,
+    type Ray,
+    type Scene,
+    Vector3,
+    type WebXRDefaultExperience,
+    type WebXRInputSource,
+} from "@babylonjs/core";
 
 import { PivotController } from "../../../src/cameras/PivotController";
 import { XRInputHandler } from "../../../src/cameras/XRInputHandler";
@@ -24,6 +31,13 @@ export interface XRInputDriver {
      * @param y - stick Y in [-1, 1]
      */
     setStick: (handedness: Handedness, x: number, y: number) => void;
+    /**
+     * Aim a controller's pointer ray. The first call for a hand connects a controller for it.
+     * @param handedness - which controller
+     * @param origin - where the ray starts
+     * @param direction - which way it points
+     */
+    pointAt: (handedness: Handedness, origin: Vector3, direction: Vector3) => void;
     /**
      * Place a tracked hand: its wrist, and its thumb and index tips `pinchDistance` apart.
      * @param handedness - which hand
@@ -68,6 +82,36 @@ export function createXRInputDriver(scene: Scene): XRInputDriver {
         },
     } as unknown as WebXRDefaultExperience;
     const handler = new XRInputHandler(pivot, xr);
+    const rays: Partial<Record<Handedness, { origin: Vector3; direction: Vector3 }>> = {};
+    const connect = (handedness: Handedness): { x: number; y: number } => {
+        const existing = sticks[handedness];
+
+        if (existing) {
+            return existing;
+        }
+
+        const axes = { x: 0, y: 0 };
+        const thumbstick = { axes, onAxisValueChangedObservable: new Observable<{ x: number; y: number }>() };
+
+        sticks[handedness] = axes;
+        onControllerAddedObservable.notifyObservers({
+            uniqueId: `${handedness}-controller`,
+            inputSource: { handedness, profiles: ["oculus-touch"] },
+            motionController: {
+                getComponent: (id: string) => (id === "xr-standard-thumbstick" ? thumbstick : null),
+            },
+            getWorldPointerRayToRef: (ray: Ray) => {
+                const aim = rays[handedness];
+
+                if (aim) {
+                    ray.origin.copyFrom(aim.origin);
+                    ray.direction.copyFrom(aim.direction);
+                }
+            },
+        } as unknown as WebXRInputSource);
+
+        return axes;
+    };
 
     handler.enable();
 
@@ -75,25 +119,14 @@ export function createXRInputDriver(scene: Scene): XRInputDriver {
         handler,
         pivot,
         setStick: (handedness, x, y) => {
-            const existing = sticks[handedness];
+            const axes = connect(handedness);
 
-            if (existing) {
-                existing.x = x;
-                existing.y = y;
-                return;
-            }
-
-            const axes = { x, y };
-            const thumbstick = { axes, onAxisValueChangedObservable: new Observable<{ x: number; y: number }>() };
-
-            sticks[handedness] = axes;
-            onControllerAddedObservable.notifyObservers({
-                uniqueId: `${handedness}-controller`,
-                inputSource: { handedness, profiles: ["oculus-touch"] },
-                motionController: {
-                    getComponent: (id: string) => (id === "xr-standard-thumbstick" ? thumbstick : null),
-                },
-            } as unknown as WebXRInputSource);
+            axes.x = x;
+            axes.y = y;
+        },
+        pointAt: (handedness, origin, direction) => {
+            connect(handedness);
+            rays[handedness] = { origin: origin.clone(), direction: direction.normalizeToNew() };
         },
         setHand: (handedness, wrist, pinchDistance) => {
             const thumbTip = wrist.add(new Vector3(0, 0, -0.1));

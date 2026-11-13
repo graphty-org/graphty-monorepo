@@ -143,20 +143,10 @@ export class XRInputHandler {
     private dragHand: "left" | "right" | null = null;
     private lastDragHandPosition: Vector3 | null = null; // Previous frame position for delta calculation
 
-    // Velocity-based gain (PRISM technique from VR research)
-    // Raw hand deltas are tiny (~0.3mm/frame at 72fps), need significant amplification
-    // User feedback: 5× was too slow - "full arm only moves 3 units"
-    // Target: full arm movement (0.6m) should move node ~15-20 units
-    private readonly VELOCITY_SLOW_THRESHOLD = 0.005; // meters/second - below this = precision mode
-    private readonly VELOCITY_FAST_THRESHOLD = 0.03; // meters/second - above this = speed mode
-    private readonly AMP_SLOW = 5; // Precision zone: usable but controlled
-    private readonly _AMP_MEDIUM = 10; // Natural zone: comfortable movement (kept for reference)
-    private readonly AMP_FAST = 20; // Speed zone: fast repositioning
-    private lastDragTime = 0; // For velocity calculation
-
-    // Smoothing to reduce jitter from hand tracking noise
-    private readonly SMOOTHING_FACTOR = 0.7; // 0 = no smoothing, 1 = max smoothing
-    private smoothedDelta: Vector3 | null = null;
+    // Where the dragging hand has carried the node's drag pointer, in scene space. The node's drag
+    // handler follows it, amplifying depth by `xr.input.zAxisAmplification` and absorbing a jump
+    // that is a controller losing and reacquiring tracking, as it does for every XR drag.
+    private dragPointer: Vector3 | null = null;
 
     // Drag threshold - must move this far from pick point before node actually moves
     // Set high enough that natural hand tremor during a "click" doesn't trigger drag
@@ -1053,7 +1043,6 @@ export class XRInputHandler {
         this.lastDragHandPosition = handPosition.clone(); // Store for delta calculation
         this.dragStartHandPosition = handPosition.clone(); // Store initial position for threshold check
         this.dragThresholdExceeded = false; // Reset threshold flag
-        this.lastDragTime = performance.now(); // Initialize time for velocity calculation
 
         // DON'T call onDragStart yet - wait until threshold is exceeded
         // This prevents the node from "twitching" from hand tremor
@@ -1062,13 +1051,10 @@ export class XRInputHandler {
     /**
      * Update node drag position based on controller movement.
      *
-     * Uses delta-based movement from the working demo:
-     * 1. Calculate delta from previous frame (not drag start)
-     * 2. Transform delta through pivot rotation
-     * 3. Apply amplification
-     * 4. Add to current node position
-     *
-     * This approach correctly handles pivot rotation changes during drag.
+     * The hand's movement since the previous frame, turned through the pivot's rotation, moves a
+     * pointer in scene space, and the node's drag handler follows that pointer: one to one across,
+     * depth multiplied by `xr.input.zAxisAmplification`, and a single jump of more than 5 units (a
+     * tracking glitch) ignored. Per-frame deltas are what keep the drag right while the pivot turns.
      * @param currentHandPosition - The current world position of the dragging hand
      */
     // Track drag update count for limiting debug logs
@@ -1079,17 +1065,13 @@ export class XRInputHandler {
             return;
         }
 
-        const now = performance.now();
-
         // Check if we've exceeded the drag threshold yet
         if (!this.dragThresholdExceeded) {
             const distanceFromStart = Vector3.Distance(currentHandPosition, this.dragStartHandPosition);
 
             if (distanceFromStart < this.DRAG_THRESHOLD) {
                 // Still within threshold - don't move the node yet
-                // Update lastDragHandPosition so we track movement for when threshold is exceeded
                 this.lastDragHandPosition = currentHandPosition.clone();
-                this.lastDragTime = now;
                 return;
             }
 
@@ -1098,12 +1080,12 @@ export class XRInputHandler {
             logger.debug("Drag threshold exceeded", { distance: distanceFromStart });
 
             // NOW call onDragStart since user has committed to dragging
-            const node = this.draggedNodeHandler.getNode();
-            this.draggedNodeHandler.onDragStart(node.drawnPosition.clone());
+            const start = this.draggedNodeHandler.getNode().drawnPosition.clone();
+            this.draggedNodeHandler.onDragStart(start);
+            this.dragPointer = start.clone();
 
             // Reset lastDragHandPosition to current so first delta is from threshold point
             this.lastDragHandPosition = currentHandPosition.clone();
-            this.lastDragTime = now;
             return;
         }
 
@@ -1111,88 +1093,25 @@ export class XRInputHandler {
         const xrDelta = currentHandPosition.subtract(this.lastDragHandPosition);
 
         // Skip if no significant movement
-        const deltaLength = xrDelta.length();
-        if (deltaLength < 0.0001) {
+        if (xrDelta.length() < 0.0001 || this.dragPointer === null) {
             return;
         }
 
         this.dragUpdateCount++;
-
-        // Calculate velocity for PRISM-style adaptive gain
-        const deltaTimeMs = now - this.lastDragTime;
-        const deltaTimeSec = Math.max(deltaTimeMs / 1000, 0.001); // Minimum 1ms to avoid division by zero
-        const velocity = deltaLength / deltaTimeSec; // meters per second
-
-        // Apply velocity-based amplification (PRISM technique)
-        const amplification = this.calculateVelocityBasedGain(velocity);
-
-        // Transform delta through pivot rotation
-        const sceneDelta = this.transformDeltaToSceneSpace(xrDelta);
-
-        // Apply velocity-based amplification
-        sceneDelta.scaleInPlace(amplification);
-
-        // Apply smoothing to reduce jitter from hand tracking noise
-        if (this.smoothedDelta === null) {
-            this.smoothedDelta = sceneDelta.clone();
-        } else {
-            // Exponential moving average: smoothed = smoothed * factor + new * (1 - factor)
-            this.smoothedDelta.scaleInPlace(this.SMOOTHING_FACTOR);
-            this.smoothedDelta.addInPlace(sceneDelta.scale(1 - this.SMOOTHING_FACTOR));
-        }
-
-        // Use smoothed delta for position update
-        const finalDelta = this.smoothedDelta.clone();
-
-        // Get current node position and add delta
-        const node = this.draggedNodeHandler.getNode();
-        const currentNodePos = node.drawnPosition.clone();
-        const newPosition = currentNodePos.add(finalDelta);
+        this.dragPointer.addInPlace(this.transformDeltaToSceneSpace(xrDelta));
+        this.draggedNodeHandler.onDragUpdate(this.dragPointer);
 
         // Log only first 5 updates to catch initial movement issues
         if (this.dragUpdateCount <= 5) {
             logger.trace("Drag update", {
                 updateCount: this.dragUpdateCount,
                 delta: { x: xrDelta.x, y: xrDelta.y, z: xrDelta.z },
-                velocity,
-                amplification,
-                newPos: { x: newPosition.x, y: newPosition.y, z: newPosition.z },
+                pointer: { x: this.dragPointer.x, y: this.dragPointer.y, z: this.dragPointer.z },
             });
         }
 
-        // Update via drag handler (handles layout engine)
-        this.draggedNodeHandler.setPositionDirect(newPosition);
-
         // Store for next frame
         this.lastDragHandPosition = currentHandPosition.clone();
-        this.lastDragTime = now;
-    }
-
-    /**
-     * Calculate velocity-based gain using PRISM technique.
-     * Slow movements → low amplification (precision)
-     * Fast movements → higher amplification (speed)
-     *
-     * This provides intuitive control: fine adjustments when moving slowly,
-     * quick repositioning when moving fast.
-     * @param velocity - The velocity of hand movement in world units per second.
-     * @returns The amplification gain factor to apply to the movement.
-     */
-    private calculateVelocityBasedGain(velocity: number): number {
-        if (velocity < this.VELOCITY_SLOW_THRESHOLD) {
-            // Precision zone: reduce amplification for fine control
-            return this.AMP_SLOW;
-        }
-
-        if (velocity > this.VELOCITY_FAST_THRESHOLD) {
-            // Speed zone: increase amplification for faster repositioning
-            return this.AMP_FAST;
-        }
-
-        // Transition zone: linear interpolation between slow and fast
-        const t =
-            (velocity - this.VELOCITY_SLOW_THRESHOLD) / (this.VELOCITY_FAST_THRESHOLD - this.VELOCITY_SLOW_THRESHOLD);
-        return this.AMP_SLOW + t * (this.AMP_FAST - this.AMP_SLOW);
     }
 
     /**
@@ -1243,8 +1162,7 @@ export class XRInputHandler {
         this.dragStartHandPosition = null;
         this.dragThresholdExceeded = false;
         this.dragUpdateCount = 0; // Reset for next drag
-        this.lastDragTime = 0; // Reset velocity tracking
-        this.smoothedDelta = null; // Reset smoothing for next drag
+        this.dragPointer = null;
     }
 
     /**

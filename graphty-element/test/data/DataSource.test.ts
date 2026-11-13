@@ -1,13 +1,14 @@
 import { assert, describe, test } from "vitest";
 
+import type { AdHocData } from "../../src/config";
 import { type BaseDataSourceConfig, DataSource, DataSourceChunk } from "../../src/data/DataSource.js";
 
 // Create a minimal test implementation
 class TestDataSource extends DataSource {
     static type = "test";
     private config: BaseDataSourceConfig;
-    private testNodes: unknown[] = [{ id: "n1" }, { id: "n2" }];
-    private testEdges: unknown[] = [{ src: "n1", dst: "n2" }];
+    private testNodes: AdHocData[] = [{ id: "n1" }, { id: "n2" }];
+    private testEdges: AdHocData[] = [{ src: "n1", dst: "n2" }];
 
     constructor(config: BaseDataSourceConfig) {
         super(config.errorLimit ?? 100, config.chunkSize);
@@ -19,9 +20,14 @@ class TestDataSource extends DataSource {
     }
 
     // Test helper to set data for chunking tests
-    setTestData(nodes: unknown[], edges: unknown[]): void {
+    setTestData(nodes: AdHocData[], edges: AdHocData[]): void {
         this.testNodes = nodes;
         this.testEdges = edges;
+    }
+
+    // Public accessor for the protected chunk size
+    get testChunkSize(): number {
+        return this.chunkSize;
     }
 
     // Public accessor for testing protected getContent method
@@ -31,11 +37,7 @@ class TestDataSource extends DataSource {
 
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk> {
         await this.getContent();
-        yield* this.chunkData(
-            this.testNodes as any,
-
-            this.testEdges as any,
-        );
+        yield* this.chunkData(this.testNodes, this.testEdges);
     }
 }
 
@@ -129,9 +131,7 @@ describe("DataSource base class", () => {
     describe("DEFAULT_CHUNK_SIZE", () => {
         test("uses default chunk size when not specified", () => {
             const source = new TestDataSource({ data: "" });
-            // Access protected property for testing
-
-            assert.strictEqual((source as any).chunkSize, 1000);
+            assert.strictEqual(source.testChunkSize, 1000);
         });
     });
 });

@@ -45,11 +45,10 @@ describe("XR Input Switching", () => {
     });
 
     describe("Input Handler Management", () => {
-        test("XR session manager exists", () => {
-            // Access private property for testing purposes
-
-            const xrManager = (graph as any).xrSessionManager;
-            assert.isDefined(xrManager, "XR session manager should exist");
+        test("XR is off by default, so there is no XR session manager", () => {
+            // `xr.enabled` is off by default, so the manager is never built.
+            const xrManager = graph.getXRSessionManager();
+            assert.isUndefined(xrManager, "XR session manager should not exist while XR is off");
         });
 
         test("graph remains stable during input handler operations", async () => {

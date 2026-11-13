@@ -9,6 +9,7 @@
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
+import { OrbitCameraController } from "../../../src/cameras/OrbitCameraController";
 import { Graph, operationQueueOf } from "../../../src/Graph";
 import { holdKey, pinch, releaseHeldKeys, releaseKey, touchDrag } from "../../helpers/real-input";
 import { configureGraph } from "../../helpers/testSetup";
@@ -150,12 +151,11 @@ describe("Touch Controls Integration", () => {
             const cameraController = graph.camera.getActiveController();
             assert.isDefined(cameraController, "Camera controller should be defined");
 
-            const cameraManager = graph.camera as any;
-            const orbitController = cameraManager.activeCameraController;
-            const inputController = cameraManager.activeInputHandler;
+            const orbitController = graph.camera.getActiveController();
+            const inputController = graph.camera.getActiveInputHandler();
 
-            assert.isDefined(orbitController, "Orbit camera controller should be defined");
-            assert.isDefined(inputController, "Input controller should be defined");
+            assert.instanceOf(orbitController, OrbitCameraController, "Orbit camera controller should be defined");
+            assert.isNotNull(inputController, "Input controller should be defined");
 
             // Spy on the rotate method to verify it's called during drag
             const rotateSpy = vi.spyOn(orbitController, "rotate");
@@ -173,12 +173,11 @@ describe("Touch Controls Integration", () => {
             // Note: In 3D mode, pinch gestures use Hammer.js which is difficult to simulate.
             // However, keyboard W/S keys also control zoom in 3D mode.
 
-            const cameraManager = graph.camera as any;
-            const orbitController = cameraManager.activeCameraController;
-            const inputController = cameraManager.activeInputHandler;
+            const orbitController = graph.camera.getActiveController();
+            const inputController = graph.camera.getActiveInputHandler();
 
-            assert.isDefined(orbitController, "Orbit camera controller should be defined");
-            assert.isDefined(inputController, "Input controller should be defined");
+            assert.instanceOf(orbitController, OrbitCameraController, "Orbit camera controller should be defined");
+            assert.isNotNull(inputController, "Input controller should be defined");
 
             const initialDistance = orbitController.cameraDistance;
 
@@ -202,12 +201,11 @@ describe("Touch Controls Integration", () => {
             // Note: In 3D mode, pinch gestures use Hammer.js which is difficult to simulate.
             // However, keyboard W/S keys also control zoom in 3D mode.
 
-            const cameraManager = graph.camera as any;
-            const orbitController = cameraManager.activeCameraController;
-            const inputController = cameraManager.activeInputHandler;
+            const orbitController = graph.camera.getActiveController();
+            const inputController = graph.camera.getActiveInputHandler();
 
-            assert.isDefined(orbitController, "Orbit camera controller should be defined");
-            assert.isDefined(inputController, "Input controller should be defined");
+            assert.instanceOf(orbitController, OrbitCameraController, "Orbit camera controller should be defined");
+            assert.isNotNull(inputController, "Input controller should be defined");
 
             const initialDistance = orbitController.cameraDistance;
 

@@ -369,7 +369,6 @@ export default tseslint.config(
             "**/__tests__/**/*.tsx",
         ],
         rules: {
-            "@typescript-eslint/no-explicit-any": "off",
             "@typescript-eslint/explicit-function-return-type": "off",
             "@typescript-eslint/no-non-null-assertion": "off",
             "@typescript-eslint/unbound-method": "off",
@@ -395,6 +394,22 @@ export default tseslint.config(
             "jsdoc/check-tag-names": "off",
             "jsdoc/tag-lines": "off",
         },
+    },
+
+    // ============================================
+    // TEST FILES AN OPEN PULL REQUEST CHANGES, STILL USING `any`
+    // ============================================
+    // Test files are held to no-explicit-any like the rest of the code (issue #7283). These still
+    // use `any` and are changed by an open pull request, so they are fixed once it merges: remove
+    // each entry then.
+    {
+        files: [
+            // Pull request #7321 changes this file. Named twice: from the root, and from
+            // graphty-element, whose own config imports this one and resolves globs from there.
+            "graphty-element/test/browser/3d-camera-controls.test.ts",
+            "test/browser/3d-camera-controls.test.ts",
+        ],
+        rules: { "@typescript-eslint/no-explicit-any": "off" },
     },
 
     // ============================================

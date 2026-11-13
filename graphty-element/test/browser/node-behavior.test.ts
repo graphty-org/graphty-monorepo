@@ -2,6 +2,7 @@ import { ActionManager, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { Graph } from "../../src/Graph";
+import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
@@ -114,21 +115,8 @@ describe("Node Behavior Tests", () => {
         const node = dataManager.getNode("test-node-3");
         assert.isDefined(node);
 
-        // Mock layout manager
-        const layoutManager = graph.getLayoutManager();
-        // The add's derivation pass places the newcomer and strict state checks the engine's
-        // edges, both through this stand-in.
-        vi.spyOn(layoutManager, "layoutEngine", "get").mockReturnValue({
-            setNodePosition: vi.fn(),
-            updatePositions: vi.fn(),
-            publishPositions: vi.fn(),
-            edgeProblems: () => [],
-        } as any);
-        const mockLayoutEngine = layoutManager.layoutEngine;
-        const spyTarget = mockLayoutEngine as unknown as {
-            setNodePosition: (node: unknown, position: unknown) => void;
-        };
-        const mockSetNodePosition = vi.spyOn(spyTarget, "setNodePosition");
+        // Watch the position the drag hands the graph's own layout engine.
+        const mockSetNodePosition = vi.spyOn(layoutEngineInternals, "setNodePosition");
 
         // Start dragging
         node.dragHandler?.onDragStart(new Vector3(0, 0, 0));
@@ -139,9 +127,10 @@ describe("Node Behavior Tests", () => {
 
         // Should update layout engine position
         assert.equal(mockSetNodePosition.mock.calls.length, 1);
-        assert.equal(mockSetNodePosition.mock.calls[0][0], node);
+        assert.equal(mockSetNodePosition.mock.calls[0][0], graph.getLayoutManager().layoutEngine);
+        assert.equal(mockSetNodePosition.mock.calls[0][1], node);
         // Check that the position was updated (exact values depend on delta calculations)
-        assert.isDefined(mockSetNodePosition.mock.calls[0][1]);
+        assert.isDefined(mockSetNodePosition.mock.calls[0][2]);
     });
 
     test("position changed when not dragging does not update layout engine", () => {
@@ -152,21 +141,8 @@ describe("Node Behavior Tests", () => {
         const node = dataManager.getNode("test-node-4");
         assert.isDefined(node);
 
-        // Mock layout manager
-        const layoutManager = graph.getLayoutManager();
-        // The add's derivation pass places the newcomer and strict state checks the engine's
-        // edges, both through this stand-in.
-        vi.spyOn(layoutManager, "layoutEngine", "get").mockReturnValue({
-            setNodePosition: vi.fn(),
-            updatePositions: vi.fn(),
-            publishPositions: vi.fn(),
-            edgeProblems: () => [],
-        } as any);
-        const mockLayoutEngine = layoutManager.layoutEngine;
-        const spyTarget = mockLayoutEngine as unknown as {
-            setNodePosition: (node: unknown, position: unknown) => void;
-        };
-        const mockSetNodePosition = vi.spyOn(spyTarget, "setNodePosition");
+        // Watch the position the drag hands the graph's own layout engine.
+        const mockSetNodePosition = vi.spyOn(layoutEngineInternals, "setNodePosition");
 
         // Simulate position change without dragging (node.dragging should be false)
         const newPosition = new Vector3(10, 20, 30);

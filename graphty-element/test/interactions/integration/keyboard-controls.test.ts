@@ -8,6 +8,9 @@
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test } from "vitest";
 
+import { OrbitCameraController } from "../../../src/cameras/OrbitCameraController";
+import { TwoDCameraController } from "../../../src/cameras/TwoDCameraController";
+import { InputController } from "../../../src/cameras/TwoDInputController";
 import { Graph, operationQueueOf } from "../../../src/Graph";
 import { holdKey, releaseHeldKeys, releaseKey } from "../../helpers/real-input";
 import { configureGraph } from "../../helpers/testSetup";
@@ -22,60 +25,17 @@ const TEST_EDGES = [
 /**
  * Helper to get the 2D input controller from the graph
  */
-function get2DInputController(graph: Graph):
-    | {
-          applyKeyboardInertia: () => void;
-      }
-    | undefined {
-    const cameraManager = graph.camera;
-    // Access via internal input registry
-
-    const anyManager = cameraManager as any;
-    if (anyManager.activeInputHandler?.applyKeyboardInertia) {
-        return anyManager.activeInputHandler;
-    }
-
-    return undefined;
+function get2DInputController(graph: Graph): InputController | undefined {
+    const handler = graph.camera.getActiveInputHandler();
+    return handler instanceof InputController ? handler : undefined;
 }
 
 /**
  * Helper to get the 2D camera controller from the graph
  */
-function get2DCameraController(graph: Graph):
-    | {
-          velocity: { x: number; y: number; zoom: number; rotate: number };
-          camera: { position: { x: number; y: number; z: number }; orthoTop?: number; orthoBottom?: number };
-      }
-    | undefined {
+function get2DCameraController(graph: Graph): TwoDCameraController | undefined {
     const controller = graph.camera.getActiveController();
-
-    const anyController = controller as any;
-    if (anyController.velocity) {
-        return anyController;
-    }
-
-    return undefined;
-}
-
-/**
- * Helper to get the 3D camera state
- */
-function get3DCameraState(graph: Graph): {
-    alpha: number;
-    beta: number;
-    radius: number;
-} {
-    const controller = graph.camera.getActiveController();
-    if (!controller) {
-        throw new Error("No active camera controller");
-    }
-
-    const camera = controller.camera as any;
-    return {
-        alpha: camera.alpha ?? 0,
-        beta: camera.beta ?? 0,
-        radius: camera.radius ?? 30,
-    };
+    return controller instanceof TwoDCameraController ? controller : undefined;
 }
 
 describe("Keyboard Controls Integration", () => {
@@ -253,11 +213,7 @@ describe("Keyboard Controls Integration", () => {
             assert.isDefined(cameraController, "Camera controller should be defined");
 
             // Disable input controller
-
-            const anyInput = inputController as any;
-            if (anyInput.disable) {
-                anyInput.disable();
-            }
+            inputController.disable();
 
             // Reset velocity before the press, so a frame that heard the key would show in it
             cameraController.velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
@@ -270,9 +226,7 @@ describe("Keyboard Controls Integration", () => {
             assert.equal(cameraController.velocity.y, 0, "Keyboard input should have no effect when disabled");
 
             // Re-enable for cleanup
-            if (anyInput.enable) {
-                anyInput.enable();
-            }
+            inputController.enable();
         });
         test("a key still down when focus leaves the canvas stops panning", async () => {
             const inputController = get2DInputController(graph);
@@ -340,13 +294,13 @@ describe("Keyboard Controls Integration", () => {
         });
 
         test("3D camera has valid initial state", () => {
-            const state = get3DCameraState(graph);
+            const controller = graph.camera.getActiveController();
+            assert.instanceOf(controller, OrbitCameraController);
 
             // Verify camera has valid 3D state
-            assert.isNumber(state.alpha, "Alpha should be a number");
-            assert.isNumber(state.beta, "Beta should be a number");
-            assert.isNumber(state.radius, "Radius should be a number");
-            assert.isAbove(state.radius, 0, "Radius should be positive");
+            const { position } = controller.camera;
+            assert.isTrue([position.x, position.y, position.z].every(Number.isFinite), "Position should be finite");
+            assert.isAbove(controller.cameraDistance, 0, "Distance should be positive");
         });
 
         test("keyboard events are received on focused canvas", async () => {
@@ -378,8 +332,10 @@ describe("Keyboard Controls Integration", () => {
          * @returns The number of spin calls
          */
         async function spinsAfter(press: () => Promise<void>): Promise<number> {
-            const handler = (graph.camera as any).activeInputHandler;
-            const { controller } = handler;
+            const handler = graph.camera.getActiveInputHandler();
+            const controller = graph.camera.getActiveController();
+            assert.isNotNull(handler);
+            assert.instanceOf(controller, OrbitCameraController);
 
             const { canvas } = graph;
             canvas.focus();

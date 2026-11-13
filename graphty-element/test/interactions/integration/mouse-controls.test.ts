@@ -9,6 +9,8 @@
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
+import { OrbitCameraController } from "../../../src/cameras/OrbitCameraController";
+import { TwoDCameraController } from "../../../src/cameras/TwoDCameraController";
 import { Graph, operationQueueOf } from "../../../src/Graph";
 import { click, drag, holdKey, releaseHeldKeys, releaseKey, wheel } from "../../helpers/real-input";
 import { configureGraph } from "../../helpers/testSetup";
@@ -57,9 +59,8 @@ describe("Mouse Controls Integration", () => {
 
             // Access the 2D camera controller directly to spy on pan method
 
-            const cameraManager = graph.camera as any;
-            const twoDController = cameraManager.activeCameraController;
-            assert.isDefined(twoDController, "2D camera controller should be defined");
+            const twoDController = graph.camera.getActiveController();
+            assert.instanceOf(twoDController, TwoDCameraController, "2D camera controller should be defined");
 
             // Spy on the pan method to verify it's being called
             const panSpy = vi.spyOn(twoDController, "pan");
@@ -151,12 +152,11 @@ describe("Mouse Controls Integration", () => {
 
             // Access the orbit controller and input controller
 
-            const cameraManager = graph.camera as any;
-            const orbitController = cameraManager.activeCameraController;
-            const inputController = cameraManager.activeInputHandler;
+            const orbitController = graph.camera.getActiveController();
+            const inputController = graph.camera.getActiveInputHandler();
 
-            assert.isDefined(orbitController, "Orbit camera controller should be defined");
-            assert.isDefined(inputController, "Input controller should be defined");
+            assert.instanceOf(orbitController, OrbitCameraController, "Orbit camera controller should be defined");
+            assert.isNotNull(inputController, "Input controller should be defined");
 
             // Spy on the rotate method to verify it's called during drag
             const rotateSpy = vi.spyOn(orbitController, "rotate");
@@ -176,12 +176,11 @@ describe("Mouse Controls Integration", () => {
         test("keyboard W to zoom in 3D mode", async () => {
             // Get the camera controller - 3D mode uses OrbitCameraController
 
-            const cameraManager = graph.camera as any;
-            const orbitController = cameraManager.activeCameraController;
-            const inputController = cameraManager.activeInputHandler;
+            const orbitController = graph.camera.getActiveController();
+            const inputController = graph.camera.getActiveInputHandler();
 
-            assert.isDefined(orbitController, "Orbit camera controller should be defined");
-            assert.isDefined(inputController, "Input controller should be defined");
+            assert.instanceOf(orbitController, OrbitCameraController, "Orbit camera controller should be defined");
+            assert.isNotNull(inputController, "Input controller should be defined");
 
             const initialDistance = orbitController.cameraDistance;
 
@@ -204,12 +203,11 @@ describe("Mouse Controls Integration", () => {
         test("keyboard S to zoom out in 3D mode", async () => {
             // Get the camera controller - 3D mode uses OrbitCameraController
 
-            const cameraManager = graph.camera as any;
-            const orbitController = cameraManager.activeCameraController;
-            const inputController = cameraManager.activeInputHandler;
+            const orbitController = graph.camera.getActiveController();
+            const inputController = graph.camera.getActiveInputHandler();
 
-            assert.isDefined(orbitController, "Orbit camera controller should be defined");
-            assert.isDefined(inputController, "Input controller should be defined");
+            assert.instanceOf(orbitController, OrbitCameraController, "Orbit camera controller should be defined");
+            assert.isNotNull(inputController, "Input controller should be defined");
 
             const initialDistance = orbitController.cameraDistance;
 

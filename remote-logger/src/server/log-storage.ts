@@ -758,8 +758,8 @@ export class LogStorage {
         const { metadata } = sessionData;
         metadata.logCount = sessionData.logs.length;
         metadata.errorCount -= countErrors(removed);
+        // The newest log is kept, so lastLogTime stays
         metadata.firstLogTime = sessionData.logs[0].time;
-        metadata.lastLogTime = sessionData.logs[sessionData.logs.length - 1].time;
     }
 
     /**
@@ -778,25 +778,33 @@ export class LogStorage {
     }
 
     /**
+     * Find the session holding the oldest received entry.
+     * @returns That session, and the receive time of the oldest entry in any other session
+     */
+    private findOldestEntry(): { oldest?: SessionData; nextOldestMs: number } {
+        let oldest: SessionData | undefined;
+        let nextOldestMs = Infinity;
+        for (const sessionData of this.sessions.values()) {
+            if (sessionData.receivedMs.length === 0) {
+                continue;
+            }
+            const first = sessionData.receivedMs[0];
+            if (!oldest || first < oldest.receivedMs[0]) {
+                nextOldestMs = oldest ? oldest.receivedMs[0] : nextOldestMs;
+                oldest = sessionData;
+            } else if (first < nextOldestMs) {
+                nextOldestMs = first;
+            }
+        }
+        return { oldest, nextOldestMs };
+    }
+
+    /**
      * Drop the oldest received logs across all sessions until the total is within its cap.
      */
     private enforceTotalCap(): void {
         while (this.totalLogs > this.maxTotalLogs) {
-            // The session holding the oldest entry, and the receive time of the next session's oldest entry
-            let oldest: SessionData | undefined;
-            let nextOldestMs = Infinity;
-            for (const sessionData of this.sessions.values()) {
-                if (sessionData.receivedMs.length === 0) {
-                    continue;
-                }
-                const first = sessionData.receivedMs[0];
-                if (!oldest || first < oldest.receivedMs[0]) {
-                    nextOldestMs = oldest ? oldest.receivedMs[0] : nextOldestMs;
-                    oldest = sessionData;
-                } else if (first < nextOldestMs) {
-                    nextOldestMs = first;
-                }
-            }
+            const { oldest, nextOldestMs } = this.findOldestEntry();
             if (!oldest) {
                 return;
             }

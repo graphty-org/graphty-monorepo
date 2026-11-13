@@ -5,13 +5,13 @@
  * become INVALID_INDEX with the row UNSET (never a set row holding INVALID_INDEX), and extension
  * tables must be remapped without losing rows.
  *
- * Two tests here fail deliberately; each pins a defect named in the audit report:
+ * Two tests here pin audit findings that have since been fixed (design/graph-format/STATUS.md,
+ * "Audit round 1"):
  * - "merged edges: refersTo values follow the survivor" (design 5.11 / 6.5 / 7.3: a merged edge is
- *   not dangling, it maps to its survivor; the compaction rewrites through a remap that sends it to
- *   INVALID_INDEX instead, so graphty.pair and temporal extension rows are destroyed by a merging
- *   freeze while simplified() on the same graph keeps them);
- * - "a non-nullable refersTo column with a dangling reference" (the compaction leaves the row SET
- *   with INVALID_INDEX, so the frozen snapshot violates I12 and validate() rejects it).
+ *   not dangling, it maps to its survivor; the compaction used to rewrite through a remap that sent
+ *   it to INVALID_INDEX, destroying graphty.pair and temporal extension rows in a merging freeze);
+ * - "a non-nullable refersTo column with a dangling reference" (the compaction used to leave the row
+ *   SET with INVALID_INDEX, so the frozen snapshot violated I12 and validate() rejected it).
  */
 
 import { describe, expect, it } from "vitest";

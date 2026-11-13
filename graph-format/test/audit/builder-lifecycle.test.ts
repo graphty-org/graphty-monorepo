@@ -6,7 +6,8 @@
  * a merging freeze must leave the builder consistent with its own declared options, and a failing
  * composition call must not be half-applied.
  *
- * Tests marked PINS FINDING fail deliberately; each names the defect of the audit report it pins.
+ * Tests marked FIXED FINDING pin a defect of the audit (design/graph-format/STATUS.md, "Audit
+ * round 1") that has since been fixed; each comment names what used to go wrong.
  */
 
 import { describe, expect, it } from "vitest";
@@ -55,7 +56,7 @@ describe("audit: dispose()", () => {
         expect(seeded.freeze().ids.toArray()).toEqual(["a", "b"]);
     });
 
-    // PINS FINDING: the state getters answer after dispose() instead of throwing.
+    // FIXED FINDING: the state getters answered after dispose() instead of throwing.
     it("the state getters throw E_BUILDER_DISPOSED too instead of reporting an empty, dirty builder", () => {
         const b = new GraphBuilder({ directed: true });
         b.addEdge("a", "b");
@@ -144,7 +145,7 @@ describe("audit: freeze({ release: true })", () => {
 });
 
 describe("audit: freeze options are validated, never silently substituted", () => {
-    // PINS FINDING: an unsupported per-freeze duplicateEdges value acts like "first" and rewrites the builder.
+    // FIXED FINDING: an unsupported per-freeze duplicateEdges value acted like "first" and rewrote the builder.
     it("an unsupported duplicateEdges override throws E_UNSUPPORTED and leaves the builder untouched", () => {
         const b = new GraphBuilder({ directed: true });
         b.addEdge("a", "b", 1);
@@ -174,7 +175,7 @@ describe("audit: freeze options are validated, never silently substituted", () =
 });
 
 describe("audit: merging freezes and the builder's declared options", () => {
-    // PINS FINDING: "sum" multiplicities on omitted weights are recorded as omitted and lost by from().
+    // FIXED FINDING: "sum" multiplicities on omitted weights were recorded as omitted and lost by from().
     it("multiplicities produced by duplicateEdges sum survive GraphBuilder.from() (design 6.6: from() seeds weights)", () => {
         const b = new GraphBuilder({ directed: true });
         b.addEdge("a", "b");
@@ -199,7 +200,7 @@ describe("audit: merging freezes and the builder's declared options", () => {
         expect(Array.from(again.weights as Float32Array)).toEqual([2, 1]);
     });
 
-    // PINS FINDING: a merge allocates weights on a builder declared weighted: false.
+    // FIXED FINDING: a merge allocated weights on a builder declared weighted: false.
     it("a weighted: false builder never gains an arc weight array through a merge", () => {
         const b = new GraphBuilder({ directed: true, weighted: false });
         b.addEdge("a", "b");
@@ -241,7 +242,7 @@ describe("audit: merging freezes and the builder's declared options", () => {
 });
 
 describe("audit: composition calls are atomic on failure (design 11.1)", () => {
-    // PINS FINDING: addGraph with onDuplicateNode "error" appends nodes before it throws.
+    // FIXED FINDING: addGraph with onDuplicateNode "error" appended nodes before it threw.
     it("addGraph(..., { onDuplicateNode: 'error' }) leaves the builder unchanged when it throws", () => {
         const other = new GraphBuilder({ directed: true });
         other.addNodes(["a", "b", "c"]);

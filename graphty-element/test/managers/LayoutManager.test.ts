@@ -439,8 +439,9 @@ describe("LayoutManager", () => {
         it("should report settled state from layout engine", async () => {
             await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
 
-            // ngraph layout might or might not be settled immediately
-            assert.isBoolean(layoutManager.isSettled);
+            const engine = layoutManager.layoutEngine;
+            assert.isDefined(engine);
+            assert.strictEqual(layoutManager.isSettled, engine.isSettled);
         });
 
         it("should report as settled when no layout engine", () => {

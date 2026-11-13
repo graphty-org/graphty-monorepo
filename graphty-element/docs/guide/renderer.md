@@ -142,6 +142,46 @@ when they change. On the default `"objects"` path `limits` is ignored, the eleme
 `renderPath` to `"objects"` while the graph holds more than those is refused: the element fires
 `error` with `E_TOO_LARGE` and stays on `"batched"`.
 
+A node whose look no batch can draw (a border, a model, a picture) or an edge with an arrow head,
+a dash or a label is drawn as an object of its own, which costs far more memory. `limits` also
+caps how many of those there are: `objectRows` for nodes and `objectEdges` for edges, by default
+100,000 and 1,000,000. Past a cap, later nodes are drawn as plain bodies and later edges as plain
+lines, and the element fires `limits-warning` with the code `W_OBJECT_CAP` and
+`{ of, wanted, cap }`:
+
+```js
+graph.limits = { renderCeiling: 1_000_000, objectRows: 50_000 };
+graph.addEventListener("limits-warning", (event) => {
+    if (event.detail.code === "W_OBJECT_CAP") {
+        console.log(event.detail.params); // { of: "nodes", wanted: 1000000, cap: 50000 }
+    }
+});
+```
+
+### Loading a graph held as arrays
+
+When your graph is already arrays -- edge endpoints as row numbers, say from a generator or a
+binary file -- hand them over as they are with `session.data.importColumns`. Nodes are rows `0`
+to `nodeCount - 1`, and edge `i` runs from row `sources[i]` to row `targets[i]`. Plain arrays and
+typed arrays both work:
+
+```js
+const graph = document.querySelector("graphty-element");
+await graph.session.data.importColumns({
+    sources: new Uint32Array([0, 1, 2]),
+    targets: new Uint32Array([1, 2, 0]),
+    nodeCount: 3,
+    ids: ["a", "b", "c"], // optional; default: the row number
+    weights: [1, 2, 0.5], // optional; stored as each edge's `weight`
+    attributes: { nodes: { group: ["x", "y", "x"] } }, // optional
+});
+console.log(graph.session.data.count()); // { nodes: 3, edges: 3 }
+```
+
+The graph is the one `addNodes` and `addEdges` would make from the same rows, the same limits
+apply, and it is one undo step. Columns that do not line up are refused with `E_BAD_COMMAND`, and
+nothing is added.
+
 ## Smoothing (antialias)
 
 The canvas is drawn with 4x multisampling, which smooths the edges of lines and nodes. With very

@@ -8,7 +8,8 @@
 //   for its own merge commit; master's own release.yml, ci.yml or a lane it calls (gpu.yml, hosts.yml,
 //   work-protection-macos.yml) writes `full`, bisect.yml `bisect`,
 //   base-check.yml `base`, restricted-cpu-stress.yml `stress`, story-slices.yml `slice` (story captures),
-//   deploy-pages.yml `site` (the site-<sha> it kept), each only on refs/heads/master.
+//   deploy-pages.yml `site` (the site-<sha> it kept), promote.yml `promote` (reads only), each only on
+//   refs/heads/master.
 // - An OIDC token from a site repository (DEPLOY_REPOSITORY_IDS) writes only `deploy` durations.
 // - A local token whose SHA-256 is in LOCAL_TOKEN_HASHES writes only `local` records.
 import {
@@ -47,6 +48,8 @@ const MASTER_KINDS = {
     "nightly-site.yml": "nightly-site",
     // the rolling screenshot slices (design/visual-testing/early-capture.md): story captures only
     "story-slices.yml": "slice",
+    // the production promotion: reads a nightly's record (GET /v1/site) and writes nothing
+    "promote.yml": "promote",
 };
 // Kinds that write no test records, and why.
 const NO_TESTS = {
@@ -55,6 +58,7 @@ const NO_TESTS = {
     "nightly-site": "nightly-site.yml writes only its channel move and durations",
     master: "a push to master runs ci.yml as a build only, with no tests",
     slice: "story-slices.yml writes only story captures",
+    promote: "promote.yml only reads",
 };
 const MASTER = "refs/heads/master";
 const MASTER_EVIDENCE = new Set(["full", "bisect", "base"]);
@@ -85,18 +89,42 @@ const list = (value) =>
         .map((s) => s.trim())
         .filter(Boolean);
 
-// GitHub's OIDC signing keys by kid, for the isolate's life; an unknown kid refetches the set once.
-const signingKeys = new Map();
-async function signingKey(kid, doFetch) {
-    if (!signingKeys.has(kid)) {
-        const res = await doFetch(`${ISSUER}/.well-known/jwks`);
-        if (!res.ok) refuse(503, `GitHub's OIDC key set answered HTTP ${res.status}`);
-        for (const jwk of (await res.json()).keys) {
-            const algorithm = { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" };
-            signingKeys.set(jwk.kid, await crypto.subtle.importKey("jwk", jwk, algorithm, false, ["verify"]));
-        }
+// GitHub's OIDC signing keys by kid. A token reaches the key lookup before its signature is checked, so a bogus kid
+// must not buy a fetch: the set is fetched at most once a minute, and in between an unknown kid is refused with 401
+// (or the last fetch's 503, so a real token's job spools its record and re-posts it). Keys are trusted for an hour
+// after the fetch that read them, so a key GitHub rotated out stops verifying.
+const KEYS_TTL_MS = 60 * 60 * 1000;
+const REFETCH_MS = 60 * 1000;
+/**
+ * An empty signing key cache: the isolate has one, and a test makes its own.
+ * @returns the cache
+ */
+export const keyCache = () => ({ load: null, triedAt: -Infinity });
+const isolateKeys = keyCache();
+async function fetchKeys(doFetch, nowMs) {
+    const res = await doFetch(`${ISSUER}/.well-known/jwks`);
+    if (!res.ok) refuse(503, `GitHub's OIDC key set answered HTTP ${res.status}`);
+    const keys = new Map();
+    for (const jwk of (await res.json()).keys) {
+        const algorithm = { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" };
+        keys.set(jwk.kid, await crypto.subtle.importKey("jwk", jwk, algorithm, false, ["verify"]));
     }
-    return signingKeys.get(kid) ?? refuse(401, `unknown OIDC signing key ${kid}`);
+    return { keys, at: nowMs };
+}
+async function signingKey(kid, doFetch, nowMs, cache) {
+    const settled = async () => cache.load?.catch((e) => e);
+    const usable = (set) => set?.keys?.has(kid) && nowMs - set.at < KEYS_TTL_MS;
+    let set = await settled();
+    if (!usable(set)) {
+        // a request that finds a fetch under way (or one in the last minute) waits for that one instead
+        if (nowMs - cache.triedAt >= REFETCH_MS) {
+            cache.triedAt = nowMs;
+            cache.load = fetchKeys(doFetch, nowMs);
+        }
+        set = await settled();
+    }
+    if (set instanceof Error) throw set;
+    return usable(set) ? set.keys.get(kid) : refuse(401, `unknown OIDC signing key ${kid}`);
 }
 
 // A JWT's parts, or a 401 (not a 500) when they are not base64url JSON objects.
@@ -117,12 +145,13 @@ function decodeJwt(token) {
  * @param token the JWT
  * @param doFetch the fetch that reads GitHub's key set
  * @param nowMs the current time in milliseconds
+ * @param cache the signing keys, from keyCache()
  * @returns its claims
  */
-async function verifyOidc(token, doFetch, nowMs) {
+async function verifyOidc(token, doFetch, nowMs, cache) {
     const { alg, kid, claims, signature, signed } = decodeJwt(token);
     if (alg !== "RS256") refuse(401, `OIDC token signed with ${alg}, not RS256`);
-    const key = await signingKey(kid, doFetch);
+    const key = await signingKey(kid, doFetch, nowMs, cache);
     if (!(await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, new TextEncoder().encode(signed)))) {
         refuse(401, "OIDC token signature does not verify");
     }
@@ -160,14 +189,14 @@ function kindOf(claims, env) {
     );
 }
 
-async function authenticate(request, env, doFetch, nowMs) {
+async function authenticate(request, env, doFetch, nowMs, cache) {
     const token =
         /^Bearer (\S+)$/.exec(request.headers.get("Authorization") ?? "")?.[1] ?? refuse(401, "no credential");
     if (token.split(".").length !== 3) {
         if (!list(env.LOCAL_TOKEN_HASHES).includes(await sha256(token))) refuse(401, "unknown local token");
         return { kind: "local" };
     }
-    const claims = await verifyOidc(token, doFetch, nowMs);
+    const claims = await verifyOidc(token, doFetch, nowMs, cache);
     return { kind: kindOf(claims, env), claims };
 }
 
@@ -293,15 +322,22 @@ async function postInvocation(body, who, db, nowMs) {
         ),
     ]);
     const stored = first.meta.changes === 1;
-    const judged = stored && MASTER_EVIDENCE.has(who.kind) && ["passed", "failed"].includes(body.outcome);
+    // a re-post is judged too (#7265): an id names its run, so it is the client re-sending a record whose answer was
+    // lost, and that answer (the flaky tests to file) must not be lost with it. concludeFlaky names a test again
+    // until its issue is posted back, so judging twice files nothing twice.
+    const judged = MASTER_EVIDENCE.has(who.kind) && ["passed", "failed"].includes(body.outcome);
     if (!judged) return { stored, kind: who.kind, flaky: [] };
     const flaky = await concludeFlakySafely(db, body.id, nowMs);
-    const tracked = await trackedIssues(db, body.variant.split("|")[0], nowMs).catch(() => []);
-    return { stored, kind: who.kind, flaky, tracked };
+    // a failed lookup leaves `tracked` out, so the client reads "unknown", not "none"; the next judged run retries it
+    const tracked = await trackedIssues(db, body.variant.split("|")[0], nowMs).catch((e) => {
+        console.log(`trackedIssues ${body.id}: ${e.message}`);
+        return undefined;
+    });
+    return { stored, kind: who.kind, flaky, ...(tracked && { tracked }) };
 }
 
 // The record is stored by now: a verdict that cannot be computed costs the verdict, never the answer (a 5xx would
-// make the client spool and re-post a record the store already has, whose re-post is never judged).
+// make the client re-post a record the store already has).
 async function concludeFlakySafely(db, id, nowMs) {
     try {
         return await concludeFlaky(db, id, nowMs);
@@ -363,6 +399,7 @@ async function postFailures(body, who, db, nowMs) {
 
 async function postDurations(body, who, db, nowMs) {
     if (who.kind === "local") refuse(403, "durations come only from Actions runs");
+    if (who.kind === "promote") refuse(403, NO_TESTS.promote);
     const rows = body?.rows;
     if (!Array.isArray(rows)) refuse(400, "rows must be a list");
     for (const r of rows) {
@@ -433,9 +470,19 @@ async function putTestDurations(body, who, db, nowMs, name) {
     return { stored: true };
 }
 
-// approved and rejected: release.yml's promotion after the owner's screenshot approval (tools/channel/resume.mjs)
+// approved and refused: release.yml's promotion after the owner's screenshot approval (tools/channel/resume.mjs);
+// refused is its screenshot gate's refusal, which a later promotion may retry (#6783); rejected is an abandon
 // deferred: an attempt-1 red waiting for its same-commit re-run, which the pick does not take as judged
-const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item", "approved", "rejected", "deferred"]);
+const VERDICTS = new Set([
+    "green-clean",
+    "green-images",
+    "red",
+    "owner-item",
+    "approved",
+    "rejected",
+    "refused",
+    "deferred",
+]);
 
 // The full run's verdict on its candidate (channels 5): only master's release.yml writes it, under its own run.
 async function postVerdict(body, who, db, nowMs) {
@@ -476,9 +523,7 @@ async function postSite(body, who, db, nowMs) {
     return { stored: meta.changes === 1, sha: body.sha };
 }
 
-// A pull request's base check (#3925, 6.3): the first ask for a base, file and variant answers `dispatch: true`;
-// every later ask (another pull request, a re-run) answers false, so base-check.yml runs once per test per base.
-async function postBaseCheck(body, who, db, nowMs) {
+function baseCheckOf(body, who) {
     if (who.kind !== "pr") refuse(403, "only a pull request's ci.yml asks for a base check");
     if (!/^[0-9a-f]{7,40}$/.test(body?.base ?? "")) refuse(400, "base must be a commit id");
     for (const field of ["file", "variant"]) {
@@ -486,12 +531,36 @@ async function postBaseCheck(body, who, db, nowMs) {
             refuse(400, `${field} must be a string of 1 to 300 characters`);
         }
     }
+    return [body.base, body.file, body.variant, Number(who.claims.run_id), Number(who.claims.run_attempt)];
+}
+
+// A pull request's base check (#3925, 6.3): the first ask for a base, file and variant answers `dispatch: true`;
+// a later ask by another run (another pull request, a re-run) answers false, so base-check.yml runs once per test
+// per base. The run holding the claim is answered true again (#7265): the client re-sends an ask whose answer was
+// lost, and that re-send must not cost the check. The no-op update counts as a change only for the holder.
+async function postBaseCheck(body, who, db, nowMs) {
+    const [base, file, variant, runId, attempt] = baseCheckOf(body, who);
     const pr = Number.isInteger(body.pr) ? body.pr : null;
     const { meta } = await db
-        .prepare("INSERT OR IGNORE INTO base_check (base, file, variant, pr, asked_at) VALUES (?, ?, ?, ?, ?)")
-        .bind(body.base, body.file, body.variant, pr, nowMs)
+        .prepare(
+            "INSERT INTO base_check (base, file, variant, pr, asked_at, run_id, attempt) VALUES (?, ?, ?, ?, ?, ?, ?) " +
+                "ON CONFLICT (base, file, variant) DO UPDATE SET asked_at = asked_at " +
+                "WHERE run_id = excluded.run_id AND attempt = excluded.attempt",
+        )
+        .bind(base, file, variant, pr, nowMs, runId, attempt)
         .run();
     return { dispatch: meta.changes === 1 };
+}
+
+// The run holding a base check's claim gives it back when it could not dispatch the check (#7265), so the next pull
+// request that asks dispatches it. Another run's claim is left alone.
+async function deleteBaseCheck(body, who, db) {
+    const [base, file, variant, runId, attempt] = baseCheckOf(body, who);
+    const { meta } = await db
+        .prepare("DELETE FROM base_check WHERE base = ? AND file = ? AND variant = ? AND run_id = ? AND attempt = ?")
+        .bind(base, file, variant, runId, attempt)
+        .run();
+    return { released: meta.changes === 1 };
 }
 
 const SHA = /^[0-9a-f]{40}$/;
@@ -786,6 +855,7 @@ const ROUTES = {
     "POST /v1/issues": postIssue,
     "POST /v1/sites": postSite,
     "POST /v1/base-checks": postBaseCheck,
+    "DELETE /v1/base-checks": deleteBaseCheck,
     "POST /v1/channel-moves": postChannelMove,
     "POST /v1/story-captures": postStoryCaptures,
     "POST /v1/story-reach": postStoryReach,
@@ -819,9 +889,10 @@ function routeOf(method, pathname) {
  * @param [deps] what tests inject
  * @param [deps.fetch] the fetch that reads GitHub's OIDC key set
  * @param [deps.now] the current time in milliseconds
+ * @param [deps.keys] the OIDC signing key cache (keyCache()); the isolate's own by default
  * @returns the response
  */
-export async function handle(request, env, { fetch: doFetch = fetch, now = Date.now() } = {}) {
+export async function handle(request, env, { fetch: doFetch = fetch, now = Date.now(), keys = isolateKeys } = {}) {
     const { pathname, searchParams } = new URL(request.url);
     try {
         if (request.method === "GET" && pathname === "/v1/health") {
@@ -830,7 +901,7 @@ export async function handle(request, env, { fetch: doFetch = fetch, now = Date.
         }
         const [key, name] = routeOf(request.method, pathname);
         const route = ROUTES[key] ?? refuse(404, `no ${request.method} ${pathname}`);
-        const who = await authenticate(request, env, doFetch, now);
+        const who = await authenticate(request, env, doFetch, now, keys);
         const body =
             request.method === "GET"
                 ? searchParams

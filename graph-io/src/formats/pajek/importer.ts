@@ -2017,8 +2017,8 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
      * @returns 0.9 for a `*Vertices` start, 0.8 for `*Network`, 0 otherwise
      */
     sniff(head: Uint8Array): number {
-        const text = new TextDecoder("utf-8").decode(head);
-        const section = headSection(text.startsWith("\ufeff") ? text.slice(1) : text);
+        // the decoder removes a leading byte order mark
+        const section = headSection(new TextDecoder("utf-8").decode(head));
         if (section === null) {
             return 0;
         }

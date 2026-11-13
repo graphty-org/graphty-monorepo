@@ -7,7 +7,7 @@ import { Popout, PopoutAnchor, PopoutManager } from "../../src/components/popout
 import { POPOUT_NESTED_GAP } from "../../src/constants/popout";
 import { compactTheme } from "../../src/theme";
 import { untilPasses, waitForSettledLayout } from "../../stories/helpers/settled";
-import { drag } from "../harness/mouse";
+import { drag, moveBy, press, release } from "../harness/mouse";
 
 /**
  * Helper to render Popout components with required providers
@@ -394,7 +394,16 @@ describe("Popout geometry (browser)", () => {
 });
 
 describe("Popout drag (browser)", () => {
-    it("maintains drag when pointer leaves panel", async () => {
+    // Room for the panel to be dragged 400px across.
+    beforeAll(async () => {
+        await page.viewport(1280, 800);
+    });
+
+    /**
+     * Open a 280px panel and return it with its header.
+     * @returns the open panel and its drag handle
+     */
+    async function openPanel(): Promise<{ panel: HTMLElement; header: HTMLElement }> {
         const user = userEvent.setup();
 
         renderPopout(
@@ -409,42 +418,46 @@ describe("Popout drag (browser)", () => {
         );
 
         await user.click(screen.getByRole("button", { name: "Open" }));
+        const panel = await screen.findByRole("dialog");
+        await waitForSettledLayout(document.body, "[role='dialog']");
+        return { panel, header: panel.querySelector<HTMLElement>("[data-drag-trigger]")! };
+    }
+
+    it("maintains drag when pointer leaves panel", async () => {
+        const { panel, header } = await openPanel();
+        const before = panel.getBoundingClientRect();
+
+        // One jump of more than the panel's width puts the pointer outside it before the panel
+        // has followed; the drag keeps going because the header holds the pointer.
+        await press(header, { x: 40, y: 8 });
+        await moveBy(400, 0);
+        await moveBy(0, 50);
+        await release();
+
         await waitFor(() => {
-            expect(screen.getByRole("dialog")).toBeInTheDocument();
+            const after = panel.getBoundingClientRect();
+            expect(Math.round(after.left)).toBe(Math.round(before.left) + 400);
+            expect(Math.round(after.top)).toBe(Math.round(before.top) + 50);
         });
-
-        // Panel should be open and draggable
-        const panel = screen.getByRole("dialog");
-        expect(panel).toBeInTheDocument();
-
-        // Verify the panel has drag capability via data attribute
-        const dragTrigger = panel.querySelector("[data-drag-trigger]");
-        expect(dragTrigger).toBeInTheDocument();
     });
 
     it("ends drag on pointer up outside panel", async () => {
-        const user = userEvent.setup();
+        const { panel, header } = await openPanel();
+        const before = panel.getBoundingClientRect();
 
-        renderPopout(
-            <Popout>
-                <Popout.Trigger>
-                    <button>Open</button>
-                </Popout.Trigger>
-                <Popout.Panel width={280} header={{ variant: "title", title: "Drag Test" }}>
-                    <Popout.Content>Content</Popout.Content>
-                </Popout.Panel>
-            </Popout>,
-        );
+        await press(header, { x: 40, y: 8 });
+        await moveBy(400, 0);
+        await release();
+        // The pointer keeps moving after the release, with no button held.
+        await moveBy(0, 80);
+        // A later drag lands exactly its own distance on, so nothing moved the panel in between.
+        await drag(header, { x: 40, y: 8 }, { x: 0, y: 30 });
 
-        await user.click(screen.getByRole("button", { name: "Open" }));
         await waitFor(() => {
-            expect(screen.getByRole("dialog")).toBeInTheDocument();
+            const after = panel.getBoundingClientRect();
+            expect(Math.round(after.left)).toBe(Math.round(before.left) + 400);
+            expect(Math.round(after.top)).toBe(Math.round(before.top) + 30);
         });
-
-        // Panel should still be visible and functional after interactions
-        const panel = screen.getByRole("dialog");
-        expect(panel).toBeInTheDocument();
-        expect(screen.getByText("Content")).toBeInTheDocument();
     });
 });
 

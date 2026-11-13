@@ -16,6 +16,8 @@ import type { MockController, MockHand, Vector3D } from "../types";
 export interface RecordedXRSession {
     /** The mode passed to `navigator.xr.requestSession`. */
     mode: XRSessionMode;
+    /** What the page asked the session for: its required and optional features. */
+    init: XRSessionInit | undefined;
     /** The session the runtime returned. */
     session: XRSession;
     /** XR frames the session has delivered to the page so far. */
@@ -68,7 +70,7 @@ export function installIWER(refuse: readonly string[] = []): IWERHandle {
 
     xr.requestSession = async (mode: XRSessionMode, init?: XRSessionInit): Promise<XRSession> => {
         const session = await requestSession(mode, init);
-        const record: RecordedXRSession = { mode, session, frames: 0, ended: false };
+        const record: RecordedXRSession = { mode, init, session, frames: 0, ended: false };
         const requestFrame = session.requestAnimationFrame.bind(session);
 
         sessions.push(record);

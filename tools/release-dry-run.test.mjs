@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { check, touchesRelease } from "./release-dry-run.mjs";
+import { check, NOT_CHECKED, touchesRelease } from "./release-dry-run.mjs";
 
 const NX_ERROR =
     'NX   Unable to resolve the current version from git tag using pattern "{projectName}@{version}" and ' +
@@ -57,13 +57,24 @@ describe("check", () => {
         assert.match(out, /passed/);
     });
 
-    it("warns and passes when GitHub refuses nx with a 403 or a rate limit", () => {
+    it("reports not checked, not passed, when GitHub refuses nx with a 403 or a rate limit", () => {
         for (const msg of ["NX   Request failed with status code 403", "API rate limit exceeded for user"]) {
-            const { code, out } = run(["nx.json"], `echo '${msg}' >&2; exit 1`);
-            assert.equal(code, 0, out);
+            const { code, out } = run(
+                ["nx.json"],
+                `echo '${msg}' >&2; echo 'Pass --verbose to see the stacktrace.' >&2; exit 1`,
+            );
+            assert.equal(code, NOT_CHECKED, out);
+            assert.notEqual(NOT_CHECKED, 0);
             assert.match(out, /WARNING: .* refused by GitHub/);
             assert.match(out, /did NOT check this push/);
         }
+    });
+
+    it("fails a real error even when a 403 or a rate limit appears above it", () => {
+        const noise = "npm warn 403 Forbidden; API rate limit exceeded; Request failed with status code 403";
+        const { code, out } = run(["nx.json"], `echo '${noise}'; echo '${NX_ERROR}' >&2; exit 1`);
+        assert.equal(code, 1, out);
+        assert.doesNotMatch(out, /refused by GitHub/);
     });
 
     it("still fails on any other error", () => {

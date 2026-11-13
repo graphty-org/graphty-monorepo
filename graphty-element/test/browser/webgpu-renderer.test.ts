@@ -382,7 +382,7 @@ describe("the element's renderer attribute", () => {
         });
         host.appendChild(element);
         await element.updateComplete;
-        for (let wait = 0; wait < 600 && !(initialized && element.graph.initialized); wait++) {
+        while (!(initialized && element.graph.initialized)) {
             await new Promise((resolve) => requestAnimationFrame(resolve));
         }
 

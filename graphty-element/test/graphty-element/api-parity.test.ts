@@ -1,42 +1,46 @@
 /**
  * API Parity Tests for Graphty Web Component.
  *
- * Verifies that graphty-element exposes all necessary methods from Graph.ts
- * per Phase 7 of the documentation-implementation-plan.md.
+ * Verifies that graphty-element publishes, on the `<graphty-element>` class, the methods a consumer
+ * of Graph.ts needs. Methods are read from the committed api-extractor reports in `api/*.api.md`,
+ * so a method only counts when it is public and published; properties are read from the class's
+ * own public accessors.
  *
  * @module test/graphty-element/api-parity.test
  */
 
-import { readFileSync } from "fs";
+import ts from "typescript";
 import { assert, describe, it } from "vitest";
 
+import { publicMethods } from "../cost-coverage/api-methods";
+import { classMembers } from "../documentation/class-members";
+
 describe("Graphty API Parity", () => {
-    const graphtyContent = readFileSync("src/graphty-element.ts", "utf8");
-    const algorithmContent = readFileSync("src/algorithms/Algorithm.ts", "utf8");
-    const dataSourceContent = readFileSync("src/data/DataSource.ts", "utf8");
+    const published = new Set(publicMethods());
+    const elementMembers = classMembers("src/graphty-element.ts", "Graphty");
 
     /**
-     * Helper to check if a method is defined in the class.
+     * Whether a published class declares a public method.
+     * @param owner - the class, as the API report names it
+     * @param methodName - the method
+     * @returns true when the report lists `owner.methodName`
      */
-    function hasMethod(content: string, methodName: string): boolean {
-        // Match method definitions like:
-        // - public methodName(
-        // - async methodName(
-        // - methodName(
-        // But not comments or string literals
-        const methodRegex = new RegExp(`^\\s*(public\\s+)?(async\\s+)?${methodName}\\s*\\(`, "m");
-        return methodRegex.test(content);
+    function hasMethod(owner: string, methodName: string): boolean {
+        return published.has(`${owner}.${methodName}`);
     }
 
     /**
-     * Helper to check if a static method is defined in the class.
+     * Whether the element has a public getter for a property.
+     * @param property - the property
+     * @returns true when a public `get property()` is declared
      */
-    function hasStaticMethod(content: string, methodName: string): boolean {
-        const methodRegex = new RegExp(`^\\s*static\\s+(async\\s+)?${methodName}\\s*\\(`, "m");
-        return methodRegex.test(content);
+    function hasPublicGetter(property: string): boolean {
+        return (elementMembers.get(property) ?? []).some(
+            (member) => member.isPublic && member.node.kind === ts.SyntaxKind.GetAccessor,
+        );
     }
 
-    describe("Phase 7a: High Priority Methods (28 methods)", () => {
+    describe("High priority methods", () => {
         describe("Data Methods", () => {
             const dataMethods = [
                 "addNode",
@@ -53,7 +57,7 @@ describe("Graphty API Parity", () => {
 
             for (const method of dataMethods) {
                 it(`has ${method} method`, () => {
-                    assert.ok(hasMethod(graphtyContent, method), `Graphty should have ${method} method`);
+                    assert.ok(hasMethod("Graphty", method), `Graphty should have ${method} method`);
                 });
             }
         });
@@ -63,7 +67,7 @@ describe("Graphty API Parity", () => {
 
             for (const method of loadingMethods) {
                 it(`has ${method} method`, () => {
-                    assert.ok(hasMethod(graphtyContent, method), `Graphty should have ${method} method`);
+                    assert.ok(hasMethod("Graphty", method), `Graphty should have ${method} method`);
                 });
             }
         });
@@ -73,7 +77,7 @@ describe("Graphty API Parity", () => {
 
             for (const method of selectionMethods) {
                 it(`has ${method} method`, () => {
-                    assert.ok(hasMethod(graphtyContent, method), `Graphty should have ${method} method`);
+                    assert.ok(hasMethod("Graphty", method), `Graphty should have ${method} method`);
                 });
             }
         });
@@ -83,14 +87,14 @@ describe("Graphty API Parity", () => {
 
             for (const method of algorithmMethods) {
                 it(`has ${method} method`, () => {
-                    assert.ok(hasMethod(graphtyContent, method), `Graphty should have ${method} method`);
+                    assert.ok(hasMethod("Graphty", method), `Graphty should have ${method} method`);
                 });
             }
         });
 
         describe("Style Methods", () => {
             it("has getStyles method", () => {
-                assert.ok(hasMethod(graphtyContent, "getStyles"), "Graphty should have getStyles method");
+                assert.ok(hasMethod("Graphty", "getStyles"), "Graphty should have getStyles method");
             });
 
             /**
@@ -102,7 +106,7 @@ describe("Graphty API Parity", () => {
              * and style layers are `session.styles`.
              */
             it("has a property for everything the style template used to carry", () => {
-                assert.notOk(hasMethod(graphtyContent, "setStyleTemplate"), "setStyleTemplate is gone, not deprecated");
+                assert.notOk(elementMembers.has("setStyleTemplate"), "setStyleTemplate is gone, not deprecated");
 
                 for (const property of [
                     "viewMode",
@@ -115,17 +119,14 @@ describe("Graphty API Parity", () => {
                     "edgeDstIdPath",
                     "runAlgorithmsOnLoad",
                 ]) {
-                    assert.ok(
-                        new RegExp(`^\\s*get ${property}\\(`, "m").test(graphtyContent),
-                        `Graphty should have a ${property} property`,
-                    );
+                    assert.ok(hasPublicGetter(property), `Graphty should have a ${property} property`);
                 }
             });
         });
 
         describe("Layout Methods", () => {
             it("has setLayout method", () => {
-                assert.ok(hasMethod(graphtyContent, "setLayout"), "Graphty should have setLayout method");
+                assert.ok(hasMethod("Graphty", "setLayout"), "Graphty should have setLayout method");
             });
         });
 
@@ -134,7 +135,7 @@ describe("Graphty API Parity", () => {
 
             for (const method of utilityMethods) {
                 it(`has ${method} method`, () => {
-                    assert.ok(hasMethod(graphtyContent, method), `Graphty should have ${method} method`);
+                    assert.ok(hasMethod("Graphty", method), `Graphty should have ${method} method`);
                 });
             }
         });
@@ -144,16 +145,16 @@ describe("Graphty API Parity", () => {
 
             for (const method of eventMethods) {
                 it(`has ${method} method`, () => {
-                    assert.ok(hasMethod(graphtyContent, method), `Graphty should have ${method} method`);
+                    assert.ok(hasMethod("Graphty", method), `Graphty should have ${method} method`);
                 });
             }
         });
     });
 
-    describe("Phase 7b: Medium Priority Methods (10 methods)", () => {
+    describe("Medium priority methods", () => {
         describe("View Methods", () => {
             it("has is2D method", () => {
-                assert.ok(hasMethod(graphtyContent, "is2D"), "Graphty should have is2D method");
+                assert.ok(hasMethod("Graphty", "is2D"), "Graphty should have is2D method");
             });
         });
 
@@ -162,7 +163,7 @@ describe("Graphty API Parity", () => {
 
             for (const method of xrMethods) {
                 it(`has ${method} method`, () => {
-                    assert.ok(hasMethod(graphtyContent, method), `Graphty should have ${method} method`);
+                    assert.ok(hasMethod("Graphty", method), `Graphty should have ${method} method`);
                 });
             }
         });
@@ -170,7 +171,7 @@ describe("Graphty API Parity", () => {
         describe("Camera Methods", () => {
             it("has resolveCameraPreset method", () => {
                 assert.ok(
-                    hasMethod(graphtyContent, "resolveCameraPreset"),
+                    hasMethod("Graphty", "resolveCameraPreset"),
                     "Graphty should have resolveCameraPreset method",
                 );
             });
@@ -178,7 +179,7 @@ describe("Graphty API Parity", () => {
 
         describe("Input Methods", () => {
             it("has setInputEnabled method", () => {
-                assert.ok(hasMethod(graphtyContent, "setInputEnabled"), "Graphty should have setInputEnabled method");
+                assert.ok(hasMethod("Graphty", "setInputEnabled"), "Graphty should have setInputEnabled method");
             });
         });
 
@@ -187,7 +188,7 @@ describe("Graphty API Parity", () => {
 
             for (const method of lifecycleMethods) {
                 it(`has ${method} method`, () => {
-                    assert.ok(hasMethod(graphtyContent, method), `Graphty should have ${method} method`);
+                    assert.ok(hasMethod("Graphty", method), `Graphty should have ${method} method`);
                 });
             }
         });
@@ -197,23 +198,23 @@ describe("Graphty API Parity", () => {
 
             for (const method of coordinateMethods) {
                 it(`has ${method} method`, () => {
-                    assert.ok(hasMethod(graphtyContent, method), `Graphty should have ${method} method`);
+                    assert.ok(hasMethod("Graphty", method), `Graphty should have ${method} method`);
                 });
             }
         });
     });
 
-    describe("Phase 7d: Extension API Consistency", () => {
+    describe("Extension API consistency", () => {
         it("Algorithm has getRegisteredTypes static method", () => {
             assert.ok(
-                hasStaticMethod(algorithmContent, "getRegisteredTypes"),
+                hasMethod("Algorithm", "getRegisteredTypes"),
                 "Algorithm should have getRegisteredTypes static method",
             );
         });
 
         it("DataSource has getRegisteredTypes static method", () => {
             assert.ok(
-                hasStaticMethod(dataSourceContent, "getRegisteredTypes"),
+                hasMethod("DataSource", "getRegisteredTypes"),
                 "DataSource should have getRegisteredTypes static method",
             );
         });

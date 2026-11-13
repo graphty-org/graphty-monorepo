@@ -2193,10 +2193,11 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: MST_TEST,
         },
         {
-            // a plain read of the atomic minimum: mixed atomic and plain access, which no runtime compiles
-            name: "tie-pass-plain-read",
+            // the second endpoint's tie test reads the first endpoint's minimum: a component takes an edge whose key
+            // is not its own minimum, or none at all
+            name: "tie-pass-wrong-component",
             find: "k == atomicLoad(&bestKey[cv])",
-            replace: "k == bestKey[cv]",
+            replace: "k == atomicLoad(&bestKey[cu])",
             minFactor: 10,
             test: MST_TEST,
         },

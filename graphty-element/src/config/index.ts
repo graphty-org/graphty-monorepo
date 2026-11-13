@@ -43,7 +43,6 @@ export type {
     XRControllerButton,
     XRInputConfig,
     XRModeConfig,
-    XRTeleportationConfig,
     XRUIConfig,
 } from "./XRConfig";
 export { defaultXRConfig } from "./XRConfig";

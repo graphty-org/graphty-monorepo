@@ -137,6 +137,17 @@ describe("promote.mjs decide: refusals", () => {
         );
     });
 
+    it("skips a project release-hold.json keeps off npm, and still refuses the rest (#6821)", () => {
+        const versions = { ...nightly.versions, graphty: "0.8.92" };
+        const held = facts({ nightly: { ...nightly, versions }, npm: { ...facts().npm, "@graphty/graphty": null } });
+        assert.deepEqual(decide({ ...held, held: ["graphty"] }).refusals, []);
+        assert.deepEqual(
+            decide({ ...held, held: ["graphty"] }).plan.moves.map((m) => m.project),
+            ["graphty-element"],
+        );
+        refusedFor(held, /npm has no @graphty\/graphty,/);
+    });
+
     it("refuses a rollback across an autosave or project format change", () => {
         const older = { ...nightly, autosaveFormat: 1 };
         refusedFor(

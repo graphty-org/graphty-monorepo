@@ -5,11 +5,10 @@
  * since 1.x -- `arrowHead.text` and `arrowTail.text`, what Graphviz calls a headlabel and a
  * taillabel -- and `Edge` has built, positioned and disposed one all along. No style channel
  * wrote either, so no layer, theme or saved style document could ask for a caption, and the only
- * evidence one had ever been drawn was a visual-regression baseline from 1.x. The 307-line test
- * beside this one never constructs an Edge: every case in it either asserts that an object
- * literal holds what was just written into that literal, or builds a bare `RichTextLabel`.
+ * evidence one had ever been drawn was a visual-regression baseline from 1.x. Where a caption sits
+ * against its arrow cap, for each location and offset, is `Edge.arrowText.test.ts`.
  *
- * So this file is the missing half, and it asks the questions that decided whether the capability
+ * This file asks the questions that decided whether the capability
  * was published or deleted: does a caption reach the screen at all, does it reach the screen when
  * a layer is added to a graph a reader is already looking at, and does the APPEARANCE a layer
  * asks for reach it -- which is the half the old builder dropped, reading seven of the block's

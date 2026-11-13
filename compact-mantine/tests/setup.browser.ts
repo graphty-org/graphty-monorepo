@@ -2,11 +2,12 @@ import "@testing-library/jest-dom/vitest";
 import "@mantine/core/styles.css";
 
 import { configure } from "@testing-library/react";
-import { beforeAll, beforeEach } from "vitest";
+import { afterEach, beforeAll, beforeEach } from "vitest";
 import { commands } from "vitest/browser";
 
 import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 import { ensureCompactStyles } from "../src/theme/global-styles";
+import { resetMouse } from "./harness/mouse";
 
 // Every waitFor and findBy* waits until the monorepo's one hang guard, not Testing Library's 1000 ms:
 // a deadline on a wait fails a test whenever the machine is busy (tools/test-wait-guard.mjs).
@@ -32,6 +33,10 @@ beforeEach(() => {
     window.focus();
     (document.activeElement as HTMLElement | null)?.blur();
 });
+
+// A drag that throws between its press and its release leaves the button held in tests/harness/mouse.ts;
+// release it after every test so the next test's moves are not sent with the button down (#6851).
+afterEach(resetMouse);
 
 // Browser-specific setup file
 // Unlike JSDOM, real browsers have all the necessary APIs already:

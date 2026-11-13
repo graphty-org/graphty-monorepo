@@ -45,10 +45,10 @@ function blockValues(snapshot: GraphSnapshot, ex: ExtractedStyles): BlockValues 
  * @param properties - the properties the writer writes
  * @returns the getter
  */
-export function elementValues(
-    picture: BlockValues,
+export function elementValues<P extends string>(
+    picture: (target: StyleTarget, property: P) => readonly (StyleValue | null)[],
     target: StyleTarget,
-    properties: readonly string[],
+    properties: readonly P[],
 ): (i: number) => ElementValues {
     const columns = new Map<string, readonly (StyleValue | null)[]>();
     for (const p of properties) {

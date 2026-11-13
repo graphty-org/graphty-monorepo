@@ -25,6 +25,7 @@ import type {
 import { formatNumber, valueText } from "../inspector/words";
 import { kindName } from "../server/words";
 import { formatCount } from "../settings/numberFormat";
+import { failureWords } from "../style/words";
 
 /** What an Attributes row's glyph shows: what the column measures, or the run that made it. */
 export type TypeGlyph = "category" | "text" | "number" | "ordinal" | "time" | "yes-no" | "unknown" | "result";
@@ -239,6 +240,19 @@ export function attributeRows(
         });
 }
 
+/** Why an attribute's verbs cannot run: it went away under the open menu. */
+export const GONE_WORD = "No longer in the data";
+
+/**
+ * A notice for a filter change the element refused, with its reason when the app has words for
+ * the element's code.
+ * @param error - what the element threw.
+ * @returns "The filter could not be changed: its layer is locked."
+ */
+export function filterFailureWords(error: unknown): string {
+    return failureWords("The filter", "changed", error);
+}
+
 /**
  * Why an attribute cannot be a label, in words, from the element's coded refusal
  * (`styles.proposeEncoding`).
@@ -318,6 +332,8 @@ const JOIN_SHAPE_WORDS: Readonly<Record<JoinShape, string>> = {
     edges: "Edges",
     rows: "Added rows",
     replace: "Replaced data",
+    merge: "Merged nodes",
+    link: "Linked by shared values",
 };
 
 /**
@@ -326,7 +342,7 @@ const JOIN_SHAPE_WORDS: Readonly<Record<JoinShape, string>> = {
  * @returns "node", "edge" or "row".
  */
 function matchedUnit(shape: JoinShape): "node" | "edge" | "row" {
-    if (shape === "node-values") {
+    if (shape === "node-values" || shape === "merge" || shape === "link") {
         return "node";
     }
     return shape === "edge-values" ? "edge" : "row";

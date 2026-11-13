@@ -559,10 +559,14 @@ URLs, parts on other hosts, web pages, zips -- are handled by section 12.
 
 **A second guard that does not depend on parsing.** For the length of each load, every request
 Babylon makes passes one hook (the glTF loader's `preprocessUrlAsync` and Babylon's global URL
-preprocessing, which also catches the OBJ loader's material and image loads). Any URL that is not
-one of the `blob:` URLs made for this load throws `E_MODEL_EXTERNAL_URL`. Loads use a root URL
-that cannot resolve against the page, so a reference the checker missed never becomes a
-same-origin request carrying the reader's cookies. OBJ `mtllib` and `map_*` lines are also
+preprocessing, which also catches the OBJ loader's material and image loads). Loads use a root URL
+that cannot resolve against the page (`graphty-model:/<n>/`), and the loaders resolve every
+reference against it, so a reference the checker missed never becomes a same-origin request
+carrying the reader's cookies: a URL under a load's root that is not one of the files made for
+that load throws `E_MODEL_EXTERNAL_URL`. The hook is process-wide and a load is asynchronous, so
+it judges only URLs under a load's root; every other request made while a load runs (a node's
+picture, an edge's texture, another element on the page) is not the model's and passes
+unchanged (issue #7235). OBJ `mtllib` and `map_*` lines are also
 rewritten to those `blob:` URLs before loading, since the OBJ loader has no per-load hook.
 
 **glTF structure** is checked from the JSON (the same rules the project container applies to its

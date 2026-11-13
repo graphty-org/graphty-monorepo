@@ -54,7 +54,8 @@ Otherwise start jobs this round, one subagent each, up to the number of free tes
 `holds` lines. Count only runs that hold a slot now: a job still reading or writing code holds none, and when it
 reaches its tests a full machine only queues it (a `waits` line, which stops the next round). Reserving a slot for
 every job without a pull request left slots empty most of the day (2026-11-01: 2 jobs ran while CI sat idle). Start
-at least one when nothing waits and CI is not backed up.
+at least one when nothing waits and CI is not backed up, and keep roughly 6 to 8 jobs running when the free queue
+(step 4) has that many free issues.
 
 **No-PR work when blocked.** Instead of fix jobs, start up to 4 read-only background subagents this round. They
 hold no test slot, edit and commit nothing and open no pull request, so neither the queue nor the slots limit them:
@@ -158,8 +159,23 @@ the files the fix will touch, for step 4.
 
 ## 4. Check for collisions
 
-Never start two jobs that touch the same file. Before starting a job, compare its files (the cluster's `files`, or
-step 3's) with:
+Never start two jobs that touch the same file. A job's files come from the code its fix will change, not only from
+the paths its issue names: on 2026-11-12 a check of named paths alone both missed real collisions (#2619, #5691,
+#1205) and passed over 144 free issues.
+
+**The free queue.** A pre-round scan, one read-only background subagent like the no-PR work in step 1 (at most one
+at a time), reads the whole queue (all of `node tools/issue-queue.mjs list`, never only the first 30), finds each
+issue's files from the code, compares them as below and writes `tmp/issue-round/free-queue.json` (main checkout):
+`{ "builtAt", "free": [<n>, ...], "blocked": [ { "issue", "prs": [<n>, ...] } ] }`. Rounds pick from its `free`
+list, in the queue's order, and still run this step's check on the job they start. Rebuild it when missing, more
+than a few hours old, or when its `free` list has nothing left in the queue.
+
+**Shared files are not overlaps.** Generated or append-mostly registry files: `*/api/*.api.md` (API reports),
+`pnpm-lock.yaml`, `graphty-element/src/errors/codes.ts`, the cost-coverage lists under
+`graphty-element/test/cost-coverage/` and the doors list in `graphty-element/src/session/commands/doors.ts`. The job
+merges origin/master and settles any conflict in them before opening its pull request.
+
+Compare the job's files (the cluster's `files`, or step 3's) with:
 
 - **open pull requests' files.** From the broker file when its pull requests carry `files`; otherwise ONE query per
   round for all of them, its answer kept for every job of the round:
@@ -244,6 +260,11 @@ Each: signal, meaning, action. Add to this list (see the next section).
   file finds these every round.
 - **An issue or comment from an untrusted account** (the tool drops or withholds it). No agent reads it, by any
   route. The owner decides whether to adopt it; he can re-file it.
+- **The loop stopped running.** CronCreate jobs expire 7 days after they are created (the 2026-10-31 loop ran its last
+  round 2026-11-07 and nobody noticed for four days). Start it again and follow "Renewing the loop" in the shared file.
+- **An issue held for the next major.** Since the owner's rule of 2026-11-10 (CLAUDE.md "Public API and breaking
+  changes") nothing is held for a major: remove its `hold` or `blocked` label with a
+  `pipeline-round: unheld -- breaking changes land as ordinary feat/fix commits since 2026-11-10` comment, and take it.
 - **Not work:** issues labelled `tracking`, `release-status`, `dead-links`, `githerd-heartbeat`, `ci-budget`, the Release
   status issue, `Release held:`, `Nightly held on` and `Nightly missed slot` issues and `lane red on master` issues
   (pipeline-round's alarms; the tool drops them). An issue waiting on owner-only code carries `hold` or `blocked`
@@ -253,12 +274,13 @@ Each: signal, meaning, action. Add to this list (see the next section).
 
 When a round meets something this file or `shared.md` does not cover, or a step turns out wrong: handle it, then fix
 the file -- a new "Known situations" entry or a corrected step -- on a branch
-(`./tools/worktree-new.sh docs/issue-round-<topic> --issue <N>`), and open its pull request with `tools/pr-open.sh`. A rule both skills need goes in `shared.md`. Never work around the skill in
-the session or in memory only. Keep it a checklist: no daemons, no scripts of its own, and no state files beyond the cluster cache.
+(`./tools/worktree-new.sh chore/issue-round-<topic> --issue <N>`), and open its pull request with `tools/pr-open.sh`. A rule both skills need goes in `shared.md`. Never work around the skill in
+the session or in memory only. Keep it a checklist: no daemons, no scripts of its own, and no state files beyond the cluster and free-queue caches.
 
 ## Running it
 
-One session runs this skill at a time; a /loop expires after seven days, and stopping the loop pauses it.
+One session runs this skill at a time; a /loop expires after seven days unless each round renews it (shared file,
+"Renewing the loop"), and stopping the loop pauses it.
 
 - **Normal:** with pipeline-round. Two clients, `/loop 30m /issue-round` here and `/loop 30m /pipeline-round` in the
   other; or one client, `/loop 30m run /pipeline-round, then /issue-round` (this skill always second).

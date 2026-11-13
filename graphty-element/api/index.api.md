@@ -890,6 +890,8 @@ export class DataManager implements Manager {
     nodeAtRow(row: number): Node_2 | undefined;
     // (undocumented)
     nodeCache: Map<NodeIdType, Node_2>;
+    // @internal
+    nodeIdAtRow(row: number): NodeIdType | undefined;
     get nodes(): ReadonlyMap<string | number, Node_2>;
     // @internal
     get nodesByIndex(): readonly (Node_2 | undefined)[];
@@ -910,6 +912,9 @@ export class DataManager implements Manager {
     renderLimits: {
         ceilings(): Readonly<Ceilings> | undefined;
         batched(): boolean;
+        objectRows?(): number;
+        objectEdges?(): number;
+        objectCap?(of: "nodes" | "edges", wanted: number, cap: number): void;
     } | null;
     get seededNodeCount(): number;
     setEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void;
@@ -4556,6 +4561,14 @@ export type GraphtyWarningCode =
 */
 | "W_LIMITS_IGNORED"
 /**
+* More rows ask to be drawn as objects of their own (a look no batch draws, such as a border)
+* than `limits.objectRows` allows, on `render-path="batched"`: the rows past it are drawn as
+* plain bodies and plain lines. `params.of` is `"nodes"` or `"edges"`, `params.wanted` how
+* many asked, `params.cap` the budget.
+* @experimental cosmograph
+*/
+| "W_OBJECT_CAP"
+/**
 * A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
 * which draws no text. `params.channel` is the channel, `params.path` where in the layer the
 * size sits, and `params.value` the size.
@@ -5117,6 +5130,8 @@ export interface Limits {
     edgesDrawn: number;
     graphMemoryBudgetBytes: number;
     largeGraphThreshold: number;
+    objectEdges: number;
+    objectRows: number;
     renderCeiling: number;
     selectionCap: number;
 }
@@ -8307,7 +8322,6 @@ export interface XRConfig {
     ar: XRModeConfig;
     enabled: boolean;
     input: XRInputConfig;
-    teleportation: XRTeleportationConfig;
     ui: XRUIConfig;
     vr: XRModeConfig;
 }
@@ -8317,11 +8331,9 @@ export type XRControllerButton = "a" | "b" | "x" | "y";
 
 // @public
 export interface XRInputConfig {
-    controllers: boolean;
     enableZAmplificationInDesktop?: boolean;
     handTracking: boolean;
     nearInteraction: boolean;
-    physics: boolean;
     zAxisAmplification?: number;
 }
 
@@ -8350,17 +8362,14 @@ export interface XRSessionStartedEvent {
 }
 
 // @public
-export interface XRTeleportationConfig {
-    easeTime: number;
-    enabled: boolean;
-}
-
-// @public
 export interface XRUIConfig {
+    arLabel: string;
     enabled: boolean;
     position: "bottom-left" | "bottom-right" | "top-left" | "top-right";
     showAvailabilityWarning: boolean;
+    unavailableLabel: string;
     unavailableMessageDuration: number;
+    vrLabel: string;
 }
 
 // @public

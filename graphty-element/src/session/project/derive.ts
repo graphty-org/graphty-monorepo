@@ -176,6 +176,8 @@ export class DerivationLane {
     private readonly onError: (error: unknown) => void;
     private readonly hooks = new Map<DerivedSlice, DeriveHook[]>();
     private dirty = new Map<DerivedSlice, Set<string>>();
+    /** Keys touched with {@link DerivationLane.touchLater}, read when the next pass starts. */
+    private later: { readonly slice: DerivedSlice; readonly key: () => string }[] = [];
     /** How many writes each slice has had, whoever wrote it. */
     private readonly counts = new Map<DerivedSlice, number>();
     private shown: ProjectState;
@@ -300,10 +302,36 @@ export class DerivationLane {
     }
 
     /**
+     * Mark a key of a slice changed whose text is known only once the writes behind it stop: a
+     * forward batched add's edge range, which grows with every edge until a pass starts. `key` is
+     * called once, when the next pass takes the dirty set (or the dirty set is dropped), and a
+     * writer still adding afterwards touches a new key.
+     * @param slice - The slice.
+     * @param key - Gives the key.
+     */
+    touchLater(slice: DerivedSlice, key: () => string): void {
+        this.counts.set(slice, this.writes(slice) + 1);
+        this.later.push({ slice, key });
+        this.schedule();
+    }
+
+    /** Turn every key touched later into a dirty key. */
+    private settleLater(): void {
+        const { later } = this;
+        this.later = [];
+        for (const { slice, key } of later) {
+            const keys = this.dirty.get(slice) ?? new Set();
+            keys.add(key());
+            this.dirty.set(slice, keys);
+        }
+    }
+
+    /**
      * Take live state as what the picture shows, with nothing left to derive: the baseline is
      * drawn by the renderer's first draw, not by a pass.
      */
     adoptBaseline(): void {
+        this.settleLater();
         this.dirty.clear();
         this.shownCopies = copyAll(this.state);
         this.spare = copyAll(this.state);
@@ -364,6 +392,7 @@ export class DerivationLane {
      */
     close(): void {
         this.closed = true;
+        this.settleLater();
         this.dirty.clear();
         const pending = this.next;
         this.next = null;
@@ -394,6 +423,7 @@ export class DerivationLane {
             const pass = this.next;
             this.current = pass;
             this.next = null;
+            this.settleLater();
             const { dirty } = this;
             this.dirty = new Map();
             const { restores } = this;

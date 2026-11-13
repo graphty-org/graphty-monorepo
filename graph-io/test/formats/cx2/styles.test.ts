@@ -420,3 +420,46 @@ describe("CX2 label background shapes", () => {
         expect(resolveStyles(styles as ExtractedStyles, "node", "labelCornerRadius", snapshot)).toEqual([null, 1.455]);
     });
 });
+
+describe("CX2 parallel edges fanned by Cytoscape desktop", () => {
+    /**
+     * Imports a CX2 network of two nodes, `s` left of `t` and listed in the given order, joined by two edges `s` to
+     * `t`.
+     * @param order - the node ids in the order the file lists them
+     * @returns the side each edge's bend lies on, left of its direction (1) or right (-1), or null without one
+     */
+    async function sides(order: readonly number[]): Promise<(number | null)[]> {
+        const at: Record<number, { x: number; y: number }> = { 1: { x: 0, y: 0 }, 2: { x: 100, y: 0 } };
+        const text = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            { nodes: order.map((id) => ({ id, ...at[id] })) },
+            {
+                edges: [
+                    { id: 3, s: 1, t: 2 },
+                    { id: 4, s: 1, t: 2 },
+                ],
+            },
+            {
+                visualProperties: [
+                    {
+                        default: { node: { NODE_WIDTH: 20, NODE_HEIGHT: 20 }, edge: { EDGE_CURVED: true } },
+                        nodeMapping: {},
+                        edgeMapping: {},
+                    },
+                ],
+            },
+            { status: [{ error: "", success: true }] },
+        ]);
+        const { snapshot, styles } = await load(text);
+        return resolveStyles(styles as ExtractedStyles, "edge", "bends", snapshot).map((b) =>
+            typeof b === "string" ? Math.sign(Number(b.split(",")[1])) : null,
+        );
+    }
+
+    it("bows the fanned edge to desktop's side, which the order the file lists the nodes in decides", async () => {
+        // desktop's CX2 reader creates the nodes in file order and fans from the node created last (cx2-signor-aml
+        // 1->63 and 10->97, cx2-repro-shared-interaction 1->5: the bow is on the other side from graphty's own fan)
+        expect(await sides([1, 2])).toEqual([1, null]);
+        expect(await sides([2, 1])).toEqual([-1, null]);
+    });
+});

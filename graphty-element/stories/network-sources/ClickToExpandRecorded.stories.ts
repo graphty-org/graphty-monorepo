@@ -6,8 +6,9 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import type { SourceExpanded } from "../../src/session/sources/types";
-import { holds } from "../assertions";
+import { doubleClickNode, holds } from "../assertions";
 import { loadRecordedSeed, PEOPLE_SEED } from "../fixtures/expand/source";
+import { realInput } from "../helpers";
 
 /**
  * Click-to-expand: a node a network source loaded is double-clicked, and the element asks that
@@ -86,41 +87,12 @@ async function settled(canvasElement: HTMLElement): Promise<Graphty> {
     return pending as Promise<Graphty>;
 }
 
-/**
- * Double-click a node the way a mouse does: two presses and releases on the canvas, at the spot
- * the element says the node is drawn.
- * @param element - The element.
- * @param id - The node.
- */
-async function doubleClickNode(element: Graphty, id: string): Promise<void> {
-    const at = element.nodeScreenPosition(id);
-    await holds(at?.visible === true, `Click To Expand: node "${id}" is not on screen to be double-clicked`);
-    const { canvas } = element.graph;
-    const box = canvas.getBoundingClientRect();
-    const pointer = {
-        clientX: box.left + (at?.x ?? 0),
-        clientY: box.top + (at?.y ?? 0),
-        bubbles: true,
-        pointerId: 1,
-        pointerType: "mouse",
-        isPrimary: true,
-    };
-    canvas.dispatchEvent(new PointerEvent("pointermove", { ...pointer, button: -1, buttons: 0 }));
-    for (let press = 1; press <= 2; press++) {
-        canvas.dispatchEvent(new PointerEvent("pointerdown", { ...pointer, button: 0, buttons: 1, detail: press }));
-        canvas.dispatchEvent(new PointerEvent("pointerup", { ...pointer, button: 0, buttons: 0, detail: press }));
-        canvas.dispatchEvent(new MouseEvent("click", { ...pointer, button: 0, detail: press }));
-    }
-    // The browser's own word that the two clicks were one double-click, which the element expands on.
-    canvas.dispatchEvent(new MouseEvent("dblclick", { ...pointer, button: 0, detail: 2 }));
-}
-
 /** The seed double-clicked once: its first page of recorded neighbors, and the seed marked as having more. */
 export const DoubleClickToExpand: Story = {
     // A regression story: captured and tested, not listed in the sidebar.
     tags: ["regression", "!dev", "!autodocs"],
     render,
-    play: async ({ canvasElement }) => {
+    play: async ({ canvasElement, parameters }) => {
         const element = await settled(canvasElement);
         const expanded = new Promise<SourceExpanded>((resolve) => {
             const off = element.session.on("source:expanded", (detail) => {
@@ -129,7 +101,7 @@ export const DoubleClickToExpand: Story = {
             });
         });
 
-        await doubleClickNode(element, PEOPLE_SEED.id);
+        await doubleClickNode(element, PEOPLE_SEED.id, realInput(parameters));
         const detail = await expanded;
         await element.waitForStableFrame();
 

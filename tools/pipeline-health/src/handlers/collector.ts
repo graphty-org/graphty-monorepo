@@ -78,7 +78,8 @@ export async function handler(
         ),
     });
     const rolled = await recomputeAll(store, Date.now());
-    console.warn(JSON.stringify({ lastRun, ...report, ...rolled }));
+    // `items` is the rollup items written; `collected` the changed raw items the cycle stored (#6813).
+    console.warn(JSON.stringify({ lastRun, ...report, ...rolled, collected: report.items }));
     return { lastRun, ...report };
 }
 

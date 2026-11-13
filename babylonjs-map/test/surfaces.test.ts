@@ -199,6 +199,46 @@ describe("FlatMap", () => {
         expect(changed).toHaveBeenCalledTimes(1);
     });
 
+    it("says why each failed tile failed", async () => {
+        const tiles = loader(scene);
+        const map = new FlatMap(scene, { sources: [OSM], loadTexture: tiles.load });
+        map.update();
+        const { url } = tiles.requests[0];
+        tiles.requests[0].reject();
+        await settle();
+        expect(map.status.errors).toEqual([{ layer: 0, url, code: "load", cause: new Error("403") }]);
+    });
+
+    it("fails a tile whose loader throws, and keeps loading the others", async () => {
+        let calls = 0;
+        const map = new FlatMap(scene, {
+            sources: [OSM],
+            maxConcurrentLoads: 1,
+            loadTexture: () => {
+                calls++;
+                throw new Error("broken loader");
+            },
+        });
+        camera.radius = 20;
+        expect(() => scene.render()).not.toThrow();
+        while (map.status.loading > 0) {
+            await settle();
+        }
+        expect(calls, "every tile in view was asked for").toBeGreaterThan(1);
+        expect(map.status.failed).toBe(calls);
+        expect(map.status.errors[0]).toMatchObject({ code: "load", cause: new Error("broken loader") });
+    });
+
+    it("tells the host to render when the sources, frame or edge change", () => {
+        const map = new FlatMap(scene, { loadTexture: loader(scene).load });
+        const changed = vi.fn();
+        map.onChangedObservable.add(changed);
+        map.setSources([OSM]);
+        map.frame = { projection: "equirectangular", size: 10 };
+        map.beyond = "continue";
+        expect(changed).toHaveBeenCalledTimes(3);
+    });
+
     it("disposes the least recently drawn tiles beyond the cache cap", async () => {
         const tiles = loader(scene);
         const map = new FlatMap(scene, {
@@ -485,8 +525,97 @@ describe("FlatMap tile recovery and edges", () => {
         view(50);
         map.update();
         await settle();
-        // Without a DOM canvas the picture is loaded as it is.
-        expect(tiles.requests.map((r) => r.url)).toEqual([expect.stringMatching(/natural-earth\.jpg$/)]);
+        // Without a DOM canvas there is no gray picture: the tile fails, never drawn in color.
+        expect(tiles.requests).toEqual([]);
+        const { failed, errors } = map.status;
+        expect(failed).toBe(1);
+        expect(errors).toMatchObject([{ layer: 0, code: "no-canvas" }]);
+        expect(errors[0].url).toMatch(/natural-earth\.jpg$/);
+    });
+
+    /**
+     * A DOM just big enough for the gray picture: a picture that loads (or fails) as soon as its
+     * `src` is set, and a canvas that turns it into a data URL.
+     * @param fails - Whether a picture fails to load.
+     * @returns How many pictures were loaded.
+     */
+    function grayDom(fails: () => boolean): { pictures: string[] } {
+        const pictures: string[] = [];
+        vi.stubGlobal(
+            "Image",
+            class {
+                naturalWidth = 2;
+                naturalHeight = 1;
+                onload: () => void = () => undefined;
+                onerror: () => void = () => undefined;
+                set src(url: string) {
+                    pictures.push(url);
+                    queueMicrotask(() => {
+                        if (fails()) {
+                            this.onerror();
+                        } else {
+                            this.onload();
+                        }
+                    });
+                }
+            },
+        );
+        vi.stubGlobal("document", {
+            createElement: () => ({
+                getContext: () => ({
+                    drawImage: () => undefined,
+                    getImageData: () => ({ data: new Uint8ClampedArray(8) }),
+                    putImageData: () => undefined,
+                }),
+                toDataURL: () => "data:image/jpeg;base64,gray",
+            }),
+        });
+        return { pictures };
+    }
+
+    it("makes a gray picture once however many copies of the world draw it", async () => {
+        const dom = grayDom(() => false);
+        const tiles = loader(scene);
+        const map = new FlatMap(scene, {
+            sources: [{ image: "https://example.com/once.jpg", tone: "gray" }],
+            loadTexture: tiles.load,
+            // A box off the antimeridian: the one world drawn around it spans two copies.
+            frame: {
+                bounds: [
+                    [-125, 25],
+                    [-70, 50],
+                ],
+            },
+            beyond: "continue",
+        });
+        view(400);
+        map.update();
+        await settle();
+        expect(tiles.requests.length, "the world is drawn more than once").toBeGreaterThan(1);
+        expect(tiles.requests.map((r) => r.url)).toEqual(tiles.requests.map(() => "data:image/jpeg;base64,gray"));
+        expect(dom.pictures).toEqual(["https://example.com/once.jpg"]);
+    });
+
+    it("makes a gray picture again after it failed", async () => {
+        vi.useFakeTimers();
+        let failing = true;
+        const dom = grayDom(() => failing);
+        const tiles = loader(scene);
+        const map = new FlatMap(scene, {
+            sources: [{ image: "https://example.com/again.jpg", tone: "gray" }],
+            loadTexture: tiles.load,
+        });
+        view(50);
+        map.update();
+        await settle();
+        expect(tiles.requests).toEqual([]);
+        failing = false;
+        // The failed picture's backoff, then the update its retry asks for.
+        await vi.runAllTimersAsync();
+        map.update();
+        await settle();
+        expect(dom.pictures).toEqual(["https://example.com/again.jpg", "https://example.com/again.jpg"]);
+        expect(tiles.requests.map((r) => r.url)).toEqual(["data:image/jpeg;base64,gray"]);
     });
 });
 
@@ -617,6 +746,16 @@ describe("Globe", () => {
         scene.getEngine().dispose();
     });
 
+    it("tells the host to render when the radius changes", () => {
+        const scene = new Scene(new NullEngine());
+        const globe = new Globe(scene, { loadTexture: loader(scene).load });
+        const changed = vi.fn();
+        globe.onChangedObservable.add(changed);
+        globe.radius = 3;
+        expect(changed).toHaveBeenCalledTimes(1);
+        scene.getEngine().dispose();
+    });
+
     it("reads points back and rebuilds for a new radius", async () => {
         const scene = new Scene(new NullEngine());
         new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 300, Vector3.Zero(), scene);
@@ -651,6 +790,25 @@ describe("Globe", () => {
         expect(Math.max(...ys.map((b) => b.maximum.y))).toBeCloseTo(100);
         expect(Math.min(...ys.map((b) => b.minimum.y))).toBeCloseTo(-100);
         expect(globe.attribution).toEqual(["(c) OpenStreetMap contributors"]);
+        scene.getEngine().dispose();
+    });
+
+    it("fetches the root tile of a small globe once and keeps no second texture", async () => {
+        // A globe this far away wants only the root tile, which the pole caps also ask for: both
+        // asks once queued it twice, so it was fetched twice and the first picture never disposed.
+        const scene = new Scene(new NullEngine());
+        new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 5000, Vector3.Zero(), scene);
+        const tiles = loader(scene);
+        const disposed = vi.spyOn(BaseTexture.prototype, "dispose");
+        const globe = new Globe(scene, { sources: [OSM], loadTexture: tiles.load });
+        globe.update();
+        expect(tiles.requests.map((r) => r.url)).toEqual(["https://tile.openstreetmap.org/0/0/0.png"]);
+        await tiles.answerAll();
+        globe.update();
+        expect(tiles.requests).toHaveLength(0);
+        expect(disposed).not.toHaveBeenCalled();
+        globe.dispose();
+        expect(disposed).toHaveBeenCalledTimes(1);
         scene.getEngine().dispose();
     });
 

@@ -65,7 +65,7 @@ export type StylePatchCommand =
           readonly id: LayerId;
           /** Applied over the layer's specification one key deep; `undefined` clears a key. */
           readonly patch: Partial<LayerSpec>;
-          /** Keep the layer when the patch takes its last value away (`styles.update`'s `keepEmpty`). */
+          /** `styles.update`'s `keepEmpty`: kept for callers; every layer may write nothing. */
           readonly keepEmpty?: boolean;
       }
     | { readonly op: "style.patch"; readonly action: "remove"; readonly id: LayerId }
@@ -372,7 +372,9 @@ const stylePatch: UndoableDefinition<StylePatchCommand> = {
         kind: "undoable",
         label: patchLabel,
         fact: patchFact,
-        // A drag of a colour picker is one step: updates of the same keys of one layer merge.
+        // A drag of a color picker is one step: updates of the same keys of one layer merge. The
+        // keys are `set` and `encode`, not channels, so edits of two channels within a second merge
+        // too; the merged step's fact then names both (History's mergedFact).
         coalesce: (command) =>
             command.action === "update" ? `style:${command.id}:${Object.keys(command.patch).sort().join(",")}` : null,
     },

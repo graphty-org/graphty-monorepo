@@ -28,7 +28,7 @@ async function captureWaitingForSettle(before: number): Promise<void> {
     });
 }
 
-// Mock layout engine for testing
+// A layout that never settles, for the cases that wait out the settle timeout
 class MockLayoutEngine extends LayoutEngine {
     static type = "mock";
     static maxDimensions = 3;
@@ -113,41 +113,29 @@ class MockLayoutEngine extends LayoutEngine {
 // Register mock layout engine
 LayoutEngine.register(MockLayoutEngine);
 
-test("waitForSettle waits for layout to settle", async () => {
+test("waitForSettle holds a capture until a real layout settles", async () => {
     graph = await createTestGraphWithData();
 
-    // Set up mock layout engine
+    // A seeded force layout starts moving and settles on its own, a frame at a time; nothing in
+    // the test announces the settle, so the element's own `graph-settled` has to release the capture.
+    await graph.setLayout("ngraph", { seed: 7 });
     const layoutManager = graph.getLayoutManager();
-    await layoutManagerInternals.setLayout(layoutManager, "mock");
+    assert.isTrue(layoutManager.running, "the layout is running when the capture is asked for");
+    assert.isFalse(layoutManager.isSettled, "the layout is still moving when the capture is asked for");
 
-    const layoutEngine = layoutManager.layoutEngine as MockLayoutEngine;
-    assert.ok(layoutEngine, "Layout engine should be set");
-    layoutEngine.setSettled(false);
-
-    let captured = false;
+    // Counted when the layout first settles: a capture still pending then is listening too.
+    let listenersWhenSettled = 0;
+    const off = graph.on("graph-settled", () => {
+        listenersWhenSettled ||= graph.listenerCount();
+    });
     const listenersBefore = graph.listenerCount();
-    const capturePromise = graph
-        .captureScreenshot({
-            timing: { waitForSettle: true },
-        })
-        .then(() => {
-            captured = true;
-        });
 
-    // Should not capture while it waits for the layout
-    await captureWaitingForSettle(listenersBefore);
-    assert.equal(captured, false, "Should not capture before settling");
+    const result = await graph.captureScreenshot({ timing: { waitForSettle: true } });
+    off();
 
-    // Settle layout
-    layoutEngine.setSettled(true);
-    // Access private eventManager for testing purposes
-    (
-        graph as unknown as { eventManager: { emitGraphEvent: (type: string, data: Record<string, unknown>) => void } }
-    ).eventManager.emitGraphEvent("graph-settled", { graph });
-
-    // Now should capture
-    await capturePromise;
-    assert.equal(captured, true, "Should capture after settling");
+    assert.isAbove(listenersWhenSettled, listenersBefore, "the capture was still waiting when the layout settled");
+    assert.isTrue(!layoutManager.running || layoutManager.isSettled, "the layout is at rest in the capture");
+    assert.ok(result.blob instanceof Blob, "the capture returns a picture");
 });
 
 test("waitForSettle times out if layout never settles", async () => {

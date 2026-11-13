@@ -19,7 +19,12 @@ import {
     typedKey,
     weightColumnFallback,
 } from "../../styles/cytoscape/mappings.js";
-import { type CytoscapeElements, edgeEnds, resolveCytoscape } from "../../styles/cytoscape/resolve.js";
+import {
+    type CytoscapeElements,
+    edgeEnds,
+    fileCreationOrder,
+    resolveCytoscape,
+} from "../../styles/cytoscape/resolve.js";
 import { cytoscapeRules } from "../../styles/cytoscape/translate.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { dataCell } from "../../styles/plan/resolve.js";
@@ -138,13 +143,14 @@ function sessionTargetStyles(
         count: n,
         value: (column, i) => (table.has(column) ? dataCell(table, column, i) : null),
         bypasses: graphicsBypasses(table, target, n, notes),
-        ...(target === "edge" ? { ends: edgeEnds(snapshot, nodes) } : {}),
+        // desktop creates a session's nodes and edges in the order its network file lists them
+        ...(target === "edge" ? { ends: { ...edgeEnds(snapshot, nodes), created: fileCreationOrder(snapshot) } } : {}),
     };
     const values = resolveCytoscape(target, style, elements, work);
     hiddenToVisible(table, HIDDEN_COLUMN, n, values);
     hideWhatCytoscapeHides(snapshot, target, nodes, values);
     // a session graphty wrote: a value its style writes as the nearest Cytoscape value is the block's
-    exactFromBlock(snapshot, target, values);
+    exactFromBlock(snapshot, target, values, "desktop", fileCreationOrder(snapshot));
     const { rules, columns } = cytoscapeRules(target, style, elements, work);
     return { values: nonEmpty(values), rules, columns };
 }

@@ -233,7 +233,7 @@ describe("InfoCircle", () => {
         // one is a React event, and a failed deep match on it would try to
         // serialize half the DOM.
         expect(onOpenChange.mock.calls[0]?.[0]).toBe(true);
-        expect(onOpenChange.mock.calls[0]?.[1]).toBeDefined();
+        expect(onOpenChange.mock.calls[0]?.[1]?.type).toBe("mouseenter");
 
         await user.keyboard("{Escape}");
         await waitFor(() => {

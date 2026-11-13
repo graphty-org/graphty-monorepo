@@ -397,4 +397,11 @@ describe("styleBudgetFor", () => {
         assert.strictEqual(styleBudgetFor(400), 100, "a slow frame's repaint takes a quarter of it");
         assert.strictEqual(styleBudgetFor(4000), 1000, "a frame of seconds is no reason to draw more of them");
     });
+
+    it("gives a batched repaint that no frame shows three frames' worth, and a slow frame a share as before", () => {
+        assert.strictEqual(styleBudgetFor(16, true), 48, "a held draw shows nothing, so no frame waits on it");
+        assert.strictEqual(styleBudgetFor(33, true), 48);
+        assert.strictEqual(styleBudgetFor(400, true), 100);
+        assert.strictEqual(styleBudgetFor(16, false), 16, "a shown frame keeps its 16 ms");
+    });
 });

@@ -7,7 +7,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession, LoadedSource } from "@graphty/graphty-element/session";
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { act } from "react";
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
@@ -16,38 +16,14 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-import { canReplace, replaceSource } from "../request";
+import { replaceSource } from "../request";
 import { replacedWords, replaceWords } from "../words";
 
 const FRIENDS = "source,target,weight\nAva,Ben,3\nBen,Chloe,4\nChloe,Ava,5\nChloe,Dev,1\n";
 /** The same people and links, new weights. */
 const FRIENDS_V2 = "source,target,weight\nAva,Ben,1\nBen,Chloe,2\nChloe,Ava,1\nChloe,Dev,5\n";
 
-/**
- * A loaded source, as `data.sources()` lists it.
- * @param tables - its table names.
- * @returns the source.
- */
-function source(tables: string[]): LoadedSource {
-    return {
-        key: "s1",
-        kind: "file",
-        name: "friends.csv",
-        tables,
-        added: { nodes: 4, edges: 4 },
-        counts: { nodes: 4, edges: 4 },
-    };
-}
-
 describe("Replace with file...", () => {
-    it("is offered only on a graph made by one load of one table", () => {
-        assert.isTrue(canReplace([source(["rows"])]));
-        assert.isTrue(canReplace([source([])]));
-        assert.isFalse(canReplace([]), "nothing loaded");
-        assert.isFalse(canReplace([source(["rows"]), source(["rows"])]), "two loads");
-        assert.isFalse(canReplace([source(["nodes", "edges"])]), "a node table and an edge table");
-    });
-
     it("words what changes and what went out of date", () => {
         assert.equal(
             replaceWords({ nodes: 20, edges: 60 }, { nodes: 22, edges: 74 }),

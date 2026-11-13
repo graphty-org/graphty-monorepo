@@ -7,6 +7,7 @@
 
 import "../../src/graphty-element";
 
+import { INVALID_INDEX } from "@graphty/graph-format";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
@@ -14,6 +15,8 @@ import { Edge } from "../../src/Edge";
 import { operationQueueOf } from "../../src/Graph";
 import { dataManagerInternals } from "../../src/managers/DataManager";
 import type { EdgePaint } from "../../src/managers/StylePainter";
+import { EdgeRowLines } from "../../src/meshes/EdgeRowLines";
+import { NodeBatches } from "../../src/meshes/NodeBatch";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { edgeBetween } from "../helpers/testSetup";
 import { pixelsOverBar as overBar, readCanvas } from "../helpers/whole-canvas";
@@ -163,6 +166,52 @@ describe("an edge row with no Edge", () => {
         assert.equal(lines.count, 1);
         lines.unpaintRow(0);
         assert.equal(lines.count, 0);
+    });
+
+    // A million-row load spent about 0.3 s of CPU looking each row up in a map keyed by row (cosmos-gap.md G8):
+    // the lines are held by row, and keep what the map kept for rows painted out of order, far apart and twice.
+    it("keeps each row's line by its row, painted out of order, far apart, repainted and unpainted", async () => {
+        const element = await loaded("batched", [{ src: 0, dst: 1 }]);
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        lines.clear();
+        const paint = { meshKey: "plain", style: { line: { color: "#ff0000" } } };
+        const [a, b, c] = [rowOf(element, 0), rowOf(element, 1), rowOf(element, 2)];
+        assert.isTrue(lines.paintRow(5000, a, b, paint));
+        assert.isTrue(lines.paintRow(3, b, c, paint));
+        assert.isTrue(lines.paintRow(3, a, c, paint), "a repaint replaces the row's line");
+        lines.unpaintRow(42);
+        assert.equal(lines.count, 2, "a repaint and an unpaint of a row not drawn change no count");
+        assert.isFalse(lines.has(42));
+        assert.isFalse(lines.has(4999));
+        assert.sameMembers(lines.rows(), [3, 5000]);
+        assert.deepEqual(lines.endsOf(3), [a, c]);
+        assert.deepEqual(lines.endsOf(5000), [a, b]);
+        assert.isUndefined(lines.endsOf(7));
+
+        lines.rowsMoved(null, Object.assign(new Array<number>(5001).fill(INVALID_INDEX), { 3: 0 }));
+        assert.deepEqual(lines.rows(), [0], "a freeze moves the kept row and drops the other");
+        assert.deepEqual(lines.endsOf(0), [a, c]);
+        lines.clear();
+        assert.equal(lines.count, 0);
+        assert.deepEqual(lines.rows(), []);
+    });
+
+    it("keeps no object per row line, through a repaint and a freeze", async () => {
+        const element = await loaded("batched", []);
+        const lines = element.graph.getEdgeRowLines();
+        assert.isNotNull(lines);
+        const paint = { meshKey: "plain", style: { line: { color: "#ff0000" } } };
+        const [a, b, c] = [rowOf(element, 0), rowOf(element, 1), rowOf(element, 2)];
+        assert.isTrue(lines.paintRow(0, a, b, paint));
+        assert.isTrue(lines.paintRow(7, b, c, paint));
+        assert.isTrue(lines.paintRow(7, a, b, paint), "a repaint replaces the row's line");
+        assert.equal(lines.count, 2);
+        // A row line is kept in columns by row, not as an object each (43 B an edge at 1M).
+        assert.equal(lines.rowObjects, 0);
+        lines.rowsMoved(null, Object.assign(new Array<number>(8).fill(INVALID_INDEX), { 7: 1 }));
+        assert.deepEqual(lines.rows(), [1]);
+        assert.equal(lines.rowObjects, 0);
     });
 
     it("has no row lines on the objects path", async () => {
@@ -460,6 +509,48 @@ describe("an edge loaded with no switch", () => {
         assert.equal(element.graph.getDataManager().edges.size, 2);
     });
 
+    // A million-edge load spent 2.1 s adding one `e:<id>` string per edge to the keys that hold the frame
+    // (cosmos-gap.md G8): an edge stored with no `Edge` holds it by its counter instead.
+    it("holds the frame for its paint with no key per edge", async () => {
+        const element = await lazyLoaded([], true, { switched: false });
+        const dm = element.graph.getDataManager();
+        const seen: { keys: string[]; held: boolean }[] = [];
+        const notePainted = dm.notePainted.bind(dm);
+        vi.spyOn(dm, "notePainted").mockImplementation((dirty) => {
+            const keys = dataManagerInternals.unpaintedKeys(dm).filter((key) => key.startsWith("e"));
+            seen.push({ keys, held: dm.drawHeld });
+            notePainted(dirty);
+        });
+        await element.session.data.addEdges([
+            { src: 0, dst: 1 },
+            { src: 1, dst: 2 },
+        ]);
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.isAbove(seen.length, 0);
+        assert.deepEqual(seen[0], { keys: [], held: true });
+        assert.isFalse(dm.drawHeld);
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 0);
+        assert.equal(element.graph.getEdgeRowLines()?.count, 2);
+    });
+
+    // A million-edge load decided one shared style a million times, by a pass over its keys and a color parse per
+    // edge (cosmos-gap.md G8): rows painted with the same style decide it once.
+    it("decides a style its rows share once", async () => {
+        const element = await lazyLoaded([], true, { switched: false });
+        const decided = vi.spyOn(EdgeRowLines.prototype as unknown as { drawsStyle: () => boolean }, "drawsStyle");
+        await element.session.data.addEdges([
+            { src: 0, dst: 1 },
+            { src: 1, dst: 2 },
+            { src: 0, dst: 2 },
+        ]);
+        await operationQueueOf(element.graph).waitForCompletion();
+        await element.waitForStableFrame();
+        assert.equal(dataManagerInternals.edgesBuilt(element.graph.getDataManager()), 0);
+        assert.equal(element.graph.getEdgeRowLines()?.count, 3);
+        assert.equal(decided.mock.calls.length, 1);
+    });
+
     it("is found between its nodes, building its Edge", async () => {
         const element = await lazyLoaded([{ src: 0, dst: 1 }], true, { switched: false });
         const dm = element.graph.getDataManager();
@@ -632,9 +723,10 @@ describe("an edge stored with no Edge under a simulation layout", () => {
  * `edgeData`.
  * @param dim - The view: 2 or 3.
  * @param edgesFirst - Set `edgeData` before `nodeData`, so the edges wait for their ends.
+ * @param nodeStyle - More of the nodes' style, on every node.
  * @returns The element.
  */
-async function leanLoaded(dim: 2 | 3, edgesFirst: boolean): Promise<Graphty> {
+async function leanLoaded(dim: 2 | 3, edgesFirst: boolean, nodeStyle: Record<string, unknown> = {}): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.renderer = "webgl";
     element.renderPath = "batched";
@@ -650,7 +742,7 @@ async function leanLoaded(dim: 2 | 3, edgesFirst: boolean): Promise<Graphty> {
         name: "lean nodes",
         target: "node",
         selector: { match: "everything" },
-        set: { "node.shape": "box" },
+        set: { "node.shape": "box", ...nodeStyle },
     } as never);
     await element.session.styles.add({
         name: "lean edges",
@@ -700,6 +792,19 @@ describe("a lean load on the batched path", () => {
             });
         }
 
+        // A row line cannot end at a node drawn behind edges, so the paint loop asks of each end; with no row
+        // painted behind edges it asked each end's look anyway, a map read per end of 1M edges at 100k + 1M.
+        it(`reads no row's look for its lines in ${dim}D when no row is drawn behind edges`, async () => {
+            const lookOf = vi.spyOn(NodeBatches.prototype, "lookOf");
+            try {
+                const element = await leanLoaded(dim, false);
+                assert.equal(element.graph.getEdgeRowLines()?.count, LEAN_EDGES.length);
+                assert.equal(lookOf.mock.calls.length, 0);
+            } finally {
+                lookOf.mockRestore();
+            }
+        });
+
         it(`builds an Edge across undo and redo of the load in ${dim}D only for what redo selects`, async () => {
             const element = await leanLoaded(dim, false);
             const dm = element.graph.getDataManager();
@@ -727,4 +832,16 @@ describe("a lean load on the batched path", () => {
             assert.equal(dataManagerInternals.edgesBuilt(dm), selected, "no further Edge once the selection clears");
         });
     }
+});
+
+// A 2D row below z-index 0 is drawn behind edges (`Node.isDrawnBehindEdges`), and an edge ends at its outline, which a
+// row line does not draw: the edge gets its Edge, as on the objects path.
+describe("a lean load in 2D with its rows drawn behind edges", () => {
+    it("builds the Edge of every edge, and no row line", async () => {
+        const element = await leanLoaded(2, false, { "node.zIndex": -1 });
+        const dm = element.graph.getDataManager();
+        assert.equal(element.graph.rowCounts.batchedNodes, NODES.length);
+        assert.equal(dataManagerInternals.edgesBuilt(dm), LEAN_EDGES.length);
+        assert.equal(element.graph.getEdgeRowLines()?.count, 0);
+    });
 });

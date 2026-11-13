@@ -1,849 +1,272 @@
 /**
  * Position-based regression tests for arrowhead placement
  *
- * This test suite verifies that arrowheads are positioned correctly at the
- * destination node's surface for edges at various angles in both 2D and 3D modes.
+ * Each graph is drawn by the element's own frame loop -- `init()`, then `waitForStableFrame()` --
+ * so these tests check the whole path that places an arrow: the layout's positions reaching the
+ * node meshes, the update ordering and dirty flags that refresh an edge after its nodes move, and
+ * the arrow placement itself (`EdgeMesh.calculateArrowPosition()`).
  *
  * Key constants:
  * - DEFAULT_NODE_SIZE = 1
  * - ICOSPHERE_RADIUS_MULTIPLIER = 0.75 (node radius = 0.75)
- * - DEFAULT_ARROW_LENGTH = 0.5 (used for arrow mesh size, not positioning)
- * - For "normal" arrows (positionOffset=0), the arrow tip is exactly at node surface
- *
- * Arrow positioning is handled by EdgeMesh.calculateArrowPosition() which uses
- * the positionOffset from EdgeMesh.getArrowGeometry(). For "normal" arrows,
- * positionOffset=0 means the arrow mesh is placed at the surface point.
+ * - For "normal" arrows (positionOffset=0), the arrow tip is exactly at the node surface
  */
 import { Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, test } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
-import { nextFrame } from "../helpers/real-input";
-import { asData, edgeBetween, styleEveryEdge, styleEveryNode, type TestGraph } from "../helpers/testSetup";
+import { asData, edgeBetween, styleEveryEdge, styleEveryNode } from "../helpers/testSetup";
 
 // Constants matching mesh calculations
 const NODE_RADIUS = 0.75; // DEFAULT_NODE_SIZE * ICOSPHERE_RADIUS_MULTIPLIER
 const POSITION_TOLERANCE = 0.1; // Allow some tolerance for floating point and ray intersection
 
-/**
- * Calculate expected arrow position given source and destination nodes
- *
- * For "normal" arrows with positionOffset=0 (tip-based positioning),
- * the arrow mesh is positioned so that its tip is exactly at the node surface.
- * The arrow geometry has its tip at the origin, so the mesh position equals
- * the surface point.
- *
- * See EdgeMesh.getArrowGeometry() and EdgeMesh.calculateArrowPosition() for
- * the authoritative implementation.
- */
-function calculateExpectedArrowPosition(srcPos: Vector3, dstPos: Vector3): Vector3 {
-    const direction = dstPos.subtract(srcPos).normalize();
-    // Surface point at destination node - this is where the arrow tip should be
-    const surfacePoint = dstPos.subtract(direction.scale(NODE_RADIUS));
-    // For "normal" arrows with positionOffset=0, arrow is positioned at surface point
-    // (no additional offset needed)
-    return surfacePoint;
+interface Point {
+    x: number;
+    y: number;
+    z: number;
 }
 
+type Nodes = Record<string, Point>;
+
+let container: HTMLElement | undefined;
+let graph: Graph | undefined;
+
+afterEach(() => {
+    graph?.dispose();
+    container?.remove();
+    graph = undefined;
+    container = undefined;
+});
+
 /**
- * Wait for graph to fully render and update edges
- *
- * In browser tests, the Babylon.js render loop doesn't run automatically like in a real browser.
- * We need to manually update node positions from the layout engine and then update edges.
+ * Draw a graph with fixed node positions and "normal" arrow heads, and wait for the element's
+ * frame loop to finish drawing it.
+ * @param twoD - whether to draw in 2D
+ * @param nodes - each node's position by id
+ * @param edges - [source, target] pairs
+ * @param nodeStyle - an optional style for every node
+ * @returns the graph
  */
-async function waitForRender(graph: Graph): Promise<void> {
+async function drawGraph(
+    twoD: boolean,
+    nodes: Nodes,
+    edges: [string, string][],
+    nodeStyle?: Parameters<typeof styleEveryNode>[1],
+): Promise<Graph> {
+    container = document.createElement("div");
+    container.style.width = "800px";
+    container.style.height = "600px";
+    document.body.append(container);
+
+    graph = new Graph(container);
+    await graph.init();
+    await graph.setViewMode(twoD ? "2d" : "3d");
+    await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
+    if (nodeStyle) {
+        await styleEveryNode(graph, nodeStyle);
+    }
+
+    // FixedLayout reads node.data.position.{x,y,z}
+    await graph.setLayout("fixed", { dim: twoD ? 2 : 3 });
+    for (const [id, position] of Object.entries(nodes)) {
+        await graph.addNode(asData({ id, position }));
+    }
+
+    for (const [source, target] of edges) {
+        await graph.addEdge(asData({ id: `${source}:${target}`, source, target }), {
+            source: "source",
+            target: "target",
+        });
+    }
+
     await operationQueueOf(graph).waitForCompletion();
+    await graph.waitForStableFrame();
+    return graph;
+}
 
-    // Access private members via TestGraph type for testing
-    const testGraph = graph as unknown as TestGraph;
+/**
+ * Assert that the arrow of the edge from `src` to `dst` sits on the destination node's surface,
+ * and in 2D that it lies in the XY plane.
+ * @param g - the drawn graph
+ * @param nodes - each node's position by id
+ * @param src - the source node id
+ * @param dst - the destination node id
+ * @param twoD - whether the graph is drawn in 2D
+ */
+function assertArrowAtSurface(g: Graph, nodes: Nodes, src: string, dst: string, twoD: boolean): void {
+    const label = `${src} -> ${dst}`;
+    const edge = edgeBetween(g, src, dst);
+    assert(edge, `Edge ${label} should exist`);
+    assert(edge.arrowCap, `Edge ${label} should have an arrow`);
 
-    // Manually update node mesh positions from layout engine
-    // (In a real browser, this happens in the render loop via UpdateManager)
-    for (const node of testGraph.dataManager.nodes.values()) {
-        const pos = testGraph.layoutManager.layoutEngine?.getNodePosition(node);
-        if (pos) {
-            node.mesh.position.x = pos.x;
-            node.mesh.position.y = pos.y;
-            node.mesh.position.z = pos.z ?? 0;
-        }
-    }
+    const srcPos = new Vector3(nodes[src].x, nodes[src].y, nodes[src].z);
+    const dstPos = new Vector3(nodes[dst].x, nodes[dst].y, nodes[dst].z);
+    // The arrow tip sits where the edge meets the destination's surface.
+    const expected = dstPos.subtract(dstPos.subtract(srcPos).normalize().scale(NODE_RADIUS));
+    const actual = edge.arrowCap.position;
 
-    // Manually update edges (which calculates arrow positions)
-    for (const edge of testGraph.dataManager.edges.values()) {
-        edge.update();
+    const fmt = (v: Vector3): string => `(${v.x.toFixed(3)}, ${v.y.toFixed(3)}, ${v.z.toFixed(3)})`;
+    const distance = Vector3.Distance(expected, actual);
+    assert(
+        distance < POSITION_TOLERANCE,
+        `Edge ${label}: arrow is ${distance.toFixed(4)} from expected. Expected ${fmt(expected)}, actual ${fmt(actual)}`,
+    );
+
+    if (twoD) {
+        assert(Math.abs(actual.z) < 0.001, `Edge ${label}: arrow Z should be 0 in 2D, got ${actual.z.toFixed(6)}`);
     }
 }
 
-describe("Arrowhead Position Tests - 2D Mode", () => {
-    let container: HTMLElement | undefined;
-    let graph: Graph | undefined;
+/**
+ * Nodes on a plane, by id.
+ * @param points - [id, x, y] triples
+ * @returns the nodes at z = 0
+ */
+function flat(...points: [string, number, number][]): Nodes {
+    return Object.fromEntries(points.map(([id, x, y]) => [id, { x, y, z: 0 }]));
+}
 
-    afterEach(() => {
-        if (graph) {
-            graph.dispose();
+/**
+ * Nodes in space, by id.
+ * @param points - [id, x, y, z] tuples
+ * @returns the nodes
+ */
+function space(...points: [string, number, number, number][]): Nodes {
+    return Object.fromEntries(points.map(([id, x, y, z]) => [id, { x, y, z }]));
+}
+
+interface Case {
+    name: string;
+    twoD: boolean;
+    nodes: Nodes;
+    edges: [string, string][];
+}
+
+const cases: Case[] = [
+    // 2D
+    { name: "2D horizontal edge (0 deg)", twoD: true, nodes: flat(["A", 0, 0], ["B", 3, 0]), edges: [["A", "B"]] },
+    { name: "2D vertical edge (90 deg)", twoD: true, nodes: flat(["A", 0, 0], ["B", 0, 3]), edges: [["A", "B"]] },
+    { name: "2D diagonal edge (45 deg)", twoD: true, nodes: flat(["A", 0, 0], ["B", 3, 3]), edges: [["A", "B"]] },
+    {
+        name: "2D reverse horizontal edge (180 deg)",
+        twoD: true,
+        nodes: flat(["A", 3, 0], ["B", 0, 0]),
+        edges: [["A", "B"]],
+    },
+    {
+        name: "2D downward diagonal edge (-45 deg)",
+        twoD: true,
+        nodes: flat(["A", 0, 3], ["B", 3, 0]),
+        edges: [["A", "B"]],
+    },
+    {
+        name: "2D pentagon",
+        twoD: true,
+        nodes: flat(["A", 0, 3], ["B", 2.85, 0.93], ["C", 1.76, -2.43], ["D", -1.76, -2.43], ["E", -2.85, 0.93]),
+        edges: [
+            ["A", "B"],
+            ["B", "C"],
+            ["C", "D"],
+            ["D", "E"],
+            ["E", "A"],
+        ],
+    },
+    {
+        name: "2D square with a diagonal",
+        twoD: true,
+        nodes: flat(["A", 0, 0], ["B", 3, 0], ["C", 0, 3], ["D", 3, 3]),
+        edges: [
+            ["A", "B"],
+            ["A", "C"],
+            ["A", "D"],
+            ["B", "D"],
+        ],
+    },
+    // 3D
+    { name: "3D edge along X", twoD: false, nodes: space(["A", 0, 0, 0], ["B", 3, 0, 0]), edges: [["A", "B"]] },
+    { name: "3D edge along Y", twoD: false, nodes: space(["A", 0, 0, 0], ["B", 0, 3, 0]), edges: [["A", "B"]] },
+    { name: "3D edge along Z", twoD: false, nodes: space(["A", 0, 0, 0], ["B", 0, 0, 3]), edges: [["A", "B"]] },
+    { name: "3D diagonal edge", twoD: false, nodes: space(["A", 0, 0, 0], ["B", 2, 2, 2]), edges: [["A", "B"]] },
+    {
+        name: "3D tetrahedron",
+        twoD: false,
+        nodes: space(["A", 1, 1, 1], ["B", 1, -1, -1], ["C", -1, 1, -1], ["D", -1, -1, 1]),
+        edges: [
+            ["A", "B"],
+            ["A", "C"],
+            ["A", "D"],
+            ["B", "C"],
+            ["B", "D"],
+            ["C", "D"],
+        ],
+    },
+    {
+        name: "3D negative coordinates",
+        twoD: false,
+        nodes: space(["A", -2, -2, -2], ["B", 2, 2, 2], ["C", -2, 2, 0]),
+        edges: [
+            ["A", "B"],
+            ["A", "C"],
+            ["B", "C"],
+        ],
+    },
+    {
+        name: "3D cube",
+        twoD: false,
+        nodes: space(
+            ["A", 0, 0, 0],
+            ["B", 2, 0, 0],
+            ["C", 2, 2, 0],
+            ["D", 0, 2, 0],
+            ["E", 0, 0, 2],
+            ["F", 2, 0, 2],
+            ["G", 2, 2, 2],
+            ["H", 0, 2, 2],
+        ),
+        edges: [
+            ["A", "B"],
+            ["B", "C"],
+            ["C", "D"],
+            ["D", "A"],
+            ["E", "F"],
+            ["F", "G"],
+            ["G", "H"],
+            ["H", "E"],
+            ["A", "E"],
+            ["B", "F"],
+            ["C", "G"],
+            ["D", "H"],
+        ],
+    },
+    // Edge cases: just over two node radii apart, and very far apart
+    { name: "3D very short edge", twoD: false, nodes: space(["A", 0, 0, 0], ["B", 2, 0, 0]), edges: [["A", "B"]] },
+    { name: "3D very long edge", twoD: false, nodes: space(["A", 0, 0, 0], ["B", 100, 0, 0]), edges: [["A", "B"]] },
+];
+
+describe("Arrowhead position", () => {
+    test.each(cases)("$name - every arrow tip sits on its destination's surface", async ({ twoD, nodes, edges }) => {
+        const g = await drawGraph(twoD, nodes, edges);
+        for (const [src, dst] of edges) {
+            assertArrowAtSurface(g, nodes, src, dst, twoD);
         }
-
-        if (container?.parentNode) {
-            container.remove();
-        }
-    });
-
-    /**
-     * Helper to create a 2D graph with specified nodes and edges
-     */
-    async function create2DGraph(
-        nodes: { id: string; x: number; y: number }[],
-        edges: { source: string; target: string }[],
-    ): Promise<Graph> {
-        container = document.createElement("div");
-        container.style.width = "800px";
-        container.style.height = "600px";
-        document.body.append(container);
-
-        graph = new Graph(container);
-
-        await graph.setViewMode("2d");
-        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
-        await operationQueueOf(graph).waitForCompletion();
-
-        // Set up fixed layout so nodes register with LayoutManager
-        await graph.setLayout("fixed", { dim: 2 });
-        await operationQueueOf(graph).waitForCompletion();
-
-        // Add nodes with position object for FixedLayout to read
-        // FixedLayout reads from node.data.position.{x,y,z}
-        for (const node of nodes) {
-            await graph.addNode(
-                asData({
-                    id: node.id,
-                    position: { x: node.x, y: node.y, z: 0 },
-                }),
-            );
-        }
-
-        // Add edges
-        for (const edge of edges) {
-            await graph.addEdge(
-                asData({ id: `${edge.source}:${edge.target}`, source: edge.source, target: edge.target }),
-                { source: "source", target: "target" },
-            );
-        }
-
-        await waitForRender(graph);
-        return graph;
-    }
-
-    test("horizontal edge (0°) - arrow at correct position", async () => {
-        await create2DGraph(
-            [
-                { id: "A", x: 0, y: 0 },
-                { id: "B", x: 3, y: 0 },
-            ],
-            [{ source: "A", target: "B" }],
-        );
-
-        const edge = edgeBetween(graph as Graph, "A", "B");
-        assert(edge, "Edge should exist");
-        assert(edge.arrowCap, "Arrow mesh should exist");
-
-        const srcPos = new Vector3(0, 0, 0);
-        const dstPos = new Vector3(3, 0, 0);
-        const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowCap.position;
-
-        const distance = Vector3.Distance(expectedPos, actualPos);
-        assert(
-            distance < POSITION_TOLERANCE,
-            `Horizontal edge: Arrow position differs by ${distance.toFixed(4)} from expected. ` +
-                `Expected: (${expectedPos.x.toFixed(3)}, ${expectedPos.y.toFixed(3)}, ${expectedPos.z.toFixed(3)}), ` +
-                `Actual: (${actualPos.x.toFixed(3)}, ${actualPos.y.toFixed(3)}, ${actualPos.z.toFixed(3)})`,
-        );
-    });
-
-    test("vertical edge (90°) - arrow at correct position", async () => {
-        await create2DGraph(
-            [
-                { id: "A", x: 0, y: 0 },
-                { id: "B", x: 0, y: 3 },
-            ],
-            [{ source: "A", target: "B" }],
-        );
-
-        const edge = edgeBetween(graph as Graph, "A", "B");
-        assert(edge, "Edge should exist");
-        assert(edge.arrowCap, "Arrow mesh should exist");
-
-        const srcPos = new Vector3(0, 0, 0);
-        const dstPos = new Vector3(0, 3, 0);
-        const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowCap.position;
-
-        const distance = Vector3.Distance(expectedPos, actualPos);
-        assert(
-            distance < POSITION_TOLERANCE,
-            `Vertical edge: Arrow position differs by ${distance.toFixed(4)} from expected. ` +
-                `Expected: (${expectedPos.x.toFixed(3)}, ${expectedPos.y.toFixed(3)}, ${expectedPos.z.toFixed(3)}), ` +
-                `Actual: (${actualPos.x.toFixed(3)}, ${actualPos.y.toFixed(3)}, ${actualPos.z.toFixed(3)})`,
-        );
-    });
-
-    test("diagonal edge (45°) - arrow at correct position", async () => {
-        await create2DGraph(
-            [
-                { id: "A", x: 0, y: 0 },
-                { id: "B", x: 3, y: 3 },
-            ],
-            [{ source: "A", target: "B" }],
-        );
-
-        const edge = edgeBetween(graph as Graph, "A", "B");
-        assert(edge, "Edge should exist");
-        assert(edge.arrowCap, "Arrow mesh should exist");
-
-        const srcPos = new Vector3(0, 0, 0);
-        const dstPos = new Vector3(3, 3, 0);
-        const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowCap.position;
-
-        const distance = Vector3.Distance(expectedPos, actualPos);
-        assert(
-            distance < POSITION_TOLERANCE,
-            `Diagonal edge (45°): Arrow position differs by ${distance.toFixed(4)} from expected. ` +
-                `Expected: (${expectedPos.x.toFixed(3)}, ${expectedPos.y.toFixed(3)}, ${expectedPos.z.toFixed(3)}), ` +
-                `Actual: (${actualPos.x.toFixed(3)}, ${actualPos.y.toFixed(3)}, ${actualPos.z.toFixed(3)})`,
-        );
-    });
-
-    test("reverse horizontal edge (180°) - arrow at correct position", async () => {
-        await create2DGraph(
-            [
-                { id: "A", x: 3, y: 0 },
-                { id: "B", x: 0, y: 0 },
-            ],
-            [{ source: "A", target: "B" }],
-        );
-
-        const edge = edgeBetween(graph as Graph, "A", "B");
-        assert(edge, "Edge should exist");
-        assert(edge.arrowCap, "Arrow mesh should exist");
-
-        const srcPos = new Vector3(3, 0, 0);
-        const dstPos = new Vector3(0, 0, 0);
-        const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowCap.position;
-
-        const distance = Vector3.Distance(expectedPos, actualPos);
-        assert(
-            distance < POSITION_TOLERANCE,
-            `Reverse horizontal edge: Arrow position differs by ${distance.toFixed(4)} from expected. ` +
-                `Expected: (${expectedPos.x.toFixed(3)}, ${expectedPos.y.toFixed(3)}, ${expectedPos.z.toFixed(3)}), ` +
-                `Actual: (${actualPos.x.toFixed(3)}, ${actualPos.y.toFixed(3)}, ${actualPos.z.toFixed(3)})`,
-        );
-    });
-
-    test("downward diagonal edge (-45°) - arrow at correct position", async () => {
-        await create2DGraph(
-            [
-                { id: "A", x: 0, y: 3 },
-                { id: "B", x: 3, y: 0 },
-            ],
-            [{ source: "A", target: "B" }],
-        );
-
-        const edge = edgeBetween(graph as Graph, "A", "B");
-        assert(edge, "Edge should exist");
-        assert(edge.arrowCap, "Arrow mesh should exist");
-
-        const srcPos = new Vector3(0, 3, 0);
-        const dstPos = new Vector3(3, 0, 0);
-        const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowCap.position;
-
-        const distance = Vector3.Distance(expectedPos, actualPos);
-        assert(
-            distance < POSITION_TOLERANCE,
-            `Downward diagonal edge: Arrow position differs by ${distance.toFixed(4)} from expected. ` +
-                `Expected: (${expectedPos.x.toFixed(3)}, ${expectedPos.y.toFixed(3)}, ${expectedPos.z.toFixed(3)}), ` +
-                `Actual: (${actualPos.x.toFixed(3)}, ${actualPos.y.toFixed(3)}, ${actualPos.z.toFixed(3)})`,
-        );
-    });
-
-    test("pentagon graph - all arrows at correct positions", async () => {
-        // Create pentagon vertices
-        const pentagonNodes = [
-            { id: "A", x: 0, y: 3 }, // top
-            { id: "B", x: 2.85, y: 0.93 }, // top-right
-            { id: "C", x: 1.76, y: -2.43 }, // bottom-right
-            { id: "D", x: -1.76, y: -2.43 }, // bottom-left
-            { id: "E", x: -2.85, y: 0.93 }, // top-left
-        ];
-
-        const pentagonEdges = [
-            { source: "A", target: "B" },
-            { source: "B", target: "C" },
-            { source: "C", target: "D" },
-            { source: "D", target: "E" },
-            { source: "E", target: "A" },
-        ];
-
-        await create2DGraph(pentagonNodes, pentagonEdges);
-
-        // Verify each edge's arrow position
-        for (const edgeDef of pentagonEdges) {
-            const edgeId = `${edgeDef.source} -> ${edgeDef.target}`;
-            const edge = edgeBetween(graph as Graph, edgeDef.source, edgeDef.target);
-            assert(edge, `Edge ${edgeId} should exist`);
-            assert(edge.arrowCap, `Edge ${edgeId} should have arrow mesh`);
-
-            const srcNode = pentagonNodes.find((n) => n.id === edgeDef.source);
-            const dstNode = pentagonNodes.find((n) => n.id === edgeDef.target);
-            assert(srcNode, `Source node ${edgeDef.source} should exist`);
-            assert(dstNode, `Target node ${edgeDef.target} should exist`);
-
-            const srcPos = new Vector3(srcNode.x, srcNode.y, 0);
-            const dstPos = new Vector3(dstNode.x, dstNode.y, 0);
-            const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-            const actualPos = edge.arrowCap.position;
-
-            const distance = Vector3.Distance(expectedPos, actualPos);
-            assert(
-                distance < POSITION_TOLERANCE,
-                `Pentagon edge ${edgeId}: Arrow position differs by ${distance.toFixed(4)} from expected. ` +
-                    `Expected: (${expectedPos.x.toFixed(3)}, ${expectedPos.y.toFixed(3)}, ${expectedPos.z.toFixed(3)}), ` +
-                    `Actual: (${actualPos.x.toFixed(3)}, ${actualPos.y.toFixed(3)}, ${actualPos.z.toFixed(3)})`,
-            );
-        }
-    });
-
-    test("all arrows in XY plane (Z=0 for 2D)", async () => {
-        const nodes = [
-            { id: "A", x: 0, y: 0 },
-            { id: "B", x: 3, y: 0 },
-            { id: "C", x: 0, y: 3 },
-            { id: "D", x: 3, y: 3 },
-        ];
-
-        const edges = [
-            { source: "A", target: "B" },
-            { source: "A", target: "C" },
-            { source: "A", target: "D" },
-            { source: "B", target: "D" },
-        ];
-
-        await create2DGraph(nodes, edges);
-
-        const zTolerance = 0.001;
-        for (const edgeDef of edges) {
-            const edgeId = `${edgeDef.source} -> ${edgeDef.target}`;
-            const edge = edgeBetween(graph as Graph, edgeDef.source, edgeDef.target);
-            assert(edge, `Edge ${edgeId} should exist`);
-            assert(edge.arrowCap, `Edge ${edgeId} should have arrow mesh`);
-
-            assert(
-                Math.abs(edge.arrowCap.position.z) < zTolerance,
-                `Edge ${edgeId}: Arrow Z position should be 0 in 2D mode, got ${edge.arrowCap.position.z.toFixed(6)}`,
-            );
-        }
-    });
-});
-
-describe("Arrowhead Position Tests - 3D Mode", () => {
-    let container: HTMLElement | undefined;
-    let graph: Graph | undefined;
-
-    afterEach(() => {
-        if (graph) {
-            graph.dispose();
-        }
-
-        if (container?.parentNode) {
-            container.remove();
-        }
-    });
-
-    /**
-     * Helper to create a 3D graph with specified nodes and edges
-     */
-    async function create3DGraph(
-        nodes: { id: string; x: number; y: number; z: number }[],
-        edges: { source: string; target: string }[],
-    ): Promise<Graph> {
-        container = document.createElement("div");
-        container.style.width = "800px";
-        container.style.height = "600px";
-        document.body.append(container);
-
-        graph = new Graph(container);
-
-        await graph.setViewMode("3d");
-        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
-        await operationQueueOf(graph).waitForCompletion();
-
-        // Set up fixed layout so nodes register with LayoutManager
-        await graph.setLayout("fixed", { dim: 3 });
-        await operationQueueOf(graph).waitForCompletion();
-
-        // Add nodes with position object for FixedLayout to read
-        for (const node of nodes) {
-            await graph.addNode(
-                asData({
-                    id: node.id,
-                    position: { x: node.x, y: node.y, z: node.z },
-                }),
-            );
-        }
-
-        // Add edges
-        for (const edge of edges) {
-            await graph.addEdge(
-                asData({ id: `${edge.source}:${edge.target}`, source: edge.source, target: edge.target }),
-                { source: "source", target: "target" },
-            );
-        }
-
-        await waitForRender(graph);
-        return graph;
-    }
-
-    test("edge along X axis - arrow at correct position", async () => {
-        await create3DGraph(
-            [
-                { id: "A", x: 0, y: 0, z: 0 },
-                { id: "B", x: 3, y: 0, z: 0 },
-            ],
-            [{ source: "A", target: "B" }],
-        );
-
-        const edge = edgeBetween(graph as Graph, "A", "B");
-        assert(edge, "Edge should exist");
-        assert(edge.arrowCap, "Arrow mesh should exist");
-
-        const srcPos = new Vector3(0, 0, 0);
-        const dstPos = new Vector3(3, 0, 0);
-        const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowCap.position;
-
-        const distance = Vector3.Distance(expectedPos, actualPos);
-        assert(
-            distance < POSITION_TOLERANCE,
-            `X-axis edge: Arrow position differs by ${distance.toFixed(4)} from expected. ` +
-                `Expected: (${expectedPos.x.toFixed(3)}, ${expectedPos.y.toFixed(3)}, ${expectedPos.z.toFixed(3)}), ` +
-                `Actual: (${actualPos.x.toFixed(3)}, ${actualPos.y.toFixed(3)}, ${actualPos.z.toFixed(3)})`,
-        );
-    });
-
-    test("edge along Y axis - arrow at correct position", async () => {
-        await create3DGraph(
-            [
-                { id: "A", x: 0, y: 0, z: 0 },
-                { id: "B", x: 0, y: 3, z: 0 },
-            ],
-            [{ source: "A", target: "B" }],
-        );
-
-        const edge = edgeBetween(graph as Graph, "A", "B");
-        assert(edge, "Edge should exist");
-        assert(edge.arrowCap, "Arrow mesh should exist");
-
-        const srcPos = new Vector3(0, 0, 0);
-        const dstPos = new Vector3(0, 3, 0);
-        const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowCap.position;
-
-        const distance = Vector3.Distance(expectedPos, actualPos);
-        assert(
-            distance < POSITION_TOLERANCE,
-            `Y-axis edge: Arrow position differs by ${distance.toFixed(4)} from expected. ` +
-                `Expected: (${expectedPos.x.toFixed(3)}, ${expectedPos.y.toFixed(3)}, ${expectedPos.z.toFixed(3)}), ` +
-                `Actual: (${actualPos.x.toFixed(3)}, ${actualPos.y.toFixed(3)}, ${actualPos.z.toFixed(3)})`,
-        );
-    });
-
-    test("edge along Z axis - arrow at correct position", async () => {
-        await create3DGraph(
-            [
-                { id: "A", x: 0, y: 0, z: 0 },
-                { id: "B", x: 0, y: 0, z: 3 },
-            ],
-            [{ source: "A", target: "B" }],
-        );
-
-        const edge = edgeBetween(graph as Graph, "A", "B");
-        assert(edge, "Edge should exist");
-        assert(edge.arrowCap, "Arrow mesh should exist");
-
-        const srcPos = new Vector3(0, 0, 0);
-        const dstPos = new Vector3(0, 0, 3);
-        const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowCap.position;
-
-        const distance = Vector3.Distance(expectedPos, actualPos);
-        assert(
-            distance < POSITION_TOLERANCE,
-            `Z-axis edge: Arrow position differs by ${distance.toFixed(4)} from expected. ` +
-                `Expected: (${expectedPos.x.toFixed(3)}, ${expectedPos.y.toFixed(3)}, ${expectedPos.z.toFixed(3)}), ` +
-                `Actual: (${actualPos.x.toFixed(3)}, ${actualPos.y.toFixed(3)}, ${actualPos.z.toFixed(3)})`,
-        );
-    });
-
-    test("3D diagonal edge - arrow at correct position", async () => {
-        await create3DGraph(
-            [
-                { id: "A", x: 0, y: 0, z: 0 },
-                { id: "B", x: 2, y: 2, z: 2 },
-            ],
-            [{ source: "A", target: "B" }],
-        );
-
-        const edge = edgeBetween(graph as Graph, "A", "B");
-        assert(edge, "Edge should exist");
-        assert(edge.arrowCap, "Arrow mesh should exist");
-
-        const srcPos = new Vector3(0, 0, 0);
-        const dstPos = new Vector3(2, 2, 2);
-        const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowCap.position;
-
-        const distance = Vector3.Distance(expectedPos, actualPos);
-        assert(
-            distance < POSITION_TOLERANCE,
-            `3D diagonal edge: Arrow position differs by ${distance.toFixed(4)} from expected. ` +
-                `Expected: (${expectedPos.x.toFixed(3)}, ${expectedPos.y.toFixed(3)}, ${expectedPos.z.toFixed(3)}), ` +
-                `Actual: (${actualPos.x.toFixed(3)}, ${actualPos.y.toFixed(3)}, ${actualPos.z.toFixed(3)})`,
-        );
-    });
-
-    test("tetrahedron graph - all arrows at correct positions", async () => {
-        // Create tetrahedron vertices
-        const tetraNodes = [
-            { id: "A", x: 1, y: 1, z: 1 },
-            { id: "B", x: 1, y: -1, z: -1 },
-            { id: "C", x: -1, y: 1, z: -1 },
-            { id: "D", x: -1, y: -1, z: 1 },
-        ];
-
-        // All edges of tetrahedron
-        const tetraEdges = [
-            { source: "A", target: "B" },
-            { source: "A", target: "C" },
-            { source: "A", target: "D" },
-            { source: "B", target: "C" },
-            { source: "B", target: "D" },
-            { source: "C", target: "D" },
-        ];
-
-        await create3DGraph(tetraNodes, tetraEdges);
-
-        // Verify each edge's arrow position
-        for (const edgeDef of tetraEdges) {
-            const edgeId = `${edgeDef.source} -> ${edgeDef.target}`;
-            const edge = edgeBetween(graph as Graph, edgeDef.source, edgeDef.target);
-            assert(edge, `Edge ${edgeId} should exist`);
-            assert(edge.arrowCap, `Edge ${edgeId} should have arrow mesh`);
-
-            const srcNode = tetraNodes.find((n) => n.id === edgeDef.source);
-            const dstNode = tetraNodes.find((n) => n.id === edgeDef.target);
-            assert(srcNode, `Source node ${edgeDef.source} should exist`);
-            assert(dstNode, `Target node ${edgeDef.target} should exist`);
-
-            const srcPos = new Vector3(srcNode.x, srcNode.y, srcNode.z);
-            const dstPos = new Vector3(dstNode.x, dstNode.y, dstNode.z);
-            const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-            const actualPos = edge.arrowCap.position;
-
-            const distance = Vector3.Distance(expectedPos, actualPos);
-            assert(
-                distance < POSITION_TOLERANCE,
-                `Tetrahedron edge ${edgeId}: Arrow position differs by ${distance.toFixed(4)} from expected. ` +
-                    `Expected: (${expectedPos.x.toFixed(3)}, ${expectedPos.y.toFixed(3)}, ${expectedPos.z.toFixed(3)}), ` +
-                    `Actual: (${actualPos.x.toFixed(3)}, ${actualPos.y.toFixed(3)}, ${actualPos.z.toFixed(3)})`,
-            );
-        }
-    });
-
-    test("negative coordinate edges - arrows at correct positions", async () => {
-        await create3DGraph(
-            [
-                { id: "A", x: -2, y: -2, z: -2 },
-                { id: "B", x: 2, y: 2, z: 2 },
-                { id: "C", x: -2, y: 2, z: 0 },
-            ],
-            [
-                { source: "A", target: "B" },
-                { source: "A", target: "C" },
-                { source: "B", target: "C" },
-            ],
-        );
-
-        const testCases = [
-            { src: "A", dst: "B", srcPos: new Vector3(-2, -2, -2), dstPos: new Vector3(2, 2, 2) },
-            { src: "A", dst: "C", srcPos: new Vector3(-2, -2, -2), dstPos: new Vector3(-2, 2, 0) },
-            { src: "B", dst: "C", srcPos: new Vector3(2, 2, 2), dstPos: new Vector3(-2, 2, 0) },
-        ];
-
-        for (const tc of testCases) {
-            const edgeId = `${tc.src} -> ${tc.dst}`;
-            const edge = edgeBetween(graph as Graph, tc.src, tc.dst);
-            assert(edge, `Edge ${edgeId} should exist`);
-            assert(edge.arrowCap, `Edge ${edgeId} should have arrow mesh`);
-
-            const expectedPos = calculateExpectedArrowPosition(tc.srcPos, tc.dstPos);
-            const actualPos = edge.arrowCap.position;
-
-            const distance = Vector3.Distance(expectedPos, actualPos);
-            assert(
-                distance < POSITION_TOLERANCE,
-                `Edge ${edgeId}: Arrow position differs by ${distance.toFixed(4)} from expected. ` +
-                    `Expected: (${expectedPos.x.toFixed(3)}, ${expectedPos.y.toFixed(3)}, ${expectedPos.z.toFixed(3)}), ` +
-                    `Actual: (${actualPos.x.toFixed(3)}, ${actualPos.y.toFixed(3)}, ${actualPos.z.toFixed(3)})`,
-            );
-        }
-    });
-
-    test("cube graph with all face diagonals - arrows at correct positions", async () => {
-        // Cube vertices
-        const cubeNodes = [
-            { id: "A", x: 0, y: 0, z: 0 },
-            { id: "B", x: 2, y: 0, z: 0 },
-            { id: "C", x: 2, y: 2, z: 0 },
-            { id: "D", x: 0, y: 2, z: 0 },
-            { id: "E", x: 0, y: 0, z: 2 },
-            { id: "F", x: 2, y: 0, z: 2 },
-            { id: "G", x: 2, y: 2, z: 2 },
-            { id: "H", x: 0, y: 2, z: 2 },
-        ];
-
-        // Cube edges (12 edges)
-        const cubeEdges = [
-            // Bottom face
-            { source: "A", target: "B" },
-            { source: "B", target: "C" },
-            { source: "C", target: "D" },
-            { source: "D", target: "A" },
-            // Top face
-            { source: "E", target: "F" },
-            { source: "F", target: "G" },
-            { source: "G", target: "H" },
-            { source: "H", target: "E" },
-            // Vertical edges
-            { source: "A", target: "E" },
-            { source: "B", target: "F" },
-            { source: "C", target: "G" },
-            { source: "D", target: "H" },
-        ];
-
-        await create3DGraph(cubeNodes, cubeEdges);
-
-        // Verify each edge's arrow position
-        for (const edgeDef of cubeEdges) {
-            const edgeId = `${edgeDef.source} -> ${edgeDef.target}`;
-            const edge = edgeBetween(graph as Graph, edgeDef.source, edgeDef.target);
-            assert(edge, `Edge ${edgeId} should exist`);
-            assert(edge.arrowCap, `Edge ${edgeId} should have arrow mesh`);
-
-            const srcNode = cubeNodes.find((n) => n.id === edgeDef.source);
-            const dstNode = cubeNodes.find((n) => n.id === edgeDef.target);
-            assert(srcNode, `Source node ${edgeDef.source} should exist`);
-            assert(dstNode, `Target node ${edgeDef.target} should exist`);
-
-            const srcPos = new Vector3(srcNode.x, srcNode.y, srcNode.z);
-            const dstPos = new Vector3(dstNode.x, dstNode.y, dstNode.z);
-            const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-            const actualPos = edge.arrowCap.position;
-
-            const distance = Vector3.Distance(expectedPos, actualPos);
-            assert(
-                distance < POSITION_TOLERANCE,
-                `Cube edge ${edgeId}: Arrow position differs by ${distance.toFixed(4)} from expected. ` +
-                    `Expected: (${expectedPos.x.toFixed(3)}, ${expectedPos.y.toFixed(3)}, ${expectedPos.z.toFixed(3)}), ` +
-                    `Actual: (${actualPos.x.toFixed(3)}, ${actualPos.y.toFixed(3)}, ${actualPos.z.toFixed(3)})`,
-            );
-        }
-    });
-});
-
-describe("Arrow Position Edge Cases", () => {
-    let container: HTMLElement | undefined;
-    let graph: Graph | undefined;
-
-    afterEach(() => {
-        if (graph) {
-            graph.dispose();
-        }
-
-        if (container?.parentNode) {
-            container.remove();
-        }
-    });
-
-    async function createGraph(
-        twoD: boolean,
-        nodes: { id: string; x: number; y: number; z: number }[],
-        edges: { source: string; target: string }[],
-    ): Promise<Graph> {
-        container = document.createElement("div");
-        container.style.width = "800px";
-        container.style.height = "600px";
-        document.body.append(container);
-
-        graph = new Graph(container);
-
-        await graph.setViewMode(twoD ? "2d" : "3d");
-        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
-        await operationQueueOf(graph).waitForCompletion();
-
-        // Set up fixed layout so nodes register with LayoutManager
-        await graph.setLayout("fixed", { dim: twoD ? 2 : 3 });
-        await operationQueueOf(graph).waitForCompletion();
-
-        // Add nodes with position object for FixedLayout to read
-        for (const node of nodes) {
-            await graph.addNode(
-                asData({
-                    id: node.id,
-                    position: { x: node.x, y: node.y, z: node.z },
-                }),
-            );
-        }
-
-        for (const edge of edges) {
-            await graph.addEdge(
-                asData({ id: `${edge.source}:${edge.target}`, source: edge.source, target: edge.target }),
-                { source: "source", target: "target" },
-            );
-        }
-
-        await waitForRender(graph);
-        return graph;
-    }
-
-    test("very short edge - arrow still positioned correctly", async () => {
-        // Edge length just over 2 * node radius (1.5) to ensure nodes don't overlap
-        const shortDistance = 2;
-        await createGraph(
-            false,
-            [
-                { id: "A", x: 0, y: 0, z: 0 },
-                { id: "B", x: shortDistance, y: 0, z: 0 },
-            ],
-            [{ source: "A", target: "B" }],
-        );
-
-        const edge = edgeBetween(graph as Graph, "A", "B");
-        assert(edge, "Edge should exist");
-        assert(edge.arrowCap, "Arrow mesh should exist");
-
-        const srcPos = new Vector3(0, 0, 0);
-        const dstPos = new Vector3(shortDistance, 0, 0);
-        const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowCap.position;
-
-        const distance = Vector3.Distance(expectedPos, actualPos);
-        assert(
-            distance < POSITION_TOLERANCE,
-            `Short edge: Arrow position differs by ${distance.toFixed(4)} from expected. ` +
-                `Expected: (${expectedPos.x.toFixed(3)}, ${expectedPos.y.toFixed(3)}, ${expectedPos.z.toFixed(3)}), ` +
-                `Actual: (${actualPos.x.toFixed(3)}, ${actualPos.y.toFixed(3)}, ${actualPos.z.toFixed(3)})`,
-        );
-    });
-
-    test("very long edge - arrow still positioned correctly", async () => {
-        const longDistance = 100;
-        await createGraph(
-            false,
-            [
-                { id: "A", x: 0, y: 0, z: 0 },
-                { id: "B", x: longDistance, y: 0, z: 0 },
-            ],
-            [{ source: "A", target: "B" }],
-        );
-
-        const edge = edgeBetween(graph as Graph, "A", "B");
-        assert(edge, "Edge should exist");
-        assert(edge.arrowCap, "Arrow mesh should exist");
-
-        const srcPos = new Vector3(0, 0, 0);
-        const dstPos = new Vector3(longDistance, 0, 0);
-        const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowCap.position;
-
-        const distance = Vector3.Distance(expectedPos, actualPos);
-        assert(
-            distance < POSITION_TOLERANCE,
-            `Long edge: Arrow position differs by ${distance.toFixed(4)} from expected. ` +
-                `Expected: (${expectedPos.x.toFixed(3)}, ${expectedPos.y.toFixed(3)}, ${expectedPos.z.toFixed(3)}), ` +
-                `Actual: (${actualPos.x.toFixed(3)}, ${actualPos.y.toFixed(3)}, ${actualPos.z.toFixed(3)})`,
-        );
-    });
-
-    test("nodes at same X,Y with different Z - arrow correct (3D only)", async () => {
-        await createGraph(
-            false,
-            [
-                { id: "A", x: 0, y: 0, z: 0 },
-                { id: "B", x: 0, y: 0, z: 3 },
-            ],
-            [{ source: "A", target: "B" }],
-        );
-
-        const edge = edgeBetween(graph as Graph, "A", "B");
-        assert(edge, "Edge should exist");
-        assert(edge.arrowCap, "Arrow mesh should exist");
-
-        const srcPos = new Vector3(0, 0, 0);
-        const dstPos = new Vector3(0, 0, 3);
-        const expectedPos = calculateExpectedArrowPosition(srcPos, dstPos);
-        const actualPos = edge.arrowCap.position;
-
-        // For pure Z-axis edges, arrow should be at Z = 3 - NODE_RADIUS
-        assert(
-            Math.abs(actualPos.z - expectedPos.z) < POSITION_TOLERANCE,
-            `Z-only edge: Arrow Z position differs from expected. Expected Z=${expectedPos.z.toFixed(3)}, Actual Z=${actualPos.z.toFixed(3)}`,
-        );
-    });
-});
-
-describe("Arrowhead Position Tests - a node the edge's ray misses", () => {
-    let container: HTMLElement | undefined;
-    let graph: Graph | undefined;
-
-    afterEach(() => {
-        graph?.dispose();
-        container?.remove();
     });
 
     test("an edge down a torus's axis stops at the torus, not at its bounding sphere", async () => {
         // The ray cast from centre to centre runs through the hole of both rings and hits
         // neither, so the arrow is placed from the centres (#2643). That used to trim by the
         // bounding sphere's radius -- the box's half-diagonal -- and stopped a full unit short.
-        container = document.createElement("div");
-        container.style.width = "800px";
-        container.style.height = "600px";
-        document.body.append(container);
-        graph = new Graph(container);
-        await graph.init();
-        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
-        await styleEveryNode(graph, { "node.shape": "torus" });
-        await graph.setLayout("fixed", { dim: 3 });
-        await operationQueueOf(graph).waitForCompletion();
-        await graph.addNode(asData({ id: "A", position: { x: 0, y: 0, z: 0 } }));
-        await graph.addNode(asData({ id: "B", position: { x: 0, y: 4, z: 0 } }));
-        await graph.addEdge(asData({ id: "A:B", source: "A", target: "B" }), { source: "source", target: "target" });
-        // The torus layer reaches the meshes on a drawn frame.
-        for (let frame = 0; frame < 20 && graph.getNode("B")?.shapeType !== "torus"; frame++) {
-            graph.scene.render();
-            await nextFrame();
-        }
+        const g = await drawGraph(false, space(["A", 0, 0, 0], ["B", 0, 4, 0]), [["A", "B"]], {
+            "node.shape": "torus",
+        });
 
-        await waitForRender(graph);
-
-        const edge = edgeBetween(graph, "A", "B");
+        const edge = edgeBetween(g, "A", "B");
         assert(edge?.arrowCap, "the edge draws an arrow head");
-        const dst = graph.getNode("B");
+        const dst = g.getNode("B");
         assert(dst, "the destination node exists");
+        assert.strictEqual(dst.shapeType, "torus", "the layer drew the node as a torus");
         const halfHeight = dst.mesh.getBoundingInfo().boundingBox.extendSize.y * dst.mesh.scaling.y;
         const tip = edge.arrowCap.position;
-        assert.strictEqual(dst.shapeType, "torus", "the layer drew the node as a torus");
 
         assert.closeTo(tip.y, 4 - halfHeight, POSITION_TOLERANCE, "the arrow tip sits on the ring's plane face");
         assert.closeTo(tip.x, 0, POSITION_TOLERANCE);

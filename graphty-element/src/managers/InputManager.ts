@@ -1,6 +1,8 @@
 import type { Vector2 } from "@babylonjs/core/Maths/math.vector.js";
 import { Observable } from "@babylonjs/core/Misc/observable.js";
 
+import { fetchJson } from "../data/source-bytes";
+import { GraphtyError } from "../errors/GraphtyError";
 import type { GraphEventType, InputEnabledChangedEvent } from "../events";
 import { BabylonInputSystem } from "../input/babylon-input-system";
 import { MockDeviceInputSystem } from "../input/mock-device-input-system";
@@ -158,6 +160,9 @@ export class InputManager implements Manager {
         } catch (error) {
             const err = error instanceof Error ? error : new Error(String(error));
             this.context.eventManager.emitGraphError(null, err, "init", { component: "InputManager" });
+            if (err instanceof GraphtyError) {
+                throw err;
+            }
             throw new Error(`Failed to initialize InputManager: ${err.message}`);
         }
     }
@@ -474,15 +479,21 @@ export class InputManager implements Manager {
     /**
      * Load playback file
      * @param filename - Path or URL to the playback file
+     * @throws A `GraphtyError`: `E_FETCH_FAILED` when the file cannot be fetched, `E_PARSE_FAILED`
+     *     when it is not JSON with an `events` array of `{ timestamp, type, data }`.
      */
     private async loadPlaybackFile(filename: string): Promise<void> {
-        try {
-            const response = await fetch(filename);
-            const data = await response.json();
-            this.recordedEvents = data.events ?? [];
-        } catch (error) {
-            console.warn(`Failed to load playback file: ${filename}`, error);
+        const data = await fetchJson(filename);
+        const events = (data as { events?: unknown } | null)?.events;
+        if (!Array.isArray(events) || !events.every(isRecordedInputEvent)) {
+            throw new GraphtyError({
+                code: "E_PARSE_FAILED",
+                message: `the playback file is not an input recording: ${filename}`,
+                source: "data",
+                details: { url: filename, format: "json", reason: "bad-events" },
+            });
         }
+        this.recordedEvents = events;
     }
 
     /**
@@ -545,4 +556,17 @@ export class InputManager implements Manager {
             });
         }
     }
+}
+
+/**
+ * Whether a value has the shape of a {@link RecordedInputEvent}.
+ * @param value - One entry of a playback file's `events`.
+ * @returns True for `{ timestamp: number, type: string, data: object }`.
+ */
+function isRecordedInputEvent(value: unknown): value is RecordedInputEvent {
+    if (typeof value !== "object" || value === null) {
+        return false;
+    }
+    const { timestamp, type, data } = value as Record<string, unknown>;
+    return typeof timestamp === "number" && typeof type === "string" && typeof data === "object" && data !== null;
 }

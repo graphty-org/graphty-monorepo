@@ -6,28 +6,19 @@ import { gunzipSync } from "node:zlib";
 
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 
-import type { IssueRange, PageId, Range, SlowRange } from "../../web/src/contract.js";
+import {
+    type IssueRange,
+    PAGE_IDS,
+    PAGE_RANGES,
+    type PageId,
+    type Range,
+    type SlowRange,
+} from "../../web/src/contract.js";
 import { dynamoStore } from "../dynamo.js";
 import { runDrill, testHistory } from "../model/drill.js";
 import type { Store } from "../model/store.js";
 import { type ViewItem, viewKey, type ViewRoute } from "../views/index.js";
 
-const RANGES = ["1h", "6h", "24h"];
-const PAGES = new Set<string>([
-    "overview",
-    "master",
-    "pull-requests",
-    "ci",
-    "runners",
-    "flaky",
-    "releases",
-    "costs",
-    "data-sources",
-    "local-runs",
-    "issues",
-]);
-/** Each page's ranges, when not RANGES; the first is its default. */
-const PAGE_RANGES: Record<string, string[]> = { costs: ["7d", "28d"], issues: ["28d", "1h", "6h", "1d", "7d", "all"] };
 /** The slow sections, their ranges and run kinds (the first is the default). */
 const SECTIONS: Record<string, { ranges: string[]; kinds?: string[] }> = {
     "ci/shards": { ranges: ["7d", "28d"], kinds: ["full", "pr-bins"] },
@@ -57,20 +48,20 @@ export function routeOf(
     if (parts[0] !== "v1" || parts[1] !== "page" || parts.length < 3 || parts.length > 4) {
         return { status: 404, code: "unknown_route" };
     }
-    const page = (ALIAS[parts[2]] ?? parts[2]) as Exclude<PageId, "overview">;
-    if (!PAGES.has(page)) {
+    const page = (ALIAS[parts[2]] ?? parts[2]) as PageId;
+    if (!(PAGE_IDS as readonly string[]).includes(page)) {
         return { status: 404, code: "unknown_page" };
     }
     if (parts.length === 3) {
-        const ranges = PAGE_RANGES[page] ?? RANGES;
+        const ranges: readonly string[] = PAGE_RANGES[page];
         const range = query.range ?? ranges[0];
         if (!ranges.includes(range)) {
             return { status: 400, code: "bad_range" };
         }
         return { kind: "page", page, range: range as Range | SlowRange | IssueRange };
     }
-    const section = SECTIONS[`${page}/${parts[3]}`];
-    if (!section) {
+    const section = page === "overview" ? undefined : SECTIONS[`${page}/${parts[3]}`];
+    if (!section || page === "overview") {
         return { status: 404, code: "unknown_section" };
     }
     const range = query.range ?? "7d";

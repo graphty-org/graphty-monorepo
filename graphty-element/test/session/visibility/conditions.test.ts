@@ -439,6 +439,22 @@ describe("filter conditions", () => {
         session.dispose();
     });
 
+    it("records a rename or a change of within as an edit of that condition", async () => {
+        const session = await graph();
+        const { id } = await session.visibility.addCondition({ effect: "select", rule: HOSTS });
+        await session.visibility.updateCondition(id, { name: "Hosts" });
+        await session.visibility.updateCondition(id, { within: "graph" });
+
+        assert.deepStrictEqual(
+            session.history.steps.slice(-2).map((step) => step.fact),
+            [
+                { code: "visibility.condition-edit", params: { id, effect: "select", previousEffect: "select" } },
+                { code: "visibility.condition-edit", params: { id, effect: "select", previousEffect: "select" } },
+            ],
+        );
+        session.dispose();
+    });
+
     it("refuses a condition that reads a run over the visible graph, which it would move itself", async () => {
         const session = await graph();
         const circular = {
